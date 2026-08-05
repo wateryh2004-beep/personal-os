@@ -29,6 +29,12 @@ type CalendarPayload = {
   isAllDay: boolean;
 };
 
+type CalendarDeletePayload = {
+  subject: string;
+  startsAt: string;
+  endsAt: string;
+};
+
 export class MicrosoftGraphError extends Error {
   constructor(public readonly code: string) {
     super(code);
@@ -198,7 +204,7 @@ export async function syncMicrosoftCalendar(connectionId: string, userId: string
 export async function executeCalendarOperation(operationId: string, userId: string) {
   const admin = createAdminClient();
   const { data: operation, error } = await admin.from("calendar_operations")
-    .select("id,connection_id,operation_type,payload,status")
+    .select("id,connection_id,operation_type,provider_event_id,payload,status")
     .eq("id", operationId).eq("user_id", userId).eq("status", "queued").maybeSingle();
   if (error || !operation) throw new MicrosoftGraphError("operation_unavailable");
   await admin.from("calendar_operations").update({ status: "processing", claimed_at: new Date().toISOString() }).eq("id", operation.id);
@@ -207,6 +213,19 @@ export async function executeCalendarOperation(operationId: string, userId: stri
       const count = await syncMicrosoftCalendar(operation.connection_id, userId);
       await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), result: { synced_event_count: count } }).eq("id", operation.id);
       await audit(userId, "execute", operation.id, { operation_type: "sync", result: "succeeded", synced_event_count: count });
+      return;
+    }
+    if (operation.operation_type === "delete") {
+      const value = operation.payload as CalendarDeletePayload;
+      if (!operation.provider_event_id || !value.subject || !value.startsAt || !value.endsAt) throw new MicrosoftGraphError("operation_payload_invalid");
+      const accessToken = await accessTokenForConnection(operation.connection_id, userId);
+      await graph(accessToken, `/me/events/${encodeURIComponent(operation.provider_event_id)}`, { method: "DELETE" });
+      const { error: archiveError } = await admin.from("calendar_events")
+        .update({ archived_at: new Date().toISOString() })
+        .eq("user_id", userId).eq("provider_event_id", operation.provider_event_id).is("archived_at", null);
+      if (archiveError) throw new MicrosoftGraphError("calendar_cache_failed");
+      await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), result: { provider_event_id: operation.provider_event_id } }).eq("id", operation.id);
+      await audit(userId, "execute", operation.id, { operation_type: "delete", result: "succeeded", provider_event_id: operation.provider_event_id });
       return;
     }
     if (operation.operation_type !== "create") throw new MicrosoftGraphError("operation_not_supported");

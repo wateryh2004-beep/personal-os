@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCalendarEventSchema } from "@/features/calendar/schemas";
+import { createCalendarEventSchema, deleteCalendarEventSchema } from "@/features/calendar/schemas";
 import { calendarPayload, eventForGraph } from "@/features/calendar/utils";
 
 describe("calendar operation payloads", () => {
@@ -17,6 +17,12 @@ describe("calendar operation payloads", () => {
 
   it("rejects an end time that is not after the start", () => {
     expect(createCalendarEventSchema.safeParse({ ...event, endsAt: event.startsAt }).success).toBe(false);
+  });
+
+  it("accepts only one explicit event for deletion", () => {
+    expect(deleteCalendarEventSchema.parse({ providerEventId: "event-123", subject: event.subject, startsAt: event.startsAt, endsAt: event.endsAt })).toMatchObject({ providerEventId: "event-123" });
+    expect(deleteCalendarEventSchema.safeParse({ providerEventId: "", subject: event.subject, startsAt: event.startsAt, endsAt: event.endsAt }).success).toBe(false);
+    expect(deleteCalendarEventSchema.safeParse({ providerEventId: ["event-1", "event-2"], subject: event.subject, startsAt: event.startsAt, endsAt: event.endsAt }).success).toBe(false);
   });
 
   it("keeps the queued payload minimal and converts it to Graph's event shape", () => {
