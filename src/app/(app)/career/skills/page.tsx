@@ -1,0 +1,6 @@
+import { CareerNav } from "@/components/career/career-nav";
+import { Field, PrimaryButton, SelectField, TextField } from "@/components/career/form-controls";
+import { PageHeader } from "@/components/shared/page-header";
+import { createSkill } from "@/features/career/actions";
+import { getSkills } from "@/features/career/queries";
+export default async function SkillsPage() { const skills = await getSkills(); return <><PageHeader title="Skills" description="用经历与证据说明能力，不使用百分比熟练度。" /><CareerNav current="/career/skills" /><form action={createSkill} className="mb-8 grid gap-4 border-b pb-8 md:grid-cols-3"><Field label="技能名称" name="name" required /><SelectField label="类别" name="category" values={["technical", "analytical", "business", "communication", "language", "domain", "tool", "other"]} defaultValue="other" /><SelectField label="熟练度" name="proficiency" values={["learning", "basic", "working", "proficient", "advanced"]} defaultValue="learning" /><Field label="最近使用" name="last_used_at" type="date" /><TextField label="证据说明" name="evidence_markdown" /><div><PrimaryButton>创建技能</PrimaryButton></div></form><div className="divide-y border-y">{skills.map((skill) => <p key={skill.id} className="flex justify-between py-3"><span>{skill.name}</span><span className="font-mono text-xs text-zinc-500">{skill.category} · {skill.proficiency}</span></p>)}</div></>; }
