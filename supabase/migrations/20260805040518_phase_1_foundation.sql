@@ -154,11 +154,10 @@ create policy "activity_update_own" on public.activity_events for update using (
 create policy "activity_delete_own" on public.activity_events for delete using (user_id = auth.uid());
 create policy "audit_select_own" on public.audit_logs for select using (user_id = auth.uid());
 create policy "audit_insert_own" on public.audit_logs for insert with check (user_id = auth.uid());
-create policy "audit_update_own" on public.audit_logs for update using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "audit_delete_own" on public.audit_logs for delete using (user_id = auth.uid());
 
 -- Version rows are append-only. Ordinary users may read and insert only their own snapshots.
 create policy "note_versions_select_own" on public.note_versions for select using (user_id = auth.uid());
 create policy "note_versions_insert_own" on public.note_versions for insert with check (user_id = auth.uid() and created_by = auth.uid());
 
 revoke update, delete on public.note_versions from anon, authenticated;
+revoke update, delete on public.audit_logs from anon, authenticated;
