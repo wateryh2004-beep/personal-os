@@ -12,9 +12,12 @@
     "accounts": "node scripts/run-calendar-mcp.mjs --list-accounts",
     "verify": "node scripts/run-calendar-mcp.mjs --verify-login",
     "start": "node scripts/run-calendar-mcp.mjs",
-    "logout": "node scripts/run-calendar-mcp.mjs --logout"
+    "logout": "node scripts/run-calendar-mcp.mjs --logout",
+    "bridge": "node scripts/bridge.mjs",
+    "bridge:once": "node scripts/bridge.mjs --once"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@softeria/ms-365-mcp-server": "0.136.0"
   }
 }

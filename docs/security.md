@@ -43,6 +43,15 @@ with check (user_id = auth.uid())
   不可用时才以私有目录、0600 权限回退到 Application Support 文件。
 - 任何未来写入 Outlook 的操作都必须先由 Personal OS 服务端验证，并取得用户确认；
   不得让 AI、浏览器或 Vercel Function 直接持有 Microsoft Token。
+- `/api/calendar/companion/*` 只接受同时携带 `CALENDAR_COMPANION_BRIDGE_TOKEN`
+  和已启用 connection ID 的本机桥接器；该 token 是 Vercel 与本机私有环境变量，
+  不属于浏览器或 Supabase 数据。
+- 为了在桥接器回写 Outlook 成功结果时跨过用户 Cookie 边界，Vercel 需配置
+  `SUPABASE_SECRET_KEY`。它只在这两个 bearer-token 保护的 Route Handler 内创建
+  admin client，绝不进入 client bundle、Server Action、日志或本机 Companion。
+- `calendar_events` 对用户 RLS 为只读；`calendar_operations` 的数据库触发器只允许
+  草稿 → 已确认/取消、已确认 → 取消。`processing`、`succeeded`、`failed` 只可由
+  service role 的桥接结果写入，因此网页不能伪造 Outlook 已执行。
 
 ## 安全验证清单
 

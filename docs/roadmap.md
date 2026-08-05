@@ -71,5 +71,7 @@
 ## Microsoft Calendar 技术验证
 
 - 已建立独立、本机运行的 Microsoft Calendar Companion；固定上游依赖、只启用 Calendar 工具并限制最小权限。
-- 尚未接入 Vercel、Supabase、AI、Tasks 或 Personal OS 页面；必须先完成个人账户的 Device Code 登录和专用测试日历读写验证。
+- 已实现 `/calendar`、私有缓存、确认式操作队列、审计与本机出站桥接器；Outlook 保持权威来源，令牌仍只在 macOS Keychain。
+- 待完成：在生产 Supabase 应用 migration，配置 Vercel 的两个 server-only 变量，启用网页 connection 并在 Mac 启动 bridge，随后用专用测试日历验证读取、创建、更新、删除与重启后的静默会话恢复。
+- 不接入 AI、Tasks、邮件、文件或浏览器直连 Microsoft Graph。
 - 个人数据需要备份、导出保留期和失窃设备策略；这些是部署前必须补全的运行决策。

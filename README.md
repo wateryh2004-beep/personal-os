@@ -50,9 +50,11 @@ Token 放进 Vercel 或 Supabase，本仓库提供一个独立的本机 Companio
 `@softeria/ms-365-mcp-server@0.136.0`、仅启用 Calendar、只请求
 `User.Read` 与 `Calendars.ReadWrite`，并优先使用 macOS Keychain 保存 Token。
 
-它目前只是经过权限验证的本机桥接层，尚未接入网页、Supabase、AI 或 Tasks。
-首次 Device Code 授权与专用测试日历的读写验证必须由账户本人完成；完整流程见
-[`docs/microsoft-calendar-companion.md`](docs/microsoft-calendar-companion.md)。
+它现在通过确认式队列接入 `/calendar`：网页创建日程草稿，用户明确确认后，由
+Mac 本机桥接器调用 Microsoft Graph，再回写只读缓存和审计记录。Microsoft Token
+仍只保存在本机 Keychain，绝不进入 Vercel、Supabase 或 Git；没有 AI 或 Tasks
+接入。首次部署与启动步骤见
+[`docs/microsoft-calendar-integration.md`](docs/microsoft-calendar-integration.md)。
 
 ## 故障排查
 

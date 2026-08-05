@@ -21,9 +21,20 @@ Microsoft Graph 的 Device Code 与 MSAL token cache 不适合放入 Vercel 的�
 Mac 本机 Companion → Microsoft Graph → Outlook Calendar（权威来源）
 ```
 
-它不连接 Supabase，不开 HTTP 端口，也不将 Token 交给 Next.js。只有其测试通过后，
-才会添加明确的 Adapter 和确认式命令队列；届时仍必须保持 Outlook 为权威来源，
-不能由本地缓存独立产生或覆盖事件。
+它不向外开放 HTTP 端口，也不将 Token 交给 Next.js。Calendar 集成通过受限的
+出站轮询完成：
+
+```text
+浏览器（owner session）→ Server Action → Supabase command queue
+                                         ↑              ↓
+                         cache + audit ← Vercel bridge routes ← Mac Companion → Graph
+```
+
+`calendar_events` 是未来 14 天的只读缓存，不是权威来源；`calendar_operations`
+先以 `pending_confirmation` 保存，只有明确确认后才进入 `queued`。Mac 本机桥接器
+带着独立 bearer token 主动领取一条命令，通过 stdio 调用固定版本的 Calendar MCP，
+再在 Graph 成功后回写结果。桥接 route 是唯一使用 server-only Supabase secret key
+的代码路径；普通页面、查询与写入仍使用用户 SSR client 与 RLS。
 
 当前官方依据：Next.js App Router 页面和布局默认是 Server Components，Server Actions 用于变更；Supabase 的 Next.js SSR 指南要求 server/browser 两类客户端以及 Proxy 刷新 cookie；shadcn 的 Next.js CLI 支持选择 Radix。见 [Next.js App Router](https://nextjs.org/docs/app)、[Next.js Server Components](https://nextjs.org/docs/app/getting-started/server-and-client-components)、[Supabase SSR](https://supabase.com/docs/guides/auth/server-side/nextjs) 和 [shadcn Next.js](https://ui.shadcn.com/docs/installation/next)。
 
