@@ -13,7 +13,7 @@
 3. 用 shadcn CLI 初始化并选择 Radix；只添加 Phase 1 实际使用的 UI 组件。
 4. 初始化 Supabase CLI，本地 config 与首个空 migration；生成类型的命令进入 package scripts。
 
-## 2. 数据库、安全与认证（migration 已创建，尚未应用）
+## 2. 数据库、安全与认证（基础 migration 已应用）
 
 1. 新建 migration：profiles、Areas/Projects/Tasks、Inbox、Notes/Versions、活动/审计、导出作业、枚举/检查约束、索引和 `updated_at` 触发器。
 2. 在同一 migration 启用并测试 RLS，建立 profile 创建触发器与受控 audit 写入方案。
@@ -40,6 +40,12 @@
 1. 实现导出 job、私有 Storage、manifest、ZIP 与受保护下载；明确过期规则。
 2. 完成关键路径 E2E、RLS、Server Action 验证、移动端与键盘可访问性检查。
 3. 在独立的部署任务中连接 Vercel/Supabase、设置 secrets、迁移生产库、预览验收。此阶段才考虑部署。
+
+## Career Module Phase 1（进行中）
+
+- 已创建 `codex/career-foundation` 分支和可审查 migration；远端尚未应用该 migration。
+- 已实现职业档案、方向、经历、Facts/Outputs/Bullets、技能、证书、核心文件/关联表、私有文件上传、Career 搜索和脱敏 JSON 导出骨架。
+- 待完成：迁移远端应用与双用户 RLS 验证、体验级编辑/归档界面、私有签名下载、全模块搜索与 CSV/ZIP 导出。
 
 ## 需要用户手动提供/配置
 

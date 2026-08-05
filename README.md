@@ -1,6 +1,6 @@
 # Personal OS
 
-私人、可迁移的个人数据与决策系统。当前分支提供 Phase 1 应用壳、密码登录保护、Supabase SSR 基础和可审查的数据库 migration；Career、Investing、Files、Photos、Reviews 仅为导航占位。
+私人、可迁移的个人数据与决策系统。当前分支提供 Phase 1 应用壳、密码登录保护、Supabase SSR 基础和可审查的数据库 migration，以及 Career Module Phase 1 的职业档案、经历、事实、成果、表达、技能、证书与私有证明材料。
 
 ## 本地启动
 
@@ -21,7 +21,7 @@ supabase db push
 supabase migration list
 ```
 
-迁移文件位于 `supabase/migrations/`；它创建 profiles、areas、projects、notes、note_versions、tasks、inbox_items、activity_events、audit_logs，并为所有业务表启用 RLS。`note_versions` 是 append-only。
+迁移文件位于 `supabase/migrations/`；Career migration 新增 Career 数据表、通用 `documents`、`entity_links` 与 Storage RLS 策略。创建 migration 后，须在 Supabase Dashboard 的 Storage 新建**私有** bucket `private-files`（不要选择 Public），再执行 migration；`note_versions` 和 `experience_fact_versions` 均为 append-only。
 
 ## 质量与 Git 工作流
 
@@ -36,7 +36,7 @@ npm run build
 
 ## 安全与导出
 
-服务端通过 Supabase `getClaims()` 检查会话和 OWNER_EMAIL；浏览器传入的 user_id 不被信任，数据库 RLS 再次隔离数据。数据导出、Markdown 笔记版本、自动保存和 CRUD Server Actions 仍待后续提交完成；绝不使用 service-role key 作为应用运行依赖。
+服务端通过 Supabase `getClaims()` 检查会话和 OWNER_EMAIL；浏览器传入的 user_id 不被信任，数据库 RLS 再次隔离数据。Career 导出使用 `GET /api/exports/career`，默认不包含证书编号或文件原件；文件只在私有 bucket 中通过受授权的会话访问。绝不使用 service-role key 作为应用运行依赖。
 
 ## 故障排查
 

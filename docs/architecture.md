@@ -71,3 +71,9 @@
 ## 数据导出
 
 导出是明确的领域能力：Server Action 创建 `export_jobs`；后台/受控执行器生成含 `manifest.json`、每个业务表 JSON/CSV、Notes 的 `.md`、版本记录及 Storage 文件清单的 ZIP，写至私有 bucket。下载通过经验证的短时签名 URL 或受鉴权的 Route Handler；文件到期删除，作业记录保留审计痕迹。首版不要求跨库实时复制。
+
+## Career Module Phase 1
+
+Career 使用独立、可迁移的标准关系表：`career_profiles`、`career_directions`、`experiences`、`experience_facts`、`experience_fact_versions`、`experience_outputs`、`experience_bullets`、`bullet_fact_links`、`skills`、`experience_skills`、`certifications`。通用 `profiles.display_name` 不复制到 Career Profile。`documents` 和 `entity_links` 位于 Core 层，供现有和未来模块复用；多态链接由受控枚举限制实体类型，并在 Server Action 中校验双方所有权。
+
+Fact 的初始内容与每次更新均由数据库触发器追加到 `experience_fact_versions`；版本表不允许 UPDATE/DELETE。文件元数据进 `documents`，对象在私有 Storage 的 `{user_id}/career/.../{uuid}.{extension}` 路径；原始文件名仅做元数据。导出目前为经鉴权的 JSON Route Handler，默认脱敏 `credential_number` 并仅输出文件清单。

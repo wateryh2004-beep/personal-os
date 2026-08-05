@@ -35,3 +35,9 @@ with check (user_id = auth.uid())
 ## 安全验证清单
 
 在引入首个模块前验证：未认证重定向、伪造 `user_id` 无效、用户 A 不能读写用户 B 的各类记录、归档记录默认不可见、私有导出不可猜测访问、审计不可篡改、生产日志不含 Markdown 私密内容或 token。
+
+## Career 与私有文件
+
+Career 的每张表和 `documents`、`entity_links` 均启用 RLS，并为 SELECT/INSERT/UPDATE/DELETE 设定 `authenticated` + `auth.uid() = user_id` 策略；事实版本只允许 SELECT/INSERT。普通 Server Actions 首先执行 `requireOwner()`，随后进行 Zod 校验及关联对象所有权检查。`credential_number` 不写入审计的 `after_data`，也不出现在默认导出。
+
+`private-files` 必须在 Dashboard 创建为私有 bucket。Storage object policy 同时限制 bucket 名称及首个路径段等于 `auth.uid()`；浏览器不拥有 service role，文件元数据写失败时会删除刚上传的对象。正式签名 URL 下载界面仍待后续实现。

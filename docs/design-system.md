@@ -43,3 +43,5 @@ RootLayout
     ├── Optional DetailPanel
     └── CommandPalette (client island, Phase 1 shell)
 ```
+
+Career 延续同一应用壳：二级导航使用细底线，不另建仪表盘。经历、事实和成果以列表与分隔线表达层次；状态总是同时显示文字，敏感字段不会在普通列表呈现。
