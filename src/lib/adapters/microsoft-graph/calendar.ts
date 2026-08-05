@@ -96,28 +96,27 @@ export async function exchangeMicrosoftDeviceCode(deviceCode: string) {
 async function accessTokenForConnection(connectionId: string, userId: string) {
   const admin = createAdminClient();
   const { data: credential, error } = await admin
-    .schema("private")
-    .from("calendar_oauth_credentials")
-    .select("refresh_token_ciphertext")
-    .eq("connection_id", connectionId)
+    .from("calendar_connections")
+    .select("oauth_refresh_token_ciphertext")
+    .eq("id", connectionId)
     .eq("user_id", userId)
     .maybeSingle();
-  if (error || !credential) throw new MicrosoftGraphError("calendar_not_connected");
+  if (error || !credential?.oauth_refresh_token_ciphertext) throw new MicrosoftGraphError("calendar_not_connected");
 
   const refreshed = await microsoftForm("token", {
     grant_type: "refresh_token",
     client_id: MICROSOFT_CLIENT_ID,
-    refresh_token: decryptMicrosoftRefreshToken(credential.refresh_token_ciphertext),
+    refresh_token: decryptMicrosoftRefreshToken(credential.oauth_refresh_token_ciphertext),
     scope: MICROSOFT_SCOPES,
   });
   const accessToken = typeof refreshed.access_token === "string" ? refreshed.access_token : "";
   const refreshToken = typeof refreshed.refresh_token === "string" ? refreshed.refresh_token : "";
   const expiresIn = typeof refreshed.expires_in === "number" ? refreshed.expires_in : 3600;
   if (!accessToken || !refreshToken) throw new MicrosoftGraphError("token_response_invalid");
-  const { error: updateError } = await admin.schema("private").from("calendar_oauth_credentials").update({
-    refresh_token_ciphertext: encryptMicrosoftRefreshToken(refreshToken),
-    token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
-  }).eq("connection_id", connectionId).eq("user_id", userId);
+  const { error: updateError } = await admin.from("calendar_connections").update({
+    oauth_refresh_token_ciphertext: encryptMicrosoftRefreshToken(refreshToken),
+    oauth_token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+  }).eq("id", connectionId).eq("user_id", userId);
   if (updateError) throw new MicrosoftGraphError("credential_update_failed");
   return accessToken;
 }

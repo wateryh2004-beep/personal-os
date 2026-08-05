@@ -36,8 +36,8 @@ with check (user_id = auth.uid())
 
 - Device Code 只由用户在 Microsoft 官方页面完成。临时 `device_code` 使用加密、
   HttpOnly、短期 Cookie，不返回浏览器 JavaScript。
-- Refresh Token 只作为 AES-256-GCM 密文保存在 `private` schema；`private` schema
-  不授权 anon/authenticated 角色，也不通过 PostgREST 公开。短期 Access Token 不落库。
+- Refresh Token 只作为 AES-256-GCM 密文保存在有 RLS 的 `calendar_connections` 行；
+  解密密钥只存在于 Vercel server-only 环境变量。短期 Access Token 不落库。
 - `SUPABASE_SECRET_KEY` 是 Vercel server-only 变量，用于创建受保护的 admin client
   与派生加密密钥；绝不进入 client bundle、日志或 Git。无需 Microsoft Client Secret。
 - 所有 Graph 操作均先检查 session 与 `OWNER_EMAIL`；任何写入 Outlook 的操作仍必须

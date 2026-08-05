@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { executeCalendarOperation, MicrosoftGraphError } from "@/lib/adapters/microsoft-graph/calendar";
+import { executeCalendarOperation } from "@/lib/adapters/microsoft-graph/calendar";
 import { cancelOperationSchema, confirmOperationSchema, createCalendarEventSchema } from "./schemas";
 import { calendarPayload } from "./utils";
 
@@ -50,7 +50,7 @@ export async function confirmCalendarOperation(formData: FormData) {
   const { data, error } = await supabase.from("calendar_operations").update({ status: "queued", confirmed_at: new Date().toISOString() }).eq("id", parsed.data.operationId).eq("status", "pending_confirmation").select("id,operation_type").maybeSingle();
   if (error || !data) fail();
   await audit(supabase, userId, "confirm", data.id, { operation_type: data.operation_type });
-  try { await executeCalendarOperation(data.id, userId); } catch (error) { if (error instanceof MicrosoftGraphError) fail(); throw error; }
+  try { await executeCalendarOperation(data.id, userId); } catch { /* The operation stores a safe error code; render it instead of crashing the page. */ }
   revalidatePath("/calendar");
 }
 
@@ -70,6 +70,6 @@ export async function queueCalendarSync() {
   const { data, error } = await supabase.from("calendar_operations").insert({ user_id: userId, connection_id: activeConnection.id, operation_type: "sync", status: "queued" }).select("id").single();
   if (error || !data) fail();
   await audit(supabase, userId, "request", data.id, { operation_type: "sync" });
-  try { await executeCalendarOperation(data.id, userId); } catch (error) { if (error instanceof MicrosoftGraphError) fail(); throw error; }
+  try { await executeCalendarOperation(data.id, userId); } catch { /* The operation stores a safe error code; render it instead of crashing the page. */ }
   revalidatePath("/calendar");
 }

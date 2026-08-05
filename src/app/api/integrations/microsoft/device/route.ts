@@ -73,17 +73,12 @@ export async function PATCH(request: NextRequest) {
       provider: "microsoft_graph_public_client",
       status: "enabled",
       oauth_connected_at: new Date().toISOString(),
+      oauth_refresh_token_ciphertext: encryptMicrosoftRefreshToken(refreshToken),
+      oauth_token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
       archived_at: null,
       last_error_code: null,
     }, { onConflict: "user_id" }).select("id").single();
     if (connectionError || !connection) return clearDeviceCookie(failure(500, "connection_save_failed"));
-    const { error: credentialError } = await admin.schema("private").from("calendar_oauth_credentials").upsert({
-      connection_id: connection.id,
-      user_id: userId,
-      refresh_token_ciphertext: encryptMicrosoftRefreshToken(refreshToken),
-      token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
-    }, { onConflict: "user_id" });
-    if (credentialError) return clearDeviceCookie(failure(500, "credential_save_failed"));
     await admin.from("audit_logs").insert({ user_id: userId, action: "connect", entity_type: "calendar_connection", entity_id: connection.id, after_data: { provider: "microsoft_graph_public_client" }, actor_type: "user" });
     return clearDeviceCookie(NextResponse.json({ status: "connected" }));
   } catch (error) {

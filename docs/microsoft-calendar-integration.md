@@ -24,9 +24,9 @@ Redirect URL。公共 client ID 不是秘密；它只在 server-only adapter 内
 
 - Device Code 只以加密、HttpOnly、短期 Cookie 暂存，浏览器 JavaScript 读不到原始
   `device_code`。
-- Refresh Token 在 Vercel 服务端使用 AES-256-GCM 加密后写入
-  `private.calendar_oauth_credentials`。该表不在 `public` schema，不会通过 PostgREST
-  暴露给浏览器。
+- Refresh Token 在 Vercel 服务端使用 AES-256-GCM 加密后写入已有、已启用 RLS 的
+  `calendar_connections.oauth_refresh_token_ciphertext`。浏览器角色只能访问自己的行，
+  且无法取得用于解密的 Vercel server-only 密钥；明文 token 不写入 PostgreSQL。
 - 加密密钥由 Vercel server-only `SUPABASE_SECRET_KEY` 派生；它不能使用
   `NEXT_PUBLIC_` 前缀，也不得进入日志、Git 或客户端 bundle。
 - 每次图表请求前以 Refresh Token 向 Microsoft 换取短期 Access Token；续期后的

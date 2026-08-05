@@ -14,7 +14,7 @@
 
 Calendar 使用 Vercel server-only Microsoft Graph adapter，而非本机桥接器。通过公共
 OAuth Device Code 取得的 refresh credential 先在服务端 AES-256-GCM 加密，再保存到
-非暴露的 `private.calendar_oauth_credentials`。`calendar_events` 是 Outlook 的近期
+RLS 保护的 `calendar_connections` 密文字段。`calendar_events` 是 Outlook 的近期
 只读缓存；`calendar_operations` 先以 `pending_confirmation` 保存，明确确认后才由
 受保护的 Server Action 执行并回写成功或失败结果。此模式由 Vercel 请求驱动，不要求
 Mac 常开，也不使用 Microsoft Client Secret 或 Redirect URL。
