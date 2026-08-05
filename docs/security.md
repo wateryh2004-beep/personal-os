@@ -2,7 +2,7 @@
 
 ## 身份与会话
 
-- 采用 Supabase Auth + `@supabase/ssr` cookie 会话与 PKCE；Phase 1 只启用 Magic Link，不提供密码登录。
+- 采用 Supabase Auth + `@supabase/ssr` cookie 会话与 PKCE；根据当前施工提示，Phase 1 改为 owner-only 邮箱密码登录，不提供公开注册页面。
 - `src/lib/supabase/server.ts` 只在服务端创建 cookie client；浏览器 client 使用 URL 和 publishable key。`proxy.ts` 刷新会话。
 - 每次页面读取和 Server Action 都用 `auth.getClaims()` 验证身份并取得 `sub`。不得信任 `getSession()` 返回的 user，也不得读取/接受表单中的 `user_id`。
 - 用户身份来自 session 后，应用层将其作为写入 `user_id`；数据库 RLS 是最终隔离边界。
