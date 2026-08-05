@@ -17,7 +17,12 @@ export async function POST(request: Request) {
   try {
     const { data: profile } = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
     const agent = await createCalendarAgent({ userId, supabase, timezone: profile?.timezone || "Asia/Shanghai" });
-    return createAgentUIStreamResponse({ agent, uiMessages: body.data.messages, abortSignal: request.signal, timeout: { totalMs: 25_000 } });
+    return createAgentUIStreamResponse({
+      agent,
+      uiMessages: body.data.messages,
+      abortSignal: request.signal,
+      timeout: { totalMs: 18_000, firstChunkMs: 8_000, chunkMs: 8_000, toolMs: 4_000 },
+    });
   } catch (error) {
     const message = error instanceof Error && error.message === "deepseek_not_configured" ? "请先在 Settings 保存 DeepSeek API Key。" : "AI 日历助手暂时不可用，请检查 DeepSeek 设置后重试。";
     return Response.json({ error: message }, { status: 503 });
