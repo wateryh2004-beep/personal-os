@@ -33,9 +33,13 @@ export async function createExperience(formData: FormData) {
   await audit(supabase, userId, "create", "experience", data.id, { organization: value.organization, role: value.role }); revalidatePath("/career"); redirect(`/career/experiences/${data.id}`);
 }
 export async function createFact(formData: FormData) {
-  const { supabase, userId } = await requireOwner(); const value = parse(factSchema, formObject(formData)); await own(supabase, "experiences", value.experience_id); if (value.source_document_id) await own(supabase, "documents", value.source_document_id);
+  const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(factSchema, { ...raw, source_document_id: raw.source_document_id || null }); await own(supabase, "experiences", value.experience_id); if (value.source_document_id) await own(supabase, "documents", value.source_document_id);
   const { data, error } = await supabase.from("experience_facts").insert({ ...value, user_id: userId }).select("id").single(); if (error) failed(error);
   await audit(supabase, userId, "create", "experience_fact", data.id, { experience_id: value.experience_id, fact_type: value.fact_type }); revalidatePath(`/career/experiences/${value.experience_id}`); revalidatePath("/career");
+}
+export async function updateFact(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(factSchema, { ...raw, source_document_id: raw.source_document_id || null }); const factId = String(formData.get("fact_id") || ""); await own(supabase, "experience_facts", factId); await own(supabase, "experiences", value.experience_id); if (value.source_document_id) await own(supabase, "documents", value.source_document_id);
+  const { error } = await supabase.from("experience_facts").update(value).eq("id", factId); if (error) failed(error); await audit(supabase, userId, "update", "experience_fact", factId, { experience_id: value.experience_id, fact_type: value.fact_type }); revalidatePath(`/career/experiences/${value.experience_id}`);
 }
 export async function createOutput(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const value = parse(outputSchema, formObject(formData)); await own(supabase, "experiences", value.experience_id);
@@ -43,7 +47,7 @@ export async function createOutput(formData: FormData) {
   await audit(supabase, userId, "create", "experience_output", data.id, { experience_id: value.experience_id, name: value.name }); revalidatePath(`/career/experiences/${value.experience_id}`); revalidatePath("/career");
 }
 export async function createBullet(formData: FormData) {
-  const { supabase, userId } = await requireOwner(); const value = parse(bulletSchema, formObject(formData)); await own(supabase, "experiences", value.experience_id); if (value.career_direction_id) await own(supabase, "career_directions", value.career_direction_id);
+  const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(bulletSchema, { ...raw, career_direction_id: raw.career_direction_id || null }); await own(supabase, "experiences", value.experience_id); if (value.career_direction_id) await own(supabase, "career_directions", value.career_direction_id);
   const { data, error } = await supabase.from("experience_bullets").insert({ ...value, user_id: userId, status: "draft" }).select("id").single(); if (error) failed(error);
   await audit(supabase, userId, "create", "experience_bullet", data.id, { experience_id: value.experience_id }); revalidatePath(`/career/experiences/${value.experience_id}`);
 }
@@ -63,7 +67,7 @@ export async function approveBullet(formData: FormData) {
   await audit(supabase, userId, "approve", "experience_bullet", bulletId); revalidatePath(`/career/experiences/${bullet.experience_id}`);
 }
 export async function createSkill(formData: FormData) { const { supabase, userId } = await requireOwner(); const value = parse(skillSchema, formObject(formData)); const { data, error } = await supabase.from("skills").insert({ ...value, user_id: userId }).select("id").single(); if (error) failed(error); await audit(supabase, userId, "create", "skill", data.id, { name: value.name }); revalidatePath("/career/skills"); }
-export async function createCertification(formData: FormData) { const { supabase, userId } = await requireOwner(); const value = parse(certificationSchema, formObject(formData)); if (value.document_id) await own(supabase, "documents", value.document_id); const { data, error } = await supabase.from("certifications").insert({ ...value, user_id: userId }).select("id").single(); if (error) failed(error); await audit(supabase, userId, "create", "certification", data.id, { name: value.name }); revalidatePath("/career/certifications"); }
+export async function createCertification(formData: FormData) { const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(certificationSchema, { ...raw, document_id: raw.document_id || null }); if (value.document_id) await own(supabase, "documents", value.document_id); const { data, error } = await supabase.from("certifications").insert({ ...value, user_id: userId }).select("id").single(); if (error) failed(error); await audit(supabase, userId, "create", "certification", data.id, { name: value.name }); revalidatePath("/career/certifications"); }
 export async function archiveExperience(formData: FormData) { const { supabase, userId } = await requireOwner(); const id = String(formData.get("experience_id") || ""); await own(supabase, "experiences", id); const { error } = await supabase.from("experiences").update({ archived_at: new Date().toISOString(), status: "archived" }).eq("id", id); if (error) failed(error); await audit(supabase, userId, "archive", "experience", id); revalidatePath("/career"); revalidatePath("/career/experiences"); redirect("/career/experiences"); }
 const allowedFiles: Record<string, string[]> = { "application/pdf": ["pdf"], "image/png": ["png"], "image/jpeg": ["jpg", "jpeg"], "image/webp": ["webp"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ["docx"] };
 export async function uploadEvidence(formData: FormData) {
@@ -77,4 +81,10 @@ export async function uploadEvidence(formData: FormData) {
   const { error: linkError } = await supabase.from("entity_links").insert({ user_id: userId, source_type: "experience", source_id: experienceId, target_type: "document", target_id: data.id, relationship_type: "evidence" });
   if (linkError) { await supabase.from("documents").update({ archived_at: new Date().toISOString() }).eq("id", data.id); failed(linkError); }
   await audit(supabase, userId, "upload", "document", data.id, { experience_id: experienceId, document_type: formData.get("document_type") }); revalidatePath(`/career/experiences/${experienceId}`); revalidatePath("/career");
+}
+export async function createEntityLink(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const experienceId = String(formData.get("experience_id") || ""); const targetType = String(formData.get("target_type") || ""); const targetId = String(formData.get("target_id") || ""); const tables: Record<string, string> = { note: "notes", task: "tasks", project: "projects", document: "documents" }; const table = tables[targetType];
+  if (!table) failed(new Error("不支持的关联类型。")); await own(supabase, "experiences", experienceId); await own(supabase, table, targetId);
+  const { error } = await supabase.from("entity_links").upsert({ user_id: userId, source_type: "experience", source_id: experienceId, target_type: targetType, target_id: targetId, relationship_type: "related" }, { onConflict: "user_id,source_type,source_id,target_type,target_id,relationship_type" }); if (error) failed(error);
+  await audit(supabase, userId, "link", "experience", experienceId, { target_type: targetType, target_id: targetId }); revalidatePath(`/career/experiences/${experienceId}`);
 }
