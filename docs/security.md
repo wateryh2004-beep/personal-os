@@ -32,17 +32,19 @@ with check (user_id = auth.uid())
 - `exports` bucket 为私有；对象路径以经过验证的 user UUID 开头；Storage policy 和签名 URL 都检查所有权。导出 URL 短期有效。
 - Vercel、Supabase、GitHub 的密钥由各自 secrets/env 管理，不写入 migration、文档示例或测试 fixture。
 
-## 本机 Microsoft Calendar Companion
+## 云端 Microsoft Calendar
 
-- Microsoft access token、refresh token、MSAL token cache 不得进入 Vercel、Supabase、
-  Git、`.env.local` 或日志；Device Code 仅由用户在 Microsoft 官方页面完成。
-- `tools/microsoft-calendar-companion` 固定上游包版本，强制 `calendar` preset 与
-  `User.Read Calendars.ReadWrite offline_access` 白名单。Mail、Files、Contacts、
-  Tasks 和组织级权限不属于当前验证范围。
-- 个人账户使用 `consumers` authority。Token 优先保存在 macOS Keychain；只有 Keychain
-  不可用时才以私有目录、0600 权限回退到 Application Support 文件。
-- 任何未来写入 Outlook 的操作都必须先由 Personal OS 服务端验证，并取得用户确认；
-  不得让 AI、浏览器或 Vercel Function 直接持有 Microsoft Token。
+- Device Code 只由用户在 Microsoft 官方页面完成。临时 `device_code` 使用加密、
+  HttpOnly、短期 Cookie，不返回浏览器 JavaScript。
+- Refresh Token 只作为 AES-256-GCM 密文保存在 `private` schema；`private` schema
+  不授权 anon/authenticated 角色，也不通过 PostgREST 公开。短期 Access Token 不落库。
+- `SUPABASE_SECRET_KEY` 是 Vercel server-only 变量，用于创建受保护的 admin client
+  与派生加密密钥；绝不进入 client bundle、日志或 Git。无需 Microsoft Client Secret。
+- 所有 Graph 操作均先检查 session 与 `OWNER_EMAIL`；任何写入 Outlook 的操作仍必须
+  先经过明确确认。AI、浏览器和未认证 route 不会持有或获得 Microsoft Token。
+- `calendar_events` 对用户 RLS 为只读；`calendar_operations` 的数据库触发器只允许
+  草稿 → 已确认/取消、已确认 → 取消。`processing`、`succeeded`、`failed` 只可由
+  service role 的受保护执行器写入，因此网页不能伪造 Outlook 已执行。
 
 ## 安全验证清单
 

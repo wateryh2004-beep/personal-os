@@ -15,6 +15,7 @@
     "logout": "node scripts/run-calendar-mcp.mjs --logout"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@softeria/ms-365-mcp-server": "0.136.0"
   }
 }
