@@ -1,12 +1,15 @@
 "use client";
 
-import { useRef } from "react";
-import { requestCalendarEvent } from "@/features/calendar/actions";
+import { useActionState, useRef } from "react";
+import { createCalendarEvent, type CalendarCreateState } from "@/features/calendar/actions";
+
+const initialCalendarCreateState: CalendarCreateState = { status: "idle", message: "" };
 
 export function CalendarCreateForm() {
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
-  return <form action={requestCalendarEvent} onSubmit={() => {
+  const [state, formAction, pending] = useActionState(createCalendarEvent, initialCalendarCreateState);
+  return <form action={formAction} onSubmit={() => {
     const form = startInputRef.current?.form;
     if (!form || !startInputRef.current?.value || !endInputRef.current?.value) return;
     const data = new FormData(form);
@@ -24,6 +27,6 @@ export function CalendarCreateForm() {
     <input type="hidden" name="ends_at" />
     <input name="location_name" maxLength={500} placeholder="地点（可选）" className="border bg-white px-3 py-2 text-sm" />
     <label className="flex items-center gap-2 text-sm text-zinc-700"><input type="checkbox" name="is_all_day" /> 全天</label>
-    <div className="sm:col-span-2"><button className="bg-[#365F78] px-3 py-2 text-sm text-white">创建待确认日程</button></div>
+    <div className="sm:col-span-2"><button disabled={pending} className="bg-[#365F78] px-3 py-2 text-sm text-white disabled:opacity-60">{pending ? "正在创建…" : "创建日程"}</button>{state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}>{state.message}</p> : null}</div>
   </form>;
 }
