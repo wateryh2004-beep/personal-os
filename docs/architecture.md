@@ -66,6 +66,8 @@
 
 不创建 `items`、`entities`、`properties` 或把 Notes/Tasks/Projects 压入 JSONB 的表。JSONB 仅用于审计/事件的非查询元数据。
 
+实施时将 Inbox 表命名为 `inbox_items`，字段以 `content_markdown`、`processed_at` 和转换后的实体引用表达；这是明确的捕捉领域表，而非万能 items 表。
+
 ## 数据导出
 
 导出是明确的领域能力：Server Action 创建 `export_jobs`；后台/受控执行器生成含 `manifest.json`、每个业务表 JSON/CSV、Notes 的 `.md`、版本记录及 Storage 文件清单的 ZIP，写至私有 bucket。下载通过经验证的短时签名 URL 或受鉴权的 Route Handler；文件到期删除，作业记录保留审计痕迹。首版不要求跨库实时复制。

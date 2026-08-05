@@ -1,0 +1,1 @@
+import { PageHeader } from "@/components/shared/page-header"; export default function Projects(){return <><PageHeader title="Projects" description="有明确结果、可以完成的工作。" action={<button className="bg-[#365F78] px-3 py-2 text-sm text-white">新建项目</button>}/><p className="py-12 text-sm text-zinc-500">还没有进行中的项目。</p></>}
