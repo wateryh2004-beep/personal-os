@@ -32,6 +32,18 @@ with check (user_id = auth.uid())
 - `exports` bucket 为私有；对象路径以经过验证的 user UUID 开头；Storage policy 和签名 URL 都检查所有权。导出 URL 短期有效。
 - Vercel、Supabase、GitHub 的密钥由各自 secrets/env 管理，不写入 migration、文档示例或测试 fixture。
 
+## 本机 Microsoft Calendar Companion
+
+- Microsoft access token、refresh token、MSAL token cache 不得进入 Vercel、Supabase、
+  Git、`.env.local` 或日志；Device Code 仅由用户在 Microsoft 官方页面完成。
+- `tools/microsoft-calendar-companion` 固定上游包版本，强制 `calendar` preset 与
+  `User.Read Calendars.ReadWrite offline_access` 白名单。Mail、Files、Contacts、
+  Tasks 和组织级权限不属于当前验证范围。
+- 个人账户使用 `consumers` authority。Token 优先保存在 macOS Keychain；只有 Keychain
+  不可用时才以私有目录、0600 权限回退到 Application Support 文件。
+- 任何未来写入 Outlook 的操作都必须先由 Personal OS 服务端验证，并取得用户确认；
+  不得让 AI、浏览器或 Vercel Function 直接持有 Microsoft Token。
+
 ## 安全验证清单
 
 在引入首个模块前验证：未认证重定向、伪造 `user_id` 无效、用户 A 不能读写用户 B 的各类记录、归档记录默认不可见、私有导出不可猜测访问、审计不可篡改、生产日志不含 Markdown 私密内容或 token。

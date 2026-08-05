@@ -67,4 +67,9 @@
 - Supabase SSR 文档仍标注 `@supabase/ssr` 为 beta，需锁定依赖版本并在升级时回归验证。
 - 任务时间粒度、登录方式、笔记附件和导出作业执行环境尚未确认；路线图已采用最小且可迁移的默认值。
 - Vercel 无常驻后台任务；导出量增长后需选择安全的异步执行器/队列。Phase 1 应限制导出大小并保留可替换 Adapter 边界。
+
+## Microsoft Calendar 技术验证
+
+- 已建立独立、本机运行的 Microsoft Calendar Companion；固定上游依赖、只启用 Calendar 工具并限制最小权限。
+- 尚未接入 Vercel、Supabase、AI、Tasks 或 Personal OS 页面；必须先完成个人账户的 Device Code 登录和专用测试日历读写验证。
 - 个人数据需要备份、导出保留期和失窃设备策略；这些是部署前必须补全的运行决策。
