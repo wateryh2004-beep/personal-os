@@ -51,6 +51,13 @@ Redirect URL。用户通过 Microsoft Device Code 在官方页面授权；Refres
 仍采用明确确认队列。配置和验收步骤见
 [`docs/microsoft-calendar-integration.md`](docs/microsoft-calendar-integration.md)。
 
+## Calendar AI（DeepSeek）
+
+在 Settings 的 **AI · DeepSeek** 中粘贴自己的 DeepSeek API Key。密钥在服务端加密后
+保存，之后不会回显；不需要新增 Vercel 环境变量。Calendar 的对话框可查询已同步日程、
+整理自然语言日程提案；用户点击“创建待确认日程”后，仍必须在操作队列最终确认才会写入
+Outlook。对话与必要的日历查询结果会发送到 DeepSeek，请不要向 AI 输入不必要的敏感内容。
+
 ## 故障排查
 
 - 登录提示未配置：检查 `.env.local` 的两个 `NEXT_PUBLIC_SUPABASE_*` 变量与 `OWNER_EMAIL`。

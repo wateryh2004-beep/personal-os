@@ -73,5 +73,11 @@
 - 已实现 `/calendar`、私有缓存、确认式操作队列与审计；Outlook 保持权威来源。
 - 当前采用公共 OAuth Device Code：Vercel 直接调用 Graph，Refresh Token 经服务端加密后保存在 `private` schema；不依赖 Mac、本机 bridge、Client Secret 或 Redirect URL。
 - 待完成：应用 cloud OAuth migration，在 Vercel 配置 `SUPABASE_SECRET_KEY`，并用专用测试日历人工验证读取、创建与会话续期。
-- 不接入 AI、Tasks、邮件、文件或浏览器直连 Microsoft Token。
+- 不接入 Tasks、邮件、文件或浏览器直连 Microsoft Token；仅允许下述受限 Calendar AI。
+
+## Calendar AI Phase 1
+
+- 已接入 DeepSeek V4 Flash 的流式 Calendar 对话，Key 在 Settings 中由用户自行配置。
+- 已支持读取日历缓存和自然语言日程提案；创建仍需“创建待确认日程”及队列最终确认。
+- 暂不支持 AI 直接更新/删除 Outlook 日程、跨模块搜索、长期对话记忆、自动执行或 AI 访问 Notes/Files。
 - 个人数据需要备份、导出保留期和失窃设备策略；这些是部署前必须补全的运行决策。

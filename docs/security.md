@@ -46,6 +46,16 @@ with check (user_id = auth.uid())
   草稿 → 已确认/取消、已确认 → 取消。`processing`、`succeeded`、`failed` 只可由
   service role 的受保护执行器写入，因此网页不能伪造 Outlook 已执行。
 
+## DeepSeek Calendar AI
+
+- DeepSeek API Key 只在 Settings 表单提交时出现；使用独立的 AES-256-GCM 密钥材料加密
+  后保存到 `ai_provider_settings.api_key_ciphertext`，不回显、不写审计内容、不写日志。
+- AI Route Handler 必须先执行 `requireOwner()`；Key 的读取使用 server-only admin client。
+  浏览器只获得流式回复与受限工具结果，不能取得明文 Key。
+- 发送到 DeepSeek 的仅是本轮对话和经工具查询、当前用户允许的日历缓存。模型没有访问
+  Supabase、Graph、Notes、Files 或环境变量的能力。
+- AI 只能产生日程提案；用户点击创建草稿及操作队列最终确认都是独立的人类确认步骤。
+
 ## 安全验证清单
 
 在引入首个模块前验证：未认证重定向、伪造 `user_id` 无效、用户 A 不能读写用户 B 的各类记录、归档记录默认不可见、私有导出不可猜测访问、审计不可篡改、生产日志不含 Markdown 私密内容或 token。

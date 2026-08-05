@@ -17,7 +17,16 @@ OAuth Device Code 取得的 refresh credential 先在服务端 AES-256-GCM 加�
 RLS 保护的 `calendar_connections` 密文字段。`calendar_events` 是 Outlook 的近期
 只读缓存；`calendar_operations` 先以 `pending_confirmation` 保存，明确确认后才由
 受保护的 Server Action 执行并回写成功或失败结果。此模式由 Vercel 请求驱动，不要求
-Mac 常开，也不使用 Microsoft Client Secret 或 Redirect URL。
+ Mac 常开，也不使用 Microsoft Client Secret 或 Redirect URL。
+
+### Calendar AI（DeepSeek）
+
+`ai_provider_settings` 保存每位用户加密后的 DeepSeek Key 与允许的模型名；密文在 RLS
+保护下存储，解密只发生在 Vercel server-only adapter。`/api/calendar/assistant` 在完成
+owner session 校验后创建一次性的 ToolLoopAgent：它只能查询本用户的 calendar cache 或
+生成无副作用的日程提案。创建草稿由用户点击常规 Server Action 完成，随后仍受现有
+Calendar 确认队列保护。AI 没有直接的 Graph 写入工具、没有访问 Notes/Files，也不保存
+对话正文。
 
 当前官方依据：Next.js App Router 页面和布局默认是 Server Components，Server Actions 用于变更；Supabase 的 Next.js SSR 指南要求 server/browser 两类客户端以及 Proxy 刷新 cookie；shadcn 的 Next.js CLI 支持选择 Radix。见 [Next.js App Router](https://nextjs.org/docs/app)、[Next.js Server Components](https://nextjs.org/docs/app/getting-started/server-and-client-components)、[Supabase SSR](https://supabase.com/docs/guides/auth/server-side/nextjs) 和 [shadcn Next.js](https://ui.shadcn.com/docs/installation/next)。
 
