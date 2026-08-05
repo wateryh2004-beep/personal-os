@@ -40,7 +40,7 @@ npm run build
 
 ## Notes Workspace
 
-Notes 的当前正文权威存储在 Supabase PostgreSQL `notes.body_markdown`，版本在 `note_versions.body_markdown`；Vercel 本地文件系统不保存用户笔记。Notes Workspace 使用 CodeMirror 直接编辑 Markdown，自动保存采用 revision 乐观并发控制。文件夹、Tags 和 Wiki Links 同样进入 PostgreSQL；附件继续使用私有 `private-files` Storage。单篇/全量 `.md` 导出与 Obsidian ZIP 导入将在 Notes Phase 2 的后续提交完成。
+Notes 的当前正文权威存储在 Supabase PostgreSQL `notes.body_markdown`，版本在 `note_versions.body_markdown`；新建笔记不会在 Mac 或 Vercel 文件系统中生成一个 `.md` 文件。你在 `/notes` 左侧看到的列表就是数据库中已保存的笔记；需要普通 Markdown 文件时，在笔记页点击“下载 Markdown”。Notes Workspace 使用 CodeMirror 直接编辑 Markdown，自动保存采用 revision 乐观并发控制。文件夹、Tags 和 Wiki Links 同样进入 PostgreSQL；附件继续使用私有 `private-files` Storage。单篇/全量 `.md` 导出与 Obsidian ZIP 导入将在 Notes Phase 2 的后续提交完成。
 
 ## 故障排查
 

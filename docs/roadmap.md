@@ -50,6 +50,7 @@
 ## Notes Workspace Phase 2（进行中）
 
 - Notes 已从占位页迁移为真实 PostgreSQL 读取和 Markdown 编辑基础；自动保存、revision 冲突提示、GFM 安全预览、文件夹与 Wiki Link 解析已进入功能分支。
+- 已修复基础 migration 与 Notes Workspace migration 不一致时“新建后列表为空”的错误：基础 `notes` 表仍可读取、打开和编辑笔记；页面会明确显示兼容模式，而不会静默吞掉 schema 错误。
 - 待完成：版本恢复、回收站页面、标签管理、附件下载、全文搜索、Markdown 导入导出与远端 RLS 验证。
 
 ## 需要用户手动提供/配置
