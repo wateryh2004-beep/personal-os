@@ -6,21 +6,21 @@
 - 确认本机 Node 22.13.0、npm 10.9.2、pnpm、Supabase CLI、Git、GitHub CLI 和 ripgrep 可用。
 - 完成本套规范；未初始化项目、未建表、未部署、未推送。
 
-## 1. 初始化工程与质量门（下一步）
+## 1. 初始化工程与质量门（已完成于 `codex/phase-1-foundation`）
 
 1. 在目标 Git 工作树中用 `pnpm create next-app` 初始化 TypeScript strict、App Router、Tailwind、`src/` 与 `@/*` alias；生成 lockfile。
 2. 配置 ESLint、Prettier（如团队需要）、Vitest/Playwright 的最小质量门与 `.env.example`、`.gitignore`。
 3. 用 shadcn CLI 初始化并选择 Radix；只添加 Phase 1 实际使用的 UI 组件。
 4. 初始化 Supabase CLI，本地 config 与首个空 migration；生成类型的命令进入 package scripts。
 
-## 2. 数据库、安全与认证
+## 2. 数据库、安全与认证（migration 已创建，尚未应用）
 
 1. 新建 migration：profiles、Areas/Projects/Tasks、Inbox、Notes/Versions、活动/审计、导出作业、枚举/检查约束、索引和 `updated_at` 触发器。
 2. 在同一 migration 启用并测试 RLS，建立 profile 创建触发器与受控 audit 写入方案。
 3. 配置 Supabase Auth 的 redirect URL、Magic Link SMTP 策略与 Vercel 环境变量；实现 SSR clients、proxy 与 `/auth/callback`。
 4. 先写跨用户 RLS integration tests，再编写业务 UI。
 
-## 3. 应用壳与设计令牌
+## 3. 应用壳与设计令牌（基础壳已完成）
 
 1. 实现 Root/Auth/App layouts、受保护路由、导航、响应式壳、基础 token 和可访问性基线。
 2. 实现 Command Palette 与 Quick Capture 的界面骨架，不接 AI、不做全文搜索承诺。
