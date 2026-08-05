@@ -4,7 +4,11 @@
 
 Personal OS 是 Hang Yu 的私人、长期个人数据与决策系统。Phase 1 建立可靠的日常操作基础：安全登录、快速捕捉、任务与项目管理、Markdown 笔记、今日视图、设置、活动记录和可导出数据。
 
-本阶段明确不做 Career、Investing、Outlook、AI、照片、实时协作、社交、行情、交易、Webhook、向量数据库、知识图谱或原生应用。系统必须在没有 AI 或任何外部连接时仍可工作。
+基础阶段明确不做 Investing、Outlook、AI、照片、实时协作、社交、行情、交易、Webhook、向量数据库、知识图谱或原生应用。Career Module Phase 1 已启动，但仅覆盖职业档案、经历事实、成果、表达、技能、证书和证明材料；不做简历、投递或面试。
+
+## Career Module Phase 1
+
+职业数据链为 Direction → Experience → Fact → Output → Bullet → Evidence。Facts 是可验证的权威底稿，Bullets 是按职业方向组织的表达版本；两者严格分离。Career 复用 Notes、Tasks、Projects、审计与导出，不创建第二套业务系统。私有文件保存在 `private-files`，普通导出不含证书编号或文件原件。
 
 ## 用户与关键流程
 
