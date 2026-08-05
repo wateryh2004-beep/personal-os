@@ -47,6 +47,11 @@
 - 已实现职业档案、方向、经历、Facts/Outputs/Bullets、技能、证书、核心文件/关联表、私有文件上传、Career 搜索和脱敏 JSON 导出骨架。
 - 待完成：迁移远端应用与双用户 RLS 验证、体验级编辑/归档界面、私有签名下载、全模块搜索与 CSV/ZIP 导出。
 
+## Notes Workspace Phase 2（进行中）
+
+- Notes 已从占位页迁移为真实 PostgreSQL 读取和 Markdown 编辑基础；自动保存、revision 冲突提示、GFM 安全预览、文件夹与 Wiki Link 解析已进入功能分支。
+- 待完成：版本恢复、回收站页面、标签管理、附件下载、全文搜索、Markdown 导入导出与远端 RLS 验证。
+
 ## 需要用户手动提供/配置
 
 - GitHub CLI 已重新登录且网络可用；首次提交与推送留待明确要求发布时进行。

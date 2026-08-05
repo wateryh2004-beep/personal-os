@@ -38,6 +38,10 @@ npm run build
 
 服务端通过 Supabase `getClaims()` 检查会话和 OWNER_EMAIL；浏览器传入的 user_id 不被信任，数据库 RLS 再次隔离数据。Career 导出使用 `GET /api/exports/career`，默认不包含证书编号或文件原件；文件只在私有 bucket 中通过受授权的会话访问。绝不使用 service-role key 作为应用运行依赖。
 
+## Notes Workspace
+
+Notes 的当前正文权威存储在 Supabase PostgreSQL `notes.body_markdown`，版本在 `note_versions.body_markdown`；Vercel 本地文件系统不保存用户笔记。Notes Workspace 使用 CodeMirror 直接编辑 Markdown，自动保存采用 revision 乐观并发控制。文件夹、Tags 和 Wiki Links 同样进入 PostgreSQL；附件继续使用私有 `private-files` Storage。单篇/全量 `.md` 导出与 Obsidian ZIP 导入将在 Notes Phase 2 的后续提交完成。
+
 ## 故障排查
 
 - 登录提示未配置：检查 `.env.local` 的两个 `NEXT_PUBLIC_SUPABASE_*` 变量与 `OWNER_EMAIL`。
