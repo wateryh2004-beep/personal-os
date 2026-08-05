@@ -1,0 +1,20 @@
+{
+  "name": "life-of-hang-microsoft-calendar-companion",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A local, least-privilege Microsoft Calendar MCP companion for Life of HANG.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "permissions": "node scripts/run-calendar-mcp.mjs --list-permissions",
+    "login": "node scripts/run-calendar-mcp.mjs --login",
+    "accounts": "node scripts/run-calendar-mcp.mjs --list-accounts",
+    "verify": "node scripts/run-calendar-mcp.mjs --verify-login",
+    "start": "node scripts/run-calendar-mcp.mjs",
+    "logout": "node scripts/run-calendar-mcp.mjs --logout"
+  },
+  "dependencies": {
+    "@softeria/ms-365-mcp-server": "0.136.0"
+  }
+}

@@ -49,3 +49,8 @@ next-env.d.ts
 
 # Codex intermediate artifacts
 /work/
+
+# Local Microsoft Calendar Companion state. It can contain an MSAL token-cache
+# fallback and must remain outside Git even if the data directory is overridden.
+/tools/microsoft-calendar-companion/.local/
+/tools/microsoft-calendar-companion/node_modules/
