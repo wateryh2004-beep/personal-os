@@ -42,18 +42,13 @@ npm run build
 
 Notes 的当前正文权威存储在 Supabase PostgreSQL `notes.body_markdown`，版本在 `note_versions.body_markdown`；新建笔记不会在 Mac 或 Vercel 文件系统中生成一个 `.md` 文件。你在 `/notes` 左侧看到的列表就是数据库中已保存的笔记；需要普通 Markdown 文件时，在笔记页点击“下载 Markdown”。Notes Workspace 使用 CodeMirror 直接编辑 Markdown，自动保存采用 revision 乐观并发控制。文件夹、Tags 和 Wiki Links 同样进入 PostgreSQL；附件继续使用私有 `private-files` Storage。单篇/全量 `.md` 导出与 Obsidian ZIP 导入将在 Notes Phase 2 的后续提交完成。
 
-## Microsoft Calendar Companion（本机技术验证）
+## Microsoft Calendar（云端）
 
-Outlook Calendar 仍是未来日历功能的唯一权威来源。为避免将 Microsoft
-Token 放进 Vercel 或 Supabase，本仓库提供一个独立的本机 Companion：
-[`tools/microsoft-calendar-companion`](tools/microsoft-calendar-companion)。它固定
-`@softeria/ms-365-mcp-server@0.136.0`、仅启用 Calendar、只请求
-`User.Read` 与 `Calendars.ReadWrite`，并优先使用 macOS Keychain 保存 Token。
-
-它现在通过确认式队列接入 `/calendar`：网页创建日程草稿，用户明确确认后，由
-Mac 本机桥接器调用 Microsoft Graph，再回写只读缓存和审计记录。Microsoft Token
-仍只保存在本机 Keychain，绝不进入 Vercel、Supabase 或 Git；没有 AI 或 Tasks
-接入。首次部署与启动步骤见
+Outlook Calendar 是唯一权威来源。`/calendar` 通过 Vercel 的 server-only adapter
+直接调用 Microsoft Graph，不需要 Mac 常开、桥接器、Microsoft Client Secret 或
+Redirect URL。用户通过 Microsoft Device Code 在官方页面授权；Refresh Token 会在
+服务端加密后保存至 Supabase `private` schema，短期 Access Token 不落库。日程创建
+仍采用明确确认队列。配置和验收步骤见
 [`docs/microsoft-calendar-integration.md`](docs/microsoft-calendar-integration.md)。
 
 ## 故障排查

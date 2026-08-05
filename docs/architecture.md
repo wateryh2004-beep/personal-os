@@ -10,31 +10,14 @@
 - Supabase 使用 `@supabase/ssr` 的 cookie SSR 客户端、PKCE、`proxy.ts` 会话刷新。服务端鉴权使用 `getClaims()`，不以 `getSession()` 的 user 对象作授权依据。
 - 所有第三方连接放入 Adapter；当前无外部业务 Adapter 实现。
 
-### 本机 Microsoft Calendar Companion（技术验证）
+### 云端 Microsoft Calendar
 
-Microsoft Graph 的 Device Code 与 MSAL token cache 不适合放入 Vercel 的无状态
-运行时。当前使用仓库中的独立 Node 工具
-`tools/microsoft-calendar-companion` 对固定版本的 Microsoft 365 MCP 做本机、最小
-权限验证：
-
-```text
-Mac 本机 Companion → Microsoft Graph → Outlook Calendar（权威来源）
-```
-
-它不向外开放 HTTP 端口，也不将 Token 交给 Next.js。Calendar 集成通过受限的
-出站轮询完成：
-
-```text
-浏览器（owner session）→ Server Action → Supabase command queue
-                                         ↑              ↓
-                         cache + audit ← Vercel bridge routes ← Mac Companion → Graph
-```
-
-`calendar_events` 是未来 14 天的只读缓存，不是权威来源；`calendar_operations`
-先以 `pending_confirmation` 保存，只有明确确认后才进入 `queued`。Mac 本机桥接器
-带着独立 bearer token 主动领取一条命令，通过 stdio 调用固定版本的 Calendar MCP，
-再在 Graph 成功后回写结果。桥接 route 是唯一使用 server-only Supabase secret key
-的代码路径；普通页面、查询与写入仍使用用户 SSR client 与 RLS。
+Calendar 使用 Vercel server-only Microsoft Graph adapter，而非本机桥接器。通过公共
+OAuth Device Code 取得的 refresh credential 先在服务端 AES-256-GCM 加密，再保存到
+非暴露的 `private.calendar_oauth_credentials`。`calendar_events` 是 Outlook 的近期
+只读缓存；`calendar_operations` 先以 `pending_confirmation` 保存，明确确认后才由
+受保护的 Server Action 执行并回写成功或失败结果。此模式由 Vercel 请求驱动，不要求
+Mac 常开，也不使用 Microsoft Client Secret 或 Redirect URL。
 
 当前官方依据：Next.js App Router 页面和布局默认是 Server Components，Server Actions 用于变更；Supabase 的 Next.js SSR 指南要求 server/browser 两类客户端以及 Proxy 刷新 cookie；shadcn 的 Next.js CLI 支持选择 Radix。见 [Next.js App Router](https://nextjs.org/docs/app)、[Next.js Server Components](https://nextjs.org/docs/app/getting-started/server-and-client-components)、[Supabase SSR](https://supabase.com/docs/guides/auth/server-side/nextjs) 和 [shadcn Next.js](https://ui.shadcn.com/docs/installation/next)。
 

@@ -1,11 +1,11 @@
-# Microsoft Calendar Companion（技术验证）
+# Microsoft Calendar Companion（已弃用的本机诊断工具）
 
 ## 决策
 
-Life of HANG 的 Vercel 应用不直接运行 Microsoft 365 MCP，也不保存
-Microsoft Refresh Token。Calendar 的权威来源仍是 Outlook。当前先验证一个
-**本机、仅 Calendar、最小权限**的 Companion；尚未把它接入 Personal OS 的
-页面、Supabase 或 AI。
+这是早期本机诊断记录，保留用于审计上游 Microsoft 365 MCP 的最小权限行为。
+它不再接入 Personal OS 的 Calendar 页面、Supabase 或生产部署；当前生产方案是
+[`microsoft-calendar-integration.md`](microsoft-calendar-integration.md) 所述的云端
+Device Code + 加密 refresh credential 模式。
 
 使用的上游项目是 [Softeria/ms-365-mcp-server](https://github.com/softeria/ms-365-mcp-server)，
 固定 npm 版本为 `0.136.0`，并由
@@ -47,10 +47,9 @@ Device Code 登录必须由账户本人在 Microsoft 官方页面完成。登录
 验证以下内容：读取未来七天、在专用测试日历创建/更新/删除测试事件、重启后
 静默恢复、撤销授权后的失效表现。不得在默认生产日历上进行无确认的写入测试。
 
-## 后续集成门槛
+## 历史集成门槛
 
-只有技术验证全部成功后，才建立下一层：Personal OS 的确认式操作队列、
-本机 Companion 拉取器、Graph Event ID 回写、审计以及缓存。该阶段应保持：
+该方案曾计划在技术验证后接入确认式操作队列；现已被云端方案取代：
 
 ```text
 用户确认 → 受校验的操作请求 → 本机 Companion → Graph 成功 → 缓存/审计更新

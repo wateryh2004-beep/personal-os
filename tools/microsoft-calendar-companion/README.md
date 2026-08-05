@@ -1,8 +1,9 @@
 # Microsoft Calendar Companion
 
-This is a local-only Calendar bridge for Life of HANG. It wraps the audited,
-version-pinned `@softeria/ms-365-mcp-server@0.136.0`; it is **not** part of the
-Next.js app and must never run on Vercel.
+This is an archived local diagnostic tool for Life of HANG. It wraps the
+audited, version-pinned `@softeria/ms-365-mcp-server@0.136.0`; it is **not**
+part of the Next.js app, is not used by the cloud Calendar integration, and
+must never run on Vercel.
 
 ## Security boundary
 
