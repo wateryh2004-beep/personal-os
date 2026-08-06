@@ -1,32 +1,27 @@
 import Link from "next/link";
-import { createFolder, createNote } from "@/features/notes/actions";
+import { createFolder, createNoteInFolder, openDailyNote } from "@/features/notes/actions";
 import { getNotesWorkspace } from "@/features/notes/queries";
-import { PageHeader } from "@/components/shared/page-header";
 
-const folderMessages = {
-  created: "文件夹已创建，显示在左侧“根目录”下。",
-  exists: "同一位置已经有同名文件夹，因此没有重复创建。",
-} as const;
+type Folder = { id: string; name: string; parent_id: string | null };
+type Note = { id: string; title: string; updated_at: string; pinned_at: string | null; folder_id: string | null };
+
+function FolderTree({ folders, notes, parentId, selectedId, depth = 0 }: { folders: Folder[]; notes: Note[]; parentId: string | null; selectedId: string | null; depth?: number }) {
+  return folders.filter((folder) => folder.parent_id === parentId).map((folder) => {
+    const count = notes.filter((note) => note.folder_id === folder.id).length;
+    return <div key={folder.id}><Link href={`/notes?folder=${folder.id}`} className={`flex items-center justify-between rounded px-2 py-1.5 text-sm ${selectedId === folder.id ? "bg-[#EDF3F6] text-[#365F78]" : "text-zinc-700 hover:bg-white"}`} style={{ marginLeft: `${depth * 12}px` }}><span className="min-w-0 truncate">⌁ {folder.name}</span><span className="font-mono text-[11px] text-zinc-400">{count}</span></Link><FolderTree folders={folders} notes={notes} parentId={folder.id} selectedId={selectedId} depth={depth + 1} /></div>;
+  });
+}
 
 export default async function Notes({ searchParams }: { searchParams: Promise<{ folder?: string }> }) {
   const { notes, folders, state } = await getNotesWorkspace();
-  const { folder } = await searchParams;
-  const folderMessage = folder && folder in folderMessages ? folderMessages[folder as keyof typeof folderMessages] : null;
-  return <>
-    <PageHeader title="Notes" description="原始 Markdown 是正文的唯一权威格式。" action={<form action={createNote}><button className="bg-[#365F78] px-3 py-2 text-sm text-white">新建笔记</button></form>} />
-    <p className="mb-6 border-l-2 border-[#365F78] pl-3 text-sm leading-6 text-zinc-500">笔记保存在你自己的 Supabase PostgreSQL 数据库（`notes.body_markdown`）中，不会生成或写入 Mac 本地文件。需要普通 `.md` 文件时，可在笔记内下载 Markdown。</p>
-    {state === "base" ? <p role="status" className="mb-6 border-l-2 border-amber-600 bg-amber-50 px-3 py-2 text-sm text-amber-800">笔记基础功能正在使用兼容模式：新建、编辑和下载均可用；文件夹、回收站和链接需要应用 Notes Workspace migration 后启用。</p> : null}
-    {state === "unavailable" ? <p role="alert" className="mb-6 border-l-2 border-red-700 bg-red-50 px-3 py-2 text-sm text-red-800">暂时无法读取笔记库。请检查 Supabase 环境变量、登录状态和数据库连接；系统不会把它误显示成空笔记库。</p> : null}
-    {folderMessage ? <p role="status" className="mb-6 border-l-2 border-[#365F78] bg-[#EDF3F6] px-3 py-2 text-sm text-[#365F78]">{folderMessage}</p> : null}
-    <div className="grid gap-7 lg:grid-cols-[270px_1fr]">
-      <aside className="border-r pr-5">
-        {state === "ready" ? <form action={createFolder} className="flex gap-2"><input name="name" required aria-label="新建根目录文件夹" placeholder="新建根目录文件夹" className="min-w-0 border p-2 text-sm" /><input type="hidden" name="parent_id" value="" /><button className="border px-2 text-sm">创建</button></form> : null}
-        <h2 className="mt-6 text-xs text-zinc-500">文件夹</h2>
-        <div className="mt-2 border-l pl-3 text-sm"><p className="py-1 text-xs text-zinc-500">根目录</p>{folders.map((folder) => <p key={folder.id} className="py-1.5 text-zinc-800">▸ {folder.name}</p>)}{!folders.length ? <p className="py-1 text-zinc-500">{state === "ready" ? "根目录中暂无文件夹" : "数据库升级后可用"}</p> : null}</div>
-        <h2 className="mt-6 text-xs text-zinc-500">笔记 · {notes.length}</h2>
-        <div className="mt-2 divide-y">{notes.map((note) => <Link className="block py-3 text-sm hover:text-[#365F78]" href={`/notes/${note.id}`} key={note.id}>{note.title || "无标题笔记"}<span className="mt-1 block font-mono text-xs text-zinc-400">{new Date(note.updated_at).toLocaleDateString("zh-CN")}</span></Link>)}</div>
-      </aside>
-      <section className="grid place-items-center border bg-white p-8 text-center"><div><h2 className="text-lg font-medium">{notes.length ? "选择一篇笔记继续编辑" : state === "unavailable" ? "笔记库暂不可用" : "还没有笔记。"}</h2><p className="mt-2 text-sm text-zinc-500">{notes.length ? "左侧列表显示的就是已保存到数据库的笔记。" : "创建第一篇笔记，开始建立你的个人知识库。"}</p></div></section>
-    </div>
-  </>;
+  const { folder: requestedFolder } = await searchParams;
+  const selectedFolder = folders.find((folder) => folder.id === requestedFolder) ?? null;
+  const visibleNotes = selectedFolder ? notes.filter((note) => note.folder_id === selectedFolder.id) : notes;
+
+  return <section className="max-w-7xl"><header className="flex flex-wrap items-start justify-between gap-4 border-b pb-6"><div><p className="text-xs font-medium tracking-wide text-zinc-500">KNOWLEDGE BASE</p><h1 className="mt-2 text-2xl font-semibold tracking-tight">Notes</h1><p className="mt-1 text-sm text-zinc-500">原始 Markdown 是正文的唯一权威格式。</p></div><div className="flex gap-2"><form action={openDailyNote}><button className="border bg-white px-3 py-2 text-sm text-[#365F78] hover:bg-[#EDF3F6]">今日日记</button></form><form action={createNoteInFolder}><input type="hidden" name="folder_id" value={selectedFolder?.id ?? ""} /><button className="bg-[#365F78] px-3 py-2 text-sm text-white">新建笔记</button></form></div></header>
+    {state === "base" ? <p role="status" className="mt-5 border-l-2 border-amber-600 bg-amber-50 px-3 py-2 text-sm text-amber-800">笔记基础功能正在使用兼容模式：新建、编辑和日记均可用；文件夹、回收站和链接需要应用 Notes Workspace migration 后启用。</p> : null}
+    {state === "unavailable" ? <p role="alert" className="mt-5 border-l-2 border-red-700 bg-red-50 px-3 py-2 text-sm text-red-800">暂时无法读取笔记库。请检查 Supabase 环境变量、登录状态和数据库连接。</p> : null}
+    <div className="mt-6 grid gap-7 lg:grid-cols-[280px_minmax(0,1fr)]"><aside className="border-r pr-5"><div className="flex items-center justify-between"><h2 className="text-xs font-medium tracking-wide text-zinc-500">文件夹</h2><Link href="/notes" className="text-xs text-[#365F78]">全部 {notes.length}</Link></div>{state === "ready" ? <form action={createFolder} className="mt-3 grid gap-2"><input name="name" required aria-label="文件夹名称" placeholder="新建文件夹" className="min-w-0 border bg-white px-2 py-1.5 text-sm" /><select name="parent_id" className="border bg-white px-2 py-1.5 text-xs"><option value="">根目录</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select><button className="justify-self-start border px-2 py-1 text-xs">添加文件夹</button></form> : null}<nav className="mt-4 border-l pl-2"><Link href="/notes" className={`flex items-center justify-between rounded px-2 py-1.5 text-sm ${!selectedFolder ? "bg-[#EDF3F6] text-[#365F78]" : "text-zinc-700 hover:bg-white"}`}><span>⌂ 所有笔记</span><span className="font-mono text-[11px] text-zinc-400">{notes.length}</span></Link><FolderTree folders={folders} notes={notes} parentId={null} selectedId={selectedFolder?.id ?? null} /></nav><Link href="/notes/trash" className="mt-5 block text-sm text-zinc-500 hover:text-[#365F78]">回收站</Link></aside>
+      <main className="min-w-0"><div className="flex flex-wrap items-baseline justify-between gap-2 border-b pb-3"><div><h2 className="font-medium">{selectedFolder ? selectedFolder.name : "全部笔记"}</h2><p className="mt-1 text-xs text-zinc-500">{visibleNotes.length} 篇 · 最近更新优先</p></div><form action={createNoteInFolder}><input type="hidden" name="folder_id" value={selectedFolder?.id ?? ""} /><button className="text-sm text-[#365F78]">在此处新建 →</button></form></div>{visibleNotes.length ? <div className="divide-y">{visibleNotes.map((note) => <Link className="group flex items-center justify-between gap-4 py-3 hover:text-[#365F78]" href={`/notes/${note.id}`} key={note.id}><div className="min-w-0"><p className="truncate text-sm font-medium">{note.title || "无标题笔记"}</p><p className="mt-1 text-xs text-zinc-400">{note.pinned_at ? "已固定 · " : ""}{new Date(note.updated_at).toLocaleString("zh-CN", { dateStyle: "medium", timeStyle: "short" })}</p></div><span className="text-sm text-zinc-300 group-hover:text-[#365F78]">→</span></Link>)}</div> : <div className="py-12"><p className="text-lg font-medium">{selectedFolder ? "这个文件夹还是空的" : "从一篇笔记开始"}</p><p className="mt-2 max-w-xl text-sm leading-6 text-zinc-500">用“今日日记”建立每天的记录，或新建一篇 Markdown 笔记。笔记会保存在你的 Supabase PostgreSQL 数据库中；需要文件时可下载为标准 `.md`。</p><div className="mt-5 flex flex-wrap gap-2"><form action={openDailyNote}><button className="bg-[#365F78] px-3 py-2 text-sm text-white">写今日日记</button></form><form action={createNoteInFolder}><input type="hidden" name="folder_id" value={selectedFolder?.id ?? ""} /><button className="border bg-white px-3 py-2 text-sm">新建 Markdown 笔记</button></form></div></div>}</main></div>
+  </section>;
 }
