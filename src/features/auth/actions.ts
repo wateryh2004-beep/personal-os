@@ -22,6 +22,6 @@ export async function loginAction(_: LoginState, formData: FormData): Promise<Lo
 }
 
 export async function logoutAction() {
-  if (isSupabaseConfigured) (await createClient()).auth.signOut();
+  if (isSupabaseConfigured) await (await createClient()).auth.signOut();
   redirect("/login");
 }

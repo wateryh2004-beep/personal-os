@@ -1,15 +1,18 @@
 import { AppShell } from "@/components/layout/app-shell";
+import { requireOwner } from "@/lib/auth/require-owner";
 
 // Private routes depend on the request session. Never prerender a user's app
 // view at build time or cache it across users.
 export const dynamic = "force-dynamic";
 
 /**
- * Keep the shared shell free of request-time data. App access is enforced in
- * the server-side proxy, while pages with private data and all mutations still
- * call requireOwner(). This lets Next.js keep the shell interactive during a
- * route transition instead of waiting for an auth round trip first.
+ * The proxy provides an early redirect, but it is intentionally not the
+ * authorization boundary. Rendering the shell is private too: this server
+ * layout checks the owner before emitting any navigation or application HTML.
+ * React cache() inside requireOwner deduplicates this check within one RSC
+ * render tree when a page independently asks for the current owner.
  */
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  await requireOwner();
   return <AppShell>{children}</AppShell>;
 }
