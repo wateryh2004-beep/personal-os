@@ -14,3 +14,6 @@
 .life-markdown-editor-content pre { overflow:auto; background:#18181b; color:#f4f4f5; padding:1rem; }
 .life-markdown-editor-content table { width:100%; border-collapse:collapse; }
 .life-markdown-editor-content th,.life-markdown-editor-content td { border:1px solid var(--border); padding:.5rem .7rem; vertical-align:top; }
+.notes-editor-surface:fullscreen { box-sizing:border-box; height:100dvh; overflow:hidden; background:var(--background); padding:1.25rem 1.5rem; }
+.notes-editor-surface:fullscreen > .mt-5 { height:calc(100dvh - 10.5rem); min-height:0; }
+.notes-editor-surface:fullscreen .life-markdown-editor-content { min-height:calc(100dvh - 15rem); }

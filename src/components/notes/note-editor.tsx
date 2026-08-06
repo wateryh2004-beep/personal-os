@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
-import { Download } from "lucide-react";
+import { Download, Maximize2, Minimize2 } from "lucide-react";
 import { recordNotePdfExport, saveNote } from "@/features/notes/actions";
 import { markdownFilename } from "@/features/notes/utils";
 import { NoteAiAssistant } from "@/components/notes/note-ai-assistant";
@@ -56,7 +56,9 @@ export function NoteEditor({ note }: { note: Note }) {
   const [state, setState] = useState<"已保存" | "有未保存修改" | "正在保存" | "保存失败" | "版本冲突">("已保存");
   const [pdfSnapshot, setPdfSnapshot] = useState<PdfSnapshot | null>(null);
   const [pdfError, setPdfError] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const pdfPreviewRef = useRef<HTMLElement>(null);
+  const editorSurfaceRef = useRef<HTMLElement>(null);
   const save = useCallback(async () => {
     setState("正在保存");
     try {
@@ -68,6 +70,7 @@ export function NoteEditor({ note }: { note: Note }) {
 
   useEffect(() => { if (state !== "有未保存修改") return; const timer = window.setTimeout(() => void save(), 1000); return () => window.clearTimeout(timer); }, [save, state]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); void save(); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [save]);
+  useEffect(() => { const update = () => setIsFullscreen(document.fullscreenElement === editorSurfaceRef.current); document.addEventListener("fullscreenchange", update); return () => document.removeEventListener("fullscreenchange", update); }, []);
   useEffect(() => {
     if (!pdfSnapshot || !pdfPreviewRef.current) return;
     let cancelled = false;
@@ -129,5 +132,11 @@ export function NoteEditor({ note }: { note: Note }) {
 
   const dirty = () => setState("有未保存修改");
   const isExporting = Boolean(pdfSnapshot);
-  return <section className="min-w-0"><div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3"><input aria-label="笔记标题" value={title} onChange={(event) => { setTitle(event.target.value); dirty(); }} className="min-w-0 flex-1 bg-transparent text-xl font-semibold outline-none" placeholder="无标题笔记" /><div className="flex flex-wrap items-center justify-end gap-2 text-xs text-zinc-500"><span aria-live="polite">{state}</span><button className="border px-2 py-1" onClick={() => void save()}>保存</button><button className="inline-flex items-center gap-1 border px-2 py-1 text-[#365F78] disabled:opacity-60" disabled={isExporting} onClick={() => { setPdfError(""); setPdfSnapshot({ title: title || "无标题笔记", body }); }}><Download size={14} />{isExporting ? "生成 PDF…" : "导出 PDF"}</button></div></div><details className="mt-4 border-l-2 border-[#365F78] bg-[#EDF3F6] px-3 py-2"><summary className="cursor-pointer text-sm font-medium text-[#365F78]">AI 笔记助手 <span className="ml-1 text-xs font-normal text-zinc-500">总结、提炼行动、润色或自定义协助</span></summary><NoteAiAssistant noteId={note.id} title={title} bodyMarkdown={body} onInsert={(suggestion) => { setBody((current) => `${current}${current.trim() ? "\n\n" : ""}${suggestion}`); dirty(); }} /></details>{pdfError ? <p role="alert" className="mt-3 text-sm text-red-700">{pdfError}</p> : null}<div className="mt-5 min-h-[calc(100dvh-250px)] overflow-y-auto border bg-white"><VisualMarkdownEditor markdown={body} onChange={(value) => { setBody(value); dirty(); }} /></div>{pdfSnapshot ? <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-white p-12 text-[15px]"><h1 className="mb-7 text-3xl font-semibold text-zinc-900">{pdfSnapshot.title}</h1><MarkdownDocument body={pdfSnapshot.body} /></article> : null}</section>;
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await editorSurfaceRef.current?.requestFullscreen();
+    } catch { setPdfError("浏览器未能进入全屏模式，请检查浏览器权限后重试。"); }
+  };
+  return <section ref={editorSurfaceRef} className="notes-editor-surface min-w-0"><div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3"><input aria-label="笔记标题" value={title} onChange={(event) => { setTitle(event.target.value); dirty(); }} className="min-w-0 flex-1 bg-transparent text-xl font-semibold outline-none" placeholder="无标题笔记" /><div className="flex flex-wrap items-center justify-end gap-2 text-xs text-zinc-500"><span aria-live="polite">{state}</span><button className="border px-2 py-1" onClick={() => void save()}>保存</button><button className="inline-flex items-center gap-1 border px-2 py-1" onClick={() => void toggleFullscreen()} aria-label={isFullscreen ? "退出全屏编辑" : "进入全屏编辑"}>{isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{isFullscreen ? "退出全屏" : "全屏编辑"}</button><button className="inline-flex items-center gap-1 border px-2 py-1 text-[#365F78] disabled:opacity-60" disabled={isExporting} onClick={() => { setPdfError(""); setPdfSnapshot({ title: title || "无标题笔记", body }); }}><Download size={14} />{isExporting ? "生成 PDF…" : "导出 PDF"}</button></div></div><details className="mt-4 border-l-2 border-[#365F78] bg-[#EDF3F6] px-3 py-2"><summary className="cursor-pointer text-sm font-medium text-[#365F78]">AI 笔记助手 <span className="ml-1 text-xs font-normal text-zinc-500">总结、提炼行动、润色或自定义协助</span></summary><NoteAiAssistant noteId={note.id} title={title} bodyMarkdown={body} onInsert={(suggestion) => { setBody((current) => `${current}${current.trim() ? "\n\n" : ""}${suggestion}`); dirty(); }} /></details>{pdfError ? <p role="alert" className="mt-3 text-sm text-red-700">{pdfError}</p> : null}<div className="mt-5 min-h-[calc(100dvh-250px)] overflow-y-auto border bg-white"><VisualMarkdownEditor markdown={body} onChange={(value) => { setBody(value); dirty(); }} /></div>{pdfSnapshot ? <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-white p-12 text-[15px]"><h1 className="mb-7 text-3xl font-semibold text-zinc-900">{pdfSnapshot.title}</h1><MarkdownDocument body={pdfSnapshot.body} /></article> : null}</section>;
 }
