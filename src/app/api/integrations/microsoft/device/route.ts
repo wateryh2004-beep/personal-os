@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireOwner } from "@/lib/auth/require-owner";
+import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-owner";
 import {
   decryptMicrosoftRefreshToken,
   encryptMicrosoftRefreshToken,
@@ -16,7 +16,7 @@ const cookieName = "personal_os_microsoft_device";
 const deviceCookieSchema = z.object({ deviceCode: z.string().min(20), expiresAt: z.number().int().positive() });
 
 function failure(status: number, code: string) {
-  return NextResponse.json({ error: code }, { status });
+  return NextResponse.json({ error: code }, { status, headers: { "Cache-Control": "private, no-store, max-age=0" } });
 }
 
 function clearDeviceCookie(response: NextResponse) {
@@ -25,15 +25,15 @@ function clearDeviceCookie(response: NextResponse) {
 }
 
 export async function POST() {
-  await requireOwner();
   try {
+    await requireOwnerApi();
     const authorization = await startMicrosoftDeviceAuthorization();
     const expiresAt = Date.now() + authorization.expiresIn * 1000;
     const response = NextResponse.json({
       userCode: authorization.userCode,
       verificationUri: authorization.verificationUri,
       expiresIn: authorization.expiresIn,
-    });
+    }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
     response.cookies.set(cookieName, encryptMicrosoftRefreshToken(JSON.stringify({ deviceCode: authorization.deviceCode, expiresAt })), {
       httpOnly: true,
       sameSite: "lax",
@@ -43,13 +43,15 @@ export async function POST() {
     });
     return response;
   } catch (error) {
+    const authFailure = apiAuthenticationFailure(error);
+    if (authFailure) return authFailure;
     return failure(500, error instanceof MicrosoftGraphError ? error.code : "authorization_start_failed");
   }
 }
 
 export async function PATCH(request: NextRequest) {
-  const { userId } = await requireOwner();
   try {
+    const { userId } = await requireOwnerApi();
     const sealed = request.cookies.get(cookieName)?.value;
     if (!sealed) return failure(400, "authorization_not_started");
     const decoded = deviceCookieSchema.safeParse(JSON.parse(decryptMicrosoftRefreshToken(sealed)));
@@ -59,7 +61,7 @@ export async function PATCH(request: NextRequest) {
       token = await exchangeMicrosoftDeviceCode(decoded.data.deviceCode);
     } catch (error) {
       if (error instanceof MicrosoftGraphError && ["authorization_pending", "slow_down"].includes(error.code)) {
-        return NextResponse.json({ status: "pending" }, { status: 202 });
+        return NextResponse.json({ status: "pending" }, { status: 202, headers: { "Cache-Control": "private, no-store, max-age=0" } });
       }
       return clearDeviceCookie(failure(400, error instanceof MicrosoftGraphError ? error.code : "authorization_failed"));
     }
@@ -80,8 +82,10 @@ export async function PATCH(request: NextRequest) {
     }, { onConflict: "user_id" }).select("id").single();
     if (connectionError || !connection) return clearDeviceCookie(failure(500, "connection_save_failed"));
     await admin.from("audit_logs").insert({ user_id: userId, action: "connect", entity_type: "calendar_connection", entity_id: connection.id, after_data: { provider: "microsoft_graph_public_client" }, actor_type: "user" });
-    return clearDeviceCookie(NextResponse.json({ status: "connected" }));
+    return clearDeviceCookie(NextResponse.json({ status: "connected" }, { headers: { "Cache-Control": "private, no-store, max-age=0" } }));
   } catch (error) {
+    const authFailure = apiAuthenticationFailure(error);
+    if (authFailure) return authFailure;
     return failure(500, error instanceof MicrosoftGraphError ? error.code : "authorization_check_failed");
   }
 }
