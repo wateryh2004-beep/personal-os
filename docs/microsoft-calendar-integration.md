@@ -2,17 +2,22 @@
 
 ## 运行模型
 
-Outlook Calendar 是唯一权威来源。Personal OS 在 Supabase 的
-`calendar_events` 只保存近期缓存，`calendar_operations` 保存明确确认过的写入请求。
-Vercel 在用户点击“刷新日历”或确认创建日程时，直接调用 Microsoft Graph；它不是常驻
-进程，因此不依赖 Hang 的 Mac 是否开机。
+Outlook Calendar 与 Microsoft To Do 是同步端，不是唯一的数据归宿。Personal OS 在
+Supabase 保留当前私有副本，并在用户点击“立即对齐并备份”或每日计划任务运行后，向
+append-only `microsoft_sync_backups` 写入完整快照。快照不会因为 Microsoft 删除、断连
+或切换平台而被浏览器覆盖；它可作为未来导出、迁移到自建服务器或恢复功能的基础。
+
+Vercel 在用户点击手动对齐、确认写入时直接调用 Microsoft Graph；每日低频同步则由
+Vercel Cron 在云端执行，不依赖 Hang 的 Mac 是否开机。
 
 ```text
 浏览器（owner session） → Vercel Server Action / OAuth Route
                             ↓
                   Supabase command queue + encrypted credential
                             ↓
-                   Microsoft Graph → Outlook（权威来源）
+                   Microsoft Graph ↔ Outlook / To Do（同步端）
+                            ↓
+               Supabase 私有副本 + append-only 备份快照
 ```
 
 Microsoft 授权采用 Softeria 上游项目使用的公共 OAuth client 的 Device Code 流程。
@@ -41,9 +46,13 @@ Redirect URL。公共 client ID 不是秘密；它只在 server-only adapter 内
 2. 在 Vercel 的 Production 与 Preview 环境设置：
    `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`、`OWNER_EMAIL`、
    `SUPABASE_SECRET_KEY`。
-3. 重新部署后，登录 `/calendar`，点击“连接 Outlook”。Microsoft 页面会要求输入
+3. 在 Vercel Production 环境增加 `CRON_SECRET`：使用密码管理器生成一段随机字符串。
+   它只用于 Vercel 每天 03:15（中国标准时间）的云端同步请求，绝不能使用
+   `NEXT_PUBLIC_` 前缀。
+4. 重新部署后，登录 `/calendar`，点击“连接 Outlook”。Microsoft 页面会要求输入
    一次性代码；完成后返回本页点击“我已完成授权，检查连接”。
-4. 点击“刷新日历”读取未来日程。新建日程始终先进入待确认队列，确认后才发送到 Outlook。
+5. 点击“立即对齐并备份”读取 Outlook 与 To Do，并将一份独立快照保存到 Supabase。
+   新建日程始终先进入待确认队列，确认后才发送到 Outlook。
 
 无需设置 Microsoft Client ID、Client Secret、Redirect URL、Mac bridge 或桥接 token。
 
@@ -52,8 +61,8 @@ Redirect URL。公共 client ID 不是秘密；它只在 server-only adapter 内
 使用专用测试日历验证：刷新读取、创建草稿不写入、确认后创建成功、刷新仍显示、断开
 浏览器会话后再次登录仍可刷新。完成后删除测试日程。
 
-- 第一版仅提供读取、刷新和创建；更新/删除的安全队列协议已预留，尚未开放按钮。
-- 手动刷新与确认操作是实时云端执行；定时后台同步不在本阶段范围。未来如启用 Vercel
-  Cron，仍不需要 Mac。
+- 每日同步是低频备份机制，不是实时双向协作；紧急变更可使用手动“立即对齐并备份”。
+- 快照保留日程和 To Do 文本、时间、状态与列表信息，但不保存 Microsoft Refresh Token。
+- 第一版尚不提供从快照直接恢复写回 Microsoft 的按钮；数据仍可通过 Supabase 导出/迁移。
 - 此模式依赖上游公共 client 持续可用。若 Microsoft 或上游策略改变，应注册自己的
   Entra App 并迁移 client ID。

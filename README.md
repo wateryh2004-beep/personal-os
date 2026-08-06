@@ -42,13 +42,15 @@ npm run build
 
 Notes 的当前正文权威存储在 Supabase PostgreSQL `notes.body_markdown`，版本在 `note_versions.body_markdown`；新建笔记不会在 Mac 或 Vercel 文件系统中生成一个 `.md` 文件。你在 `/notes` 左侧看到的列表就是数据库中已保存的笔记；需要普通 Markdown 文件时，在笔记页点击“下载 Markdown”。Notes Workspace 使用 CodeMirror 直接编辑 Markdown，自动保存采用 revision 乐观并发控制。文件夹、Tags 和 Wiki Links 同样进入 PostgreSQL；附件继续使用私有 `private-files` Storage。单篇/全量 `.md` 导出与 Obsidian ZIP 导入将在 Notes Phase 2 的后续提交完成。
 
-## Microsoft Calendar（云端）
+## Microsoft Calendar 与 To Do（云端备份）
 
-Outlook Calendar 是唯一权威来源。`/calendar` 通过 Vercel 的 server-only adapter
-直接调用 Microsoft Graph，不需要 Mac 常开、桥接器、Microsoft Client Secret 或
-Redirect URL。用户通过 Microsoft Device Code 在官方页面授权；Refresh Token 会在
-服务端加密后保存至 Supabase `private` schema，短期 Access Token 不落库。日程创建
-仍采用明确确认队列。配置和验收步骤见
+Outlook Calendar 与 Microsoft To Do 是同步端，不是唯一存储。当前数据与不可变备份
+快照保存在你的 Supabase 私有数据库中；`/calendar` 的“立即对齐并备份”会同步两者并
+生成一份本地云端快照。Vercel 每日会在云端低频执行同样的任务，不需要 Mac 常开。
+在 Vercel Production 设置一个随机、server-only 的 `CRON_SECRET` 后才会启用计划任务。
+
+用户通过 Microsoft Device Code 在官方页面授权；Refresh Token 会在服务端加密后保存至
+Supabase，短期 Access Token 不落库。日程创建仍采用明确确认队列。配置和验收步骤见
 [`docs/microsoft-calendar-integration.md`](docs/microsoft-calendar-integration.md)。
 
 ## Calendar AI（DeepSeek）

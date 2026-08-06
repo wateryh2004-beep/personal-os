@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { completeMicrosoftTodoTask, createMicrosoftTodoTask, reopenMicrosoftTodoTask, syncMicrosoftTodo } from "@/lib/adapters/microsoft-graph/calendar";
 import { requireOwner } from "@/lib/auth/require-owner";
+import { syncAndBackupMicrosoftWorkspace } from "@/lib/services/microsoft-sync-backup";
 
 function fail(): never { throw new Error("Microsoft To Do 操作未能完成，请重新连接后重试。"); }
 
@@ -24,6 +25,14 @@ export async function syncMicrosoftTodoAction() {
   const result = await syncMicrosoftTodo(connection.id, userId);
   await audit(supabase, userId, "sync", connection.id, result);
   revalidatePath("/tasks");
+}
+
+export async function syncAndBackupMicrosoftTodoAction() {
+  const { supabase, userId } = await requireOwner();
+  const connection = await activeConnection(supabase);
+  await syncAndBackupMicrosoftWorkspace(connection.id, userId, "manual");
+  revalidatePath("/tasks");
+  revalidatePath("/calendar");
 }
 
 const completeSchema = z.object({ taskId: z.string().uuid() });

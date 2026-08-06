@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { executeCalendarOperation } from "@/lib/adapters/microsoft-graph/calendar";
+import { syncAndBackupMicrosoftWorkspace } from "@/lib/services/microsoft-sync-backup";
 import { cancelOperationSchema, confirmOperationSchema, createCalendarEventSchema, deleteCalendarEventSchema } from "./schemas";
 import { calendarPayload } from "./utils";
 
@@ -130,4 +131,16 @@ export async function queueCalendarSync() {
   await audit(supabase, userId, "request", data.id, { operation_type: "sync" });
   try { await executeCalendarOperation(data.id, userId); } catch { /* The operation stores a safe error code; render it instead of crashing the page. */ }
   revalidatePath("/calendar");
+}
+
+export async function syncAndBackupMicrosoftAction() {
+  const { supabase, userId } = await requireOwner();
+  const activeConnection = await connection(supabase);
+  try {
+    await syncAndBackupMicrosoftWorkspace(activeConnection.id, userId, "manual");
+  } catch {
+    throw new Error("同步或备份未能完成。请检查 Outlook 连接和数据库 migration 后重试。");
+  }
+  revalidatePath("/calendar");
+  revalidatePath("/tasks");
 }

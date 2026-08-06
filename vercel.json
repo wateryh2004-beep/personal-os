@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/microsoft-backup",
+      "schedule": "15 19 * * *"
+    }
+  ]
+}
