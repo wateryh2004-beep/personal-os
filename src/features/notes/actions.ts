@@ -22,6 +22,8 @@ export async function restoreNoteVersion(formData: FormData) { const { supabase,
 
 const notePlacementSchema = z.object({ folderId: z.string().uuid().nullable().optional() });
 const moveNoteSchema = z.object({ noteId: z.string().uuid(), folderId: z.string().uuid().nullable().optional() });
+const renameNoteSchema = z.object({ noteId: z.string().uuid(), title: z.string().trim().min(1).max(240) });
+const folderIdSchema = z.string().uuid();
 
 async function ownedFolderId(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], value: string | null | undefined) {
   const parsed = notePlacementSchema.safeParse({ folderId: value || null });
@@ -67,6 +69,39 @@ export async function moveNote(formData: FormData) {
   });
   revalidatePath("/notes");
   revalidatePath(`/notes/${note.id}`);
+}
+
+export async function renameNote(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const parsed = renameNoteSchema.safeParse({ noteId: formData.get("note_id"), title: formData.get("title") });
+  if (!parsed.success) fail();
+  const { data: note, error: noteError } = await supabase.from("notes").select("id,title").eq("id", parsed.data.noteId).is("deleted_at", null).maybeSingle();
+  if (noteError || !note) fail();
+  if (note.title === parsed.data.title) return;
+  const { data: renamed, error } = await supabase.from("notes").update({ title: parsed.data.title }).eq("id", note.id).select("id").maybeSingle();
+  if (error || !renamed) fail();
+  await audit(supabase, userId, "rename", "note", note.id, { previous_title: note.title, title: parsed.data.title });
+  revalidatePath("/notes");
+  revalidatePath(`/notes/${note.id}`);
+}
+
+export async function deleteEmptyFolder(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const folderId = String(formData.get("folder_id") || "");
+  if (!folderIdSchema.safeParse(folderId).success) fail();
+  const { data: folder, error: folderError } = await supabase.from("note_folders").select("id,name").eq("id", folderId).maybeSingle();
+  if (folderError || !folder) fail();
+  const [{ count: noteCount, error: noteError }, { count: childCount, error: childError }] = await Promise.all([
+    supabase.from("notes").select("id", { count: "exact", head: true }).eq("folder_id", folder.id),
+    supabase.from("note_folders").select("id", { count: "exact", head: true }).eq("parent_id", folder.id),
+  ]);
+  // Do not cascade: archived and trashed notes also make a folder non-empty.
+  if (noteError || childError || noteCount || childCount) fail();
+  const { data: deleted, error } = await supabase.from("note_folders").delete().eq("id", folder.id).select("id").maybeSingle();
+  if (error || !deleted) fail();
+  await audit(supabase, userId, "delete", "note_folder", folder.id, { name: folder.name, empty: true });
+  revalidatePath("/notes");
+  redirect("/notes?folder=deleted");
 }
 
 export async function recordNotePdfExport(noteId: string) {
