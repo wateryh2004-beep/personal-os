@@ -345,6 +345,26 @@ export async function completeMicrosoftTodoTask(connectionId: string, userId: st
   if (updateError) throw new MicrosoftGraphError("todo_cache_failed");
 }
 
+export async function reopenMicrosoftTodoTask(connectionId: string, userId: string, localTaskId: string) {
+  const admin = createAdminClient();
+  const { data: task, error } = await admin.from("microsoft_todo_tasks")
+    .select("id,provider_task_id,todo_list_id,microsoft_todo_lists!inner(provider_list_id)")
+    .eq("id", localTaskId).eq("user_id", userId).is("archived_at", null).maybeSingle();
+  if (error || !task) throw new MicrosoftGraphError("todo_task_not_found");
+
+  const list = task.microsoft_todo_lists as unknown as { provider_list_id: string };
+  const accessToken = await accessTokenForConnection(connectionId, userId);
+  const now = new Date().toISOString();
+  await graph(accessToken, `/me/todo/lists/${encodeURIComponent(list.provider_list_id)}/tasks/${encodeURIComponent(task.provider_task_id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "notStarted" }),
+  });
+  const { error: updateError } = await admin.from("microsoft_todo_tasks")
+    .update({ status: "notStarted", completed_at: null, last_synced_at: now })
+    .eq("id", task.id).eq("user_id", userId);
+  if (updateError) throw new MicrosoftGraphError("todo_cache_failed");
+}
+
 export async function executeCalendarOperation(operationId: string, userId: string) {
   const admin = createAdminClient();
   const { data: operation, error } = await admin.from("calendar_operations")

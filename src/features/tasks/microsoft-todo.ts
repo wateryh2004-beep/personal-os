@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { completeMicrosoftTodoTask, createMicrosoftTodoTask, syncMicrosoftTodo } from "@/lib/adapters/microsoft-graph/calendar";
+import { completeMicrosoftTodoTask, createMicrosoftTodoTask, reopenMicrosoftTodoTask, syncMicrosoftTodo } from "@/lib/adapters/microsoft-graph/calendar";
 import { requireOwner } from "@/lib/auth/require-owner";
 
 function fail(): never { throw new Error("Microsoft To Do 操作未能完成，请重新连接后重试。"); }
@@ -66,5 +66,15 @@ export async function completeMicrosoftTodoTaskAction(formData: FormData) {
   const connection = await activeConnection(supabase);
   await completeMicrosoftTodoTask(connection.id, userId, parsed.data.taskId);
   await audit(supabase, userId, "complete", parsed.data.taskId, { provider: "microsoft_todo" });
+  revalidatePath("/tasks");
+}
+
+export async function reopenMicrosoftTodoTaskAction(formData: FormData) {
+  const parsed = completeSchema.safeParse({ taskId: formData.get("task_id") });
+  if (!parsed.success) fail();
+  const { supabase, userId } = await requireOwner();
+  const connection = await activeConnection(supabase);
+  await reopenMicrosoftTodoTask(connection.id, userId, parsed.data.taskId);
+  await audit(supabase, userId, "reopen", parsed.data.taskId, { provider: "microsoft_todo" });
   revalidatePath("/tasks");
 }
