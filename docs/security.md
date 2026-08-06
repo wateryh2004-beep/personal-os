@@ -65,3 +65,10 @@ with check (user_id = auth.uid())
 Career 的每张表和 `documents`、`entity_links` 均启用 RLS，并为 SELECT/INSERT/UPDATE/DELETE 设定 `authenticated` + `auth.uid() = user_id` 策略；事实版本只允许 SELECT/INSERT。普通 Server Actions 首先执行 `requireOwner()`，随后进行 Zod 校验及关联对象所有权检查。`credential_number` 不写入审计的 `after_data`，也不出现在默认导出。
 
 `private-files` 必须在 Dashboard 创建为私有 bucket。Storage object policy 同时限制 bucket 名称及首个路径段等于 `auth.uid()`；浏览器不拥有 service role，文件元数据写失败时会删除刚上传的对象。正式签名 URL 下载界面仍待后续实现。
+# Authentication boundaries
+
+Private application routes are protected in four independent layers: `src/proxy.ts` performs an early redirect, the `(app)` server layout calls `requireOwner()` before rendering the application shell, every Server Action and private Route Handler checks the owner again, and Supabase RLS isolates rows by `auth.uid()`.
+
+`/login` is the only public page route. API endpoints are not redirected by the Proxy because protocol clients need status responses; each private endpoint calls `requireOwner()` itself. OAuth callback paths are explicit protocol exceptions and must remain separately audited. Private HTML and authenticated login responses use `Cache-Control: private, no-store, max-age=0`; they are not eligible for shared CDN caching.
+
+The root `/` performs the same server-side owner check as the private layout before redirecting to `/today`. A non-owner session is cleared by Proxy and redirected to `/login?error=not-authorized`; the configured owner email is never emitted to the client.
