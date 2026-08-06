@@ -51,19 +51,41 @@ function todayInShanghai() {
   return `${value.year}-${value.month}-${value.day}`;
 }
 
+async function getOrCreateJournalFolder(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, name: string, parentId: string | null) {
+  const existing = await supabase.from("note_folders").select("id").eq("name", name).is("parent_id", parentId).is("archived_at", null).maybeSingle();
+  if (existing.data) return existing.data.id;
+  if (existing.error) fail();
+  const inserted = await supabase.from("note_folders").insert({ user_id: userId, name, parent_id: parentId }).select("id").single();
+  if (inserted.data) return inserted.data.id;
+  // The partial unique index protects against a double-click or concurrent request.
+  const concurrent = await supabase.from("note_folders").select("id").eq("name", name).is("parent_id", parentId).is("archived_at", null).maybeSingle();
+  if (!concurrent.data) fail();
+  return concurrent.data.id;
+}
+
 export async function openDailyNote() {
   const { supabase, userId } = await requireOwner();
   const date = todayInShanghai();
   const title = `日记 · ${date}`;
+  const [year, month] = date.split("-");
+  const journalFolderId = await getOrCreateJournalFolder(supabase, userId, "日记", null);
+  const yearFolderId = await getOrCreateJournalFolder(supabase, userId, year, journalFolderId);
+  const monthFolderId = await getOrCreateJournalFolder(supabase, userId, month, yearFolderId);
   const { data: existing, error: findError } = await supabase.from("notes").select("id").eq("title", title).is("deleted_at", null).maybeSingle();
   if (findError && !missingWorkspaceColumn(findError)) fail();
-  if (existing) redirect(`/notes/${existing.id}`);
+  if (existing) {
+    const { error: moveError } = await supabase.from("notes").update({ folder_id: monthFolderId }).eq("id", existing.id);
+    if (moveError) fail();
+    await audit(supabase, userId, "organize_daily_note", "note", existing.id, { folder: `日记/${year}/${month}` });
+    revalidatePath("/notes");
+    redirect(`/notes/${existing.id}`);
+  }
   const body = `# ${title}\n\n## 今天发生了什么\n\n\n## 感受与想法\n\n\n## 明天\n`;
   const hash = contentHash(body);
-  const { data: note, error } = await supabase.from("notes").insert({ user_id: userId, title, body_markdown: body, status: "active", revision: 1, content_hash: hash, word_count: body.trim().split(/\s+/).length, character_count: body.length, last_saved_at: new Date().toISOString() }).select("id").single();
+  const { data: note, error } = await supabase.from("notes").insert({ user_id: userId, folder_id: monthFolderId, title, body_markdown: body, status: "active", revision: 1, content_hash: hash, word_count: body.trim().split(/\s+/).length, character_count: body.length, last_saved_at: new Date().toISOString() }).select("id").single();
   if (error || !note) fail();
   const version = await supabase.from("note_versions").insert({ user_id: userId, note_id: note.id, title, body_markdown: body, version_number: 1, created_by: userId, content_hash: hash, revision: 1, reason: "initial" });
   if (version.error) fail();
-  await audit(supabase, userId, "create_daily_note", "note", note.id, { date });
+  await audit(supabase, userId, "create_daily_note", "note", note.id, { date, folder: `日记/${year}/${month}` });
   redirect(`/notes/${note.id}`);
 }
