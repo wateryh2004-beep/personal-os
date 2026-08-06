@@ -3,6 +3,9 @@
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useActionState, useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import { createMicrosoftTodoTaskAction, type TodoCreateState } from "@/features/tasks/microsoft-todo";
 
 type TodoList = { id: string; display_name: string; is_default: boolean };
@@ -67,7 +70,9 @@ export function TaskAssistant({ lists }: { lists: TodoList[] }) {
     {!lists.length ? <p className="mt-4 border-l-2 border-amber-600 bg-amber-50 px-3 py-3 text-sm text-amber-800">还没有同步到 Microsoft To Do 清单。请先点击“刷新 To Do”，随后即可直接新建任务或使用 AI 提案。</p> : <>
       <div className="mt-4 max-h-80 space-y-3 overflow-y-auto pr-1">
         {!messages.length ? <p className="border-l-2 border-[#365F78] bg-[#EDF3F6] px-3 py-3 text-sm leading-6 text-zinc-600">AI 只生成任务提案；你确认一次后才会写入 Microsoft To Do。</p> : messages.map((message) => <div key={message.id} className={message.role === "user" ? "ml-8 text-right" : "mr-8"}>{message.parts.map((part, index) => {
-          if (part.type === "text") return <p key={index} className={message.role === "user" ? "inline-block bg-[#EDF3F6] px-3 py-2 text-sm" : "whitespace-pre-wrap text-sm leading-6 text-zinc-700"}>{part.text}</p>;
+          if (part.type === "text") return message.role === "user"
+            ? <p key={index} className="inline-block bg-[#EDF3F6] px-3 py-2 text-sm">{part.text}</p>
+            : <div key={index} className="task-ai-markdown text-sm leading-6 text-zinc-700"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{ p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>, ul: ({ children }) => <ul className="mb-3 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>, ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>, li: ({ children }) => <li>{children}</li>, strong: ({ children }) => <strong className="font-semibold text-zinc-900">{children}</strong>, code: ({ children }) => <code className="rounded bg-zinc-100 px-1 font-mono text-[0.85em]">{children}</code>, a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-[#365F78] underline underline-offset-2">{children}</a> }}>{part.text}</ReactMarkdown></div>;
           if (part.type === "tool-proposeTodoTask" && part.state === "output-available") {
             const output = part.output as TodoProposal;
             return output.proposal ? <TodoProposalForm key={part.toolCallId} proposal={output.proposal} lists={lists} /> : <p key={part.toolCallId} className="text-sm text-amber-800">{output.error || "无法生成任务提案。"}</p>;
