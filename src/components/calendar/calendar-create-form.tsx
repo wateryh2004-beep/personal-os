@@ -19,14 +19,15 @@ export function CalendarCreateForm() {
     const endHidden = form.elements.namedItem("ends_at");
     if (startHidden instanceof HTMLInputElement) startHidden.value = String(data.get("starts_at"));
     if (endHidden instanceof HTMLInputElement) endHidden.value = String(data.get("ends_at"));
-  }} className="grid gap-3 sm:grid-cols-2">
-    <input name="subject" required maxLength={500} placeholder="日程标题" className="border bg-white px-3 py-2 text-sm sm:col-span-2" aria-label="日程标题" />
-    <label className="grid gap-1 text-xs text-zinc-600">开始时间<input ref={startInputRef} type="datetime-local" required className="border bg-white px-3 py-2 text-sm text-zinc-900" /></label>
-    <label className="grid gap-1 text-xs text-zinc-600">结束时间<input ref={endInputRef} type="datetime-local" required className="border bg-white px-3 py-2 text-sm text-zinc-900" /></label>
+  }} className="grid gap-3">
+    <label className="grid gap-1 text-xs text-zinc-600">标题<input name="subject" required maxLength={500} placeholder="例如：和张三开会" className="w-full border bg-white px-3 py-2 text-sm" aria-label="日程标题" /></label>
+    <label className="grid gap-1 text-xs text-zinc-600">说明（可选）<textarea name="description" maxLength={10000} rows={4} placeholder="议程、会议链接、准备事项或其他详细信息" className="w-full resize-y border bg-white px-3 py-2 text-sm leading-5" aria-label="日程说明" /></label>
+    <label className="grid gap-1 text-xs text-zinc-600">开始时间<input ref={startInputRef} type="datetime-local" required className="w-full min-w-0 border bg-white px-3 py-2 text-sm text-zinc-900" /></label>
+    <label className="grid gap-1 text-xs text-zinc-600">结束时间<input ref={endInputRef} type="datetime-local" required className="w-full min-w-0 border bg-white px-3 py-2 text-sm text-zinc-900" /></label>
     <input type="hidden" name="starts_at" />
     <input type="hidden" name="ends_at" />
-    <input name="location_name" maxLength={500} placeholder="地点（可选）" className="border bg-white px-3 py-2 text-sm" />
+    <input name="location_name" maxLength={500} placeholder="地点（可选）" className="w-full border bg-white px-3 py-2 text-sm" />
     <label className="flex items-center gap-2 text-sm text-zinc-700"><input type="checkbox" name="is_all_day" /> 全天</label>
-    <div className="sm:col-span-2"><button disabled={pending} className="bg-[#365F78] px-3 py-2 text-sm text-white disabled:opacity-60">{pending ? "正在创建…" : "创建日程"}</button>{state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}>{state.message}</p> : null}</div>
+    <div><button disabled={pending} className="bg-[#365F78] px-3 py-2 text-sm text-white disabled:opacity-60">{pending ? "正在创建…" : "创建日程"}</button>{state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}>{state.message}</p> : null}</div>
   </form>;
 }

@@ -23,6 +23,7 @@ type GraphEvent = {
 
 type CalendarPayload = {
   subject: string;
+  description: string | null;
   startsAt: string;
   endsAt: string;
   locationName: string | null;
@@ -236,6 +237,7 @@ export async function executeCalendarOperation(operationId: string, userId: stri
       method: "POST",
       body: JSON.stringify({
         subject: value.subject,
+        ...(value.description ? { body: { contentType: "text", content: value.description } } : {}),
         start: { dateTime: value.startsAt, timeZone: "UTC" },
         end: { dateTime: value.endsAt, timeZone: "UTC" },
         isAllDay: value.isAllDay,

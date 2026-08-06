@@ -4,6 +4,7 @@ const isoDateTime = z.string().datetime({ offset: true });
 
 export const createCalendarEventSchema = z.object({
   subject: z.string().trim().min(1, "请输入日程标题。").max(500),
+  description: z.string().trim().max(10_000).optional().transform((value) => value || null),
   startsAt: isoDateTime,
   endsAt: isoDateTime,
   locationName: z.string().trim().max(500).optional().transform((value) => value || null),

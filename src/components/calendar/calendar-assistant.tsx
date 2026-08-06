@@ -5,7 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { createCalendarEvent, deleteCalendarEvent, type CalendarCreateState } from "@/features/calendar/actions";
 
-type CalendarProposal = { proposal: { subject: string; startsAt: string; endsAt: string; locationName: string | null; isAllDay: boolean } };
+type CalendarProposal = { proposal: { subject: string; description: string | null; startsAt: string; endsAt: string; locationName: string | null; isAllDay: boolean } };
 type CalendarDeleteProposal = { proposal: { providerEventId: string; subject: string; startsAt: string; endsAt: string } };
 const initialCalendarCreateState: CalendarCreateState = { status: "idle", message: "" };
 
@@ -19,7 +19,7 @@ function calendarAiErrorMessage(error: Error) {
 
 function CalendarProposalForm({ event }: { event: CalendarProposal["proposal"] }) {
   const [state, formAction, pending] = useActionState(createCalendarEvent, initialCalendarCreateState);
-  return <form action={formAction} className="mt-2 border border-[#365F78] bg-[#EDF3F6] p-3 text-left text-sm"><p className="font-medium">日程提案</p><p className="mt-1 text-zinc-600">{event.subject} · {new Date(event.startsAt).toLocaleString("zh-CN")} — {new Date(event.endsAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</p><input type="hidden" name="subject" value={event.subject} /><input type="hidden" name="starts_at" value={event.startsAt} /><input type="hidden" name="ends_at" value={event.endsAt} /><input type="hidden" name="location_name" value={event.locationName ?? ""} /><input type="hidden" name="is_all_day" value={event.isAllDay ? "on" : ""} /><button disabled={pending} className="mt-3 bg-[#365F78] px-3 py-1.5 text-xs text-white disabled:opacity-60">{pending ? "正在创建…" : "确认创建日程"}</button>{state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}>{state.message}</p> : null}</form>;
+  return <form action={formAction} className="mt-2 border border-[#365F78] bg-[#EDF3F6] p-3 text-left text-sm"><p className="font-medium">{event.subject}</p>{event.description ? <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-zinc-600">{event.description}</p> : null}<p className="mt-2 text-zinc-600">{new Date(event.startsAt).toLocaleString("zh-CN")} — {new Date(event.endsAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</p><input type="hidden" name="subject" value={event.subject} /><input type="hidden" name="description" value={event.description ?? ""} /><input type="hidden" name="starts_at" value={event.startsAt} /><input type="hidden" name="ends_at" value={event.endsAt} /><input type="hidden" name="location_name" value={event.locationName ?? ""} /><input type="hidden" name="is_all_day" value={event.isAllDay ? "on" : ""} /><button disabled={pending} className="mt-3 bg-[#365F78] px-3 py-1.5 text-xs text-white disabled:opacity-60">{pending ? "正在创建…" : "确认创建日程"}</button>{state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}>{state.message}</p> : null}</form>;
 }
 
 function CalendarDeleteProposalForm({ event }: { event: CalendarDeleteProposal["proposal"] }) {

@@ -5,6 +5,7 @@ import { calendarPayload, eventForGraph } from "@/features/calendar/utils";
 describe("calendar operation payloads", () => {
   const event = {
     subject: "专注写作",
+    description: "完成第一稿，并整理待确认的问题。",
     startsAt: "2026-08-05T09:00:00.000Z",
     endsAt: "2026-08-05T10:00:00.000Z",
     locationName: "书房",
@@ -13,6 +14,7 @@ describe("calendar operation payloads", () => {
 
   it("accepts a valid, UTC-normalized create request", () => {
     expect(createCalendarEventSchema.parse(event)).toEqual(event);
+    expect(createCalendarEventSchema.parse({ ...event, description: "" }).description).toBeNull();
   });
 
   it("rejects an end time that is not after the start", () => {
@@ -29,6 +31,7 @@ describe("calendar operation payloads", () => {
     expect(calendarPayload(event)).toEqual(event);
     expect(eventForGraph(event)).toEqual({
       subject: "专注写作",
+      body: { contentType: "text", content: "完成第一稿，并整理待确认的问题。" },
       start: { dateTime: event.startsAt, timeZone: "UTC" },
       end: { dateTime: event.endsAt, timeZone: "UTC" },
       isAllDay: false,

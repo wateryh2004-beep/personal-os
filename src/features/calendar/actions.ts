@@ -12,6 +12,7 @@ function fail(): never { throw new Error("日历操作未能完成，请检查�
 function formValue(formData: FormData) {
   return {
     subject: String(formData.get("subject") || ""),
+    description: String(formData.get("description") || ""),
     startsAt: String(formData.get("starts_at") || ""),
     endsAt: String(formData.get("ends_at") || ""),
     locationName: String(formData.get("location_name") || ""),
@@ -50,7 +51,7 @@ export async function createCalendarEvent(_previousState: CalendarCreateState, f
       payload: calendarPayload(parsed.data),
     }).select("id").single();
     if (requestError || !requested) fail();
-    await audit(supabase, userId, "request", requested.id, { operation_type: "create", subject: parsed.data.subject, starts_at: parsed.data.startsAt, ends_at: parsed.data.endsAt });
+    await audit(supabase, userId, "request", requested.id, { operation_type: "create", subject: parsed.data.subject, has_description: Boolean(parsed.data.description), starts_at: parsed.data.startsAt, ends_at: parsed.data.endsAt });
 
     // 点击“创建日程”即为唯一的用户确认；队列仍保留完整的状态与审计记录。
     const { data: queued, error: queueError } = await supabase.from("calendar_operations")
