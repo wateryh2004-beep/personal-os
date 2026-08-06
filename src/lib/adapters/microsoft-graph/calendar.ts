@@ -3,6 +3,7 @@ import "server-only";
 import { env } from "@/lib/env";
 import { sealSecret, unsealSecret } from "@/lib/crypto/sealed-secret";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { calendarEventForGraph, type GraphCalendarCreatePayload } from "./event-payload";
 
 const MICROSOFT_CLIENT_ID = "084a3e9f-a9f4-43f7-89f9-d229cf97853e";
 const MICROSOFT_TENANT = "consumers";
@@ -48,6 +49,7 @@ type CalendarPayload = {
   endsAt: string;
   locationName: string | null;
   isAllDay: boolean;
+  timeZone?: string;
 };
 
 type CalendarDeletePayload = {
@@ -165,7 +167,14 @@ async function graph(accessToken: string, path: string, init?: RequestInit) {
     throw new MicrosoftGraphError("graph_unavailable");
   }
   const payload: unknown = await response.json().catch(() => null);
-  if (!response.ok) throw new MicrosoftGraphError("graph_request_failed");
+  if (!response.ok) {
+    const graphCode = payload && typeof payload === "object" && "error" in payload
+      && payload.error && typeof payload.error === "object" && "code" in payload.error
+      ? String(payload.error.code) : "";
+    if (graphCode === "ErrorAccessDenied" || graphCode === "Authorization_RequestDenied") throw new MicrosoftGraphError("graph_access_denied");
+    if (graphCode === "ErrorInvalidRequest" || graphCode === "ErrorInvalidTimeZone") throw new MicrosoftGraphError("graph_invalid_request");
+    throw new MicrosoftGraphError("graph_request_failed");
+  }
   return payload;
 }
 
@@ -398,14 +407,7 @@ export async function executeCalendarOperation(operationId: string, userId: stri
     const accessToken = await accessTokenForConnection(operation.connection_id, userId);
     const created = await graph(accessToken, "/me/events", {
       method: "POST",
-      body: JSON.stringify({
-        subject: value.subject,
-        ...(value.description ? { body: { contentType: "text", content: value.description } } : {}),
-        start: { dateTime: value.startsAt, timeZone: "UTC" },
-        end: { dateTime: value.endsAt, timeZone: "UTC" },
-        isAllDay: value.isAllDay,
-        ...(value.locationName ? { location: { displayName: value.locationName } } : {}),
-      }),
+      body: JSON.stringify(calendarEventForGraph(value as GraphCalendarCreatePayload)),
     }) as GraphEvent;
     const record = graphEventRecord(created, userId);
     const { error: cacheError } = await admin.from("calendar_events").upsert(record, { onConflict: "user_id,provider_event_id" });

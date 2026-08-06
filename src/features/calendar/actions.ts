@@ -43,12 +43,13 @@ export async function createCalendarEvent(_previousState: CalendarCreateState, f
     const parsed = createCalendarEventSchema.safeParse(formValue(formData));
     if (!parsed.success) return { status: "error", message: "请检查日程标题和开始、结束时间。" };
     const activeConnection = await connection(supabase);
+    const { data: profile } = await supabase.from("profiles").select("timezone").eq("id", userId).maybeSingle();
     const { data: requested, error: requestError } = await supabase.from("calendar_operations").insert({
       user_id: userId,
       connection_id: activeConnection.id,
       operation_type: "create",
       status: "pending_confirmation",
-      payload: calendarPayload(parsed.data),
+      payload: { ...calendarPayload(parsed.data), timeZone: profile?.timezone || "Asia/Shanghai" },
     }).select("id").single();
     if (requestError || !requested) fail();
     await audit(supabase, userId, "request", requested.id, { operation_type: "create", subject: parsed.data.subject, has_description: Boolean(parsed.data.description), starts_at: parsed.data.startsAt, ends_at: parsed.data.endsAt });
