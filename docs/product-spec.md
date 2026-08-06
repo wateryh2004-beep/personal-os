@@ -4,7 +4,7 @@
 
 Personal OS 是 Hang Yu 的私人、长期个人数据与决策系统。Phase 1 建立可靠的日常操作基础：安全登录、快速捕捉、任务与项目管理、Markdown 笔记、今日视图、设置、活动记录和可导出数据。
 
-基础阶段明确不做 Investing、AI、照片、实时协作、社交、行情、交易、Webhook、向量数据库、知识图谱或原生应用。Career Module Phase 1 已启动，但仅覆盖职业档案、经历事实、成果、表达、技能、证书和证明材料；不做简历、投递或面试。后续批准的 Calendar 仅连接 Outlook：云端 Device Code 授权、近期只读缓存与确认式创建队列；不接入邮件、Tasks、AI 或自动化。
+基础阶段明确不做 Investing、照片、实时协作、社交、行情、交易、Webhook、向量数据库、知识图谱或原生应用。Career War Room V1 已启动，覆盖未来 12 个月学生求职所需的履历、路线、简历版本、公司岗位、投递与面试；不做招聘网站爬取、自动投递、自动联系、AI 自动改写或复杂简历设计器。Calendar 仅连接 Outlook，Tasks 以 Microsoft To Do 为权威。
 
 ## Career Module Phase 1
 

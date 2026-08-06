@@ -3,7 +3,7 @@
 ## 范围与原则
 
 - Personal OS 是 Hang Yu 私人使用、可长期维护且可迁移的模块化单体。
-- 先完成当前阶段；Career Module Phase 1 已进入路线图，仅实现职业档案、经历事实、成果、表达、技能、证书和私有证明材料；不得提前实现简历、投递、面试、AI、Outlook、照片或自动化功能。
+- Career War Room V1 已进入当前开发阶段：面向未来 12 个月的学生实习、秋招与履历优化，允许 Resume、Company、Position、Application、Interview 与 Career Roadmap。继续禁止招聘网站爬取、自动投递或联系、AI 自动修改事实/投递、复杂简历设计器、公开主页与多用户协作。
 - Career 中 Facts 是权威事实底稿，Bullets 是面向方向的表达版本；二者不得互相覆盖。职业事实必须可追溯，且不得编造示例数据。
 - 数据模型不得使用万能 `items` 表或 EAV。每个业务表均应有 `user_id`、时间戳和适当的归档字段。
 - 笔记正文以原始 Markdown 保存。删除优先归档；重大内容修改必须保留版本。
