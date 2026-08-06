@@ -52,6 +52,20 @@ export async function getNotesWorkspace(): Promise<{
   return { notes: notesResult.data ?? [], folders: foldersResult.data ?? [], state: "ready" };
 }
 
+/** Folder metadata for controls that move an already-authorized note. */
+export async function getActiveNoteFolders() {
+  const { supabase } = await requireOwner();
+  const result = await supabase
+    .from("note_folders")
+    .select("id,name,parent_id")
+    .is("archived_at", null)
+    .order("position")
+    .order("name");
+
+  if (isNotesWorkspaceSchemaMissing(result.error) || result.error) return [];
+  return result.data ?? [];
+}
+
 const noteIdSchema = z.string().uuid();
 
 export async function getNote(id: string) {

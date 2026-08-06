@@ -21,6 +21,7 @@ export async function createNoteVersion(formData: FormData) { const { supabase, 
 export async function restoreNoteVersion(formData: FormData) { const { supabase, userId } = await requireOwner(); const noteId = String(formData.get("note_id") || ""); const versionId = String(formData.get("version_id") || ""); const [{ data: note }, { data: version }, { data: latest }] = await Promise.all([supabase.from("notes").select("*").eq("id", noteId).maybeSingle(), supabase.from("note_versions").select("*").eq("id", versionId).eq("note_id", noteId).maybeSingle(), supabase.from("note_versions").select("version_number").eq("note_id", noteId).order("version_number", { ascending: false }).limit(1).maybeSingle()]); if (!note || !version) fail(); const snapshot = await supabase.from("note_versions").insert({ user_id: userId, note_id: noteId, title: note.title, body_markdown: note.body_markdown, version_number: (latest?.version_number ?? 0) + 1, created_by: userId, content_hash: note.content_hash, revision: note.revision, reason: "before_restore" }); if (snapshot.error) fail(); const { error } = await supabase.from("notes").update({ title: version.title, body_markdown: version.body_markdown, content_hash: version.content_hash, revision: (note.revision ?? 0) + 1, last_saved_at: new Date().toISOString() }).eq("id", noteId); if (error) fail(); await audit(supabase, userId, "restore_version", "note", noteId, { version_id: versionId }); revalidatePath(`/notes/${noteId}`); }
 
 const notePlacementSchema = z.object({ folderId: z.string().uuid().nullable().optional() });
+const moveNoteSchema = z.object({ noteId: z.string().uuid(), folderId: z.string().uuid().nullable().optional() });
 
 async function ownedFolderId(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], value: string | null | undefined) {
   const parsed = notePlacementSchema.safeParse({ folderId: value || null });
@@ -29,6 +30,43 @@ async function ownedFolderId(supabase: Awaited<ReturnType<typeof requireOwner>>[
   const { data } = await supabase.from("note_folders").select("id").eq("id", parsed.data.folderId).is("archived_at", null).maybeSingle();
   if (!data) fail();
   return data.id;
+}
+
+export async function moveNote(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const parsed = moveNoteSchema.safeParse({
+    noteId: formData.get("note_id"),
+    folderId: String(formData.get("folder_id") || "") || null,
+  });
+  if (!parsed.success) fail();
+
+  // RLS scopes this lookup to the current user; the explicit row check avoids
+  // treating an unknown/deleted note as a successful move.
+  const { data: note, error: noteError } = await supabase
+    .from("notes")
+    .select("id,folder_id")
+    .eq("id", parsed.data.noteId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (noteError || !note) fail();
+
+  const targetFolderId = await ownedFolderId(supabase, parsed.data.folderId);
+  if (note.folder_id === targetFolderId) return;
+
+  const { data: moved, error } = await supabase
+    .from("notes")
+    .update({ folder_id: targetFolderId })
+    .eq("id", note.id)
+    .select("id")
+    .maybeSingle();
+  if (error || !moved) fail();
+
+  await audit(supabase, userId, "move", "note", note.id, {
+    from_folder_id: note.folder_id,
+    to_folder_id: targetFolderId,
+  });
+  revalidatePath("/notes");
+  revalidatePath(`/notes/${note.id}`);
 }
 
 export async function createNoteInFolder(formData: FormData) {
