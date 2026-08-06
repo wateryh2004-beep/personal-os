@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { CalendarAssistant } from "@/components/calendar/calendar-assistant";
 import { CalendarCreateForm } from "@/components/calendar/calendar-create-form";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { layoutTimedEvents } from "@/features/calendar/view-utils";
 
 type CalendarEvent = { id: string; subject: string; starts_at: string; ends_at: string; is_all_day: boolean; location_name: string | null };
@@ -24,13 +25,18 @@ const timeLabel = (value: string) => new Intl.DateTimeFormat("zh-CN", { hour: "2
 const dateLabel = (value: Date) => new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" }).format(value);
 const hourLabel = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
 
+function EventDetailsTooltip({ event, children, className, style }: { event: CalendarEvent; children: React.ReactNode; className: string; style?: React.CSSProperties }) {
+  const title = event.subject || "无标题日程";
+  return <Tooltip><TooltipTrigger asChild><button type="button" className={className} style={style} aria-label={`查看日程：${title}`}>{children}</button></TooltipTrigger><TooltipContent sideOffset={6} className="block max-w-sm leading-5"><p className="font-medium">{title}</p><p className="mt-1 font-mono text-[10px]">{event.is_all_day ? "全天" : `${timeLabel(event.starts_at)} — ${timeLabel(event.ends_at)}`}</p>{event.location_name ? <p className="mt-1 text-[11px] opacity-85">{event.location_name}</p> : null}</TooltipContent></Tooltip>;
+}
+
 function EventChip({ event }: { event: CalendarEvent }) {
-  return <div title={`${event.subject || "无标题日程"}${event.location_name ? ` · ${event.location_name}` : ""}`} className="truncate border-l-2 border-[#365F78] bg-[#EDF3F6] px-1.5 py-1 text-xs leading-4 text-[#24495e]"><span className="mr-1 font-mono text-[10px]">{event.is_all_day ? "全天" : timeLabel(event.starts_at)}</span>{event.subject || "无标题日程"}</div>;
+  return <EventDetailsTooltip event={event} className="block w-full truncate border-l-2 border-[#365F78] bg-[#EDF3F6] px-1.5 py-1 text-left text-xs leading-4 text-[#24495e] outline-none focus-visible:ring-2 focus-visible:ring-[#365F78]"><span className="mr-1 font-mono text-[10px]">{event.is_all_day ? "全天" : timeLabel(event.starts_at)}</span>{event.subject || "无标题日程"}</EventDetailsTooltip>;
 }
 
 function TimedEvent({ event, top, height, column, columns }: { event: CalendarEvent; top: number; height: number; column: number; columns: number }) {
   const title = event.subject || "无标题日程";
-  return <div title={`${title} · ${timeLabel(event.starts_at)} — ${timeLabel(event.ends_at)}${event.location_name ? ` · ${event.location_name}` : ""}`} className="absolute overflow-hidden rounded-sm border-l-4 border-[#365F78] bg-[#EDF3F6] px-2 py-1 text-left text-xs leading-4 text-[#24495e] shadow-[0_1px_1px_rgb(24_24_27/0.06)]" style={{ top, height, left: `calc(${(column / columns) * 100}% + 3px)`, width: `calc(${100 / columns}% - 6px)` }}><p className="truncate font-medium">{title}</p>{height >= 44 ? <p className="mt-0.5 truncate font-mono text-[10px] text-[#365F78]">{timeLabel(event.starts_at)} — {timeLabel(event.ends_at)}</p> : null}{height >= 66 && event.location_name ? <p className="mt-0.5 truncate text-[10px] text-zinc-600">{event.location_name}</p> : null}</div>;
+  return <EventDetailsTooltip event={event} className="absolute overflow-hidden rounded-sm border-l-4 border-[#365F78] bg-[#EDF3F6] px-2 py-1 text-left text-xs leading-4 text-[#24495e] shadow-[0_1px_1px_rgb(24_24_27/0.06)] outline-none focus-visible:ring-2 focus-visible:ring-[#365F78]" style={{ top, height, left: `calc(${(column / columns) * 100}% + 3px)`, width: `calc(${100 / columns}% - 6px)` }}><p className="truncate font-medium">{title}</p>{height >= 44 ? <p className="mt-0.5 truncate font-mono text-[10px] text-[#365F78]">{timeLabel(event.starts_at)} — {timeLabel(event.ends_at)}</p> : null}{height >= 66 && event.location_name ? <p className="mt-0.5 truncate text-[10px] text-zinc-600">{event.location_name}</p> : null}</EventDetailsTooltip>;
 }
 
 function TimeGrid({ dates, eventsByDate, today }: { dates: Date[]; eventsByDate: Map<string, CalendarEvent[]>; today: string }) {
