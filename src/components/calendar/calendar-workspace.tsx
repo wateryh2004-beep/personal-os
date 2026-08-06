@@ -12,7 +12,7 @@ type CalendarView = "day" | "week" | "month";
 const weekDays = ["一", "二", "三", "四", "五", "六", "日"];
 const visibleStartHour = 6;
 const visibleEndHour = 24;
-const hourHeight = 68;
+const hourHeight = 30;
 const timeColumnWidth = 72;
 const pad = (value: number) => String(value).padStart(2, "0");
 const keyOf = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -40,7 +40,7 @@ function TimeGrid({ dates, eventsByDate, today }: { dates: Date[]; eventsByDate:
   return <div className="min-w-[820px]" style={{ gridTemplateColumns: columns }}>
     <div className="grid border-b" style={{ gridTemplateColumns: columns }}>
       <div className="flex items-center border-r px-3 text-xs text-zinc-500">全天</div>
-      {dates.map((date) => { const key = keyOf(date); const allDay = (eventsByDate.get(key) ?? []).filter((event) => event.is_all_day); return <div key={key} className={`min-h-[52px] border-r px-2 py-2 last:border-r-0 ${key === today ? "bg-[#F7FAFB]" : ""}`}>{allDay.slice(0, 2).map((event) => <div className="mb-1" key={event.id}><EventChip event={event} /></div>)}{allDay.length > 2 ? <p className="px-1 text-[10px] text-zinc-500">+{allDay.length - 2} 项</p> : null}</div>; })}
+      {dates.map((date) => { const key = keyOf(date); const allDay = (eventsByDate.get(key) ?? []).filter((event) => event.is_all_day); return <div key={key} className={`min-h-[40px] border-r px-1.5 py-1 last:border-r-0 ${key === today ? "bg-[#F7FAFB]" : ""}`}>{allDay.slice(0, 2).map((event) => <div className="mb-1" key={event.id}><EventChip event={event} /></div>)}{allDay.length > 2 ? <p className="px-1 text-[10px] text-zinc-500">+{allDay.length - 2} 项</p> : null}</div>; })}
     </div>
     <div className="grid" style={{ gridTemplateColumns: columns }}>
       <div className="relative border-r" style={{ height: gridHeight }}>{hours.map((hour) => <span key={hour} className="absolute right-3 -translate-y-2 font-mono text-[10px] text-zinc-500" style={{ top: (hour - visibleStartHour) * hourHeight }}>{hourLabel(hour)}</span>)}</div>
