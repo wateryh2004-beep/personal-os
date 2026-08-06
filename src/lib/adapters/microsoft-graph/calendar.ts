@@ -33,6 +33,14 @@ type GraphTodoTask = {
   lastModifiedDateTime?: string | null;
 };
 
+type CreateTodoTaskInput = {
+  todoListId: string;
+  title: string;
+  bodyText: string | null;
+  importance: "low" | "normal" | "high";
+  dueAt: string | null;
+};
+
 type CalendarPayload = {
   subject: string;
   description: string | null;
@@ -271,6 +279,50 @@ export async function syncMicrosoftTodo(connectionId: string, userId: string) {
     return { listCount: lists.length, taskCount };
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "todo_sync_failed";
+    await markConnectionError(connectionId, code);
+    throw new MicrosoftGraphError(code);
+  }
+}
+
+export async function createMicrosoftTodoTask(connectionId: string, userId: string, input: CreateTodoTaskInput) {
+  const admin = createAdminClient();
+  const { data: list, error: listError } = await admin.from("microsoft_todo_lists")
+    .select("id,provider_list_id")
+    .eq("id", input.todoListId).eq("user_id", userId).eq("connection_id", connectionId).is("archived_at", null).maybeSingle();
+  if (listError || !list) throw new MicrosoftGraphError("todo_list_not_found");
+
+  try {
+    const accessToken = await accessTokenForConnection(connectionId, userId);
+    const payload = await graph(accessToken, `/me/todo/lists/${encodeURIComponent(list.provider_list_id)}/tasks`, {
+      method: "POST",
+      body: JSON.stringify({
+        title: input.title,
+        body: input.bodyText ? { content: input.bodyText, contentType: "text" } : undefined,
+        importance: input.importance,
+        dueDateTime: input.dueAt ? { dateTime: input.dueAt.replace("Z", ""), timeZone: "UTC" } : undefined,
+      }),
+    }) as GraphTodoTask;
+    if (!payload.id) throw new MicrosoftGraphError("graph_task_invalid");
+    const now = new Date().toISOString();
+    const { data: record, error: cacheError } = await admin.from("microsoft_todo_tasks").upsert({
+      user_id: userId,
+      todo_list_id: list.id,
+      provider_task_id: payload.id,
+      title: payload.title || input.title,
+      body_text: payload.body?.content || input.bodyText,
+      status: payload.status || "notStarted",
+      importance: payload.importance || input.importance,
+      due_at: optionalIso(payload.dueDateTime?.dateTime) || input.dueAt,
+      completed_at: optionalIso(payload.completedDateTime?.dateTime),
+      provider_last_modified_at: optionalIso(payload.lastModifiedDateTime),
+      last_synced_at: now,
+      archived_at: null,
+    }, { onConflict: "user_id,provider_task_id" }).select("id").single();
+    if (cacheError || !record) throw new MicrosoftGraphError("todo_cache_failed");
+    await admin.from("calendar_connections").update({ last_seen_at: now, last_error_code: null }).eq("id", connectionId).eq("user_id", userId);
+    return record.id;
+  } catch (error) {
+    const code = error instanceof MicrosoftGraphError ? error.code : "todo_create_failed";
     await markConnectionError(connectionId, code);
     throw new MicrosoftGraphError(code);
   }
