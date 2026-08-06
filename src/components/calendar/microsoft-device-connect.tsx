@@ -37,8 +37,7 @@ export function MicrosoftDeviceConnect({ reconnect = false }: { reconnect?: bool
 
   return <section className="mt-6 border-l-2 border-[#365F78] bg-[#EDF3F6] px-4 py-4">
     <h2 className="font-medium">{reconnect ? "重新连接 Microsoft" : "连接 Microsoft"}</h2>
-    <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-600">授权在 Microsoft 官方页面完成。刷新凭据仅以加密形式保存在云端私有数据库；Calendar 与 To Do 由 Vercel 直接同步，不需要安装程序或让 Mac 保持开机。</p>
-    {reconnect ? <p className="mt-2 text-sm text-zinc-600">上次授权没有保存完整凭据。重新授权会安全覆盖这条失效连接。</p> : null}
+    <p className="mt-1 text-sm leading-6 text-zinc-600">在 Microsoft 官方页面完成授权后，返回这里继续。</p>
     {!authorization ? <button type="button" onClick={begin} disabled={state !== "idle"} className="mt-3 bg-[#365F78] px-3 py-2 text-sm text-white disabled:opacity-60">{state === "starting" ? "正在生成授权码…" : reconnect ? "重新授权 Outlook" : "连接 Outlook"}</button> : <div className="mt-3 border bg-white p-3 text-sm"><p>在打开的 Microsoft 页面输入此代码：</p><p className="mt-2 font-mono text-lg font-semibold tracking-[0.16em] text-[#365F78]">{authorization.userCode}</p><a className="mt-2 inline-block text-[#365F78] underline" href={authorization.verificationUri} target="_blank" rel="noreferrer">重新打开 Microsoft 授权页面</a><br /><button type="button" onClick={check} disabled={state !== "idle"} className="mt-3 border px-3 py-2 text-sm disabled:opacity-60">{state === "checking" ? "正在检查…" : "我已完成授权，检查连接"}</button></div>}
     {error ? <p role="status" className="mt-3 text-sm text-zinc-600">{error}</p> : null}
   </section>;
