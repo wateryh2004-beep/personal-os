@@ -4,3 +4,12 @@ export function contentHash(value: string) { return createHash("sha256").update(
 export function parseWikiLinks(markdown: string): WikiLink[] { const links: WikiLink[] = []; const pattern = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g; for (const match of markdown.matchAll(pattern)) links.push({ targetTitle: match[1].trim(), alias: match[2]?.trim() || null, start: match.index ?? 0, end: (match.index ?? 0) + match[0].length }); return links; }
 export function markdownFilename(title: string) { return `${(title.trim() || "untitled-note").replace(/[\\/:*?"<>|]/g, "-").slice(0, 120)}.md`; }
 export function noteFrontmatter(note: { id: string; title: string; created_at: string; updated_at: string; body_markdown: string; archived_at?: string | null }, folder = "", tags: string[] = []) { return `---\nid: "${note.id}"\ntitle: "${note.title.replaceAll('"', '\\"')}"\nfolder: "${folder}"\ncreated_at: "${note.created_at}"\nupdated_at: "${note.updated_at}"\ntags:\n${tags.map((tag) => `  - "${tag.replaceAll('"', '\\"')}"`).join("\n") || "  []"}\narchived: ${Boolean(note.archived_at)}\n---\n\n${note.body_markdown}`; }
+export function formatNoteTimestamp(value: string, timezone = "Asia/Shanghai") {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "时间未知";
+  try {
+    return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short", timeZone: timezone }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Shanghai" }).format(date);
+  }
+}

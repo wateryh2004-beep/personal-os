@@ -69,6 +69,18 @@ export async function moveNote(formData: FormData) {
   revalidatePath(`/notes/${note.id}`);
 }
 
+export async function recordNotePdfExport(noteId: string) {
+  const { supabase, userId } = await requireOwner();
+  if (!z.string().uuid().safeParse(noteId).success) fail();
+  const { data: note, error } = await supabase
+    .from("notes")
+    .select("id")
+    .eq("id", noteId)
+    .maybeSingle();
+  if (error || !note) fail();
+  await audit(supabase, userId, "export", "note", note.id, { format: "pdf", renderer: "local_markdown_preview" });
+}
+
 export async function createNoteInFolder(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const folderId = await ownedFolderId(supabase, String(formData.get("folder_id") || ""));

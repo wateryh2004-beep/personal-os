@@ -13,9 +13,12 @@ type WorkspaceState = "ready" | "base" | "unavailable";
 export async function getNotesWorkspace(): Promise<{
   notes: { id: string; title: string; updated_at: string; pinned_at: string | null; folder_id: string | null }[];
   folders: { id: string; name: string; parent_id: string | null }[];
+  timezone: string;
   state: WorkspaceState;
 }> {
-  const { supabase } = await requireOwner();
+  const { supabase, userId } = await requireOwner();
+  const { data: profile } = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
+  const timezone = profile?.timezone || "Asia/Shanghai";
   const notesResult = await supabase
     .from("notes")
     .select("id,title,updated_at,pinned_at,folder_id")
@@ -31,14 +34,15 @@ export async function getNotesWorkspace(): Promise<{
       .neq("status", "archived")
       .order("pinned_at", { ascending: false })
       .order("updated_at", { ascending: false });
-    if (base.error) return { notes: [], folders: [], state: "unavailable" };
+    if (base.error) return { notes: [], folders: [], timezone, state: "unavailable" };
     return {
       notes: (base.data ?? []).map((note) => ({ ...note, folder_id: null })),
       folders: [],
+      timezone,
       state: "base",
     };
   }
-  if (notesResult.error) return { notes: [], folders: [], state: "unavailable" };
+  if (notesResult.error) return { notes: [], folders: [], timezone, state: "unavailable" };
 
   const foldersResult = await supabase
     .from("note_folders")
@@ -46,10 +50,10 @@ export async function getNotesWorkspace(): Promise<{
     .is("archived_at", null)
     .order("position");
   if (isNotesWorkspaceSchemaMissing(foldersResult.error)) {
-    return { notes: notesResult.data ?? [], folders: [], state: "base" };
+    return { notes: notesResult.data ?? [], folders: [], timezone, state: "base" };
   }
-  if (foldersResult.error) return { notes: [], folders: [], state: "unavailable" };
-  return { notes: notesResult.data ?? [], folders: foldersResult.data ?? [], state: "ready" };
+  if (foldersResult.error) return { notes: [], folders: [], timezone, state: "unavailable" };
+  return { notes: notesResult.data ?? [], folders: foldersResult.data ?? [], timezone, state: "ready" };
 }
 
 /** Folder metadata for controls that move an already-authorized note. */
