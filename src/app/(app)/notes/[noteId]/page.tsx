@@ -1,21 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { NoteEditor } from "@/components/notes/note-editor";
+import { FolderPicker } from "@/components/notes/folder-picker";
 import { getActiveNoteFolders, getNote } from "@/features/notes/queries";
 import { archiveNote, createNoteVersion, moveNote, restoreNoteVersion, trashNote } from "@/features/notes/actions";
-
-function folderPath(folderId: string, folders: { id: string; name: string; parent_id: string | null }[]) {
-  const byId = new Map(folders.map((folder) => [folder.id, folder]));
-  const names: string[] = [];
-  const seen = new Set<string>();
-  let current = byId.get(folderId);
-  while (current && !seen.has(current.id)) {
-    seen.add(current.id);
-    names.unshift(current.name);
-    current = current.parent_id ? byId.get(current.parent_id) : undefined;
-  }
-  return names.join(" / ");
-}
 
 export default async function NotePage({ params }: { params: Promise<{ noteId: string }> }) {
   const { noteId } = await params;
@@ -25,6 +13,6 @@ export default async function NotePage({ params }: { params: Promise<{ noteId: s
   return <>
     <div className="sticky top-0 z-10 -mx-5 mb-5 border-b bg-[#F7F7F5]/95 px-5 py-3 backdrop-blur-sm md:-mx-8 md:px-8"><Link href="/notes" className="inline-flex items-center border bg-white px-3 py-2 text-sm font-medium text-[#365F78] hover:bg-[#EDF3F6]">← 所有笔记</Link></div>
     {data.state === "base" ? <p className="mb-5 border-l-2 border-amber-600 bg-amber-50 px-3 py-2 text-sm text-amber-800">此笔记已保存在 Supabase 数据库中。当前为兼容模式，编辑与 Markdown 下载可用；链接和完整版本功能待 Notes Workspace migration 应用后启用。</p> : null}
-    <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_300px]"><NoteEditor note={data.note} /><aside className="border-l pl-5 text-sm"><h2 className="font-medium">文件夹</h2><form action={moveNote} className="mt-2 grid gap-2"><input type="hidden" name="note_id" value={data.note.id} /><label className="grid gap-1 text-xs text-zinc-500">移动到<select name="folder_id" defaultValue={data.note.folder_id ?? ""} className="border bg-white px-2 py-1.5 text-sm text-zinc-800"><option value="">根目录</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folderPath(folder.id, folders)}</option>)}</select></label><button className="justify-self-start border px-2 py-1 text-xs text-[#365F78]">移动笔记</button></form><h2 className="mt-7 font-medium">Links</h2><p className="mt-2 text-zinc-500">已解析 {data.links.filter((link) => link.target_note_id).length} · 未解析 {data.links.filter((link) => !link.target_note_id).length}</p><h2 className="mt-7 font-medium">Backlinks</h2><p className="mt-2 text-zinc-500">{data.backlinks.length ? `被 ${data.backlinks.length} 篇笔记引用` : "暂无反向链接"}</p><h2 className="mt-7 font-medium">Versions</h2><form action={createNoteVersion} className="mt-2"><input type="hidden" name="note_id" value={data.note.id} /><button className="border px-2 py-1 text-xs">创建版本</button></form><div className="mt-2 space-y-2 text-zinc-500">{data.versions.map((version) => <form action={restoreNoteVersion} key={version.id} className="flex gap-2"><span>v{version.version_number} · {version.reason}</span><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="version_id" value={version.id} /><button className="text-[#365F78]">恢复</button></form>)}</div><a className="mt-5 block text-[#365F78]" href={`/api/exports/notes/${data.note.id}`}>下载 Markdown</a><form action={archiveNote} className="mt-5"><input type="hidden" name="note_id" value={data.note.id} /><button className="border px-2 py-1 text-xs">归档</button></form><form action={trashNote} className="mt-2"><input type="hidden" name="note_id" value={data.note.id} /><button className="border px-2 py-1 text-xs">移入回收站</button></form></aside></div>
+    <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_300px]"><NoteEditor note={data.note} /><aside className="border-l pl-5 text-sm"><h2 className="font-medium">文件夹</h2><form action={moveNote} className="mt-2 grid gap-2"><input type="hidden" name="note_id" value={data.note.id} /><FolderPicker folders={folders} initialFolderId={data.note.folder_id ?? null} idPrefix={`detail-${data.note.id}`} /><button className="justify-self-start border px-2 py-1 text-xs text-[#365F78]">移动笔记</button></form><h2 className="mt-7 font-medium">Links</h2><p className="mt-2 text-zinc-500">已解析 {data.links.filter((link) => link.target_note_id).length} · 未解析 {data.links.filter((link) => !link.target_note_id).length}</p><h2 className="mt-7 font-medium">Backlinks</h2><p className="mt-2 text-zinc-500">{data.backlinks.length ? `被 ${data.backlinks.length} 篇笔记引用` : "暂无反向链接"}</p><h2 className="mt-7 font-medium">Versions</h2><form action={createNoteVersion} className="mt-2"><input type="hidden" name="note_id" value={data.note.id} /><button className="border px-2 py-1 text-xs">创建版本</button></form><div className="mt-2 space-y-2 text-zinc-500">{data.versions.map((version) => <form action={restoreNoteVersion} key={version.id} className="flex gap-2"><span>v{version.version_number} · {version.reason}</span><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="version_id" value={version.id} /><button className="text-[#365F78]">恢复</button></form>)}</div><a className="mt-5 block text-[#365F78]" href={`/api/exports/notes/${data.note.id}`}>下载 Markdown</a><form action={archiveNote} className="mt-5"><input type="hidden" name="note_id" value={data.note.id} /><button className="border px-2 py-1 text-xs">归档</button></form><form action={trashNote} className="mt-2"><input type="hidden" name="note_id" value={data.note.id} /><button className="border px-2 py-1 text-xs">移入回收站</button></form></aside></div>
   </>;
 }
