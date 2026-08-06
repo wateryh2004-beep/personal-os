@@ -17,6 +17,7 @@
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/search": "^6.7.1",
     "@codemirror/view": "^6.43.8",
+    "@mdxeditor/editor": "^4.2.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.0",
     "@uiw/react-codemirror": "^4.25.11",

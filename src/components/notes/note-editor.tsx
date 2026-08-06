@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import CodeMirror from "@uiw/react-codemirror";
-import { markdown } from "@codemirror/lang-markdown";
-import { EditorView } from "@codemirror/view";
+import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -11,6 +9,11 @@ import { Download } from "lucide-react";
 import { recordNotePdfExport, saveNote } from "@/features/notes/actions";
 import { markdownFilename } from "@/features/notes/utils";
 import { NoteAiAssistant } from "@/components/notes/note-ai-assistant";
+
+const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-markdown-editor").then((module) => module.VisualMarkdownEditor), {
+  ssr: false,
+  loading: () => <div className="min-h-80 bg-white p-6 text-sm text-zinc-500">正在载入 Markdown 编辑器…</div>,
+});
 
 type Note = { id: string; title: string; body_markdown: string; revision: number; last_saved_at: string | null };
 type PdfSnapshot = { title: string; body: string };
@@ -51,7 +54,6 @@ export function NoteEditor({ note }: { note: Note }) {
   const [body, setBody] = useState(note.body_markdown);
   const [revision, setRevision] = useState(note.revision);
   const [state, setState] = useState<"已保存" | "有未保存修改" | "正在保存" | "保存失败" | "版本冲突">("已保存");
-  const [mode, setMode] = useState<"edit" | "preview" | "split">("split");
   const [pdfSnapshot, setPdfSnapshot] = useState<PdfSnapshot | null>(null);
   const [pdfError, setPdfError] = useState("");
   const pdfPreviewRef = useRef<HTMLElement>(null);
@@ -65,7 +67,7 @@ export function NoteEditor({ note }: { note: Note }) {
   }, [body, note.id, revision, title]);
 
   useEffect(() => { if (state !== "有未保存修改") return; const timer = window.setTimeout(() => void save(), 1000); return () => window.clearTimeout(timer); }, [save, state]);
-  useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); void save(); } if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "p") { event.preventDefault(); setMode((current) => current === "edit" ? "preview" : "edit"); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [save]);
+  useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); void save(); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [save]);
   useEffect(() => {
     if (!pdfSnapshot || !pdfPreviewRef.current) return;
     let cancelled = false;
@@ -126,7 +128,6 @@ export function NoteEditor({ note }: { note: Note }) {
   }, [note.id, pdfSnapshot]);
 
   const dirty = () => setState("有未保存修改");
-  const editorHeight = "calc(100dvh - 250px)";
   const isExporting = Boolean(pdfSnapshot);
-  return <section className="min-w-0"><div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3"><input aria-label="笔记标题" value={title} onChange={(event) => { setTitle(event.target.value); dirty(); }} className="min-w-0 flex-1 bg-transparent text-xl font-semibold outline-none" placeholder="无标题笔记" /><div className="flex flex-wrap items-center justify-end gap-2 text-xs text-zinc-500"><span aria-live="polite">{state}</span><button className="border px-2 py-1" onClick={() => void save()}>保存</button><button className="border px-2 py-1" onClick={() => setMode("edit")}>编辑</button><button className="border px-2 py-1" onClick={() => setMode("preview")}>预览</button><button className="border px-2 py-1" onClick={() => setMode("split")}>实时分栏</button><button className="inline-flex items-center gap-1 border px-2 py-1 text-[#365F78] disabled:opacity-60" disabled={isExporting} onClick={() => { setPdfError(""); setPdfSnapshot({ title: title || "无标题笔记", body }); }}><Download size={14} />{isExporting ? "生成 PDF…" : "导出 PDF"}</button></div></div><details className="mt-4 border-l-2 border-[#365F78] bg-[#EDF3F6] px-3 py-2"><summary className="cursor-pointer text-sm font-medium text-[#365F78]">AI 笔记助手 <span className="ml-1 text-xs font-normal text-zinc-500">总结、提炼行动、润色或自定义协助</span></summary><NoteAiAssistant noteId={note.id} title={title} bodyMarkdown={body} onInsert={(suggestion) => { setBody((current) => `${current}${current.trim() ? "\n\n" : ""}${suggestion}`); dirty(); }} /></details>{pdfError ? <p role="alert" className="mt-3 text-sm text-red-700">{pdfError}</p> : null}<div className={mode === "split" ? "grid min-h-0 gap-5 pt-5 lg:grid-cols-2" : "pt-5"}>{mode !== "preview" ? <div className="min-w-0 overflow-hidden border bg-white"><CodeMirror value={body} height={editorHeight} extensions={[markdown(), EditorView.lineWrapping]} onChange={(value) => { setBody(value); dirty(); }} className="text-[15px] leading-7" /></div> : null}{mode !== "edit" ? <div className={`${mode === "split" ? "hidden lg:block" : "block"} min-w-0 overflow-y-auto border bg-white`} style={{ height: editorHeight }}><article className="mx-auto max-w-[820px] p-6 text-[15px]"><MarkdownDocument body={body} /></article></div> : null}</div>{pdfSnapshot ? <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-white p-12 text-[15px]"><h1 className="mb-7 text-3xl font-semibold text-zinc-900">{pdfSnapshot.title}</h1><MarkdownDocument body={pdfSnapshot.body} /></article> : null}</section>;
+  return <section className="min-w-0"><div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3"><input aria-label="笔记标题" value={title} onChange={(event) => { setTitle(event.target.value); dirty(); }} className="min-w-0 flex-1 bg-transparent text-xl font-semibold outline-none" placeholder="无标题笔记" /><div className="flex flex-wrap items-center justify-end gap-2 text-xs text-zinc-500"><span aria-live="polite">{state}</span><button className="border px-2 py-1" onClick={() => void save()}>保存</button><button className="inline-flex items-center gap-1 border px-2 py-1 text-[#365F78] disabled:opacity-60" disabled={isExporting} onClick={() => { setPdfError(""); setPdfSnapshot({ title: title || "无标题笔记", body }); }}><Download size={14} />{isExporting ? "生成 PDF…" : "导出 PDF"}</button></div></div><details className="mt-4 border-l-2 border-[#365F78] bg-[#EDF3F6] px-3 py-2"><summary className="cursor-pointer text-sm font-medium text-[#365F78]">AI 笔记助手 <span className="ml-1 text-xs font-normal text-zinc-500">总结、提炼行动、润色或自定义协助</span></summary><NoteAiAssistant noteId={note.id} title={title} bodyMarkdown={body} onInsert={(suggestion) => { setBody((current) => `${current}${current.trim() ? "\n\n" : ""}${suggestion}`); dirty(); }} /></details>{pdfError ? <p role="alert" className="mt-3 text-sm text-red-700">{pdfError}</p> : null}<div className="mt-5 min-h-[calc(100dvh-250px)] overflow-y-auto border bg-white"><VisualMarkdownEditor markdown={body} onChange={(value) => { setBody(value); dirty(); }} /></div>{pdfSnapshot ? <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-white p-12 text-[15px]"><h1 className="mb-7 text-3xl font-semibold text-zinc-900">{pdfSnapshot.title}</h1><MarkdownDocument body={pdfSnapshot.body} /></article> : null}</section>;
 }
