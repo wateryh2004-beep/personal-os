@@ -52,18 +52,18 @@ function todayInShanghai() {
 }
 
 async function getOrCreateJournalFolder(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, name: string, parentId: string | null) {
-  const existing = await supabase.from("note_folders").select("id").eq("name", name).is("parent_id", parentId).is("archived_at", null).maybeSingle();
-  if (existing.data) return existing.data.id;
+  const existing = await supabase.from("note_folders").select("id").eq("name", name).is("parent_id", parentId).is("archived_at", null).order("created_at").limit(1);
+  if (existing.data?.[0]) return existing.data[0].id;
   if (existing.error) fail();
   const inserted = await supabase.from("note_folders").insert({ user_id: userId, name, parent_id: parentId }).select("id").single();
   if (inserted.data) return inserted.data.id;
   // The partial unique index protects against a double-click or concurrent request.
-  const concurrent = await supabase.from("note_folders").select("id").eq("name", name).is("parent_id", parentId).is("archived_at", null).maybeSingle();
-  if (!concurrent.data) fail();
-  return concurrent.data.id;
+  const concurrent = await supabase.from("note_folders").select("id").eq("name", name).is("parent_id", parentId).is("archived_at", null).order("created_at").limit(1);
+  if (!concurrent.data?.[0]) fail();
+  return concurrent.data[0].id;
 }
 
-export async function openDailyNote() {
+async function openDailyNoteInternal() {
   const { supabase, userId } = await requireOwner();
   const date = todayInShanghai();
   const title = `日记 · ${date}`;
@@ -88,4 +88,18 @@ export async function openDailyNote() {
   if (version.error) fail();
   await audit(supabase, userId, "create_daily_note", "note", note.id, { date, folder: `日记/${year}/${month}` });
   redirect(`/notes/${note.id}`);
+}
+
+function isRedirect(error: unknown) {
+  return Boolean(error && typeof error === "object" && "digest" in error && typeof (error as { digest?: unknown }).digest === "string" && (error as { digest: string }).digest.startsWith("NEXT_REDIRECT"));
+}
+
+export async function openDailyNote() {
+  try {
+    await openDailyNoteInternal();
+  } catch (error) {
+    if (isRedirect(error)) throw error;
+    console.error(JSON.stringify({ level: "error", action: "open_daily_note", error: error instanceof Error ? error.message : "unknown" }));
+    redirect("/notes?daily=error");
+  }
 }
