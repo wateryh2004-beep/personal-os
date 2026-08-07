@@ -1,14 +1,15 @@
 "use client";
 
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { Archive, Bot, CalendarDays, CheckSquare, FileText, LoaderCircle, Plus, Sparkles } from "lucide-react";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { createCalendarEvent, type CalendarCreateState } from "@/features/calendar/actions";
 import { archiveInboxItem, captureInboxItem, convertInboxToNote, initialCaptureState } from "@/features/inbox/actions";
 import type { InboxProposal } from "@/features/inbox/schemas";
 import { openDailyNote } from "@/features/notes/actions";
 import { createMicrosoftTodoTaskAction, type TodoCreateState } from "@/features/tasks/microsoft-todo";
+import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 
 type InboxItem = { id: string; content_markdown: string; created_at: string; processed_at: string | null; converted_task_id: string | null; converted_note_id: string | null };
 type TodoList = { id: string; display_name: string; is_default: boolean };
@@ -16,6 +17,8 @@ type ProposalOutput = { proposal: InboxProposal };
 type InboxToolPart = { type: string; state?: string; output?: unknown };
 const calendarInitial: CalendarCreateState = { status: "idle", message: "" };
 const todoInitial: TodoCreateState = { status: "idle", message: "" };
+const inboxSessionKey = "inbox:workspace";
+type InboxSession = { messages: UIMessage[]; selectedId: string | null; captureInput: string; interrupted: boolean };
 
 function ProposalCard({ proposal, inboxId, lists }: { proposal: InboxProposal; inboxId: string; lists: TodoList[] }) {
   if (proposal.target === "task") return <TaskProposal proposal={proposal} lists={lists} inboxId={inboxId} />;
@@ -44,8 +47,34 @@ function NoteProposal({ proposal, inboxId }: { proposal: Extract<InboxProposal, 
 export function InboxWorkspace({ items, lists }: { items: InboxItem[]; lists: TodoList[] }) {
   const [captureState, captureAction, capturePending] = useActionState(captureInboxItem, initialCaptureState);
   const [selected, setSelected] = useState<InboxItem | null>(null);
-  const { messages, sendMessage, status, error, stop, clearError } = useChat({ transport: new DefaultChatTransport({ api: "/api/inbox/assistant" }) });
+  const [captureInput, setCaptureInput] = useState("");
+  const restoredRef = useRef(false);
+  const { messages, setMessages, sendMessage, status, error, stop, clearError } = useChat({ transport: new DefaultChatTransport({ api: "/api/inbox/assistant" }) });
   const waiting = status !== "ready";
+
+  useEffect(() => {
+    const snapshot = loadWorkspaceSession<InboxSession>(inboxSessionKey);
+    const timer = window.setTimeout(() => {
+      if (snapshot) {
+        setMessages(snapshot.messages);
+        setCaptureInput(snapshot.captureInput);
+        setSelected(items.find((item) => item.id === snapshot.selectedId) ?? null);
+      }
+      restoredRef.current = true;
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [items, setMessages]);
+
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    saveWorkspaceSession(inboxSessionKey, { messages, selectedId: selected?.id ?? null, captureInput, interrupted: waiting });
+  }, [captureInput, messages, selected?.id, waiting]);
+
+  useEffect(() => {
+    if (captureState.status !== "success") return;
+    const timer = window.setTimeout(() => setCaptureInput(""), 0);
+    return () => window.clearTimeout(timer);
+  }, [captureState.status]);
 
   const latestProposal = ([...messages].reverse().flatMap((message) => message.parts) as InboxToolPart[])
     .find((part) => part.type === "tool-proposeInboxDestination" && part.state === "output-available");
@@ -62,7 +91,7 @@ export function InboxWorkspace({ items, lists }: { items: InboxItem[]; lists: To
     <div>
       <form action={captureAction} className="border-b border-[#e7e5e4] pb-6">
         <label htmlFor="inbox-capture" className="sr-only">记录想法</label>
-        <textarea id="inbox-capture" name="content" maxLength={10_000} rows={3} placeholder="想到什么，就先记下来…" className="w-full resize-none border border-[#d8d6d0] bg-white px-3 py-3 text-sm outline-none transition focus:border-[#365f78]" />
+        <textarea id="inbox-capture" name="content" value={captureInput} onChange={(event) => setCaptureInput(event.target.value)} maxLength={10_000} rows={3} placeholder="想到什么，就先记下来…" className="w-full resize-none border border-[#d8d6d0] bg-white px-3 py-3 text-sm outline-none transition focus:border-[#365f78]" />
         <div className="mt-3 flex items-center justify-between gap-3"><p className="text-xs text-zinc-500">先捕捉，之后再决定去向。</p><button disabled={capturePending} className="inline-flex items-center gap-2 bg-[#365f78] px-3 py-2 text-sm font-medium text-white disabled:opacity-50"><Plus size={16} />{capturePending ? "正在保存…" : "加入 Inbox"}</button></div>
         {captureState.status !== "idle" ? <p role="status" className={`mt-3 text-sm ${captureState.status === "success" ? "text-[#365f78]" : "text-red-700"}`}>{captureState.message}</p> : null}
       </form>

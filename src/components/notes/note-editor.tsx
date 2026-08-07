@@ -10,6 +10,7 @@ import { recordNotePdfExport, saveNote } from "@/features/notes/actions";
 import { markdownFilename } from "@/features/notes/utils";
 import { NoteAiAssistant } from "@/components/notes/note-ai-assistant";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
+import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 
 const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-markdown-editor").then((module) => module.VisualMarkdownEditor), {
   ssr: false,
@@ -18,6 +19,7 @@ const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-mar
 
 type Note = { id: string; title: string; body_markdown: string; revision: number; last_saved_at: string | null };
 type PdfSnapshot = { title: string; body: string };
+type NoteDraftSession = { title: string; body: string; baseRevision: number };
 
 const pdfCloneStyles = `
   #note-pdf-preview, #note-pdf-preview * { color: #27272a !important; border-color: #e7e5e4 !important; }
@@ -60,14 +62,31 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const [isFullscreen, setIsFullscreen] = useState(false);
   const pdfPreviewRef = useRef<HTMLElement>(null);
   const editorSurfaceRef = useRef<HTMLElement>(null);
+  const noteSessionKey = `notes:draft:${note.id}`;
+  const saveDraft = useCallback((nextTitle: string, nextBody: string, baseRevision = revision) => {
+    saveWorkspaceSession<NoteDraftSession>(noteSessionKey, { title: nextTitle, body: nextBody, baseRevision });
+  }, [noteSessionKey, revision]);
+
+  useEffect(() => {
+    const draft = loadWorkspaceSession<NoteDraftSession>(noteSessionKey);
+    if (!draft || (draft.title === note.title && draft.body === note.body_markdown)) return;
+    const timer = window.setTimeout(() => {
+      setTitle(draft.title);
+      setBody(draft.body);
+      setState("有未保存修改");
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [note.body_markdown, note.title, noteSessionKey]);
+
   const save = useCallback(async () => {
     setState("正在保存");
     try {
       const result = await saveNote({ noteId: note.id, expectedRevision: revision, title, bodyMarkdown: body });
       if (result.status === "conflict") { setState("版本冲突"); return; }
       setRevision(result.revision); setState("已保存");
-    } catch { setState("保存失败"); }
-  }, [body, note.id, revision, title]);
+      removeWorkspaceSession(noteSessionKey);
+    } catch { setState("保存失败"); saveDraft(title, body); }
+  }, [body, note.id, noteSessionKey, revision, saveDraft, title]);
 
   useEffect(() => { if (state !== "有未保存修改") return; const timer = window.setTimeout(() => void save(), 1000); return () => window.clearTimeout(timer); }, [save, state]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); void save(); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [save]);
@@ -131,7 +150,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
     return () => { cancelled = true; };
   }, [note.id, pdfSnapshot]);
 
-  const dirty = () => setState("有未保存修改");
+  const dirty = (nextTitle: string, nextBody: string) => { setState("有未保存修改"); saveDraft(nextTitle, nextBody); };
   const isExporting = Boolean(pdfSnapshot);
   const toggleFullscreen = async () => {
     try {
@@ -139,5 +158,5 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
       else await editorSurfaceRef.current?.requestFullscreen();
     } catch { setPdfError("浏览器未能进入全屏模式，请检查浏览器权限后重试。"); }
   };
-  return <section ref={editorSurfaceRef} className="notes-editor-surface min-w-0"><div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3"><input aria-label="笔记标题" value={title} onChange={(event) => { setTitle(event.target.value); dirty(); }} className="min-w-0 flex-1 bg-transparent text-xl font-semibold outline-none" placeholder="无标题笔记" /><div className="flex flex-wrap items-center justify-end gap-2 text-xs text-zinc-500"><span aria-live="polite">{state}</span><button className="border px-2 py-1" onClick={() => void save()}>保存</button><button className="inline-flex items-center gap-1 border px-2 py-1" onClick={() => void toggleFullscreen()} aria-label={isFullscreen ? "退出全屏编辑" : "进入全屏编辑"}>{isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{isFullscreen ? "退出全屏" : "全屏编辑"}</button><button className="inline-flex items-center gap-1 border px-2 py-1 text-[#365F78] disabled:opacity-60" disabled={isExporting} onClick={() => { setPdfError(""); setPdfSnapshot({ title: title || "无标题笔记", body }); }}><Download size={14} />{isExporting ? "生成 PDF…" : "导出 PDF"}</button></div></div><details className="mt-4 border-l-2 border-[#365F78] bg-[#EDF3F6] px-3 py-2"><summary className="cursor-pointer text-sm font-medium text-[#365F78]">AI 笔记助手 <span className="ml-1 text-xs font-normal text-zinc-500">总结、提炼行动、润色或自定义协助</span></summary><NoteAiAssistant noteId={note.id} title={title} bodyMarkdown={body} defaultModel={noteAiDefaultModel} onInsert={(suggestion) => { setBody((current) => `${current}${current.trim() ? "\n\n" : ""}${suggestion}`); dirty(); }} /></details>{pdfError ? <p role="alert" className="mt-3 text-sm text-red-700">{pdfError}</p> : null}<div className="mt-5 min-h-[calc(100dvh-250px)] overflow-y-auto border bg-white"><VisualMarkdownEditor markdown={body} onChange={(value) => { setBody(value); dirty(); }} /></div>{pdfSnapshot ? <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-white p-12 text-[15px]"><h1 className="mb-7 text-3xl font-semibold text-zinc-900">{pdfSnapshot.title}</h1><MarkdownDocument body={pdfSnapshot.body} /></article> : null}</section>;
+  return <section ref={editorSurfaceRef} className="notes-editor-surface min-w-0"><div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3"><input aria-label="笔记标题" value={title} onChange={(event) => { const nextTitle = event.target.value; setTitle(nextTitle); dirty(nextTitle, body); }} className="min-w-0 flex-1 bg-transparent text-xl font-semibold outline-none" placeholder="无标题笔记" /><div className="flex flex-wrap items-center justify-end gap-2 text-xs text-zinc-500"><span aria-live="polite">{state}</span><button className="border px-2 py-1" onClick={() => void save()}>保存</button><button className="inline-flex items-center gap-1 border px-2 py-1" onClick={() => void toggleFullscreen()} aria-label={isFullscreen ? "退出全屏编辑" : "进入全屏编辑"}>{isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{isFullscreen ? "退出全屏" : "全屏编辑"}</button><button className="inline-flex items-center gap-1 border px-2 py-1 text-[#365F78] disabled:opacity-60" disabled={isExporting} onClick={() => { setPdfError(""); setPdfSnapshot({ title: title || "无标题笔记", body }); }}><Download size={14} />{isExporting ? "生成 PDF…" : "导出 PDF"}</button></div></div><details className="mt-4 border-l-2 border-[#365F78] bg-[#EDF3F6] px-3 py-2"><summary className="cursor-pointer text-sm font-medium text-[#365F78]">AI 笔记助手 <span className="ml-1 text-xs font-normal text-zinc-500">总结、提炼行动、润色或自定义协助</span></summary><NoteAiAssistant noteId={note.id} title={title} bodyMarkdown={body} defaultModel={noteAiDefaultModel} onInsert={(suggestion) => { const nextBody = `${body}${body.trim() ? "\n\n" : ""}${suggestion}`; setBody(nextBody); dirty(title, nextBody); }} /></details>{pdfError ? <p role="alert" className="mt-3 text-sm text-red-700">{pdfError}</p> : null}<div className="mt-5 min-h-[calc(100dvh-250px)] overflow-y-auto border bg-white"><VisualMarkdownEditor markdown={body} onChange={(value) => { setBody(value); dirty(title, value); }} /></div>{pdfSnapshot ? <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-white p-12 text-[15px]"><h1 className="mb-7 text-3xl font-semibold text-zinc-900">{pdfSnapshot.title}</h1><MarkdownDocument body={pdfSnapshot.body} /></article> : null}</section>;
 }

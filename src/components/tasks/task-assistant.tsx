@@ -1,16 +1,19 @@
 "use client";
 
-import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useActionState, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { createMicrosoftTodoTaskAction, type TodoCreateState } from "@/features/tasks/microsoft-todo";
+import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 
 type TodoList = { id: string; display_name: string; is_default: boolean };
 type TodoProposal = { proposal: { todoListId: string; title: string; bodyText: string | null; importance: "low" | "normal" | "high"; dueAt: string | null } | null; error?: string };
 const initialState: TodoCreateState = { status: "idle", message: "" };
+const taskSessionKey = "tasks:assistant";
+type TaskAssistantSession = { messages: UIMessage[]; input: string; stoppedMessage: string | null; interrupted: boolean };
 
 function assistantError(error: Error) {
   try {
@@ -43,12 +46,31 @@ function TodoProposalForm({ proposal, lists }: { proposal: NonNullable<TodoPropo
 export function TaskAssistant({ lists }: { lists: TodoList[] }) {
   const [input, setInput] = useState("");
   const [stoppedMessage, setStoppedMessage] = useState<string | null>(null);
+  const restoredRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { messages, sendMessage, status, error, stop, clearError } = useChat({
+  const { messages, setMessages, sendMessage, status, error, stop, clearError } = useChat({
     transport: new DefaultChatTransport({ api: "/api/tasks/assistant" }),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
   });
   const waiting = status !== "ready";
+
+  useEffect(() => {
+    const snapshot = loadWorkspaceSession<TaskAssistantSession>(taskSessionKey);
+    const timer = window.setTimeout(() => {
+      if (snapshot) {
+        setMessages(snapshot.messages);
+        setInput(snapshot.input);
+        setStoppedMessage(snapshot.interrupted ? "上一次生成因切换页面而暂停。你可以继续提问。" : snapshot.stoppedMessage);
+      }
+      restoredRef.current = true;
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [setMessages]);
+
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    saveWorkspaceSession(taskSessionKey, { messages, input, stoppedMessage, interrupted: waiting });
+  }, [input, messages, stoppedMessage, waiting]);
 
   useEffect(() => {
     if (!waiting && timeoutRef.current) {

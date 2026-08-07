@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-owner";
-import { createUploadUrl, isR2Configured, objectExists } from "@/lib/adapters/cloudflare-r2";
+import { createUploadUrl, isR2Configured, objectExists, r2BucketName } from "@/lib/adapters/cloudflare-r2";
 import { canUpload, completeUploadSchema, safeFilename, uploadRequestSchema } from "@/features/files/schemas";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const key = `${userId}/files/${documentId}/${filename}`;
   const { error } = await supabase.from("documents").insert({
     id: documentId, user_id: userId, title: filename, document_type: "other", original_filename: filename,
-    storage_bucket: process.env.R2_BUCKET_NAME!, storage_path: key, storage_provider: "cloudflare_r2", storage_state: "pending",
+    storage_bucket: r2BucketName(), storage_path: key, storage_provider: "cloudflare_r2", storage_state: "pending",
     mime_type: parsed.data.contentType, file_size: parsed.data.size, folder_id: parsed.data.folderId ?? null,
   });
   if (error) return fail("文件记录未能创建。", 500);

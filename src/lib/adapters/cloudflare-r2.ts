@@ -2,15 +2,27 @@ import "server-only";
 
 import { createHash, createHmac } from "crypto";
 
-const required = ["R2_ENDPOINT", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET_NAME"] as const;
+type R2Configuration = { endpoint: string; accessKeyId: string; secretAccessKey: string; bucketName: string };
 
-export function isR2Configured() {
-  return required.every((name) => Boolean(process.env[name]));
+/** Cloudflare labels generated credentials as AccessKeyID / SecretAccessKey.
+ * Keep accepting those existing Vercel names alongside our R2_* convention. */
+function configuration(): R2Configuration | null {
+  const endpoint = process.env.R2_ENDPOINT;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID ?? process.env.AccessKeyID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY ?? process.env.SecretAccessKey;
+  const bucketName = process.env.R2_BUCKET_NAME ?? process.env.BucketName ?? process.env.R2_BUCKET;
+  if (!endpoint || !accessKeyId || !secretAccessKey || !bucketName) return null;
+  return { endpoint, accessKeyId, secretAccessKey, bucketName };
 }
 
-function bucket() {
-  if (!process.env.R2_BUCKET_NAME) throw new Error("r2_not_configured");
-  return process.env.R2_BUCKET_NAME;
+export function isR2Configured() {
+  return configuration() !== null;
+}
+
+export function r2BucketName() {
+  const value = configuration();
+  if (!value) throw new Error("r2_not_configured");
+  return value.bucketName;
 }
 
 function hmac(key: string | Buffer, value: string) {
@@ -29,15 +41,16 @@ function encodePath(value: string) {
 /** Minimal AWS SigV4 presigner for R2's S3-compatible API. It keeps the
  * credentials in Vercel and avoids making an upload pass through the server. */
 export function createSignedUrl(method: "GET" | "HEAD" | "PUT", key: string, options: { contentType?: string; filename?: string } = {}) {
-  if (!isR2Configured()) throw new Error("r2_not_configured");
-  const endpoint = new URL(process.env.R2_ENDPOINT!);
+  const config = configuration();
+  if (!config) throw new Error("r2_not_configured");
+  const endpoint = new URL(config.endpoint);
   const now = amzTime(new Date());
   const scope = `${now.dateStamp}/auto/s3/aws4_request`;
-  const canonicalUri = `/${encodePath(bucket())}/${encodePath(key)}`;
+  const canonicalUri = `/${encodePath(config.bucketName)}/${encodePath(key)}`;
   const signedHeaders = options.contentType ? "content-type;host" : "host";
   const query = new URLSearchParams({
     "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
-    "X-Amz-Credential": `${process.env.R2_ACCESS_KEY_ID!}/${scope}`,
+    "X-Amz-Credential": `${config.accessKeyId}/${scope}`,
     "X-Amz-Date": now.timestamp,
     "X-Amz-Expires": "300",
     "X-Amz-SignedHeaders": signedHeaders,
@@ -47,7 +60,7 @@ export function createSignedUrl(method: "GET" | "HEAD" | "PUT", key: string, opt
   const canonicalHeaders = `${options.contentType ? `content-type:${options.contentType}\n` : ""}host:${endpoint.host}\n`;
   const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQuery}\n${canonicalHeaders}\n${signedHeaders}\nUNSIGNED-PAYLOAD`;
   const stringToSign = `AWS4-HMAC-SHA256\n${now.timestamp}\n${scope}\n${createHash("sha256").update(canonicalRequest).digest("hex")}`;
-  const dateKey = hmac(`AWS4${process.env.R2_SECRET_ACCESS_KEY!}`, now.dateStamp);
+  const dateKey = hmac(`AWS4${config.secretAccessKey}`, now.dateStamp);
   const regionKey = hmac(dateKey, "auto"); const serviceKey = hmac(regionKey, "s3"); const signingKey = hmac(serviceKey, "aws4_request");
   query.set("X-Amz-Signature", hmac(signingKey, stringToSign).toString("hex"));
   return `${endpoint.origin}${canonicalUri}?${query.toString()}`;

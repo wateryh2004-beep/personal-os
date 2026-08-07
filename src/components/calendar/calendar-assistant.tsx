@@ -1,13 +1,16 @@
 "use client";
 
-import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { createCalendarEvent, deleteCalendarEvent, type CalendarCreateState } from "@/features/calendar/actions";
+import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 
 type CalendarProposal = { proposal: { subject: string; description: string | null; startsAt: string; endsAt: string; locationName: string | null; isAllDay: boolean } };
 type CalendarDeleteProposal = { proposal: { providerEventId: string; subject: string; startsAt: string; endsAt: string } };
 const initialCalendarCreateState: CalendarCreateState = { status: "idle", message: "" };
+const calendarSessionKey = "calendar:assistant";
+type CalendarAssistantSession = { messages: UIMessage[]; input: string; stoppedMessage: string | null; interrupted: boolean };
 
 function calendarAiErrorMessage(error: Error) {
   try {
@@ -30,12 +33,31 @@ function CalendarDeleteProposalForm({ event }: { event: CalendarDeleteProposal["
 export function CalendarAssistant() {
   const [input, setInput] = useState("");
   const [stoppedMessage, setStoppedMessage] = useState<string | null>(null);
+  const restoredRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { messages, sendMessage, status, error, stop, clearError } = useChat({
+  const { messages, setMessages, sendMessage, status, error, stop, clearError } = useChat({
     transport: new DefaultChatTransport({ api: "/api/calendar/assistant" }),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
   });
   const waiting = status !== "ready";
+
+  useEffect(() => {
+    const snapshot = loadWorkspaceSession<CalendarAssistantSession>(calendarSessionKey);
+    const timer = window.setTimeout(() => {
+      if (snapshot) {
+        setMessages(snapshot.messages);
+        setInput(snapshot.input);
+        setStoppedMessage(snapshot.interrupted ? "上一次生成因切换页面而暂停。你可以继续提问。" : snapshot.stoppedMessage);
+      }
+      restoredRef.current = true;
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [setMessages]);
+
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    saveWorkspaceSession(calendarSessionKey, { messages, input, stoppedMessage, interrupted: waiting });
+  }, [input, messages, stoppedMessage, waiting]);
 
   useEffect(() => {
     if (!waiting && timeoutRef.current) {

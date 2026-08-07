@@ -46,7 +46,7 @@ Notes 的当前正文权威存储在 Supabase PostgreSQL `notes.body_markdown`�
 
 Files 的对象正文存于私有 Cloudflare R2 bucket `life-of-hang-files-prod`；文件名、文件夹、大小、归属和归档状态存于 Supabase `documents` 与 `file_folders`，并由 RLS 隔离。R2 Bucket 不开启 Public Development URL 或自定义公开域名。
 
-在 Vercel 的 Production/Preview 配置以下 server-only 环境变量：`R2_ENDPOINT`、`R2_ACCOUNT_ID`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY` 与 `R2_BUCKET_NAME`。它们绝不能使用 `NEXT_PUBLIC_` 前缀。网页先经 owner 身份校验取得 5 分钟有效的单对象 PUT/GET URL，再直接与 R2 通信；R2 密钥不会下发到浏览器。还须在 R2 CORS 中仅允许实际应用域名和 `http://localhost:3000`。
+在 Vercel 的 Production/Preview 配置以下 server-only 环境变量：`R2_ENDPOINT`、`R2_ACCOUNT_ID`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY` 与 `R2_BUCKET_NAME`。它们绝不能使用 `NEXT_PUBLIC_` 前缀。已有部署若已使用 Cloudflare Dashboard 风格的 `AccessKeyID`、`SecretAccessKey`（以及 `BucketName`）也可直接使用，应用会兼容读取。网页先经 owner 身份校验取得 5 分钟有效的单对象 PUT/GET URL，再直接与 R2 通信；R2 密钥不会下发到浏览器。还须在 R2 CORS 中仅允许实际应用域名和 `http://localhost:3000`。
 
 应用 Files migration 后可上传、下载、重命名、移动和归档文件。归档不删除 R2 对象；未来本地服务器迁移可通过替换 Storage Adapter 完成。R2 不是唯一备份，重要文件仍应定期导出至受控副本。
 

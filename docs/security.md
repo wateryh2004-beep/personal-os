@@ -78,3 +78,11 @@ Private application routes are protected in four independent layers: `src/proxy.
 `/login` is the only public page route. API endpoints are not redirected by the Proxy because protocol clients need status responses; each private endpoint calls `requireOwner()` itself. OAuth callback paths are explicit protocol exceptions and must remain separately audited. Private HTML and authenticated login responses use `Cache-Control: private, no-store, max-age=0`; they are not eligible for shared CDN caching.
 
 The root `/` performs the same server-side owner check as the private layout before redirecting to `/today`. A non-owner session is cleared by Proxy and redirected to `/login?error=not-authorized`; the configured owner email is never emitted to the client.
+
+## 短期工作区恢复
+
+未提交的 Notes 草稿与 Calendar、Tasks、Inbox 的 AI 对话使用浏览器当前标签页的
+`sessionStorage` 做 15 分钟恢复，解决在私人模块之间切换时 Client Component 卸载造成的
+内容丢失。它不是云端权威存储、不会跨设备同步，也不会发送给第三方；确认保存后的业务数据
+仍写入其受 RLS 保护的云端表。恢复窗口到期、关闭标签页或主动退出登录后，应用会清除这些
+临时快照。流式 AI 请求在离开页面时不声称仍在后台运行，而是保留已生成内容并提示用户已暂停。

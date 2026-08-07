@@ -25,6 +25,7 @@ import {
 export function VisualMarkdownEditor({ markdown, onChange }: { markdown: string; onChange: (value: string) => void }) {
   const editorRef = useRef<MDXEditorMethods>(null);
   const latestMarkdown = useRef(markdown);
+  const pendingOrderedPrefix = useRef<string | null>(null);
 
   useEffect(() => {
     if (markdown === latestMarkdown.current) return;
@@ -32,7 +33,11 @@ export function VisualMarkdownEditor({ markdown, onChange }: { markdown: string;
     latestMarkdown.current = markdown;
   }, [markdown]);
 
-  return <MDXEditor
+  return <div onKeyDownCapture={(event) => {
+    if (event.key === "." && /^\s*\d+\s*$/.test(latestMarkdown.current)) {
+      pendingOrderedPrefix.current = `${latestMarkdown.current}.`;
+    }
+  }}><MDXEditor
     ref={editorRef}
     markdown={markdown}
     placeholder="开始写作…"
@@ -43,6 +48,17 @@ export function VisualMarkdownEditor({ markdown, onChange }: { markdown: string;
       // Loading an existing note can normalize whitespace internally. Do not
       // overwrite the authoritative source until the user actually edits it.
       if (initialMarkdownNormalize) return;
+      // MDXEditor's ordered-list shortcut temporarily serializes a new empty
+      // list as "" after the user types `1.`. Keep that prefix authoritative
+      // until the list receives its first item instead of blanking the note.
+      if (!value.trim() && pendingOrderedPrefix.current) {
+        const prefix = pendingOrderedPrefix.current;
+        pendingOrderedPrefix.current = null;
+        latestMarkdown.current = prefix;
+        onChange(prefix);
+        return;
+      }
+      pendingOrderedPrefix.current = null;
       latestMarkdown.current = value;
       onChange(value);
     }}
@@ -60,5 +76,5 @@ export function VisualMarkdownEditor({ markdown, onChange }: { markdown: string;
         toolbarContents: () => <><UndoRedo /><BlockTypeSelect /><BoldItalicUnderlineToggles /><CodeToggle /><ListsToggle /><CreateLink /><InsertTable /></>,
       }),
     ]}
-  />;
+  /></div>;
 }
