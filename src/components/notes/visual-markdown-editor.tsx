@@ -28,10 +28,25 @@ export function VisualMarkdownEditor({ markdown, noteId, onChange, onImageUpload
   const editorRef = useRef<MDXEditorMethods>(null);
   const latestMarkdown = useRef(markdown);
   const pendingOrderedPrefix = useRef<string | null>(null);
+  const uploadImageThroughApp = useCallback(async (file: File, filename: string) => {
+    const form = new FormData();
+    form.set("image", file, filename);
+    const response = await fetch(`/api/notes/${noteId}/images`, { method: "POST", body: form });
+    const payload = await response.json() as { src?: string; error?: string };
+    if (!response.ok || !payload.src) throw new Error(payload.error || "图片上传失败，请重试。");
+    return payload.src;
+  }, [noteId]);
   const uploadImage = useCallback(async (file: File) => {
     onImageUploadStatus?.("正在上传图片…");
     try {
       const filename = file.name || `screenshot-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+      // Screenshots are normally well below 4MB. Sending them through the
+      // same origin avoids R2 CORS failures on copied images.
+      if (file.size <= 4 * 1024 * 1024) {
+        const src = await uploadImageThroughApp(file, filename);
+        onImageUploadStatus?.("图片已插入笔记。");
+        return src;
+      }
       const created = await fetch("/api/files/upload-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename, contentType: file.type, size: file.size, noteId }) });
       const payload = await created.json() as { documentId?: string; uploadUrl?: string; error?: string };
       if (!created.ok || !payload.documentId || !payload.uploadUrl) throw new Error(payload.error || "图片上传准备失败。");
@@ -47,7 +62,7 @@ export function VisualMarkdownEditor({ markdown, noteId, onChange, onImageUpload
       onImageUploadStatus?.(message);
       throw error;
     }
-  }, [noteId, onImageUploadStatus]);
+  }, [noteId, onImageUploadStatus, uploadImageThroughApp]);
 
   useEffect(() => {
     if (markdown === latestMarkdown.current) return;
