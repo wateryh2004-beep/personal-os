@@ -2,9 +2,8 @@ import { CareerNav } from "@/components/career/career-nav";
 import { Field, PrimaryButton, SelectField, TextField } from "@/components/career/form-controls";
 import { createCareerMilestone, createCareerTrack } from "@/features/career/actions";
 import { getCareerRoadmap } from "@/features/career/queries";
+import { timelineCardRange, timelineDateLabel } from "@/features/career/roadmap-utils";
 
-const start = new Date("2026-08-01T00:00:00+08:00");
-const end = new Date("2027-12-31T23:59:59+08:00");
 const months = Array.from({ length: 17 }, (_, index) => new Date(2026, 7 + index, 1));
 const trackColors: Record<string, string> = {
   blue: "border-[#365F78] bg-[#EDF3F6] text-[#294B60]",
@@ -18,17 +17,6 @@ const trackStatuses = [{ value: "active", label: "进行中" }, { value: "paused
 const trackColorsOptions = [{ value: "blue", label: "深蓝" }, { value: "slate", label: "石墨灰" }, { value: "amber", label: "琥珀" }, { value: "violet", label: "紫罗兰" }, { value: "teal", label: "青绿" }];
 const milestoneStatuses = [{ value: "planned", label: "计划中" }, { value: "in_progress", label: "进行中" }, { value: "completed", label: "已完成" }, { value: "skipped", label: "已跳过" }];
 const importanceOptions = [{ value: "high", label: "高" }, { value: "normal", label: "普通" }, { value: "low", label: "低" }];
-
-function ratio(date: string) {
-  const value = new Date(`${date}T12:00:00+08:00`).getTime();
-  return Math.max(0, Math.min(100, ((value - start.getTime()) / (end.getTime() - start.getTime())) * 100));
-}
-
-function milestoneRange(item: { starts_on: string | null; target_date: string }) {
-  const left = ratio(item.starts_on ?? item.target_date);
-  const right = Math.max(left, ratio(item.target_date));
-  return { left: Math.min(left, 94), width: Math.min(100 - left, Math.max(6.2, right - left)) };
-}
 
 export default async function CareerRoadmapPage() {
   const { tracks, milestones, directions, unavailable } = await getCareerRoadmap();
@@ -51,8 +39,9 @@ export default async function CareerRoadmapPage() {
               <div className="border-r border-[#eceae6] px-5 py-5"><p className="text-sm font-semibold text-zinc-900">{track.name}</p>{track.description ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">{track.description}</p> : <p className="mt-1 text-xs text-zinc-400">尚未添加说明</p>}</div>
               <div className="relative overflow-hidden bg-[linear-gradient(to_right,#f1efeb_1px,transparent_1px)] bg-[size:5.882%_100%]">
                 {items.length ? items.map((item, index) => {
-                  const range = milestoneRange(item);
-                  return <div key={item.id} title={`${item.title} · ${item.starts_on ?? item.target_date} 至 ${item.target_date}${item.description ? `\n${item.description}` : ""}`} className={`absolute rounded-sm border-l-4 px-2.5 py-2 shadow-sm ${trackColors[track.color] ?? trackColors.blue}`} style={{ left: `${range.left}%`, width: `${range.width}%`, top: `${18 + (index % 2) * 52}px` }}><p className="truncate text-xs font-semibold leading-4">{item.title}</p><p className="mt-0.5 truncate font-mono text-[10px] opacity-75">{item.starts_on ? `${item.starts_on.slice(5)} — ` : ""}{item.target_date.slice(5)}</p></div>;
+                  const range = timelineCardRange(item);
+                  const dateLabel = timelineDateLabel(item);
+                  return <div key={item.id} title={`${item.title} · ${item.starts_on ?? item.target_date} 至 ${item.target_date}${item.description ? `\n${item.description}` : ""}`} aria-label={`${item.title}，${dateLabel}${item.description ? `，${item.description}` : ""}`} className={`absolute rounded-sm border-l-4 px-2.5 py-2 shadow-sm ${trackColors[track.color] ?? trackColors.blue}`} style={{ left: `${range.left}%`, width: `${range.width}%`, top: `${18 + (index % 2) * 58}px` }}><p className="line-clamp-2 break-words text-xs font-semibold leading-4">{item.title}</p><p className="mt-1 whitespace-nowrap font-mono text-[10px] opacity-75">{dateLabel}</p>{item.description ? <p className="mt-1 line-clamp-1 text-[10px] leading-4 opacity-70">{item.description}</p> : null}</div>;
                 }) : <p className="px-5 py-11 text-xs text-zinc-400">这条路线还没有关键节点。</p>}
               </div>
             </div>;
