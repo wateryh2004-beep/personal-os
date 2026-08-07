@@ -14,8 +14,8 @@ export type WorkspaceSnapshot<T> = {
   expiresAt: number;
 };
 
-export function createWorkspaceSnapshot<T>(value: T, now = Date.now()): WorkspaceSnapshot<T> {
-  return { value, expiresAt: now + WORKSPACE_SESSION_TTL_MS };
+export function createWorkspaceSnapshot<T>(value: T, now = Date.now(), ttlMs = WORKSPACE_SESSION_TTL_MS): WorkspaceSnapshot<T> {
+  return { value, expiresAt: now + ttlMs };
 }
 
 export function parseWorkspaceSnapshot<T>(raw: string | null, now = Date.now()): T | null {
@@ -45,10 +45,10 @@ export function loadWorkspaceSession<T>(key: string): T | null {
   }
 }
 
-export function saveWorkspaceSession<T>(key: string, value: T) {
+export function saveWorkspaceSession<T>(key: string, value: T, ttlMs = WORKSPACE_SESSION_TTL_MS) {
   if (typeof window === "undefined") return;
   try {
-    window.sessionStorage.setItem(storageKey(key), JSON.stringify(createWorkspaceSnapshot(value)));
+    window.sessionStorage.setItem(storageKey(key), JSON.stringify(createWorkspaceSnapshot(value, Date.now(), ttlMs)));
   } catch {
     // Private browsing or a full storage quota must never block the editor.
   }

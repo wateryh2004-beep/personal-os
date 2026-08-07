@@ -2,7 +2,7 @@ import "server-only";
 
 import { isStepCount, ToolLoopAgent, tool } from "ai";
 import { z } from "zod";
-import { getDeepSeekModel } from "@/lib/ai/deepseek";
+import { getDeepSeekModel, type DeepSeekModelId } from "@/lib/ai/deepseek";
 import type { createClient } from "@/lib/supabase/server";
 import { todoProposalSchema } from "@/features/tasks/schemas";
 
@@ -21,8 +21,8 @@ function currentTimeIn(timezone: string) {
   }).format(new Date());
 }
 
-export async function createTaskAgent({ userId, supabase, timezone }: { userId: string; supabase: Supabase; timezone: string }) {
-  const { model, modelId } = await getDeepSeekModel(userId);
+export async function createTaskAgent({ userId, supabase, timezone, requestedModel }: { userId: string; supabase: Supabase; timezone: string; requestedModel?: DeepSeekModelId }) {
+  const { model, modelId } = await getDeepSeekModel(userId, requestedModel);
   const now = currentTimeIn(timezone);
 
   return new ToolLoopAgent({

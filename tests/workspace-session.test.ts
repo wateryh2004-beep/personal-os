@@ -8,6 +8,10 @@ describe("workspace session snapshots", () => {
     expect(parseWorkspaceSnapshot(JSON.stringify(snapshot), 101)).toEqual({ text: "未发送内容" });
   });
 
+  it("allows a feature to request a longer same-tab session without changing the default", () => {
+    expect(createWorkspaceSnapshot({ noteId: "note" }, 100, 1_000).expiresAt).toBe(1_100);
+  });
+
   it("rejects expired and malformed snapshots", () => {
     expect(parseWorkspaceSnapshot(JSON.stringify({ value: { text: "x" }, expiresAt: 100 }), 100)).toBeNull();
     expect(parseWorkspaceSnapshot("not-json")).toBeNull();

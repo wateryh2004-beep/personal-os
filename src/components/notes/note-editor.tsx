@@ -11,6 +11,7 @@ import { markdownFilename } from "@/features/notes/utils";
 import { NoteAiAssistant } from "@/components/notes/note-ai-assistant";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
+import { lastOpenedNoteSessionKey, lastOpenedNoteTtlMs } from "@/features/notes/navigation";
 
 const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-markdown-editor").then((module) => module.VisualMarkdownEditor), {
   ssr: false,
@@ -67,6 +68,10 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const saveDraft = useCallback((nextTitle: string, nextBody: string, baseRevision = revision) => {
     saveWorkspaceSession<NoteDraftSession>(noteSessionKey, { title: nextTitle, body: nextBody, baseRevision });
   }, [noteSessionKey, revision]);
+
+  useEffect(() => {
+    saveWorkspaceSession(lastOpenedNoteSessionKey, { noteId: note.id }, lastOpenedNoteTtlMs);
+  }, [note.id]);
 
   useEffect(() => {
     const draft = loadWorkspaceSession<NoteDraftSession>(noteSessionKey);

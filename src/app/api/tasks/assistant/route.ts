@@ -7,7 +7,7 @@ import { env } from "@/lib/env";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const requestSchema = z.object({ messages: z.array(z.unknown()).min(1).max(20) });
+const requestSchema = z.object({ messages: z.array(z.unknown()).min(1).max(20), model: z.enum(["deepseek-v4-flash", "deepseek-v4-pro"]).optional() });
 const noStore = { "Cache-Control": "private, no-store, max-age=0" };
 
 function safeErrorMessage(error: unknown) {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     if (!body.success) return Response.json({ error: "无效的对话请求。" }, { status: 400, headers: noStore });
     if (!env.supabaseSecretKey) return Response.json({ error: "AI 服务尚未配置。" }, { status: 503, headers: noStore });
     const { data: profile } = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
-    const agent = await createTaskAgent({ userId, supabase, timezone: profile?.timezone || "Asia/Shanghai" });
+    const agent = await createTaskAgent({ userId, supabase, timezone: profile?.timezone || "Asia/Shanghai", requestedModel: body.data.model });
     const response = await createAgentUIStreamResponse({
       agent,
       uiMessages: body.data.messages,

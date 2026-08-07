@@ -2,7 +2,7 @@ import "server-only";
 
 import { isStepCount, ToolLoopAgent, tool } from "ai";
 import { z } from "zod";
-import { getDeepSeekModel } from "@/lib/ai/deepseek";
+import { getDeepSeekModel, type DeepSeekModelId } from "@/lib/ai/deepseek";
 import { createCalendarEventSchema, deleteCalendarEventSchema } from "@/features/calendar/schemas";
 import type { createClient } from "@/lib/supabase/server";
 
@@ -14,8 +14,8 @@ function currentTimeIn(timezone: string) {
   return new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", weekday: "long", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
 }
 
-export async function createCalendarAgent({ userId, supabase, timezone }: { userId: string; supabase: Supabase; timezone: string }) {
-  const { model, modelId, defaultEventDurationMinutes } = await getDeepSeekModel(userId);
+export async function createCalendarAgent({ userId, supabase, timezone, requestedModel }: { userId: string; supabase: Supabase; timezone: string; requestedModel?: DeepSeekModelId }) {
+  const { model, modelId, defaultEventDurationMinutes } = await getDeepSeekModel(userId, requestedModel);
   const now = currentTimeIn(timezone);
   return new ToolLoopAgent({
     model,

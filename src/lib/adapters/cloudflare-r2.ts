@@ -42,15 +42,29 @@ function encodePath(value: string) {
   return value.split("/").map((part) => encodeURIComponent(part)).join("/");
 }
 
+function objectEndpoint(endpoint: URL, bucketName: string) {
+  // R2's documented SDK form is
+  // https://<bucket>.<account-id>.r2.cloudflarestorage.com/<key>. The host is
+  // part of the SigV4 canonical request, so signing a path-style URL can cause
+  // SignatureDoesNotMatch when the bucket-scoped R2 endpoint is enforced.
+  const value = new URL(endpoint);
+  if (value.hostname.endsWith(".r2.cloudflarestorage.com") && !value.hostname.startsWith(`${bucketName}.`)) {
+    value.hostname = `${bucketName}.${value.hostname}`;
+  } else {
+    value.pathname = `${value.pathname.replace(/\/$/, "")}/${encodePath(bucketName)}`;
+  }
+  return value;
+}
+
 /** Minimal AWS SigV4 presigner for R2's S3-compatible API. It keeps the
  * credentials in Vercel and avoids making an upload pass through the server. */
-export function createSignedUrl(method: "GET" | "HEAD" | "PUT", key: string, options: { contentType?: string; filename?: string } = {}) {
+export function createSignedUrl(method: "GET" | "HEAD" | "PUT", key: string, options: { contentType?: string; filename?: string; disposition?: "attachment" | "inline" } = {}) {
   const config = configuration();
   if (!config) throw new Error("r2_not_configured");
-  const endpoint = new URL(config.endpoint);
+  const endpoint = objectEndpoint(new URL(config.endpoint), config.bucketName);
   const now = amzTime(new Date());
   const scope = `${now.dateStamp}/auto/s3/aws4_request`;
-  const canonicalUri = `/${encodePath(config.bucketName)}/${encodePath(key)}`;
+  const canonicalUri = `${endpoint.pathname.replace(/\/$/, "")}/${encodePath(key)}`;
   const signedHeaders = options.contentType ? "content-type;host" : "host";
   const query = new URLSearchParams({
     "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
@@ -63,7 +77,7 @@ export function createSignedUrl(method: "GET" | "HEAD" | "PUT", key: string, opt
     "X-Amz-Expires": "300",
     "X-Amz-SignedHeaders": signedHeaders,
   });
-  if (options.filename) query.set("response-content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(options.filename)}`);
+  if (options.filename) query.set("response-content-disposition", `${options.disposition ?? "attachment"}; filename*=UTF-8''${encodeURIComponent(options.filename)}`);
   const canonicalQuery = [...query.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
   const canonicalHeaders = `${options.contentType ? `content-type:${options.contentType}\n` : ""}host:${endpoint.host}\n`;
   const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQuery}\n${canonicalHeaders}\n${signedHeaders}\nUNSIGNED-PAYLOAD`;
@@ -78,8 +92,8 @@ export function createUploadUrl(key: string, contentType: string) {
   return createSignedUrl("PUT", key, { contentType });
 }
 
-export function createDownloadUrl(key: string, filename: string) {
-  return createSignedUrl("GET", key, { filename });
+export function createDownloadUrl(key: string, filename: string, inline = false) {
+  return createSignedUrl("GET", key, { filename, disposition: inline ? "inline" : "attachment" });
 }
 
 export type R2ObjectCheck = {

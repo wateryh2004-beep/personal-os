@@ -56,7 +56,7 @@ export function VisualMarkdownEditor({ markdown, noteId, onChange, onImageUpload
       const result = await completed.json() as { error?: string };
       if (!completed.ok) throw new Error(result.error || "图片上传后未能确认。");
       onImageUploadStatus?.("图片已插入笔记。");
-      return `/api/files/${payload.documentId}/download`;
+      return `/api/files/${payload.documentId}/download?inline=1`;
     } catch (error) {
       const message = error instanceof Error ? error.message : "图片上传失败，请重试。";
       onImageUploadStatus?.(message);

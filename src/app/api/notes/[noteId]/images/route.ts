@@ -57,7 +57,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ not
     const { error: linkError } = await supabase.from("entity_links").insert({ user_id: userId, source_type: "note", source_id: note.id, target_type: "document", target_id: documentId, relationship_type: "attachment" });
     if (linkError) throw new ImageUploadFailure("图片已写入 R2，但未能关联到当前笔记。请稍后重试。", 500);
     await supabase.from("audit_logs").insert({ user_id: userId, action: "upload", entity_type: "document", entity_id: documentId, actor_type: "user", after_data: { note_id: note.id, size: image.size, content_type: image.type, upload_path: "same_origin_fallback" } });
-    return NextResponse.json({ src: `/api/files/${documentId}/download` }, { headers });
+    return NextResponse.json({ src: `/api/files/${documentId}/download?inline=1` }, { headers });
   } catch (error) {
     await supabase.from("documents").delete().eq("id", documentId);
     if (error instanceof ImageUploadFailure) return fail(error.publicMessage, error.status);

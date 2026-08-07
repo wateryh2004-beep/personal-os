@@ -8,7 +8,7 @@ import { acquireCalendarRequestLock, releaseCalendarRequestLock } from "@/lib/ai
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const requestSchema = z.object({ messages: z.array(z.unknown()).min(1).max(20) });
+const requestSchema = z.object({ messages: z.array(z.unknown()).min(1).max(20), model: z.enum(["deepseek-v4-flash", "deepseek-v4-pro"]).optional() });
 
 function safeErrorMessage(error: unknown) {
   const value = error instanceof Error ? error.message.toLowerCase() : "";
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     requestId = await acquireCalendarRequestLock(supabase);
     if (!requestId) return Response.json({ error: "你的账户正在另一台设备处理日历请求。请等待该请求结束，或在另一台设备点击“停止”。" }, { status: 409, headers: { "Cache-Control": "private, no-store, max-age=0" } });
     const { data: profile } = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
-    const agent = await createCalendarAgent({ userId, supabase, timezone: profile?.timezone || "Asia/Shanghai" });
+    const agent = await createCalendarAgent({ userId, supabase, timezone: profile?.timezone || "Asia/Shanghai", requestedModel: body.data.model });
     const response = await createAgentUIStreamResponse({
       agent,
       uiMessages: body.data.messages,
