@@ -10,12 +10,15 @@ function ratio(date: string) {
 export function timelineCardRange(item: { starts_on: string | null; target_date: string }) {
   const start = ratio(item.starts_on ?? item.target_date);
   const end = Math.max(start, ratio(item.target_date));
-  const minimumWidth = 11.2;
-  const width = Math.min(100, Math.max(minimumWidth, end - start));
+  const isPoint = !item.starts_on || item.starts_on === item.target_date;
+  if (isPoint) return { left: start, width: 0, isPoint: true };
+  // A duration remains proportional to its actual dates. Only preserve a
+  // narrow minimum so a very short multi-day period remains discoverable.
+  const width = Math.min(100 - start, Math.max(2.2, end - start));
   return {
-    left: Math.max(0, Math.min(100 - width, start)),
+    left: start,
     width,
-    isPoint: !item.starts_on || item.starts_on === item.target_date,
+    isPoint: false,
   };
 }
 
