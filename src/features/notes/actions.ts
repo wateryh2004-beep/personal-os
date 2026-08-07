@@ -85,6 +85,30 @@ export async function renameNote(formData: FormData) {
   revalidatePath(`/notes/${note.id}`);
 }
 
+export async function toggleNotePinned(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const noteId = String(formData.get("note_id") || "");
+  if (!z.string().uuid().safeParse(noteId).success) fail();
+  const { data: note, error: noteError } = await supabase
+    .from("notes")
+    .select("id,pinned_at")
+    .eq("id", noteId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (noteError || !note) fail();
+  const pinnedAt = note.pinned_at ? null : new Date().toISOString();
+  const { data: updated, error } = await supabase
+    .from("notes")
+    .update({ pinned_at: pinnedAt })
+    .eq("id", note.id)
+    .select("id")
+    .maybeSingle();
+  if (error || !updated) fail();
+  await audit(supabase, userId, pinnedAt ? "pin" : "unpin", "note", note.id, { pinned_at: pinnedAt });
+  revalidatePath("/notes");
+  revalidatePath(`/notes/${note.id}`);
+}
+
 export async function deleteEmptyFolder(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const folderId = String(formData.get("folder_id") || "");

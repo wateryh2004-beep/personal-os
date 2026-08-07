@@ -11,7 +11,7 @@ export function isNotesWorkspaceSchemaMissing(error: QueryError) {
 type WorkspaceState = "ready" | "base" | "unavailable";
 
 export async function getNotesWorkspace(): Promise<{
-  notes: { id: string; title: string; updated_at: string; pinned_at: string | null; folder_id: string | null }[];
+  notes: { id: string; title: string; body_markdown: string; updated_at: string; pinned_at: string | null; folder_id: string | null }[];
   folders: { id: string; name: string; parent_id: string | null }[];
   timezone: string;
   state: WorkspaceState;
@@ -21,7 +21,7 @@ export async function getNotesWorkspace(): Promise<{
   const timezone = profile?.timezone || "Asia/Shanghai";
   const notesResult = await supabase
     .from("notes")
-    .select("id,title,updated_at,pinned_at,folder_id")
+    .select("id,title,body_markdown,updated_at,pinned_at,folder_id")
     .is("deleted_at", null)
     .neq("status", "archived")
     .order("pinned_at", { ascending: false })
@@ -30,7 +30,7 @@ export async function getNotesWorkspace(): Promise<{
   if (isNotesWorkspaceSchemaMissing(notesResult.error)) {
     const base = await supabase
       .from("notes")
-      .select("id,title,updated_at,pinned_at")
+      .select("id,title,body_markdown,updated_at,pinned_at")
       .neq("status", "archived")
       .order("pinned_at", { ascending: false })
       .order("updated_at", { ascending: false });
