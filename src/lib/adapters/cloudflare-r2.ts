@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash, createHmac } from "crypto";
+export { r2FailureMessage } from "@/features/files/r2-errors";
 
 type R2Configuration = { endpoint: string; accessKeyId: string; secretAccessKey: string; bucketName: string };
 
@@ -77,9 +78,23 @@ export function createDownloadUrl(key: string, filename: string) {
   return createSignedUrl("GET", key, { filename });
 }
 
+export type R2ObjectCheck = {
+  exists: boolean;
+  size: number;
+  contentType: string;
+  status: number | null;
+};
+
 export async function objectExists(key: string) {
   try {
     const response = await fetch(createSignedUrl("HEAD", key), { method: "HEAD", cache: "no-store" });
-    return { exists: response.ok, size: Number(response.headers.get("content-length") ?? 0), contentType: response.headers.get("content-type") ?? "application/octet-stream" };
-  } catch { return { exists: false, size: 0, contentType: "" }; }
+    return {
+      exists: response.ok,
+      size: Number(response.headers.get("content-length") ?? 0),
+      contentType: response.headers.get("content-type") ?? "application/octet-stream",
+      status: response.status,
+    } satisfies R2ObjectCheck;
+  } catch {
+    return { exists: false, size: 0, contentType: "", status: null } satisfies R2ObjectCheck;
+  }
 }
