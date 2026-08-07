@@ -65,6 +65,12 @@ with check (user_id = auth.uid())
 Career 的每张表和 `documents`、`entity_links` 均启用 RLS，并为 SELECT/INSERT/UPDATE/DELETE 设定 `authenticated` + `auth.uid() = user_id` 策略；事实版本只允许 SELECT/INSERT。普通 Server Actions 首先执行 `requireOwner()`，随后进行 Zod 校验及关联对象所有权检查。`credential_number` 不写入审计的 `after_data`，也不出现在默认导出。
 
 `private-files` 必须在 Dashboard 创建为私有 bucket。Storage object policy 同时限制 bucket 名称及首个路径段等于 `auth.uid()`；浏览器不拥有 service role，文件元数据写失败时会删除刚上传的对象。正式签名 URL 下载界面仍待后续实现。
+
+## Files 与 Cloudflare R2
+
+`life-of-hang-files-prod` 保持私有，不启用 Public Development URL 或公开自定义域名。R2 Access Key 与 Secret 仅存在于 Vercel 的 server-only 环境变量；它们不使用 `NEXT_PUBLIC_` 前缀，不进入 Git、日志、Supabase 或浏览器。
+
+Files 的每次签名、上传确认与下载都调用 `requireOwnerApi()`；查询 `documents` 时 RLS 限定 `auth.uid()`。上传 URL 限定一个由服务端生成的对象路径、一个 PUT 方法、指定 Content-Type 和五分钟期限；下载 URL 同样限单对象、五分钟。CORS 仅允许实际 Personal OS 域名和本地开发地址。客户端无法指定 R2 路径或 user_id；文件夹归属触发器阻止将文件附着到其他用户的 Folder。
 # Authentication boundaries
 
 Private application routes are protected in four independent layers: `src/proxy.ts` performs an early redirect, the `(app)` server layout calls `requireOwner()` before rendering the application shell, every Server Action and private Route Handler checks the owner again, and Supabase RLS isolates rows by `auth.uid()`.

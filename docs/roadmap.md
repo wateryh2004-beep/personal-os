@@ -53,6 +53,11 @@
 - 已修复基础 migration 与 Notes Workspace migration 不一致时“新建后列表为空”的错误：基础 `notes` 表仍可读取、打开和编辑笔记；页面会明确显示兼容模式，而不会静默吞掉 schema 错误。
 - 待完成：版本恢复、回收站页面、标签管理、附件下载、全文搜索、Markdown 导入导出与远端 RLS 验证。
 
+## Files Workspace（进行中）
+
+- 已完成私有 Cloudflare R2 接入骨架：复用 `documents`、新增 `file_folders`，支持 R2 直传、上传确认、受鉴权下载、重命名、移动与归档。
+- 待完成：应用 Files migration、生产环境上传/下载验收、归档恢复、文件搜索、批量导出和本地备份策略。
+
 ## 需要用户手动提供/配置
 
 - GitHub CLI 已重新登录且网络可用；首次提交与推送留待明确要求发布时进行。

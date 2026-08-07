@@ -42,6 +42,14 @@ npm run build
 
 Notes 的当前正文权威存储在 Supabase PostgreSQL `notes.body_markdown`，版本在 `note_versions.body_markdown`；新建笔记不会在 Mac 或 Vercel 文件系统中生成一个 `.md` 文件。你在 `/notes` 左侧看到的列表就是数据库中已保存的笔记；需要普通 Markdown 文件时，在笔记页点击“下载 Markdown”。Notes Workspace 使用 CodeMirror 直接编辑 Markdown，自动保存采用 revision 乐观并发控制。文件夹、Tags 和 Wiki Links 同样进入 PostgreSQL；附件继续使用私有 `private-files` Storage。单篇/全量 `.md` 导出与 Obsidian ZIP 导入将在 Notes Phase 2 的后续提交完成。
 
+## Files（Cloudflare R2）
+
+Files 的对象正文存于私有 Cloudflare R2 bucket `life-of-hang-files-prod`；文件名、文件夹、大小、归属和归档状态存于 Supabase `documents` 与 `file_folders`，并由 RLS 隔离。R2 Bucket 不开启 Public Development URL 或自定义公开域名。
+
+在 Vercel 的 Production/Preview 配置以下 server-only 环境变量：`R2_ENDPOINT`、`R2_ACCOUNT_ID`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY` 与 `R2_BUCKET_NAME`。它们绝不能使用 `NEXT_PUBLIC_` 前缀。网页先经 owner 身份校验取得 5 分钟有效的单对象 PUT/GET URL，再直接与 R2 通信；R2 密钥不会下发到浏览器。还须在 R2 CORS 中仅允许实际应用域名和 `http://localhost:3000`。
+
+应用 Files migration 后可上传、下载、重命名、移动和归档文件。归档不删除 R2 对象；未来本地服务器迁移可通过替换 Storage Adapter 完成。R2 不是唯一备份，重要文件仍应定期导出至受控副本。
+
 ## Microsoft Calendar 与 To Do（云端备份）
 
 Outlook Calendar 与 Microsoft To Do 是同步端，不是唯一存储。当前数据与不可变备份
