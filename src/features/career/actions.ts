@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomUUID } from "crypto";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { bulletSchema, canApproveBullet, careerDirectionSchema, careerMilestoneSchema, careerProfileSchema, careerTrackSchema, certificationSchema, factSchema, formObject, isCurrent, outputSchema, skillSchema, experienceSchema } from "./schemas";
+import { bulletSchema, canApproveBullet, careerDirectionSchema, careerMilestoneSchema, careerProfileSchema, careerTrackOrderSchema, careerTrackSchema, certificationSchema, factSchema, formObject, isCurrent, outputSchema, skillSchema, experienceSchema } from "./schemas";
 
 function failed(error: unknown): never { void error; throw new Error("操作未能完成，请检查输入、权限或配置后重试。"); }
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, entityType: string, entityId: string, afterData: Record<string, unknown> = {}) {
@@ -37,6 +37,41 @@ export async function createCareerMilestone(formData: FormData) {
   await own(supabase, "career_tracks", value.track_id); if (value.career_direction_id) await own(supabase, "career_directions", value.career_direction_id);
   const { data, error } = await supabase.from("career_milestones").insert({ ...value, user_id: userId }).select("id").single(); if (error || !data) failed(error);
   await audit(supabase, userId, "create", "career_milestone", data.id, { track_id: value.track_id, target_date: value.target_date, importance: value.importance }); revalidatePath("/career/roadmap"); revalidatePath("/career");
+}
+export async function updateCareerTrack(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const trackId = String(formData.get("track_id") || ""); const value = parse(careerTrackSchema, formObject(formData));
+  await own(supabase, "career_tracks", trackId); const { error } = await supabase.from("career_tracks").update(value).eq("id", trackId); if (error) failed(error);
+  await audit(supabase, userId, "update", "career_track", trackId, { name: value.name, status: value.status, color: value.color }); revalidatePath("/career/roadmap"); revalidatePath("/career");
+}
+export async function archiveCareerTrack(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const trackId = String(formData.get("track_id") || ""); await own(supabase, "career_tracks", trackId);
+  const { error } = await supabase.from("career_tracks").update({ archived_at: new Date().toISOString(), status: "archived" }).eq("id", trackId); if (error) failed(error);
+  await audit(supabase, userId, "archive", "career_track", trackId); revalidatePath("/career/roadmap"); revalidatePath("/career");
+}
+export async function updateCareerMilestone(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const milestoneId = String(formData.get("milestone_id") || ""); const raw = formObject(formData); const value = parse(careerMilestoneSchema, { ...raw, career_direction_id: raw.career_direction_id || null });
+  await own(supabase, "career_milestones", milestoneId); await own(supabase, "career_tracks", value.track_id); if (value.career_direction_id) await own(supabase, "career_directions", value.career_direction_id);
+  const { error } = await supabase.from("career_milestones").update(value).eq("id", milestoneId); if (error) failed(error);
+  await audit(supabase, userId, "update", "career_milestone", milestoneId, { track_id: value.track_id, starts_on: value.starts_on, target_date: value.target_date, status: value.status }); revalidatePath("/career/roadmap"); revalidatePath("/career");
+}
+export async function archiveCareerMilestone(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const milestoneId = String(formData.get("milestone_id") || ""); await own(supabase, "career_milestones", milestoneId);
+  const { error } = await supabase.from("career_milestones").update({ archived_at: new Date().toISOString() }).eq("id", milestoneId); if (error) failed(error);
+  await audit(supabase, userId, "archive", "career_milestone", milestoneId); revalidatePath("/career/roadmap"); revalidatePath("/career");
+}
+export async function duplicateCareerMilestone(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const milestoneId = String(formData.get("milestone_id") || ""); await own(supabase, "career_milestones", milestoneId);
+  const { data: source, error: sourceError } = await supabase.from("career_milestones").select("track_id,career_direction_id,title,description,starts_on,target_date,status,importance").eq("id", milestoneId).maybeSingle(); if (sourceError || !source) failed(sourceError);
+  const { data, error } = await supabase.from("career_milestones").insert({ ...source, user_id: userId, title: `${source.title}（副本）` }).select("id").single(); if (error || !data) failed(error);
+  await audit(supabase, userId, "duplicate", "career_milestone", data.id, { source_id: milestoneId }); revalidatePath("/career/roadmap"); revalidatePath("/career");
+}
+export async function reorderCareerTracks(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); let raw: unknown;
+  try { raw = JSON.parse(String(formData.get("track_ids") || "[]")); } catch { failed(new Error("路线顺序无效。")); }
+  const ids = parse(careerTrackOrderSchema, raw); await Promise.all(ids.map((id) => own(supabase, "career_tracks", id)));
+  const results = await Promise.all(ids.map((id, position) => supabase.from("career_tracks").update({ position }).eq("id", id)));
+  if (results.some((result) => result.error)) failed(results.find((result) => result.error)?.error);
+  await audit(supabase, userId, "reorder", "career_track", ids[0], { track_ids: ids }); revalidatePath("/career/roadmap"); revalidatePath("/career");
 }
 export async function createExperience(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(experienceSchema, { ...raw, is_current: isCurrent(formData.get("is_current")) });

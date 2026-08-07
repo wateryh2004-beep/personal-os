@@ -30,6 +30,8 @@ export const careerMilestoneSchema = z.object({
   track_id: z.string().uuid(), career_direction_id: z.string().uuid().nullable().optional(), title: z.string().trim().min(1).max(240), description: optionalText(4_000), starts_on: optionalDate, target_date: z.string().date(), status: z.enum(["planned", "in_progress", "completed", "skipped"]), importance: z.enum(["low", "normal", "high"]),
 }).refine((value) => !value.starts_on || value.starts_on <= value.target_date, { message: "开始时间不能晚于节点日期。" });
 
+export const careerTrackOrderSchema = z.array(z.string().uuid()).min(1).max(100);
+
 export const experienceSchema = z.object({
   experience_type: z.enum(experienceTypes), organization: z.string().trim().min(1).max(200), department: optionalText(200), role: optionalText(200), location: optionalText(200),
   start_date: optionalDate, end_date: optionalDate, is_current: z.boolean(), background_markdown: optionalText(12000), raw_description_markdown: optionalText(20000),

@@ -1,27 +1,102 @@
-const timelineStart = new Date("2026-08-01T00:00:00+08:00").getTime();
-const timelineEnd = new Date("2027-12-31T23:59:59+08:00").getTime();
+export type TimelineItem = { starts_on: string | null; target_date: string };
+export type TimelineDomain = { start: Date; end: Date };
 
-function ratio(date: string) {
-  const value = new Date(`${date}T12:00:00+08:00`).getTime();
-  return Math.max(0, Math.min(100, ((value - timelineStart) / (timelineEnd - timelineStart)) * 100));
+const planningHorizon = new Date("2027-12-01T00:00:00Z");
+
+export function monthStart(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
 }
 
-/** Keep point milestones readable without allowing a card to escape the grid. */
-export function timelineCardRange(item: { starts_on: string | null; target_date: string }) {
-  const start = ratio(item.starts_on ?? item.target_date);
-  const end = Math.max(start, ratio(item.target_date));
-  const isPoint = !item.starts_on || item.starts_on === item.target_date;
-  if (isPoint) return { left: start, width: 0, isPoint: true };
-  // A duration remains proportional to its actual dates. Only preserve a
-  // narrow minimum so a very short multi-day period remains discoverable.
-  const width = Math.min(100 - start, Math.max(2.2, end - start));
+export function addMonths(value: Date, months: number) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + months, 1));
+}
+
+export function parseDate(value: string) {
+  return new Date(`${value}T00:00:00Z`);
+}
+
+export function formatDate(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+export function daysInMonth(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + 1, 0)).getUTCDate();
+}
+
+export function monthCount(domain: TimelineDomain) {
+  return (domain.end.getUTCFullYear() - domain.start.getUTCFullYear()) * 12 + domain.end.getUTCMonth() - domain.start.getUTCMonth() + 1;
+}
+
+export function getTimelineDomain(now: Date, items: TimelineItem[]): TimelineDomain {
+  const current = monthStart(now);
+  const latest = items.reduce<Date>((max, item) => {
+    const date = parseDate(item.target_date);
+    return date > max ? date : max;
+  }, planningHorizon);
   return {
-    left: start,
-    width,
-    isPoint: false,
+    start: addMonths(current, -36),
+    end: addMonths(monthStart(latest), 36),
   };
 }
 
-export function timelineDateLabel(item: { starts_on: string | null; target_date: string }) {
-  return item.starts_on ? `${item.starts_on.slice(5)} — ${item.target_date.slice(5)}` : item.target_date.slice(5);
+export function timelineMonths(domain: TimelineDomain) {
+  return Array.from({ length: monthCount(domain) }, (_, index) => addMonths(domain.start, index));
+}
+
+/** Pixel x for a calendar date. This deliberately has no fixed range or clamp. */
+export function dateToX(date: string, domain: TimelineDomain, monthWidth: number) {
+  const value = parseDate(date);
+  const monthIndex = (value.getUTCFullYear() - domain.start.getUTCFullYear()) * 12 + value.getUTCMonth() - domain.start.getUTCMonth();
+  return monthIndex * monthWidth + ((value.getUTCDate() - 1) / daysInMonth(value)) * monthWidth;
+}
+
+export function xToDate(x: number, domain: TimelineDomain, monthWidth: number) {
+  const index = Math.max(0, Math.min(monthCount(domain) - 1, Math.floor(x / monthWidth)));
+  const month = addMonths(domain.start, index);
+  const proportion = Math.max(0, Math.min(0.999, (x - index * monthWidth) / monthWidth));
+  const day = Math.max(1, Math.min(daysInMonth(month), Math.floor(proportion * daysInMonth(month) + 1e-7) + 1));
+  return formatDate(new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), day)));
+}
+
+export function dateDiffDays(start: string, end: string) {
+  return Math.round((parseDate(end).getTime() - parseDate(start).getTime()) / 86_400_000);
+}
+
+export function addDays(date: string, days: number) {
+  const value = parseDate(date);
+  value.setUTCDate(value.getUTCDate() + days);
+  return formatDate(value);
+}
+
+export function isDuration(item: TimelineItem) {
+  return Boolean(item.starts_on && item.starts_on !== item.target_date);
+}
+
+export function timelineCardRange(item: TimelineItem) {
+  return { left: 0, width: 0, isPoint: !isDuration(item) };
+}
+
+export function timelineDateLabel(item: TimelineItem) {
+  return isDuration(item) ? `${item.starts_on!.slice(5)} — ${item.target_date.slice(5)}` : item.target_date.slice(5);
+}
+
+type Interval = { id: string; starts_on: string | null; target_date: string };
+
+/** First-fit interval packing prevents overlapping work from covering each other. */
+export function packIntervals<T extends Interval>(items: T[]) {
+  const rows: T[][] = [];
+  const sorted = [...items].sort((a, b) => (a.starts_on ?? a.target_date).localeCompare(b.starts_on ?? b.target_date));
+  for (const item of sorted) {
+    const start = item.starts_on ?? item.target_date;
+    let row = rows.find((candidate) => {
+      const last = candidate.at(-1);
+      return !last || last.target_date < start;
+    });
+    if (!row) {
+      row = [];
+      rows.push(row);
+    }
+    row.push(item);
+  }
+  return rows;
 }
