@@ -16,3 +16,10 @@ export function r2FailureMessage(status: number | null, operation: "upload" | "v
     ? `R2 未接受图片上传（HTTP ${status}）。请检查 R2 凭据和 Bucket 权限。`
     : `图片已提交但 R2 未能确认对象（HTTP ${status}）。请稍后重试。`;
 }
+
+/** Safe browser-facing messages: never expose a signed URL or provider response body. */
+export function directUploadFailureMessage(status: number | null) {
+  if (status === null) return "无法连接 Cloudflare R2。浏览器直传请求可能被 CORS 阻止，请确认 R2 Bucket CORS 允许当前网站 Origin。";
+  if (status === 401 || status === 403) return "R2 拒绝上传。请检查 presigned URL 签名以及 R2 API Token 的 Object Read & Write 权限。";
+  return `R2 未接受上传（HTTP ${status}）。请检查后重试。`;
+}

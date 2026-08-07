@@ -48,7 +48,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ not
   if (insertError) return fail("图片记录未能创建。", 500);
 
   try {
-    const response = await fetch(createUploadUrl(key, image.type), { method: "PUT", headers: { "Content-Type": image.type }, body: image });
+    const response = await fetch(await createUploadUrl(key, image.type), { method: "PUT", headers: { "Content-Type": image.type }, body: image });
     if (!response.ok) throw new ImageUploadFailure(r2FailureMessage(response.status, "upload"));
     const object = await objectExists(key);
     if (!object.exists || object.size !== image.size) throw new ImageUploadFailure(r2FailureMessage(object.status, "verify"));

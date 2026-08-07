@@ -1,118 +1,87 @@
 import "server-only";
 
-import { createHash, createHmac } from "crypto";
+import { DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 export { r2FailureMessage } from "@/features/files/r2-errors";
 
 type R2Configuration = { endpoint: string; accessKeyId: string; secretAccessKey: string; bucketName: string };
+export type R2Health = { configured: boolean; endpointValid: boolean; bucket: string | null; credentialsReachR2: boolean; status: "ok" | "misconfigured" | "unreachable" };
 
-/** Cloudflare labels generated credentials as AccessKeyID / SecretAccessKey.
- * Keep accepting those existing Vercel names alongside our R2_* convention. */
+/** Accept only the account-level S3 endpoint. Public/custom R2 URLs cannot presign S3 operations. */
+export function normalizeR2Endpoint(input: string) {
+  let url: URL;
+  try { url = new URL(input.trim()); } catch { throw new Error("r2_invalid_endpoint"); }
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/" || !/^[a-z0-9-]+\.r2\.cloudflarestorage\.com$/i.test(url.hostname)) throw new Error("r2_invalid_endpoint");
+  return url.origin;
+}
+
 function configuration(): R2Configuration | null {
-  const endpoint = process.env.R2_ENDPOINT;
+  const rawEndpoint = process.env.R2_ENDPOINT;
   const accessKeyId = process.env.R2_ACCESS_KEY_ID ?? process.env.AccessKeyID;
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY ?? process.env.SecretAccessKey;
-  // This is the production bucket created for Life of HANG. Keeping a
-  // default prevents a harmless omitted Vercel variable from disabling the
-  // entire Files workspace; deployments can still override it when migrated.
   const bucketName = process.env.R2_BUCKET_NAME ?? process.env.BucketName ?? process.env.R2_BUCKET ?? "life-of-hang-files-prod";
-  if (!endpoint || !accessKeyId || !secretAccessKey) return null;
-  return { endpoint, accessKeyId, secretAccessKey, bucketName };
+  if (!rawEndpoint || !accessKeyId || !secretAccessKey || !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/i.test(bucketName)) return null;
+  try { return { endpoint: normalizeR2Endpoint(rawEndpoint), accessKeyId, secretAccessKey, bucketName }; } catch { return null; }
 }
 
-export function isR2Configured() {
-  return configuration() !== null;
+export function isR2EndpointValid(value = process.env.R2_ENDPOINT) {
+  if (!value) return false;
+  try { normalizeR2Endpoint(value); return true; } catch { return false; }
 }
 
-export function r2BucketName() {
+function client(config: R2Configuration) {
+  return new S3Client({ region: "auto", endpoint: config.endpoint, credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey } });
+}
+
+function requiredConfiguration() {
   const value = configuration();
   if (!value) throw new Error("r2_not_configured");
-  return value.bucketName;
-}
-
-function hmac(key: string | Buffer, value: string) {
-  return createHmac("sha256", key).update(value, "utf8").digest();
-}
-
-function amzTime(date: Date) {
-  const value = date.toISOString().replace(/[:-]|\.\d{3}/g, "");
-  return { dateStamp: value.slice(0, 8), timestamp: value.slice(0, 16) + "Z" };
-}
-
-function encodePath(value: string) {
-  return value.split("/").map((part) => encodeURIComponent(part)).join("/");
-}
-
-function objectEndpoint(endpoint: URL, bucketName: string) {
-  // R2's documented SDK form is
-  // https://<bucket>.<account-id>.r2.cloudflarestorage.com/<key>. The host is
-  // part of the SigV4 canonical request, so signing a path-style URL can cause
-  // SignatureDoesNotMatch when the bucket-scoped R2 endpoint is enforced.
-  const value = new URL(endpoint);
-  if (value.hostname.endsWith(".r2.cloudflarestorage.com") && !value.hostname.startsWith(`${bucketName}.`)) {
-    value.hostname = `${bucketName}.${value.hostname}`;
-  } else {
-    value.pathname = `${value.pathname.replace(/\/$/, "")}/${encodePath(bucketName)}`;
-  }
   return value;
 }
 
-/** Minimal AWS SigV4 presigner for R2's S3-compatible API. It keeps the
- * credentials in Vercel and avoids making an upload pass through the server. */
-export function createSignedUrl(method: "GET" | "HEAD" | "PUT", key: string, options: { contentType?: string; filename?: string; disposition?: "attachment" | "inline" } = {}) {
-  const config = configuration();
-  if (!config) throw new Error("r2_not_configured");
-  const endpoint = objectEndpoint(new URL(config.endpoint), config.bucketName);
-  const now = amzTime(new Date());
-  const scope = `${now.dateStamp}/auto/s3/aws4_request`;
-  const canonicalUri = `${endpoint.pathname.replace(/\/$/, "")}/${encodePath(key)}`;
-  const signedHeaders = options.contentType ? "content-type;host" : "host";
-  const query = new URLSearchParams({
-    "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
-    // R2's SigV4 presigned request signs this marker as a query parameter.
-    // Omitting it while using UNSIGNED-PAYLOAD produces a 403 even for a
-    // correctly scoped Access Key / Secret Key pair.
-    "X-Amz-Content-Sha256": "UNSIGNED-PAYLOAD",
-    "X-Amz-Credential": `${config.accessKeyId}/${scope}`,
-    "X-Amz-Date": now.timestamp,
-    "X-Amz-Expires": "300",
-    "X-Amz-SignedHeaders": signedHeaders,
-  });
-  if (options.filename) query.set("response-content-disposition", `${options.disposition ?? "attachment"}; filename*=UTF-8''${encodeURIComponent(options.filename)}`);
-  const canonicalQuery = [...query.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
-  const canonicalHeaders = `${options.contentType ? `content-type:${options.contentType}\n` : ""}host:${endpoint.host}\n`;
-  const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQuery}\n${canonicalHeaders}\n${signedHeaders}\nUNSIGNED-PAYLOAD`;
-  const stringToSign = `AWS4-HMAC-SHA256\n${now.timestamp}\n${scope}\n${createHash("sha256").update(canonicalRequest).digest("hex")}`;
-  const dateKey = hmac(`AWS4${config.secretAccessKey}`, now.dateStamp);
-  const regionKey = hmac(dateKey, "auto"); const serviceKey = hmac(regionKey, "s3"); const signingKey = hmac(serviceKey, "aws4_request");
-  query.set("X-Amz-Signature", hmac(signingKey, stringToSign).toString("hex"));
-  return `${endpoint.origin}${canonicalUri}?${query.toString()}`;
+export function isR2Configured() { return configuration() !== null; }
+export function r2BucketName() { return requiredConfiguration().bucketName; }
+
+export async function createUploadUrl(key: string, contentType: string) {
+  const config = requiredConfiguration();
+  return getSignedUrl(client(config), new PutObjectCommand({ Bucket: config.bucketName, Key: key, ContentType: contentType }), { expiresIn: 300 });
 }
 
-export function createUploadUrl(key: string, contentType: string) {
-  return createSignedUrl("PUT", key, { contentType });
+export async function createDownloadUrl(key: string, filename: string, inline = false) {
+  const config = requiredConfiguration();
+  return getSignedUrl(client(config), new GetObjectCommand({ Bucket: config.bucketName, Key: key, ResponseContentDisposition: `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(filename)}` }), { expiresIn: 300 });
 }
 
-export function createDownloadUrl(key: string, filename: string, inline = false) {
-  return createSignedUrl("GET", key, { filename, disposition: inline ? "inline" : "attachment" });
-}
+export type R2ObjectCheck = { exists: boolean; size: number; contentType: string; status: number | null };
 
-export type R2ObjectCheck = {
-  exists: boolean;
-  size: number;
-  contentType: string;
-  status: number | null;
-};
-
-export async function objectExists(key: string) {
+export async function objectExists(key: string): Promise<R2ObjectCheck> {
   try {
-    const response = await fetch(createSignedUrl("HEAD", key), { method: "HEAD", cache: "no-store" });
-    return {
-      exists: response.ok,
-      size: Number(response.headers.get("content-length") ?? 0),
-      contentType: response.headers.get("content-type") ?? "application/octet-stream",
-      status: response.status,
-    } satisfies R2ObjectCheck;
+    const config = requiredConfiguration();
+    const result = await client(config).send(new HeadObjectCommand({ Bucket: config.bucketName, Key: key }));
+    return { exists: true, size: Number(result.ContentLength ?? 0), contentType: result.ContentType ?? "application/octet-stream", status: 200 };
+  } catch (error) {
+    const status = typeof error === "object" && error && "$metadata" in error ? Number((error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode ?? 0) || null : null;
+    return { exists: false, size: 0, contentType: "", status };
+  }
+}
+
+export async function deleteR2Object(key: string) {
+  const config = requiredConfiguration();
+  await client(config).send(new DeleteObjectCommand({ Bucket: config.bucketName, Key: key }));
+}
+
+export function sanitizeR2Health(input: { configured: boolean; endpointValid: boolean; bucket: string | null; credentialsReachR2: boolean }): R2Health {
+  return { ...input, status: !input.configured || !input.endpointValid ? "misconfigured" : input.credentialsReachR2 ? "ok" : "unreachable" };
+}
+
+/** Server-to-R2 diagnostic: no credentials, endpoint, signed URL, or provider body is returned. */
+export async function checkR2Health(): Promise<R2Health> {
+  const config = configuration();
+  if (!config) return sanitizeR2Health({ configured: false, endpointValid: isR2EndpointValid(), bucket: null, credentialsReachR2: false });
+  try {
+    await client(config).send(new HeadBucketCommand({ Bucket: config.bucketName }));
+    return sanitizeR2Health({ configured: true, endpointValid: true, bucket: config.bucketName, credentialsReachR2: true });
   } catch {
-    return { exists: false, size: 0, contentType: "", status: null } satisfies R2ObjectCheck;
+    return sanitizeR2Health({ configured: true, endpointValid: true, bucket: config.bucketName, credentialsReachR2: false });
   }
 }

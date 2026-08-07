@@ -1,8 +1,9 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-owner";
-import { createUploadUrl, isR2Configured, objectExists, r2BucketName } from "@/lib/adapters/cloudflare-r2";
-import { canUpload, canUploadNoteImage, completeUploadSchema, safeFilename, uploadRequestSchema } from "@/features/files/schemas";
+import { createUploadUrl, deleteR2Object, isR2Configured, objectExists, r2BucketName } from "@/lib/adapters/cloudflare-r2";
+import { canUpload, canUploadNoteImage, completeUploadSchema, fileIdSchema, safeFilename, uploadRequestSchema } from "@/features/files/schemas";
+import { canAbortPendingUpload, stalePendingCutoff } from "@/features/files/upload-state";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store, max-age=0" };
@@ -10,6 +11,15 @@ const fail = (message: string, status = 400) => NextResponse.json({ error: messa
 
 async function audit(supabase: Awaited<ReturnType<typeof requireOwnerApi>>["supabase"], userId: string, action: string, id: string, data: Record<string, unknown>) {
   await supabase.from("audit_logs").insert({ user_id: userId, action, entity_type: "document", entity_id: id, actor_type: "user", after_data: data });
+}
+
+async function cleanStalePendingUploads(supabase: Awaited<ReturnType<typeof requireOwnerApi>>["supabase"], userId: string) {
+  const cutoff = stalePendingCutoff();
+  const { data } = await supabase.from("documents").select("id,storage_path").eq("user_id", userId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending").lt("created_at", cutoff);
+  for (const document of data ?? []) {
+    await supabase.from("documents").delete().eq("id", document.id).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending");
+    try { await deleteR2Object(document.storage_path); } catch { /* A private orphan is safer than surfacing R2 details; retry on later cleanup. */ }
+  }
 }
 
 export async function POST(request: Request) {
@@ -21,6 +31,7 @@ export async function POST(request: Request) {
   const parsed = uploadRequestSchema.safeParse(raw);
   if (!parsed.success || !(parsed.data.noteId ? canUploadNoteImage(parsed.data.filename, parsed.data.contentType, parsed.data.size) : canUpload(parsed.data.filename, parsed.data.contentType, parsed.data.size))) return fail(parsed.data?.noteId ? "仅支持 PNG、JPG、WebP、GIF 或 AVIF 图片，且单张不超过 15MB。" : "文件类型或大小不受支持。");
   const { supabase, userId } = owner;
+  await cleanStalePendingUploads(supabase, userId);
   if (parsed.data.noteId) {
     const { data: note } = await supabase.from("notes").select("id").eq("id", parsed.data.noteId).is("deleted_at", null).maybeSingle();
     if (!note) return fail("目标笔记不存在或无权访问。", 404);
@@ -55,7 +66,7 @@ export async function PATCH(request: Request) {
   try { raw = await request.json(); } catch { return fail("请求格式无效。"); }
   const parsed = completeUploadSchema.safeParse(raw); if (!parsed.success) return fail("文件标识无效。");
   const { supabase, userId } = owner;
-  const { data: document } = await supabase.from("documents").select("id,storage_path,file_size,mime_type").eq("id", parsed.data.documentId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending").maybeSingle();
+  const { data: document } = await supabase.from("documents").select("id,storage_path,file_size,mime_type").eq("id", parsed.data.documentId).eq("user_id", userId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending").maybeSingle();
   if (!document) return fail("上传记录不存在。", 404);
   const object = await objectExists(document.storage_path);
   if (!object.exists || object.size !== Number(document.file_size)) return fail("文件尚未完整上传，请重试。", 409);
@@ -68,5 +79,21 @@ export async function PATCH(request: Request) {
   const { error } = await supabase.from("documents").update({ storage_state: "available", uploaded_at: new Date().toISOString() }).eq("id", document.id);
   if (error) return fail("文件未能确认。", 500);
   await audit(supabase, userId, "upload_completed", document.id, { size: document.file_size, content_type: document.mime_type, note_id: parsed.data.noteId ?? null });
+  return NextResponse.json({ ok: true }, { headers });
+}
+
+/** Best-effort cleanup after a browser-to-R2 failure. Available files are never eligible. */
+export async function DELETE(request: Request) {
+  let owner: Awaited<ReturnType<typeof requireOwnerApi>>;
+  try { owner = await requireOwnerApi(); } catch (error) { return apiAuthenticationFailure(error) ?? fail("暂时无法验证身份。", 500); }
+  const parsed = fileIdSchema.safeParse({ documentId: new URL(request.url).searchParams.get("documentId") });
+  if (!parsed.success) return fail("文件标识无效。");
+  const { supabase, userId } = owner;
+  const { data: document } = await supabase.from("documents").select("id,storage_path,storage_provider,storage_state").eq("id", parsed.data.documentId).eq("user_id", userId).maybeSingle();
+  if (!document || !canAbortPendingUpload(document)) return fail("只有尚未完成的上传可以取消。", 409);
+  const { error } = await supabase.from("documents").delete().eq("id", document.id).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending");
+  if (error) return fail("未能清理上传记录。", 500);
+  try { await deleteR2Object(document.storage_path); } catch { /* Object cleanup is best-effort and deliberately opaque. */ }
+  await audit(supabase, userId, "upload_aborted", document.id, {});
   return NextResponse.json({ ok: true }, { headers });
 }
