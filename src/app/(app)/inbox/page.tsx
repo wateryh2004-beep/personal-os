@@ -1,1 +1,7 @@
-import { PageHeader } from "@/components/shared/page-header"; export default function Inbox(){return <><PageHeader title="Inbox"/><form className="border-b pb-6"><label className="sr-only" htmlFor="capture">快速输入</label><textarea id="capture" placeholder="记下任何事情…" className="w-full resize-none border bg-white p-3"/><button className="mt-3 bg-[#365F78] px-3 py-2 text-sm text-white">添加到 Inbox</button></form><p className="py-12 text-sm text-zinc-500">Inbox 为空。</p></>}
+import { InboxWorkspace } from "@/components/inbox/inbox-workspace";
+import { getInboxWorkspace } from "@/features/inbox/queries";
+
+export default async function Inbox() {
+  const workspace = await getInboxWorkspace();
+  return <div className="space-y-7"><header className="border-b border-[#e7e5e4] pb-5"><h1 className="text-3xl font-semibold tracking-tight text-zinc-900">Inbox</h1><p className="mt-1 text-sm text-zinc-500">先记录，再决定。</p></header><InboxWorkspace {...workspace} /></div>;
+}

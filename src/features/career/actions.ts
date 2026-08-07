@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomUUID } from "crypto";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { bulletSchema, canApproveBullet, careerDirectionSchema, careerProfileSchema, certificationSchema, factSchema, formObject, isCurrent, outputSchema, skillSchema, experienceSchema } from "./schemas";
+import { bulletSchema, canApproveBullet, careerDirectionSchema, careerMilestoneSchema, careerProfileSchema, careerTrackSchema, certificationSchema, factSchema, formObject, isCurrent, outputSchema, skillSchema, experienceSchema } from "./schemas";
 
 function failed(error: unknown): never { void error; throw new Error("操作未能完成，请检查输入、权限或配置后重试。"); }
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, entityType: string, entityId: string, afterData: Record<string, unknown> = {}) {
@@ -26,6 +26,17 @@ export async function createDirection(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const value = parse(careerDirectionSchema, formObject(formData));
   const { data, error } = await supabase.from("career_directions").insert({ ...value, user_id: userId }).select("id").single(); if (error) failed(error);
   await audit(supabase, userId, "create", "career_direction", data.id, { name: value.name }); revalidatePath("/career"); revalidatePath("/career/directions");
+}
+export async function createCareerTrack(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const value = parse(careerTrackSchema, formObject(formData));
+  const { data, error } = await supabase.from("career_tracks").insert({ ...value, user_id: userId }).select("id").single(); if (error || !data) failed(error);
+  await audit(supabase, userId, "create", "career_track", data.id, { name: value.name }); revalidatePath("/career/roadmap"); revalidatePath("/career");
+}
+export async function createCareerMilestone(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(careerMilestoneSchema, { ...raw, career_direction_id: raw.career_direction_id || null });
+  await own(supabase, "career_tracks", value.track_id); if (value.career_direction_id) await own(supabase, "career_directions", value.career_direction_id);
+  const { data, error } = await supabase.from("career_milestones").insert({ ...value, user_id: userId }).select("id").single(); if (error || !data) failed(error);
+  await audit(supabase, userId, "create", "career_milestone", data.id, { track_id: value.track_id, target_date: value.target_date, importance: value.importance }); revalidatePath("/career/roadmap"); revalidatePath("/career");
 }
 export async function createExperience(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(experienceSchema, { ...raw, is_current: isCurrent(formData.get("is_current")) });

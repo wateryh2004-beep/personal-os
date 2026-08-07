@@ -23,6 +23,15 @@ export async function getCareerOverview() {
 
 export async function getCareerProfile() { const { supabase, userId } = await requireOwner(); const { data } = await supabase.from("career_profiles").select("*").eq("user_id", userId).maybeSingle(); return data; }
 export async function getDirections() { const { supabase } = await requireOwner(); const { data } = await supabase.from("career_directions").select("*").is("archived_at", null).order("status").order("priority", { ascending: false }).order("review_date", { ascending: true, nullsFirst: false }); return data ?? []; }
+export async function getCareerRoadmap() {
+  const { supabase } = await requireOwner();
+  const [tracks, milestones, directions] = await Promise.all([
+    supabase.from("career_tracks").select("id,name,description,status,color,start_date,end_date,position").is("archived_at", null).order("position").order("created_at"),
+    supabase.from("career_milestones").select("id,track_id,career_direction_id,title,description,starts_on,target_date,status,importance").is("archived_at", null).order("target_date"),
+    supabase.from("career_directions").select("id,name").is("archived_at", null).order("priority", { ascending: false }),
+  ]);
+  return { tracks: tracks.data ?? [], milestones: milestones.data ?? [], directions: directions.data ?? [], unavailable: Boolean(tracks.error || milestones.error) };
+}
 export async function getExperiences() { const { supabase } = await requireOwner(); const { data } = await supabase.from("experiences").select("*").is("archived_at", null).order("is_current", { ascending: false }).order("start_date", { ascending: false, nullsFirst: false }); return data ?? []; }
 export async function getSkills() { const { supabase } = await requireOwner(); const { data } = await supabase.from("skills").select("*").is("archived_at", null).order("name"); return data ?? []; }
 export async function getCertifications() { const { supabase } = await requireOwner(); const { data } = await supabase.from("certifications").select("id,name,issuer,exam_date,issue_date,expiry_date,status,score,document_id,created_at").is("archived_at", null).order("created_at", { ascending: false }); return data ?? []; }

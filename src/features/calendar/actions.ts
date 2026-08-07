@@ -6,6 +6,8 @@ import { executeCalendarOperation } from "@/lib/adapters/microsoft-graph/calenda
 import { syncAndBackupMicrosoftWorkspace } from "@/lib/services/microsoft-sync-backup";
 import { cancelOperationSchema, confirmOperationSchema, createCalendarEventSchema, deleteCalendarEventSchema } from "./schemas";
 import { calendarPayload } from "./utils";
+import { markInboxProcessed } from "@/features/inbox/service";
+import { z } from "zod";
 
 export type CalendarCreateState = { status: "idle" | "success" | "error"; message: string };
 
@@ -18,6 +20,7 @@ function formValue(formData: FormData) {
     endsAt: String(formData.get("ends_at") || ""),
     locationName: String(formData.get("location_name") || ""),
     isAllDay: formData.get("is_all_day") === "on",
+    inboxId: String(formData.get("inbox_id") || "") || undefined,
   };
 }
 function deleteFormValue(formData: FormData) {
@@ -41,8 +44,10 @@ async function connection(supabase: Awaited<ReturnType<typeof requireOwner>>["su
 export async function createCalendarEvent(_previousState: CalendarCreateState, formData: FormData): Promise<CalendarCreateState> {
   try {
     const { supabase, userId } = await requireOwner();
-    const parsed = createCalendarEventSchema.safeParse(formValue(formData));
+    const form = formValue(formData);
+    const parsed = createCalendarEventSchema.safeParse(form);
     if (!parsed.success) return { status: "error", message: "请检查日程标题和开始、结束时间。" };
+    const inboxId = z.string().uuid().optional().safeParse(form.inboxId).data;
     const activeConnection = await connection(supabase);
     const { data: profile } = await supabase.from("profiles").select("timezone").eq("id", userId).maybeSingle();
     const { data: requested, error: requestError } = await supabase.from("calendar_operations").insert({
@@ -62,7 +67,10 @@ export async function createCalendarEvent(_previousState: CalendarCreateState, f
     if (queueError || !queued) fail();
     await audit(supabase, userId, "confirm", queued.id, { operation_type: queued.operation_type, confirmation: "single_step" });
     try { await executeCalendarOperation(queued.id, userId); } catch { return { status: "error", message: "日程未能写入 Outlook。请检查连接状态后重试。" }; }
+    await markInboxProcessed(supabase, userId, inboxId, "calendar", queued.id);
     revalidatePath("/calendar");
+    revalidatePath("/inbox");
+    revalidatePath("/today");
     return { status: "success", message: "已创建并同步到 Outlook。" };
   } catch {
     return { status: "error", message: "日程未能创建。请检查连接状态或网络后重试。" };
