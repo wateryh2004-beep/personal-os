@@ -10,8 +10,11 @@ function configuration(): R2Configuration | null {
   const endpoint = process.env.R2_ENDPOINT;
   const accessKeyId = process.env.R2_ACCESS_KEY_ID ?? process.env.AccessKeyID;
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY ?? process.env.SecretAccessKey;
-  const bucketName = process.env.R2_BUCKET_NAME ?? process.env.BucketName ?? process.env.R2_BUCKET;
-  if (!endpoint || !accessKeyId || !secretAccessKey || !bucketName) return null;
+  // This is the production bucket created for Life of HANG. Keeping a
+  // default prevents a harmless omitted Vercel variable from disabling the
+  // entire Files workspace; deployments can still override it when migrated.
+  const bucketName = process.env.R2_BUCKET_NAME ?? process.env.BucketName ?? process.env.R2_BUCKET ?? "life-of-hang-files-prod";
+  if (!endpoint || !accessKeyId || !secretAccessKey) return null;
   return { endpoint, accessKeyId, secretAccessKey, bucketName };
 }
 
