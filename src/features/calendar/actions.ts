@@ -145,10 +145,11 @@ export async function syncAndBackupMicrosoftAction() {
   const { supabase, userId } = await requireOwner();
   const activeConnection = await connection(supabase);
   try {
-    await syncAndBackupMicrosoftWorkspace(activeConnection.id, userId, "manual");
+    const result = await syncAndBackupMicrosoftWorkspace(activeConnection.id, userId, "manual");
+    revalidatePath("/calendar");
+    revalidatePath("/tasks");
+    return { calendarEventCount: result.calendarEventCount, todoTaskCount: result.todoTaskCount };
   } catch {
     throw new Error("同步或备份未能完成。请检查 Outlook 连接和数据库 migration 后重试。");
   }
-  revalidatePath("/calendar");
-  revalidatePath("/tasks");
 }

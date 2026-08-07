@@ -54,6 +54,10 @@ export function createSignedUrl(method: "GET" | "HEAD" | "PUT", key: string, opt
   const signedHeaders = options.contentType ? "content-type;host" : "host";
   const query = new URLSearchParams({
     "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+    // R2's SigV4 presigned request signs this marker as a query parameter.
+    // Omitting it while using UNSIGNED-PAYLOAD produces a 403 even for a
+    // correctly scoped Access Key / Secret Key pair.
+    "X-Amz-Content-Sha256": "UNSIGNED-PAYLOAD",
     "X-Amz-Credential": `${config.accessKeyId}/${scope}`,
     "X-Amz-Date": now.timestamp,
     "X-Amz-Expires": "300",
