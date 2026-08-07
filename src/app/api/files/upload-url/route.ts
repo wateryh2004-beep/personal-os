@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-owner";
 import { createUploadUrl, isR2Configured, objectExists, r2BucketName } from "@/lib/adapters/cloudflare-r2";
-import { canUpload, completeUploadSchema, safeFilename, uploadRequestSchema } from "@/features/files/schemas";
+import { canUpload, canUploadNoteImage, completeUploadSchema, safeFilename, uploadRequestSchema } from "@/features/files/schemas";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store, max-age=0" };
@@ -19,8 +19,12 @@ export async function POST(request: Request) {
   let raw: unknown;
   try { raw = await request.json(); } catch { return fail("请求格式无效。"); }
   const parsed = uploadRequestSchema.safeParse(raw);
-  if (!parsed.success || !canUpload(parsed.data?.filename ?? "", parsed.data?.contentType ?? "", parsed.data?.size ?? 0)) return fail("文件类型或大小不受支持。");
+  if (!parsed.success || !(parsed.data.noteId ? canUploadNoteImage(parsed.data.filename, parsed.data.contentType, parsed.data.size) : canUpload(parsed.data.filename, parsed.data.contentType, parsed.data.size))) return fail(parsed.data?.noteId ? "仅支持 PNG、JPG、WebP、GIF 或 AVIF 图片，且单张不超过 15MB。" : "文件类型或大小不受支持。");
   const { supabase, userId } = owner;
+  if (parsed.data.noteId) {
+    const { data: note } = await supabase.from("notes").select("id").eq("id", parsed.data.noteId).is("deleted_at", null).maybeSingle();
+    if (!note) return fail("目标笔记不存在或无权访问。", 404);
+  }
   if (parsed.data.folderId) {
     const { data } = await supabase.from("file_folders").select("id").eq("id", parsed.data.folderId).is("archived_at", null).maybeSingle();
     if (!data) return fail("目标文件夹不存在或无权访问。", 404);
@@ -36,7 +40,7 @@ export async function POST(request: Request) {
   if (error) return fail("文件记录未能创建。", 500);
   try {
     const uploadUrl = await createUploadUrl(key, parsed.data.contentType);
-    await audit(supabase, userId, "upload_requested", documentId, { filename, size: parsed.data.size, folder_id: parsed.data.folderId ?? null });
+    await audit(supabase, userId, "upload_requested", documentId, { filename, size: parsed.data.size, folder_id: parsed.data.folderId ?? null, note_id: parsed.data.noteId ?? null });
     return NextResponse.json({ documentId, uploadUrl }, { headers });
   } catch {
     await supabase.from("documents").delete().eq("id", documentId);
@@ -55,8 +59,14 @@ export async function PATCH(request: Request) {
   if (!document) return fail("上传记录不存在。", 404);
   const object = await objectExists(document.storage_path);
   if (!object.exists || object.size !== Number(document.file_size)) return fail("文件尚未完整上传，请重试。", 409);
+  if (parsed.data.noteId) {
+    const { data: note } = await supabase.from("notes").select("id").eq("id", parsed.data.noteId).is("deleted_at", null).maybeSingle();
+    if (!note) return fail("目标笔记不存在或无权访问。", 404);
+    const { error: linkError } = await supabase.from("entity_links").upsert({ user_id: userId, source_type: "note", source_id: note.id, target_type: "document", target_id: document.id, relationship_type: "attachment" }, { onConflict: "user_id,source_type,source_id,target_type,target_id,relationship_type" });
+    if (linkError) return fail("图片已上传，但未能关联到笔记。", 500);
+  }
   const { error } = await supabase.from("documents").update({ storage_state: "available", uploaded_at: new Date().toISOString() }).eq("id", document.id);
   if (error) return fail("文件未能确认。", 500);
-  await audit(supabase, userId, "upload_completed", document.id, { size: document.file_size, content_type: document.mime_type });
+  await audit(supabase, userId, "upload_completed", document.id, { size: document.file_size, content_type: document.mime_type, note_id: parsed.data.noteId ?? null });
   return NextResponse.json({ ok: true }, { headers });
 }

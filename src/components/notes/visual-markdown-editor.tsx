@@ -1,18 +1,20 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   BlockTypeSelect,
   BoldItalicUnderlineToggles,
   CodeToggle,
   CreateLink,
   InsertTable,
+  InsertImage,
   ListsToggle,
   MDXEditor,
   type MDXEditorMethods,
   UndoRedo,
   codeBlockPlugin,
   headingsPlugin,
+  imagePlugin,
   linkPlugin,
   listsPlugin,
   markdownShortcutPlugin,
@@ -22,10 +24,30 @@ import {
   toolbarPlugin,
 } from "@mdxeditor/editor";
 
-export function VisualMarkdownEditor({ markdown, onChange }: { markdown: string; onChange: (value: string) => void }) {
+export function VisualMarkdownEditor({ markdown, noteId, onChange, onImageUploadStatus }: { markdown: string; noteId: string; onChange: (value: string) => void; onImageUploadStatus?: (message: string) => void }) {
   const editorRef = useRef<MDXEditorMethods>(null);
   const latestMarkdown = useRef(markdown);
   const pendingOrderedPrefix = useRef<string | null>(null);
+  const uploadImage = useCallback(async (file: File) => {
+    onImageUploadStatus?.("正在上传图片…");
+    try {
+      const filename = file.name || `screenshot-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+      const created = await fetch("/api/files/upload-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename, contentType: file.type, size: file.size, noteId }) });
+      const payload = await created.json() as { documentId?: string; uploadUrl?: string; error?: string };
+      if (!created.ok || !payload.documentId || !payload.uploadUrl) throw new Error(payload.error || "图片上传准备失败。");
+      const sent = await fetch(payload.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!sent.ok) throw new Error("图片未能传入云端存储。");
+      const completed = await fetch("/api/files/upload-url", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: payload.documentId, noteId }) });
+      const result = await completed.json() as { error?: string };
+      if (!completed.ok) throw new Error(result.error || "图片上传后未能确认。");
+      onImageUploadStatus?.("图片已插入笔记。");
+      return `/api/files/${payload.documentId}/download`;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "图片上传失败，请重试。";
+      onImageUploadStatus?.(message);
+      throw error;
+    }
+  }, [noteId, onImageUploadStatus]);
 
   useEffect(() => {
     if (markdown === latestMarkdown.current) return;
@@ -68,12 +90,13 @@ export function VisualMarkdownEditor({ markdown, onChange }: { markdown: string;
       quotePlugin(),
       linkPlugin(),
       tablePlugin(),
+      imagePlugin({ imageUploadHandler: uploadImage, disableImageResize: true }),
       thematicBreakPlugin(),
       codeBlockPlugin(),
       markdownShortcutPlugin(),
       toolbarPlugin({
         toolbarClassName: "life-markdown-toolbar",
-        toolbarContents: () => <><UndoRedo /><BlockTypeSelect /><BoldItalicUnderlineToggles /><CodeToggle /><ListsToggle /><CreateLink /><InsertTable /></>,
+        toolbarContents: () => <><UndoRedo /><BlockTypeSelect /><BoldItalicUnderlineToggles /><CodeToggle /><ListsToggle /><CreateLink /><InsertImage /><InsertTable /></>,
       }),
     ]}
   /></div>;
