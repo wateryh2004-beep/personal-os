@@ -1,36 +1,44 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useState, useTransition } from "react";
+import { CheckSquare, Copy, Lightbulb, ListTree, Sparkles, WandSparkles, X } from "lucide-react";
 import { generateNoteAiSuggestion, type NoteAiState } from "@/features/notes/ai-actions";
+import { isRewriteOperation, type NoteAiOperation } from "@/features/notes/ai-prompts";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
-import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 
-const initialState: NoteAiState = { status: "idle", message: "", suggestion: "" };
-type NoteAiSession = { instruction: string; model: DeepSeekModelId; suggestion: string };
+export type NoteSelection = { text: string; rect: { left: number; top: number }; replace: (text: string) => void; insertBelow: (text: string) => void };
+type Request = { operation: NoteAiOperation; scope: "note" | "selection"; instruction?: string; content: string };
+const shortcuts: Array<[NoteAiOperation, string, React.ReactNode]> = [["summarizeNote", "总结", <Sparkles key="summary" />], ["extractActions", "提取行动", <CheckSquare key="actions" />], ["restructureNote", "整理结构", <ListTree key="structure" />], ["polishNote", "润色全文", <WandSparkles key="polish" />], ["deepThinkNote", "深入思考", <Lightbulb key="think" />]];
 
-export function NoteAiAssistant({ noteId, title, bodyMarkdown, defaultModel, onInsert }: { noteId: string; title: string; bodyMarkdown: string; defaultModel: DeepSeekModelId; onInsert: (text: string) => void }) {
-  const [instruction, setInstruction] = useState("");
+export function NoteAiAssistant({ open, onOpen, onClose, noteId, title, bodyMarkdown, defaultModel, selection, onReplaceNote, onInsertNote }: { open: boolean; onOpen: () => void; onClose: () => void; noteId: string; title: string; bodyMarkdown: string; defaultModel: DeepSeekModelId; selection: NoteSelection | null; onReplaceNote: (text: string) => void; onInsertNote: (text: string) => void }) {
   const [model, setModel] = useState<DeepSeekModelId>(defaultModel);
-  const [restoredSuggestion, setRestoredSuggestion] = useState("");
-  const [state, formAction, pending] = useActionState(generateNoteAiSuggestion, initialState);
-  const sessionKey = `notes:assistant:${noteId}`;
-  const suggestion = state.suggestion || restoredSuggestion;
+  const [question, setQuestion] = useState("");
+  const [result, setResult] = useState<NoteAiState>({ status: "idle", message: "", suggestion: "" });
+  const [request, setRequest] = useState<Request | null>(null);
+  const [customSelection, setCustomSelection] = useState<NoteSelection | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const run = (next: Request) => {
+    if (!next.content.trim()) { setResult({ status: "error", message: "先写一些内容，再让 AI 协助。", suggestion: "" }); return; }
+    setRequest(next); setResult({ status: "idle", message: "", suggestion: "" });
+    const data = new FormData(); data.set("note_id", noteId); data.set("title", title); data.set("content", next.content); data.set("operation", next.operation); data.set("scope", next.scope); data.set("model", model); if (next.instruction) data.set("instruction", next.instruction);
+    startTransition(async () => setResult(await generateNoteAiSuggestion(data)));
+  };
+  const runNote = (operation: NoteAiOperation) => run({ operation, scope: "note", content: bodyMarkdown, instruction: operation === "askNote" ? question : undefined });
+  const apply = (mode: "replace" | "insert") => {
+    if (!result.suggestion || !request) return;
+    if (request.scope === "selection" && selection) {
+      if (mode === "replace") selection.replace(result.suggestion);
+      else selection.insertBelow(result.suggestion);
+    } else if (mode === "replace") onReplaceNote(result.suggestion);
+    else onInsertNote(result.suggestion);
+    setResult({ status: "idle", message: "", suggestion: "" });
+  };
+  const selectionOperation = (operation: NoteAiOperation) => { if (!selection) return; onOpen(); run({ operation, scope: "selection", content: selection.text }); };
+  const startCustomSelection = () => { if (!selection) return; setCustomSelection(selection); setQuestion(""); onOpen(); };
+  const rewrite = result.operation ? isRewriteOperation(result.operation as NoteAiOperation) : false;
+  const statusColor = result.status === "error" ? "text-red-700" : "text-[#365F78]";
 
-  useEffect(() => {
-    const snapshot = loadWorkspaceSession<NoteAiSession>(sessionKey);
-    if (!snapshot) return;
-    const timer = window.setTimeout(() => {
-      setInstruction(snapshot.instruction);
-      setModel(snapshot.model);
-      setRestoredSuggestion(snapshot.suggestion);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [sessionKey]);
-
-  useEffect(() => {
-    saveWorkspaceSession<NoteAiSession>(sessionKey, { instruction, model, suggestion });
-  }, [instruction, model, sessionKey, suggestion]);
-  const choose = (value: string) => setInstruction(value);
-
-  return <section className="mt-5 border-t pt-4"><div className="flex items-baseline justify-between gap-3"><div><p className="text-xs font-medium tracking-wide text-zinc-500">AI · DEEPSEEK</p><h2 className="mt-1 text-sm font-medium">笔记助手</h2></div><p className="text-xs text-zinc-500">仅处理此刻提交的本篇内容</p></div><form action={formAction} className="mt-3 space-y-2"><input type="hidden" name="note_id" value={noteId} /><input type="hidden" name="title" value={title} /><input type="hidden" name="body_markdown" value={bodyMarkdown} /><label className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">本次模型<select name="model" value={model} onChange={(event) => setModel(event.target.value as DeepSeekModelId)} disabled={pending} className="border bg-white px-2 py-1 text-xs text-zinc-800"><option value="deepseek-v4-flash">V4 Flash · 更快</option><option value="deepseek-v4-pro">V4 Pro · 更强推理</option></select><span className="text-[11px] text-zinc-500">仅影响本次生成</span></label><div className="flex flex-wrap gap-2"><button type="button" onClick={() => choose("请用不超过五条要点总结这篇笔记。")} className="border px-2 py-1 text-xs">总结</button><button type="button" onClick={() => choose("请提炼行动项，按 Markdown 任务列表输出；没有明确行动项时说明原因。")} className="border px-2 py-1 text-xs">提炼行动</button><button type="button" onClick={() => choose("请在不改变事实与语气的前提下，润色这篇笔记。仅输出润色后的正文。")} className="border px-2 py-1 text-xs">润色</button></div><textarea name="instruction" value={instruction} onChange={(event) => setInstruction(event.target.value)} required maxLength={2000} rows={2} className="w-full resize-y border bg-white px-3 py-2 text-sm leading-5" placeholder="告诉 AI 如何协助这篇笔记…" /><button disabled={pending || !bodyMarkdown.trim()} className="bg-[#365F78] px-3 py-2 text-xs text-white disabled:opacity-60">{pending ? "正在生成…" : `使用 ${model === "deepseek-v4-flash" ? "Flash" : "Pro"} 生成建议`}</button>{!bodyMarkdown.trim() ? <p className="text-xs text-zinc-500">先写一点内容，再让 AI 协助。</p> : null}</form>{state.status !== "idle" ? <p role="status" className={`mt-3 text-xs ${state.status === "error" ? "text-red-700" : "text-[#365F78]"}`}>{state.message}</p> : null}{suggestion ? <div className="mt-3 border-l-2 border-[#365F78] bg-[#EDF3F6] p-3"><pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-zinc-700">{suggestion}</pre><button type="button" onClick={() => onInsert(suggestion)} className="mt-3 border border-[#365F78] bg-white px-2 py-1 text-xs text-[#365F78]">插入到正文末尾</button></div> : null}</section>;
+  return <><button onClick={() => selectionOperation("polishSelection")} className={`fixed z-40 inline-flex items-center gap-1 rounded-md border bg-white px-2 py-1 text-xs text-zinc-700 shadow-sm ${selection ? "" : "hidden"}`} style={selection ? { left: Math.max(8, selection.rect.left), top: Math.max(8, selection.rect.top - 38) } : undefined}><Sparkles className="size-3" />AI</button>{selection ? <div className="fixed z-40 flex items-center gap-1 rounded-md border bg-white p-1 shadow-sm" style={{ left: Math.max(8, selection.rect.left + 38), top: Math.max(8, selection.rect.top - 38) }}><button onClick={() => selectionOperation("polishSelection")} className="px-1.5 py-1 text-xs hover:bg-zinc-100">润色</button><button onClick={() => selectionOperation("shortenSelection")} className="px-1.5 py-1 text-xs hover:bg-zinc-100">精简</button><button onClick={() => selectionOperation("expandSelection")} className="px-1.5 py-1 text-xs hover:bg-zinc-100">扩写</button><button onClick={() => selectionOperation("summarizeSelection")} className="px-1.5 py-1 text-xs hover:bg-zinc-100">总结</button><button onClick={() => setMoreOpen((value) => !value)} className="px-1.5 py-1 text-xs hover:bg-zinc-100">更多</button>{moreOpen ? <div className="absolute right-0 top-8 z-50 grid w-28 rounded-md border bg-white p-1 shadow-sm">{[["explainSelection", "解释"], ["clarifySelection", "更清晰"], ["formalSelection", "更正式"], ["naturalSelection", "更自然"], ["actionsSelection", "提取行动"], ["listSelection", "转换列表"]].map(([operation, label]) => <button key={operation} onClick={() => { selectionOperation(operation as NoteAiOperation); setMoreOpen(false); }} className="rounded px-2 py-1 text-left text-xs hover:bg-zinc-100">{label}</button>)}<button onClick={() => { startCustomSelection(); setMoreOpen(false); }} className="rounded px-2 py-1 text-left text-xs hover:bg-zinc-100">自定义…</button></div> : null}</div> : null}
+    {open ? <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l bg-[#F7F7F5] p-5"><div className="flex items-start justify-between border-b pb-4"><div><p className="text-xs font-medium tracking-wide text-[#365F78]">AI</p><h2 className="mt-1 text-lg font-semibold">当前笔记</h2></div><button onClick={onClose} className="rounded p-1 text-zinc-500 hover:bg-white" aria-label="关闭 AI"><X /></button></div><div className="mt-5 grid grid-cols-2 gap-2">{shortcuts.map(([operation, label, icon]) => <button key={operation} disabled={pending || !bodyMarkdown.trim()} onClick={() => runNote(operation)} className="flex items-center gap-2 rounded-md border bg-white px-3 py-2 text-left text-sm text-zinc-700 hover:border-[#365F78] disabled:opacity-50">{icon}{label}</button>)}<button disabled className="flex items-center gap-2 rounded-md border bg-zinc-50 px-3 py-2 text-left text-sm text-zinc-400">关联笔记<span className="ml-auto text-[10px]">即将支持</span></button></div><div className="mt-5 border-t pt-4"><label className="sr-only" htmlFor="note-ai-question">{customSelection ? "处理所选文字" : "询问这篇笔记"}</label><textarea id="note-ai-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder={customSelection ? "说明如何处理所选文字…" : "询问这篇笔记…"} className="min-h-24 w-full resize-none rounded-md border bg-white px-3 py-2 text-sm" /><button disabled={pending || !question.trim() || (!customSelection && !bodyMarkdown.trim())} onClick={() => customSelection ? run({ operation: "customSelection", scope: "selection", content: customSelection.text, instruction: question }) : runNote("askNote")} className="mt-2 rounded-md bg-[#365F78] px-3 py-2 text-sm text-white disabled:opacity-50">{pending ? "正在生成…" : "发送"}</button>{customSelection ? <button onClick={() => setCustomSelection(null)} className="ml-3 text-xs text-zinc-500 hover:text-zinc-800">改为询问全文</button> : null}</div>{result.status !== "idle" ? <p role="status" className={`mt-4 text-sm ${statusColor}`}>{result.message}</p> : null}{result.suggestion ? <div className="mt-4 min-h-0 flex-1 overflow-y-auto border-t pt-4"><p className="mb-2 text-xs font-medium text-zinc-500">预览</p><pre className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">{result.suggestion}</pre><div className="mt-3 flex flex-wrap gap-2">{rewrite ? <button onClick={() => apply("replace")} className="rounded-md bg-[#365F78] px-2.5 py-1.5 text-xs text-white">替换原文</button> : null}<button onClick={() => apply("insert")} className="rounded-md border bg-white px-2.5 py-1.5 text-xs">插入下方</button><button onClick={() => void navigator.clipboard?.writeText(result.suggestion)} className="inline-flex items-center gap-1 rounded-md border bg-white px-2.5 py-1.5 text-xs"><Copy className="size-3" />复制</button><button onClick={() => request && run(request)} className="rounded-md border bg-white px-2.5 py-1.5 text-xs">重新生成</button><button onClick={() => setResult({ status: "idle", message: "", suggestion: "" })} className="rounded-md px-2.5 py-1.5 text-xs text-zinc-500">放弃</button></div></div> : null}<div className="mt-auto border-t pt-4"><select value={model} onChange={(event) => setModel(event.target.value as DeepSeekModelId)} className="h-7 bg-transparent text-xs text-zinc-500"><option value="deepseek-v4-flash">DeepSeek V4 Flash</option><option value="deepseek-v4-pro">DeepSeek V4 Pro</option></select></div></aside> : null}</>;
 }

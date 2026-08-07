@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { Sparkles } from "lucide-react";
+import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import {
   BlockTypeSelect,
   BoldItalicUnderlineToggles,
@@ -24,8 +26,9 @@ import {
   toolbarPlugin,
 } from "@mdxeditor/editor";
 
-export function VisualMarkdownEditor({ markdown, noteId, onChange, onImageUploadStatus }: { markdown: string; noteId: string; onChange: (value: string) => void; onImageUploadStatus?: (message: string) => void }) {
+export function VisualMarkdownEditor({ markdown, noteId, onChange, onImageUploadStatus, onOpenAi, onSelectionChange }: { markdown: string; noteId: string; onChange: (value: string) => void; onImageUploadStatus?: (message: string) => void; onOpenAi?: () => void; onSelectionChange?: (selection: NoteSelection | null) => void }) {
   const editorRef = useRef<MDXEditorMethods>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const latestMarkdown = useRef(markdown);
   const pendingOrderedPrefix = useRef<string | null>(null);
   const uploadImageThroughApp = useCallback(async (file: File, filename: string) => {
@@ -70,7 +73,19 @@ export function VisualMarkdownEditor({ markdown, noteId, onChange, onImageUpload
     latestMarkdown.current = markdown;
   }, [markdown]);
 
-  return <div onKeyDownCapture={(event) => {
+  const reportSelection = useCallback(() => {
+    const selected = window.getSelection();
+    if (!selected || selected.rangeCount === 0 || !selected.toString().trim()) { onSelectionChange?.(null); return; }
+    const range = selected.getRangeAt(0).cloneRange();
+    const root = wrapperRef.current;
+    if (!root?.contains(range.commonAncestorContainer)) { onSelectionChange?.(null); return; }
+    const rect = range.getBoundingClientRect();
+    const restore = () => { const current = window.getSelection(); current?.removeAllRanges(); current?.addRange(range); };
+    onSelectionChange?.({ text: selected.toString(), rect: { left: rect.left, top: rect.top }, replace: (text) => { restore(); document.execCommand("insertText", false, text); }, insertBelow: (text) => { restore(); range.collapse(false); const current = window.getSelection(); current?.removeAllRanges(); current?.addRange(range); document.execCommand("insertText", false, `\n\n${text}`); } });
+  }, [onSelectionChange]);
+
+  return <div ref={wrapperRef} onMouseUpCapture={() => window.setTimeout(reportSelection, 0)} onKeyUpCapture={(event) => {
+    if (event.key.startsWith("Arrow") || event.key === "Shift") window.setTimeout(reportSelection, 0);
     if (event.key === "." && /^\s*\d+\s*$/.test(latestMarkdown.current)) {
       pendingOrderedPrefix.current = `${latestMarkdown.current}.`;
     }
@@ -111,7 +126,7 @@ export function VisualMarkdownEditor({ markdown, noteId, onChange, onImageUpload
       markdownShortcutPlugin(),
       toolbarPlugin({
         toolbarClassName: "life-markdown-toolbar",
-        toolbarContents: () => <><UndoRedo /><BlockTypeSelect /><BoldItalicUnderlineToggles /><CodeToggle /><ListsToggle /><CreateLink /><InsertImage /><InsertTable /></>,
+        toolbarContents: () => <><UndoRedo /><BlockTypeSelect /><BoldItalicUnderlineToggles /><CodeToggle /><ListsToggle /><CreateLink /><InsertImage /><InsertTable /><span className="ml-auto" /><button type="button" onClick={onOpenAi} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-[#365F78] hover:bg-[#EDF3F6]"><Sparkles className="size-3.5" />AI</button></>,
       }),
     ]}
   /></div>;

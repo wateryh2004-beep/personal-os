@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateToX, getTimelineDomain, isDuration, packIntervals, timelineCardRange, xToDate } from "@/features/career/roadmap-utils";
+import { dateToX, getDurationLabelPosition, getTimelineDomain, getVisibleItemGeometry, isDuration, packIntervals, timelineCardRange, xToDate } from "@/features/career/roadmap-utils";
 
 describe("career roadmap timeline", () => {
   const now = new Date("2026-08-07T12:00:00Z");
@@ -33,5 +33,18 @@ describe("career roadmap timeline", () => {
     ]);
     expect(rows).toHaveLength(2);
     expect(rows[0].map((item) => item.id)).toEqual(["a", "c"]);
+  });
+
+  it("keeps an earlier duration identifiable when it intersects the visible range", () => {
+    expect(getVisibleItemGeometry({ itemStart: "2026-06-01", itemEnd: "2026-11-01", viewportStart: "2026-08-01", viewportEnd: "2027-05-01" })).toMatchObject({ intersectsViewport: true, clippedLeft: true, clippedRight: false, visibleStart: "2026-08-01" });
+    expect(getVisibleItemGeometry({ itemStart: "2026-09-01", itemEnd: "2026-11-01", viewportStart: "2026-08-01", viewportEnd: "2027-05-01" })).toMatchObject({ intersectsViewport: true, clippedLeft: false, clippedRight: false });
+    expect(getVisibleItemGeometry({ itemStart: "2026-06-01", itemEnd: "2028-01-01", viewportStart: "2026-08-01", viewportEnd: "2027-05-01" })).toMatchObject({ intersectsViewport: true, clippedLeft: true, clippedRight: true });
+    expect(getVisibleItemGeometry({ itemStart: "2025-01-01", itemEnd: "2026-07-01", viewportStart: "2026-08-01", viewportEnd: "2027-05-01" })).toMatchObject({ intersectsViewport: false });
+  });
+
+  it("moves the label into each visible portion without changing the bar range", () => {
+    expect(getDurationLabelPosition({ barLeft: 0, barRight: 500, viewportLeft: 180, viewportRight: 700 })).toMatchObject({ intersectsViewport: true, left: 187 });
+    expect(getDurationLabelPosition({ barLeft: 0, barRight: 500, viewportLeft: 340, viewportRight: 700 })).toMatchObject({ intersectsViewport: true, left: 347 });
+    expect(getDurationLabelPosition({ barLeft: 0, barRight: 500, viewportLeft: 520, viewportRight: 700 })).toMatchObject({ intersectsViewport: false });
   });
 });
