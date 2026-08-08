@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/microsoft-backup",
       "schedule": "15 19 * * *"
+    },
+    {
+      "path": "/api/cron/briefing",
+      "schedule": "0 0 * * *"
     }
   ]
 }

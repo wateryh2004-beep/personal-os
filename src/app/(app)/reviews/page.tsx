@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { createReview } from "@/features/reviews/actions";
+import { completeDecisionReview, createReview } from "@/features/reviews/actions";
 import { getReviewsDashboard } from "@/features/reviews/queries";
 
 export default async function ReviewsPage() {
@@ -28,10 +27,7 @@ export default async function ReviewsPage() {
           <p className="mt-1 text-sm text-zinc-500">决定复核会保留当时的判断过程；更新或反转仍需要你明确确认。</p>
           <div className="mt-3 divide-y border-y border-[#e7e5e4]">
             {data.dueDecisions.map((decision) => (
-              <div key={decision.id} className="flex items-center justify-between gap-4 py-3">
-                <div><p className="font-medium">{decision.title}</p><p className="mt-1 text-xs text-zinc-500">计划复核：{String(decision.review_at).slice(0, 10)}</p></div>
-                <Link className="text-sm font-medium text-[#365f78]" href="/memory">查看决定 →</Link>
-              </div>
+              <details key={decision.id} className="py-3"><summary className="flex cursor-pointer list-none items-center justify-between gap-4"><div><p className="font-medium">{decision.title}</p><p className="mt-1 text-xs text-zinc-500">计划复核：{String(decision.review_at).slice(0, 10)}</p></div><span className="text-sm font-medium text-[#365f78]">开始复核 →</span></summary><div className="mt-4 grid gap-4 border-l-2 pl-4 md:grid-cols-2"><DecisionReviewForm decisionId={decision.id} outcome="keep"/><DecisionReviewForm decisionId={decision.id} outcome="reverse"/></div></details>
             ))}
           </div>
         </section>
@@ -51,6 +47,8 @@ export default async function ReviewsPage() {
     </section>
   );
 }
+
+function DecisionReviewForm({decisionId,outcome}:{decisionId:string;outcome:"keep"|"reverse"}){return <form action={async(formData)=>{"use server";await completeDecisionReview({decisionId,outcome,content:formData.get("content"),newTitle:formData.get("new_title")||undefined,newDecisionText:formData.get("new_decision_text")||undefined,rationale:formData.get("rationale")||undefined});}} className="grid content-start gap-2"><p className="text-sm font-medium">{outcome==="keep"?"维持原决定":"反转并记录新决定"}</p><textarea required name="content" placeholder="证据发生了什么变化？为什么维持或反转？" className="min-h-24 border px-3 py-2 text-sm"/>{outcome==="reverse"?<><input required name="new_title" placeholder="新决定标题" className="border px-3 py-2 text-sm"/><textarea required name="new_decision_text" placeholder="我现在决定……" className="min-h-20 border px-3 py-2 text-sm"/><textarea name="rationale" placeholder="新决定的理由" className="min-h-16 border px-3 py-2 text-sm"/></>:null}<button className="w-fit border px-3 py-2 text-sm">确认{outcome==="keep"?"维持":"反转"}</button></form>}
 
 function ReviewStartCard({ title, description, complete, type }: { title: string; description: string; complete: boolean; type: "daily" | "weekly" }) {
   return (

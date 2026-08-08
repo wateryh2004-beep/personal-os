@@ -51,3 +51,68 @@ export async function getExperience(id: string) {
   const [versions, documents] = await Promise.all([factIds.length ? supabase.from("experience_fact_versions").select("*").in("fact_id", factIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] }), documentIds.length ? supabase.from("documents").select("*").in("id", documentIds).is("archived_at", null).order("uploaded_at", { ascending: false }) : Promise.resolve({ data: [] })]);
   return { experience, facts: facts.data ?? [], versions: versions.data ?? [], outputs: outputs.data ?? [], bullets: bullets.data ?? [], documents: documents.data ?? [], links: links.data ?? [], audit: audit.data ?? [], directions: directions.data ?? [] };
 }
+
+export async function getCareerPortfolio() {
+  const base = await getCareerOverview(); const { supabase } = await requireOwner();
+  const [skills, facts, outputs, approvedBullets, opportunities, applications, resumes, decisions] = await Promise.all([
+    supabase.from("skills").select("id,name,category,proficiency,evidence_markdown").is("archived_at", null).order("category").order("name"),
+    supabase.from("experience_facts").select("id,experience_id,verification_status,source_document_id").is("archived_at", null),
+    supabase.from("experience_outputs").select("id,experience_id,name,output_type,public_url").is("archived_at", null),
+    supabase.from("experience_bullets").select("id,experience_id,status").eq("status", "approved").is("archived_at", null),
+    supabase.from("career_opportunities").select("id,organization,role_title,status,deadline_at").is("archived_at", null).neq("status", "archived").order("deadline_at", { ascending: true, nullsFirst: false }),
+    supabase.from("career_applications").select("id,status,opportunity_id,updated_at").is("archived_at", null).order("updated_at", { ascending: false }),
+    supabase.from("resume_versions").select("id,title,status,updated_at").is("archived_at", null).order("updated_at", { ascending: false }),
+    supabase.from("decisions").select("id,title,status,decided_at").eq("status", "active").order("decided_at", { ascending: false }).limit(3),
+  ]);
+  return { ...base, skills: skills.data ?? [], facts: facts.data ?? [], outputs: outputs.data ?? [], approvedBullets: approvedBullets.data ?? [], opportunities: opportunities.data ?? [], applications: applications.data ?? [], resumes: resumes.data ?? [], decisions: decisions.data ?? [], career2Unavailable: Boolean(opportunities.error || applications.error || resumes.error) };
+}
+
+export async function getCareerCapital() {
+  const { supabase } = await requireOwner();
+  const [experiences, facts, outputs, bullets, skills, certifications, gaps] = await Promise.all([
+    supabase.from("experiences").select("id,organization,role,status,is_current").is("archived_at", null),
+    supabase.from("experience_facts").select("id,experience_id,content,verification_status,source_document_id").is("archived_at", null),
+    supabase.from("experience_outputs").select("id,experience_id,name,output_type,public_url").is("archived_at", null),
+    supabase.from("experience_bullets").select("id,experience_id,content,status").is("archived_at", null),
+    supabase.from("skills").select("id,name,category,proficiency,evidence_markdown").is("archived_at", null).order("category").order("name"),
+    supabase.from("certifications").select("id,name,issuer,status,document_id").is("archived_at", null).order("created_at", { ascending: false }),
+    supabase.from("gap_analysis_runs").select("id,summary,analysis_type,created_at,career_opportunities(organization,role_title)").is("archived_at", null).order("created_at", { ascending: false }).limit(5),
+  ]);
+  return { experiences: experiences.data ?? [], facts: facts.data ?? [], outputs: outputs.data ?? [], bullets: bullets.data ?? [], skills: skills.data ?? [], certifications: certifications.data ?? [], gaps: gaps.data ?? [], unavailable: Boolean(gaps.error) };
+}
+
+export async function getOpportunities() {
+  const { supabase } = await requireOwner(); const now = new Date().toISOString();
+  const [opportunities, directions, requirements, gaps, gapItems, resumes] = await Promise.all([
+    supabase.from("career_opportunities").select("*").is("archived_at", null).neq("status", "archived").order("deadline_at", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }),
+    supabase.from("career_directions").select("id,name").is("archived_at", null).order("priority", { ascending: false }),
+    supabase.from("opportunity_requirements").select("*").is("archived_at", null).order("importance").order("position"),
+    supabase.from("gap_analysis_runs").select("*").is("archived_at", null).order("created_at", { ascending: false }),
+    supabase.from("gap_analysis_items").select("*,opportunity_requirements(requirement_text,requirement_type)").order("created_at"),
+    supabase.from("resume_versions").select("id,title,version_label,status").is("archived_at", null).order("updated_at", { ascending: false }),
+  ]);
+  return { now, opportunities: opportunities.data ?? [], directions: directions.data ?? [], requirements: requirements.data ?? [], gaps: gaps.data ?? [], gapItems: gapItems.data ?? [], resumes: resumes.data ?? [], unavailable: Boolean(opportunities.error || requirements.error || gaps.error || gapItems.error) };
+}
+
+export async function getApplications() {
+  const { supabase } = await requireOwner();
+  const [applications, opportunities, resumes, events] = await Promise.all([
+    supabase.from("career_applications").select("*,career_opportunities(organization,role_title,deadline_at),resume_versions(title,version_label,status)").is("archived_at", null).order("updated_at", { ascending: false }),
+    supabase.from("career_opportunities").select("id,organization,role_title,status").is("archived_at", null).neq("status", "archived").order("organization"),
+    supabase.from("resume_versions").select("id,title,version_label,status").is("archived_at", null).order("updated_at", { ascending: false }),
+    supabase.from("application_stage_events").select("*").order("occurred_at", { ascending: false }),
+  ]);
+  return { applications: applications.data ?? [], opportunities: opportunities.data ?? [], resumes: resumes.data ?? [], events: events.data ?? [], unavailable: Boolean(applications.error || events.error) };
+}
+
+export async function getResumeVersions() {
+  const { supabase } = await requireOwner();
+  const [resumes, directions, bullets, links, applications] = await Promise.all([
+    supabase.from("resume_versions").select("*").is("archived_at", null).order("updated_at", { ascending: false }),
+    supabase.from("career_directions").select("id,name").is("archived_at", null).order("priority", { ascending: false }),
+    supabase.from("experience_bullets").select("id,content,experience_id,status,experiences(organization,role)").eq("status", "approved").is("archived_at", null).order("approved_at", { ascending: false }),
+    supabase.from("resume_version_bullets").select("resume_version_id,bullet_id,position").order("position"),
+    supabase.from("career_applications").select("id,resume_version_id,status").is("archived_at", null),
+  ]);
+  return { resumes: resumes.data ?? [], directions: directions.data ?? [], bullets: bullets.data ?? [], links: links.data ?? [], applications: applications.data ?? [], unavailable: Boolean(resumes.error || links.error) };
+}

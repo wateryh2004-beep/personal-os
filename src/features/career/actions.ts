@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomUUID } from "crypto";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { bulletSchema, canApproveBullet, careerDirectionSchema, careerMilestoneSchema, careerProfileSchema, careerTrackOrderSchema, careerTrackSchema, certificationSchema, factSchema, formObject, isCurrent, outputSchema, skillSchema, experienceSchema } from "./schemas";
+import { applicationSchema, applicationTransitionSchema, bulletSchema, canApproveBullet, careerDirectionSchema, careerMilestoneSchema, careerProfileSchema, careerTrackOrderSchema, careerTrackSchema, certificationSchema, factSchema, formObject, gapAnalysisSchema, isCurrent, opportunitySchema, outputSchema, requirementSchema, resumeVersionSchema, skillSchema, experienceSchema } from "./schemas";
+import { assessRequirement, type GapEvidence } from "./gap-analysis";
 
 function failed(error: unknown): never { void error; throw new Error("操作未能完成，请检查输入、权限或配置后重试。"); }
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, entityType: string, entityId: string, afterData: Record<string, unknown> = {}) {
@@ -133,4 +134,101 @@ export async function createEntityLink(formData: FormData) {
   if (!table) failed(new Error("不支持的关联类型。")); await own(supabase, "experiences", experienceId); await own(supabase, table, targetId);
   const { error } = await supabase.from("entity_links").upsert({ user_id: userId, source_type: "experience", source_id: experienceId, target_type: targetType, target_id: targetId, relationship_type: "related" }, { onConflict: "user_id,source_type,source_id,target_type,target_id,relationship_type" }); if (error) failed(error);
   await audit(supabase, userId, "link", "experience", experienceId, { target_type: targetType, target_id: targetId }); revalidatePath(`/career/experiences/${experienceId}`);
+}
+
+export async function createOpportunity(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const raw = formObject(formData);
+  const value = parse(opportunitySchema, { ...raw, source_url: raw.source_url || null, career_direction_id: raw.career_direction_id || null, deadline_at: raw.deadline_at ? new Date(String(raw.deadline_at)).toISOString() : null });
+  if (value.career_direction_id) await own(supabase, "career_directions", value.career_direction_id);
+  const { data, error } = await supabase.from("career_opportunities").insert({ ...value, source_url: value.source_url || null, deadline_at: value.deadline_at || null, user_id: userId }).select("id").single();
+  if (error || !data) failed(error); await audit(supabase, userId, "create", "career_opportunity", data.id, { organization: value.organization, role_title: value.role_title });
+  revalidatePath("/career"); revalidatePath("/career/opportunities");
+}
+
+export async function createOpportunityRequirement(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const value = parse(requirementSchema, { ...formObject(formData), extraction_source: "human" }); await own(supabase, "career_opportunities", value.opportunity_id);
+  const { data, error } = await supabase.from("opportunity_requirements").insert({ ...value, user_id: userId }).select("id").single();
+  if (error || !data) failed(error); await audit(supabase, userId, "create", "opportunity_requirement", data.id, { opportunity_id: value.opportunity_id, requirement_type: value.requirement_type });
+  revalidatePath("/career/opportunities");
+}
+
+export async function createCareerApplication(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const raw = formObject(formData);
+  const value = parse(applicationSchema, { ...raw, resume_version_id: raw.resume_version_id || null, applied_at: raw.applied_at ? new Date(String(raw.applied_at)).toISOString() : null });
+  await own(supabase, "career_opportunities", value.opportunity_id); if (value.resume_version_id) await own(supabase, "resume_versions", value.resume_version_id);
+  const { data, error } = await supabase.from("career_applications").insert({ ...value, applied_at: value.applied_at || null, user_id: userId }).select("id").single();
+  if (error || !data) failed(error);
+  const { error: historyError } = await supabase.from("application_stage_events").insert({ user_id: userId, application_id: data.id, from_status: null, to_status: value.status, event_type: "created" });
+  if (historyError) { await supabase.from("career_applications").delete().eq("id", data.id); failed(historyError); }
+  await audit(supabase, userId, "create", "career_application", data.id, { opportunity_id: value.opportunity_id, status: value.status }); revalidatePath("/career"); revalidatePath("/career/applications");
+}
+
+export async function transitionCareerApplication(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const value = parse(applicationTransitionSchema, formObject(formData)); await own(supabase, "career_applications", value.application_id);
+  const { error } = await supabase.rpc("transition_career_application", { p_application_id: value.application_id, p_to_status: value.status, p_note: value.note });
+  if (error) failed(error); await audit(supabase, userId, "transition", "career_application", value.application_id, { status: value.status }); revalidatePath("/career"); revalidatePath("/career/applications");
+}
+
+export async function createResumeVersion(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(resumeVersionSchema, { ...raw, target_direction_id: raw.target_direction_id || null });
+  if (value.target_direction_id) await own(supabase, "career_directions", value.target_direction_id);
+  const { data, error } = await supabase.from("resume_versions").insert({ ...value, user_id: userId, status: "draft" }).select("id").single();
+  if (error || !data) failed(error); await audit(supabase, userId, "create", "resume_version", data.id, { title: value.title }); revalidatePath("/career/resumes");
+}
+
+export async function finalizeResumeVersion(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const resumeId = String(formData.get("resume_id") || ""); await own(supabase, "resume_versions", resumeId);
+  const { error } = await supabase.rpc("finalize_resume_version", { p_resume_id: resumeId }); if (error) failed(error);
+  await audit(supabase, userId, "finalize", "resume_version", resumeId); revalidatePath("/career/resumes");
+}
+
+export async function setResumeVersionBullets(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const resumeId = String(formData.get("resume_id") || ""); const bulletIds = [...new Set(formData.getAll("bullet_id").map(String))].slice(0, 100);
+  const { data: resume } = await supabase.from("resume_versions").select("id,status").eq("id", resumeId).is("archived_at", null).maybeSingle(); if (!resume || resume.status !== "draft") failed(new Error("只有草稿简历可以修改。")); await Promise.all(bulletIds.map((id) => own(supabase, "experience_bullets", id)));
+  const { error: deleteError } = await supabase.from("resume_version_bullets").delete().eq("resume_version_id", resumeId); if (deleteError) failed(deleteError);
+  if (bulletIds.length) {
+    const { error } = await supabase.from("resume_version_bullets").insert(bulletIds.map((bulletId, position) => ({ user_id: userId, resume_version_id: resumeId, bullet_id: bulletId, position })));
+    if (error) failed(error);
+  }
+  await audit(supabase, userId, "compose", "resume_version", resumeId, { bullet_count: bulletIds.length }); revalidatePath("/career/resumes");
+}
+
+export async function runGapAnalysis(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(gapAnalysisSchema, { ...raw, resume_version_id: raw.resume_version_id || null });
+  await own(supabase, "career_opportunities", value.opportunity_id); if (value.resume_version_id) await own(supabase, "resume_versions", value.resume_version_id);
+  const [{ data: requirements, error: requirementError }, { data: facts }, { data: bullets }, { data: skills }, { data: certifications }, { data: outputs }] = await Promise.all([
+    supabase.from("opportunity_requirements").select("id,requirement_text").eq("opportunity_id", value.opportunity_id).is("archived_at", null).order("position"),
+    supabase.from("experience_facts").select("id,content").is("archived_at", null),
+    supabase.from("experience_bullets").select("id,content,status").is("archived_at", null),
+    supabase.from("skills").select("id,name,evidence_markdown").is("archived_at", null),
+    supabase.from("certifications").select("id,name,issuer,status").is("archived_at", null),
+    supabase.from("experience_outputs").select("id,name,description_markdown,result_markdown").is("archived_at", null),
+  ]);
+  if (requirementError || !requirements?.length) failed(requirementError || new Error("请先录入岗位要求。"));
+  let evidence: GapEvidence[] = [
+    ...(facts ?? []).map((item) => ({ entityType: "experience_fact" as const, entityId: item.id, text: item.content })),
+    ...(bullets ?? []).filter((item) => item.status === "approved").map((item) => ({ entityType: "experience_bullet" as const, entityId: item.id, text: item.content })),
+    ...(skills ?? []).map((item) => ({ entityType: "skill" as const, entityId: item.id, text: `${item.name} ${item.evidence_markdown ?? ""}` })),
+    ...(certifications ?? []).map((item) => ({ entityType: "certification" as const, entityId: item.id, text: `${item.name} ${item.issuer ?? ""} ${item.status}` })),
+    ...(outputs ?? []).map((item) => ({ entityType: "experience_output" as const, entityId: item.id, text: `${item.name} ${item.description_markdown ?? ""} ${item.result_markdown ?? ""}` })),
+  ];
+  if (value.analysis_type === "resume") {
+    const { data: linked } = await supabase.from("resume_version_bullets").select("bullet_id").eq("resume_version_id", value.resume_version_id!);
+    const ids = new Set((linked ?? []).map((item) => item.bullet_id));
+    evidence = evidence.filter((item) => item.entityType === "experience_bullet" && ids.has(item.entityId));
+  }
+  const assessments = requirements.map((requirement) => ({ requirement, result: assessRequirement(requirement.requirement_text, evidence) }));
+  const missing = assessments.filter((entry) => entry.result.assessment === "missing").length; const partial = assessments.filter((entry) => entry.result.assessment === "partial").length;
+  const summary = `${requirements.length} 条要求中，${missing} 条尚无证据，${partial} 条仅部分覆盖。结果基于已记录事实的保守关键词匹配，需人工确认。`;
+  const { data: run, error: runError } = await supabase.from("gap_analysis_runs").insert({ user_id: userId, opportunity_id: value.opportunity_id, resume_version_id: value.resume_version_id, analysis_type: value.analysis_type, summary }).select("id").single();
+  if (runError || !run) failed(runError);
+  for (const assessment of assessments) {
+    const { data: item, error: itemError } = await supabase.from("gap_analysis_items").insert({ user_id: userId, run_id: run.id, requirement_id: assessment.requirement.id, assessment: assessment.result.assessment, gap_type: value.analysis_type === "capital" ? "capital" : "resume_expression", explanation: assessment.result.explanation }).select("id").single();
+    if (itemError || !item) { await supabase.from("gap_analysis_runs").delete().eq("id", run.id); failed(itemError); }
+    if (assessment.result.evidence.length) {
+      const { error: evidenceError } = await supabase.from("gap_analysis_evidence").insert(assessment.result.evidence.map((source) => ({ user_id: userId, gap_item_id: item.id, entity_type: source.entityType, entity_id: source.entityId })));
+      if (evidenceError) { await supabase.from("gap_analysis_runs").delete().eq("id", run.id); failed(evidenceError); }
+    }
+  }
+  await audit(supabase, userId, "analyze", "gap_analysis", run.id, { opportunity_id: value.opportunity_id, analysis_type: value.analysis_type }); revalidatePath("/career/opportunities"); revalidatePath("/career/capital");
 }

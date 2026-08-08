@@ -4,7 +4,8 @@ export type ProactiveInsight = {
     | "task_overdue"
     | "calendar_upcoming"
     | "career_milestone_approaching"
-    | "weekly_review_due";
+    | "weekly_review_due"
+    | "decision_review_due";
   priority: "critical" | "high" | "medium" | "low";
   title: string;
   description?: string;

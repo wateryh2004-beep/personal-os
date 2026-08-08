@@ -3,6 +3,8 @@ import { useState, useTransition } from "react";
 import {
   createDecisionAction,
   createPersonalMemoryAction,
+  replacePersonalMemoryAction,
+  reverseDecisionAction,
 } from "@/features/memory/actions";
 import { getWorkingMemoryState } from "@/features/memory/types";
 export function MemoryWorkspace({
@@ -53,6 +55,8 @@ export function MemoryWorkspace({
     tab === "decisions"
       ? decisions
       : memories.filter((item) => item.memory_type === tab);
+  const replaceMemory = (item: Record<string, unknown>, form: FormData) => start(async()=>{try{await replacePersonalMemoryAction({memoryId:item.id,memoryType:item.memory_type,title:form.get("title"),content:form.get("content"),aiVisibility:form.get("ai_visibility"),validUntil:form.get("valid_until")||null,reviewAt:form.get("review_at")||null});setMessage("已建立新版本，旧记忆保留为 superseded。");}catch(error){setMessage(error instanceof Error?error.message:"无法替换记忆。");}});
+  const reverseDecision = (item: Record<string, unknown>, form: FormData) => start(async()=>{try{await reverseDecisionAction({decisionId:item.id,title:form.get("title"),decisionText:form.get("decision_text"),rationaleMarkdown:form.get("rationale"),reviewAt:form.get("review_at")||null});setMessage("已记录反转决定，原决定历史已保留。");}catch(error){setMessage(error instanceof Error?error.message:"无法反转决定。");}});
   return (
     <section>
       <div className="mb-6 flex gap-2 border-b">
@@ -176,6 +180,7 @@ export function MemoryWorkspace({
                     理由：{String(item.rationale_markdown)}
                   </p>
                 ) : null}
+                {item.status === "active" ? <details className="mt-3"><summary className="cursor-pointer text-xs text-[#365F78]">{tab === "decisions" ? "反转此决定…" : "更正此记忆…"}</summary>{tab === "decisions" ? <form action={(form)=>reverseDecision(item,form)} className="mt-3 grid gap-2 border-l-2 pl-3"><input name="title" required defaultValue={`反转：${String(item.title)}`} className="border px-2 py-1.5 text-sm"/><textarea name="decision_text" required placeholder="现在的新决定" className="min-h-20 border px-2 py-1.5 text-sm"/><textarea name="rationale" placeholder="为什么反转" className="min-h-16 border px-2 py-1.5 text-sm"/><label className="text-xs">下次复核 <input name="review_at" type="datetime-local" className="ml-2 border px-2 py-1"/></label><button disabled={pending} className="w-fit border px-3 py-1.5 text-sm disabled:opacity-50">确认反转并保留历史</button></form> : <form action={(form)=>replaceMemory(item,form)} className="mt-3 grid gap-2 border-l-2 pl-3"><input name="title" required defaultValue={String(item.title)} className="border px-2 py-1.5 text-sm"/><textarea name="content" required defaultValue={String(item.content)} className="min-h-20 border px-2 py-1.5 text-sm"/><select name="ai_visibility" defaultValue={String(item.ai_visibility)} className="border px-2 py-1.5 text-sm"><option value="normal">AI 可正常使用</option><option value="sensitive">敏感</option><option value="never">永不发送给 AI</option></select>{tab === "working" ? <div className="grid gap-2 sm:grid-cols-2"><label className="text-xs">有效至 <input required={!item.review_at} name="valid_until" type="datetime-local" className="mt-1 block w-full border px-2 py-1"/></label><label className="text-xs">复核时间 <input required={!item.valid_until} name="review_at" type="datetime-local" className="mt-1 block w-full border px-2 py-1"/></label></div> : null}<button disabled={pending} className="w-fit border px-3 py-1.5 text-sm disabled:opacity-50">建立更正版本</button></form>}</details> : null}
               </article>
             );
           })

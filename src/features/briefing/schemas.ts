@@ -1,0 +1,3 @@
+import { z } from "zod";
+export const feedSchema = z.object({ title: z.string().trim().min(1).max(200), feedUrl: z.string().trim().url(), priority: z.coerce.number().int().min(0).max(100), category: z.string().trim().max(100).optional().transform((value) => value || null) });
+export const interestSchema = z.object({ name: z.string().trim().min(1).max(120), keywords: z.string().max(2000).transform((value) => value.split(/[\n,，]/).map((item) => item.trim()).filter(Boolean).slice(0,50)), excludedKeywords: z.string().max(2000).transform((value) => value.split(/[\n,，]/).map((item) => item.trim()).filter(Boolean).slice(0,50)), weight: z.coerce.number().int().min(0).max(100) });

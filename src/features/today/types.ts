@@ -30,7 +30,8 @@ export type NowAttentionItem = {
     | "task_overdue"
     | "calendar_upcoming"
     | "career_milestone_approaching"
-    | "weekly_review_due";
+    | "weekly_review_due"
+    | "decision_review_due";
   priority: "critical" | "high" | "medium" | "low";
   title: string;
   description?: string;
@@ -74,6 +75,7 @@ export type NowWorkspace = {
   };
   tasks: { overdue: NowTask[]; today: NowTask[]; upcoming: NowTask[] };
   career: { upcomingMilestones: NowCareerMilestone[] };
+  briefing: { entries: Array<{ id: string; title: string; url: string | null; section: string; reason: string | null }> };
   inboxCount: number;
   nextAction: NowNextAction;
   attention: NowAttentionItem[];
@@ -83,6 +85,7 @@ export type NowWorkspace = {
     tasks: NowAvailability;
     career: NowAvailability;
     inbox: NowAvailability;
+    briefing: NowAvailability;
   };
   summary: {
     todayEventCount: number;

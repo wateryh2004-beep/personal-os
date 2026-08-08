@@ -24,3 +24,5 @@ export const decisionSchema = z.object({
   decidedAt: z.string().datetime().optional(),
   reviewAt: z.string().datetime().nullable().optional(),
 });
+export const replaceMemorySchema = memorySchema.extend({ memoryId: z.string().uuid() });
+export const reverseDecisionSchema = z.object({ decisionId: z.string().uuid(), title: z.string().trim().min(1).max(200), decisionText: z.string().trim().min(1).max(5000), rationaleMarkdown: z.string().max(20000).default(""), reviewAt: z.string().min(1).nullable().optional() });

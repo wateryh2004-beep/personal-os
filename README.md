@@ -73,6 +73,11 @@ Outlook Calendar 与 Microsoft To Do 是同步端，不是唯一存储。当前�
 快照保存在你的 Supabase 私有数据库中；`/calendar` 的“立即对齐并备份”会同步两者并
 生成一份本地云端快照。Vercel 每日会在云端低频执行同样的任务，不需要 Mac 常开。
 在 Vercel Production 设置一个随机、server-only 的 `CRON_SECRET` 后才会启用计划任务。
+`OWNER_USER_ID` 固定为唯一所有者的 Supabase Auth UUID，供不带浏览器会话的窄后台任务解析 owner；Cron 不接受请求参数中的用户 ID，也不会扫描 Auth 用户猜测 owner。
+
+## RSS-first Briefing
+
+`/briefing` 从服务器抓取并解析 RSS/Atom，按来源优先级、时效与显式关注主题进行确定性筛选，每日最多保留 8 条。系统不抓文章网页、不建立无限新闻流、不把 Feed Items 混入 Global Search 或 Proactive Engine。Vercel Cron 每天 `00:00 UTC`（北京时间 08:00）刷新最多 20 个订阅并生成当日 Briefing；必须同时配置 `CRON_SECRET`、`OWNER_EMAIL` 与 `OWNER_USER_ID`。
 
 用户通过 Microsoft Device Code 在官方页面授权；Refresh Token 会在服务端加密后保存至
 Supabase，短期 Access Token 不落库。日程创建仍采用明确确认队列。配置和验收步骤见

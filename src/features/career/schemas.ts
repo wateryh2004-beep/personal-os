@@ -63,6 +63,38 @@ export const bulletSchema = z.object({
 export const skillSchema = z.object({ name: z.string().trim().min(1).max(120), category: z.enum(["technical", "analytical", "business", "communication", "language", "domain", "tool", "other"]), proficiency: z.enum(["learning", "basic", "working", "proficient", "advanced"]), evidence_markdown: optionalText(12000), last_used_at: optionalDate });
 export const certificationSchema = z.object({ name: z.string().trim().min(1).max(200), issuer: optionalText(200), exam_date: optionalDate, issue_date: optionalDate, expiry_date: optionalDate, status: z.enum(["planned", "registered", "preparing", "passed", "failed", "issued", "expired", "abandoned"]), score: optionalText(100), credential_number: optionalText(300), document_id: z.string().uuid().nullable().optional(), notes_markdown: optionalText(12000) }).superRefine((value, ctx) => { if (value.issue_date && value.expiry_date && value.expiry_date < value.issue_date) ctx.addIssue({ code: "custom", path: ["expiry_date"], message: "到期日期不能早于发证日期。" }); });
 
+export const opportunityStatuses = ["watching", "researching", "preparing", "closed", "archived"] as const;
+export const applicationStatuses = ["draft", "preparing", "submitted", "interviewing", "offer", "rejected", "withdrawn", "closed"] as const;
+export const requirementTypes = ["must_have", "preferred", "responsibility", "experience", "skill", "credential", "education", "language", "other"] as const;
+
+export const opportunitySchema = z.object({
+  organization: z.string().trim().min(1).max(200), role_title: z.string().trim().min(1).max(200),
+  opportunity_type: z.enum(["internship", "full_time", "graduate_program", "public_sector", "research", "part_time", "other"]),
+  source_name: optionalText(160), source_url: z.string().trim().url().nullable().optional().or(z.literal("")), location: optionalText(200),
+  work_mode: optionalText(80), compensation_text: optionalText(240), recruitment_cycle: optionalText(120),
+  career_direction_id: z.string().uuid().nullable().optional(), jd_markdown: optionalText(50_000), notes_markdown: optionalText(20_000),
+  deadline_at: z.string().trim().datetime({ offset: true }).nullable().optional().or(z.literal("")), expected_start_date: optionalDate,
+  status: z.enum(opportunityStatuses),
+});
+
+export const requirementSchema = z.object({
+  opportunity_id: z.string().uuid(), requirement_type: z.enum(requirementTypes), requirement_text: z.string().trim().min(1).max(4_000),
+  source_excerpt: optionalText(4_000), importance: z.enum(["high", "normal", "low"]), extraction_source: z.enum(["human", "ai_extracted"]),
+});
+
+export const applicationSchema = z.object({
+  opportunity_id: z.string().uuid(), resume_version_id: z.string().uuid().nullable().optional(),
+  status: z.enum(applicationStatuses), applied_at: z.string().trim().datetime({ offset: true }).nullable().optional().or(z.literal("")), notes_markdown: optionalText(20_000),
+});
+
+export const resumeVersionSchema = z.object({
+  title: z.string().trim().min(1).max(200), version_label: optionalText(100), content_markdown: optionalText(50_000),
+  target_direction_id: z.string().uuid().nullable().optional(),
+});
+
+export const applicationTransitionSchema = z.object({ application_id: z.string().uuid(), status: z.enum(applicationStatuses), note: optionalText(2_000) });
+export const gapAnalysisSchema = z.object({ opportunity_id: z.string().uuid(), resume_version_id: z.string().uuid().nullable().optional(), analysis_type: z.enum(["capital", "resume"]) }).refine((value) => value.analysis_type !== "resume" || Boolean(value.resume_version_id), { path: ["resume_version_id"], message: "简历差距分析必须选择简历版本。" });
+
 export function formObject(formData: FormData) { return Object.fromEntries(formData); }
 export function isCurrent(value: FormDataEntryValue | null) { return value === "on"; }
 export function canApproveBullet({ hasFact, source }: { hasFact: boolean; source: string }) { return hasFact && source === "human"; }

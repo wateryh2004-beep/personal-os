@@ -12,6 +12,7 @@ export function buildProactiveInsights({
   events,
   milestones,
   weeklyReviewCompleted = false,
+  dueDecisions = [],
 }: {
   now: Date;
   timeZone: string;
@@ -19,6 +20,7 @@ export function buildProactiveInsights({
   events: NowCalendarEvent[];
   milestones: NowCareerMilestone[];
   weeklyReviewCompleted?: boolean;
+  dueDecisions?: Array<{ id: string; title: string; review_at: string }>;
 }) {
   const today = getDateKeyInTimeZone(now, timeZone)!;
   const insights: ProactiveInsight[] = [];
@@ -91,6 +93,7 @@ export function buildProactiveInsights({
       href: "/reviews",
       fingerprint: `weekly_review_due:${today.slice(0, 4)}-${today.slice(5, 7)}`,
     });
+  dueDecisions.slice(0,2).forEach((decision)=>insights.push({id:`decision-${decision.id}`,kind:"decision_review_due",priority:"medium",title:`决定需要复核：${decision.title}`,description:`计划复核时间 ${decision.review_at.slice(0,10)}`,href:"/reviews",fingerprint:`decision_review_due:${decision.id}:${decision.review_at}`}));
   const rank = { critical: 0, high: 1, medium: 2, low: 3 };
   return insights
     .sort((a, b) => rank[a.priority] - rank[b.priority])
