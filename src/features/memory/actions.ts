@@ -1,7 +1,14 @@
 "use server";
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { decisionSchema, memorySchema, replaceMemorySchema, reverseDecisionSchema } from "./schemas";
+import {
+  codexMemoryImportSchema,
+  decisionSchema,
+  memorySchema,
+  replaceMemorySchema,
+  reverseDecisionSchema,
+} from "./schemas";
 import { normalizeMemoryKey } from "./types";
 import { wallTimeToIso } from "@/features/calendar/timezone";
 async function timezoneFor(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string) { const { data } = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle(); return data?.timezone || "Asia/Shanghai"; }
@@ -72,4 +79,27 @@ export async function createDecisionAction(input: unknown) {
     after_data: { importance: value.importance, created_via: "manual" },
   });
   revalidatePath("/memory");
+}
+
+export async function importCodexMemoriesAction(input: unknown) {
+  const value = codexMemoryImportSchema.parse(input);
+  const { supabase } = await requireOwner();
+  const contentHash = createHash("sha256")
+    .update(JSON.stringify(value.items))
+    .digest("hex");
+  const { data, error } = await supabase.rpc("import_personal_memory_batch", {
+    p_source_system: "codex",
+    p_source_label: value.sourceLabel,
+    p_source_exported_at: value.sourceExportedAt ?? new Date().toISOString(),
+    p_content_hash: contentHash,
+    p_items: value.items,
+  });
+  if (error) throw new Error("Codex 上下文导入失败，原有 Memory 未被覆盖。");
+  const result = (data ?? {}) as Record<string, unknown>;
+  revalidatePath("/memory");
+  return {
+    created: Number(result.created ?? 0),
+    superseded: Number(result.superseded ?? 0),
+    verified: Number(result.verified ?? 0),
+  };
 }

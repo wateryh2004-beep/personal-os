@@ -3,9 +3,14 @@ import { useState, useTransition } from "react";
 import {
   createDecisionAction,
   createPersonalMemoryAction,
+  importCodexMemoriesAction,
   replacePersonalMemoryAction,
   reverseDecisionAction,
 } from "@/features/memory/actions";
+import {
+  codexMemoryImportSchema,
+  type CodexMemoryImportDocument,
+} from "@/features/memory/schemas";
 import { getWorkingMemoryState } from "@/features/memory/types";
 export function MemoryWorkspace({
   memories,
@@ -19,6 +24,9 @@ export function MemoryWorkspace({
   );
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
+  const [importText, setImportText] = useState("");
+  const [importPreview, setImportPreview] =
+    useState<CodexMemoryImportDocument | null>(null);
   const createMemory = (type: "profile" | "working", form: FormData) =>
     start(async () => {
       try {
@@ -55,6 +63,35 @@ export function MemoryWorkspace({
     tab === "decisions"
       ? decisions
       : memories.filter((item) => item.memory_type === tab);
+  const previewImport = () => {
+    try {
+      const parsed = codexMemoryImportSchema.safeParse(JSON.parse(importText));
+      if (!parsed.success) {
+        setImportPreview(null);
+        setMessage("导入内容不符合 Personal OS Memory 格式。");
+        return;
+      }
+      setImportPreview(parsed.data);
+      setMessage(`已解析 ${parsed.data.items.length} 条，确认前不会写入。`);
+    } catch {
+      setImportPreview(null);
+      setMessage("无法解析 JSON，请检查格式。");
+    }
+  };
+  const confirmImport = () =>
+    start(async () => {
+      if (!importPreview) return;
+      try {
+        const result = await importCodexMemoriesAction(importPreview);
+        setMessage(
+          `Codex 上下文已同步：新增 ${result.created} 条，更新 ${result.superseded} 条，确认未变化 ${result.verified} 条。`,
+        );
+        setImportText("");
+        setImportPreview(null);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "无法导入上下文。");
+      }
+    });
   const replaceMemory = (item: Record<string, unknown>, form: FormData) => start(async()=>{try{await replacePersonalMemoryAction({memoryId:item.id,memoryType:item.memory_type,title:form.get("title"),content:form.get("content"),aiVisibility:form.get("ai_visibility"),validUntil:form.get("valid_until")||null,reviewAt:form.get("review_at")||null});setMessage("已建立新版本，旧记忆保留为 superseded。");}catch(error){setMessage(error instanceof Error?error.message:"无法替换记忆。");}});
   const reverseDecision = (item: Record<string, unknown>, form: FormData) => start(async()=>{try{await reverseDecisionAction({decisionId:item.id,title:form.get("title"),decisionText:form.get("decision_text"),rationaleMarkdown:form.get("rationale"),reviewAt:form.get("review_at")||null});setMessage("已记录反转决定，原决定历史已保留。");}catch(error){setMessage(error instanceof Error?error.message:"无法反转决定。");}});
   return (
@@ -74,6 +111,64 @@ export function MemoryWorkspace({
           </button>
         ))}
       </div>
+      <details className="mb-6 border-y py-4">
+        <summary className="cursor-pointer text-sm font-medium text-[#365F78]">
+          从 Codex 导入个人上下文
+        </summary>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
+          只接收结构化的事实、偏好、目标和当前状态，不上传聊天原文。先预览，再确认写入；同一记忆发生变化时保留旧版本。
+        </p>
+        <textarea
+          value={importText}
+          onChange={(event) => {
+            setImportText(event.target.value);
+            setImportPreview(null);
+          }}
+          maxLength={200000}
+          placeholder="粘贴 Codex 导出的 Memory JSON"
+          className="mt-3 min-h-32 w-full max-w-3xl resize-y rounded-md border border-zinc-200 px-3 py-2 font-mono text-xs outline-none focus:border-[#365F78]"
+        />
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            disabled={!importText.trim() || pending}
+            onClick={previewImport}
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50"
+          >
+            预览
+          </button>
+          {importPreview ? (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={confirmImport}
+              className="rounded-md bg-[#365F78] px-3 py-1.5 text-sm text-white disabled:opacity-50"
+            >
+              {pending
+                ? "导入中…"
+                : `确认导入 ${importPreview.items.length} 条`}
+            </button>
+          ) : null}
+        </div>
+        {importPreview ? (
+          <div className="mt-4 max-w-3xl divide-y border-y">
+            {importPreview.items.map((item) => (
+              <article key={item.memoryKey} className="py-3">
+                <div className="flex items-start justify-between gap-4">
+                  <h3 className="text-sm font-medium">{item.title}</h3>
+                  <span className="shrink-0 text-xs text-zinc-500">
+                    {item.memoryType === "profile" ? "长期事实" : "当前状态"}
+                    {` · ${item.confidence}%`}
+                  </span>
+                </div>
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-zinc-600">
+                  {item.content}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </details>
       <form
         action={
           tab === "decisions"
@@ -175,6 +270,14 @@ export function MemoryWorkspace({
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-700">
                   {String(item.content ?? item.decision_text)}
                 </p>
+                {item.created_via === "codex_import" ? (
+                  <p className="mt-2 text-xs text-zinc-500">
+                    来源：Codex
+                    {item.confidence !== undefined
+                      ? ` · 置信度 ${String(item.confidence)}%`
+                      : ""}
+                  </p>
+                ) : null}
                 {item.rationale_markdown ? (
                   <p className="mt-2 text-sm text-zinc-500">
                     理由：{String(item.rationale_markdown)}

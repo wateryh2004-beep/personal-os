@@ -26,3 +26,34 @@ export const decisionSchema = z.object({
 });
 export const replaceMemorySchema = memorySchema.extend({ memoryId: z.string().uuid() });
 export const reverseDecisionSchema = z.object({ decisionId: z.string().uuid(), title: z.string().trim().min(1).max(200), decisionText: z.string().trim().min(1).max(5000), rationaleMarkdown: z.string().max(20000).default(""), reviewAt: z.string().min(1).nullable().optional() });
+
+export const importedMemorySchema = z
+  .object({
+    memoryType: z.enum(["profile", "working"]),
+    memoryKey: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9][a-z0-9._:-]{0,159}$/),
+    title: z.string().trim().min(1).max(160),
+    content: z.string().trim().min(1).max(10000),
+    aiVisibility: z.enum(["normal", "sensitive", "never"]).default("normal"),
+    confidence: z.number().int().min(0).max(100).default(100),
+    validUntil: z.string().datetime().nullable().optional(),
+    reviewAt: z.string().datetime().nullable().optional(),
+  })
+  .refine(
+    (value) =>
+      value.memoryType !== "working" ||
+      Boolean(value.validUntil || value.reviewAt),
+    "当前状态必须设置有效期或复核时间。",
+  );
+
+export const codexMemoryImportSchema = z.object({
+  sourceLabel: z.string().trim().min(1).max(200),
+  sourceExportedAt: z.string().datetime().nullable().optional(),
+  items: z.array(importedMemorySchema).min(1).max(50),
+});
+
+export type CodexMemoryImportDocument = z.infer<
+  typeof codexMemoryImportSchema
+>;
