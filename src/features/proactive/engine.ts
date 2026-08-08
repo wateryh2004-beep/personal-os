@@ -11,12 +11,14 @@ export function buildProactiveInsights({
   tasks,
   events,
   milestones,
+  weeklyReviewCompleted = false,
 }: {
   now: Date;
   timeZone: string;
   tasks: NowTask[];
   events: NowCalendarEvent[];
   milestones: NowCareerMilestone[];
+  weeklyReviewCompleted?: boolean;
 }) {
   const today = getDateKeyInTimeZone(now, timeZone)!;
   const insights: ProactiveInsight[] = [];
@@ -80,7 +82,7 @@ export function buildProactiveInsights({
     timeZone,
     weekday: "short",
   }).format(now);
-  if (weekday === "Sun")
+  if (weekday === "Sun" && !weeklyReviewCompleted)
     insights.push({
       id: "weekly-review",
       kind: "weekly_review_due",

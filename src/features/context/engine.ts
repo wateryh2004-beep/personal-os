@@ -3,6 +3,8 @@ import { requireOwner } from "@/lib/auth/require-owner";
 import { searchPersonalOs } from "@/features/search/queries";
 import { getExperienceGraph } from "@/features/graph/queries";
 import { getMemoriesForContext } from "@/features/memory/queries";
+import { getReviewsForContext } from "@/features/reviews/queries";
+import { addLocalDays, getDateKeyInTimeZone } from "@/features/reviews/periods";
 import { buildFallbackContextPlan } from "./planner";
 import type {
   ContextCandidate,
@@ -155,6 +157,40 @@ export async function buildPersonalContext(
             }),
           );
         return out;
+      })().catch(() => []),
+    );
+  if (plan.includeRecentHistory)
+    tasks.push(
+      (async () => {
+        const endDate = getDateKeyInTimeZone(now, timezone);
+        const lookback = /最近一个月|过去一个月|一个月|近一个月/.test(request.message)
+          ? 30
+          : /上周|这周|本周|最近几天/.test(request.message)
+            ? 10
+            : 21;
+        const reviews = await getReviewsForContext({
+          startDate: addLocalDays(endDate, -lookback),
+          endDate,
+          limit: lookback > 14 ? 6 : 5,
+        });
+        return reviews.map((review) =>
+          candidate({
+            key: `review:${review.id}`,
+            entityType: "review",
+            entityId: review.id,
+            domain: "reviews",
+            title: review.title,
+            content: clip(
+              `${review.review_type === "decision" ? "决定复核" : review.review_type === "weekly" ? "每周复盘" : "每日复盘"}\n周期：${review.period_start} — ${review.period_end}\n完成：${review.completed_at ?? "未记录"}\n\n${review.content_markdown}`,
+              4000,
+            ),
+            href: "/reviews",
+            timestamp: review.completed_at,
+            origins: ["review"],
+            reasons: ["已完成的历史复盘"],
+            score: review.review_type === "decision" ? 170 : review.review_type === "weekly" ? 165 : 150,
+          }),
+        );
       })().catch(() => []),
     );
   if (plan.includeWorkingMemory)
@@ -373,6 +409,7 @@ export async function buildPersonalContext(
       truncated: selected.length < ranked.length,
       available: {
         workingMemory: !plan.includeWorkingMemory || Boolean(collected[0]),
+        reviews: !plan.includeRecentHistory || collected.some((group) => group.some((item) => item.domain === "reviews")),
         timeContext: !plan.includeTimeContext || Boolean(collected.at(-1)),
         search: Boolean(
           plan.searchQueries.length === 0 || searchResults.length,

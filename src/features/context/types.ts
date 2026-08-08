@@ -43,6 +43,7 @@ export type ContextOrigin =
   | "surface"
   | "working_memory"
   | "memory"
+  | "review"
   | "time"
   | "search"
   | "graph";
@@ -78,6 +79,7 @@ export type PersonalContextPack = {
     truncated: boolean;
     available: {
       workingMemory: boolean;
+      reviews: boolean;
       timeContext: boolean;
       search: boolean;
       graph: boolean;

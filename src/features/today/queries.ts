@@ -6,6 +6,7 @@ import {
   selectNextAction,
 } from "./utils";
 import { buildProactiveInsights } from "@/features/proactive/engine";
+import { getReviewPeriod } from "@/features/reviews/periods";
 import type {
   NowCalendarEvent,
   NowCareerMilestone,
@@ -40,6 +41,7 @@ export async function getTodayWorkspace(
     connectionResult,
     milestonesResult,
     inboxResult,
+    weeklyReviewResult,
   ] = await Promise.all([
     supabase
       .from("microsoft_todo_tasks")
@@ -74,6 +76,13 @@ export async function getTodayWorkspace(
       .from("inbox_items")
       .select("id", { count: "exact", head: true })
       .is("archived_at", null),
+    supabase
+      .from("reviews")
+      .select("id")
+      .eq("review_key", getReviewPeriod("weekly", now, timezone).key)
+      .eq("status", "completed")
+      .is("archived_at", null)
+      .maybeSingle(),
   ]);
   const tasks = groupNowTasks(
     tasksResult.error ? [] : ((tasksResult.data ?? []) as NowTask[]),
@@ -97,6 +106,7 @@ export async function getTodayWorkspace(
     tasks: [...tasks.overdue, ...tasks.today, ...tasks.upcoming],
     events,
     milestones,
+    weeklyReviewCompleted: Boolean(weeklyReviewResult.data),
   });
   return {
     timezone,
