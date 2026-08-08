@@ -2,6 +2,7 @@ import "server-only";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { searchPersonalOs } from "@/features/search/queries";
 import { getExperienceGraph } from "@/features/graph/queries";
+import { getMemoriesForContext } from "@/features/memory/queries";
 import { buildFallbackContextPlan } from "./planner";
 import type {
   ContextCandidate,
@@ -156,6 +157,58 @@ export async function buildPersonalContext(
         return out;
       })().catch(() => []),
     );
+  if (plan.includeWorkingMemory)
+    tasks.push(
+      getMemoriesForContext(now)
+        .then((memory) => [
+          ...memory.profile.map((row) =>
+            candidate({
+              key: `profile_memory:${row.id}`,
+              entityType: "profile_memory",
+              entityId: row.id,
+              domain: "memory",
+              title: `Profile · ${row.title}`,
+              content: clip(
+                `长期个人事实\n${row.content}\n确认时间：${row.confirmed_at}`,
+              ),
+              origins: ["memory"],
+              reasons: ["已确认的长期个人事实"],
+              score: 178,
+            }),
+          ),
+          ...memory.working.map((row) =>
+            candidate({
+              key: `working_memory:${row.id}`,
+              entityType: "working_memory",
+              entityId: row.id,
+              domain: "memory",
+              title: `Working · ${row.title}`,
+              content: clip(
+                `当前状态\n${row.content}\n有效至：${row.valid_until ?? "未设"}\n复核：${row.review_at ?? "未设"}`,
+              ),
+              origins: ["memory"],
+              reasons: ["当前有效的 Working Memory"],
+              score: 179,
+            }),
+          ),
+          ...memory.decisions.map((row) =>
+            candidate({
+              key: `decision:${row.id}`,
+              entityType: "decision",
+              entityId: row.id,
+              domain: "memory",
+              title: `Decision · ${row.title}`,
+              content: clip(
+                `重要决定\n决定：${row.decision_text}\n理由：${row.rationale_markdown}\n状态：${row.status}\n决定时间：${row.decided_at}`,
+              ),
+              origins: ["memory"],
+              reasons: ["当前有效的重要决定"],
+              score: 177,
+            }),
+          ),
+        ])
+        .catch(() => []),
+    );
   if (plan.includeTimeContext)
     tasks.push(
       (async () => {
@@ -264,31 +317,29 @@ export async function buildPersonalContext(
         request.currentEntity.id,
         request.currentSurface?.title || request.message,
       );
-      graph = resolved.related
-        .slice(0, 5)
-        .map((row) =>
-          candidate({
-            key: `${row.type}:${row.id}`,
-            entityType: row.type,
-            entityId: row.id,
-            domain:
-              row.type === "note"
-                ? "notes"
-                : row.type === "document"
-                  ? "files"
-                  : row.type === "todo_task"
-                    ? "tasks"
-                    : row.type === "calendar_event"
-                      ? "calendar"
-                      : "career",
-            title: row.title,
-            content: row.title,
-            href: row.href,
-            origins: ["graph"],
-            reasons: ["与当前经历存在直接关联"],
-            score: 90,
-          }),
-        );
+      graph = resolved.related.slice(0, 5).map((row) =>
+        candidate({
+          key: `${row.type}:${row.id}`,
+          entityType: row.type,
+          entityId: row.id,
+          domain:
+            row.type === "note"
+              ? "notes"
+              : row.type === "document"
+                ? "files"
+                : row.type === "todo_task"
+                  ? "tasks"
+                  : row.type === "calendar_event"
+                    ? "calendar"
+                    : "career",
+          title: row.title,
+          content: row.title,
+          href: row.href,
+          origins: ["graph"],
+          reasons: ["与当前经历存在直接关联"],
+          score: 90,
+        }),
+      );
     } catch {
       graph = [];
     }

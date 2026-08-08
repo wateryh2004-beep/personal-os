@@ -42,6 +42,7 @@ export type ContextPlan = {
 export type ContextOrigin =
   | "surface"
   | "working_memory"
+  | "memory"
   | "time"
   | "search"
   | "graph";
