@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { contentHash } from "@/features/notes/utils";
+import { appendInboxToDailyNote } from "@/features/notes/daily-note-service";
 import { inboxCaptureSchema } from "./schemas";
 import type { InboxCaptureState } from "./state";
 
@@ -35,15 +36,50 @@ export async function captureInboxItem(_: InboxCaptureState, formData: FormData)
 
 const inboxIdSchema = z.object({ inboxId: z.string().uuid() });
 
-export async function archiveInboxItem(formData: FormData) {
+export async function archiveInboxItem(_: InboxCaptureState, formData: FormData): Promise<InboxCaptureState> {
   const parsed = inboxIdSchema.safeParse({ inboxId: formData.get("inbox_id") });
-  if (!parsed.success) throw new Error("无效的 Inbox 项。");
-  const { supabase, userId } = await requireOwner();
-  const { data, error } = await supabase.from("inbox_items").update({ archived_at: new Date().toISOString() }).eq("id", parsed.data.inboxId).select("id").maybeSingle();
-  if (error || !data) throw new Error("Inbox 项未能归档。");
-  await audit(supabase, userId, "archive", data.id, {});
-  revalidatePath("/inbox");
-  revalidatePath("/today");
+  if (!parsed.success) return { status: "error", message: "无效的 Inbox 记录。" };
+  try {
+    const { supabase, userId } = await requireOwner();
+    const { data, error } = await supabase.from("inbox_items")
+      .update({ archived_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .eq("id", parsed.data.inboxId)
+      .is("archived_at", null)
+      .select("id")
+      .maybeSingle();
+    if (error || !data) throw new Error("inbox_archive_failed");
+    await audit(supabase, userId, "archive", data.id, {});
+    revalidatePath("/inbox");
+    revalidatePath("/today");
+    return { status: "success", message: "已归档，可在页面底部恢复。" };
+  } catch (error) {
+    console.error("[inbox:archive] failed", { reason: error instanceof Error ? error.message : "unknown_error" });
+    return { status: "error", message: "暂时无法归档，请重试。" };
+  }
+}
+
+export async function restoreInboxItem(_: InboxCaptureState, formData: FormData): Promise<InboxCaptureState> {
+  const parsed = inboxIdSchema.safeParse({ inboxId: formData.get("inbox_id") });
+  if (!parsed.success) return { status: "error", message: "无效的 Inbox 记录。" };
+  try {
+    const { supabase, userId } = await requireOwner();
+    const { data, error } = await supabase.from("inbox_items")
+      .update({ archived_at: null })
+      .eq("user_id", userId)
+      .eq("id", parsed.data.inboxId)
+      .not("archived_at", "is", null)
+      .select("id")
+      .maybeSingle();
+    if (error || !data) throw new Error("inbox_restore_failed");
+    await audit(supabase, userId, "restore", data.id, {});
+    revalidatePath("/inbox");
+    revalidatePath("/today");
+    return { status: "success", message: "已恢复到 Inbox。" };
+  } catch (error) {
+    console.error("[inbox:restore] failed", { reason: error instanceof Error ? error.message : "unknown_error" });
+    return { status: "error", message: "暂时无法恢复，请重试。" };
+  }
 }
 
 const noteConversionSchema = z.object({
@@ -84,5 +120,69 @@ export async function convertInboxToNote(_: InboxCaptureState, formData: FormDat
     return { status: "success", message: "已创建笔记。" };
   } catch {
     return { status: "error", message: "笔记未能创建，请重试。" };
+  }
+}
+
+export async function convertInboxToDailyNote(_: InboxCaptureState, formData: FormData): Promise<InboxCaptureState> {
+  const parsed = inboxIdSchema.safeParse({ inboxId: formData.get("inbox_id") });
+  if (!parsed.success) return { status: "error", message: "无效的 Inbox 记录。" };
+  try {
+    const { supabase, userId } = await requireOwner();
+    const { data: item, error: itemError } = await supabase.from("inbox_items")
+      .select("id,content_markdown,converted_task_id,converted_note_id")
+      .eq("user_id", userId)
+      .eq("id", parsed.data.inboxId)
+      .maybeSingle();
+    if (itemError || !item) throw new Error("inbox_not_found");
+    if (item.converted_task_id) {
+      return { status: "error", message: "这条内容已经转成任务，不能再次写入日记。" };
+    }
+    if (item.converted_note_id) {
+      return {
+        status: "success",
+        message: "这条内容已经写入 Notes。",
+        destinationHref: `/notes/${item.converted_note_id}`,
+      };
+    }
+    const { data: profile } = await supabase.from("profiles")
+      .select("timezone")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const destination = await appendInboxToDailyNote(
+      supabase,
+      userId,
+      profile?.timezone || "Asia/Shanghai",
+      item.id,
+      item.content_markdown,
+    );
+    const now = new Date().toISOString();
+    const { data: processed, error } = await supabase.from("inbox_items")
+      .update({
+        converted_note_id: destination.noteId,
+        processed_at: now,
+        archived_at: null,
+      })
+      .eq("user_id", userId)
+      .eq("id", item.id)
+      .select("id")
+      .maybeSingle();
+    if (error || !processed) throw new Error("inbox_daily_update_failed");
+    await audit(supabase, userId, "convert", item.id, {
+      target: "daily",
+      destination_id: destination.noteId,
+      date: destination.date,
+    });
+    revalidatePath("/inbox");
+    revalidatePath("/notes");
+    revalidatePath(`/notes/${destination.noteId}`);
+    revalidatePath("/today");
+    return {
+      status: "success",
+      message: `已写入 ${destination.date} 的今日日记。`,
+      destinationHref: `/notes/${destination.noteId}`,
+    };
+  } catch (error) {
+    console.error("[inbox:daily] failed", { reason: error instanceof Error ? error.message : "unknown_error" });
+    return { status: "error", message: "暂时无法写入今日日记，请重试。" };
   }
 }

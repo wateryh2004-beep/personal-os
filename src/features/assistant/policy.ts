@@ -42,7 +42,7 @@ const policies: Record<AssistantSurface, AssistantPolicy> = {
     maxSteps: 3,
     maxOutputTokens: 500,
     instruction:
-      "将 Inbox 分类为任务、日程、笔记或今日日记；不明确时保留 Inbox。只生成提案，绝不直接写入。",
+      "将 Inbox 分类为任务、日程、笔记或今日日记。明确需要执行的承诺归任务；包含具体日期或时间的安排归日程；今天发生的事情、当下感受、个人反思、经验教训和生活记录优先归今日日记；适合长期复用且不以当天经历为主的知识归普通笔记。不明确时保留 Inbox。只生成提案，绝不直接写入。",
   },
   career: {
     context: "personal",

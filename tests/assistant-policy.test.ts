@@ -63,4 +63,12 @@ describe("Unified Assistant policy", () => {
       }).context,
     ).toBe("personal");
   });
+
+  it("routes today's experiences and lessons toward the daily note", () => {
+    const instruction = resolveAssistantPolicy(request("inbox")).instruction;
+
+    expect(instruction).toContain("今天发生的事情");
+    expect(instruction).toContain("经验教训");
+    expect(instruction).toContain("优先归今日日记");
+  });
 });

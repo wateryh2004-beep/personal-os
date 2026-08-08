@@ -2,6 +2,7 @@
 
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
+import Link from "next/link";
 import {
   Archive,
   Bot,
@@ -10,6 +11,7 @@ import {
   FileText,
   LoaderCircle,
   Plus,
+  RotateCcw,
   Sparkles,
 } from "lucide-react";
 import { useActionState, useEffect, useRef, useState } from "react";
@@ -20,11 +22,12 @@ import {
 import {
   archiveInboxItem,
   captureInboxItem,
+  convertInboxToDailyNote,
   convertInboxToNote,
+  restoreInboxItem,
 } from "@/features/inbox/actions";
 import type { InboxProposal } from "@/features/inbox/schemas";
 import { initialInboxCaptureState } from "@/features/inbox/state";
-import { openDailyNote } from "@/features/notes/actions";
 import {
   createMicrosoftTodoTaskAction,
   type TodoCreateState,
@@ -41,6 +44,7 @@ type InboxItem = {
   processed_at: string | null;
   converted_task_id: string | null;
   converted_note_id: string | null;
+  archived_at?: string | null;
 };
 type TodoList = { id: string; display_name: string; is_default: boolean };
 type ProposalOutput = { proposal: InboxProposal };
@@ -70,22 +74,7 @@ function ProposalCard({
     return <CalendarProposal proposal={proposal} inboxId={inboxId} />;
   if (proposal.target === "note")
     return <NoteProposal proposal={proposal} inboxId={inboxId} />;
-  return (
-    <form
-      action={openDailyNote}
-      className="mt-3 border border-[#b5c9d2] bg-[#edf3f6] p-3"
-    >
-      <p className="text-sm font-medium text-zinc-900">写入今日日记</p>
-      <p className="mt-1 text-xs leading-5 text-zinc-600">
-        会打开并归位到今天的日记；这条 Inbox
-        会继续保留，方便你复制内容后再归档。
-      </p>
-      <button className="mt-3 inline-flex items-center gap-1 bg-[#365f78] px-3 py-1.5 text-xs text-white">
-        <FileText size={14} />
-        打开今日日记
-      </button>
-    </form>
-  );
+  return <DailyProposal inboxId={inboxId} />;
 }
 
 function TaskProposal({
@@ -252,11 +241,122 @@ function NoteProposal({
   );
 }
 
+function DailyProposal({ inboxId }: { inboxId: string }) {
+  const [state, action, pending] = useActionState(
+    convertInboxToDailyNote,
+    initialInboxCaptureState,
+  );
+  return (
+    <form
+      action={action}
+      className="mt-3 border border-[#b5c9d2] bg-[#edf3f6] p-3"
+    >
+      <p className="text-sm font-medium text-zinc-900">写入今日日记</p>
+      <p className="mt-1 text-xs leading-5 text-zinc-600">
+        确认后会追加到今天日记的“感受与想法”，并保留 Inbox 来源。
+      </p>
+      <input type="hidden" name="inbox_id" value={inboxId} />
+      <button
+        disabled={pending || state.status === "success"}
+        className="mt-3 inline-flex items-center gap-1 bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+      >
+        <FileText size={14} />
+        {pending ? "正在写入…" : state.status === "success" ? "已写入" : "确认写入今日日记"}
+      </button>
+      {state.status !== "idle" ? (
+        <p
+          role="status"
+          className={`mt-2 text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+        >
+          {state.message}
+          {state.destinationHref ? (
+            <Link className="ml-2 underline" href={state.destinationHref}>
+              打开日记
+            </Link>
+          ) : null}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function ArchiveInboxControl({ inboxId }: { inboxId: string }) {
+  const [confirming, setConfirming] = useState(false);
+  const [state, action, pending] = useActionState(
+    archiveInboxItem,
+    initialInboxCaptureState,
+  );
+  return (
+    <form action={action} className="shrink-0">
+      <input type="hidden" name="inbox_id" value={inboxId} />
+      {confirming ? (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-zinc-500">确认归档？</span>
+          <button
+            disabled={pending}
+            className="font-medium text-red-700 disabled:opacity-50"
+          >
+            {pending ? "归档中…" : "确认"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="text-zinc-500 hover:text-zinc-900"
+          >
+            取消
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          aria-label="归档这条 Inbox"
+          title="归档"
+          className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+        >
+          <Archive size={16} />
+        </button>
+      )}
+      {state.status === "error" ? (
+        <p role="status" className="mt-1 max-w-44 text-right text-xs text-red-700">
+          {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function RestoreInboxControl({ inboxId }: { inboxId: string }) {
+  const [state, action, pending] = useActionState(
+    restoreInboxItem,
+    initialInboxCaptureState,
+  );
+  return (
+    <form action={action}>
+      <input type="hidden" name="inbox_id" value={inboxId} />
+      <button
+        disabled={pending}
+        className="inline-flex items-center gap-1 text-xs font-medium text-[#365f78] disabled:opacity-50"
+      >
+        <RotateCcw size={13} />
+        {pending ? "恢复中…" : "恢复"}
+      </button>
+      {state.status === "error" ? (
+        <p role="status" className="mt-1 text-xs text-red-700">
+          {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
 export function InboxWorkspace({
   items,
+  archivedItems,
   lists,
 }: {
   items: InboxItem[];
+  archivedItems: InboxItem[];
   lists: TodoList[];
 }) {
   const [captureState, captureAction, capturePending] = useActionState(
@@ -393,15 +493,7 @@ export function InboxWorkspace({
                   <p className="min-w-0 whitespace-pre-wrap text-sm leading-6 text-zinc-800">
                     {item.content_markdown}
                   </p>
-                  <form action={archiveInboxItem}>
-                    <input type="hidden" name="inbox_id" value={item.id} />
-                    <button
-                      aria-label="归档这条 Inbox"
-                      className="shrink-0 rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
-                    >
-                      <Archive size={16} />
-                    </button>
-                  </form>
+                  <ArchiveInboxControl inboxId={item.id} />
                 </div>
                 <div className="mt-3 flex items-center gap-3">
                   <span className="text-xs text-zinc-400">
@@ -413,7 +505,17 @@ export function InboxWorkspace({
                     })}
                   </span>
                   {item.processed_at ? (
-                    <span className="text-xs text-[#365f78]">已整理</span>
+                    <span className="flex items-center gap-2 text-xs text-[#365f78]">
+                      已整理
+                      {item.converted_note_id ? (
+                        <Link
+                          href={`/notes/${item.converted_note_id}`}
+                          className="font-medium underline underline-offset-2"
+                        >
+                          打开笔记
+                        </Link>
+                      ) : null}
+                    </span>
                   ) : (
                     <button
                       disabled={waiting}
@@ -429,6 +531,26 @@ export function InboxWorkspace({
             ))}
           </ul>
         )}
+        {archivedItems.length ? (
+          <details className="mt-8 border-t border-[#e7e5e4] pt-4">
+            <summary className="cursor-pointer text-sm font-medium text-zinc-500 hover:text-zinc-900">
+              已归档 · {archivedItems.length}
+            </summary>
+            <p className="mt-2 text-xs text-zinc-400">
+              归档内容仍然保留，可随时恢复到 Inbox。
+            </p>
+            <ul className="mt-3 divide-y divide-[#eceae6]">
+              {archivedItems.map((item) => (
+                <li key={item.id} className="flex items-start gap-4 py-3">
+                  <p className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-6 text-zinc-600">
+                    {item.content_markdown}
+                  </p>
+                  <RestoreInboxControl inboxId={item.id} />
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
       </div>
 
       <aside className="border-t border-[#e7e5e4] pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
