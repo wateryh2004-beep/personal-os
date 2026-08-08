@@ -57,6 +57,9 @@ type CalendarDeletePayload = {
   startsAt: string;
   endsAt: string;
 };
+type CalendarUpdatePayload = CalendarPayload & {
+  previous: CalendarDeletePayload;
+};
 
 export class MicrosoftGraphError extends Error {
   constructor(public readonly code: string) {
@@ -399,6 +402,21 @@ export async function executeCalendarOperation(operationId: string, userId: stri
       if (archiveError) throw new MicrosoftGraphError("calendar_cache_failed");
       await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), result: { provider_event_id: operation.provider_event_id } }).eq("id", operation.id);
       await audit(userId, "execute", operation.id, { operation_type: "delete", result: "succeeded", provider_event_id: operation.provider_event_id });
+      return;
+    }
+    if (operation.operation_type === "update") {
+      const value = operation.payload as CalendarUpdatePayload;
+      if (!operation.provider_event_id || !value.subject || !value.startsAt || !value.endsAt || !value.previous) throw new MicrosoftGraphError("operation_payload_invalid");
+      const accessToken = await accessTokenForConnection(operation.connection_id, userId);
+      const updated = await graph(accessToken, `/me/events/${encodeURIComponent(operation.provider_event_id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(calendarEventForGraph(value as GraphCalendarCreatePayload)),
+      }) as GraphEvent;
+      const record = graphEventRecord(updated, userId);
+      const { error: cacheError } = await admin.from("calendar_events").upsert(record, { onConflict: "user_id,provider_event_id" });
+      if (cacheError) throw new MicrosoftGraphError("calendar_cache_failed");
+      await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
+      await audit(userId, "execute", operation.id, { operation_type: "update", result: "succeeded", provider_event_id: record.provider_event_id });
       return;
     }
     if (operation.operation_type !== "create") throw new MicrosoftGraphError("operation_not_supported");

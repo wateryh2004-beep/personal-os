@@ -1,0 +1,20 @@
+"use client";
+
+import { useActionState, useRef } from "react";
+import { deleteCalendarEvent, updateCalendarEvent, type CalendarCreateState } from "@/features/calendar/actions";
+import { dateTimeInputValue, wallTimeToIso } from "@/features/calendar/timezone";
+
+type EditableEvent = { provider_event_id: string; subject: string; starts_at: string; ends_at: string; is_all_day: boolean; location_name: string | null };
+const initial: CalendarCreateState = { status: "idle", message: "" };
+
+export function CalendarEventEditForm({ event, timezone }: { event: EditableEvent; timezone: string }) {
+  const [state, action, pending] = useActionState(updateCalendarEvent, initial); const startRef = useRef<HTMLInputElement>(null); const endRef = useRef<HTMLInputElement>(null);
+  const [deleteState, deleteAction, deleting] = useActionState(deleteCalendarEvent, initial);
+  return <div className="grid gap-5"><form action={action} onSubmit={(submitEvent) => { const form = submitEvent.currentTarget; const start = form.elements.namedItem("starts_at"); const end = form.elements.namedItem("ends_at"); if (start instanceof HTMLInputElement && startRef.current) start.value = wallTimeToIso(startRef.current.value, timezone); if (end instanceof HTMLInputElement && endRef.current) end.value = wallTimeToIso(endRef.current.value, timezone); }} className="grid gap-4">
+    <input type="hidden" name="provider_event_id" value={event.provider_event_id}/><input type="hidden" name="original_subject" value={event.subject}/><input type="hidden" name="original_starts_at" value={event.starts_at}/><input type="hidden" name="original_ends_at" value={event.ends_at}/><input type="hidden" name="starts_at"/><input type="hidden" name="ends_at"/>
+    <label className="grid gap-1 text-sm">标题<input name="subject" required maxLength={500} defaultValue={event.subject} className="border px-3 py-2"/></label>
+    <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm">开始<input ref={startRef} type="datetime-local" required defaultValue={dateTimeInputValue(event.starts_at, timezone)} className="border px-3 py-2"/></label><label className="grid gap-1 text-sm">结束<input ref={endRef} type="datetime-local" required defaultValue={dateTimeInputValue(event.ends_at, timezone)} className="border px-3 py-2"/></label></div>
+    <label className="grid gap-1 text-sm">地点<input name="location_name" maxLength={500} defaultValue={event.location_name ?? ""} className="border px-3 py-2"/></label><label className="grid gap-1 text-sm">说明<textarea name="description" maxLength={10000} className="min-h-24 border px-3 py-2"/></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" name="is_all_day" defaultChecked={event.is_all_day}/> 全天</label>
+    <p className="text-xs text-zinc-500">时间按 {timezone} 保存。保存后会更新同一条 Outlook 日程。</p><button disabled={pending || state.status === "success"} className="justify-self-start bg-[#365F78] px-4 py-2 text-sm text-white disabled:opacity-60">{pending ? "正在保存…" : state.status === "success" ? "已保存" : "保存更改"}</button>{state.status !== "idle" ? <p role="status" className={`text-sm ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}>{state.message}</p> : null}
+  </form><form action={deleteAction} className="border-t pt-4"><input type="hidden" name="provider_event_id" value={event.provider_event_id}/><input type="hidden" name="subject" value={event.subject}/><input type="hidden" name="starts_at" value={event.starts_at}/><input type="hidden" name="ends_at" value={event.ends_at}/><input type="hidden" name="is_all_day" value={event.is_all_day ? "on" : ""}/><button disabled={deleting || deleteState.status === "success"} className="text-sm text-red-700 disabled:opacity-60">{deleting ? "正在删除…" : deleteState.status === "success" ? "已删除" : "删除这条日程"}</button>{deleteState.status !== "idle" ? <p role="status" className={`mt-2 text-sm ${deleteState.status === "success" ? "text-[#365F78]" : "text-red-700"}`}>{deleteState.message}</p> : null}</form></div>;
+}

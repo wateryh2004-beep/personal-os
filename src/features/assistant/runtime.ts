@@ -89,6 +89,7 @@ export async function createAssistantAgent(request: AssistantRequest) {
       tools: buildAssistantTools({
         supabase: runtime.supabase,
         policy: runtime.policy,
+        timezone: runtime.timezone,
       }),
     }),
   };

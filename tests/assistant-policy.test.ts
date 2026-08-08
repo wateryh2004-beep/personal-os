@@ -23,6 +23,7 @@ describe("Unified Assistant policy", () => {
     expect(Object.keys(calendar).sort()).toEqual([
       "proposeCalendarDelete",
       "proposeCalendarEvent",
+      "proposeCalendarUpdate",
       "searchCalendar",
     ]);
     expect(Object.keys(tasks).sort()).toEqual([

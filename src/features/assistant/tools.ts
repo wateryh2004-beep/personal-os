@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   createCalendarEventSchema,
   deleteCalendarEventSchema,
+  updateCalendarEventSchema,
 } from "@/features/calendar/schemas";
 import { todoProposalSchema } from "@/features/tasks/schemas";
 import { inboxProposalSchema } from "@/features/inbox/schemas";
@@ -13,9 +14,11 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
 export function buildAssistantTools({
   supabase,
   policy,
+  timezone = "Asia/Shanghai",
 }: {
   supabase: Supabase;
   policy: AssistantPolicy;
+  timezone?: string;
 }) {
   const groups = new Set(policy.tools);
   return {
@@ -54,14 +57,19 @@ export function buildAssistantTools({
     ...(groups.has("calendar_proposal")
       ? {
           proposeCalendarEvent: tool({
-            description: "生成一条可由用户确认的日程提案，不会写入 Outlook。",
+            description: `生成待用户点击按钮确认的日程提案。时间必须表达为用户时区 ${timezone} 的带 offset ISO 值；不得把用户说的本地钟点直接标为 Z/UTC。`,
             inputSchema: createCalendarEventSchema,
             execute: async (proposal) => ({ proposal }),
           }),
           proposeCalendarDelete: tool({
             description:
-              "只为 searchCalendar 返回的唯一明确日程生成删除提案；不会删除数据。",
+              "只为 searchCalendar 返回的唯一明确日程生成删除提案；必须原样传递 is_all_day 到 isAllDay，以便全天日程正确显示。不会删除数据。",
             inputSchema: deleteCalendarEventSchema,
+            execute: async (proposal) => ({ proposal }),
+          }),
+          proposeCalendarUpdate: tool({
+            description: `修改 searchCalendar 唯一匹配的已有日程。改期必须使用此工具，不要删除后重建。新时间必须是 ${timezone} 的带 offset ISO 值。`,
+            inputSchema: updateCalendarEventSchema,
             execute: async (proposal) => ({ proposal }),
           }),
         }

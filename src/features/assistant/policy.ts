@@ -26,7 +26,7 @@ const policies: Record<AssistantSurface, AssistantPolicy> = {
     maxSteps: 4,
     maxOutputTokens: 700,
     instruction:
-      "日程工具只生成提案；删除前必须先查询且只允许一条明确匹配。理解相对日期时使用提供的时区。",
+      "日程工具只生成提案；按钮是唯一确认入口，不得把聊天中的“确认”描述成已执行，也不得要求二次确认。删除或修改前必须查询且只允许一条明确匹配。改期必须使用 update，不得删除后重建。所有用户可见时间都按提供的用户时区表达，工具参数必须携带与该时区相符的 UTC offset，绝不能把本地钟点直接写成 Z。生成提案后只需提示用户点击对应按钮，不要重复汇总旧提案。",
   },
   tasks: {
     context: "personal",
