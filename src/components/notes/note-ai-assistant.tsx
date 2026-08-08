@@ -1,30 +1,113 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CheckSquare, Copy, Lightbulb, ListTree, Sparkles, WandSparkles, X } from "lucide-react";
-import { generateNoteAiSuggestion, type NoteAiState } from "@/features/notes/ai-actions";
-import { isRewriteOperation, type NoteAiOperation } from "@/features/notes/ai-prompts";
+import {
+  CheckSquare,
+  Copy,
+  Lightbulb,
+  ListTree,
+  Sparkles,
+  WandSparkles,
+  X,
+} from "lucide-react";
+import {
+  generateNoteAiSuggestion,
+  type NoteAiState,
+} from "@/features/notes/ai-actions";
+import {
+  isRewriteOperation,
+  type NoteAiOperation,
+} from "@/features/notes/ai-prompts";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 
-export type NoteSelection = { text: string; rect: { left: number; top: number }; replace: (text: string) => void; insertBelow: (text: string) => void };
-type Request = { operation: NoteAiOperation; scope: "note" | "selection"; instruction?: string; content: string };
-const shortcuts: Array<[NoteAiOperation, string, React.ReactNode]> = [["summarizeNote", "总结", <Sparkles key="summary" />], ["extractActions", "提取行动", <CheckSquare key="actions" />], ["restructureNote", "整理结构", <ListTree key="structure" />], ["polishNote", "润色全文", <WandSparkles key="polish" />], ["deepThinkNote", "深入思考", <Lightbulb key="think" />]];
+export type NoteSelection = {
+  text: string;
+  rect: { left: number; top: number };
+  replace: (text: string) => void;
+  insertBelow: (text: string) => void;
+};
+type Request = {
+  operation: NoteAiOperation;
+  scope: "note" | "selection";
+  instruction?: string;
+  content: string;
+};
+const shortcuts: Array<[NoteAiOperation, string, React.ReactNode]> = [
+  ["summarizeNote", "总结", <Sparkles key="summary" />],
+  ["extractActions", "提取行动", <CheckSquare key="actions" />],
+  ["restructureNote", "整理结构", <ListTree key="structure" />],
+  ["polishNote", "润色全文", <WandSparkles key="polish" />],
+  ["deepThinkNote", "深入思考", <Lightbulb key="think" />],
+];
 
-export function NoteAiAssistant({ open, onOpen, onClose, noteId, title, bodyMarkdown, defaultModel, selection, onReplaceNote, onInsertNote }: { open: boolean; onOpen: () => void; onClose: () => void; noteId: string; title: string; bodyMarkdown: string; defaultModel: DeepSeekModelId; selection: NoteSelection | null; onReplaceNote: (text: string) => void; onInsertNote: (text: string) => void }) {
+export function NoteAiAssistant({
+  open,
+  onOpen,
+  onClose,
+  noteId,
+  title,
+  bodyMarkdown,
+  defaultModel,
+  selection,
+  onReplaceNote,
+  onInsertNote,
+}: {
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  noteId: string;
+  title: string;
+  bodyMarkdown: string;
+  defaultModel: DeepSeekModelId;
+  selection: NoteSelection | null;
+  onReplaceNote: (text: string) => void;
+  onInsertNote: (text: string) => void;
+}) {
   const [model, setModel] = useState<DeepSeekModelId>(defaultModel);
   const [question, setQuestion] = useState("");
-  const [result, setResult] = useState<NoteAiState>({ status: "idle", message: "", suggestion: "" });
+  const [result, setResult] = useState<NoteAiState>({
+    status: "idle",
+    message: "",
+    suggestion: "",
+  });
   const [request, setRequest] = useState<Request | null>(null);
-  const [customSelection, setCustomSelection] = useState<NoteSelection | null>(null);
+  const [customSelection, setCustomSelection] = useState<NoteSelection | null>(
+    null,
+  );
   const [moreOpen, setMoreOpen] = useState(false);
+  const [usePersonalContext, setUsePersonalContext] = useState(true);
   const [pending, startTransition] = useTransition();
   const run = (next: Request) => {
-    if (!next.content.trim()) { setResult({ status: "error", message: "先写一些内容，再让 AI 协助。", suggestion: "" }); return; }
-    setRequest(next); setResult({ status: "idle", message: "", suggestion: "" });
-    const data = new FormData(); data.set("note_id", noteId); data.set("title", title); data.set("content", next.content); data.set("operation", next.operation); data.set("scope", next.scope); data.set("model", model); if (next.instruction) data.set("instruction", next.instruction);
-    startTransition(async () => setResult(await generateNoteAiSuggestion(data)));
+    if (!next.content.trim()) {
+      setResult({
+        status: "error",
+        message: "先写一些内容，再让 AI 协助。",
+        suggestion: "",
+      });
+      return;
+    }
+    setRequest(next);
+    setResult({ status: "idle", message: "", suggestion: "" });
+    const data = new FormData();
+    data.set("note_id", noteId);
+    data.set("title", title);
+    data.set("content", next.content);
+    data.set("operation", next.operation);
+    data.set("scope", next.scope);
+    data.set("model", model);
+    data.set("use_personal_context", String(usePersonalContext));
+    if (next.instruction) data.set("instruction", next.instruction);
+    startTransition(async () =>
+      setResult(await generateNoteAiSuggestion(data)),
+    );
   };
-  const runNote = (operation: NoteAiOperation) => run({ operation, scope: "note", content: bodyMarkdown, instruction: operation === "askNote" ? question : undefined });
+  const runNote = (operation: NoteAiOperation) =>
+    run({
+      operation,
+      scope: "note",
+      content: bodyMarkdown,
+      instruction: operation === "askNote" ? question : undefined,
+    });
   const apply = (mode: "replace" | "insert") => {
     if (!result.suggestion || !request) return;
     if (request.scope === "selection" && selection) {
@@ -34,11 +117,302 @@ export function NoteAiAssistant({ open, onOpen, onClose, noteId, title, bodyMark
     else onInsertNote(result.suggestion);
     setResult({ status: "idle", message: "", suggestion: "" });
   };
-  const selectionOperation = (operation: NoteAiOperation) => { if (!selection) return; onOpen(); run({ operation, scope: "selection", content: selection.text }); };
-  const startCustomSelection = () => { if (!selection) return; setCustomSelection(selection); setQuestion(""); onOpen(); };
-  const rewrite = result.operation ? isRewriteOperation(result.operation as NoteAiOperation) : false;
-  const statusColor = result.status === "error" ? "text-red-700" : "text-[#365F78]";
+  const selectionOperation = (operation: NoteAiOperation) => {
+    if (!selection) return;
+    onOpen();
+    run({ operation, scope: "selection", content: selection.text });
+  };
+  const startCustomSelection = () => {
+    if (!selection) return;
+    setCustomSelection(selection);
+    setQuestion("");
+    onOpen();
+  };
+  const rewrite = result.operation
+    ? isRewriteOperation(result.operation as NoteAiOperation)
+    : false;
+  const statusColor =
+    result.status === "error" ? "text-red-700" : "text-[#365F78]";
 
-  return <><button onClick={() => selectionOperation("polishSelection")} className={`fixed z-40 inline-flex items-center gap-1 rounded-md border bg-white px-2 py-1 text-xs text-zinc-700 shadow-sm ${selection ? "" : "hidden"}`} style={selection ? { left: Math.max(8, selection.rect.left), top: Math.max(8, selection.rect.top - 38) } : undefined}><Sparkles className="size-3" />AI</button>{selection ? <div className="fixed z-40 flex items-center gap-1 rounded-md border bg-white p-1 shadow-sm" style={{ left: Math.max(8, selection.rect.left + 38), top: Math.max(8, selection.rect.top - 38) }}><button onClick={() => selectionOperation("polishSelection")} className="px-1.5 py-1 text-xs hover:bg-zinc-100">润色</button><button onClick={() => selectionOperation("shortenSelection")} className="px-1.5 py-1 text-xs hover:bg-zinc-100">精简</button><button onClick={() => selectionOperation("expandSelection")} className="px-1.5 py-1 text-xs hover:bg-zinc-100">扩写</button><button onClick={() => selectionOperation("summarizeSelection")} className="px-1.5 py-1 text-xs hover:bg-zinc-100">总结</button><button onClick={() => setMoreOpen((value) => !value)} className="px-1.5 py-1 text-xs hover:bg-zinc-100">更多</button>{moreOpen ? <div className="absolute right-0 top-8 z-50 grid w-28 rounded-md border bg-white p-1 shadow-sm">{[["explainSelection", "解释"], ["clarifySelection", "更清晰"], ["formalSelection", "更正式"], ["naturalSelection", "更自然"], ["actionsSelection", "提取行动"], ["listSelection", "转换列表"]].map(([operation, label]) => <button key={operation} onClick={() => { selectionOperation(operation as NoteAiOperation); setMoreOpen(false); }} className="rounded px-2 py-1 text-left text-xs hover:bg-zinc-100">{label}</button>)}<button onClick={() => { startCustomSelection(); setMoreOpen(false); }} className="rounded px-2 py-1 text-left text-xs hover:bg-zinc-100">自定义…</button></div> : null}</div> : null}
-    {open ? <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l bg-[#F7F7F5] p-5"><div className="flex items-start justify-between border-b pb-4"><div><p className="text-xs font-medium tracking-wide text-[#365F78]">AI</p><h2 className="mt-1 text-lg font-semibold">当前笔记</h2></div><button onClick={onClose} className="rounded p-1 text-zinc-500 hover:bg-white" aria-label="关闭 AI"><X /></button></div><div className="mt-5 grid grid-cols-2 gap-2">{shortcuts.map(([operation, label, icon]) => <button key={operation} disabled={pending || !bodyMarkdown.trim()} onClick={() => runNote(operation)} className="flex items-center gap-2 rounded-md border bg-white px-3 py-2 text-left text-sm text-zinc-700 hover:border-[#365F78] disabled:opacity-50">{icon}{label}</button>)}<button disabled className="flex items-center gap-2 rounded-md border bg-zinc-50 px-3 py-2 text-left text-sm text-zinc-400">关联笔记<span className="ml-auto text-[10px]">即将支持</span></button></div><div className="mt-5 border-t pt-4"><label className="sr-only" htmlFor="note-ai-question">{customSelection ? "处理所选文字" : "询问这篇笔记"}</label><textarea id="note-ai-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder={customSelection ? "说明如何处理所选文字…" : "询问这篇笔记…"} className="min-h-24 w-full resize-none rounded-md border bg-white px-3 py-2 text-sm" /><button disabled={pending || !question.trim() || (!customSelection && !bodyMarkdown.trim())} onClick={() => customSelection ? run({ operation: "customSelection", scope: "selection", content: customSelection.text, instruction: question }) : runNote("askNote")} className="mt-2 rounded-md bg-[#365F78] px-3 py-2 text-sm text-white disabled:opacity-50">{pending ? "正在生成…" : "发送"}</button>{customSelection ? <button onClick={() => setCustomSelection(null)} className="ml-3 text-xs text-zinc-500 hover:text-zinc-800">改为询问全文</button> : null}</div>{result.status !== "idle" ? <p role="status" className={`mt-4 text-sm ${statusColor}`}>{result.message}</p> : null}{result.suggestion ? <div className="mt-4 min-h-0 flex-1 overflow-y-auto border-t pt-4"><p className="mb-2 text-xs font-medium text-zinc-500">预览</p><pre className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">{result.suggestion}</pre><div className="mt-3 flex flex-wrap gap-2">{rewrite ? <button onClick={() => apply("replace")} className="rounded-md bg-[#365F78] px-2.5 py-1.5 text-xs text-white">替换原文</button> : null}<button onClick={() => apply("insert")} className="rounded-md border bg-white px-2.5 py-1.5 text-xs">插入下方</button><button onClick={() => void navigator.clipboard?.writeText(result.suggestion)} className="inline-flex items-center gap-1 rounded-md border bg-white px-2.5 py-1.5 text-xs"><Copy className="size-3" />复制</button><button onClick={() => request && run(request)} className="rounded-md border bg-white px-2.5 py-1.5 text-xs">重新生成</button><button onClick={() => setResult({ status: "idle", message: "", suggestion: "" })} className="rounded-md px-2.5 py-1.5 text-xs text-zinc-500">放弃</button></div></div> : null}<div className="mt-auto border-t pt-4"><select value={model} onChange={(event) => setModel(event.target.value as DeepSeekModelId)} className="h-7 bg-transparent text-xs text-zinc-500"><option value="deepseek-v4-flash">DeepSeek V4 Flash</option><option value="deepseek-v4-pro">DeepSeek V4 Pro</option></select></div></aside> : null}</>;
+  return (
+    <>
+      <button
+        onClick={() => selectionOperation("polishSelection")}
+        className={`fixed z-40 inline-flex items-center gap-1 rounded-md border bg-white px-2 py-1 text-xs text-zinc-700 shadow-sm ${selection ? "" : "hidden"}`}
+        style={
+          selection
+            ? {
+                left: Math.max(8, selection.rect.left),
+                top: Math.max(8, selection.rect.top - 38),
+              }
+            : undefined
+        }
+      >
+        <Sparkles className="size-3" />
+        AI
+      </button>
+      {selection ? (
+        <div
+          className="fixed z-40 flex items-center gap-1 rounded-md border bg-white p-1 shadow-sm"
+          style={{
+            left: Math.max(8, selection.rect.left + 38),
+            top: Math.max(8, selection.rect.top - 38),
+          }}
+        >
+          <button
+            onClick={() => selectionOperation("polishSelection")}
+            className="px-1.5 py-1 text-xs hover:bg-zinc-100"
+          >
+            润色
+          </button>
+          <button
+            onClick={() => selectionOperation("shortenSelection")}
+            className="px-1.5 py-1 text-xs hover:bg-zinc-100"
+          >
+            精简
+          </button>
+          <button
+            onClick={() => selectionOperation("expandSelection")}
+            className="px-1.5 py-1 text-xs hover:bg-zinc-100"
+          >
+            扩写
+          </button>
+          <button
+            onClick={() => selectionOperation("summarizeSelection")}
+            className="px-1.5 py-1 text-xs hover:bg-zinc-100"
+          >
+            总结
+          </button>
+          <button
+            onClick={() => setMoreOpen((value) => !value)}
+            className="px-1.5 py-1 text-xs hover:bg-zinc-100"
+          >
+            更多
+          </button>
+          {moreOpen ? (
+            <div className="absolute right-0 top-8 z-50 grid w-28 rounded-md border bg-white p-1 shadow-sm">
+              {[
+                ["explainSelection", "解释"],
+                ["clarifySelection", "更清晰"],
+                ["formalSelection", "更正式"],
+                ["naturalSelection", "更自然"],
+                ["actionsSelection", "提取行动"],
+                ["listSelection", "转换列表"],
+              ].map(([operation, label]) => (
+                <button
+                  key={operation}
+                  onClick={() => {
+                    selectionOperation(operation as NoteAiOperation);
+                    setMoreOpen(false);
+                  }}
+                  className="rounded px-2 py-1 text-left text-xs hover:bg-zinc-100"
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  startCustomSelection();
+                  setMoreOpen(false);
+                }}
+                className="rounded px-2 py-1 text-left text-xs hover:bg-zinc-100"
+              >
+                自定义…
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {open ? (
+        <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l bg-[#F7F7F5] p-5">
+          <div className="flex items-start justify-between border-b pb-4">
+            <div>
+              <p className="text-xs font-medium tracking-wide text-[#365F78]">
+                AI
+              </p>
+              <h2 className="mt-1 text-lg font-semibold">当前笔记</h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded p-1 text-zinc-500 hover:bg-white"
+              aria-label="关闭 AI"
+            >
+              <X />
+            </button>
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            {shortcuts.map(([operation, label, icon]) => (
+              <button
+                key={operation}
+                disabled={pending || !bodyMarkdown.trim()}
+                onClick={() => runNote(operation)}
+                className="flex items-center gap-2 rounded-md border bg-white px-3 py-2 text-left text-sm text-zinc-700 hover:border-[#365F78] disabled:opacity-50"
+              >
+                {icon}
+                {label}
+              </button>
+            ))}
+            <button
+              disabled
+              className="flex items-center gap-2 rounded-md border bg-zinc-50 px-3 py-2 text-left text-sm text-zinc-400"
+            >
+              关联笔记<span className="ml-auto text-[10px]">即将支持</span>
+            </button>
+          </div>
+          <div className="mt-5 border-t pt-4">
+            <label className="sr-only" htmlFor="note-ai-question">
+              {customSelection ? "处理所选文字" : "询问这篇笔记"}
+            </label>
+            <textarea
+              id="note-ai-question"
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              placeholder={
+                customSelection
+                  ? "说明如何处理所选文字…"
+                  : "询问这篇笔记，或结合你的 Personal OS 分析…"
+              }
+              className="min-h-24 w-full resize-none rounded-md border bg-white px-3 py-2 text-sm"
+            />
+            <button
+              disabled={
+                pending ||
+                !question.trim() ||
+                (!customSelection && !bodyMarkdown.trim())
+              }
+              onClick={() =>
+                customSelection
+                  ? run({
+                      operation: "customSelection",
+                      scope: "selection",
+                      content: customSelection.text,
+                      instruction: question,
+                    })
+                  : runNote("askNote")
+              }
+              className="mt-2 rounded-md bg-[#365F78] px-3 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {pending ? "正在生成…" : "发送"}
+            </button>
+            {customSelection ? (
+              <button
+                onClick={() => setCustomSelection(null)}
+                className="ml-3 text-xs text-zinc-500 hover:text-zinc-800"
+              >
+                改为询问全文
+              </button>
+            ) : null}
+            {!customSelection ? (
+              <label className="ml-4 inline-flex items-center gap-2 text-xs text-zinc-500">
+                <input
+                  type="checkbox"
+                  checked={usePersonalContext}
+                  onChange={(event) =>
+                    setUsePersonalContext(event.target.checked)
+                  }
+                />
+                使用个人上下文
+              </label>
+            ) : null}
+          </div>
+          {result.status !== "idle" ? (
+            <p role="status" className={`mt-4 text-sm ${statusColor}`}>
+              {result.message}
+            </p>
+          ) : null}
+          {result.suggestion ? (
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto border-t pt-4">
+              <p className="mb-2 text-xs font-medium text-zinc-500">预览</p>
+              <pre className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">
+                {result.suggestion}
+              </pre>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {rewrite ? (
+                  <button
+                    onClick={() => apply("replace")}
+                    className="rounded-md bg-[#365F78] px-2.5 py-1.5 text-xs text-white"
+                  >
+                    替换原文
+                  </button>
+                ) : null}
+                <button
+                  onClick={() => apply("insert")}
+                  className="rounded-md border bg-white px-2.5 py-1.5 text-xs"
+                >
+                  插入下方
+                </button>
+                <button
+                  onClick={() =>
+                    void navigator.clipboard?.writeText(result.suggestion)
+                  }
+                  className="inline-flex items-center gap-1 rounded-md border bg-white px-2.5 py-1.5 text-xs"
+                >
+                  <Copy className="size-3" />
+                  复制
+                </button>
+                <button
+                  onClick={() => request && run(request)}
+                  className="rounded-md border bg-white px-2.5 py-1.5 text-xs"
+                >
+                  重新生成
+                </button>
+                <button
+                  onClick={() =>
+                    setResult({ status: "idle", message: "", suggestion: "" })
+                  }
+                  className="rounded-md px-2.5 py-1.5 text-xs text-zinc-500"
+                >
+                  放弃
+                </button>
+              </div>
+              {result.contextSources?.length ? (
+                <details className="mt-4 border-t pt-3 text-xs">
+                  <summary className="cursor-pointer text-zinc-500">
+                    本次提供给 AI 的上下文 · {result.contextSources.length} 项
+                  </summary>
+                  <ul className="mt-2 space-y-2">
+                    {result.contextSources.map((source) => (
+                      <li
+                        key={source.id}
+                        className="flex items-start justify-between gap-3"
+                      >
+                        <div>
+                          <p className="font-medium text-zinc-700">
+                            {source.domain} · {source.title}
+                          </p>
+                          <p className="mt-0.5 text-zinc-500">
+                            {source.reasons.join("；")}
+                          </p>
+                        </div>
+                        {source.href ? (
+                          <a
+                            className="text-[#365F78] hover:underline"
+                            href={source.href}
+                          >
+                            打开
+                          </a>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="mt-auto border-t pt-4">
+            <select
+              value={model}
+              onChange={(event) =>
+                setModel(event.target.value as DeepSeekModelId)
+              }
+              className="h-7 bg-transparent text-xs text-zinc-500"
+            >
+              <option value="deepseek-v4-flash">DeepSeek V4 Flash</option>
+              <option value="deepseek-v4-pro">DeepSeek V4 Pro</option>
+            </select>
+          </div>
+        </aside>
+      ) : null}
+    </>
+  );
 }
