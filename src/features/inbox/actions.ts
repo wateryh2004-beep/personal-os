@@ -5,11 +5,7 @@ import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { contentHash } from "@/features/notes/utils";
 import { inboxCaptureSchema } from "./schemas";
-
-export type InboxCaptureState = { status: "idle" | "success" | "error"; message: string };
-
-const initialCaptureState: InboxCaptureState = { status: "idle", message: "" };
-export { initialCaptureState };
+import type { InboxCaptureState } from "./state";
 
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, entityId: string, data: Record<string, unknown>) {
   await supabase.from("audit_logs").insert({ user_id: userId, action, entity_type: "inbox_item", entity_id: entityId, actor_type: "user", after_data: data });
@@ -29,7 +25,10 @@ export async function captureInboxItem(_: InboxCaptureState, formData: FormData)
     revalidatePath("/inbox");
     revalidatePath("/today");
     return { status: "success", message: "已加入 Inbox。" };
-  } catch {
+  } catch (error) {
+    console.error("[inbox:capture] failed", {
+      reason: error instanceof Error ? error.message : "unknown_error",
+    });
     return { status: "error", message: "暂时无法保存，请检查网络后重试。" };
   }
 }

@@ -21,9 +21,9 @@ import {
   archiveInboxItem,
   captureInboxItem,
   convertInboxToNote,
-  initialCaptureState,
 } from "@/features/inbox/actions";
 import type { InboxProposal } from "@/features/inbox/schemas";
+import { initialInboxCaptureState } from "@/features/inbox/state";
 import { openDailyNote } from "@/features/notes/actions";
 import {
   createMicrosoftTodoTaskAction,
@@ -220,7 +220,7 @@ function NoteProposal({
 }) {
   const [state, action, pending] = useActionState(
     convertInboxToNote,
-    initialCaptureState,
+    initialInboxCaptureState,
   );
   return (
     <form
@@ -261,7 +261,7 @@ export function InboxWorkspace({
 }) {
   const [captureState, captureAction, capturePending] = useActionState(
     captureInboxItem,
-    initialCaptureState,
+    initialInboxCaptureState,
   );
   const [selected, setSelected] = useState<InboxItem | null>(null);
   const [captureInput, setCaptureInput] = useState("");
