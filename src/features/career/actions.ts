@@ -124,7 +124,7 @@ export async function uploadEvidence(formData: FormData) {
   const { error: storageError } = await supabase.storage.from("private-files").upload(path, file, { contentType: file.type, upsert: false }); if (storageError) failed(new Error("文件上传失败，请确认私有文件桶已创建。"));
   const { data, error } = await supabase.from("documents").insert({ user_id: userId, title: String(formData.get("title") || file.name).trim().slice(0, 240) || file.name, document_type: String(formData.get("document_type") || "other"), original_filename: file.name, storage_bucket: "private-files", storage_path: path, mime_type: file.type, file_size: file.size, confidentiality_level: String(formData.get("confidentiality_level") || "private") }).select("id").single();
   if (error) { await supabase.storage.from("private-files").remove([path]); failed(error); }
-  const { error: linkError } = await supabase.from("entity_links").insert({ user_id: userId, source_type: "experience", source_id: experienceId, target_type: "document", target_id: data.id, relationship_type: "evidence" });
+  const { error: linkError } = await supabase.from("entity_links").insert({ user_id: userId, source_type: "experience", source_id: experienceId, target_type: "document", target_id: data.id, relationship_type: "evidence", created_via: "system" });
   if (linkError) { await supabase.from("documents").update({ archived_at: new Date().toISOString() }).eq("id", data.id); failed(linkError); }
   await audit(supabase, userId, "upload", "document", data.id, { experience_id: experienceId, document_type: formData.get("document_type") }); revalidatePath(`/career/experiences/${experienceId}`); revalidatePath("/career");
 }
