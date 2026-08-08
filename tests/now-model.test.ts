@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildAttentionItems, eventIsToday, getDateKeyInTimeZone, groupNowTasks, selectNextAction } from "@/features/today/utils";
+import { eventIsToday, getDateKeyInTimeZone, groupNowTasks, selectNextAction } from "@/features/today/utils";
+import { buildProactiveInsights } from "@/features/proactive/engine";
 
 const now = new Date("2026-08-08T02:00:00.000Z");
 const timeZone = "Asia/Shanghai";
@@ -26,8 +27,8 @@ describe("Now model", () => {
     expect(selectNextAction({ now, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [], inboxCount: 2 })).toMatchObject({ kind: "inbox" });
     expect(selectNextAction({ now, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [], inboxCount: 0 })).toMatchObject({ kind: "none" });
   });
-  it("builds bounded, priority-ordered attention", () => {
-    const attention = buildAttentionItems({ now, timeZone, tasks: groupNowTasks([task("overdue", "2026-08-06T10:00:00Z", "high")], now, timeZone), milestones: [{ id: "m", track_id: "t", career_direction_id: null, title: "节点", starts_on: null, target_date: "2026-08-10", status: "planned", importance: "normal" }], inboxCount: 1, calendarError: "sync_failed" });
-    expect(attention.map((item) => item.kind)).toEqual(["overdue_tasks", "career_milestone", "calendar_sync", "inbox"]);
+  it("builds a bounded, priority-ordered proactive attention budget", () => {
+    const attention = buildProactiveInsights({ now, timeZone, tasks: [task("overdue", "2026-08-06T10:00:00Z", "high")], events: [{ id: "event", subject: "面试", starts_at: "2026-08-08T02:20:00Z", ends_at: "2026-08-08T03:00:00Z", is_all_day: false, location_name: null }], milestones: [{ id: "m", track_id: "t", career_direction_id: null, title: "节点", starts_on: null, target_date: "2026-08-10", status: "planned", importance: "normal" }] });
+    expect(attention.map((item) => item.kind)).toEqual(["task_overdue", "calendar_upcoming", "career_milestone_approaching"]);
   });
 });

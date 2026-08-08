@@ -70,16 +70,6 @@ export function selectNextAction({ now, events, tasks, milestones, inboxCount }:
   return { kind: "none" as const, reason: "目前没有必须处理的事项。" };
 }
 
-export function buildAttentionItems({ now, timeZone, tasks, milestones, inboxCount, calendarError }: { now: Date; timeZone: string; tasks: ReturnType<typeof groupNowTasks>; milestones: NowCareerMilestone[]; inboxCount: number; calendarError: string | null }) {
-  const items = [] as import("./types").NowAttentionItem[];
-  if (tasks.overdue.length) items.push({ id: "overdue", kind: "overdue_tasks", priority: tasks.overdue.some((task) => task.importance === "high") ? "high" : "medium", title: `${tasks.overdue.length} 项任务已经逾期`, href: "/tasks" });
-  milestones.filter((milestone) => milestone.target_date <= getDateKeyInTimeZone(new Date(now.getTime() + 7 * 86_400_000), timeZone)!).forEach((milestone) => items.push({ id: `milestone-${milestone.id}`, kind: "career_milestone", priority: "medium", title: `Career · ${milestone.title}`, description: `目标日期 ${milestone.target_date}`, href: "/career/roadmap" }));
-  if (inboxCount) items.push({ id: "inbox", kind: "inbox", priority: inboxCount > 5 ? "medium" : "low", title: `Inbox 中还有 ${inboxCount} 条内容未整理`, href: "/inbox" });
-  if (calendarError) items.push({ id: "calendar-sync", kind: "calendar_sync", priority: "medium", title: "Calendar 数据可能未更新", description: "请检查同步状态", href: "/calendar" });
-  const rank = { critical: 0, high: 1, medium: 2, low: 3 };
-  return items.sort((a, b) => rank[a.priority] - rank[b.priority]).slice(0, 5);
-}
-
 export function formatRelativeDuration(milliseconds: number) { const minutes = Math.max(0, Math.round(milliseconds / 60_000)); return minutes < 60 ? `${minutes} 分钟` : `${Math.floor(minutes / 60)} 小时${minutes % 60 ? ` ${minutes % 60} 分钟` : ""}`; }
 
 export function formatTodayDate(now: Date, timeZone: string) {
