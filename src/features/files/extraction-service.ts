@@ -16,7 +16,7 @@ export async function extractDocumentForOwner(input: {
 }) {
   const { data: document, error } = await input.supabase
     .from("documents")
-    .select("id,storage_path,storage_provider,storage_state,original_filename,mime_type,file_size,text_extraction_status")
+    .select("id,storage_path,storage_provider,storage_state,original_filename,mime_type,file_size,text_extraction_status,updated_at")
     .eq("id", input.documentId)
     .eq("user_id", input.userId)
     .eq("storage_provider", "cloudflare_r2")
@@ -40,10 +40,20 @@ export async function extractDocumentForOwner(input: {
     return { status: initial, characterCount: 0 } as const;
   }
 
+  const processingIsFresh =
+    document.text_extraction_status === "processing" &&
+    new Date(document.updated_at).getTime() > Date.now() - 15 * 60_000;
+  if (processingIsFresh)
+    return { status: "processing", characterCount: 0 } as const;
+
+  const claimableStatuses = ["not_requested", "pending", "failed"];
+  if (document.text_extraction_status === "processing")
+    claimableStatuses.push("processing");
+
   const claimed = await input.supabase.from("documents").update({
     text_extraction_status: "processing",
     text_extraction_error_code: null,
-  }).eq("id", document.id).eq("user_id", input.userId).in("text_extraction_status", ["not_requested", "pending", "failed", "processing"]).select("id").maybeSingle();
+  }).eq("id", document.id).eq("user_id", input.userId).in("text_extraction_status", claimableStatuses).select("id").maybeSingle();
   if (claimed.error || !claimed.data) throw new Error("extraction_claim_failed");
 
   try {
