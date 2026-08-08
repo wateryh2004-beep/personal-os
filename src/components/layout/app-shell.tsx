@@ -1,36 +1,4 @@
 "use client";
-
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { Command, LogOut, Menu, Plus, Search, Settings } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { logoutAction } from "@/features/auth/actions";
-import { lastOpenedNoteSessionKey, recentNoteHref } from "@/features/notes/navigation";
-import { clearWorkspaceSessions, loadWorkspaceSession } from "@/lib/workspace-session";
-
-const groups: Array<[string, Array<[string, string]>]> = [
-  ["总览", [["Now", "/today"], ["Inbox", "/inbox"]]],
-  ["规划", [["Calendar", "/calendar"], ["Tasks", "/tasks"], ["Projects", "/projects"]]],
-  ["知识", [["Notes", "/notes"], ["Files", "/files"], ["Photos", "/photos"]]],
-  ["领域", [["Career", "/career"], ["Investing", "/investing"]]],
-  ["回顾", [["Reviews", "/reviews"]]],
-];
-
-export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [cmd, setCmd] = useState(false);
-  const onNavigate = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    setOpen(false);
-    if (href !== "/notes") return;
-    const destination = recentNoteHref(loadWorkspaceSession(lastOpenedNoteSessionKey));
-    if (destination === "/notes") return;
-    event.preventDefault();
-    router.push(destination);
-  };
-  const nav = <nav className="space-y-5">{groups.map(([label, items]) => <div key={label}><p className="px-3 text-xs text-zinc-500">{label}</p>{items.map(([name, href]) => <Link key={href} href={href} onClick={(event) => onNavigate(event, href)} className={`mt-1 block rounded-md px-3 py-2 text-sm ${pathname === href || pathname.startsWith(`${href}/`) ? "bg-[#EDF3F6] text-[#365F78]" : "text-zinc-600 hover:bg-white"}`}>{name}{["/photos", "/investing", "/reviews"].includes(href) && <span className="ml-2 text-xs text-zinc-400">尚未启用</span>}</Link>)}</div>)}</nav>;
-  return <div className="min-h-screen md:flex"><aside className="hidden w-60 shrink-0 border-r bg-[#F7F7F5] p-4 md:block"><Link href="/today" aria-label="Life of HANG，返回 Today" className="wordmark mb-8 flex items-baseline gap-2 px-3 text-[1.55rem] leading-none text-zinc-900"><span className="italic font-medium tracking-[-0.025em]">Life of</span><span className="font-semibold tracking-[0.035em]">HANG</span></Link>{nav}<div className="mt-8 border-t pt-3"><Link href="/settings" className="flex items-center gap-2 px-3 py-2 text-sm"><Settings size={16} />Settings</Link></div></aside><Dialog open={open} onOpenChange={setOpen}><DialogContent className="left-0 top-0 h-full w-72 translate-x-0 translate-y-0 rounded-none p-4">{nav}</DialogContent></Dialog><main className="min-w-0 flex-1"><header className="flex h-14 items-center justify-between border-b bg-white px-4"><Button variant="ghost" size="icon" className="md:hidden" onClick={() => setOpen(true)} aria-label="打开导航"><Menu /></Button><button onClick={() => setCmd(true)} className="flex items-center gap-2 text-sm text-zinc-500"><Search size={16} />搜索 <kbd className="hidden rounded border px-1 text-xs md:inline">⌘K</kbd></button><div className="flex items-center gap-2"><span className="hidden text-xs text-zinc-500 md:inline">同步将在启用后显示</span><Button size="sm" onClick={() => setCmd(true)}><Plus />快速创建</Button><form action={logoutAction} onSubmit={() => clearWorkspaceSessions()}><Button variant="ghost" size="icon" aria-label="退出登录"><LogOut size={16} /></Button></form></div></header><div className="mx-auto max-w-6xl p-5 md:p-8">{children}</div></main><Dialog open={cmd} onOpenChange={setCmd}><DialogContent><div className="flex items-center gap-2 text-sm"><Command size={16} />Command Palette</div><Link href="/career/search" onClick={() => setCmd(false)} className="mt-4 block border p-3 text-sm hover:bg-[#EDF3F6]">搜索 Career 数据</Link><p className="mt-3 text-sm text-zinc-500">完整跨模块搜索仍在后续阶段；Career 搜索已可用。</p></DialogContent></Dialog></div>;
-}
+import Link from "next/link";import {usePathname,useRouter} from "next/navigation";import {LogOut,Menu,Plus,Search,Settings} from "lucide-react";import {useEffect,useState} from "react";import {Button} from "@/components/ui/button";import {Dialog,DialogContent} from "@/components/ui/dialog";import {GlobalCommandPalette} from "@/components/search/global-command-palette";import {logoutAction} from "@/features/auth/actions";import {lastOpenedNoteSessionKey,recentNoteHref} from "@/features/notes/navigation";import {clearWorkspaceSessions,loadWorkspaceSession} from "@/lib/workspace-session";
+const groups:Array<[string,Array<[string,string]>]>=[["总览",[["Now","/today"],["Inbox","/inbox"]]],["规划",[["Calendar","/calendar"],["Tasks","/tasks"],["Projects","/projects"]]],["知识",[["Notes","/notes"],["Files","/files"]]],["领域",[["Career","/career"]]]];
+export function AppShell({children}:{children:React.ReactNode}){const pathname=usePathname(),router=useRouter(),[menu,setMenu]=useState(false),[search,setSearch]=useState(false);useEffect(()=>{const f=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();setSearch(v=>!v)}};window.addEventListener("keydown",f);return()=>window.removeEventListener("keydown",f)},[]);const nav=<nav className="space-y-5">{groups.map(([label,items])=><div key={label}><p className="px-3 text-xs text-zinc-500">{label}</p>{items.map(([name,href])=><Link key={href} href={href} onClick={e=>{setMenu(false);if(href==="/notes"){const d=recentNoteHref(loadWorkspaceSession(lastOpenedNoteSessionKey));if(d!=="/notes"){e.preventDefault();router.push(d)}}}} className={`mt-1 block rounded-md px-3 py-2 text-sm ${pathname===href||pathname.startsWith(`${href}/`)?"bg-[#EDF3F6] text-[#365F78]":"text-zinc-600 hover:bg-white"}`}>{name}</Link>)}</div>)}</nav>;return <div className="min-h-screen md:flex"><aside className="hidden w-60 shrink-0 border-r bg-[#F7F7F5] p-4 md:block"><Link href="/today" aria-label="Life of HANG，返回首页" className="wordmark mb-8 block px-3 text-xl font-semibold">Life of HANG</Link>{nav}<Link href="/settings" className="mt-8 flex gap-2 border-t px-3 pt-3 text-sm"><Settings size={16}/>Settings</Link></aside><Dialog open={menu} onOpenChange={setMenu}><DialogContent className="left-0 top-0 h-full w-72 translate-x-0 translate-y-0 rounded-none p-4">{nav}</DialogContent></Dialog><main className="min-w-0 flex-1"><header className="flex h-14 items-center justify-between border-b bg-white px-4"><Button variant="ghost" size="icon" className="md:hidden" onClick={()=>setMenu(true)} aria-label="打开导航"><Menu/></Button><button onClick={()=>setSearch(true)} className="flex items-center gap-2 text-sm text-zinc-500"><Search size={16}/>搜索 <kbd className="hidden rounded border px-1 text-xs md:inline">⌘K</kbd></button><div className="flex items-center gap-2"><Button size="sm" onClick={()=>setSearch(true)}><Plus/>快速操作</Button><form action={logoutAction} onSubmit={()=>clearWorkspaceSessions()}><Button variant="ghost" size="icon" aria-label="退出登录"><LogOut size={16}/></Button></form></div></header><div className="mx-auto max-w-6xl p-5 md:p-8">{children}</div></main><GlobalCommandPalette open={search} onOpenChange={setSearch}/></div>}
