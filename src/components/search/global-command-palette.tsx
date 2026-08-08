@@ -1,12 +1,58 @@
 "use client";
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Search } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, Settings, SquareKanban } from "lucide-react";
+import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
+import { createNote } from "@/features/notes/actions";
 import type { GlobalSearchResult } from "@/features/search/types";
-export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [q, setQ] = useState(""); const [results, setResults] = useState<GlobalSearchResult[]>([]); const [loading, setLoading] = useState(false);
-  useEffect(() => { if (Array.from(q.trim()).length < 2) return; const controller = new AbortController(); const timer = setTimeout(async () => { setLoading(true); try { const response = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal: controller.signal }); const body = await response.json(); setResults(body.results ?? []); } catch { if (!controller.signal.aborted) setResults([]); } finally { if (!controller.signal.aborted) setLoading(false); } }, 200); return () => { controller.abort(); clearTimeout(timer); }; }, [q]);
-  const enough = Array.from(q.trim()).length >= 2;
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[80dvh] overflow-y-auto bg-white p-4 sm:max-w-2xl"><label className="flex items-center gap-2 border-b pb-3"><Search size={17}/><input autoFocus value={q} onChange={event => setQ(event.target.value)} placeholder="搜索整个 Personal OS…" className="w-full bg-transparent text-sm outline-none"/></label>{!q ? <p className="py-8 text-sm text-zinc-500">搜索笔记、复盘、职业、文件、任务和日程</p> : !enough ? <p className="py-8 text-sm text-zinc-500">请输入至少两个字符。</p> : loading ? <p className="py-4 text-xs text-zinc-500">正在搜索…</p> : results.length ? <ul className="divide-y">{results.map(result => <li key={result.id}><Link href={result.href} onClick={() => onOpenChange(false)} className="block py-3 hover:bg-[#f7fafb]"><p className="text-xs text-[#365f78]">{result.domain}</p><p className="mt-1 text-sm font-medium">{result.title}</p>{result.subtitle ? <p className="mt-1 text-xs text-zinc-500">{result.subtitle}</p> : null}{result.snippet ? <p className="mt-1 line-clamp-2 text-xs text-zinc-500">{result.snippet}</p> : null}</Link></li>)}</ul> : <p className="py-8 text-sm text-zinc-500">没有找到相关内容。尝试更短或不同的关键词。</p>}</DialogContent></Dialog>;
+
+export type CommandCenterSection = "search" | "quick";
+const recentStorageKey = "personal-os:recent:v1";
+const navigation = [
+  ["Now", "/today"], ["Inbox", "/inbox"], ["Calendar", "/calendar"], ["Tasks", "/tasks"], ["Projects", "/projects"], ["Notes", "/notes"], ["Files", "/files"], ["Career", "/career"], ["Settings", "/settings"],
+] as const;
+const domainLabels: Record<string, string> = { notes: "Notes", career: "Career", files: "Files", tasks: "Tasks", calendar: "Calendar", reviews: "Reviews", projects: "Projects" };
+
+export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search" }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection }) {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<GlobalSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [recents, setRecents] = useState<Array<{ href: string; label: string }>>([]);
+  const [, startTransition] = useTransition();
+  useEffect(() => { if (!open) return; const timer = window.setTimeout(() => { setQuery(""); setResults([]); try { setRecents(JSON.parse(localStorage.getItem(recentStorageKey) || "[]")); } catch { setRecents([]); } }, 0); return () => window.clearTimeout(timer); }, [initialSection, open]);
+  useEffect(() => {
+    const value = query.trim();
+    if (!value) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => { setLoading(true); try { const response = await fetch(`/api/search?q=${encodeURIComponent(value)}`, { signal: controller.signal }); const body = await response.json() as { results?: GlobalSearchResult[] }; setResults(response.ok ? body.results ?? [] : []); } catch { if (!controller.signal.aborted) setResults([]); } finally { if (!controller.signal.aborted) setLoading(false); } }, 160);
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [query]);
+  const go = (href: string) => { onOpenChange(false); router.push(href); };
+  const newNote = () => { onOpenChange(false); startTransition(() => createNote()); };
+  const groups = Object.entries(Object.groupBy(results, (result) => domainLabels[result.domain] ?? result.domain));
+  const showQuick = !query && initialSection === "quick";
+
+  return <CommandDialog open={open} onOpenChange={onOpenChange} title="Personal OS Command Center" description="搜索、导航或快速新建" className="max-h-[min(78dvh,680px)] border-[var(--border-strong)] bg-[var(--surface-elevated)] sm:max-w-2xl">
+    <Command shouldFilter={!query} label="Personal OS Command Center">
+      <CommandInput value={query} onValueChange={setQuery} autoFocus placeholder={showQuick ? "选择要新建的内容…" : "搜索 Personal OS 或输入命令…"} aria-label="搜索或执行命令" />
+      <CommandList className="max-h-[min(68dvh,580px)] py-1">
+        {query && loading ? <p role="status" aria-live="polite" className="px-4 py-8 text-center text-sm text-[var(--text-tertiary)]">正在搜索…</p> : null}
+        {query && !loading && !results.length ? <CommandEmpty>没有找到相关内容。尝试更短或不同的关键词。</CommandEmpty> : null}
+        {!query ? <CommandGroup heading="Quick Actions">
+          <CommandItem onSelect={newNote}><FilePlus2 aria-hidden="true" />新建笔记<CommandShortcut>直接进入编辑器</CommandShortcut></CommandItem>
+          <CommandItem onSelect={() => go("/tasks?create=1")}><CheckSquare2 aria-hidden="true" />新建任务<CommandShortcut>Microsoft To Do</CommandShortcut></CommandItem>
+          <CommandItem onSelect={() => go("/calendar?create=1")}><CalendarPlus aria-hidden="true" />新建日程<CommandShortcut>Outlook</CommandShortcut></CommandItem>
+          <CommandItem onSelect={() => go("/projects?create=1")}><SquareKanban aria-hidden="true" />新建项目</CommandItem>
+          <CommandItem onSelect={() => go("/career/opportunities?create=1")}><BriefcaseBusiness aria-hidden="true" />新建职业机会</CommandItem>
+          <CommandItem onSelect={() => go("/career/experiences?create=1")}><LayoutDashboard aria-hidden="true" />添加职业经历</CommandItem>
+          <CommandItem onSelect={() => go("/files?upload=1")}><FolderUp aria-hidden="true" />上传文件</CommandItem>
+        </CommandGroup> : null}
+        {!query && recents.length ? <><CommandSeparator /><CommandGroup heading="Recent">{recents.slice(0, 6).map((item) => <CommandItem key={item.href} onSelect={() => go(item.href)}><FileText aria-hidden="true" /><span className="min-w-0 truncate">{item.label}</span><CommandShortcut>{item.href}</CommandShortcut></CommandItem>)}</CommandGroup></> : null}
+        {!query && !showQuick ? <><CommandSeparator /><CommandGroup heading="Navigation">{navigation.map(([label, href]) => <CommandItem key={href} onSelect={() => go(href)}>{href === "/settings" ? <Settings aria-hidden="true" /> : <LayoutDashboard aria-hidden="true" />}{label}<CommandShortcut>{href}</CommandShortcut></CommandItem>)}</CommandGroup></> : null}
+        {query && !loading ? groups.map(([label, items]) => <CommandGroup key={label} heading={label}>{(items ?? []).map((result) => <CommandItem key={result.id} value={`${result.domain} ${result.title} ${result.subtitle ?? ""} ${result.snippet ?? ""}`} onSelect={() => go(result.href)}><FileText aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{result.title}</p>{result.subtitle || result.snippet ? <p className="mt-0.5 line-clamp-2 text-xs text-[var(--text-tertiary)]">{result.subtitle ?? result.snippet}</p> : null}</div><CommandShortcut>{label}</CommandShortcut></CommandItem>)}</CommandGroup>) : null}
+      </CommandList>
+    </Command>
+  </CommandDialog>;
 }

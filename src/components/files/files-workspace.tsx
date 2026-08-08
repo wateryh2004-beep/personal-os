@@ -1,7 +1,7 @@
 "use client";
 
 import { Archive, Download, File, FilePlus2, Folder, FolderPlus, LoaderCircle, MoreHorizontal, Upload } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { archiveFile, createFileFolder, moveFile, renameFile } from "@/features/files/actions";
 import { directUploadFailureMessage } from "@/features/files/r2-errors";
@@ -47,7 +47,7 @@ async function browserR2NetworkMessage() {
   return directUploadFailureMessage(null);
 }
 
-export function FilesWorkspace({ folders, files }: { folders: FileFolder[]; files: FileRecord[] }) {
+export function FilesWorkspace({ folders, files, initialUpload = false }: { folders: FileFolder[]; files: FileRecord[]; initialUpload?: boolean }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [folderId, setFolderId] = useState<string | null>(null);
@@ -58,6 +58,7 @@ export function FilesWorkspace({ folders, files }: { folders: FileFolder[]; file
   const sortedFolders = useMemo(() => [...folders].sort((a, b) => folderDepth(a, folders) - folderDepth(b, folders) || a.name.localeCompare(b.name, "zh-CN")), [folders]);
   const visibleFiles = files.filter((file) => file.folder_id === folderId);
   const activeFolder = folders.find((folder) => folder.id === folderId);
+  useEffect(() => { if (initialUpload) inputRef.current?.click(); }, [initialUpload]);
 
   async function upload(filesToUpload: FileList | null) {
     if (!filesToUpload?.length || stage === "preparing" || stage === "uploading" || stage === "verifying") return;
@@ -81,8 +82,8 @@ export function FilesWorkspace({ folders, files }: { folders: FileFolder[]; file
     finally { if (inputRef.current) inputRef.current.value = ""; }
   }
 
-  return <div className="grid min-h-[32rem] gap-0 border border-[#e7e5e4] bg-white lg:grid-cols-[15rem_minmax(0,1fr)]">
-    <aside className="border-b border-[#e7e5e4] p-4 lg:border-r lg:border-b-0">
+  return <div className="grid h-[calc(100dvh-var(--toolbar-height))] min-h-[540px] gap-0 bg-white md:grid-cols-[var(--context-sidebar-width)_minmax(0,1fr)]">
+    <aside className="border-b bg-[var(--surface-sidebar)] p-4 md:border-r md:border-b-0">
       <div className="flex items-center justify-between"><p className="text-xs font-medium tracking-wide text-zinc-500">文件夹</p><button type="button" onClick={() => setCreatingFolder((value) => !value)} aria-label="新建文件夹" className="rounded p-1.5 text-[#365f78] hover:bg-[#edf3f6]"><FolderPlus size={17} /></button></div>
       {creatingFolder ? <form action={createFileFolder} className="mt-3 flex gap-1"><input name="name" required maxLength={160} autoFocus placeholder="文件夹名称" className="min-w-0 flex-1 border border-[#d8d6d0] bg-white px-2 py-1 text-xs" /><input type="hidden" name="parent_id" value={folderId ?? ""} /><button className="bg-[#365f78] px-2 text-xs text-white">创建</button></form> : null}
       <button onClick={() => setFolderId(null)} className={`mt-3 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${folderId === null ? "bg-[#edf3f6] text-[#365f78]" : "text-zinc-700 hover:bg-zinc-50"}`}><Folder size={16} />全部文件 <span className="ml-auto font-mono text-xs text-zinc-400">{files.length}</span></button>

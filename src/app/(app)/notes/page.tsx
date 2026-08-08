@@ -5,5 +5,5 @@ export default async function Notes({ searchParams }: { searchParams: Promise<{ 
   const { notes, folders, timezone, state } = await getNotesWorkspace();
   const { folder: requestedFolder, daily, view } = await searchParams;
   const selectedFolder = folders.find((folder) => folder.id === requestedFolder) ?? null;
-  return <NotesWorkspace notes={notes} folders={folders} timezone={timezone} state={state} selectedFolder={selectedFolder} initialView={view === "favorites" ? "favorites" : "all"} dailyError={daily === "error"} />;
+  return <NotesWorkspace notes={notes} folders={folders} timezone={timezone} state={state} selectedFolder={selectedFolder} initialView={view === "favorites" ? "favorites" : view === "recent" ? "recent" : "all"} dailyError={daily === "error"} />;
 }

@@ -8,8 +8,8 @@ import { createMicrosoftTodoTaskAction, type TodoCreateState } from "@/features/
 type TodoList = { id: string; display_name: string; is_default: boolean };
 const initialState: TodoCreateState = { status: "idle", message: "" };
 
-export function MicrosoftTodoCreateDialog({ lists }: { lists: TodoList[] }) {
-  const [open, setOpen] = useState(false);
+export function MicrosoftTodoCreateDialog({ lists, initialOpen = false }: { lists: TodoList[]; initialOpen?: boolean }) {
+  const [open, setOpen] = useState(initialOpen);
   const [state, action, pending] = useActionState(createMicrosoftTodoTaskAction, initialState);
   const defaultList = lists.find((list) => list.is_default)?.id || lists[0]?.id;
   return <Dialog open={open} onOpenChange={setOpen}>

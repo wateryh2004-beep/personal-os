@@ -8,8 +8,8 @@ import {
   ListTree,
   Sparkles,
   WandSparkles,
-  X,
 } from "lucide-react";
+import { AISidecar } from "@/components/ai/ai-sidecar";
 import {
   generateNoteAiSuggestion,
   type NoteAiState,
@@ -136,29 +136,15 @@ export function NoteAiAssistant({
 
   return (
     <>
-      <button
-        onClick={() => selectionOperation("polishSelection")}
-        className={`fixed z-40 inline-flex items-center gap-1 rounded-md border bg-white px-2 py-1 text-xs text-zinc-700 shadow-sm ${selection ? "" : "hidden"}`}
-        style={
-          selection
-            ? {
-                left: Math.max(8, selection.rect.left),
-                top: Math.max(8, selection.rect.top - 38),
-              }
-            : undefined
-        }
-      >
-        <Sparkles className="size-3" />
-        AI
-      </button>
       {selection ? (
         <div
-          className="fixed z-40 flex items-center gap-1 rounded-md border bg-white p-1 shadow-sm"
+          className="fixed z-40 flex items-center gap-1 rounded-[var(--radius-md)] border bg-[var(--surface-elevated)] p-1 shadow-sm"
           style={{
-            left: Math.max(8, selection.rect.left + 38),
+            left: Math.max(8, selection.rect.left),
             top: Math.max(8, selection.rect.top - 38),
           }}
         >
+          <button onClick={() => selectionOperation("polishSelection")} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs hover:bg-[var(--surface-hover)]"><Sparkles className="size-3" aria-hidden="true" />AI</button>
           <button
             onClick={() => selectionOperation("polishSelection")}
             className="px-1.5 py-1 text-xs hover:bg-zinc-100"
@@ -170,18 +156,6 @@ export function NoteAiAssistant({
             className="px-1.5 py-1 text-xs hover:bg-zinc-100"
           >
             精简
-          </button>
-          <button
-            onClick={() => selectionOperation("expandSelection")}
-            className="px-1.5 py-1 text-xs hover:bg-zinc-100"
-          >
-            扩写
-          </button>
-          <button
-            onClick={() => selectionOperation("summarizeSelection")}
-            className="px-1.5 py-1 text-xs hover:bg-zinc-100"
-          >
-            总结
           </button>
           <button
             onClick={() => setMoreOpen((value) => !value)}
@@ -223,41 +197,19 @@ export function NoteAiAssistant({
           ) : null}
         </div>
       ) : null}
-      {open ? (
-        <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l bg-[#F7F7F5] p-5">
-          <div className="flex items-start justify-between border-b pb-4">
-            <div>
-              <p className="text-xs font-medium tracking-wide text-[#365F78]">
-                AI
-              </p>
-              <h2 className="mt-1 text-lg font-semibold">当前笔记</h2>
-            </div>
-            <button
-              onClick={onClose}
-              className="rounded p-1 text-zinc-500 hover:bg-white"
-              aria-label="关闭 AI"
-            >
-              <X />
-            </button>
-          </div>
-          <div className="mt-5 grid grid-cols-2 gap-2">
+      <AISidecar open={open} onClose={onClose} context="当前笔记" footer={<select aria-label="AI 模型" value={model} onChange={(event) => setModel(event.target.value as DeepSeekModelId)} className="h-7 bg-transparent text-xs text-[var(--text-tertiary)]"><option value="deepseek-v4-flash">DeepSeek V4 Flash</option><option value="deepseek-v4-pro">DeepSeek V4 Pro</option></select>}>
+          <div className="grid grid-cols-2 gap-2">
             {shortcuts.map(([operation, label, icon]) => (
               <button
                 key={operation}
                 disabled={pending || !bodyMarkdown.trim()}
                 onClick={() => runNote(operation)}
-                className="flex items-center gap-2 rounded-md border bg-white px-3 py-2 text-left text-sm text-zinc-700 hover:border-[#365F78] disabled:opacity-50"
+                className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-hover)] px-3 py-2 text-left text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-selected)] disabled:opacity-50"
               >
                 {icon}
                 {label}
               </button>
             ))}
-            <button
-              disabled
-              className="flex items-center gap-2 rounded-md border bg-zinc-50 px-3 py-2 text-left text-sm text-zinc-400"
-            >
-              关联笔记<span className="ml-auto text-[10px]">即将支持</span>
-            </button>
           </div>
           <div className="mt-5 border-t pt-4">
             <label className="sr-only" htmlFor="note-ai-question">
@@ -399,20 +351,7 @@ export function NoteAiAssistant({
               ) : null}
             </div>
           ) : null}
-          <div className="mt-auto border-t pt-4">
-            <select
-              value={model}
-              onChange={(event) =>
-                setModel(event.target.value as DeepSeekModelId)
-              }
-              className="h-7 bg-transparent text-xs text-zinc-500"
-            >
-              <option value="deepseek-v4-flash">DeepSeek V4 Flash</option>
-              <option value="deepseek-v4-pro">DeepSeek V4 Pro</option>
-            </select>
-          </div>
-        </aside>
-      ) : null}
+      </AISidecar>
     </>
   );
 }
