@@ -8,6 +8,7 @@ import {
 import { buildProactiveInsights } from "@/features/proactive/engine";
 import { reconcileProactiveInsights } from "@/features/proactive/service";
 import { getReviewPeriod } from "@/features/reviews/periods";
+import { buildTodayBrief } from "./brief";
 import type {
   NowCalendarEvent,
   NowCareerMilestone,
@@ -112,6 +113,15 @@ export async function getTodayWorkspace(
     weeklyReviewCompleted: Boolean(weeklyReviewResult.data),
     dueDecisions: dueDecisionsResult.error ? [] : (dueDecisionsResult.data as Array<{id:string;title:string;review_at:string}>),
   });
+  const todayBrief = buildTodayBrief({
+    now,
+    timezone,
+    overdueTasks: tasks.overdue,
+    todayTasks: tasks.today,
+    todayEvents,
+    milestones,
+    inboxCount,
+  });
   await reconcileProactiveInsights(supabase, userId, attention, now).catch(() => undefined);
   const briefingResult=await supabase.from("briefings").select("id").eq("briefing_date",today).eq("status","completed").maybeSingle();let briefingEntries:Array<{id:string;title:string;url:string|null;section:string;reason:string|null}>=[];let briefingError=briefingResult.error;if(briefingResult.data){const result=await supabase.from("briefing_entries").select("id,section,relevance_reason,feed_items(title,url,canonical_url)").eq("briefing_id",briefingResult.data.id).in("section",["must_know","worth_reading"]).order("position").limit(2);briefingError=result.error;briefingEntries=(result.data??[]).flatMap((entry)=>{const item=Array.isArray(entry.feed_items)?entry.feed_items[0]:entry.feed_items;return item?[{id:entry.id,title:item.title,url:item.canonical_url||item.url,section:entry.section,reason:entry.relevance_reason}]:[];});}
   return {
@@ -135,6 +145,7 @@ export async function getTodayWorkspace(
       milestones,
       inboxCount,
     }),
+    todayBrief,
     attention,
     upcoming: [
       ...events

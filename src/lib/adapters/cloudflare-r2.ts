@@ -70,6 +70,25 @@ export async function deleteR2Object(key: string) {
   await client(config).send(new DeleteObjectCommand({ Bucket: config.bucketName, Key: key }));
 }
 
+/** Read a private object on the server with a hard limit before buffering it. */
+export async function readR2ObjectBytes(key: string, maxBytes: number) {
+  const config = requiredConfiguration();
+  const r2 = client(config);
+  const head = await r2.send(
+    new HeadObjectCommand({ Bucket: config.bucketName, Key: key }),
+  );
+  const size = Number(head.ContentLength ?? 0);
+  if (!Number.isSafeInteger(size) || size < 0 || size > maxBytes)
+    throw new Error("r2_object_too_large");
+  const result = await r2.send(
+    new GetObjectCommand({ Bucket: config.bucketName, Key: key }),
+  );
+  if (!result.Body) throw new Error("r2_object_empty");
+  const bytes = await result.Body.transformToByteArray();
+  if (bytes.byteLength > maxBytes) throw new Error("r2_object_too_large");
+  return bytes;
+}
+
 export function sanitizeR2Health(input: { configured: boolean; endpointValid: boolean; bucket: string | null; credentialsReachR2: boolean }): R2Health {
   return { ...input, status: !input.configured || !input.endpointValid ? "misconfigured" : input.credentialsReachR2 ? "ok" : "unreachable" };
 }

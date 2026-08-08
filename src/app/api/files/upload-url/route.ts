@@ -4,6 +4,7 @@ import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-ow
 import { createUploadUrl, deleteR2Object, isR2Configured, objectExists, r2BucketName } from "@/lib/adapters/cloudflare-r2";
 import { canUpload, canUploadNoteImage, completeUploadSchema, fileIdSchema, safeFilename, uploadRequestSchema } from "@/features/files/schemas";
 import { canAbortPendingUpload, stalePendingCutoff } from "@/features/files/upload-state";
+import { initialExtractionStatus } from "@/features/files/text-extraction";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store, max-age=0" };
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
     id: documentId, user_id: userId, title: filename, document_type: "other", original_filename: filename,
     storage_bucket: r2BucketName(), storage_path: key, storage_provider: "cloudflare_r2", storage_state: "pending",
     mime_type: parsed.data.contentType, file_size: parsed.data.size, folder_id: parsed.data.folderId ?? null,
+    text_extraction_status: initialExtractionStatus(filename, parsed.data.contentType, parsed.data.size),
   });
   if (error) return fail("文件记录未能创建。", 500);
   try {
@@ -66,7 +68,7 @@ export async function PATCH(request: Request) {
   try { raw = await request.json(); } catch { return fail("请求格式无效。"); }
   const parsed = completeUploadSchema.safeParse(raw); if (!parsed.success) return fail("文件标识无效。");
   const { supabase, userId } = owner;
-  const { data: document } = await supabase.from("documents").select("id,storage_path,file_size,mime_type").eq("id", parsed.data.documentId).eq("user_id", userId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending").maybeSingle();
+  const { data: document } = await supabase.from("documents").select("id,storage_path,file_size,mime_type,original_filename,text_extraction_status").eq("id", parsed.data.documentId).eq("user_id", userId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending").maybeSingle();
   if (!document) return fail("上传记录不存在。", 404);
   const object = await objectExists(document.storage_path);
   if (!object.exists || object.size !== Number(document.file_size)) return fail("文件尚未完整上传，请重试。", 409);
@@ -79,7 +81,7 @@ export async function PATCH(request: Request) {
   const { error } = await supabase.from("documents").update({ storage_state: "available", uploaded_at: new Date().toISOString() }).eq("id", document.id);
   if (error) return fail("文件未能确认。", 500);
   await audit(supabase, userId, "upload_completed", document.id, { size: document.file_size, content_type: document.mime_type, note_id: parsed.data.noteId ?? null });
-  return NextResponse.json({ ok: true }, { headers });
+  return NextResponse.json({ ok: true, extractionStatus: document.text_extraction_status }, { headers });
 }
 
 /** Best-effort cleanup after a browser-to-R2 failure. Available files are never eligible. */

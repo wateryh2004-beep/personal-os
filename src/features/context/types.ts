@@ -60,6 +60,11 @@ export type ContextCandidate = {
   reasons: string[];
   score: number;
   priority: number;
+  relevance?: number;
+  authority?: number;
+  stability?: number;
+  recency?: number;
+  finalScore?: number;
 };
 export type PersonalContextSource = Omit<
   ContextCandidate,

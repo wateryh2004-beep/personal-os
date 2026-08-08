@@ -62,6 +62,23 @@ export type NowUpcomingItem = {
   href: string;
   detail?: string;
 };
+export type TodayBriefItem = {
+  id: string;
+  title: string;
+  reason: string;
+  priority: number;
+  sourceRefs: Array<{
+    id: string;
+    domain: string;
+    title: string;
+    href: string;
+    updatedAt?: string | null;
+  }>;
+  suggestedAction?: {
+    label: string;
+    agentPrompt: string;
+  };
+};
 export type NowWorkspace = {
   timezone: string;
   calendar: {
@@ -78,6 +95,7 @@ export type NowWorkspace = {
   briefing: { entries: Array<{ id: string; title: string; url: string | null; section: string; reason: string | null }> };
   inboxCount: number;
   nextAction: NowNextAction;
+  todayBrief: TodayBriefItem[];
   attention: NowAttentionItem[];
   upcoming: NowUpcomingItem[];
   availability: {

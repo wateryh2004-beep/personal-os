@@ -6,6 +6,7 @@ import { getMemoriesForContext } from "@/features/memory/queries";
 import { getReviewsForContext } from "@/features/reviews/queries";
 import { addLocalDays, getDateKeyInTimeZone } from "@/features/reviews/periods";
 import { buildFallbackContextPlan } from "./planner";
+import { rankContextCandidates } from "./ranking";
 import type {
   ContextCandidate,
   PersonalContextPack,
@@ -76,6 +77,10 @@ export async function buildPersonalContext(
           domain: "notes",
           title: request.currentSurface.title || "当前内容",
           content: clip(request.currentSurface.content, limits.surface),
+          href:
+            request.currentEntity?.type === "note"
+              ? `/notes/${request.currentEntity.id}`
+              : null,
           origins: ["surface"],
           reasons: ["当前正在编辑的内容"],
           score: 1000,
@@ -380,12 +385,12 @@ export async function buildPersonalContext(
       graph = [];
     }
   }
-  const ranked = dedupe([
+  const ranked = rankContextCandidates(dedupe([
     ...surface,
     ...collected.flat(),
     ...search,
     ...graph,
-  ]).sort((a, b) => b.score - a.score);
+  ]), now);
   let used = 0;
   const selected = ranked
     .filter((item) => {

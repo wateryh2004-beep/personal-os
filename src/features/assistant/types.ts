@@ -25,20 +25,68 @@ export type AssistantRequest = {
       | "calendar_view"
       | "task_workspace"
       | "inbox_item"
-      | "career_entity";
+      | "career_entity"
+      | "global_page";
     title?: string | null;
     content?: string | null;
     metadata?: Record<string, unknown>;
   } | null;
   operation?: string | null;
   usePersonalContext?: boolean;
+  runId?: string | null;
+  currentPath?: string | null;
 };
 export type AssistantToolGroup =
+  | "search"
   | "calendar_read"
   | "calendar_proposal"
   | "todo_read"
   | "todo_proposal"
-  | "inbox_proposal";
+  | "inbox_proposal"
+  | "notes_read"
+  | "notes_proposal"
+  | "career_read"
+  | "career_proposal"
+  | "memory_read"
+  | "memory_proposal"
+  | "projects_read"
+  | "projects_proposal"
+  | "files_read";
+export type AssistantToolRisk = "read" | "proposal" | "execute";
+export type AgentRiskLevel = "read" | "low" | "medium" | "high";
+export type AgentRunStatus =
+  | "pending"
+  | "running"
+  | "awaiting_approval"
+  | "completed"
+  | "failed"
+  | "cancelled";
+export type AgentActionStatus =
+  | "proposed"
+  | "approved"
+  | "rejected"
+  | "executing"
+  | "succeeded"
+  | "failed"
+  | "conflict";
+export type AgentSource = {
+  id: string;
+  domain: string;
+  title: string;
+  href?: string | null;
+  updatedAt?: string | null;
+};
+export type AgentAction = {
+  id: string;
+  runId: string;
+  domain: "calendar" | "tasks" | "notes" | "career" | "memory" | "projects";
+  actionType: string;
+  status: AgentActionStatus;
+  preview: Record<string, unknown>;
+  riskLevel: Exclude<AgentRiskLevel, "read">;
+  errorCode?: string | null;
+  result?: Record<string, unknown>;
+};
 export type AssistantResult = {
   status: "success" | "error";
   text: string;

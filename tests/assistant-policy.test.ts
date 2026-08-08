@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveAssistantPolicy } from "@/features/assistant/policy";
 import { buildAssistantTools } from "@/features/assistant/tools";
 
-const request = (surface: "calendar" | "tasks" | "inbox") => ({
+const request = (surface: "calendar" | "tasks" | "inbox" | "global") => ({
   surface,
   mode: surface === "inbox" ? ("triage" as const) : ("chat" as const),
 });
@@ -21,6 +21,7 @@ describe("Unified Assistant policy", () => {
       policy: resolveAssistantPolicy(request("inbox")),
     });
     expect(Object.keys(calendar).sort()).toEqual([
+      "findFreeTime",
       "proposeCalendarDelete",
       "proposeCalendarEvent",
       "proposeCalendarUpdate",
@@ -28,6 +29,7 @@ describe("Unified Assistant policy", () => {
     ]);
     expect(Object.keys(tasks).sort()).toEqual([
       "listTodoLists",
+      "proposeTodoComplete",
       "proposeTodoTask",
       "searchTodoTasks",
     ]);
@@ -36,6 +38,17 @@ describe("Unified Assistant policy", () => {
       "proposeInboxDestination",
       "searchTodoTasks",
     ]);
+  });
+  it("gives the global surface read and proposal tools but no executor", () => {
+    const global = buildAssistantTools({
+      supabase: {} as never,
+      policy: resolveAssistantPolicy(request("global")),
+    });
+
+    expect(Object.keys(global)).toContain("searchPersonalOs");
+    expect(Object.keys(global)).toContain("findFreeTime");
+    expect(Object.keys(global)).toContain("proposeNoteUpdate");
+    expect(Object.keys(global)).not.toContain("executeAgentAction");
   });
   it("never grants personal context to note transforms or selection operations", () => {
     expect(

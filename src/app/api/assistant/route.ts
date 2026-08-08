@@ -9,6 +9,12 @@ import { createAssistantAgent } from "@/features/assistant/runtime";
 import { assistantSurfaces } from "@/features/assistant/types";
 import { normalizeAssistantError } from "@/features/assistant/errors";
 import {
+  assertOwnedRun,
+  createAgentRun,
+  persistAgentMessage,
+  updateAgentRun,
+} from "@/features/assistant/persistence";
+import {
   acquireCalendarRequestLock,
   releaseCalendarRequestLock,
 } from "@/lib/ai/calendar-request-lock";
@@ -16,17 +22,11 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 const noStore = { "Cache-Control": "private, no-store, max-age=0" };
 const schema = z.object({
-  surface: z
-    .enum(assistantSurfaces)
-    .refine(
-      (surface) =>
-        surface === "calendar" ||
-        surface === "tasks" ||
-        surface === "inbox" ||
-        surface === "career",
-    ),
+  surface: z.enum(assistantSurfaces),
   messages: z.array(z.unknown()).min(1).max(20),
   model: z.enum(deepSeekModelIds).optional(),
+  runId: z.string().uuid().nullable().optional(),
+  currentPath: z.string().max(1000).nullable().optional(),
   currentEntity: z
     .object({ type: z.string(), id: z.string().uuid() })
     .nullable()
@@ -41,6 +41,8 @@ const schema = z.object({
 });
 export async function POST(request: Request) {
   let lockId: string | null = null;
+  let runId: string | null = null;
+  let runUserId: string | null = null;
   let lockClient:
     | Awaited<ReturnType<typeof requireOwnerApi>>["supabase"]
     | null = null;
@@ -53,6 +55,30 @@ export async function POST(request: Request) {
         { error: "无效的助手请求。" },
         { status: 400, headers: noStore },
       );
+    runUserId = owner.userId;
+    if (parsed.data.surface === "global") {
+      runId = parsed.data.runId ?? await createAgentRun({
+        supabase: owner.supabase,
+        userId: owner.userId,
+        surface: "global",
+        userRequest: "",
+        currentPath: parsed.data.currentPath,
+        currentEntity: parsed.data.currentEntity ?? null,
+      });
+      await assertOwnedRun(owner.supabase, owner.userId, runId);
+      const latestUserMessage = [...parsed.data.messages]
+        .reverse()
+        .find((message) =>
+          Boolean(message && typeof message === "object" && "role" in message && message.role === "user"),
+        );
+      if (latestUserMessage)
+        await persistAgentMessage({
+          supabase: owner.supabase,
+          userId: owner.userId,
+          runId,
+          message: latestUserMessage as never,
+        });
+    }
     if (parsed.data.surface === "calendar") {
       lockId = await acquireCalendarRequestLock(owner.supabase);
       if (!lockId)
@@ -67,9 +93,11 @@ export async function POST(request: Request) {
       messages: parsed.data.messages as never,
       model: parsed.data.model,
       currentEntity: parsed.data.currentEntity as never,
+      runId,
+      currentPath: parsed.data.currentPath,
       currentSurface: parsed.data.surfaceContext
         ? {
-            type: parsed.data.surfaceContext.type as "calendar_view",
+            type: parsed.data.surfaceContext.type as "global_page",
             title: parsed.data.surfaceContext.title,
             content: parsed.data.surfaceContext.content,
           }
@@ -86,17 +114,49 @@ export async function POST(request: Request) {
         toolMs: 4_000,
       },
       onError: (error) => normalizeAssistantError(error).message,
-      onEnd: async () => {
+      onEnd: async ({ responseMessage, isAborted }) => {
+        if (runId) {
+          await persistAgentMessage({
+            supabase: owner.supabase,
+            userId: owner.userId,
+            runId,
+            message: responseMessage,
+          });
+          const { count } = await owner.supabase
+            .from("agent_actions")
+            .select("id", { count: "exact", head: true })
+            .eq("run_id", runId)
+            .eq("status", "proposed");
+          await updateAgentRun({
+            supabase: owner.supabase,
+            userId: owner.userId,
+            runId,
+            status: isAborted
+              ? "cancelled"
+              : (count ?? 0) > 0
+                ? "awaiting_approval"
+                : "completed",
+          });
+        }
         if (lockId) await releaseCalendarRequestLock(owner.supabase, lockId);
       },
     });
     response.headers.set("Cache-Control", noStore["Cache-Control"]);
+    if (runId) response.headers.set("X-Agent-Run-Id", runId);
     return response;
   } catch (error) {
     if (lockId && lockClient)
       await releaseCalendarRequestLock(lockClient, lockId);
     const auth = apiAuthenticationFailure(error);
     if (auth) return auth;
+    if (runId && runUserId && lockClient)
+      await updateAgentRun({
+        supabase: lockClient,
+        userId: runUserId,
+        runId,
+        status: "failed",
+        errorCode: normalizeAssistantError(error).code,
+      }).catch(() => undefined);
     return Response.json(
       { error: normalizeAssistantError(error).message },
       { status: 503, headers: noStore },

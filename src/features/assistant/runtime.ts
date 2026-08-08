@@ -6,6 +6,8 @@ import { formatPersonalContextForModel } from "@/features/context/formatter";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { BASE_ASSISTANT_SYSTEM_POLICY, resolveAssistantPolicy } from "./policy";
 import { buildAssistantTools } from "./tools";
+import { selectAssistantModel } from "./model-router";
+import { recordAgentStep, updateAgentRun } from "./persistence";
 import type { AssistantRequest, AssistantResult } from "./types";
 
 function latestText(request: AssistantRequest) {
@@ -41,6 +43,33 @@ async function setup(request: AssistantRequest) {
     .maybeSingle();
   const timezone = profile?.timezone || "Asia/Shanghai";
   const policy = resolveAssistantPolicy(request);
+  let currentSurface = request.currentSurface?.content
+    ? {
+        type:
+          request.currentSurface.type === "note_draft"
+            ? ("note_draft" as const)
+            : ("text" as const),
+        title: request.currentSurface.title,
+        content: request.currentSurface.content,
+      }
+    : null;
+  if (!currentSurface && request.currentEntity?.type === "note") {
+    const { data: note } = await supabase
+      .from("notes")
+      .select("title,body_markdown")
+      .eq("id", request.currentEntity.id)
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .is("archived_at", null)
+      .maybeSingle();
+    if (note) {
+      currentSurface = {
+        type: "note_draft",
+        title: note.title,
+        content: note.body_markdown.slice(0, 20_000),
+      };
+    }
+  }
   const context =
     policy.context === "personal"
       ? await buildPersonalContext({
@@ -50,20 +79,46 @@ async function setup(request: AssistantRequest) {
               ? "global"
               : request.surface,
           currentEntity: request.currentEntity,
-          currentSurface: request.currentSurface?.content
-            ? {
-                type:
-                  request.currentSurface.type === "note_draft"
-                    ? "note_draft"
-                    : "text",
-                title: request.currentSurface.title,
-                content: request.currentSurface.content,
-              }
-            : null,
+          currentSurface,
         })
       : null;
-  const resolved = await getDeepSeekModel(userId, request.model ?? undefined);
+  const selectedModel = selectAssistantModel({
+    surface: request.surface,
+    requestedModel: request.model,
+    message: latestText(request),
+    intent: context?.request.intent,
+  });
+  const resolved = await getDeepSeekModel(userId, selectedModel);
   const system = `${BASE_ASSISTANT_SYSTEM_POLICY}\n\n${policy.instruction}\n\n当前时间：${nowInZone(timezone)}；时区：${timezone}。${context ? `\n\n${formatPersonalContextForModel(context)}` : ""}`;
+  if (request.runId) {
+    await updateAgentRun({
+      supabase,
+      userId,
+      runId: request.runId,
+      status: "running",
+      model: resolved.modelId,
+    });
+    await recordAgentStep({
+      supabase,
+      userId,
+      runId: request.runId,
+      stepType: "context",
+      title: "已准备个人上下文",
+      summary: context
+        ? `选择 ${context.sources.length} 个来源；意图 ${context.request.intent}`
+        : "本次请求不需要 Personal Context",
+      output: {
+        sourceCount: context?.sources.length ?? 0,
+        sources:
+          context?.sources.map(({ id, domain, title, href }) => ({
+            id,
+            domain,
+            title,
+            href,
+          })) ?? [],
+      },
+    });
+  }
   return {
     supabase,
     userId,
@@ -88,8 +143,10 @@ export async function createAssistantAgent(request: AssistantRequest) {
       instructions: runtime.system,
       tools: buildAssistantTools({
         supabase: runtime.supabase,
+        userId: runtime.userId,
         policy: runtime.policy,
         timezone: runtime.timezone,
+        runId: request.runId,
       }),
     }),
   };

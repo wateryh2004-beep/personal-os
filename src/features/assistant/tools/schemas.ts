@@ -1,0 +1,170 @@
+import { z } from "zod";
+import {
+  createCalendarEventSchema,
+  deleteCalendarEventSchema,
+  updateCalendarEventSchema,
+} from "@/features/calendar/schemas";
+import { todoProposalSchema } from "@/features/tasks/schemas";
+
+export const agentActionDomainSchema = z.enum([
+  "calendar",
+  "tasks",
+  "notes",
+  "career",
+  "memory",
+  "projects",
+]);
+export const agentRiskSchema = z.enum(["low", "medium", "high"]);
+
+export const noteCreateProposalSchema = z.object({
+  title: z.string().trim().min(1).max(240),
+  bodyMarkdown: z.string().max(200_000),
+  folderId: z.string().uuid().nullable().default(null),
+  summaryOfChanges: z.string().trim().min(1).max(500),
+});
+
+export const noteUpdateProposalSchema = z.object({
+  noteId: z.string().uuid(),
+  expectedRevision: z.number().int().min(0),
+  currentTitle: z.string().max(240),
+  currentBodyHash: z.string().min(1).max(128),
+  newTitle: z.string().trim().min(1).max(240).optional(),
+  suggestedBody: z.string().max(200_000),
+  summaryOfChanges: z.string().trim().min(1).max(1000),
+});
+
+export const todoCompleteProposalSchema = z.object({
+  taskId: z.string().uuid(),
+  title: z.string().trim().min(1).max(500),
+  expectedStatus: z.string().trim().min(1).max(80),
+});
+
+const optionalIso = z.string().datetime({ offset: true }).nullable().default(null);
+const optionalDate = z.string().date().nullable().default(null);
+
+export const careerMilestoneProposalSchema = z
+  .object({
+    trackId: z.string().uuid(),
+    careerDirectionId: z.string().uuid().nullable().default(null),
+    title: z.string().trim().min(1).max(240),
+    description: z.string().trim().max(4_000).nullable().default(null),
+    startsOn: optionalDate,
+    targetDate: z.string().date(),
+    status: z.enum(["planned", "in_progress"]).default("planned"),
+    importance: z.enum(["low", "normal", "high"]).default("normal"),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .refine((value) => !value.startsOn || value.startsOn <= value.targetDate, {
+    path: ["startsOn"],
+    message: "开始日期不能晚于目标日期",
+  });
+
+export const careerFactProposalSchema = z.object({
+  experienceId: z.string().uuid(),
+  factType: z.enum([
+    "responsibility",
+    "action",
+    "tool",
+    "scale",
+    "metric",
+    "collaboration",
+    "process",
+    "result",
+    "context",
+    "other",
+  ]),
+  content: z.string().trim().min(1).max(10_000),
+  metricValue: z.number().finite().nullable().default(null),
+  metricUnit: z.string().trim().max(80).nullable().default(null),
+  occurredAt: optionalDate,
+  sourceDocumentId: z.string().uuid().nullable().default(null),
+  notesMarkdown: z.string().max(12_000).nullable().default(null),
+  reason: z.string().trim().min(1).max(500),
+});
+
+const memoryBase = z.object({
+  title: z.string().trim().min(1).max(200),
+  content: z.string().trim().min(1).max(10_000),
+  reason: z.string().trim().min(1).max(500),
+  aiVisibility: z.enum(["normal", "sensitive", "never"]).default("normal"),
+});
+
+export const memoryCreateProposalSchema = z.discriminatedUnion("type", [
+  memoryBase.extend({
+    type: z.literal("profile"),
+    validUntil: z.null().default(null),
+    reviewAt: optionalIso,
+  }),
+  memoryBase.extend({
+    type: z.literal("working"),
+    validUntil: optionalIso,
+    reviewAt: optionalIso,
+  }).refine((value) => Boolean(value.validUntil || value.reviewAt), {
+    message: "Working Memory 必须设置有效期或复核时间",
+  }),
+  memoryBase.extend({
+    type: z.literal("decision"),
+    rationaleMarkdown: z.string().max(20_000).default(""),
+    importance: z.enum(["low", "normal", "high"]).default("normal"),
+    decidedAt: z.string().datetime({ offset: true }).optional(),
+    reviewAt: optionalIso,
+  }),
+]);
+
+export const memoryUpdateProposalSchema = z
+  .object({
+    memoryId: z.string().uuid(),
+    expectedUpdatedAt: z.string().datetime({ offset: true }),
+    memoryType: z.enum(["profile", "working"]),
+    title: z.string().trim().min(1).max(160),
+    content: z.string().trim().min(1).max(10_000),
+    reason: z.string().trim().min(1).max(500),
+    aiVisibility: z.enum(["normal", "sensitive", "never"]).default("normal"),
+    validUntil: optionalIso,
+    reviewAt: optionalIso,
+  })
+  .refine(
+    (value) =>
+      value.memoryType !== "working" || Boolean(value.validUntil || value.reviewAt),
+    { message: "Working Memory 必须设置有效期或复核时间" },
+  );
+
+export const projectCreateProposalSchema = z
+  .object({
+    name: z.string().trim().min(1).max(180),
+    description: z.string().trim().max(10_000).nullable().default(null),
+    areaId: z.string().uuid().nullable().default(null),
+    startDate: optionalDate,
+    dueDate: optionalDate,
+    reason: z.string().trim().min(1).max(500),
+  })
+  .refine(
+    (value) => !value.startDate || !value.dueDate || value.startDate <= value.dueDate,
+    { path: ["dueDate"], message: "项目截止日期不能早于开始日期" },
+  );
+
+export const agentActionPayloadSchemas = {
+  "calendar.create": createCalendarEventSchema,
+  "calendar.update": updateCalendarEventSchema,
+  "calendar.delete": deleteCalendarEventSchema,
+  "tasks.create": todoProposalSchema,
+  "tasks.complete": todoCompleteProposalSchema,
+  "notes.create": noteCreateProposalSchema,
+  "notes.update": noteUpdateProposalSchema,
+  "career.milestone.create": careerMilestoneProposalSchema,
+  "career.fact.create": careerFactProposalSchema,
+  "memory.create": memoryCreateProposalSchema,
+  "memory.update": memoryUpdateProposalSchema,
+  "projects.create": projectCreateProposalSchema,
+} as const;
+
+export type AgentActionType = keyof typeof agentActionPayloadSchemas;
+
+export function parseAgentActionPayload(actionType: string, payload: unknown) {
+  const schema = agentActionPayloadSchemas[actionType as AgentActionType];
+  if (!schema) return { success: false as const, error: "unsupported_action" };
+  const parsed = schema.safeParse(payload);
+  return parsed.success
+    ? { success: true as const, data: parsed.data }
+    : { success: false as const, error: "invalid_payload" };
+}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, Settings, SquareKanban } from "lucide-react";
+import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, Settings, Sparkles, SquareKanban } from "lucide-react";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { createNote } from "@/features/notes/actions";
 import type { GlobalSearchResult } from "@/features/search/types";
@@ -31,6 +31,11 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
   }, [query]);
   const go = (href: string) => { onOpenChange(false); router.push(href); };
   const newNote = () => { onOpenChange(false); startTransition(() => createNote()); };
+  const askAgent = (value: string) => {
+    onOpenChange(false);
+    window.dispatchEvent(new CustomEvent("personal-os:agent-open"));
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent("personal-os:agent-submit", { detail: { query: value } })), 0);
+  };
   const groups = Object.entries(Object.groupBy(results, (result) => domainLabels[result.domain] ?? result.domain));
   const showQuick = !query && initialSection === "quick";
 
@@ -41,6 +46,7 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
         {query && loading ? <p role="status" aria-live="polite" className="px-4 py-8 text-center text-sm text-[var(--text-tertiary)]">正在搜索…</p> : null}
         {query && !loading && !results.length ? <CommandEmpty>没有找到相关内容。尝试更短或不同的关键词。</CommandEmpty> : null}
         {!query ? <CommandGroup heading="Quick Actions">
+          <CommandItem onSelect={() => askAgent("我现在最需要关注什么？")}><Sparkles aria-hidden="true" />Ask Personal OS<CommandShortcut>⌘ J</CommandShortcut></CommandItem>
           <CommandItem onSelect={newNote}><FilePlus2 aria-hidden="true" />新建笔记<CommandShortcut>直接进入编辑器</CommandShortcut></CommandItem>
           <CommandItem onSelect={() => go("/tasks?create=1")}><CheckSquare2 aria-hidden="true" />新建任务<CommandShortcut>Microsoft To Do</CommandShortcut></CommandItem>
           <CommandItem onSelect={() => go("/calendar?create=1")}><CalendarPlus aria-hidden="true" />新建日程<CommandShortcut>Outlook</CommandShortcut></CommandItem>
@@ -51,6 +57,7 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
         </CommandGroup> : null}
         {!query && recents.length ? <><CommandSeparator /><CommandGroup heading="Recent">{recents.slice(0, 6).map((item) => <CommandItem key={item.href} onSelect={() => go(item.href)}><FileText aria-hidden="true" /><span className="min-w-0 truncate">{item.label}</span><CommandShortcut>{item.href}</CommandShortcut></CommandItem>)}</CommandGroup></> : null}
         {!query && !showQuick ? <><CommandSeparator /><CommandGroup heading="Navigation">{navigation.map(([label, href]) => <CommandItem key={href} onSelect={() => go(href)}>{href === "/settings" ? <Settings aria-hidden="true" /> : <LayoutDashboard aria-hidden="true" />}{label}<CommandShortcut>{href}</CommandShortcut></CommandItem>)}</CommandGroup></> : null}
+        {query && !loading ? <CommandGroup heading="Ask"><CommandItem value={`ask ${query}`} onSelect={() => askAgent(query)}><Sparkles aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">Ask Personal OS</p><p className="mt-0.5 truncate text-xs text-[var(--text-tertiary)]">“{query}”</p></div><CommandShortcut>AI</CommandShortcut></CommandItem></CommandGroup> : null}
         {query && !loading ? groups.map(([label, items]) => <CommandGroup key={label} heading={label}>{(items ?? []).map((result) => <CommandItem key={result.id} value={`${result.domain} ${result.title} ${result.subtitle ?? ""} ${result.snippet ?? ""}`} onSelect={() => go(result.href)}><FileText aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{result.title}</p>{result.subtitle || result.snippet ? <p className="mt-0.5 line-clamp-2 text-xs text-[var(--text-tertiary)]">{result.subtitle ?? result.snippet}</p> : null}</div><CommandShortcut>{label}</CommandShortcut></CommandItem>)}</CommandGroup>) : null}
       </CommandList>
     </Command>
