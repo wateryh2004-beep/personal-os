@@ -17,6 +17,7 @@ import {
 } from "@/components/career/form-controls";
 import { CareerNav } from "@/components/career/career-nav";
 import { RelatedPanel } from "@/components/career/related-panel";
+import { CareerAssistant } from "@/components/career/career-assistant";
 import { getExperienceGraph } from "@/features/graph/queries";
 export default async function ExperiencePage({
   params,
@@ -27,7 +28,10 @@ export default async function ExperiencePage({
   const data = await getExperience(experienceId);
   if (!data) notFound();
   const e = data.experience;
-  const graph = await getExperienceGraph(e.id, [e.organization, e.role].filter(Boolean).join(" "));
+  const graph = await getExperienceGraph(
+    e.id,
+    [e.organization, e.role].filter(Boolean).join(" "),
+  );
   return (
     <>
       <CareerNav current="/career/experiences" />
@@ -69,7 +73,12 @@ export default async function ExperiencePage({
             </div>
           </div>
         </section>
-        <RelatedPanel experienceId={e.id} related={graph.related} suggestions={graph.suggestions} />
+        <RelatedPanel
+          experienceId={e.id}
+          related={graph.related}
+          suggestions={graph.suggestions}
+        />
+        <CareerAssistant experienceId={e.id} />
         <section className="border-t pt-8">
           <h2 className="font-medium">Facts</h2>
           <p className="mt-1 text-sm text-zinc-500">
