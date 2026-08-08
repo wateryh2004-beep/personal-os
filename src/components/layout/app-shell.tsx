@@ -11,7 +11,7 @@ import { lastOpenedNoteSessionKey, recentNoteHref } from "@/features/notes/navig
 import { clearWorkspaceSessions, loadWorkspaceSession } from "@/lib/workspace-session";
 
 const groups: Array<[string, Array<[string, string]>]> = [
-  ["总览", [["Today", "/today"], ["Inbox", "/inbox"]]],
+  ["总览", [["Now", "/today"], ["Inbox", "/inbox"]]],
   ["规划", [["Calendar", "/calendar"], ["Tasks", "/tasks"], ["Projects", "/projects"]]],
   ["知识", [["Notes", "/notes"], ["Files", "/files"], ["Photos", "/photos"]]],
   ["领域", [["Career", "/career"], ["Investing", "/investing"]]],
