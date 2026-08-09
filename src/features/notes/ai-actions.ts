@@ -77,10 +77,18 @@ export async function generateNoteAiSuggestion(
         content: parsed.data.content,
       },
     });
+    const suggestion = result.text.trim();
+    if (!suggestion) {
+      return {
+        status: "error",
+        message: "AI 没有返回可预览的内容，请重新生成。笔记尚未发生修改。",
+        suggestion: "",
+      };
+    }
     return {
       status: "success",
-      message: "预览已生成。请使用底部固定确认区决定是否写入笔记。",
-      suggestion: result.text,
+      message: "预览已生成。确认操作已显示在抽屉底部。",
+      suggestion,
       operation: parsed.data.operation,
       scope: parsed.data.scope,
       contextSources: result.contextSources,

@@ -1,5 +1,5 @@
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
-import type { AssistantSurface } from "./types";
+import type { AssistantMode, AssistantSurface } from "./types";
 import type { CognitiveRoute } from "./cognitive-router";
 
 export type AssistantComplexity = "simple" | "moderate" | "complex";
@@ -64,4 +64,20 @@ export function selectReasoningProviderOptions(route?: CognitiveRoute | null) {
       reasoningEffort: strongest ? ("max" as const) : ("high" as const),
     },
   };
+}
+
+export function selectReasoningProviderOptionsForRequest(input: {
+  surface: AssistantSurface;
+  mode: AssistantMode;
+  operation?: string | null;
+  route?: CognitiveRoute | null;
+}) {
+  const isDirectNoteTransform =
+    input.surface === "notes" &&
+    input.mode === "transform" &&
+    input.operation !== "deepThinkNote";
+
+  return selectReasoningProviderOptions(
+    isDirectNoteTransform ? null : input.route,
+  );
 }

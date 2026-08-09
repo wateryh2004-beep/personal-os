@@ -7,7 +7,10 @@ import { requireOwner } from "@/lib/auth/require-owner";
 import { BASE_ASSISTANT_SYSTEM_POLICY, resolveAssistantPolicy } from "./policy";
 import { buildAssistantTools } from "./tools";
 import { selectAssistantToolGroups } from "./tool-router";
-import { selectAssistantModel, selectReasoningProviderOptions } from "./model-router";
+import {
+  selectAssistantModel,
+  selectReasoningProviderOptionsForRequest,
+} from "./model-router";
 import { recordAgentStep, updateAgentRun } from "./persistence";
 import { routeCognitiveTask } from "./cognitive-router";
 import { formatCognitiveRecipeForModel, getCognitiveRecipe } from "./recipes/registry";
@@ -175,7 +178,12 @@ export async function createAssistantAgent(request: AssistantRequest) {
       model: runtime.model,
       stopWhen: isStepCount(runtime.policy.maxSteps),
       maxOutputTokens: runtime.policy.maxOutputTokens,
-      providerOptions: selectReasoningProviderOptions(runtime.cognitiveRoute),
+      providerOptions: selectReasoningProviderOptionsForRequest({
+        surface: request.surface,
+        mode: request.mode,
+        operation: request.operation,
+        route: runtime.cognitiveRoute,
+      }),
       instructions: runtime.system,
       tools: buildAssistantTools({
         supabase: runtime.supabase,
@@ -194,7 +202,12 @@ export async function runAssistant(
   const { text } = await generateText({
     model: runtime.model,
     maxOutputTokens: runtime.policy.maxOutputTokens,
-    providerOptions: selectReasoningProviderOptions(runtime.cognitiveRoute),
+    providerOptions: selectReasoningProviderOptionsForRequest({
+      surface: request.surface,
+      mode: request.mode,
+      operation: request.operation,
+      route: runtime.cognitiveRoute,
+    }),
     system: runtime.system,
     prompt: `${request.instruction || "请处理当前内容。"}${runtime.context ? "\n\n当前内容已经作为上下文来源提供。" : request.currentSurface?.content ? `\n\n当前内容：\n---\n${request.currentSurface.content}\n---` : ""}`,
   });

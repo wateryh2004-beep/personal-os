@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   estimateAssistantComplexity,
   selectAssistantModel,
+  selectReasoningProviderOptionsForRequest,
 } from "@/features/assistant/model-router";
 
 describe("Assistant model routing", () => {
@@ -28,5 +29,36 @@ describe("Assistant model routing", () => {
     expect(estimateAssistantComplexity({ surface: "career", message: "一句话" })).toBe(
       "complex",
     );
+  });
+
+  it("disables reasoning for direct note rewrites so the visible result is not starved", () => {
+    const route = {
+      recipe: "current_document" as const,
+      complexity: "moderate" as const,
+      requiresReasoning: false,
+      preferredDomains: ["notes"],
+      capabilities: ["current_document" as const],
+      queryConcepts: [],
+      timeWindow: { days: 0, expandedDays: 0, minimumRecentNotes: 0 },
+      confidence: 1,
+      signals: [],
+    };
+
+    expect(
+      selectReasoningProviderOptionsForRequest({
+        surface: "notes",
+        mode: "transform",
+        operation: "polishSelection",
+        route,
+      }),
+    ).toEqual({ deepseek: { thinking: { type: "disabled" } } });
+    expect(
+      selectReasoningProviderOptionsForRequest({
+        surface: "notes",
+        mode: "transform",
+        operation: "deepThinkNote",
+        route,
+      }),
+    ).toMatchObject({ deepseek: { thinking: { type: "enabled" } } });
   });
 });

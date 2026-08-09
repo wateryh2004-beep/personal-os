@@ -20,7 +20,13 @@ describe("Notes AI confirmation UI", () => {
   });
 
   it("directs users to the visible fixed confirmation area", () => {
-    expect(action).toContain("底部固定确认区");
+    expect(action).toContain("确认操作已显示在抽屉底部");
     expect(action).not.toContain("下方的确认按钮");
+  });
+
+  it("never reports an empty model response as a generated preview", () => {
+    expect(action).toContain("const suggestion = result.text.trim()");
+    expect(action).toContain("AI 没有返回可预览的内容");
+    expect(action).toContain("suggestion,");
   });
 });
