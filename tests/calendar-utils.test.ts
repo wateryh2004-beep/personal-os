@@ -13,7 +13,7 @@ describe("calendar operation payloads", () => {
   };
 
   it("accepts a valid, UTC-normalized create request", () => {
-    expect(createCalendarEventSchema.parse(event)).toEqual(event);
+    expect(createCalendarEventSchema.parse(event)).toMatchObject({ ...event, importance: "normal", showAs: "busy", classificationMode: "auto" });
     expect(createCalendarEventSchema.parse({ ...event, description: "" }).description).toBeNull();
   });
 
@@ -28,13 +28,17 @@ describe("calendar operation payloads", () => {
   });
 
   it("keeps the queued payload minimal and converts it to Graph's event shape", () => {
-    expect(calendarPayload(event)).toEqual(event);
-    expect(eventForGraph(event)).toEqual({
+    const parsed = createCalendarEventSchema.parse(event);
+    expect(calendarPayload(parsed)).toMatchObject({ ...event, categories: [], importance: "normal", showAs: "busy" });
+    expect(eventForGraph(parsed)).toEqual({
       subject: "专注写作",
       body: { contentType: "text", content: "完成第一稿，并整理待确认的问题。" },
       start: { dateTime: event.startsAt, timeZone: "UTC" },
       end: { dateTime: event.endsAt, timeZone: "UTC" },
       isAllDay: false,
+      categories: [],
+      importance: "normal",
+      showAs: "busy",
       location: { displayName: "书房" },
     });
   });

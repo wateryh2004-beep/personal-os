@@ -17,6 +17,9 @@ import {
   loadWorkspaceSession,
   saveWorkspaceSession,
 } from "@/lib/workspace-session";
+import { contextCategoryKeys, getManagedCalendarCategory, primaryCalendarCategories, type ContextCategoryKey, type PrimaryCategoryKey } from "@/features/calendar/classification/taxonomy";
+import type { CalendarCategory } from "@/features/calendar/categories/types";
+import { resolveCalendarEventVisual } from "@/features/calendar/categories/visual";
 
 type AssistantModel = "deepseek-v4-flash" | "deepseek-v4-pro";
 type CalendarProposal = {
@@ -27,6 +30,12 @@ type CalendarProposal = {
     endsAt: string;
     isAllDay: boolean;
     locationName: string | null;
+    importance: "low" | "normal" | "high";
+    showAs: "free" | "tentative" | "busy" | "oof" | "workingElsewhere";
+    primaryCategoryKey: PrimaryCategoryKey | null;
+    contextCategoryKeys: ContextCategoryKey[];
+    classificationConfidence: number | null;
+    classificationReason: string | null;
   };
 };
 type CalendarDeleteProposal = {
@@ -79,18 +88,22 @@ function calendarAiErrorMessage(error: Error) {
 function CalendarProposalForm({
   event,
   timezone,
+  categories,
 }: {
   event: CalendarProposal["proposal"];
   timezone: string;
+  categories: CalendarCategory[];
 }) {
   const [state, formAction, pending] = useActionState(
     createCalendarEvent,
     initialCalendarCreateState,
   );
+  const primary = event.primaryCategoryKey ? getManagedCalendarCategory(event.primaryCategoryKey) : null;
+  const visual = resolveCalendarEventVisual(primary ? [primary.displayName] : [], categories);
   return (
     <form
       action={formAction}
-      className="mt-2 border border-[#365F78] bg-[#EDF3F6] p-3 text-left text-sm"
+      className="mt-2 rounded-md border bg-white p-3 text-left text-sm"
     >
       <p className="font-medium">{event.subject}</p>
       {event.description ? (
@@ -101,6 +114,11 @@ function CalendarProposalForm({
       <p className="mt-2 text-zinc-600">
         {eventTime(event, timezone)} · {timezone}
       </p>
+      <p className="mt-2 flex items-center gap-1.5 text-xs text-zinc-700"><span className="size-2 rounded-full" style={{ background: visual.dot }}/>{primary?.shortName ?? "分类待确认"}</p>
+      {event.contextCategoryKeys.length ? <p className="mt-1 text-[10px] text-zinc-500">场景：{event.contextCategoryKeys.map((key) => getManagedCalendarCategory(key)?.shortName).filter(Boolean).join(" · ")}</p> : null}
+      <label className="mt-3 grid gap-1 text-xs text-zinc-600">建议分类<select name="category_choice" defaultValue={event.primaryCategoryKey ?? "__auto"} className="h-8 rounded-md border bg-white px-2 text-xs"><option value="__auto">自动判断</option><option value="__none">不设置分类</option>{primaryCalendarCategories.map((category) => <option key={category.key} value={category.key}>{category.shortName}</option>)}</select></label>
+      {event.classificationReason ? <p className="mt-1 text-[10px] text-zinc-500">{event.classificationReason}{event.classificationConfidence !== null ? ` · 置信度 ${Math.round(event.classificationConfidence * 100)}%` : ""}</p> : null}
+      <div className="mt-2 flex flex-wrap gap-2">{contextCategoryKeys.map((key) => { const category = getManagedCalendarCategory(key)!; return <label key={key} className="flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" name="context_category_keys" value={key} defaultChecked={event.contextCategoryKeys.includes(key)} />{category.shortName}</label>; })}</div>
       <input type="hidden" name="subject" value={event.subject} />
       <input type="hidden" name="description" value={event.description ?? ""} />
       <input type="hidden" name="starts_at" value={event.startsAt} />
@@ -115,6 +133,8 @@ function CalendarProposalForm({
         name="is_all_day"
         value={event.isAllDay ? "on" : ""}
       />
+      <input type="hidden" name="importance" value={event.importance} />
+      <input type="hidden" name="show_as" value={event.showAs} />
       <button
         disabled={pending || state.status === "success"}
         className="mt-3 bg-[#365F78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
@@ -187,13 +207,13 @@ function CalendarUpdateProposalForm({ event, timezone }: { event: CalendarUpdate
     <p className="mt-1 text-xs text-zinc-500">原时间：{eventTime({ startsAt: event.originalStartsAt, endsAt: event.originalEndsAt }, timezone)}</p>
     <p className="mt-1 text-zinc-700">新时间：{eventTime(event, timezone)} · {timezone}</p>
     {event.locationName ? <p className="mt-1 text-xs text-zinc-500">{event.locationName}</p> : null}
-    <input type="hidden" name="provider_event_id" value={event.providerEventId}/><input type="hidden" name="original_subject" value={event.originalSubject}/><input type="hidden" name="original_starts_at" value={event.originalStartsAt}/><input type="hidden" name="original_ends_at" value={event.originalEndsAt}/><input type="hidden" name="subject" value={event.subject}/><input type="hidden" name="description" value={event.description ?? ""}/><input type="hidden" name="starts_at" value={event.startsAt}/><input type="hidden" name="ends_at" value={event.endsAt}/><input type="hidden" name="location_name" value={event.locationName ?? ""}/><input type="hidden" name="is_all_day" value={event.isAllDay ? "on" : ""}/>
+    <input type="hidden" name="provider_event_id" value={event.providerEventId}/><input type="hidden" name="original_subject" value={event.originalSubject}/><input type="hidden" name="original_starts_at" value={event.originalStartsAt}/><input type="hidden" name="original_ends_at" value={event.originalEndsAt}/><input type="hidden" name="subject" value={event.subject}/>{event.description !== undefined ? <input type="hidden" name="description" value={event.description ?? ""}/> : null}<input type="hidden" name="starts_at" value={event.startsAt}/><input type="hidden" name="ends_at" value={event.endsAt}/>{event.locationName !== undefined ? <input type="hidden" name="location_name" value={event.locationName ?? ""}/> : null}{event.isAllDay !== undefined ? <><input type="hidden" name="is_all_day_present" value="true"/><input type="hidden" name="is_all_day" value={event.isAllDay ? "on" : ""}/></> : null}<input type="hidden" name="preserve_categories" value="true"/>{event.importance ? <input type="hidden" name="importance" value={event.importance}/> : null}{event.showAs ? <input type="hidden" name="show_as" value={event.showAs}/> : null}
     <button disabled={pending || state.status === "success"} className="mt-3 bg-[#365F78] px-3 py-1.5 text-xs text-white disabled:opacity-60">{pending ? "正在更新…" : state.status === "success" ? "已更新" : "确认修改日程"}</button>
     {state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}>{state.message}</p> : null}
   </form>;
 }
 
-export function CalendarAssistant({ timezone }: { timezone: string }) {
+export function CalendarAssistant({ timezone, categories }: { timezone: string; categories: CalendarCategory[] }) {
   const [input, setInput] = useState("");
   const [model, setModel] = useState<AssistantModel>("deepseek-v4-flash");
   const [stoppedMessage, setStoppedMessage] = useState<string | null>(null);
@@ -327,6 +347,7 @@ export function CalendarAssistant({ timezone }: { timezone: string }) {
                     key={part.toolCallId}
                     event={(part.output as CalendarProposal).proposal}
                     timezone={timezone}
+                    categories={categories}
                   />
                 );
               if (

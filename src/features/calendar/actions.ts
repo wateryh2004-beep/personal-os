@@ -2,24 +2,37 @@
 
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { executeCalendarOperation } from "@/lib/adapters/microsoft-graph/calendar";
+import { accessTokenForConnection, ensureManagedOutlookCategories, executeCalendarOperation, syncOutlookMasterCategories, updateOutlookMasterCategoryColor } from "@/lib/adapters/microsoft-graph/calendar";
+import type { OutlookCategoryColor } from "./classification/taxonomy";
 import { syncAndBackupMicrosoftWorkspace } from "@/lib/services/microsoft-sync-backup";
 import { cancelOperationSchema, confirmOperationSchema, createCalendarEventSchema, deleteCalendarEventSchema, updateCalendarEventSchema } from "./schemas";
-import { calendarPayload } from "./utils";
+import { calendarPayload, calendarUpdatePayload } from "./utils";
 import { markInboxProcessed } from "@/features/inbox/service";
 import { z } from "zod";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type CalendarCreateState = { status: "idle" | "success" | "error"; message: string };
 
 function fail(): never { throw new Error("日历操作未能完成，请检查输入、连接状态或网络后重试。"); }
 function formValue(formData: FormData) {
+  const categoryChoice = String(formData.get("category_choice") || "");
+  const explicitMode = String(formData.get("classification_mode") || "");
+  const classificationMode = explicitMode || (categoryChoice === "__none" ? "none" : categoryChoice && categoryChoice !== "__auto" ? "manual" : "auto");
+  const primaryCategoryKey = String(formData.get("primary_category_key") || (categoryChoice.startsWith("__") ? "" : categoryChoice)) || null;
   return {
     subject: String(formData.get("subject") || ""),
-    description: String(formData.get("description") || ""),
+    description: formData.has("description") ? String(formData.get("description") || "") : undefined,
     startsAt: String(formData.get("starts_at") || ""),
     endsAt: String(formData.get("ends_at") || ""),
-    locationName: String(formData.get("location_name") || ""),
-    isAllDay: formData.get("is_all_day") === "on",
+    locationName: formData.has("location_name") ? String(formData.get("location_name") || "") : undefined,
+    isAllDay: formData.has("is_all_day_present") ? formData.get("is_all_day") === "on" : formData.get("is_all_day") === "on" ? true : undefined,
+    classificationMode,
+    primaryCategoryKey,
+    contextCategoryKeys: formData.getAll("context_category_keys").map(String),
+    classificationConfidence: null,
+    classificationReason: null,
+    importance: formData.has("importance") ? String(formData.get("importance")) : undefined,
+    showAs: formData.has("show_as") ? String(formData.get("show_as")) : undefined,
     inboxId: String(formData.get("inbox_id") || "") || undefined,
   };
 }
@@ -39,6 +52,7 @@ function updateFormValue(formData: FormData) {
     originalSubject: String(formData.get("original_subject") || ""),
     originalStartsAt: String(formData.get("original_starts_at") || ""),
     originalEndsAt: String(formData.get("original_ends_at") || ""),
+    preserveCategories: formData.get("preserve_categories") !== "false",
   };
 }
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, entityId: string, afterData: Record<string, unknown>) {
@@ -46,9 +60,15 @@ async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabas
   if (error) fail();
 }
 async function connection(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"]) {
-  const { data, error } = await supabase.from("calendar_connections").select("id,status").is("archived_at", null).maybeSingle();
+  const { data, error } = await supabase.from("calendar_connections").select("id,status,oauth_scope_version").is("archived_at", null).maybeSingle();
   if (error || !data || data.status !== "enabled") fail();
   return data;
+}
+
+async function classificationOptions(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], scopeReady: boolean) {
+  if (!scopeReady) return { enabled: false as const };
+  const { data, error } = await supabase.from("calendar_categories").select("managed_key,keywords,ai_enabled").not("managed_key", "is", null).is("archived_at", null);
+  return error ? { enabled: true as const } : { enabled: true as const, rules: data ?? [] };
 }
 
 export async function createCalendarEvent(_previousState: CalendarCreateState, formData: FormData): Promise<CalendarCreateState> {
@@ -59,13 +79,14 @@ export async function createCalendarEvent(_previousState: CalendarCreateState, f
     if (!parsed.success) return { status: "error", message: "请检查日程标题和开始、结束时间。" };
     const inboxId = z.string().uuid().optional().safeParse(form.inboxId).data;
     const activeConnection = await connection(supabase);
+    const categoryOptions = await classificationOptions(supabase, (activeConnection.oauth_scope_version ?? 1) >= 2);
     const { data: profile } = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
     const { data: requested, error: requestError } = await supabase.from("calendar_operations").insert({
       user_id: userId,
       connection_id: activeConnection.id,
       operation_type: "create",
       status: "pending_confirmation",
-      payload: { ...calendarPayload(parsed.data), timeZone: profile?.timezone || "Asia/Shanghai" },
+      payload: { ...calendarPayload(parsed.data, categoryOptions), timeZone: profile?.timezone || "Asia/Shanghai" },
     }).select("id").single();
     if (requestError || !requested) fail();
     await audit(supabase, userId, "request", requested.id, { operation_type: "create", subject: parsed.data.subject, has_description: Boolean(parsed.data.description), starts_at: parsed.data.startsAt, ends_at: parsed.data.endsAt });
@@ -94,7 +115,7 @@ export async function updateCalendarEvent(_previousState: CalendarCreateState, f
     if (!parsed.success) return { status: "error", message: "请检查标题以及开始、结束时间。" };
     const value = parsed.data;
     const { data: existing, error: existingError } = await supabase.from("calendar_events")
-      .select("provider_event_id,subject,starts_at,ends_at")
+      .select("provider_event_id,subject,body_text,starts_at,ends_at,is_all_day,location_name,categories,importance,show_as")
       .eq("provider_event_id", value.providerEventId)
       .eq("subject", value.originalSubject)
       .eq("starts_at", value.originalStartsAt)
@@ -110,7 +131,7 @@ export async function updateCalendarEvent(_previousState: CalendarCreateState, f
       operation_type: "update",
       status: "pending_confirmation",
       provider_event_id: existing.provider_event_id,
-      payload: { ...calendarPayload(value), timeZone: profile?.timezone || "Asia/Shanghai", previous: { subject: existing.subject, startsAt: existing.starts_at, endsAt: existing.ends_at } },
+      payload: { ...calendarUpdatePayload(value, { categories: existing.categories ?? [], body_text: existing.body_text, location_name: existing.location_name, is_all_day: existing.is_all_day, importance: existing.importance, show_as: existing.show_as }), timeZone: profile?.timezone || "Asia/Shanghai", previous: { subject: existing.subject, startsAt: existing.starts_at, endsAt: existing.ends_at } },
     }).select("id").single();
     if (requestError || !requested) fail();
     await audit(supabase, userId, "request", requested.id, { operation_type: "update", provider_event_id: existing.provider_event_id, starts_at: value.startsAt, ends_at: value.endsAt });
@@ -199,8 +220,61 @@ export async function syncAndBackupMicrosoftAction() {
     const result = await syncAndBackupMicrosoftWorkspace(activeConnection.id, userId, "manual");
     revalidatePath("/calendar");
     revalidatePath("/tasks");
-    return { calendarEventCount: result.calendarEventCount, todoTaskCount: result.todoTaskCount };
+    return { calendarEventCount: result.calendarEventCount, calendarCategoryCount: result.calendarCategoryCount, calendarCategoryStatus: result.calendarCategoryStatus, todoTaskCount: result.todoTaskCount };
   } catch {
     throw new Error("同步或备份未能完成。请检查 Outlook 连接和数据库 migration 后重试。");
+  }
+}
+
+export async function initializeCalendarCategoriesAction(_previousState: CalendarCreateState): Promise<CalendarCreateState> {
+  void _previousState;
+  try {
+    const { supabase, userId } = await requireOwner();
+    const activeConnection = await connection(supabase);
+    const result = await ensureManagedOutlookCategories(activeConnection.id, userId);
+    revalidatePath("/calendar");
+    return { status: "success", message: result.createdCount ? `已在 Outlook 新建 ${result.createdCount} 个 Personal OS 分类。` : "Outlook 分类已经齐全。" };
+  } catch {
+    return { status: "error", message: "无法初始化 Outlook 分类。请先重新授权 Outlook。" };
+  }
+}
+
+export async function updateCalendarCategoryColorAction(_previousState: CalendarCreateState, formData: FormData): Promise<CalendarCreateState> {
+  void _previousState;
+  try {
+    const { supabase, userId } = await requireOwner();
+    const categoryId = z.string().uuid().parse(formData.get("category_id"));
+    const colorValue = String(formData.get("color") || "");
+    if (!(colorValue === "None" || /^preset([0-9]|1[0-9]|2[0-4])$/.test(colorValue))) return { status: "error", message: "颜色值无效。" };
+    const { data: category } = await supabase.from("calendar_categories").select("provider_category_id").eq("id", categoryId).is("archived_at", null).maybeSingle();
+    if (!category?.provider_category_id) return { status: "error", message: "该分类尚未同步到 Outlook。" };
+    const activeConnection = await connection(supabase);
+    const accessToken = await accessTokenForConnection(activeConnection.id, userId);
+    await updateOutlookMasterCategoryColor(accessToken, category.provider_category_id, colorValue as OutlookCategoryColor);
+    await syncOutlookMasterCategories(activeConnection.id, userId);
+    revalidatePath("/calendar");
+    return { status: "success", message: "颜色已更新到 Outlook。" };
+  } catch {
+    return { status: "error", message: "分类颜色未能更新到 Outlook。" };
+  }
+}
+
+export async function updateCalendarCategoryAiAction(_previousState: CalendarCreateState, formData: FormData): Promise<CalendarCreateState> {
+  void _previousState;
+  try {
+    const { supabase, userId } = await requireOwner();
+    const categoryId = z.string().uuid().parse(formData.get("category_id"));
+    const description = z.string().trim().max(500).parse(String(formData.get("ai_description") || ""));
+    const keywords = z.array(z.string().trim().min(1).max(80)).max(30).parse(String(formData.get("keywords") || "").split(/[，,\n]/).map((value) => value.trim()).filter(Boolean));
+    const { data: category } = await supabase.from("calendar_categories").select("id,category_kind").eq("id", categoryId).is("archived_at", null).maybeSingle();
+    if (!category || category.category_kind === "external") return { status: "error", message: "外部 Outlook 分类不由 AI 管理。" };
+    const admin = createAdminClient();
+    const { error } = await admin.from("calendar_categories").update({ ai_description: description || null, keywords, ai_enabled: formData.get("ai_enabled") === "on" }).eq("id", categoryId).eq("user_id", userId).is("archived_at", null);
+    if (error) return { status: "error", message: "AI 分类设置未能保存。" };
+    await admin.from("audit_logs").insert({ user_id: userId, action: "update_ai_settings", entity_type: "calendar_category", entity_id: categoryId, after_data: { ai_enabled: formData.get("ai_enabled") === "on", keyword_count: keywords.length }, actor_type: "user" });
+    revalidatePath("/calendar");
+    return { status: "success", message: "AI 分类设置已保存。" };
+  } catch {
+    return { status: "error", message: "请检查说明和关键词后重试。" };
   }
 }

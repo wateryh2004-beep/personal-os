@@ -6,6 +6,9 @@ export type GraphCalendarCreatePayload = {
   locationName: string | null;
   isAllDay: boolean;
   timeZone?: string;
+  categories?: string[];
+  importance?: "low" | "normal" | "high";
+  showAs?: "free" | "tentative" | "busy" | "oof" | "workingElsewhere" | "unknown";
 };
 
 const windowsTimeZones: Record<string, string> = {
@@ -60,6 +63,9 @@ export function calendarEventForGraph(value: GraphCalendarCreatePayload) {
     start: { dateTime: start, timeZone: graphZone },
     end: { dateTime: end, timeZone: graphZone },
     isAllDay: value.isAllDay,
+    ...(value.categories ? { categories: value.categories } : {}),
+    ...(value.importance ? { importance: value.importance } : {}),
+    ...(value.showAs && value.showAs !== "unknown" ? { showAs: value.showAs } : {}),
     ...(value.locationName ? { location: { displayName: value.locationName } } : {}),
   };
 }

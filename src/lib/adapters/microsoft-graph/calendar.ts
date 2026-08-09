@@ -4,23 +4,40 @@ import { env } from "@/lib/env";
 import { sealSecret, unsealSecret } from "@/lib/crypto/sealed-secret";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calendarEventForGraph, type GraphCalendarCreatePayload } from "./event-payload";
+import { managedCalendarCategories, type OutlookCategoryColor } from "@/features/calendar/classification/taxonomy";
 
 const MICROSOFT_CLIENT_ID = "084a3e9f-a9f4-43f7-89f9-d229cf97853e";
 const MICROSOFT_TENANT = "consumers";
-const MICROSOFT_SCOPES = "User.Read Calendars.ReadWrite Tasks.ReadWrite offline_access";
+const MICROSOFT_LEGACY_SCOPES = "User.Read Calendars.ReadWrite Tasks.ReadWrite offline_access";
+const MICROSOFT_SCOPES = `${MICROSOFT_LEGACY_SCOPES} MailboxSettings.ReadWrite`;
+export const MICROSOFT_SCOPE_VERSION = 2;
 const loginBaseUrl = `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0`;
 const graphBaseUrl = "https://graph.microsoft.com/v1.0";
+
+export function microsoftScopeVersionForGrantedScopes(scopes: string[]) {
+  return scopes.some((scope) => scope.toLocaleLowerCase("en-US") === "mailboxsettings.readwrite") ? MICROSOFT_SCOPE_VERSION : 1;
+}
+
+export function requiresCategoryReauthorization(scopeVersion: number | null | undefined) {
+  return (scopeVersion ?? 1) < MICROSOFT_SCOPE_VERSION;
+}
 
 type GraphEvent = {
   id: string;
   iCalUId?: string;
   subject?: string;
+  body?: { content?: string | null };
   start?: { dateTime?: string };
   end?: { dateTime?: string };
   isAllDay?: boolean;
   location?: { displayName?: string | null };
   changeKey?: string | null;
+  categories?: string[];
+  importance?: "low" | "normal" | "high";
+  showAs?: "free" | "tentative" | "busy" | "oof" | "workingElsewhere" | "unknown";
 };
+
+type GraphOutlookCategory = { id?: string; displayName?: string; color?: OutlookCategoryColor };
 
 type GraphTodoList = { id?: string; displayName?: string; wellknownListName?: string | null };
 type GraphTodoTask = {
@@ -50,6 +67,9 @@ type CalendarPayload = {
   locationName: string | null;
   isAllDay: boolean;
   timeZone?: string;
+  categories?: string[];
+  importance?: "low" | "normal" | "high";
+  showAs?: "free" | "tentative" | "busy" | "oof" | "workingElsewhere" | "unknown";
 };
 
 type CalendarDeletePayload = {
@@ -129,7 +149,7 @@ export async function accessTokenForConnection(connectionId: string, userId: str
   const admin = createAdminClient();
   const { data: credential, error } = await admin
     .from("calendar_connections")
-    .select("oauth_refresh_token_ciphertext")
+    .select("oauth_refresh_token_ciphertext,oauth_scope_version")
     .eq("id", connectionId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -139,15 +159,18 @@ export async function accessTokenForConnection(connectionId: string, userId: str
     grant_type: "refresh_token",
     client_id: MICROSOFT_CLIENT_ID,
     refresh_token: decryptMicrosoftRefreshToken(credential.oauth_refresh_token_ciphertext),
-    scope: MICROSOFT_SCOPES,
+    scope: credential.oauth_scope_version >= MICROSOFT_SCOPE_VERSION ? MICROSOFT_SCOPES : MICROSOFT_LEGACY_SCOPES,
   });
   const accessToken = typeof refreshed.access_token === "string" ? refreshed.access_token : "";
   const refreshToken = typeof refreshed.refresh_token === "string" ? refreshed.refresh_token : "";
   const expiresIn = typeof refreshed.expires_in === "number" ? refreshed.expires_in : 3600;
+  const grantedScopes = typeof refreshed.scope === "string" ? refreshed.scope.split(/\s+/).filter(Boolean) : [];
   if (!accessToken || !refreshToken) throw new MicrosoftGraphError("token_response_invalid");
   const { error: updateError } = await admin.from("calendar_connections").update({
     oauth_refresh_token_ciphertext: encryptMicrosoftRefreshToken(refreshToken),
     oauth_token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+    granted_scopes: grantedScopes.length ? grantedScopes : undefined,
+    oauth_scope_version: grantedScopes.length ? microsoftScopeVersionForGrantedScopes(grantedScopes) : undefined,
   }).eq("id", connectionId).eq("user_id", userId);
   if (updateError) throw new MicrosoftGraphError("credential_update_failed");
   return accessToken;
@@ -186,17 +209,21 @@ function toIso(value: string | undefined) {
   return /(?:Z|[+-]\d\d:\d\d)$/.test(value) ? value : `${value}Z`;
 }
 
-function graphEventRecord(event: GraphEvent, userId: string) {
+export function graphEventRecord(event: GraphEvent, userId: string, fallback?: { body_text?: string | null; categories?: string[]; importance?: string; show_as?: string }) {
   return {
     user_id: userId,
     provider_event_id: event.id,
     calendar_id: event.iCalUId ?? null,
     subject: event.subject ?? "",
+    body_text: event.body?.content ?? fallback?.body_text ?? null,
     starts_at: toIso(event.start?.dateTime),
     ends_at: toIso(event.end?.dateTime),
     is_all_day: Boolean(event.isAllDay),
     location_name: event.location?.displayName ?? null,
     provider_change_key: event.changeKey ?? null,
+    categories: event.categories ?? fallback?.categories ?? [],
+    importance: event.importance ?? fallback?.importance ?? "normal",
+    show_as: event.showAs ?? fallback?.show_as ?? "unknown",
     last_synced_at: new Date().toISOString(),
     archived_at: null,
   };
@@ -217,7 +244,7 @@ export async function syncMicrosoftCalendar(connectionId: string, userId: string
     const accessToken = await accessTokenForConnection(connectionId, userId);
     const start = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const end = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
-    const query = new URLSearchParams({ startDateTime: start, endDateTime: end, "$top": "500", "$select": "id,iCalUId,subject,start,end,isAllDay,location,changeKey" });
+    const query = new URLSearchParams({ startDateTime: start, endDateTime: end, "$top": "500", "$select": "id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs" });
     const payload = await graph(accessToken, `/me/calendarView?${query.toString()}`) as { value?: GraphEvent[] };
     const records = (payload.value ?? []).map((event) => graphEventRecord(event, userId));
     const admin = createAdminClient();
@@ -232,6 +259,91 @@ export async function syncMicrosoftCalendar(connectionId: string, userId: string
     await markConnectionError(connectionId, code);
     throw new MicrosoftGraphError(code);
   }
+}
+
+async function categoryScopeVersion(connectionId: string, userId: string) {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("calendar_connections").select("oauth_scope_version").eq("id", connectionId).eq("user_id", userId).is("archived_at", null).maybeSingle();
+  if (error || !data) throw new MicrosoftGraphError("calendar_not_connected");
+  return data.oauth_scope_version as number;
+}
+
+export async function listOutlookMasterCategories(accessToken: string) {
+  const payload = await graph(accessToken, "/me/outlook/masterCategories?$top=100") as { value?: GraphOutlookCategory[] };
+  return (payload.value ?? []).flatMap((category) => category.id && category.displayName ? [{ id: category.id, displayName: category.displayName, color: category.color ?? "None" as OutlookCategoryColor }] : []);
+}
+
+export async function createOutlookMasterCategory(accessToken: string, input: { displayName: string; color: OutlookCategoryColor }) {
+  const category = await graph(accessToken, "/me/outlook/masterCategories", { method: "POST", body: JSON.stringify(input) }) as GraphOutlookCategory;
+  if (!category.id || !category.displayName) throw new MicrosoftGraphError("graph_category_invalid");
+  return { id: category.id, displayName: category.displayName, color: category.color ?? input.color };
+}
+
+export async function updateOutlookMasterCategoryColor(accessToken: string, providerCategoryId: string, color: OutlookCategoryColor) {
+  await graph(accessToken, `/me/outlook/masterCategories/${encodeURIComponent(providerCategoryId)}`, { method: "PATCH", body: JSON.stringify({ color }) });
+}
+
+async function cacheOutlookMasterCategories(userId: string, categories: Array<{ id: string; displayName: string; color: OutlookCategoryColor }>) {
+  const admin = createAdminClient();
+  const syncedAt = new Date().toISOString();
+  const { data: preferences } = await admin.from("calendar_categories").select("managed_key,ai_description,keywords,ai_enabled").eq("user_id", userId).not("managed_key", "is", null);
+  const preferencesByKey = new Map((preferences ?? []).map((preference) => [preference.managed_key, preference]));
+  const { error: archiveError } = await admin.from("calendar_categories").update({ archived_at: syncedAt }).eq("user_id", userId).is("archived_at", null);
+  if (archiveError) throw new MicrosoftGraphError("calendar_category_cache_failed");
+  const records = categories.map((category) => {
+    const managed = managedCalendarCategories.find((item) => item.displayName === category.displayName);
+    const preference = managed ? preferencesByKey.get(managed.key) : null;
+    return {
+      user_id: userId,
+      provider_category_id: category.id,
+      display_name: category.displayName,
+      color: category.color,
+      managed_key: managed?.key ?? null,
+      category_kind: managed?.kind ?? "external",
+      ai_description: preference?.ai_description ?? managed?.aiDescription ?? null,
+      keywords: preference?.keywords ?? (managed ? [...managed.keywords] : []),
+      display_order: managed?.order ?? 1000,
+      is_ai_managed: Boolean(managed),
+      ai_enabled: preference?.ai_enabled ?? Boolean(managed),
+      last_synced_at: syncedAt,
+      archived_at: null,
+    };
+  });
+  if (records.length) {
+    const { error } = await admin.from("calendar_categories").upsert(records, { onConflict: "user_id,display_name" });
+    if (error) throw new MicrosoftGraphError("calendar_category_cache_failed");
+  }
+  return records.length;
+}
+
+export async function syncOutlookMasterCategories(connectionId: string, userId: string) {
+  if (requiresCategoryReauthorization(await categoryScopeVersion(connectionId, userId))) return { status: "reauthorization_required" as const, count: 0 };
+  try {
+    const accessToken = await accessTokenForConnection(connectionId, userId);
+    if (requiresCategoryReauthorization(await categoryScopeVersion(connectionId, userId))) return { status: "reauthorization_required" as const, count: 0 };
+    const categories = await listOutlookMasterCategories(accessToken);
+    return { status: "ok" as const, count: await cacheOutlookMasterCategories(userId, categories) };
+  } catch (error) {
+    const code = error instanceof MicrosoftGraphError ? error.code : "calendar_category_sync_failed";
+    await markConnectionError(connectionId, code);
+    throw new MicrosoftGraphError(code);
+  }
+}
+
+/** Explicitly invoked by the user. Existing Outlook categories are never renamed, recolored, or deleted. */
+export async function ensureManagedOutlookCategories(connectionId: string, userId: string) {
+  if (requiresCategoryReauthorization(await categoryScopeVersion(connectionId, userId))) throw new MicrosoftGraphError("calendar_category_reauthorization_required");
+  const accessToken = await accessTokenForConnection(connectionId, userId);
+  if (requiresCategoryReauthorization(await categoryScopeVersion(connectionId, userId))) throw new MicrosoftGraphError("calendar_category_reauthorization_required");
+  const existing = await listOutlookMasterCategories(accessToken);
+  const names = new Set(existing.map((category) => category.displayName));
+  const created = [] as Array<{ id: string; displayName: string; color: OutlookCategoryColor }>;
+  for (const category of managedCalendarCategories) {
+    if (!names.has(category.displayName)) created.push(await createOutlookMasterCategory(accessToken, { displayName: category.displayName, color: category.color }));
+  }
+  const all = [...existing, ...created];
+  await cacheOutlookMasterCategories(userId, all);
+  return { createdCount: created.length, totalCount: all.length };
 }
 
 function optionalIso(value: string | undefined | null) {
@@ -408,11 +520,12 @@ export async function executeCalendarOperation(operationId: string, userId: stri
       const value = operation.payload as CalendarUpdatePayload;
       if (!operation.provider_event_id || !value.subject || !value.startsAt || !value.endsAt || !value.previous) throw new MicrosoftGraphError("operation_payload_invalid");
       const accessToken = await accessTokenForConnection(operation.connection_id, userId);
+      const { data: cached } = await admin.from("calendar_events").select("body_text,categories,importance,show_as").eq("user_id", userId).eq("provider_event_id", operation.provider_event_id).maybeSingle();
       const updated = await graph(accessToken, `/me/events/${encodeURIComponent(operation.provider_event_id)}`, {
         method: "PATCH",
         body: JSON.stringify(calendarEventForGraph(value as GraphCalendarCreatePayload)),
       }) as GraphEvent;
-      const record = graphEventRecord(updated, userId);
+      const record = graphEventRecord(updated, userId, cached ?? undefined);
       const { error: cacheError } = await admin.from("calendar_events").upsert(record, { onConflict: "user_id,provider_event_id" });
       if (cacheError) throw new MicrosoftGraphError("calendar_cache_failed");
       await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
@@ -440,4 +553,4 @@ export async function executeCalendarOperation(operationId: string, userId: stri
   }
 }
 
-export const microsoftCalendarConfiguration = { clientId: MICROSOFT_CLIENT_ID, scopes: MICROSOFT_SCOPES };
+export const microsoftCalendarConfiguration = { clientId: MICROSOFT_CLIENT_ID, scopes: MICROSOFT_SCOPES, scopeVersion: MICROSOFT_SCOPE_VERSION };

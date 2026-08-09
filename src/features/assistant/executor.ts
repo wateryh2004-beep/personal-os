@@ -1,6 +1,6 @@
 import "server-only";
 import { contentHash } from "@/features/notes/utils";
-import { calendarPayload } from "@/features/calendar/utils";
+import { calendarPayload, calendarUpdatePayload } from "@/features/calendar/utils";
 import { normalizeMemoryKey } from "@/features/memory/types";
 import {
   createCalendarEventSchema,
@@ -57,12 +57,12 @@ export function hasDeterministicExecutor(actionType: string): actionType is Agen
 async function activeMicrosoftConnection(supabase: Supabase) {
   const { data, error } = await supabase
     .from("calendar_connections")
-    .select("id,status")
+    .select("id,status,oauth_scope_version")
     .is("archived_at", null)
     .maybeSingle();
   if (error || !data || data.status !== "enabled")
     throw new Error("microsoft_disconnected");
-  return data.id as string;
+  return { id: data.id as string, scopeReady: (data.oauth_scope_version ?? 1) >= 2 };
 }
 
 async function executeCalendar(input: {
@@ -72,17 +72,19 @@ async function executeCalendar(input: {
   payload: Record<string, unknown>;
   timezone: string;
 }) {
-  const connectionId = await activeMicrosoftConnection(input.supabase);
+  const connection = await activeMicrosoftConnection(input.supabase);
+  const connectionId = connection.id;
   let providerEventId: string | null = null;
   let operationPayload: Record<string, unknown>;
   if (input.actionType === "calendar.create") {
     const value = createCalendarEventSchema.parse(input.payload);
-    operationPayload = { ...calendarPayload(value), timeZone: input.timezone };
+    const { data: rules } = connection.scopeReady ? await input.supabase.from("calendar_categories").select("managed_key,keywords,ai_enabled").not("managed_key", "is", null).is("archived_at", null) : { data: null };
+    operationPayload = { ...calendarPayload(value, { enabled: connection.scopeReady, rules: rules ?? undefined }), timeZone: input.timezone };
   } else if (input.actionType === "calendar.update") {
     const value = updateCalendarEventSchema.parse(input.payload);
     const { data } = await input.supabase
       .from("calendar_events")
-      .select("provider_event_id,subject,starts_at,ends_at")
+      .select("provider_event_id,subject,body_text,starts_at,ends_at,is_all_day,location_name,categories,importance,show_as")
       .eq("provider_event_id", value.providerEventId)
       .eq("subject", value.originalSubject)
       .eq("starts_at", value.originalStartsAt)
@@ -92,7 +94,7 @@ async function executeCalendar(input: {
     if (!data) throw new AgentActionConflict("calendar_changed");
     providerEventId = data.provider_event_id;
     operationPayload = {
-      ...calendarPayload(value),
+      ...calendarUpdatePayload(value, { categories: data.categories ?? [], body_text: data.body_text, location_name: data.location_name, is_all_day: data.is_all_day, importance: data.importance, show_as: data.show_as }),
       timeZone: input.timezone,
       previous: {
         subject: data.subject,
@@ -146,7 +148,7 @@ async function executeTask(input: {
   actionType: "tasks.create" | "tasks.complete";
   payload: Record<string, unknown>;
 }) {
-  const connectionId = await activeMicrosoftConnection(input.supabase);
+  const connectionId = (await activeMicrosoftConnection(input.supabase)).id;
   if (input.actionType === "tasks.create") {
     const value = todoProposalSchema.parse(input.payload);
     const taskId = await createMicrosoftTodoTask(connectionId, input.userId, value);

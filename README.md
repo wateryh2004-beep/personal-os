@@ -67,10 +67,10 @@ Files 的对象正文存于私有 Cloudflare R2 bucket `life-of-hang-files-prod`
 
 应用 Files migration 后可上传、下载、重命名、移动和归档文件。归档不删除 R2 对象；未来本地服务器迁移可通过替换 Storage Adapter 完成。R2 不是唯一备份，重要文件仍应定期导出至受控副本。
 
-## Microsoft Calendar 与 To Do（云端备份）
+## Microsoft Calendar 与 To Do（权威执行层 + 私有备份）
 
-Outlook Calendar 与 Microsoft To Do 是同步端，不是唯一存储。当前数据与不可变备份
-快照保存在你的 Supabase 私有数据库中；`/calendar` 的“立即对齐并备份”会同步两者并
+Outlook Calendar 与 Microsoft To Do 是日程和任务的权威执行层。Personal OS 不建立平行
+数据源；当前只读缓存与不可变备份快照保存在你的 Supabase 私有数据库中。`/calendar` 的“对齐”会同步两者并
 生成一份本地云端快照。Vercel 每日会在云端低频执行同样的任务，不需要 Mac 常开。
 在 Vercel Production 设置一个随机、server-only 的 `CRON_SECRET` 后才会启用计划任务。
 `OWNER_USER_ID` 固定为唯一所有者的 Supabase Auth UUID，供不带浏览器会话的窄后台任务解析 owner；Cron 不接受请求参数中的用户 ID，也不会扫描 Auth 用户猜测 owner。
@@ -79,7 +79,9 @@ Outlook Calendar 与 Microsoft To Do 是同步端，不是唯一存储。当前�
 
 `/briefing` 从服务器抓取并解析 RSS/Atom，按来源优先级、时效与显式关注主题进行确定性筛选，每日最多保留 8 条。系统不抓文章网页、不建立无限新闻流、不把 Feed Items 混入 Global Search 或 Proactive Engine。Vercel Cron 每天 `00:00 UTC`（北京时间 08:00）刷新最多 20 个订阅并生成当日 Briefing；必须同时配置 `CRON_SECRET`、`OWNER_EMAIL` 与 `OWNER_USER_ID`。
 
-用户通过 Microsoft Device Code 在官方页面授权；Refresh Token 会在服务端加密后保存至
+用户通过 Microsoft Device Code 在官方页面授权；Calendar 2.0 需要
+`MailboxSettings.ReadWrite` 读取和维护 Outlook Master Categories。旧连接必须在“分类设置”
+中重新授权一次，系统会记录 scope version，不会在后台重复请求并循环产生 403。Refresh Token 会在服务端加密后保存至
 Supabase，短期 Access Token 不落库。日程创建仍采用明确确认队列。配置和验收步骤见
 [`docs/microsoft-calendar-integration.md`](docs/microsoft-calendar-integration.md)。
 
@@ -87,8 +89,9 @@ Supabase，短期 Access Token 不落库。日程创建仍采用明确确认队�
 
 在 Settings 的 **AI · DeepSeek** 中粘贴自己的 DeepSeek API Key。密钥在服务端加密后
 保存，之后不会回显；不需要新增 Vercel 环境变量。Calendar 的对话框可查询已同步日程、
-整理自然语言日程提案；用户点击“创建待确认日程”后，仍必须在操作队列最终确认才会写入
-Outlook。对话与必要的日历查询结果会发送到 DeepSeek，请不要向 AI 输入不必要的敏感内容。
+整理自然语言日程提案并从稳定 taxonomy 建议分类；分类、重要性和占用状态都会显示在冻结
+提案中。只有用户确认后，确定性执行器才把它写入 Outlook Event，包括真实的
+`Event.categories`。对话与必要的日历查询结果会发送到 DeepSeek，请不要向 AI 输入不必要的敏感内容。
 
 ## 故障排查
 

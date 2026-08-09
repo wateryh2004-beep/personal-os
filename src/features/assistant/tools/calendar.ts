@@ -9,6 +9,8 @@ import {
 import { findFreeTimeSlots } from "../free-time";
 import { recordAgentStep, storeAgentAction } from "../persistence";
 import type { AssistantToolModule } from "./types";
+import { classifyCalendarEvent } from "@/features/calendar/classification/classifier";
+import { managedCalendarCategories } from "@/features/calendar/classification/taxonomy";
 
 const rangeSchema = z
   .object({
@@ -34,7 +36,7 @@ export const calendarTools: AssistantToolModule = {
       execute: async ({ startsAt, endsAt }) => {
         const { data, error } = await context.supabase
           .from("calendar_events")
-          .select("id,provider_event_id,subject,starts_at,ends_at,is_all_day,location_name")
+          .select("id,provider_event_id,subject,body_text,starts_at,ends_at,is_all_day,location_name,categories,importance,show_as")
           .lt("starts_at", endsAt)
           .gt("ends_at", startsAt)
           .is("archived_at", null)
@@ -104,22 +106,29 @@ export const calendarTools: AssistantToolModule = {
       },
     }),
     proposeCalendarEvent: tool({
-      description: `冻结一个待用户确认的日程创建提案。时间必须是与 ${context.timezone} 相符的带 offset ISO 值。不会直接写 Outlook。`,
+      description: `冻结一个待用户确认的 Outlook 日程创建提案。时间必须是与 ${context.timezone} 相符的带 offset ISO 值。分类只能引用以下稳定 key，不得创造标签：${managedCalendarCategories.map((category) => `${category.key}=${category.displayName}`).join("；")}。若用户没有明确指定分类，将 primaryCategoryKey 留空，由确定性分类器处理。不会直接写 Outlook。`,
       inputSchema: createCalendarEventSchema,
-      execute: async (proposal) => ({
-        proposal,
+      execute: async (proposal) => {
+        const { data: rules } = await context.supabase.from("calendar_categories").select("managed_key,keywords,ai_enabled").not("managed_key", "is", null).is("archived_at", null);
+        const proposedCategoryEnabled = proposal.primaryCategoryKey ? rules?.find((rule) => rule.managed_key === proposal.primaryCategoryKey)?.ai_enabled !== false : false;
+        const classification = proposal.primaryCategoryKey && proposedCategoryEnabled
+          ? { primaryCategoryKey: proposal.primaryCategoryKey, contextCategoryKeys: proposal.contextCategoryKeys, confidence: proposal.classificationConfidence ?? 0.9, needsConfirmation: false, reason: proposal.classificationReason ?? "提案明确分类" }
+          : classifyCalendarEvent(proposal, rules ?? undefined);
+        const frozen = { ...proposal, primaryCategoryKey: classification.primaryCategoryKey, contextCategoryKeys: classification.contextCategoryKeys, classificationConfidence: classification.confidence, classificationReason: classification.reason };
+        return {
+        proposal: frozen,
         actionId: await storeAgentAction({
           ...context,
           domain: "calendar",
           actionType: "calendar.create",
-          payload: proposal,
-          preview: proposal,
+          payload: frozen,
+          preview: frozen,
           riskLevel: "medium",
         }),
-      }),
+      }; },
     }),
     proposeCalendarUpdate: tool({
-      description: `冻结已有日程修改提案。改期必须使用 update；时间按 ${context.timezone} 解释。`,
+      description: `冻结已有日程修改提案。改期必须使用 update；时间按 ${context.timezone} 解释。除非用户明确要求修改分类，否则 preserveCategories 必须为 true，以保留所有 Outlook 分类，尤其是 external categories。`,
       inputSchema: updateCalendarEventSchema,
       execute: async (proposal) => ({
         proposal,

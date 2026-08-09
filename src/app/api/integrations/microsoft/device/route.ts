@@ -7,6 +7,7 @@ import {
   exchangeMicrosoftDeviceCode,
   MicrosoftGraphError,
   startMicrosoftDeviceAuthorization,
+  microsoftScopeVersionForGrantedScopes,
 } from "@/lib/adapters/microsoft-graph/calendar";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -67,6 +68,8 @@ export async function PATCH(request: NextRequest) {
     }
     const refreshToken = typeof token.refresh_token === "string" ? token.refresh_token : "";
     const expiresIn = typeof token.expires_in === "number" ? token.expires_in : 3600;
+    const grantedScopes = typeof token.scope === "string" ? token.scope.split(/\s+/).filter(Boolean) : [];
+    const grantedScopeVersion = microsoftScopeVersionForGrantedScopes(grantedScopes);
     if (!refreshToken) return clearDeviceCookie(failure(400, "authorization_failed"));
     const admin = createAdminClient();
     const { data: connection, error: connectionError } = await admin.from("calendar_connections").upsert({
@@ -77,11 +80,13 @@ export async function PATCH(request: NextRequest) {
       oauth_connected_at: new Date().toISOString(),
       oauth_refresh_token_ciphertext: encryptMicrosoftRefreshToken(refreshToken),
       oauth_token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+      granted_scopes: grantedScopes,
+      oauth_scope_version: grantedScopeVersion,
       archived_at: null,
       last_error_code: null,
     }, { onConflict: "user_id" }).select("id").single();
     if (connectionError || !connection) return clearDeviceCookie(failure(500, "connection_save_failed"));
-    await admin.from("audit_logs").insert({ user_id: userId, action: "connect", entity_type: "calendar_connection", entity_id: connection.id, after_data: { provider: "microsoft_graph_public_client" }, actor_type: "user" });
+    await admin.from("audit_logs").insert({ user_id: userId, action: "connect", entity_type: "calendar_connection", entity_id: connection.id, after_data: { provider: "microsoft_graph_public_client", oauth_scope_version: grantedScopeVersion }, actor_type: "user" });
     return clearDeviceCookie(NextResponse.json({ status: "connected" }, { headers: { "Cache-Control": "private, no-store, max-age=0" } }));
   } catch (error) {
     const authFailure = apiAuthenticationFailure(error);

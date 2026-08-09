@@ -2,8 +2,8 @@
 
 ## 运行模型
 
-Outlook Calendar 与 Microsoft To Do 是同步端，不是唯一的数据归宿。Personal OS 在
-Supabase 保留当前私有副本，并在用户点击“立即对齐并备份”或每日计划任务运行后，向
+Outlook Calendar 与 Microsoft To Do 是日程和任务的权威执行层。Personal OS 在
+Supabase 保留只读私有缓存，并在用户点击“对齐”或每日计划任务运行后，向
 append-only `microsoft_sync_backups` 写入完整快照。快照不会因为 Microsoft 删除、断连
 或切换平台而被浏览器覆盖；它可作为未来导出、迁移到自建服务器或恢复功能的基础。
 
@@ -15,7 +15,7 @@ Vercel Cron 在云端执行，不依赖 Hang 的 Mac 是否开机。
                             ↓
                   Supabase command queue + encrypted credential
                             ↓
-                   Microsoft Graph ↔ Outlook / To Do（同步端）
+                   Microsoft Graph ↔ Outlook / To Do（权威执行层）
                             ↓
                Supabase 私有副本 + append-only 备份快照
 ```
@@ -49,10 +49,23 @@ Redirect URL。公共 client ID 不是秘密；它只在 server-only adapter 内
 3. 在 Vercel Production 环境增加 `CRON_SECRET`：使用密码管理器生成一段随机字符串。
    它只用于 Vercel 每天 03:15（中国标准时间）的云端同步请求，绝不能使用
    `NEXT_PUBLIC_` 前缀。
-4. 重新部署后，登录 `/calendar`，点击“连接 Outlook”。Microsoft 页面会要求输入
+4. 重新部署后，登录 `/calendar`，点击“连接 Outlook”。Calendar 2.0 的 Device Code scope
+   包含 `MailboxSettings.ReadWrite`。旧连接的 refresh token 不会自动获得新增权限，页面会
+   明确要求重新授权，并以 `oauth_scope_version = 2` 记录迁移状态。Microsoft 页面会要求输入
    一次性代码；完成后返回本页点击“我已完成授权，检查连接”。
-5. 点击“立即对齐并备份”读取 Outlook 与 To Do，并将一份独立快照保存到 Supabase。
+5. 点击“对齐”读取 Outlook Event、Master Categories 与 To Do，并将一份独立快照保存到 Supabase。
    新建日程始终先进入待确认队列，确认后才发送到 Outlook。
+
+## Calendar 2.0 分类模型
+
+- Outlook `masterCategories` 保存分类名称和 `preset0…preset24` 颜色；Personal OS 的
+  `calendar_categories` 只是 owner-only 只读缓存。
+- Outlook `Event.categories` 保存事件真实分类；`calendar_events.categories`、`importance`
+  与 `show_as` 均由 Graph 同步，不使用独立的本地颜色字段。
+- Personal OS 只会在用户点击“初始化分类”后创建稳定 managed taxonomy。已有 Outlook
+  分类作为 `external` 原样保留，系统不会自动删除、改名或重新着色。
+- 只改时间或标题时，PATCH 不携带未指定分类；即使 Graph 返回部分对象，缓存回写也使用
+  原值兜底。未分类日程只能逐条预览并确认，不进行静默批量整理。
 
 无需设置 Microsoft Client ID、Client Secret、Redirect URL、Mac bridge 或桥接 token。
 

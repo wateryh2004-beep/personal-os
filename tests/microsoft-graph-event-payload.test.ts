@@ -20,4 +20,16 @@ describe("calendarEventForGraph", () => {
     expect(event.start).toEqual({ dateTime: "2026-08-11T14:00:00", timeZone: "China Standard Time" });
     expect(event.end).toEqual({ dateTime: "2026-08-11T15:00:00", timeZone: "China Standard Time" });
   });
+
+  it("includes Outlook categories and availability only when explicitly supplied", () => {
+    const event = calendarEventForGraph({
+      subject: "华夏基金实习", description: null, startsAt: "2026-08-11T08:30:00+08:00", endsAt: "2026-08-11T17:00:00+08:00", locationName: null, isAllDay: false, timeZone: "Asia/Shanghai", categories: ["领域·实习/工作", "场景·华夏基金"], importance: "high", showAs: "busy",
+    });
+    expect(event).toMatchObject({ categories: ["领域·实习/工作", "场景·华夏基金"], importance: "high", showAs: "busy" });
+  });
+
+  it("omits categories from update-style payloads so Graph preserves them", () => {
+    const event = calendarEventForGraph({ subject: "仅改标题", description: null, startsAt: "2026-08-11T08:30:00+08:00", endsAt: "2026-08-11T09:00:00+08:00", locationName: null, isAllDay: false });
+    expect(event).not.toHaveProperty("categories");
+  });
 });
