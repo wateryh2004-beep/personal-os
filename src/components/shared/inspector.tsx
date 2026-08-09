@@ -11,10 +11,10 @@ export function Inspector({ open, title = "详情", onClose, children, className
   className?: string;
 }) {
   if (!open) return null;
-  return <aside className={cn("fixed inset-y-[var(--toolbar-height)] right-0 z-30 w-[min(100vw,360px)] border-l bg-[var(--surface-sidebar)] shadow-lg xl:static xl:z-auto xl:w-[var(--inspector-width)] xl:shrink-0 xl:shadow-none", className)} aria-label={title}>
+  return <><button type="button" onClick={onClose} className="fixed inset-x-0 bottom-0 top-[var(--toolbar-height)] z-30 bg-black/15 md:hidden" aria-label={`关闭${title}遮罩`}/><aside className={cn("fixed bottom-0 right-0 top-[var(--toolbar-height)] z-40 w-[min(360px,calc(100vw-8px))] max-w-full overflow-hidden border-l bg-[var(--surface-sidebar)] shadow-sm", className)} aria-label={title}>
     <div className="flex h-[var(--toolbar-height)] items-center justify-between border-b px-4"><h2 className="text-sm font-medium">{title}</h2><button type="button" onClick={onClose} className="rounded-[var(--radius-sm)] p-1.5 text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]" aria-label={`关闭${title}`}><X className="size-4" aria-hidden="true" /></button></div>
     <div className="workspace-scroll h-[calc(100dvh-var(--toolbar-height)*2)] overflow-y-auto p-4">{children}</div>
-  </aside>;
+  </aside></>;
 }
 
 export function InspectorButton({ open, onClick }: { open: boolean; onClick: () => void }) {
