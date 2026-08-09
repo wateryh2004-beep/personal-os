@@ -5,6 +5,9 @@ import { getExperienceGraph } from "@/features/graph/queries";
 import { getMemoriesForContext } from "@/features/memory/queries";
 import { getReviewsForContext } from "@/features/reviews/queries";
 import { addLocalDays, getDateKeyInTimeZone } from "@/features/reviews/periods";
+import { listRecentNotes, type RetrievedNote } from "@/features/assistant/retrieval/notes";
+import { classifyTopicTrends, findRecurringTopics, recurrenceScoreForDocument } from "@/features/assistant/retrieval/topics";
+import { getSemanticRetriever } from "@/features/assistant/retrieval/semantic";
 import { buildFallbackContextPlan } from "./planner";
 import { rankContextCandidates } from "./ranking";
 import type {
@@ -89,6 +92,54 @@ export async function buildPersonalContext(
       ]
     : [];
   const tasks: Promise<ContextCandidate[]>[] = [];
+  let recentNotes: RetrievedNote[] = [];
+  let recentNotesUnavailable = false;
+  if (plan.recentNotes.enabled)
+    tasks.push(
+      (async () => {
+        let result = await listRecentNotes(supabase, {
+          days: plan.recentNotes.days,
+          limit: plan.recentNotes.limit,
+          includeDailyNotes: plan.recentNotes.includeDailyNotes,
+          concepts: plan.queryConcepts,
+          now,
+        });
+        if (
+          !result.unavailable &&
+          result.notes.length < plan.recentNotes.minimumNotes &&
+          plan.recentNotes.expandedDays > plan.recentNotes.days
+        )
+          result = await listRecentNotes(supabase, {
+            days: plan.recentNotes.expandedDays,
+            limit: plan.recentNotes.limit,
+            includeDailyNotes: plan.recentNotes.includeDailyNotes,
+            concepts: plan.queryConcepts,
+            now,
+          });
+        recentNotes = result.notes;
+        recentNotesUnavailable = result.unavailable;
+        return result.notes.map((note) =>
+          candidate({
+            key: `note:${note.id}`,
+            entityType: "note",
+            entityId: note.id,
+            domain: "notes",
+            title: note.title,
+            content: clip(
+              `${note.tags.length ? `标签：${note.tags.join("、")}\n` : ""}${note.excerpt}`,
+            ),
+            href: note.href,
+            timestamp: note.updatedAt,
+            origins: ["recent_notes"],
+            reasons: [`最近 ${plan.recentNotes.days} 天更新的笔记`],
+            score: 142,
+          }),
+        );
+      })().catch(() => {
+        recentNotesUnavailable = true;
+        return [];
+      }),
+    );
   if (plan.includeWorkingMemory)
     tasks.push(
       (async () => {
@@ -351,6 +402,33 @@ export async function buildPersonalContext(
         score: 120 + row.score,
       }),
     );
+  let semantic: ContextCandidate[] = [];
+  let semanticAvailable = false;
+  const semanticRetriever = plan.useSemantic ? getSemanticRetriever() : null;
+  if (semanticRetriever && (await semanticRetriever.isAvailable().catch(() => false))) {
+    semanticAvailable = true;
+    const semanticQuery = plan.queryConcepts.join(" ") || request.message;
+    const semanticDomains = plan.searchQueries[0]?.domains ?? ["notes"];
+    semantic = await semanticRetriever
+      .search({ query: semanticQuery, domains: semanticDomains, limit: 10 })
+      .then((rows) =>
+        rows.map((row) =>
+          candidate({
+            key: `${row.entityType}:${row.entityId}`,
+            entityType: row.entityType,
+            entityId: row.entityId,
+            domain: row.entityType === "note" ? "notes" : "search",
+            title: row.title,
+            content: clip(row.excerpt),
+            href: row.href,
+            origins: ["search"],
+            reasons: ["语义检索匹配"],
+            score: 130 + row.score,
+          }),
+        ),
+      )
+      .catch(() => []);
+  }
   let graph: ContextCandidate[] = [];
   if (plan.expandGraph && request.currentEntity?.type === "experience") {
     try {
@@ -385,12 +463,32 @@ export async function buildPersonalContext(
       graph = [];
     }
   }
-  const ranked = rankContextCandidates(dedupe([
+  const recurringTopics = findRecurringTopics(
+    recentNotes.map((note) => ({ id: note.id, title: note.title, content: note.bodyMarkdown })),
+  );
+  const topicTrends = classifyTopicTrends(
+    recentNotes.map((note) => ({
+      id: note.id,
+      title: note.title,
+      content: note.bodyMarkdown,
+      updatedAt: note.updatedAt,
+    })),
+    now,
+  );
+  const withRecurrence = dedupe([
     ...surface,
     ...collected.flat(),
     ...search,
+    ...semantic,
     ...graph,
-  ]), now);
+  ]).map((item) => ({
+    ...item,
+    recurrence:
+      item.entityType === "note" && item.entityId
+        ? recurrenceScoreForDocument(item.entityId, recurringTopics)
+        : 0,
+  }));
+  const ranked = rankContextCandidates(withRecurrence, now, plan.recipe);
   let used = 0;
   const selected = ranked
     .filter((item) => {
@@ -413,14 +511,45 @@ export async function buildPersonalContext(
       totalChars: used,
       truncated: selected.length < ranked.length,
       available: {
-        workingMemory: !plan.includeWorkingMemory || Boolean(collected[0]),
+        workingMemory:
+          !plan.includeWorkingMemory ||
+          collected.some((group) =>
+            group.some(
+              (item) =>
+                item.origins.includes("working_memory") ||
+                item.origins.includes("memory"),
+            ),
+          ),
         reviews: !plan.includeRecentHistory || collected.some((group) => group.some((item) => item.domain === "reviews")),
-        timeContext: !plan.includeTimeContext || Boolean(collected.at(-1)),
+        timeContext:
+          !plan.includeTimeContext ||
+          collected.some((group) =>
+            group.some((item) => item.origins.includes("time")),
+          ),
         search: Boolean(
           plan.searchQueries.length === 0 || searchResults.length,
         ),
         graph: !plan.expandGraph || Boolean(graph),
+        recentNotes: !plan.recentNotes.enabled || !recentNotesUnavailable,
+        semantic: !plan.useSemantic || semanticAvailable,
       },
+      recipe: plan.recipe,
+      retrievalWindowDays:
+        recentNotes.length < plan.recentNotes.minimumNotes
+          ? plan.recentNotes.expandedDays
+          : plan.recentNotes.days,
+      recurringTopics: recurringTopics.map((topic) => ({
+        topic: topic.topic,
+        occurrences: topic.occurrences,
+        sourceIds: topic.documentIds,
+      })),
+      topicTrends: topicTrends.map((topic) => ({
+        topic: topic.topic,
+        trend: topic.trend,
+        recentCount: topic.recentCount,
+        previousCount: topic.previousCount,
+        sourceIds: topic.documentIds,
+      })),
     },
   };
 }

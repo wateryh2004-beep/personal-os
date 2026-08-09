@@ -4,6 +4,7 @@ import { z } from "zod";
 import { searchPersonalOs } from "@/features/search/queries";
 import type { SearchDomain } from "@/features/search/types";
 import { recordAgentStep } from "../persistence";
+import { matchedExcerpt } from "../retrieval/excerpts";
 import type { AssistantToolModule } from "./types";
 
 const domains = ["notes", "career", "files", "tasks", "calendar", "reviews", "memory", "projects"] as const;
@@ -41,8 +42,8 @@ export const searchTools: AssistantToolModule = {
         ]);
         const results = [
           ...base.map((item) => ({ id: item.entityId, domain: item.domain, title: item.title, snippet: item.snippet, href: item.href, updatedAt: item.sourceUpdatedAt })),
-          ...(memory.data ?? []).map((item) => ({ id: item.id, domain: "memory", title: item.title, snippet: item.content.slice(0, 360), href: "/memory", updatedAt: item.updated_at })),
-          ...(projects.data ?? []).map((item) => ({ id: item.id, domain: "projects", title: item.name, snippet: item.description?.slice(0, 360) ?? item.status, href: "/projects", updatedAt: item.updated_at })),
+          ...(memory.data ?? []).map((item) => ({ id: item.id, domain: "memory", title: item.title, snippet: matchedExcerpt(item.content, [query], 360), href: "/memory", updatedAt: item.updated_at })),
+          ...(projects.data ?? []).map((item) => ({ id: item.id, domain: "projects", title: item.name, snippet: item.description ? matchedExcerpt(item.description, [query], 360) : item.status, href: "/projects", updatedAt: item.updated_at })),
         ].slice(0, limit);
         await recordAgentStep({
           ...context,

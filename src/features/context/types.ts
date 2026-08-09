@@ -1,5 +1,7 @@
 import type { GraphEntityRef } from "@/features/graph/types";
 import type { SearchDomain } from "@/features/search/types";
+import type { CognitiveComplexity, CognitiveRecipe, RetrievalCapability } from "@/features/assistant/recipes/types";
+import type { CognitiveRoute } from "@/features/assistant/cognitive-router";
 
 export type ContextSurface =
   | "global"
@@ -26,12 +28,27 @@ export type PersonalContextRequest = {
     content: string;
   } | null;
   now?: Date;
+  cognitiveRoute?: CognitiveRoute;
 };
 export type ContextPlan = {
   intent: ContextIntent;
+  recipe: CognitiveRecipe;
+  complexity: CognitiveComplexity;
+  requiresReasoning: boolean;
   includeWorkingMemory: boolean;
   includeTimeContext: boolean;
   includeRecentHistory: boolean;
+  recentNotes: {
+    enabled: boolean;
+    days: number;
+    expandedDays: number;
+    minimumNotes: number;
+    limit: number;
+    includeDailyNotes: boolean;
+  };
+  retrievalOrder: RetrievalCapability[];
+  useSemantic: boolean;
+  queryConcepts: string[];
   searchQueries: Array<{
     query: string;
     domains: SearchDomain[];
@@ -44,6 +61,7 @@ export type ContextOrigin =
   | "working_memory"
   | "memory"
   | "review"
+  | "recent_notes"
   | "time"
   | "search"
   | "graph";
@@ -64,6 +82,7 @@ export type ContextCandidate = {
   authority?: number;
   stability?: number;
   recency?: number;
+  recurrence?: number;
   finalScore?: number;
 };
 export type PersonalContextSource = Omit<
@@ -88,6 +107,18 @@ export type PersonalContextPack = {
       timeContext: boolean;
       search: boolean;
       graph: boolean;
+      recentNotes: boolean;
+      semantic: boolean;
     };
+    recipe: CognitiveRecipe;
+    retrievalWindowDays: number;
+    recurringTopics: Array<{ topic: string; occurrences: number; sourceIds: string[] }>;
+    topicTrends: Array<{
+      topic: string;
+      trend: "emerging" | "warming" | "recurring" | "fading";
+      recentCount: number;
+      previousCount: number;
+      sourceIds: string[];
+    }>;
   };
 };

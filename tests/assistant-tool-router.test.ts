@@ -50,6 +50,6 @@ describe("Global Agent tool routing", () => {
         intent: "career_analysis",
         available,
       }),
-    ).toEqual(["search", "notes_read", "career_read"]);
+    ).toEqual(["search", "notes_read", "career_read", "memory_read"]);
   });
 });

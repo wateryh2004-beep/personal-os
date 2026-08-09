@@ -1,4 +1,6 @@
 import type { ContextIntent } from "@/features/context/types";
+import { routeCognitiveTask, type CognitiveRoute } from "./cognitive-router";
+import { getCognitiveRecipe } from "./recipes/registry";
 import type {
   AssistantSurface,
   AssistantToolGroup,
@@ -58,6 +60,7 @@ export function selectAssistantToolGroups(input: {
   surface: AssistantSurface;
   message: string;
   intent?: ContextIntent | null;
+  route?: CognitiveRoute | null;
   available: AssistantToolGroup[];
 }) {
   if (input.surface !== "global") return input.available;
@@ -65,26 +68,19 @@ export function selectAssistantToolGroups(input: {
   const message = input.message.trim();
   if (identityQuestion.test(message)) return [];
 
+  const route = input.route ?? routeCognitiveTask({ message, surface: input.surface });
   const selected = new Set<AssistantToolGroup>();
-  if (search.test(message)) selected.add("search");
-  const wantsMutation = mutation.test(message);
-  for (const domain of domains) {
-    if (!domain.pattern.test(message)) continue;
-    selected.add(domain.read);
-    if (wantsMutation && domain.proposal) selected.add(domain.proposal);
+  const wantsMutation = route.recipe === "mutation_request" || mutation.test(message);
+  if (wantsMutation) {
+    for (const domain of domains) {
+      if (!domain.pattern.test(message)) continue;
+      selected.add(domain.read);
+      if (domain.proposal) selected.add(domain.proposal);
+    }
+  } else {
+    for (const group of getCognitiveRecipe(route.recipe).toolGroups) selected.add(group);
+    if (search.test(message)) selected.add("search");
   }
-
-  if (selected.size === 0 && input.intent === "career_analysis")
-    selected.add("career_read");
-  if (selected.size === 0 && input.intent === "time_planning") {
-    selected.add("calendar_read");
-    selected.add("todo_read");
-  }
-  if (
-    selected.size === 0 &&
-    (input.intent === "recall" || input.intent === "knowledge")
-  )
-    selected.add("search");
 
   return input.available.filter((group) => selected.has(group));
 }

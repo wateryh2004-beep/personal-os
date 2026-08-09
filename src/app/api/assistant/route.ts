@@ -20,7 +20,7 @@ import {
   releaseCalendarRequestLock,
 } from "@/lib/ai/calendar-request-lock";
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 const noStore = { "Cache-Control": "private, no-store, max-age=0" };
 const schema = z.object({
   surface: z.enum(assistantSurfaces),
@@ -108,12 +108,13 @@ export async function POST(request: Request) {
     const response = await createAgentUIStreamResponse({
       agent: runtime.agent,
       uiMessages: parsed.data.messages,
+      sendReasoning: false,
       abortSignal: request.signal,
       timeout: {
-        totalMs: 18_000,
-        firstChunkMs: 8_000,
-        chunkMs: 8_000,
-        toolMs: 4_000,
+        totalMs: 45_000,
+        firstChunkMs: 12_000,
+        chunkMs: 12_000,
+        toolMs: 8_000,
       },
       onError: (error) => {
         streamFailure = normalizeAssistantError(error);

@@ -1,49 +1,60 @@
 import type { ContextPlan, PersonalContextRequest } from "./types";
 import type { SearchDomain } from "@/features/search/types";
-const personal =
-  /结合我的情况|根据我的情况|我的情况|适合我|对我|我最近|我现在|我之前|我过去|我的职业|我的经历|我该怎么办|帮我分析|我是谁|你(?:知道|了解|记得).{0,8}(?:我是谁|我的情况|关于我)|你对我(?:知道|了解)多少/;
-const time =
-  /今天|明天|后天|本周|这周|下周|最近|过去|接下来|日程|时间|什么时候|安排|计划|截止|逾期/;
-const retrospective =
-  /最近几天|这周|上周|最近一个月|过去一个月|这段时间|最近|过去.*发生了什么|重点.*变化|判断.*变化|主要推进/;
-const career =
-  /职业|工作|求职|实习|秋招|校招|岗位|简历|面试|offer|银行|央企|公务员|量化|产品/;
+import { routeCognitiveTask, type CognitiveRoute } from "@/features/assistant/cognitive-router";
+
+function legacyIntent(route: CognitiveRoute): ContextPlan["intent"] {
+  if (route.signals.includes("identity_context")) return "personal_analysis";
+  if (route.recipe === "career_strategy") return "career_analysis";
+  if (route.recipe === "time_planning" || route.recipe === "mutation_request") return "time_planning";
+  if (route.recipe === "current_document") return "current_document";
+  if (["semantic_recall", "factual_lookup"].includes(route.recipe)) return "knowledge";
+  return "personal_analysis";
+}
+
 export function buildFallbackContextPlan(
   request: PersonalContextRequest,
 ): ContextPlan {
-  const message = request.message.trim();
-  const careerIntent = career.test(message);
-  const timeIntent = time.test(message);
-  const domains: SearchDomain[] = careerIntent
-    ? ["career", "notes", "tasks", "calendar", "files"]
-    : timeIntent
-      ? ["tasks", "calendar", "notes"]
-      : ["notes", "career", "tasks", "calendar", "files"];
-  const seed = message
-    .replace(/[，。！？、,.!?]/g, " ")
-    .split(/\s+/)
-    .filter((word) => word.length >= 2)
-    .slice(0, 6)
-    .join(" ")
-    .slice(0, 80);
+  const route = request.cognitiveRoute ?? routeCognitiveTask({
+    message: request.message,
+    surface: request.surface === "global" ? "global" : request.surface,
+    hasCurrentDocument: Boolean(request.currentSurface),
+  });
+  const analytical = route.complexity === "analytical";
+  const recentNotes = route.capabilities.includes("recent_notes");
+  const workingMemory = route.capabilities.includes("working_memory") || analytical;
+  const timeContext = route.capabilities.includes("time_context");
+  const recentHistory = route.capabilities.includes("reviews") || recentNotes;
+  const domains: SearchDomain[] = route.recipe === "career_strategy"
+    ? ["career", "notes", "reviews", "tasks", "calendar", "files"]
+    : route.preferredDomains.filter((domain): domain is SearchDomain =>
+        ["notes", "career", "files", "tasks", "calendar", "reviews"].includes(domain),
+      );
+  const shouldSearch =
+    route.recipe !== "retrospective_thinking" &&
+    route.capabilities.includes("lexical_search") &&
+    route.queryConcepts.length > 0;
   return {
-    intent: careerIntent
-      ? "career_analysis"
-      : timeIntent
-        ? "time_planning"
-        : personal.test(message)
-          ? "personal_analysis"
-          : request.surface === "notes"
-            ? "current_document"
-            : "general",
-    includeWorkingMemory: careerIntent || personal.test(message),
-    includeTimeContext: timeIntent,
-    includeRecentHistory: timeIntent || retrospective.test(message),
-    expandGraph:
-      Boolean(request.currentEntity) || careerIntent || personal.test(message),
-    searchQueries:
-      seed.length >= 2
-        ? [{ query: seed, domains, reason: "用户问题中的主题" }]
-        : [],
+    intent: legacyIntent(route),
+    recipe: route.recipe,
+    complexity: route.complexity,
+    requiresReasoning: route.requiresReasoning,
+    includeWorkingMemory: workingMemory,
+    includeTimeContext: timeContext,
+    includeRecentHistory: recentHistory,
+    recentNotes: {
+      enabled: recentNotes,
+      days: route.timeWindow.days,
+      expandedDays: route.timeWindow.expandedDays,
+      minimumNotes: route.timeWindow.minimumRecentNotes,
+      limit: analytical ? 24 : 12,
+      includeDailyNotes: true,
+    },
+    retrievalOrder: route.capabilities,
+    useSemantic: route.capabilities.includes("semantic_search"),
+    queryConcepts: route.queryConcepts,
+    expandGraph: Boolean(request.currentEntity) || route.capabilities.includes("graph"),
+    searchQueries: shouldSearch
+      ? route.queryConcepts.slice(0, 4).map((query) => ({ query, domains, reason: "认知路由提取的主题" }))
+      : [],
   };
 }

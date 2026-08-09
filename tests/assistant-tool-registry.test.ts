@@ -16,9 +16,11 @@ describe("Assistant tool registry", () => {
   it("selects tools only from explicitly allowed groups", () => {
     const tools = definitionsForGroups(["notes_read", "notes_proposal"]);
     expect(tools.map((tool) => tool.name).sort()).toEqual([
+      "listRecentNotes",
       "proposeNoteCreate",
       "proposeNoteUpdate",
       "readNote",
+      "readNotesBatch",
       "searchNotes",
     ]);
   });

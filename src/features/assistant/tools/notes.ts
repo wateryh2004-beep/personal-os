@@ -2,6 +2,9 @@ import "server-only";
 import { tool } from "ai";
 import { z } from "zod";
 import { noteRevisionMatches } from "../action-guards";
+import { extractQueryConcepts } from "../cognitive-router";
+import { listRecentNotes as queryRecentNotes, readNotesBatch as queryNotesBatch } from "../retrieval/notes";
+import { searchPersonalOs } from "@/features/search/queries";
 import { recordAgentStep, storeAgentAction } from "../persistence";
 import { noteCreateProposalSchema, noteUpdateProposalSchema } from "./schemas";
 import type { AssistantToolModule } from "./types";
@@ -9,45 +12,109 @@ import type { AssistantToolModule } from "./types";
 export const noteTools: AssistantToolModule = {
   definitions: [
     { name: "searchNotes", group: "notes_read", risk: "read", description: "搜索笔记" },
+    { name: "listRecentNotes", group: "notes_read", risk: "read", description: "按时间列出近期笔记" },
+    { name: "readNotesBatch", group: "notes_read", risk: "read", description: "受限批量读取笔记" },
     { name: "readNote", group: "notes_read", risk: "read", description: "读取一篇笔记" },
     { name: "proposeNoteCreate", group: "notes_proposal", risk: "proposal", description: "创建笔记提案" },
     { name: "proposeNoteUpdate", group: "notes_proposal", risk: "proposal", description: "修改笔记提案" },
   ],
   build: (context) => ({
     searchNotes: tool({
-      description: "搜索当前用户的 active Notes，返回短摘要与来源链接。",
+      description: "搜索当前用户的 active Notes。会扩展查询概念并返回命中位置附近的短摘录与来源链接。",
       inputSchema: z.object({ query: z.string().trim().min(1).max(200), limit: z.number().int().min(1).max(20).default(8) }),
       execute: async ({ query, limit }) => {
-        const escaped = query.replaceAll("%", "\\%").replaceAll("_", "\\_");
-        const { data, error } = await context.supabase
-          .from("notes")
-          .select("id,title,body_markdown,revision,content_hash,updated_at")
-          .or(`title.ilike.%${escaped}%,body_markdown.ilike.%${escaped}%`)
-          .eq("status", "active")
-          .is("deleted_at", null)
-          .is("archived_at", null)
-          .order("updated_at", { ascending: false })
-          .limit(limit);
-        const results = (data ?? []).map((note) => ({
-          id: note.id,
-          title: note.title,
-          snippet: note.body_markdown.replace(/\s+/g, " ").slice(0, 360),
-          revision: note.revision,
-          contentHash: note.content_hash,
-          updatedAt: note.updated_at,
-          href: `/notes/${note.id}`,
-        }));
+        const concepts = extractQueryConcepts(query, 4);
+        const queries = concepts.length ? concepts : [query];
+        const batches = await Promise.all(
+          queries.map((concept) =>
+            searchPersonalOs({ query: concept, domains: ["notes"], limit }).catch(() => []),
+          ),
+        );
+        const unique = new Map<string, (typeof batches)[number][number]>();
+        for (const result of batches.flat()) {
+          const prior = unique.get(result.entityId);
+          if (!prior || result.score > prior.score) unique.set(result.entityId, result);
+        }
+        const results = [...unique.values()]
+          .sort((left, right) => right.score - left.score)
+          .slice(0, limit)
+          .map((note) => ({
+            id: note.entityId,
+            title: note.title,
+            snippet: note.snippet,
+            updatedAt: note.sourceUpdatedAt,
+            href: note.href,
+            score: note.score,
+          }));
         await recordAgentStep({
           ...context,
           stepType: "tool",
           toolName: "searchNotes",
           title: "已搜索笔记",
-          summary: error ? "Notes 暂时不可用" : `找到 ${results.length} 篇笔记`,
-          input: { queryLength: query.length, limit },
+          summary: `找到 ${results.length} 篇笔记`,
+          input: { queryLength: query.length, conceptCount: queries.length, limit },
           output: { count: results.length, sourceIds: results.map((item) => item.id) },
-          status: error ? "failed" : "succeeded",
+          status: "succeeded",
         });
-        return { results, unavailable: Boolean(error) };
+        return { results, concepts, unavailable: false };
+      },
+    }),
+    listRecentNotes: tool({
+      description: "无需关键词，按更新时间读取当前用户近期 active Notes。适合回答‘最近在思考什么’；可包含今日日记。",
+      inputSchema: z.object({
+        days: z.number().int().min(1).max(365).default(21),
+        limit: z.number().int().min(1).max(30).default(16),
+        includeDailyNotes: z.boolean().default(true),
+      }),
+      execute: async ({ days, limit, includeDailyNotes }) => {
+        const result = await queryRecentNotes(context.supabase, { days, limit, includeDailyNotes });
+        const notes = result.notes.map((note) => ({
+          id: note.id,
+          title: note.title,
+          createdAt: note.createdAt,
+          updatedAt: note.updatedAt,
+          bodyPreview: note.excerpt,
+          tags: note.tags,
+          href: note.href,
+        }));
+        await recordAgentStep({
+          ...context,
+          stepType: "tool",
+          toolName: "listRecentNotes",
+          title: "已读取近期笔记",
+          summary: result.unavailable ? "Notes 暂时不可用" : `覆盖最近 ${days} 天，共 ${notes.length} 篇`,
+          input: { days, limit, includeDailyNotes },
+          output: { count: notes.length, sourceIds: notes.map((note) => note.id) },
+          status: result.unavailable ? "failed" : "succeeded",
+        });
+        return { notes, windowDays: days, unavailable: result.unavailable };
+      },
+    }),
+    readNotesBatch: tool({
+      description: "批量读取已检索到的 active Notes，带严格数量和字符预算。不可读取回收站或其他用户数据。",
+      inputSchema: z.object({
+        noteIds: z.array(z.string().uuid()).min(1).max(12),
+        maxCharsPerNote: z.number().int().min(500).max(8_000).default(4_000),
+        maxTotalChars: z.number().int().min(1_000).max(32_000).default(20_000),
+      }),
+      execute: async ({ noteIds, maxCharsPerNote, maxTotalChars }) => {
+        const result = await queryNotesBatch(context.supabase, {
+          noteIds,
+          maxNotes: 12,
+          maxCharsPerNote,
+          maxTotalChars,
+        });
+        await recordAgentStep({
+          ...context,
+          stepType: "tool",
+          toolName: "readNotesBatch",
+          title: "已批量读取笔记",
+          summary: result.unavailable ? "Notes 暂时不可用" : `读取 ${result.notes.length} 篇笔记`,
+          input: { noteCount: noteIds.length, maxCharsPerNote, maxTotalChars },
+          output: { count: result.notes.length, sourceIds: result.notes.map((note) => note.id) },
+          status: result.unavailable ? "failed" : "succeeded",
+        });
+        return result;
       },
     }),
     readNote: tool({

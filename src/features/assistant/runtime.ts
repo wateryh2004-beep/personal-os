@@ -7,8 +7,12 @@ import { requireOwner } from "@/lib/auth/require-owner";
 import { BASE_ASSISTANT_SYSTEM_POLICY, resolveAssistantPolicy } from "./policy";
 import { buildAssistantTools } from "./tools";
 import { selectAssistantToolGroups } from "./tool-router";
-import { selectAssistantModel } from "./model-router";
+import { selectAssistantModel, selectReasoningProviderOptions } from "./model-router";
 import { recordAgentStep, updateAgentRun } from "./persistence";
+import { routeCognitiveTask } from "./cognitive-router";
+import { formatCognitiveRecipeForModel, getCognitiveRecipe } from "./recipes/registry";
+import { formatAssistantPreferences, loadAssistantPreferences } from "./preferences";
+import { buildPersonalOperatingModel, formatPersonalOperatingModel } from "./personal-operating-model";
 import type { AssistantRequest, AssistantResult } from "./types";
 
 function latestText(request: AssistantRequest) {
@@ -44,6 +48,8 @@ async function setup(request: AssistantRequest) {
     .maybeSingle();
   const timezone = profile?.timezone || "Asia/Shanghai";
   const policy = resolveAssistantPolicy(request);
+  const message = latestText(request);
+  const preferences = await loadAssistantPreferences(supabase, userId);
   let currentSurface = request.currentSurface?.content
     ? {
         type:
@@ -71,26 +77,36 @@ async function setup(request: AssistantRequest) {
       };
     }
   }
+  const cognitiveRoute = routeCognitiveTask({
+    message,
+    surface: request.surface,
+    hasCurrentDocument: Boolean(currentSurface),
+    defaultRetrospectiveWindowDays: preferences.defaultRetrospectiveWindowDays,
+  });
   const context =
     policy.context === "personal"
       ? await buildPersonalContext({
-          message: latestText(request),
+          message,
           surface:
             request.surface === "inbox" || request.surface === "global"
               ? "global"
               : request.surface,
           currentEntity: request.currentEntity,
           currentSurface,
+          cognitiveRoute,
         })
       : null;
   const selectedModel = selectAssistantModel({
     surface: request.surface,
     requestedModel: request.model,
-    message: latestText(request),
+    message,
     intent: context?.request.intent,
+    cognitiveRoute,
   });
   const resolved = await getDeepSeekModel(userId, selectedModel);
-  const system = `${BASE_ASSISTANT_SYSTEM_POLICY}\n\n${policy.instruction}\n\n当前时间：${nowInZone(timezone)}；时区：${timezone}。${context ? `\n\n${formatPersonalContextForModel(context)}` : ""}`;
+  const operatingModel = buildPersonalOperatingModel(context, preferences);
+  const recipe = getCognitiveRecipe(cognitiveRoute.recipe);
+  const system = `${BASE_ASSISTANT_SYSTEM_POLICY}\n\n${policy.instruction}\n\n${formatCognitiveRecipeForModel(recipe)}\n\n${formatAssistantPreferences(preferences)}\n\n${formatPersonalOperatingModel(operatingModel)}\n\n当前时间：${nowInZone(timezone)}；时区：${timezone}。${context ? `\n\n${formatPersonalContextForModel(context)}` : ""}`;
   if (request.runId) {
     await updateAgentRun({
       supabase,
@@ -106,10 +122,14 @@ async function setup(request: AssistantRequest) {
       stepType: "context",
       title: "已准备个人上下文",
       summary: context
-        ? `选择 ${context.sources.length} 个来源；意图 ${context.request.intent}`
+        ? `选择 ${context.sources.length} 个来源；配方 ${cognitiveRoute.recipe}`
         : "本次请求不需要 Personal Context",
       output: {
         sourceCount: context?.sources.length ?? 0,
+        recipe: cognitiveRoute.recipe,
+        complexity: cognitiveRoute.complexity,
+        retrievalWindowDays: context?.diagnostics.retrievalWindowDays ?? 0,
+        semanticAvailable: context?.diagnostics.available.semantic ?? false,
         sources:
           context?.sources.map(({ id, domain, title, href }) => ({
             id,
@@ -126,6 +146,8 @@ async function setup(request: AssistantRequest) {
     timezone,
     policy,
     context,
+    cognitiveRoute,
+    preferences,
     model: resolved.model,
     modelId: resolved.modelId,
     system,
@@ -138,6 +160,7 @@ export async function createAssistantAgent(request: AssistantRequest) {
     surface: request.surface,
     message: latestText(request),
     intent: runtime.context?.request.intent,
+    route: runtime.cognitiveRoute,
     available: runtime.policy.tools,
   });
   return {
@@ -147,7 +170,7 @@ export async function createAssistantAgent(request: AssistantRequest) {
       model: runtime.model,
       stopWhen: isStepCount(runtime.policy.maxSteps),
       maxOutputTokens: runtime.policy.maxOutputTokens,
-      providerOptions: { deepseek: { thinking: { type: "disabled" } } },
+      providerOptions: selectReasoningProviderOptions(runtime.cognitiveRoute),
       instructions: runtime.system,
       tools: buildAssistantTools({
         supabase: runtime.supabase,
@@ -166,7 +189,7 @@ export async function runAssistant(
   const { text } = await generateText({
     model: runtime.model,
     maxOutputTokens: runtime.policy.maxOutputTokens,
-    providerOptions: { deepseek: { thinking: { type: "disabled" } } },
+    providerOptions: selectReasoningProviderOptions(runtime.cognitiveRoute),
     system: runtime.system,
     prompt: `${request.instruction || "请处理当前内容。"}${runtime.context ? "\n\n当前内容已经作为上下文来源提供。" : request.currentSurface?.content ? `\n\n当前内容：\n---\n${request.currentSurface.content}\n---` : ""}`,
   });
@@ -182,6 +205,8 @@ export async function runAssistant(
       model: runtime.modelId,
       operation: request.operation ?? null,
       context_source_count: runtime.context?.sources.length ?? 0,
+      cognitive_recipe: runtime.cognitiveRoute.recipe,
+      reasoning_enabled: runtime.cognitiveRoute.complexity !== "simple",
       tool_names: [],
     },
   });
