@@ -58,7 +58,6 @@ function MarkdownDocument({ body }: { body: string }) {
 export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDefaultModel: DeepSeekModelId }) {
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
-  const [revision, setRevision] = useState(note.revision);
   const [state, setState] = useState<"已保存" | "有未保存修改" | "正在保存" | "保存失败" | "版本冲突">("已保存");
   const [pdfSnapshot, setPdfSnapshot] = useState<PdfSnapshot | null>(null);
   const [pdfError, setPdfError] = useState("");
@@ -68,10 +67,13 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const [selection, setSelection] = useState<NoteSelection | null>(null);
   const pdfPreviewRef = useRef<HTMLElement>(null);
   const editorSurfaceRef = useRef<HTMLElement>(null);
+  const latestContentRef = useRef({ title: note.title, body: note.body_markdown });
+  const revisionRef = useRef(note.revision);
+  const saveInFlightRef = useRef(false);
   const noteSessionKey = `notes:draft:${note.id}`;
-  const saveDraft = useCallback((nextTitle: string, nextBody: string, baseRevision = revision) => {
+  const saveDraft = useCallback((nextTitle: string, nextBody: string, baseRevision = revisionRef.current) => {
     saveWorkspaceSession<NoteDraftSession>(noteSessionKey, { title: nextTitle, body: nextBody, baseRevision });
-  }, [noteSessionKey, revision]);
+  }, [noteSessionKey]);
 
   useEffect(() => {
     saveWorkspaceSession(lastOpenedNoteSessionKey, { noteId: note.id }, lastOpenedNoteTtlMs);
@@ -81,6 +83,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
     const draft = loadWorkspaceSession<NoteDraftSession>(noteSessionKey);
     if (!draft || (draft.title === note.title && draft.body === note.body_markdown)) return;
     const timer = window.setTimeout(() => {
+      latestContentRef.current = { title: draft.title, body: draft.body };
       setTitle(draft.title);
       setBody(draft.body);
       setState("有未保存修改");
@@ -89,14 +92,31 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   }, [note.body_markdown, note.title, noteSessionKey]);
 
   const save = useCallback(async () => {
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
+    const snapshot = latestContentRef.current;
+    const expectedRevision = revisionRef.current;
     setState("正在保存");
     try {
-      const result = await saveNote({ noteId: note.id, expectedRevision: revision, title, bodyMarkdown: body });
+      const result = await saveNote({ noteId: note.id, expectedRevision, title: snapshot.title, bodyMarkdown: snapshot.body });
       if (result.status === "conflict") { setState("版本冲突"); return; }
-      setRevision(result.revision); setState("已保存");
-      removeWorkspaceSession(noteSessionKey);
-    } catch { setState("保存失败"); saveDraft(title, body); }
-  }, [body, note.id, noteSessionKey, revision, saveDraft, title]);
+      revisionRef.current = result.revision;
+      const latest = latestContentRef.current;
+      if (latest.title === snapshot.title && latest.body === snapshot.body) {
+        setState("已保存");
+        removeWorkspaceSession(noteSessionKey);
+      } else {
+        setState("有未保存修改");
+        saveDraft(latest.title, latest.body, result.revision);
+      }
+    } catch {
+      const latest = latestContentRef.current;
+      setState("保存失败");
+      saveDraft(latest.title, latest.body);
+    } finally {
+      saveInFlightRef.current = false;
+    }
+  }, [note.id, noteSessionKey, saveDraft]);
 
   useEffect(() => { if (state !== "有未保存修改") return; const timer = window.setTimeout(() => void save(), 1000); return () => window.clearTimeout(timer); }, [save, state]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); void save(); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [save]);
@@ -160,7 +180,15 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
     return () => { cancelled = true; };
   }, [note.id, pdfSnapshot]);
 
-  const dirty = (nextTitle: string, nextBody: string) => { setState("有未保存修改"); saveDraft(nextTitle, nextBody); };
+  const dirty = useCallback((nextTitle: string, nextBody: string) => {
+    latestContentRef.current = { title: nextTitle, body: nextBody };
+    setState("有未保存修改");
+    saveDraft(nextTitle, nextBody);
+  }, [saveDraft]);
+  const handleBodyChange = useCallback((value: string) => {
+    setBody(value);
+    dirty(title, value);
+  }, [dirty, title]);
   const isExporting = Boolean(pdfSnapshot);
   const toggleFullscreen = async () => {
     try {
@@ -168,5 +196,5 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
       else await editorSurfaceRef.current?.requestFullscreen();
     } catch { setPdfError("浏览器未能进入全屏模式，请检查浏览器权限后重试。"); }
   };
-  return <section ref={editorSurfaceRef} className="notes-editor-surface flex h-full min-w-0 overflow-hidden bg-[var(--surface-canvas)]"><div className="flex min-w-0 flex-1 flex-col"><div className="flex min-h-[var(--toolbar-height)] shrink-0 items-center gap-3 border-b px-4 sm:px-6"><input aria-label="笔记标题" value={title} onChange={(event) => { const nextTitle = event.target.value; setTitle(nextTitle); dirty(nextTitle, body); }} className="min-w-0 flex-1 bg-transparent text-lg font-semibold tracking-[-0.01em] outline-none placeholder:text-[var(--text-tertiary)]" placeholder="无标题笔记" /><span aria-live="polite" className={`shrink-0 text-xs ${state === "保存失败" || state === "版本冲突" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>{state === "正在保存" ? "正在保存…" : state}</span><Button variant="ghost" size="sm" onClick={() => setAiOpen((value) => !value)} aria-pressed={aiOpen}><Sparkles aria-hidden="true" />AI</Button><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="笔记更多操作"><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => void save()}>立即保存 <span className="ml-auto text-xs text-[var(--text-tertiary)]">⌘S</span></DropdownMenuItem><DropdownMenuItem onSelect={() => void toggleFullscreen()}>{isFullscreen ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}{isFullscreen ? "退出全屏" : "全屏编辑"}</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem disabled={isExporting} onSelect={() => { setPdfError(""); setPdfSnapshot({ title: title || "无标题笔记", body }); }}><Download aria-hidden="true" />{isExporting ? "正在生成 PDF…" : "导出 PDF"}</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>{pdfError ? <p role="alert" className="px-6 py-2 text-sm text-[var(--danger)]">{pdfError}</p> : null}{imageUploadMessage ? <p role="status" aria-live="polite" className={`px-6 py-2 text-sm ${imageUploadMessage.includes("失败") || imageUploadMessage.includes("不支持") ? "text-[var(--danger)]" : "text-[var(--success)]"}`}>{imageUploadMessage}</p> : null}<div className="workspace-scroll min-h-0 flex-1 overflow-y-auto bg-white"><VisualMarkdownEditor markdown={body} noteId={note.id} onImageUploadStatus={setImageUploadMessage} onOpenAi={() => setAiOpen(true)} onSelectionChange={setSelection} onChange={(value) => { setBody(value); dirty(title, value); }} /></div></div><NoteAiAssistant open={aiOpen} onOpen={() => setAiOpen(true)} onClose={() => setAiOpen(false)} noteId={note.id} title={title} bodyMarkdown={body} defaultModel={noteAiDefaultModel} selection={selection} onReplaceNote={(suggestion) => { setBody(suggestion); dirty(title, suggestion); }} onInsertNote={(suggestion) => { const nextBody = `${body}${body.trim() ? "\n\n" : ""}${suggestion}`; setBody(nextBody); dirty(title, nextBody); }} />{pdfSnapshot ? <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-white p-12 text-[15px]"><h1 className="mb-7 text-3xl font-semibold text-zinc-900">{pdfSnapshot.title}</h1><MarkdownDocument body={pdfSnapshot.body} /></article> : null}</section>;
+  return <section ref={editorSurfaceRef} className="notes-editor-surface flex h-full min-w-0 overflow-hidden bg-[var(--surface-canvas)]"><div className="flex min-w-0 flex-1 flex-col"><div className="flex min-h-[var(--toolbar-height)] shrink-0 items-center gap-3 border-b px-4 sm:px-6"><input aria-label="笔记标题" value={title} onChange={(event) => { const nextTitle = event.target.value; setTitle(nextTitle); dirty(nextTitle, body); }} className="min-w-0 flex-1 bg-transparent text-lg font-semibold tracking-[-0.01em] outline-none placeholder:text-[var(--text-tertiary)]" placeholder="无标题笔记" /><span aria-live="polite" className={`shrink-0 text-xs ${state === "保存失败" || state === "版本冲突" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>{state === "正在保存" ? "正在保存…" : state}</span><Button variant="ghost" size="sm" onClick={() => setAiOpen((value) => !value)} aria-pressed={aiOpen}><Sparkles aria-hidden="true" />AI</Button><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="笔记更多操作"><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => void save()}>立即保存 <span className="ml-auto text-xs text-[var(--text-tertiary)]">⌘S</span></DropdownMenuItem><DropdownMenuItem onSelect={() => void toggleFullscreen()}>{isFullscreen ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}{isFullscreen ? "退出全屏" : "全屏编辑"}</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem disabled={isExporting} onSelect={() => { setPdfError(""); setPdfSnapshot({ title: title || "无标题笔记", body }); }}><Download aria-hidden="true" />{isExporting ? "正在生成 PDF…" : "导出 PDF"}</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>{pdfError ? <p role="alert" className="px-6 py-2 text-sm text-[var(--danger)]">{pdfError}</p> : null}{imageUploadMessage ? <p role="status" aria-live="polite" className={`px-6 py-2 text-sm ${imageUploadMessage.includes("失败") || imageUploadMessage.includes("不支持") ? "text-[var(--danger)]" : "text-[var(--success)]"}`}>{imageUploadMessage}</p> : null}<div className="workspace-scroll min-h-0 flex-1 overflow-y-auto bg-white"><VisualMarkdownEditor markdown={body} noteId={note.id} onImageUploadStatus={setImageUploadMessage} onOpenAi={() => setAiOpen(true)} onSelectionChange={setSelection} onChange={handleBodyChange} /></div></div><NoteAiAssistant open={aiOpen} onOpen={() => setAiOpen(true)} onClose={() => setAiOpen(false)} noteId={note.id} title={title} bodyMarkdown={body} defaultModel={noteAiDefaultModel} selection={selection} onReplaceNote={(suggestion) => { setBody(suggestion); dirty(title, suggestion); }} onInsertNote={(suggestion) => { const nextBody = `${body}${body.trim() ? "\n\n" : ""}${suggestion}`; setBody(nextBody); dirty(title, nextBody); }} />{pdfSnapshot ? <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-white p-12 text-[15px]"><h1 className="mb-7 text-3xl font-semibold text-zinc-900">{pdfSnapshot.title}</h1><MarkdownDocument body={pdfSnapshot.body} /></article> : null}</section>;
 }

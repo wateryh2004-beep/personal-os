@@ -62,6 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => { const timer = window.setTimeout(() => { try { setCollapsed(JSON.parse(localStorage.getItem(sidebarStorageKey) || "false") === true); setAgentOpen(localStorage.getItem(agentOpenStorageKey) === "true"); } catch { /* Keep the usable default. */ } }, 0); return () => window.clearTimeout(timer); }, []);
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setCommandSection("search"); setCommandOpen(true); }
       if (isAssistantShortcut(event)) { event.preventDefault(); setAgentOpen(true); }
     };

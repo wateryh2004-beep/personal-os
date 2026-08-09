@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import "@mdxeditor/editor/style.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
