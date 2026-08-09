@@ -217,7 +217,7 @@ export function serializeReviewEvidence(evidence: ReviewEvidence) {
     }
     for (const item of items) {
       lines.push(
-        `- [${item.type}:${item.id}] ${item.title} | ${item.occurredAt}${item.state ? ` | state=${item.state}` : ""}${item.summary ? ` | ${item.summary}` : ""}`,
+        `- 来源标题：「${item.title}」 | 时间：${item.occurredAt}${item.state ? ` | 状态：${item.state}` : ""}${item.summary ? ` | 摘要：${item.summary}` : ""}`,
       );
     }
   }

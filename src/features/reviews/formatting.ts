@@ -1,4 +1,5 @@
 import type { ReviewStructuredData } from "./types";
+import type { ReviewEvidence, ReviewEvidenceItem } from "./evidence";
 
 export const EMPTY_REVIEW_STRUCTURED_DATA: ReviewStructuredData = {
   wins: [],
@@ -35,6 +36,45 @@ export function parseJsonObject(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const candidate = fenced ?? text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
   return JSON.parse(candidate.trim());
+}
+
+function reviewEvidenceItems(evidence: ReviewEvidence): ReviewEvidenceItem[] {
+  return [
+    ...evidence.calendar,
+    ...evidence.tasksCompleted,
+    ...evidence.tasksOpen,
+    ...evidence.notes,
+    ...evidence.inbox,
+    ...evidence.career,
+    ...evidence.projects,
+    ...evidence.decisions,
+  ];
+}
+
+/** User-visible Review drafts must cite titles, never database identifiers. */
+export function humanizeReviewDraftSources(
+  data: ReviewStructuredData,
+  evidence: ReviewEvidence,
+): ReviewStructuredData {
+  const replacements = reviewEvidenceItems(evidence).flatMap((item) => [
+    [`${item.type}:${item.id}`, item.title] as const,
+    [`${item.type}：${item.id}`, item.title] as const,
+    [item.id, item.title] as const,
+  ]);
+  const humanize = (text: string) =>
+    replacements.reduce(
+      (current, [reference, title]) => current.replaceAll(reference, title),
+      text,
+    );
+  return {
+    wins: data.wins.map(humanize),
+    friction: data.friction.map(humanize),
+    openLoops: data.openLoops.map(humanize),
+    changes: data.changes.map(humanize),
+    lessons: data.lessons.map(humanize),
+    nextFocus: data.nextFocus.map(humanize),
+    freeReflection: humanize(data.freeReflection),
+  };
 }
 
 export function normalizeStoredStructuredData(value: unknown): ReviewStructuredData {

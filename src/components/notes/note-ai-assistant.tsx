@@ -156,6 +156,11 @@ export function NoteAiAssistant({
   const insertLabel = request?.scope === "selection"
     ? "插入到选区下方"
     : "插入到笔记末尾";
+  const discardResult = () => {
+    setRequest(null);
+    setResultSelection(null);
+    setResult({ status: "idle", message: "", suggestion: "" });
+  };
 
   useEffect(() => {
     if (!result.suggestion) return;
@@ -228,7 +233,64 @@ export function NoteAiAssistant({
           ) : null}
         </div>
       ) : null}
-      <AISidecar open={open} onClose={onClose} context="当前笔记" footer={<select aria-label="AI 模型" value={model} onChange={(event) => setModel(event.target.value as DeepSeekModelId)} className="h-7 bg-transparent text-xs text-[var(--text-tertiary)]"><option value="deepseek-v4-flash">DeepSeek V4 Flash</option><option value="deepseek-v4-pro">DeepSeek V4 Pro</option></select>}>
+      <AISidecar
+        open={open}
+        onClose={onClose}
+        context="当前笔记"
+        footer={
+          <div className="space-y-3">
+            {result.suggestion ? (
+              <div aria-label="AI 结果确认操作" className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium text-[var(--text-primary)]">AI 结果待确认</p>
+                  <span className="text-[10px] text-[var(--text-tertiary)]">尚未写入笔记</span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {rewrite ? (
+                    <button
+                      onClick={() => apply("replace")}
+                      className="min-h-10 rounded-md bg-[#365F78] px-3 py-2 text-xs font-medium text-white"
+                    >
+                      {replaceLabel}
+                    </button>
+                  ) : null}
+                  <button
+                    onClick={() => apply("insert")}
+                    className={`min-h-10 rounded-md px-3 py-2 text-xs font-medium ${rewrite ? "border bg-white text-[var(--text-primary)]" : "bg-[#365F78] text-white sm:col-span-2"}`}
+                  >
+                    确认并{insertLabel}
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <button
+                    onClick={() => void navigator.clipboard?.writeText(result.suggestion)}
+                    className="inline-flex min-h-8 items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  >
+                    <Copy className="size-3" aria-hidden="true" />
+                    复制
+                  </button>
+                  <button
+                    onClick={() => request && run(request, resultSelection)}
+                    className="min-h-8 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  >
+                    重新生成
+                  </button>
+                  <button
+                    onClick={discardResult}
+                    className="min-h-8 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                  >
+                    放弃
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            <div className="flex items-center justify-between border-t pt-2">
+              <span className="text-[10px] text-[var(--text-tertiary)]">模型</span>
+              <select aria-label="AI 模型" value={model} onChange={(event) => setModel(event.target.value as DeepSeekModelId)} className="h-7 bg-transparent text-xs text-[var(--text-tertiary)]"><option value="deepseek-v4-flash">DeepSeek V4 Flash</option><option value="deepseek-v4-pro">DeepSeek V4 Pro</option></select>
+            </div>
+          </div>
+        }
+      >
           <div className="grid grid-cols-2 gap-2">
             {shortcuts.map(([operation, label, icon]) => (
               <button
@@ -305,53 +367,12 @@ export function NoteAiAssistant({
           ) : null}
           {result.suggestion ? (
             <div ref={resultRef} className="mt-4 border-t pt-4">
-              <div className="sticky -top-4 z-10 -mx-1 bg-[var(--surface-canvas)] px-1 pb-3">
-                <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3 pb-3">
+                <div>
                   <p className="text-sm font-medium text-[var(--text-primary)]">AI 结果预览</p>
-                  <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[10px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? "所选文字" : "当前笔记"}</span>
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">使用底部固定确认区决定是否写入笔记。</p>
                 </div>
-                <p className="mt-1 text-xs text-[var(--text-secondary)]">选择下面的确认操作后，内容才会写入笔记。</p>
-                <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap">
-                  {rewrite ? (
-                    <button
-                      onClick={() => apply("replace")}
-                      className="min-h-9 rounded-md bg-[#365F78] px-3 py-2 text-xs font-medium text-white"
-                    >
-                      {replaceLabel}
-                    </button>
-                  ) : null}
-                  <button
-                    onClick={() => apply("insert")}
-                    className={`min-h-9 rounded-md px-3 py-2 text-xs font-medium ${rewrite ? "border bg-white text-[var(--text-primary)]" : "bg-[#365F78] text-white"}`}
-                  >
-                    {insertLabel}
-                  </button>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                  <button
-                    onClick={() => void navigator.clipboard?.writeText(result.suggestion)}
-                    className="inline-flex min-h-8 items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  >
-                    <Copy className="size-3" aria-hidden="true" />
-                    复制
-                  </button>
-                  <button
-                    onClick={() => request && run(request, resultSelection)}
-                    className="min-h-8 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  >
-                    重新生成
-                  </button>
-                  <button
-                    onClick={() => {
-                      setRequest(null);
-                      setResultSelection(null);
-                      setResult({ status: "idle", message: "", suggestion: "" });
-                    }}
-                    className="min-h-8 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-                  >
-                    放弃
-                  </button>
-                </div>
+                <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[10px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? "所选文字" : "当前笔记"}</span>
               </div>
               <pre className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">{result.suggestion}</pre>
               {result.contextSources?.length ? (

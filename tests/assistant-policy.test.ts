@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAssistantPolicy } from "@/features/assistant/policy";
+import { BASE_ASSISTANT_SYSTEM_POLICY, resolveAssistantPolicy } from "@/features/assistant/policy";
 import { buildAssistantTools } from "@/features/assistant/tools";
 
 const request = (surface: "calendar" | "tasks" | "inbox" | "global") => ({
@@ -83,5 +83,11 @@ describe("Unified Assistant policy", () => {
     expect(instruction).toContain("今天发生的事情");
     expect(instruction).toContain("经验教训");
     expect(instruction).toContain("优先归今日日记");
+  });
+
+  it("uses human-readable source titles in user-visible answers", () => {
+    expect(BASE_ASSISTANT_SYSTEM_POLICY).toContain("人类可读的来源标题");
+    expect(BASE_ASSISTANT_SYSTEM_POLICY).toContain("不得显示数据库 UUID");
+    expect(resolveAssistantPolicy({ surface: "reviews", mode: "transform" }).instruction).toContain("只能引用来源标题");
   });
 });

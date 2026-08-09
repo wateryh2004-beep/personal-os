@@ -11,6 +11,7 @@ import {
   serializeReviewEvidence,
 } from "./evidence";
 import {
+  humanizeReviewDraftSources,
   parseJsonObject,
   reviewStructuredDataToMarkdown,
 } from "./formatting";
@@ -146,14 +147,15 @@ export async function generateReviewDraft(typeInput: unknown) {
       mode: "transform",
       operation: "draftReview",
       usePersonalContext: false,
-      instruction: `基于 Review Evidence 生成${type === "daily" ? "每日" : "每周"}复盘草稿。只输出 JSON，不要 Markdown 代码块。JSON 必须包含 wins、friction、openLoops、changes、lessons、nextFocus 六个字符串数组，以及 freeReflection 字符串。只写证据能支持的内容，不把推论写成事实；不确定处用“需要判断”表述。最多每组 5 项。Evidence count=${coverage}，如果少于 3 条，在 freeReflection 明确说明记录覆盖较低。`,
+      instruction: `基于 Review Evidence 生成${type === "daily" ? "每日" : "每周"}复盘草稿。只输出 JSON，不要 Markdown 代码块。JSON 必须包含 wins、friction、openLoops、changes、lessons、nextFocus 六个字符串数组，以及 freeReflection 字符串。只写证据能支持的内容，不把推论写成事实；不确定处用“需要判断”表述。最多每组 5 项。如需标注来源，只能使用 Evidence 中的人类可读“来源标题”，格式为“（来源：标题）”；禁止输出 UUID、source id、note:、todo_task: 等内部标识，也不要给每句话机械添加来源。Evidence count=${coverage}，如果少于 3 条，在 freeReflection 明确说明记录覆盖较低。`,
       currentSurface: {
         type: "review_evidence",
         title: reviewTitle(type, evidence.periodStart, evidence.periodEnd),
         content: serializeReviewEvidence(evidence),
       },
     });
-    const draft = reviewStructuredDataSchema.parse(parseJsonObject(result.text));
+    const parsedDraft = reviewStructuredDataSchema.parse(parseJsonObject(result.text));
+    const draft = humanizeReviewDraftSources(parsedDraft, evidence);
     return { ok: true as const, draft, coverage };
   } catch {
     return {

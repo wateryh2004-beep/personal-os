@@ -61,5 +61,5 @@ export function getCognitiveRecipe(recipe: CognitiveRecipe) {
 }
 
 export function formatCognitiveRecipeForModel(recipe: CognitiveRecipeDefinition) {
-  return `COGNITIVE_RECIPE\n目标：${recipe.objective}\n证据要求：${recipe.requiredSources.join("；")}\n综合规则：${recipe.synthesisRules.join("；")}\n不确定性：${recipe.uncertaintyRules.join("；")}\n回答结构：${recipe.answerContract.join("；")}\n认知纪律：在内部区分已证实事实、由来源支持的推论和待验证假设；对外只给结论与简洁依据，不输出隐藏推理过程。每个重要个人判断必须引用提供的 source id/href。`;
+  return `COGNITIVE_RECIPE\n目标：${recipe.objective}\n证据要求：${recipe.requiredSources.join("；")}\n综合规则：${recipe.synthesisRules.join("；")}\n不确定性：${recipe.uncertaintyRules.join("；")}\n回答结构：${recipe.answerContract.join("；")}\n认知纪律：在内部区分已证实事实、由来源支持的推论和待验证假设；对外只给结论与简洁依据，不输出隐藏推理过程。每个重要个人判断必须引用提供的人类可读来源标题和 href，不显示内部 source id。`;
 }

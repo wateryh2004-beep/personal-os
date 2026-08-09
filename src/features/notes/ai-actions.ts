@@ -79,7 +79,7 @@ export async function generateNoteAiSuggestion(
     });
     return {
       status: "success",
-      message: "预览已生成。请使用下方的确认按钮决定是否写入笔记。",
+      message: "预览已生成。请使用底部固定确认区决定是否写入笔记。",
       suggestion: result.text,
       operation: parsed.data.operation,
       scope: parsed.data.scope,

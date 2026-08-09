@@ -7,7 +7,9 @@ import {
   getReviewPeriodBounds,
   noteChangedInReviewPeriod,
   openTaskIsRelevantToReview,
+  serializeReviewEvidence,
 } from "@/features/reviews/evidence";
+import { humanizeReviewDraftSources } from "@/features/reviews/formatting";
 import { getReviewPeriod } from "@/features/reviews/periods";
 
 describe("Review Evidence", () => {
@@ -108,5 +110,54 @@ describe("Review Evidence", () => {
     });
     expect(countReviewEvidence(evidence)).toBe(0);
     expect(evidence.notes).toEqual([]);
+  });
+
+  it("serializes human-readable source titles without exposing database ids", () => {
+    const evidence = emptyReviewEvidence({
+      type: "daily",
+      period: daily,
+      generatedAt: "2026-08-09T03:00:00.000Z",
+    });
+    evidence.notes = [{
+      type: "note",
+      id: "3d5d305f-ee07-4d11-9b3a-2036c7ff0a03",
+      title: "日记 · 2026-08-09",
+      summary: "今天完成了两道菜。",
+      occurredAt: "2026-08-09T10:42:00.000Z",
+      href: "/notes/3d5d305f-ee07-4d11-9b3a-2036c7ff0a03",
+      state: "已更新",
+    }];
+
+    const serialized = serializeReviewEvidence(evidence);
+    expect(serialized).toContain("来源标题：「日记 · 2026-08-09」");
+    expect(serialized).not.toContain("3d5d305f-ee07-4d11-9b3a-2036c7ff0a03");
+    expect(serialized).not.toContain("note:");
+  });
+
+  it("replaces any model-leaked source ids with their concrete titles", () => {
+    const evidence = emptyReviewEvidence({
+      type: "daily",
+      period: daily,
+      generatedAt: "2026-08-09T03:00:00.000Z",
+    });
+    evidence.notes = [{
+      type: "note",
+      id: "3d5d305f-ee07-4d11-9b3a-2036c7ff0a03",
+      title: "日记 · 2026-08-09",
+      occurredAt: "2026-08-09T10:42:00.000Z",
+      href: "/notes/3d5d305f-ee07-4d11-9b3a-2036c7ff0a03",
+    }];
+    const result = humanizeReviewDraftSources({
+      wins: ["完成两道菜（来源：note:3d5d305f-ee07-4d11-9b3a-2036c7ff0a03）"],
+      friction: [],
+      openLoops: [],
+      changes: [],
+      lessons: [],
+      nextFocus: [],
+      freeReflection: "来自 3d5d305f-ee07-4d11-9b3a-2036c7ff0a03",
+    }, evidence);
+
+    expect(result.wins[0]).toBe("完成两道菜（来源：日记 · 2026-08-09）");
+    expect(result.freeReflection).toBe("来自 日记 · 2026-08-09");
   });
 });
