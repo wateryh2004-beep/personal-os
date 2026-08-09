@@ -28,6 +28,8 @@ describe("Cloudflare R2 SDK adapter", () => {
     expect(upload.searchParams.get("X-Amz-Algorithm")).toBe("AWS4-HMAC-SHA256");
     expect(upload.searchParams.get("X-Amz-Expires")).toBe("300");
     expect(upload.searchParams.get("X-Amz-SignedHeaders")).toContain("host");
+    expect(upload.searchParams.has("x-amz-checksum-crc32")).toBe(false);
+    expect(upload.searchParams.has("x-amz-sdk-checksum-algorithm")).toBe(false);
     const download = new URL(await createDownloadUrl("user/files/example.png", "example.png", true));
     expect(download.searchParams.get("response-content-disposition")).toMatch(/^inline;/);
   });

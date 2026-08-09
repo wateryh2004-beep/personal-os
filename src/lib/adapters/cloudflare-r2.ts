@@ -30,7 +30,20 @@ export function isR2EndpointValid(value = process.env.R2_ENDPOINT) {
 }
 
 function client(config: R2Configuration) {
-  return new S3Client({ region: "auto", endpoint: config.endpoint, credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey } });
+  return new S3Client({
+    region: "auto",
+    endpoint: config.endpoint,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+    // Recent AWS SDK releases default to adding CRC32 query parameters to
+    // presigned PUT requests. R2 does not require those parameters and can
+    // reject a browser upload when the generated checksum describes an empty
+    // payload rather than the file that is sent later through the signed URL.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  });
 }
 
 function requiredConfiguration() {
