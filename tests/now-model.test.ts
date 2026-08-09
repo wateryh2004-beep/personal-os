@@ -17,18 +17,24 @@ describe("Now model", () => {
   it("keeps a cross-midnight event in today's schedule and does not let all-day events block Next", () => {
     const cross = { id: "cross", subject: "跨日", starts_at: "2026-08-07T15:00:00Z", ends_at: "2026-08-08T03:00:00Z", is_all_day: false, location_name: null };
     expect(eventIsToday(cross, now, timeZone)).toBe(true);
-    const next = selectNextAction({ now, events: [{ ...cross, id: "all-day", is_all_day: true }, { id: "soon", subject: "会议", starts_at: "2026-08-08T02:20:00Z", ends_at: "2026-08-08T03:00:00Z", is_all_day: false, location_name: null }], tasks: groupNowTasks([task("today", "2026-08-08T10:00:00Z")], now, timeZone), milestones: [], inboxCount: 0 });
+    const next = selectNextAction({ now, timeZone, events: [{ ...cross, id: "all-day", is_all_day: true }, { id: "soon", subject: "会议", starts_at: "2026-08-08T02:20:00Z", ends_at: "2026-08-08T03:00:00Z", is_all_day: false, location_name: null }], tasks: groupNowTasks([task("today", "2026-08-08T10:00:00Z")], now, timeZone), milestones: [], inboxCount: 0 });
     expect(next).toMatchObject({ kind: "event", state: "starting_soon" });
   });
   it("uses deterministic event, task, career, inbox, then none fallbacks", () => {
     const groups = groupNowTasks([task("overdue-high", "2026-08-06T10:00:00Z", "high")], now, timeZone);
-    expect(selectNextAction({ now, events: [], tasks: groups, milestones: [], inboxCount: 0 })).toMatchObject({ kind: "task", reason: "已逾期" });
-    expect(selectNextAction({ now, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [{ id: "m", track_id: "t", career_direction_id: null, title: "节点", starts_on: null, target_date: "2026-08-10", status: "planned", importance: "normal" }], inboxCount: 2 })).toMatchObject({ kind: "career_milestone" });
-    expect(selectNextAction({ now, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [], inboxCount: 2 })).toMatchObject({ kind: "inbox" });
-    expect(selectNextAction({ now, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [], inboxCount: 0 })).toMatchObject({ kind: "none" });
+    expect(selectNextAction({ now, timeZone, events: [], tasks: groups, milestones: [], inboxCount: 0 })).toMatchObject({ kind: "task", reason: "已逾期" });
+    expect(selectNextAction({ now, timeZone, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [{ id: "m", track_id: "t", career_direction_id: null, title: "节点", starts_on: null, target_date: "2026-08-10", status: "planned", importance: "normal" }], inboxCount: 2 })).toMatchObject({ kind: "career_milestone", reason: "距离职业节点还有 2 天" });
+    expect(selectNextAction({ now, timeZone, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [{ id: "past", track_id: "t", career_direction_id: null, title: "历史", starts_on: null, target_date: "2026-07-15", status: "planned", importance: "high" }], inboxCount: 2 })).toMatchObject({ kind: "inbox" });
+    expect(selectNextAction({ now, timeZone, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [], inboxCount: 2 })).toMatchObject({ kind: "inbox" });
+    expect(selectNextAction({ now, timeZone, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [], inboxCount: 0 })).toMatchObject({ kind: "none" });
   });
   it("builds a bounded, priority-ordered proactive attention budget", () => {
     const attention = buildProactiveInsights({ now, timeZone, tasks: [task("overdue", "2026-08-06T10:00:00Z", "high")], events: [{ id: "event", subject: "面试", starts_at: "2026-08-08T02:20:00Z", ends_at: "2026-08-08T03:00:00Z", is_all_day: false, location_name: null }], milestones: [{ id: "m", track_id: "t", career_direction_id: null, title: "节点", starts_on: null, target_date: "2026-08-10", status: "planned", importance: "normal" }] });
     expect(attention.map((item) => item.kind)).toEqual(["task_overdue", "calendar_upcoming", "career_milestone_approaching"]);
+  });
+
+  it("does not create proactive attention for historical milestones", () => {
+    const attention = buildProactiveInsights({ now, timeZone, tasks: [], events: [], milestones: [{ id: "past", track_id: "t", career_direction_id: null, title: "历史", starts_on: null, target_date: "2026-07-15", status: "planned", importance: "high" }], weeklyReviewCompleted: true });
+    expect(attention).toEqual([]);
   });
 });

@@ -310,7 +310,7 @@ async function executeCareer(input: {
         career_direction_id: value.careerDirectionId,
         title: value.title,
         description: value.description,
-        starts_on: value.startsOn,
+        starts_on: null,
         target_date: value.targetDate,
         status: value.status,
         importance: value.importance,

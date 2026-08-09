@@ -1,4 +1,14 @@
 import type { NowCalendarEvent, NowCareerMilestone, NowTask } from "./types";
+import {
+  daysUntilCareerMilestone,
+  selectOpenCareerMilestones,
+} from "@/features/career/milestone-temporal";
+import {
+  addDateKeyDays,
+  getDateKeyInTimeZone,
+} from "@/lib/date-keys";
+
+export { getDateKeyInTimeZone } from "@/lib/date-keys";
 
 export type TodayTask = {
   id: string;
@@ -7,22 +17,6 @@ export type TodayTask = {
   importance: string | null;
   status: string;
 };
-
-export function getDateKeyInTimeZone(value: Date | string, timeZone: string) {
-  const date = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value;
-  const year = get("year");
-  const month = get("month");
-  const day = get("day");
-  return year && month && day ? `${year}-${month}-${day}` : null;
-}
 
 export function isDueToday(value: string | null, now: Date, timeZone: string) {
   return value ? getDateKeyInTimeZone(value, timeZone) === getDateKeyInTimeZone(now, timeZone) : false;
@@ -42,7 +36,7 @@ function sortTasks(tasks: NowTask[]) { return [...tasks].sort((a, b) => taskScor
 
 export function groupNowTasks(tasks: NowTask[], now: Date, timeZone: string) {
   const todayKey = getDateKeyInTimeZone(now, timeZone);
-  const horizon = getDateKeyInTimeZone(new Date(now.getTime() + 7 * 86_400_000), timeZone)!;
+  const horizon = addDateKeyDays(todayKey!, 7);
   const pending = tasks.filter((task) => task.status !== "completed" && task.due_at);
   return {
     overdue: sortTasks(pending.filter((task) => getDateKeyInTimeZone(task.due_at!, timeZone)! < todayKey!)),
@@ -56,7 +50,7 @@ export function eventIsToday(event: NowCalendarEvent, now: Date, timeZone: strin
   return getDateKeyInTimeZone(event.starts_at, timeZone)! <= today! && getDateKeyInTimeZone(event.ends_at, timeZone)! >= today!;
 }
 
-export function selectNextAction({ now, events, tasks, milestones, inboxCount }: { now: Date; events: NowCalendarEvent[]; tasks: ReturnType<typeof groupNowTasks>; milestones: NowCareerMilestone[]; inboxCount: number }) {
+export function selectNextAction({ now, timeZone, events, tasks, milestones, inboxCount }: { now: Date; timeZone: string; events: NowCalendarEvent[]; tasks: ReturnType<typeof groupNowTasks>; milestones: NowCareerMilestone[]; inboxCount: number }) {
   const timed = events.filter((event) => !event.is_all_day).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const ongoing = timed.find((event) => new Date(event.starts_at) <= now && now < new Date(event.ends_at));
   if (ongoing) return { kind: "event" as const, event: ongoing, state: "ongoing" as const, reason: `正在进行，${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(ongoing.ends_at))}结束`, href: "/calendar" as const };
@@ -65,7 +59,17 @@ export function selectNextAction({ now, events, tasks, milestones, inboxCount }:
   const task = tasks.overdue.find((item) => item.importance === "high") ?? tasks.overdue[0] ?? tasks.today.find((item) => item.importance === "high") ?? tasks.today[0] ?? tasks.upcoming.find((item) => item.importance === "high") ?? tasks.upcoming[0];
   if (task) { const overdue = tasks.overdue.some((item) => item.id === task.id); return { kind: "task" as const, task, reason: overdue ? "已逾期" : task.importance === "high" ? "今天到期 · 高优先级" : "今天值得推进", href: "/tasks" as const }; }
   if (next) return { kind: "event" as const, event: next, state: "upcoming" as const, reason: `距离下一项日程还有 ${formatRelativeDuration(new Date(next.starts_at).getTime() - now.getTime())}`, href: "/calendar" as const };
-  if (milestones[0]) return { kind: "career_milestone" as const, milestone: milestones[0], reason: `Career milestone · ${milestones[0].target_date}`, href: "/career/roadmap" as const };
+  const today = getDateKeyInTimeZone(now, timeZone)!;
+  const milestone = selectOpenCareerMilestones(milestones, today, 7)[0];
+  if (milestone) {
+    const days = daysUntilCareerMilestone(milestone.target_date, today);
+    return {
+      kind: "career_milestone" as const,
+      milestone,
+      reason: days === 0 ? "这个职业节点计划在今天" : `距离职业节点还有 ${days} 天`,
+      href: "/career/roadmap" as const,
+    };
+  }
   if (inboxCount) return { kind: "inbox" as const, count: inboxCount, reason: "Inbox 中有待整理的信息", href: "/inbox" as const };
   return { kind: "none" as const, reason: "目前没有必须处理的事项。" };
 }

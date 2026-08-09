@@ -4,13 +4,11 @@ import type {
   NowTask,
   TodayBriefItem,
 } from "./types";
-
-const DAY_MS = 86_400_000;
-
-function daysUntil(date: string, now: Date) {
-  const target = new Date(`${date}T12:00:00Z`).getTime();
-  return Math.max(0, Math.ceil((target - now.getTime()) / DAY_MS));
-}
+import {
+  daysUntilCareerMilestone,
+  selectOpenCareerMilestones,
+} from "@/features/career/milestone-temporal";
+import { getDateKeyInTimeZone } from "@/lib/date-keys";
 
 export function buildTodayBrief(input: {
   now: Date;
@@ -97,14 +95,27 @@ export function buildTodayBrief(input: {
     });
   }
 
-  const milestone = input.milestones[0];
+  const today = getDateKeyInTimeZone(input.now, input.timezone)!;
+  const briefScore = (milestone: NowCareerMilestone) => {
+    const days = daysUntilCareerMilestone(milestone.target_date, today);
+    if (days === 0) return 92;
+    if (days <= 3) return milestone.importance === "high" ? 90 : 82;
+    return milestone.importance === "high" ? 78 : 66;
+  };
+  const nearMilestones = selectOpenCareerMilestones(input.milestones, today, 7)
+    .sort((left, right) => briefScore(right) - briefScore(left));
+  const distantImportantMilestone = items.length === 0
+    ? selectOpenCareerMilestones(input.milestones, today, 30)
+        .find((item) => daysUntilCareerMilestone(item.target_date, today) > 7 && item.importance === "high")
+    : undefined;
+  const milestone = nearMilestones[0] ?? distantImportantMilestone;
   if (milestone) {
-    const days = daysUntil(milestone.target_date, input.now);
+    const days = daysUntilCareerMilestone(milestone.target_date, today);
     items.push({
       id: `brief-milestone-${milestone.id}`,
       title: milestone.title,
-      reason: days === 0 ? "职业里程碑今天到期。" : `职业里程碑将在 ${days} 天后到期。`,
-      priority: days <= 3 ? 92 : days <= 7 ? 80 : 58,
+      reason: days === 0 ? "这个职业节点计划在今天。" : `这个职业节点计划在 ${days} 天后。`,
+      priority: days > 7 ? 58 : briefScore(milestone),
       sourceRefs: [{
         id: milestone.id,
         domain: "career",

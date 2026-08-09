@@ -68,6 +68,7 @@ export async function buildPersonalContext(
     .eq("user_id", userId)
     .maybeSingle();
   const timezone = profile?.timezone || "Asia/Shanghai";
+  const today = getDateKeyInTimeZone(now, timezone);
   const plan = buildFallbackContextPlan(request);
   const surface = request.currentSurface
     ? [
@@ -176,7 +177,8 @@ export async function buildPersonalContext(
             supabase
               .from("career_milestones")
               .select("id,title,target_date,importance,status")
-              .gte("target_date", now.toISOString().slice(0, 10))
+              .in("status", ["planned", "in_progress"])
+              .gte("target_date", today)
               .is("archived_at", null)
               .order("target_date")
               .limit(8),
@@ -306,6 +308,7 @@ export async function buildPersonalContext(
       (async () => {
         const from = new Date(now.getTime() - 7 * 864e5).toISOString();
         const until = new Date(now.getTime() + 14 * 864e5).toISOString();
+        const milestoneUntil = addLocalDays(today, 14);
         const [events, todos, milestones] = await Promise.all([
           supabase
             .from("calendar_events")
@@ -323,8 +326,9 @@ export async function buildPersonalContext(
           supabase
             .from("career_milestones")
             .select("id,title,target_date,importance,status")
-            .gte("target_date", now.toISOString().slice(0, 10))
-            .lte("target_date", until.slice(0, 10))
+            .in("status", ["planned", "in_progress"])
+            .gte("target_date", today)
+            .lte("target_date", milestoneUntil)
             .is("archived_at", null)
             .limit(8),
         ]);

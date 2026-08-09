@@ -8,6 +8,11 @@ import {
 import { buildProactiveInsights } from "@/features/proactive/engine";
 import { reconcileProactiveInsights } from "@/features/proactive/service";
 import { getReviewPeriod } from "@/features/reviews/periods";
+import {
+  daysUntilCareerMilestone,
+  selectOpenCareerMilestones,
+} from "@/features/career/milestone-temporal";
+import { addDateKeyDays } from "@/lib/date-keys";
 import { buildTodayBrief } from "./brief";
 import type {
   NowCalendarEvent,
@@ -31,10 +36,7 @@ export async function getTodayWorkspace(
     .maybeSingle();
   const timezone = profile?.timezone || "Asia/Shanghai";
   const today = getDateKeyInTimeZone(now, timezone)!;
-  const future30 = getDateKeyInTimeZone(
-    new Date(now.getTime() + 30 * 86_400_000),
-    timezone,
-  )!;
+  const future30 = addDateKeyDays(today, 30);
   const from = new Date(now.getTime() - 48 * 3_600_000).toISOString();
   const until = new Date(now.getTime() + 9 * 86_400_000).toISOString();
   const [
@@ -72,6 +74,7 @@ export async function getTodayWorkspace(
       )
       .is("archived_at", null)
       .in("status", ["planned", "in_progress"])
+      .gte("target_date", today)
       .lte("target_date", future30)
       .order("target_date")
       .limit(20),
@@ -99,9 +102,10 @@ export async function getTodayWorkspace(
   const todayEvents = events.filter((event) =>
     eventIsToday(event, now, timezone),
   );
-  const milestones = milestonesResult.error
+  const queriedMilestones = milestonesResult.error
     ? []
     : ((milestonesResult.data ?? []) as NowCareerMilestone[]);
+  const milestones = selectOpenCareerMilestones(queriedMilestones, today, 30);
   const inboxCount = inboxResult.error ? 0 : (inboxResult.count ?? 0);
   const connection = connectionResult.error ? null : connectionResult.data;
   const attention = buildProactiveInsights({
@@ -140,6 +144,7 @@ export async function getTodayWorkspace(
     inboxCount,
     nextAction: selectNextAction({
       now,
+      timeZone: timezone,
       events,
       tasks,
       milestones,
@@ -168,7 +173,10 @@ export async function getTodayWorkspace(
         href: "/tasks",
       })),
       ...milestones
-        .filter((item) => item.target_date > today)
+        .filter((item) => {
+          const days = daysUntilCareerMilestone(item.target_date, today);
+          return days > 0 && days <= 7;
+        })
         .map((item) => ({
           id: `milestone-${item.id}`,
           kind: "milestone" as const,

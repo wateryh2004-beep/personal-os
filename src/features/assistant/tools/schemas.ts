@@ -48,15 +48,10 @@ export const careerMilestoneProposalSchema = z
     careerDirectionId: z.string().uuid().nullable().default(null),
     title: z.string().trim().min(1).max(240),
     description: z.string().trim().max(4_000).nullable().default(null),
-    startsOn: optionalDate,
     targetDate: z.string().date(),
     status: z.enum(["planned", "in_progress"]).default("planned"),
     importance: z.enum(["low", "normal", "high"]).default("normal"),
     reason: z.string().trim().min(1).max(500),
-  })
-  .refine((value) => !value.startsOn || value.startsOn <= value.targetDate, {
-    path: ["startsOn"],
-    message: "开始日期不能晚于目标日期",
   });
 
 export const careerFactProposalSchema = z.object({

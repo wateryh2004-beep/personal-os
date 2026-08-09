@@ -4,6 +4,7 @@ import type {
   NowTask,
 } from "@/features/today/types";
 import { getDateKeyInTimeZone } from "@/features/today/utils";
+import { selectOpenCareerMilestones } from "@/features/career/milestone-temporal";
 import type { ProactiveInsight } from "./types";
 export function buildProactiveInsights({
   now,
@@ -62,13 +63,7 @@ export function buildProactiveInsights({
         fingerprint: `calendar_upcoming:${e.id}:${e.starts_at}`,
       }),
     );
-  milestones
-    .filter(
-      (m) =>
-        m.target_date >= today &&
-        m.target_date <=
-          getDateKeyInTimeZone(new Date(now.getTime() + 3 * 864e5), timeZone)!,
-    )
+  selectOpenCareerMilestones(milestones, today, 3)
     .forEach((m) =>
       insights.push({
         id: `milestone-${m.id}`,

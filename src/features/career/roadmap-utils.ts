@@ -1,4 +1,5 @@
-export type TimelineItem = { starts_on: string | null; target_date: string };
+export type TimelineItem = { target_date: string };
+export type TimelineTrackRange = { start_date: string | null; end_date: string | null };
 export type TimelineDomain = { start: Date; end: Date };
 
 const planningHorizon = new Date("2027-12-01T00:00:00Z");
@@ -27,16 +28,23 @@ export function monthCount(domain: TimelineDomain) {
   return (domain.end.getUTCFullYear() - domain.start.getUTCFullYear()) * 12 + domain.end.getUTCMonth() - domain.start.getUTCMonth() + 1;
 }
 
-export function getTimelineDomain(now: Date, items: TimelineItem[]): TimelineDomain {
+export function getTimelineDomain(
+  now: Date,
+  items: TimelineItem[],
+  ranges: TimelineTrackRange[] = [],
+): TimelineDomain {
   const current = monthStart(now);
-  const latest = items.reduce<Date>((max, item) => {
+  const latestMilestone = items.reduce<Date>((max, item) => {
     const date = parseDate(item.target_date);
     return date > max ? date : max;
   }, planningHorizon);
-  return {
-    start: addMonths(current, -36),
-    end: addMonths(monthStart(latest), 36),
-  };
+  const latest = ranges.reduce<Date>((max, range) => {
+    const dateKey = range.end_date ?? range.start_date;
+    if (!dateKey) return max;
+    const date = parseDate(dateKey);
+    return date > max ? date : max;
+  }, latestMilestone);
+  return { start: addMonths(current, -36), end: addMonths(monthStart(latest), 36) };
 }
 
 export function timelineMonths(domain: TimelineDomain) {
@@ -58,88 +66,19 @@ export function xToDate(x: number, domain: TimelineDomain, monthWidth: number) {
   return formatDate(new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), day)));
 }
 
-export function dateDiffDays(start: string, end: string) {
-  return Math.round((parseDate(end).getTime() - parseDate(start).getTime()) / 86_400_000);
+/** Milestones are points. Only track phases own a start/end range. */
+export function trackRangeGeometry(range: TimelineTrackRange, domain: TimelineDomain, monthWidth: number) {
+  if (!range.start_date || !range.end_date) return null;
+  const left = dateToX(range.start_date, domain, monthWidth);
+  const right = dateToX(range.end_date, domain, monthWidth);
+  return { left, width: Math.max(4, right - left + 4) };
 }
 
-export function addDays(date: string, days: number) {
-  const value = parseDate(date);
-  value.setUTCDate(value.getUTCDate() + days);
-  return formatDate(value);
-}
-
-export function isDuration(item: TimelineItem) {
-  return Boolean(item.starts_on && item.starts_on !== item.target_date);
-}
-
-export type VisibleItemGeometry = {
-  intersectsViewport: boolean;
-  clippedLeft: boolean;
-  clippedRight: boolean;
-  visibleStart: string | null;
-  visibleEnd: string | null;
-};
-
-/**
- * Calculates display-only clipping. The returned dates never replace a
- * milestone's stored starts_on or target_date.
- */
-export function getVisibleItemGeometry({ itemStart, itemEnd, viewportStart, viewportEnd }: {
-  itemStart: string;
-  itemEnd: string;
-  viewportStart: string;
-  viewportEnd: string;
-}): VisibleItemGeometry {
-  const intersectsViewport = itemStart <= viewportEnd && itemEnd >= viewportStart;
-  if (!intersectsViewport) return { intersectsViewport: false, clippedLeft: false, clippedRight: false, visibleStart: null, visibleEnd: null };
-  return {
-    intersectsViewport: true,
-    clippedLeft: itemStart < viewportStart,
-    clippedRight: itemEnd > viewportEnd,
-    visibleStart: itemStart < viewportStart ? viewportStart : itemStart,
-    visibleEnd: itemEnd > viewportEnd ? viewportEnd : itemEnd,
-  };
-}
-
-/** Positions an in-bar label within the visible part of its real pixel range. */
-export function getDurationLabelPosition({ barLeft, barRight, viewportLeft, viewportRight, padding = 7 }: {
-  barLeft: number;
-  barRight: number;
-  viewportLeft: number;
-  viewportRight: number;
-  padding?: number;
-}) {
-  const visibleLeft = Math.max(barLeft, viewportLeft);
-  const visibleRight = Math.min(barRight, viewportRight);
-  if (visibleRight <= visibleLeft) return { intersectsViewport: false, left: 0, maxWidth: 0 };
-  const labelLeft = Math.min(Math.max(visibleLeft + padding, barLeft + padding), Math.max(barLeft + padding, barRight - padding));
-  return {
-    intersectsViewport: true,
-    left: labelLeft - barLeft,
-    maxWidth: Math.max(0, visibleRight - labelLeft - padding),
-  };
-}
-
-export function timelineCardRange(item: TimelineItem) {
-  return { left: 0, width: 0, isPoint: !isDuration(item) };
-}
-
-export function timelineDateLabel(item: TimelineItem) {
-  return isDuration(item) ? `${item.starts_on!.slice(5)} — ${item.target_date.slice(5)}` : item.target_date.slice(5);
-}
-
-type Interval = { id: string; starts_on: string | null; target_date: string };
-
-/** First-fit interval packing prevents overlapping work from covering each other. */
-export function packIntervals<T extends Interval>(items: T[]) {
+/** First-fit packing keeps point labels on the same date from covering each other. */
+export function packMilestonePoints<T extends { id: string; target_date: string }>(items: T[]) {
   const rows: T[][] = [];
-  const sorted = [...items].sort((a, b) => (a.starts_on ?? a.target_date).localeCompare(b.starts_on ?? b.target_date));
-  for (const item of sorted) {
-    const start = item.starts_on ?? item.target_date;
-    let row = rows.find((candidate) => {
-      const last = candidate.at(-1);
-      return !last || last.target_date < start;
-    });
+  for (const item of [...items].sort((a, b) => a.target_date.localeCompare(b.target_date))) {
+    let row = rows.find((candidate) => candidate.at(-1)?.target_date !== item.target_date);
     if (!row) {
       row = [];
       rows.push(row);
