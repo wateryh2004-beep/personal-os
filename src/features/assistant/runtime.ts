@@ -6,6 +6,7 @@ import { formatPersonalContextForModel } from "@/features/context/formatter";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { BASE_ASSISTANT_SYSTEM_POLICY, resolveAssistantPolicy } from "./policy";
 import { buildAssistantTools } from "./tools";
+import { selectAssistantToolGroups } from "./tool-router";
 import { selectAssistantModel } from "./model-router";
 import { recordAgentStep, updateAgentRun } from "./persistence";
 import type { AssistantRequest, AssistantResult } from "./types";
@@ -133,8 +134,15 @@ async function setup(request: AssistantRequest) {
 }
 export async function createAssistantAgent(request: AssistantRequest) {
   const runtime = await setup(request);
+  const toolGroups = selectAssistantToolGroups({
+    surface: request.surface,
+    message: latestText(request),
+    intent: runtime.context?.request.intent,
+    available: runtime.policy.tools,
+  });
   return {
     ...runtime,
+    toolGroups,
     agent: new ToolLoopAgent({
       model: runtime.model,
       stopWhen: isStepCount(runtime.policy.maxSteps),
@@ -144,7 +152,7 @@ export async function createAssistantAgent(request: AssistantRequest) {
       tools: buildAssistantTools({
         supabase: runtime.supabase,
         userId: runtime.userId,
-        policy: runtime.policy,
+        policy: { ...runtime.policy, tools: toolGroups },
         timezone: runtime.timezone,
         runId: request.runId,
       }),

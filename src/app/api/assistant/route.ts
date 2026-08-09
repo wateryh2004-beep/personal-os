@@ -12,6 +12,7 @@ import {
   assertOwnedRun,
   createAgentRun,
   persistAgentMessage,
+  recordAgentStep,
   updateAgentRun,
 } from "@/features/assistant/persistence";
 import {
@@ -103,6 +104,7 @@ export async function POST(request: Request) {
           }
         : null,
     });
+    let streamFailure: ReturnType<typeof normalizeAssistantError> | null = null;
     const response = await createAgentUIStreamResponse({
       agent: runtime.agent,
       uiMessages: parsed.data.messages,
@@ -113,7 +115,10 @@ export async function POST(request: Request) {
         chunkMs: 8_000,
         toolMs: 4_000,
       },
-      onError: (error) => normalizeAssistantError(error).message,
+      onError: (error) => {
+        streamFailure = normalizeAssistantError(error);
+        return streamFailure.message;
+      },
       onEnd: async ({ responseMessage, isAborted }) => {
         if (runId) {
           await persistAgentMessage({
@@ -127,15 +132,29 @@ export async function POST(request: Request) {
             .select("id", { count: "exact", head: true })
             .eq("run_id", runId)
             .eq("status", "proposed");
+          if (streamFailure)
+            await recordAgentStep({
+              supabase: owner.supabase,
+              userId: owner.userId,
+              runId,
+              stepType: "error",
+              title: "模型请求未完成",
+              summary: streamFailure.message,
+              output: { errorCode: streamFailure.code },
+              status: "failed",
+            });
           await updateAgentRun({
             supabase: owner.supabase,
             userId: owner.userId,
             runId,
-            status: isAborted
+            status: streamFailure
+              ? "failed"
+              : isAborted
               ? "cancelled"
               : (count ?? 0) > 0
                 ? "awaiting_approval"
                 : "completed",
+            errorCode: streamFailure?.code ?? null,
           });
         }
         if (lockId) await releaseCalendarRequestLock(owner.supabase, lockId);

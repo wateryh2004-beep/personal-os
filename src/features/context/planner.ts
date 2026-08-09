@@ -1,7 +1,7 @@
 import type { ContextPlan, PersonalContextRequest } from "./types";
 import type { SearchDomain } from "@/features/search/types";
 const personal =
-  /结合我的情况|根据我的情况|我的情况|适合我|对我|我最近|我现在|我之前|我过去|我的职业|我的经历|我该怎么办|帮我分析/;
+  /结合我的情况|根据我的情况|我的情况|适合我|对我|我最近|我现在|我之前|我过去|我的职业|我的经历|我该怎么办|帮我分析|我是谁|你(?:知道|了解|记得).{0,8}(?:我是谁|我的情况|关于我)|你对我(?:知道|了解)多少/;
 const time =
   /今天|明天|后天|本周|这周|下周|最近|过去|接下来|日程|时间|什么时候|安排|计划|截止|逾期/;
 const retrospective =
