@@ -78,7 +78,10 @@ async function setup(request: AssistantRequest) {
     }
   }
   const cognitiveRoute = routeCognitiveTask({
-    message,
+    message:
+      request.surface === "reviews"
+        ? "根据当前本地证据生成结构化内容"
+        : message,
     surface: request.surface,
     hasCurrentDocument: Boolean(currentSurface),
     defaultRetrospectiveWindowDays: preferences.defaultRetrospectiveWindowDays,
@@ -88,7 +91,9 @@ async function setup(request: AssistantRequest) {
       ? await buildPersonalContext({
           message,
           surface:
-            request.surface === "inbox" || request.surface === "global"
+            request.surface === "inbox" ||
+            request.surface === "global" ||
+            request.surface === "reviews"
               ? "global"
               : request.surface,
           currentEntity: request.currentEntity,

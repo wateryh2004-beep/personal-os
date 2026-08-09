@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   CheckSquare,
   Copy,
@@ -23,8 +23,8 @@ import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 export type NoteSelection = {
   text: string;
   rect: { left: number; top: number };
-  replace: (text: string) => void;
-  insertBelow: (text: string) => void;
+  replace: (text: string) => boolean;
+  insertBelow: (text: string) => boolean;
 };
 type Request = {
   operation: NoteAiOperation;
@@ -71,13 +71,15 @@ export function NoteAiAssistant({
     suggestion: "",
   });
   const [request, setRequest] = useState<Request | null>(null);
+  const [resultSelection, setResultSelection] = useState<NoteSelection | null>(null);
   const [customSelection, setCustomSelection] = useState<NoteSelection | null>(
     null,
   );
   const [moreOpen, setMoreOpen] = useState(false);
   const [usePersonalContext, setUsePersonalContext] = useState(true);
   const [pending, startTransition] = useTransition();
-  const run = (next: Request) => {
+  const resultRef = useRef<HTMLDivElement>(null);
+  const run = (next: Request, targetSelection: NoteSelection | null = null) => {
     if (!next.content.trim()) {
       setResult({
         status: "error",
@@ -87,6 +89,7 @@ export function NoteAiAssistant({
       return;
     }
     setRequest(next);
+    setResultSelection(next.scope === "selection" ? targetSelection : null);
     setResult({ status: "idle", message: "", suggestion: "" });
     const data = new FormData();
     data.set("note_id", noteId);
@@ -110,17 +113,31 @@ export function NoteAiAssistant({
     });
   const apply = (mode: "replace" | "insert") => {
     if (!result.suggestion || !request) return;
-    if (request.scope === "selection" && selection) {
-      if (mode === "replace") selection.replace(result.suggestion);
-      else selection.insertBelow(result.suggestion);
+    if (request.scope === "selection") {
+      if (!resultSelection) {
+        setResult({ status: "error", message: "原选区已经失效，请重新选择文字后再生成。", suggestion: "" });
+        return;
+      }
+      const applied = mode === "replace"
+        ? resultSelection.replace(result.suggestion)
+        : resultSelection.insertBelow(result.suggestion);
+      if (!applied) {
+        setResult({ status: "error", message: "所选文字已发生变化。为避免覆盖错误内容，请重新选择后再生成。", suggestion: "" });
+        return;
+      }
     } else if (mode === "replace") onReplaceNote(result.suggestion);
     else onInsertNote(result.suggestion);
-    setResult({ status: "idle", message: "", suggestion: "" });
+    const appliedMessage = request.scope === "selection"
+      ? mode === "replace" ? "已替换所选文字，笔记正在自动保存。" : "已插入到选区下方，笔记正在自动保存。"
+      : mode === "replace" ? "已替换全文，笔记正在自动保存。" : "已插入到笔记末尾，笔记正在自动保存。";
+    setRequest(null);
+    setResultSelection(null);
+    setResult({ status: "success", message: appliedMessage, suggestion: "" });
   };
   const selectionOperation = (operation: NoteAiOperation) => {
     if (!selection) return;
     onOpen();
-    run({ operation, scope: "selection", content: selection.text });
+    run({ operation, scope: "selection", content: selection.text }, selection);
   };
   const startCustomSelection = () => {
     if (!selection) return;
@@ -133,6 +150,20 @@ export function NoteAiAssistant({
     : false;
   const statusColor =
     result.status === "error" ? "text-red-700" : "text-[#365F78]";
+  const replaceLabel = request?.scope === "selection"
+    ? "确认并替换所选文字"
+    : "确认并替换全文";
+  const insertLabel = request?.scope === "selection"
+    ? "插入到选区下方"
+    : "插入到笔记末尾";
+
+  useEffect(() => {
+    if (!result.suggestion) return;
+    const frame = window.requestAnimationFrame(() => {
+      resultRef.current?.scrollIntoView({ block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [result.suggestion]);
 
   return (
     <>
@@ -239,7 +270,7 @@ export function NoteAiAssistant({
                       scope: "selection",
                       content: customSelection.text,
                       instruction: question,
-                    })
+                    }, customSelection)
                   : runNote("askNote")
               }
               className="mt-2 rounded-md bg-[#365F78] px-3 py-2 text-sm text-white disabled:opacity-50"
@@ -273,50 +304,56 @@ export function NoteAiAssistant({
             </p>
           ) : null}
           {result.suggestion ? (
-            <div className="mt-4 min-h-0 flex-1 overflow-y-auto border-t pt-4">
-              <p className="mb-2 text-xs font-medium text-zinc-500">预览</p>
-              <pre className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">
-                {result.suggestion}
-              </pre>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {rewrite ? (
+            <div ref={resultRef} className="mt-4 border-t pt-4">
+              <div className="sticky -top-4 z-10 -mx-1 bg-[var(--surface-canvas)] px-1 pb-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">AI 结果预览</p>
+                  <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[10px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? "所选文字" : "当前笔记"}</span>
+                </div>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">选择下面的确认操作后，内容才会写入笔记。</p>
+                <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap">
+                  {rewrite ? (
+                    <button
+                      onClick={() => apply("replace")}
+                      className="min-h-9 rounded-md bg-[#365F78] px-3 py-2 text-xs font-medium text-white"
+                    >
+                      {replaceLabel}
+                    </button>
+                  ) : null}
                   <button
-                    onClick={() => apply("replace")}
-                    className="rounded-md bg-[#365F78] px-2.5 py-1.5 text-xs text-white"
+                    onClick={() => apply("insert")}
+                    className={`min-h-9 rounded-md px-3 py-2 text-xs font-medium ${rewrite ? "border bg-white text-[var(--text-primary)]" : "bg-[#365F78] text-white"}`}
                   >
-                    替换原文
+                    {insertLabel}
                   </button>
-                ) : null}
-                <button
-                  onClick={() => apply("insert")}
-                  className="rounded-md border bg-white px-2.5 py-1.5 text-xs"
-                >
-                  插入下方
-                </button>
-                <button
-                  onClick={() =>
-                    void navigator.clipboard?.writeText(result.suggestion)
-                  }
-                  className="inline-flex items-center gap-1 rounded-md border bg-white px-2.5 py-1.5 text-xs"
-                >
-                  <Copy className="size-3" />
-                  复制
-                </button>
-                <button
-                  onClick={() => request && run(request)}
-                  className="rounded-md border bg-white px-2.5 py-1.5 text-xs"
-                >
-                  重新生成
-                </button>
-                <button
-                  onClick={() =>
-                    setResult({ status: "idle", message: "", suggestion: "" })
-                  }
-                  className="rounded-md px-2.5 py-1.5 text-xs text-zinc-500"
-                >
-                  放弃
-                </button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                  <button
+                    onClick={() => void navigator.clipboard?.writeText(result.suggestion)}
+                    className="inline-flex min-h-8 items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  >
+                    <Copy className="size-3" aria-hidden="true" />
+                    复制
+                  </button>
+                  <button
+                    onClick={() => request && run(request, resultSelection)}
+                    className="min-h-8 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  >
+                    重新生成
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRequest(null);
+                      setResultSelection(null);
+                      setResult({ status: "idle", message: "", suggestion: "" });
+                    }}
+                    className="min-h-8 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                  >
+                    放弃
+                  </button>
+                </div>
               </div>
+              <pre className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">{result.suggestion}</pre>
               {result.contextSources?.length ? (
                 <details className="mt-4 border-t pt-3 text-xs">
                   <summary className="cursor-pointer text-zinc-500">

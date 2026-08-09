@@ -1,9 +1,12 @@
+import { after } from "next/server";
 import { requireOwner } from "@/lib/auth/require-owner";
 import {
   eventIsToday,
   getDateKeyInTimeZone,
   groupNowTasks,
+  runTodaySideEffectSafely,
   selectNextAction,
+  todayAvailabilityForError,
 } from "./utils";
 import { buildProactiveInsights } from "@/features/proactive/engine";
 import { reconcileProactiveInsights } from "@/features/proactive/service";
@@ -20,10 +23,6 @@ import type {
   NowTask,
   NowWorkspace,
 } from "./types";
-
-type QueryError = { code?: string; message?: string } | null;
-const missing = (error: QueryError) =>
-  Boolean(error?.code && ["42P01", "PGRST205"].includes(error.code));
 
 export async function getTodayWorkspace(
   now = new Date(),
@@ -47,6 +46,7 @@ export async function getTodayWorkspace(
     inboxResult,
     weeklyReviewResult,
     dueDecisionsResult,
+    briefingResult,
   ] = await Promise.all([
     supabase
       .from("microsoft_todo_tasks")
@@ -89,7 +89,21 @@ export async function getTodayWorkspace(
       .eq("status", "completed")
       .is("archived_at", null)
       .maybeSingle(),
-    supabase.from("decisions").select("id,title,review_at").eq("status","active").is("archived_at",null).not("review_at","is",null).lte("review_at",now.toISOString()).order("review_at").limit(2),
+    supabase
+      .from("decisions")
+      .select("id,title,review_at")
+      .eq("status", "active")
+      .is("archived_at", null)
+      .not("review_at", "is", null)
+      .lte("review_at", now.toISOString())
+      .order("review_at")
+      .limit(2),
+    supabase
+      .from("briefings")
+      .select("id")
+      .eq("briefing_date", today)
+      .eq("status", "completed")
+      .maybeSingle(),
   ]);
   const tasks = groupNowTasks(
     tasksResult.error ? [] : ((tasksResult.data ?? []) as NowTask[]),
@@ -115,7 +129,13 @@ export async function getTodayWorkspace(
     events,
     milestones,
     weeklyReviewCompleted: Boolean(weeklyReviewResult.data),
-    dueDecisions: dueDecisionsResult.error ? [] : (dueDecisionsResult.data as Array<{id:string;title:string;review_at:string}>),
+    dueDecisions: dueDecisionsResult.error
+      ? []
+      : (dueDecisionsResult.data as Array<{
+          id: string;
+          title: string;
+          review_at: string;
+        }>),
   });
   const todayBrief = buildTodayBrief({
     now,
@@ -126,8 +146,48 @@ export async function getTodayWorkspace(
     milestones,
     inboxCount,
   });
-  await reconcileProactiveInsights(supabase, userId, attention, now).catch(() => undefined);
-  const briefingResult=await supabase.from("briefings").select("id").eq("briefing_date",today).eq("status","completed").maybeSingle();let briefingEntries:Array<{id:string;title:string;url:string|null;section:string;reason:string|null}>=[];let briefingError=briefingResult.error;if(briefingResult.data){const result=await supabase.from("briefing_entries").select("id,section,relevance_reason,feed_items(title,url,canonical_url)").eq("briefing_id",briefingResult.data.id).in("section",["must_know","worth_reading"]).order("position").limit(2);briefingError=result.error;briefingEntries=(result.data??[]).flatMap((entry)=>{const item=Array.isArray(entry.feed_items)?entry.feed_items[0]:entry.feed_items;return item?[{id:entry.id,title:item.title,url:item.canonical_url||item.url,section:entry.section,reason:entry.relevance_reason}]:[];});}
+  after(() =>
+    runTodaySideEffectSafely(() =>
+      reconcileProactiveInsights(supabase, userId, attention, now),
+    ),
+  );
+
+  let briefingEntries: Array<{
+    id: string;
+    title: string;
+    url: string | null;
+    section: string;
+    reason: string | null;
+  }> = [];
+  let briefingError = briefingResult.error;
+  if (briefingResult.data) {
+    const result = await supabase
+      .from("briefing_entries")
+      .select(
+        "id,section,relevance_reason,feed_items(title,url,canonical_url)",
+      )
+      .eq("briefing_id", briefingResult.data.id)
+      .in("section", ["must_know", "worth_reading"])
+      .order("position")
+      .limit(2);
+    briefingError = result.error;
+    briefingEntries = (result.data ?? []).flatMap((entry) => {
+      const item = Array.isArray(entry.feed_items)
+        ? entry.feed_items[0]
+        : entry.feed_items;
+      return item
+        ? [
+            {
+              id: entry.id,
+              title: item.title,
+              url: item.canonical_url || item.url,
+              section: entry.section,
+              reason: entry.relevance_reason,
+            },
+          ]
+        : [];
+    });
+  }
   return {
     timezone,
     calendar: {
@@ -188,23 +248,11 @@ export async function getTodayWorkspace(
       .sort((a, b) => a.at.localeCompare(b.at))
       .slice(0, 7),
     availability: {
-      calendar:
-        eventsResult.error && !missing(eventsResult.error)
-          ? "unavailable"
-          : "ready",
-      tasks:
-        tasksResult.error && !missing(tasksResult.error)
-          ? "unavailable"
-          : "ready",
-      career:
-        milestonesResult.error && !missing(milestonesResult.error)
-          ? "unavailable"
-          : "ready",
-      inbox:
-        inboxResult.error && !missing(inboxResult.error)
-          ? "unavailable"
-          : "ready",
-      briefing: briefingError && !missing(briefingError) ? "unavailable" : "ready",
+      calendar: todayAvailabilityForError(eventsResult.error),
+      tasks: todayAvailabilityForError(tasksResult.error),
+      career: todayAvailabilityForError(milestonesResult.error),
+      inbox: todayAvailabilityForError(inboxResult.error),
+      briefing: todayAvailabilityForError(briefingError),
     },
     summary: {
       todayEventCount: todayEvents.length,

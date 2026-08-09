@@ -85,6 +85,21 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       localStorage.setItem(recentStorageKey, JSON.stringify([{ href: pathname, label }, ...previous.filter((item) => item.href !== pathname)].slice(0, 8)));
     } catch { /* Recents are an enhancement, never a navigation dependency. */ }
   }, [pathname]);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const updateViewportHeight = () => {
+      const height = viewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty("--app-viewport-height", `${Math.round(height)}px`);
+    };
+    updateViewportHeight();
+    viewport?.addEventListener("resize", updateViewportHeight);
+    window.addEventListener("orientationchange", updateViewportHeight);
+    return () => {
+      viewport?.removeEventListener("resize", updateViewportHeight);
+      window.removeEventListener("orientationchange", updateViewportHeight);
+      document.documentElement.style.removeProperty("--app-viewport-height");
+    };
+  }, []);
   const toggleCollapsed = () => setCollapsed((value) => { const next = !value; localStorage.setItem(sidebarStorageKey, JSON.stringify(next)); return next; });
   const openCommand = (section: CommandCenterSection) => { setCommandSection(section); setCommandOpen(true); };
   const desktopWidth = collapsed ? "var(--sidebar-collapsed-width)" : "var(--sidebar-width)";
@@ -95,12 +110,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     <div className="space-y-1 border-t p-3">{collapsed ? <Tooltip><TooltipTrigger asChild><button type="button" onClick={toggleCollapsed} className="flex h-9 w-full items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]" aria-label="展开侧栏"><ChevronRight className="size-[17px]" aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="right">展开侧栏</TooltipContent></Tooltip> : null}<Link href="/settings" aria-current={pathname === "/settings" ? "page" : undefined} className={cn("flex h-9 items-center gap-2.5 rounded-[var(--radius-md)] text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]", collapsed ? "justify-center" : "px-2")} aria-label={collapsed ? "Settings" : undefined}><Settings className="size-[17px]" aria-hidden="true" />{collapsed ? null : "Settings"}</Link><form action={logoutAction} onSubmit={() => clearWorkspaceSessions()}><button className={cn("flex h-9 w-full items-center gap-2.5 rounded-[var(--radius-md)] text-sm text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]", collapsed ? "justify-center" : "px-2")} aria-label={collapsed ? "退出登录" : undefined}><LogOut className="size-[17px]" aria-hidden="true" />{collapsed ? null : "退出登录"}</button></form></div>
   </aside>, [collapsed, desktopWidth, pathname]);
 
-  return <div className="min-h-screen bg-[var(--surface-app)]">{desktopSidebar}
+  return <div className="min-h-[var(--app-viewport-height)] bg-[var(--surface-app)]">{desktopSidebar}
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" className="w-[min(86vw,280px)] gap-0 bg-[var(--surface-sidebar)] p-0"><div className="flex h-14 items-center border-b px-4"><SheetTitle className="wordmark text-lg">Life of HANG</SheetTitle></div><div className="min-h-0 flex-1 overflow-y-auto p-4"><Navigation pathname={pathname} collapsed={false} onNavigate={() => setMobileOpen(false)} /></div><Link href="/settings" onClick={() => setMobileOpen(false)} className="m-3 flex h-10 items-center gap-2 border-t px-2 pt-3 text-sm text-[var(--text-secondary)]"><Settings className="size-4" aria-hidden="true" />Settings</Link></SheetContent></Sheet>
     <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="min-w-0 md:ml-[var(--shell-width)]">
       <header className="sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-3 border-b bg-[color:var(--surface-canvas)]/95 px-3 backdrop-blur-sm sm:px-4">
         <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu aria-hidden="true" /></Button>
-        <button type="button" onClick={() => openCommand("search")} className="mx-auto flex h-8 w-full max-w-xl items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-hover)] px-3 text-left text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"><Search className="size-4" aria-hidden="true" /><span className="min-w-0 flex-1 truncate">搜索 Personal OS…</span><kbd className="hidden rounded border bg-[var(--surface-canvas)] px-1.5 py-0.5 font-sans text-[10px] sm:inline">⌘ K</kbd></button>
+        <button type="button" onClick={() => openCommand("search")} className="mx-auto flex h-8 w-full max-w-xl items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-hover)] px-3 text-left text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"><Search className="size-4 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden rounded border bg-[var(--surface-canvas)] px-1.5 py-0.5 font-sans text-[10px] sm:inline">⌘ K</kbd></button>
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={openGlobalAgent} aria-label="询问 Personal OS" className="gap-1.5"><Sparkles className="size-4" aria-hidden="true"/><span className="hidden sm:inline">Ask</span><kbd className="hidden rounded border bg-[var(--surface-canvas)] px-1 py-0.5 font-sans text-[9px] lg:inline">⌘ J</kbd></Button></TooltipTrigger><TooltipContent>Ask Personal OS</TooltipContent></Tooltip>
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" onClick={() => openCommand("quick")} aria-label="快速新建"><Plus aria-hidden="true" /></Button></TooltipTrigger><TooltipContent>快速新建</TooltipContent></Tooltip>
       </header>

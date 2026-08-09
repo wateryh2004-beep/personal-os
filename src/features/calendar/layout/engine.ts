@@ -38,7 +38,7 @@ export type TimedEventLayout<T extends TimedCalendarEvent = TimedCalendarEvent> 
   left: number;
   width: number;
   overlapCount: number;
-  layoutMode: "single" | "columns" | "cascade";
+  layoutMode: "single" | "columns";
 };
 
 function localMinutes(value: string, timezone: string) {
@@ -89,7 +89,7 @@ function overlaps(left: { startMinutes: number; endMinutes: number }, right: { s
 
 type WorkingLayout<T extends TimedCalendarEvent> = TimedEventLayout<T>;
 
-function layoutCluster<T extends TimedCalendarEvent>(cluster: WorkingLayout<T>[], view: CalendarLayoutView) {
+function layoutCluster<T extends TimedCalendarEvent>(cluster: WorkingLayout<T>[]) {
   let active: WorkingLayout<T>[] = [];
   let laneCount = 1;
   for (const item of cluster) {
@@ -116,12 +116,6 @@ function layoutCluster<T extends TimedCalendarEvent>(cluster: WorkingLayout<T>[]
       item.layoutMode = "single";
       item.left = 0;
       item.width = 100;
-    } else if (view === "week" && laneCount >= 3) {
-      item.layoutMode = "cascade";
-      const width = 78;
-      const offset = Math.min(9, (100 - width) / Math.max(1, laneCount - 1));
-      item.left = item.lane * offset;
-      item.width = width;
     } else {
       item.layoutMode = "columns";
       item.left = (item.lane / laneCount) * 100;
@@ -176,7 +170,7 @@ export function layoutTimedEvents<T extends TimedCalendarEvent>(segments: TimedE
   if (cluster.length) clusters.push(cluster);
   clusters.forEach((items, clusterId) => {
     items.forEach((item) => { item.clusterId = clusterId; });
-    layoutCluster(items, options.view);
+    layoutCluster(items);
   });
   return sorted;
 }

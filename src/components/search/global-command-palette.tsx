@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, Settings, Sparkles, SquareKanban } from "lucide-react";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { createNote } from "@/features/notes/actions";
-import type { GlobalSearchResult } from "@/features/search/types";
+import { useGlobalSearch } from "@/features/search/use-global-search";
 
 export type CommandCenterSection = "search" | "quick";
 const recentStorageKey = "personal-os:recent:v1";
@@ -17,18 +17,12 @@ const domainLabels: Record<string, string> = { notes: "Notes", career: "Career",
 export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search" }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<GlobalSearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
   const [recents, setRecents] = useState<Array<{ href: string; label: string }>>([]);
   const [, startTransition] = useTransition();
-  useEffect(() => { if (!open) return; const timer = window.setTimeout(() => { setQuery(""); setResults([]); try { setRecents(JSON.parse(localStorage.getItem(recentStorageKey) || "[]")); } catch { setRecents([]); } }, 0); return () => window.clearTimeout(timer); }, [initialSection, open]);
-  useEffect(() => {
-    const value = query.trim();
-    if (!value) return;
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => { setLoading(true); try { const response = await fetch(`/api/search?q=${encodeURIComponent(value)}`, { signal: controller.signal }); const body = await response.json() as { results?: GlobalSearchResult[] }; setResults(response.ok ? body.results ?? [] : []); } catch { if (!controller.signal.aborted) setResults([]); } finally { if (!controller.signal.aborted) setLoading(false); } }, 160);
-    return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [query]);
+  const search = useGlobalSearch({ query, enabled: open, debounceMs: 160 });
+  const results = search.results;
+  const loading = search.status === "loading";
+  useEffect(() => { if (!open) return; const timer = window.setTimeout(() => { setQuery(""); try { setRecents(JSON.parse(localStorage.getItem(recentStorageKey) || "[]")); } catch { setRecents([]); } }, 0); return () => window.clearTimeout(timer); }, [initialSection, open]);
   const go = (href: string) => { onOpenChange(false); router.push(href); };
   const newNote = () => { onOpenChange(false); startTransition(() => createNote()); };
   const askAgent = (value: string) => {
@@ -44,7 +38,8 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
       <CommandInput value={query} onValueChange={setQuery} autoFocus placeholder={showQuick ? "选择要新建的内容…" : "搜索 Personal OS 或输入命令…"} aria-label="搜索或执行命令" />
       <CommandList className="max-h-[min(68dvh,580px)] py-1">
         {query && loading ? <p role="status" aria-live="polite" className="px-4 py-8 text-center text-sm text-[var(--text-tertiary)]">正在搜索…</p> : null}
-        {query && !loading && !results.length ? <CommandEmpty>没有找到相关内容。尝试更短或不同的关键词。</CommandEmpty> : null}
+        {query && search.status === "error" ? <p role="alert" className="px-4 py-8 text-center text-sm text-[var(--danger)]">{search.error}</p> : null}
+        {query && search.status === "success" && !results.length ? <CommandEmpty>没有找到相关内容。尝试更短或不同的关键词。</CommandEmpty> : null}
         {!query ? <CommandGroup heading="Quick Actions">
           <CommandItem onSelect={() => askAgent("我现在最需要关注什么？")}><Sparkles aria-hidden="true" />Ask Personal OS<CommandShortcut>⌘ J</CommandShortcut></CommandItem>
           <CommandItem onSelect={newNote}><FilePlus2 aria-hidden="true" />新建笔记<CommandShortcut>直接进入编辑器</CommandShortcut></CommandItem>

@@ -51,6 +51,14 @@ const policies: Record<AssistantSurface, AssistantPolicy> = {
     maxOutputTokens: 1200,
     instruction: "Career 助手只读分析，不创建、修改或删除 Career 数据。",
   },
+  reviews: {
+    context: "local",
+    tools: [],
+    maxSteps: 1,
+    maxOutputTokens: 1400,
+    instruction:
+      "只根据提供的 Review Evidence 生成复盘草稿或结构化候选。不得补造事实；区分可验证事实、用户可能的解释和需要用户判断的部分。不要自动生成或写入长期 Memory / Decision。Evidence 记录较少时必须明确覆盖不足。",
+  },
   global: {
     context: "personal",
     tools: [

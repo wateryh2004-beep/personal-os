@@ -1,30 +1,22 @@
-import Link from "next/link";
-import { ArrowRight, CalendarDays, Check, CheckCircle2, CircleAlert, Milestone } from "lucide-react";
-import { completeMicrosoftTodoTaskAction } from "@/features/tasks/microsoft-todo";
 import type { NowWorkspace } from "@/features/today/types";
-import { formatTodayDate } from "@/features/today/utils";
-import { QuickCapture } from "@/components/today/quick-capture";
+import { NextActionCard } from "./next-action-card";
 import { NowAutoRefresh } from "./now-auto-refresh";
-import { NowClock } from "./now-clock";
-import { TodayBrief } from "./today-brief";
-
-const time = (value: string, timezone: string) => new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value));
-const date = (value: string, timezone: string) => new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, month: "numeric", day: "numeric", weekday: "short" }).format(new Date(value));
-
-function Heading({ children, href, label }: { children: React.ReactNode; href?: string; label?: string }) {
-  return <div className="flex items-center justify-between border-b pb-3"><h2 className="text-[15px] font-semibold">{children}</h2>{href ? <Link href={href} className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline">{label ?? "查看全部"}<ArrowRight className="size-3.5" aria-hidden="true" /></Link> : null}</div>;
-}
+import { NowHeader } from "./now-header";
+import { TodayFocusStack } from "./today-focus-stack";
+import { TodaySchedule } from "./today-schedule";
+import { TodaySecondary } from "./today-secondary";
 
 export function NowWorkspaceView({ workspace }: { workspace: NowWorkspace }) {
-  const next = workspace.nextAction;
-  const title = next.kind === "task" ? next.task.title : next.kind === "event" ? next.event.subject : next.kind === "career_milestone" ? next.milestone.title : next.kind === "inbox" ? "整理 Inbox" : "目前没有必须处理的事项";
-  return <div className="mx-auto max-w-[var(--content-dashboard-width)] space-y-8"><NowAutoRefresh />
-    <header className="grid gap-5 border-b pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,.75fr)]"><div><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium text-[var(--accent)]">{formatTodayDate(new Date(), workspace.timezone)}</p><h1 className="mt-1 text-[28px] font-semibold tracking-[-0.025em]">现在</h1></div><NowClock timezone={workspace.timezone} /></div><p className="mt-3 text-sm text-[var(--text-secondary)]">今天 {workspace.summary.todayEventCount} 项日程 · {workspace.summary.todayTaskCount} 项待办 · {workspace.summary.attentionCount} 项需要关注</p></div><div className="self-end"><QuickCapture /></div></header>
-    <section className="border-l-2 border-[var(--accent)] bg-[var(--surface-canvas)] px-5 py-5"><p className="text-xs font-medium text-[var(--accent)]">Next</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xl font-semibold">{title || "未命名事项"}</p><p className="mt-1 text-sm text-[var(--text-secondary)]">{next.reason}</p></div>{next.kind !== "none" ? <div className="flex items-center gap-2"><Link href={next.href} className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-md)] px-3 text-sm text-[var(--accent)] hover:bg-[var(--accent-soft)]">打开<ArrowRight className="size-3.5" aria-hidden="true" /></Link>{next.kind === "task" ? <form action={completeMicrosoftTodoTaskAction}><input type="hidden" name="task_id" value={next.task.id} /><button className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 text-sm text-white"><Check className="size-3.5" aria-hidden="true" />完成</button></form> : null}</div> : null}</div></section>
-    <TodayBrief items={workspace.todayBrief} />
-    <div className="grid gap-8 lg:grid-cols-2"><section><Heading href="/calendar" label="打开 Calendar">今天的时间</Heading>{workspace.availability.calendar === "unavailable" ? <p className="py-7 text-sm text-[var(--text-secondary)]">Calendar 暂不可用。<Link href="/calendar" className="text-[var(--accent)] underline">打开 Calendar</Link></p> : <ul className="divide-y">{workspace.calendar.today.slice(0, 8).map((event) => <li key={event.id}><Link href="/calendar" className="flex gap-3 py-3 hover:bg-[var(--surface-hover)]"><CalendarDays className="mt-0.5 size-4 shrink-0 text-[var(--text-tertiary)]" aria-hidden="true" /><span><span className="block text-sm font-medium">{event.subject || "未命名日程"}</span><span className="mt-1 block text-xs text-[var(--text-secondary)]">{event.is_all_day ? "全天" : `${time(event.starts_at, workspace.timezone)} – ${time(event.ends_at, workspace.timezone)}`}{event.location_name ? ` · ${event.location_name}` : ""}</span></span></Link></li>)}{!workspace.calendar.today.length ? <li className="py-7 text-sm text-[var(--text-secondary)]">暂无固定日程</li> : null}</ul>}</section><section><Heading href="/tasks" label="打开 Tasks">今天要完成</Heading>{workspace.availability.tasks === "unavailable" ? <p className="py-7 text-sm text-[var(--text-secondary)]">Tasks 暂不可用。<Link href="/tasks" className="text-[var(--accent)] underline">打开 Tasks</Link></p> : <ul className="divide-y">{[...workspace.tasks.overdue.map((task) => ({ task, label: "已逾期" })), ...workspace.tasks.today.map((task) => ({ task, label: "今天" }))].slice(0, 8).map(({ task, label }) => <li key={task.id} className="flex items-center gap-2"><form action={completeMicrosoftTodoTaskAction}><input type="hidden" name="task_id" value={task.id} /><button aria-label={`完成 ${task.title}`} className="rounded-full text-[var(--text-tertiary)] hover:text-[var(--accent)]"><CheckCircle2 className="size-[18px]" aria-hidden="true" /></button></form><Link href="/tasks" className="min-w-0 flex-1 py-3 hover:text-[var(--accent)]"><span className="block truncate text-sm font-medium">{task.title || "未命名任务"}</span><span className="mt-1 block text-xs text-[var(--text-secondary)]">{label}{task.importance === "high" ? " · 高优先级" : ""}</span></Link></li>)}{!workspace.tasks.overdue.length && !workspace.tasks.today.length ? <li className="py-7 text-sm text-[var(--text-secondary)]">今天没有到期任务</li> : null}</ul>}</section></div>
-    {workspace.briefing.entries.length ? <section><Heading href="/briefing" label="打开 Briefing">今天值得知道</Heading><ul className="divide-y">{workspace.briefing.entries.map((entry) => <li key={entry.id}><a href={entry.url || "/briefing"} target={entry.url ? "_blank" : undefined} rel={entry.url ? "noreferrer" : undefined} className="block py-3 hover:bg-[var(--surface-hover)]"><span className="block text-sm font-medium">{entry.title}</span>{entry.reason ? <span className="mt-1 block text-xs text-[var(--text-secondary)]">{entry.reason}</span> : null}</a></li>)}</ul></section> : null}
-    <section><Heading>需要关注</Heading><ul className="divide-y">{workspace.attention.map((item) => <li key={item.id}><Link href={item.href} className="flex gap-3 py-3 hover:bg-[var(--surface-hover)]"><CircleAlert className="mt-0.5 size-4 shrink-0 text-[var(--warning)]" aria-hidden="true" /><span><span className="block text-sm font-medium">{item.title}</span>{item.description ? <span className="mt-1 block text-xs text-[var(--text-secondary)]">{item.description}</span> : null}</span></Link></li>)}{!workspace.attention.length ? <li className="py-7 text-sm text-[var(--text-secondary)]">暂无需要立刻处理的事项</li> : null}</ul></section>
-    <section><Heading>未来 7 天</Heading><ul className="divide-y">{workspace.upcoming.map((item) => <li key={item.id}><Link href={item.href} className="grid gap-2 py-3 hover:bg-[var(--surface-hover)] sm:grid-cols-[110px_minmax(0,1fr)]"><span className="text-xs text-[var(--text-tertiary)]">{date(item.at, workspace.timezone)}</span><span className="flex gap-2"><Milestone className="mt-0.5 size-4 shrink-0 text-[var(--text-tertiary)]" aria-hidden="true" /><span><span className="block text-sm font-medium">{item.title}</span>{item.detail ? <span className="mt-1 block text-xs text-[var(--text-secondary)]">{item.detail}</span> : null}</span></span></Link></li>)}{!workspace.upcoming.length ? <li className="py-7 text-sm text-[var(--text-secondary)]">未来一周暂无已安排事项</li> : null}</ul></section>
-  </div>;
+  return (
+    <div className="mx-auto max-w-[var(--content-dashboard-width)] space-y-6 px-4 py-5 sm:px-6 sm:py-6">
+      <NowAutoRefresh />
+      <NowHeader workspace={workspace} />
+      <NextActionCard next={workspace.nextAction} timezone={workspace.timezone} />
+      <div className="grid gap-7 lg:grid-cols-[minmax(0,1.38fr)_minmax(320px,1fr)]">
+        <TodaySchedule workspace={workspace} />
+        <TodayFocusStack workspace={workspace} />
+      </div>
+      <TodaySecondary workspace={workspace} />
+    </div>
+  );
 }

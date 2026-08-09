@@ -1,10 +1,14 @@
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { searchInputSchema, type GlobalSearchResult } from "./types";
+import {
+  searchDomains,
+  searchInputSchema,
+  type GlobalSearchResult,
+} from "./types";
 
-const row = z.object({ domain: z.enum(["notes", "career", "files", "tasks", "calendar", "reviews"]), entity_type: z.string(), entity_id: z.string().uuid(), title: z.string(), subtitle: z.string(), snippet: z.string(), metadata: z.record(z.string(), z.unknown()), source_updated_at: z.string().nullable(), score: z.number() });
+const row = z.object({ domain: z.enum(searchDomains), entity_type: z.string(), entity_id: z.string().uuid(), title: z.string(), subtitle: z.string(), snippet: z.string(), metadata: z.record(z.string(), z.unknown()), source_updated_at: z.string().nullable(), score: z.number() });
 
-function entityHref(entityType: string, entityId: string, domain: string, metadata: Record<string, unknown>) {
+export function entityHref(entityType: string, entityId: string, domain: string, metadata: Record<string, unknown>) {
   if (entityType === "note") return `/notes/${entityId}`;
   if (entityType === "experience") return `/career/experiences/${entityId}`;
   if (["experience_fact", "experience_output", "experience_bullet"].includes(entityType) && typeof metadata.experience_id === "string") return `/career/experiences/${metadata.experience_id}`;
@@ -15,6 +19,7 @@ function entityHref(entityType: string, entityId: string, domain: string, metada
   if (entityType === "career_direction") return "/career/directions";
   if (entityType === "skill") return "/career/skills";
   if (entityType === "certification") return "/career/certifications";
+  if (entityType === "project") return "/projects";
   if (domain === "files") return "/files";
   if (domain === "tasks") return "/tasks";
   if (domain === "calendar") return "/calendar";

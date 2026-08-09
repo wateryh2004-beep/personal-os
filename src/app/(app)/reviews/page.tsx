@@ -1,63 +1,123 @@
-import { completeDecisionReview, createReview } from "@/features/reviews/actions";
+import Link from "next/link";
+import { ArrowRight, CalendarDays, CalendarRange, Database } from "lucide-react";
+import { completeDecisionReview } from "@/features/reviews/actions";
 import { getReviewsDashboard } from "@/features/reviews/queries";
 
 export default async function ReviewsPage() {
   const data = await getReviewsDashboard();
-  const completed = new Set(
-    data.reviews
-      .filter((review) => review.status === "completed")
-      .map((review) => review.review_key),
-  );
+  const byKey = new Map(data.reviews.map((review) => [review.review_key, review]));
   return (
-    <section className="mx-auto max-w-3xl">
-      <header className="border-b border-[#e7e5e4] pb-6">
+    <section className="mx-auto max-w-4xl">
+      <header className="border-b border-zinc-200 pb-6">
         <p className="text-sm font-medium text-[#365f78]">PERSONAL OS</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-900">Reviews</h1>
-        <p className="mt-2 text-sm text-zinc-500">把原始记录压缩为可回看的事实、判断与下一步；不会自动修改你的记忆或决定。</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">
+          从可验证记录开始复盘，再把真正长期有效的信息交给你确认。
+        </p>
       </header>
 
-      <div className="mt-7 grid gap-4 md:grid-cols-2">
-        <ReviewStartCard title="今日复盘" description="今天真正发生了什么，哪些事值得留下？" complete={completed.has(data.daily.key)} type="daily" />
-        <ReviewStartCard title="本周复盘" description="把一周的推进、未收束事项和判断变化放在一起看。" complete={completed.has(data.weekly.key)} type="weekly" />
+      <div className="mt-7 grid gap-3 md:grid-cols-2">
+        <ReviewEntry
+          href="/reviews/daily"
+          icon={<CalendarDays className="size-5" />}
+          title="Daily Review"
+          period="今天"
+          review={byKey.get(data.daily.key)}
+        />
+        <ReviewEntry
+          href="/reviews/weekly"
+          icon={<CalendarRange className="size-5" />}
+          title="Weekly Review"
+          period="本周"
+          review={byKey.get(data.weekly.key)}
+        />
       </div>
 
       {data.dueDecisions.length ? (
-        <section className="mt-8 border-t border-[#e7e5e4] pt-6">
-          <h2 className="font-medium text-zinc-900">待复核的决定</h2>
-          <p className="mt-1 text-sm text-zinc-500">决定复核会保留当时的判断过程；更新或反转仍需要你明确确认。</p>
-          <div className="mt-3 divide-y border-y border-[#e7e5e4]">
+        <section className="mt-9 border-t border-zinc-200 pt-6">
+          <h2 className="font-semibold text-zinc-900">待复核 Decisions</h2>
+          <p className="mt-1 text-sm text-zinc-500">更新或反转仍需要你的明确确认。</p>
+          <div className="mt-3 divide-y border-y border-zinc-200">
             {data.dueDecisions.map((decision) => (
-              <details key={decision.id} className="py-3"><summary className="flex cursor-pointer list-none items-center justify-between gap-4"><div><p className="font-medium">{decision.title}</p><p className="mt-1 text-xs text-zinc-500">计划复核：{String(decision.review_at).slice(0, 10)}</p></div><span className="text-sm font-medium text-[#365f78]">开始复核 →</span></summary><div className="mt-4 grid gap-4 border-l-2 pl-4 md:grid-cols-2"><DecisionReviewForm decisionId={decision.id} outcome="keep"/><DecisionReviewForm decisionId={decision.id} outcome="reverse"/></div></details>
+              <details key={decision.id} className="py-3">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+                  <div>
+                    <p className="font-medium">{decision.title}</p>
+                    <p className="mt-1 text-xs text-zinc-500">计划复核：{String(decision.review_at).slice(0, 10)}</p>
+                  </div>
+                  <span className="text-sm font-medium text-[#365f78]">开始复核 →</span>
+                </summary>
+                <div className="mt-4 grid gap-4 border-l-2 border-zinc-200 pl-4 md:grid-cols-2">
+                  <DecisionReviewForm decisionId={decision.id} outcome="keep" />
+                  <DecisionReviewForm decisionId={decision.id} outcome="reverse" />
+                </div>
+              </details>
             ))}
           </div>
         </section>
       ) : null}
 
-      <section className="mt-8 border-t border-[#e7e5e4] pt-6">
-        <h2 className="font-medium text-zinc-900">最近复盘</h2>
-        <div className="mt-3 divide-y border-y border-[#e7e5e4]">
-          {data.reviews.length ? data.reviews.map((review) => (
-            <article key={review.id} className="py-4">
-              <div className="flex items-baseline justify-between gap-3"><p className="font-medium">{review.title}</p><span className="shrink-0 text-xs text-zinc-400">{review.status === "completed" ? "已完成" : "草稿"}</span></div>
-              <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-zinc-500">{review.content_markdown || "尚未写下内容"}</p>
-            </article>
-          )) : <p className="py-8 text-sm text-zinc-500">还没有复盘。每天或每周花几分钟留下真正重要的事情。</p>}
+      <section className="mt-9 border-t border-zinc-200 pt-6">
+        <h2 className="font-semibold text-zinc-900">Recent Reviews</h2>
+        <div className="mt-3 divide-y border-y border-zinc-200">
+          {data.reviews.length ? (
+            data.reviews.map((review) => {
+              const sourceCount = review.review_sources?.[0]?.count ?? 0;
+              return (
+                <Link key={review.id} href={`/reviews/${review.id}`} className="group block py-4 outline-none focus-visible:ring-2 focus-visible:ring-[#365f78]/30">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="font-medium text-zinc-900 group-hover:text-[#365f78]">{review.title}</p>
+                    <span className="shrink-0 text-xs text-zinc-400">{review.status === "completed" ? "已完成" : "草稿"}</span>
+                  </div>
+                  <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-zinc-500">{review.content_markdown || "尚未写下内容"}</p>
+                  <p className="mt-2 flex items-center gap-1.5 text-xs text-zinc-400">
+                    <Database className="size-3.5" /> 基于 {sourceCount} 条 Personal OS 记录
+                    {review.generated_with_ai ? " · 使用过 AI 草稿" : ""}
+                  </p>
+                </Link>
+              );
+            })
+          ) : (
+            <p className="py-8 text-sm text-zinc-500">还没有复盘。Evidence 会帮助你从已经发生的记录开始。</p>
+          )}
         </div>
       </section>
     </section>
   );
 }
 
-function DecisionReviewForm({decisionId,outcome}:{decisionId:string;outcome:"keep"|"reverse"}){return <form action={async(formData)=>{"use server";await completeDecisionReview({decisionId,outcome,content:formData.get("content"),newTitle:formData.get("new_title")||undefined,newDecisionText:formData.get("new_decision_text")||undefined,rationale:formData.get("rationale")||undefined});}} className="grid content-start gap-2"><p className="text-sm font-medium">{outcome==="keep"?"维持原决定":"反转并记录新决定"}</p><textarea required name="content" placeholder="证据发生了什么变化？为什么维持或反转？" className="min-h-24 border px-3 py-2 text-sm"/>{outcome==="reverse"?<><input required name="new_title" placeholder="新决定标题" className="border px-3 py-2 text-sm"/><textarea required name="new_decision_text" placeholder="我现在决定……" className="min-h-20 border px-3 py-2 text-sm"/><textarea name="rationale" placeholder="新决定的理由" className="min-h-16 border px-3 py-2 text-sm"/></>:null}<button className="w-fit border px-3 py-2 text-sm">确认{outcome==="keep"?"维持":"反转"}</button></form>}
-
-function ReviewStartCard({ title, description, complete, type }: { title: string; description: string; complete: boolean; type: "daily" | "weekly" }) {
+function ReviewEntry({
+  href,
+  icon,
+  title,
+  period,
+  review,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  period: string;
+  review?: { status: string; completed_at: string | null };
+}) {
   return (
-    <form action={async (formData) => { "use server"; await createReview({ type, content: String(formData.get("content") ?? "") }); }} className="border border-[#e7e5e4] bg-white p-5">
-      <div className="flex items-center justify-between gap-3"><h2 className="font-medium text-zinc-900">{title}</h2><span className="text-xs text-zinc-400">{complete ? "可修正" : "尚未完成"}</span></div>
-      <p className="mt-2 text-sm leading-6 text-zinc-500">{description}</p>
-      <label className="sr-only" htmlFor={`${type}-reflection`}>{title}</label>
-      <textarea id={`${type}-reflection`} name="content" required maxLength={10000} className="mt-4 min-h-32 w-full resize-y border border-[#deddd8] bg-[#fcfcfb] px-3 py-2 text-sm outline-none focus:border-[#365f78]" placeholder="用自己的话写下复盘；后续可在不覆盖历史的前提下修正。" />
-      <button className="mt-3 bg-[#365f78] px-3 py-2 text-sm font-medium text-white hover:bg-[#294d63]">{complete ? "保存修正" : "完成复盘"}</button>
+    <Link href={href} className="group flex items-center gap-4 rounded-lg border border-zinc-200 bg-white p-5 outline-none transition-colors hover:border-zinc-300 hover:bg-zinc-50/60 focus-visible:ring-2 focus-visible:ring-[#365f78]/30">
+      <span className="flex size-10 items-center justify-center rounded-lg bg-[#eef4f7] text-[#365f78]">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold text-zinc-900">{title}</span>
+        <span className="mt-1 block text-sm text-zinc-500">{period} · {review?.status === "completed" ? "已完成，可修正" : "尚未完成"}</span>
+      </span>
+      <ArrowRight className="size-4 text-zinc-300 group-hover:text-[#365f78]" />
+    </Link>
+  );
+}
+
+function DecisionReviewForm({ decisionId, outcome }: { decisionId: string; outcome: "keep" | "reverse" }) {
+  return (
+    <form action={async (formData) => { "use server"; await completeDecisionReview({ decisionId, outcome, content: formData.get("content"), newTitle: formData.get("new_title") || undefined, newDecisionText: formData.get("new_decision_text") || undefined, rationale: formData.get("rationale") || undefined }); }} className="grid content-start gap-2">
+      <p className="text-sm font-medium">{outcome === "keep" ? "维持原决定" : "反转并记录新决定"}</p>
+      <textarea required name="content" placeholder="证据发生了什么变化？为什么维持或反转？" className="min-h-24 rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-[#365f78]" />
+      {outcome === "reverse" ? <><input required name="new_title" placeholder="新决定标题" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm" /><textarea required name="new_decision_text" placeholder="我现在决定……" className="min-h-20 rounded-lg border border-zinc-200 px-3 py-2 text-sm" /><textarea name="rationale" placeholder="新决定的理由" className="min-h-16 rounded-lg border border-zinc-200 px-3 py-2 text-sm" /></> : null}
+      <button className="w-fit rounded-lg border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50">确认{outcome === "keep" ? "维持" : "反转"}</button>
     </form>
   );
 }

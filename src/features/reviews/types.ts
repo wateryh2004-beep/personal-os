@@ -8,3 +8,21 @@ export type ReviewPeriod = {
   endDate: string;
   timezone: string;
 };
+
+export type ReviewStructuredData = {
+  wins: string[];
+  friction: string[];
+  openLoops: string[];
+  changes: string[];
+  lessons: string[];
+  nextFocus: string[];
+  freeReflection: string;
+};
+
+export type ReviewSourceRole = "origin" | "context" | "cited";
+
+export type ReviewSourceInput = {
+  sourceType: string;
+  sourceId: string;
+  sourceRole: ReviewSourceRole;
+};

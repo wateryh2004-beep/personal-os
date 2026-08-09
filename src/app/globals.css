@@ -6,7 +6,7 @@
   --text-primary:#191918; --text-secondary:#62645f; --text-tertiary:#8b8d87; --border-subtle:#e6e6e1; --border-strong:#d4d5cf;
   --accent:#365f78; --accent-soft:#eaf1f4; --danger:#b42318; --warning:#a15c08; --success:#287255;
   --sidebar-width:216px; --sidebar-collapsed-width:60px; --context-sidebar-width:216px;
-  --content-document-width:800px; --content-dashboard-width:1180px; --toolbar-height:48px;
+  --content-document-width:800px; --content-dashboard-width:1180px; --toolbar-height:48px; --app-viewport-height:100dvh;
   --radius-sm:5px; --radius-md:7px; --radius-lg:10px;
 }
 @theme inline { --color-background:var(--surface-app); --color-foreground:var(--text-primary); --color-card:var(--surface-canvas); --color-border:var(--border-subtle); --color-primary:var(--accent); --color-muted:var(--surface-hover); --color-muted-foreground:var(--text-secondary); --color-popover:var(--surface-elevated); --color-popover-foreground:var(--text-primary); --color-destructive:var(--danger); --color-ring:var(--accent); --font-sans:"Geist", "PingFang SC", "Microsoft YaHei", sans-serif; --font-mono:"Geist Mono", ui-monospace, monospace; }
@@ -23,10 +23,14 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .workspace-scroll { scrollbar-gutter:stable; overscroll-behavior:contain; }
 .notes-editor-surface input[aria-label="笔记标题"]:focus-visible { border-radius:var(--radius-sm); outline:2px solid var(--accent); outline-offset:2px; }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }
-.life-markdown-editor { min-height:100%; background:#fff; color:var(--foreground); font-family:var(--font-sans); }
+.life-markdown-editor { display:flex; height:100%; min-height:0; flex-direction:column; background:#fff; color:var(--foreground); font-family:var(--font-sans); }
 .life-markdown-toolbar { position:sticky; top:0; z-index:5; display:flex; min-height:42px; align-items:center; gap:4px; overflow-x:auto; padding:4px 12px; border-bottom:1px solid var(--border-subtle); background:#fff; box-shadow:none; scrollbar-width:none; }
 .life-markdown-toolbar::-webkit-scrollbar { display:none; }
-.life-codemirror,.life-codemirror .cm-editor { min-height:calc(100dvh - 300px); }
-.notes-editor-surface:fullscreen { box-sizing:border-box; height:100dvh; overflow:hidden; background:var(--background); padding:1.25rem 1.5rem; }
-.notes-editor-surface:fullscreen > .mt-5 { height:calc(100dvh - 10.5rem); min-height:0; }
-.notes-editor-surface:fullscreen .life-codemirror,.notes-editor-surface:fullscreen .life-codemirror .cm-editor,.notes-editor-surface:fullscreen .life-codemirror .cm-scroller,.notes-editor-surface:fullscreen .life-codemirror .cm-content { min-height:calc(100dvh - 10rem); }
+.life-codemirror { min-height:0; flex:1; overflow:hidden; }
+.life-codemirror .cm-editor { height:100%; min-height:0; }
+.notes-editor-surface:fullscreen { box-sizing:border-box; height:var(--app-viewport-height); overflow:hidden; background:var(--background); padding:1.25rem 1.5rem; }
+@media (max-width:767px) {
+  .workspace-scroll { scrollbar-gutter:auto; }
+  .life-markdown-toolbar { min-height:40px; padding-inline:8px; }
+  .notes-editor-surface:fullscreen { padding:0; }
+}

@@ -82,6 +82,7 @@ export async function completeMicrosoftTodoTaskAction(formData: FormData) {
   await completeMicrosoftTodoTask(connection.id, userId, parsed.data.taskId);
   await audit(supabase, userId, "complete", parsed.data.taskId, { provider: "microsoft_todo" });
   revalidatePath("/tasks");
+  revalidatePath("/today");
 }
 
 export async function reopenMicrosoftTodoTaskAction(formData: FormData) {
@@ -92,4 +93,5 @@ export async function reopenMicrosoftTodoTaskAction(formData: FormData) {
   await reopenMicrosoftTodoTask(connection.id, userId, parsed.data.taskId);
   await audit(supabase, userId, "reopen", parsed.data.taskId, { provider: "microsoft_todo" });
   revalidatePath("/tasks");
+  revalidatePath("/today");
 }

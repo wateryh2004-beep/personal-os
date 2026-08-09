@@ -8,6 +8,7 @@ export const assistantSurfaces = [
   "tasks",
   "inbox",
   "career",
+  "reviews",
   "global",
 ] as const;
 export type AssistantSurface = (typeof assistantSurfaces)[number];
@@ -26,6 +27,7 @@ export type AssistantRequest = {
       | "task_workspace"
       | "inbox_item"
       | "career_entity"
+      | "review_evidence"
       | "global_page";
     title?: string | null;
     content?: string | null;

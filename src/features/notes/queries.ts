@@ -1,59 +1,159 @@
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
+import {
+  parseFallbackNoteListItems,
+  parseNoteListItems,
+} from "./listing";
+import type { NoteListItem } from "./types";
 
 type QueryError = { code?: string } | null;
+type Supabase = Awaited<ReturnType<typeof requireOwner>>["supabase"];
+type WorkspaceState = "ready" | "base" | "unavailable";
+
+const defaultNotesPageSize = 100;
+const maximumFallbackRows = 200;
 
 /** A production database may temporarily be on the base Notes migration. */
 export function isNotesWorkspaceSchemaMissing(error: QueryError) {
-  return Boolean(error?.code && ["PGRST204", "PGRST205", "42P01", "42703"].includes(error.code));
+  return Boolean(
+    error?.code &&
+      [
+        "PGRST202",
+        "PGRST204",
+        "PGRST205",
+        "42P01",
+        "42703",
+        "42883",
+      ].includes(error.code),
+  );
 }
 
-type WorkspaceState = "ready" | "base" | "unavailable";
-
-export async function getNotesWorkspace(): Promise<{
-  notes: { id: string; title: string; body_markdown: string; updated_at: string; pinned_at: string | null; folder_id: string | null }[];
-  folders: { id: string; name: string; parent_id: string | null }[];
-  timezone: string;
-  state: WorkspaceState;
-}> {
-  const { supabase, userId } = await requireOwner();
-  const { data: profile } = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
-  const timezone = profile?.timezone || "Asia/Shanghai";
-  const notesResult = await supabase
+async function fallbackNotesPage(
+  supabase: Supabase,
+  offset: number,
+  limit: number,
+) {
+  if (offset >= maximumFallbackRows) {
+    return { notes: [] as NoteListItem[], hasMore: false, state: "base" as const };
+  }
+  const end = Math.min(offset + limit, maximumFallbackRows - 1);
+  const workspaceResult = await supabase
     .from("notes")
     .select("id,title,body_markdown,updated_at,pinned_at,folder_id")
     .is("deleted_at", null)
     .neq("status", "archived")
     .order("pinned_at", { ascending: false })
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .range(offset, end);
+  let data: unknown = workspaceResult.data;
+  let error = workspaceResult.error;
 
-  if (isNotesWorkspaceSchemaMissing(notesResult.error)) {
-    const base = await supabase
+  if (isNotesWorkspaceSchemaMissing(workspaceResult.error)) {
+    const baseResult = await supabase
       .from("notes")
       .select("id,title,body_markdown,updated_at,pinned_at")
       .neq("status", "archived")
       .order("pinned_at", { ascending: false })
-      .order("updated_at", { ascending: false });
-    if (base.error) return { notes: [], folders: [], timezone, state: "unavailable" };
+      .order("updated_at", { ascending: false })
+      .range(offset, end);
+    data = baseResult.data;
+    error = baseResult.error;
+  }
+
+  if (error) {
+    return { notes: [] as NoteListItem[], hasMore: false, state: "unavailable" as const };
+  }
+
+  const parsed = parseFallbackNoteListItems(data ?? []);
+  return {
+    notes: parsed.slice(0, limit),
+    hasMore: parsed.length > limit && offset + limit < maximumFallbackRows,
+    state: "base" as const,
+  };
+}
+
+export async function listNotesWorkspacePage(
+  supabase: Supabase,
+  { offset = 0, limit = defaultNotesPageSize }: { offset?: number; limit?: number } = {},
+) {
+  const boundedOffset = Math.max(0, offset);
+  const boundedLimit = Math.max(1, Math.min(limit, 100));
+  const result = await supabase.rpc("list_notes_workspace", {
+    p_limit: boundedLimit + 1,
+    p_offset: boundedOffset,
+  });
+
+  if (isNotesWorkspaceSchemaMissing(result.error)) {
+    return fallbackNotesPage(supabase, boundedOffset, boundedLimit);
+  }
+  if (result.error) {
+    return { notes: [] as NoteListItem[], hasMore: false, state: "unavailable" as const };
+  }
+
+  const parsed = parseNoteListItems(result.data ?? []);
+  return {
+    notes: parsed.slice(0, boundedLimit),
+    hasMore: parsed.length > boundedLimit,
+    state: "ready" as const,
+  };
+}
+
+export async function getNotesWorkspace(): Promise<{
+  notes: NoteListItem[];
+  folders: { id: string; name: string; parent_id: string | null }[];
+  timezone: string;
+  state: WorkspaceState;
+  hasMore: boolean;
+}> {
+  const { supabase, userId } = await requireOwner();
+  const [profileResult, notesPage, foldersResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("timezone")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    listNotesWorkspacePage(supabase),
+    supabase
+      .from("note_folders")
+      .select("id,name,parent_id")
+      .is("archived_at", null)
+      .order("position"),
+  ]);
+  const timezone = profileResult.data?.timezone || "Asia/Shanghai";
+
+  if (notesPage.state === "unavailable") {
     return {
-      notes: (base.data ?? []).map((note) => ({ ...note, folder_id: null })),
+      notes: [],
+      folders: [],
+      timezone,
+      state: "unavailable",
+      hasMore: false,
+    };
+  }
+  if (isNotesWorkspaceSchemaMissing(foldersResult.error)) {
+    return {
+      ...notesPage,
       folders: [],
       timezone,
       state: "base",
     };
   }
-  if (notesResult.error) return { notes: [], folders: [], timezone, state: "unavailable" };
-
-  const foldersResult = await supabase
-    .from("note_folders")
-    .select("id,name,parent_id")
-    .is("archived_at", null)
-    .order("position");
-  if (isNotesWorkspaceSchemaMissing(foldersResult.error)) {
-    return { notes: notesResult.data ?? [], folders: [], timezone, state: "base" };
+  if (foldersResult.error) {
+    return {
+      notes: [],
+      folders: [],
+      timezone,
+      state: "unavailable",
+      hasMore: false,
+    };
   }
-  if (foldersResult.error) return { notes: [], folders: [], timezone, state: "unavailable" };
-  return { notes: notesResult.data ?? [], folders: foldersResult.data ?? [], timezone, state: "ready" };
+
+  return {
+    ...notesPage,
+    folders: foldersResult.data ?? [],
+    timezone,
+    state: "ready",
+  };
 }
 
 /** Folder metadata for controls that move an already-authorized note. */

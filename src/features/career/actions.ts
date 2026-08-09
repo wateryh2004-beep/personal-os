@@ -63,7 +63,7 @@ export async function archiveCareerMilestone(formData: FormData) {
 export async function duplicateCareerMilestone(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const milestoneId = String(formData.get("milestone_id") || ""); await own(supabase, "career_milestones", milestoneId);
   const { data: source, error: sourceError } = await supabase.from("career_milestones").select("track_id,career_direction_id,title,description,starts_on,target_date,status,importance").eq("id", milestoneId).maybeSingle(); if (sourceError || !source) failed(sourceError);
-  const { data, error } = await supabase.from("career_milestones").insert({ ...source, starts_on: null, user_id: userId, title: `${source.title}（副本）` }).select("id").single(); if (error || !data) failed(error);
+  const { data, error } = await supabase.from("career_milestones").insert({ ...source, user_id: userId, title: `${source.title}（副本）` }).select("id").single(); if (error || !data) failed(error);
   await audit(supabase, userId, "duplicate", "career_milestone", data.id, { source_id: milestoneId }); revalidatePath("/career/roadmap"); revalidatePath("/career");
 }
 export async function reorderCareerTracks(formData: FormData) {

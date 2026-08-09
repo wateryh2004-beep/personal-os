@@ -27,8 +27,8 @@ export const careerTrackSchema = z.object({
 }).refine((value) => !value.start_date || !value.end_date || value.start_date <= value.end_date, { message: "结束日期不能早于开始日期。" });
 
 export const careerMilestoneSchema = z.object({
-  track_id: z.string().uuid(), career_direction_id: z.string().uuid().nullable().optional(), title: z.string().trim().min(1).max(240), description: optionalText(4_000), starts_on: optionalDate.transform(() => null), target_date: z.string().date(), status: z.enum(["planned", "in_progress", "completed", "skipped"]), importance: z.enum(["low", "normal", "high"]),
-});
+  track_id: z.string().uuid(), career_direction_id: z.string().uuid().nullable().optional(), title: z.string().trim().min(1).max(240), description: optionalText(4_000), starts_on: optionalDate, target_date: z.string().date(), status: z.enum(["planned", "in_progress", "completed", "skipped"]), importance: z.enum(["low", "normal", "high"]),
+}).refine((value) => !value.starts_on || value.starts_on <= value.target_date, { path: ["target_date"], message: "结束日期不能早于开始日期。" });
 
 export const careerTrackOrderSchema = z.array(z.string().uuid()).min(1).max(100);
 

@@ -33,27 +33,21 @@ export function TodayBrief({ items }: { items: TodayBriefItem[] }) {
   }
 
   return (
-    <section aria-labelledby="today-brief-heading">
-      <div className="flex items-center justify-between border-b pb-3">
-        <div>
-          <p className="text-xs font-medium text-[var(--accent)]">Today Brief</p>
-          <h2 id="today-brief-heading" className="mt-1 text-[15px] font-semibold">
-            今天值得处理
-          </h2>
-        </div>
+    <section aria-labelledby="today-brief-heading" className="py-2">
+      <div className="flex items-center justify-between">
+        <h3 id="today-brief-heading" className="text-xs font-medium text-[var(--text-tertiary)]">
+          今日上下文
+        </h3>
         <button type="button" onClick={() => void summarize()} disabled={summarizing} className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] disabled:opacity-60">
           {summarizing ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="size-3.5" aria-hidden="true" />}
           {summary ? "重新总结" : "AI 总结"}
         </button>
       </div>
-      {summary ? <p className="border-b py-3 text-sm leading-6 text-[var(--text-secondary)]">{summary}</p> : null}
-      {summaryError ? <p role="status" className="border-b py-3 text-xs text-[var(--danger)]">{summaryError}</p> : null}
+      {summary ? <p className="py-2 text-sm leading-6 text-[var(--text-secondary)]">{summary}</p> : null}
+      {summaryError ? <p role="status" className="py-2 text-xs text-[var(--danger)]">{summaryError}</p> : null}
       <ol className="divide-y">
-        {items.map((item, index) => (
-          <li key={item.id} className="grid gap-3 py-4 sm:grid-cols-[28px_minmax(0,1fr)_auto]">
-            <span className="font-mono text-xs text-[var(--text-tertiary)]">
-              {String(index + 1).padStart(2, "0")}
-            </span>
+        {items.slice(0, 2).map((item) => (
+          <li key={item.id} className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto]">
             <div className="min-w-0">
               <p className="text-sm font-medium">{item.title}</p>
               <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{item.reason}</p>

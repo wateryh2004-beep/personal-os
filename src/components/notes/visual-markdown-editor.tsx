@@ -22,6 +22,34 @@ type VisualMarkdownEditorProps = {
   onSelectionChange?: (selection: NoteSelection | null) => void;
 };
 
+function centerMobileCursor(currentView: EditorView) {
+  if (
+    !currentView.hasFocus ||
+    currentView.composing ||
+    !window.matchMedia("(max-width: 767px)").matches
+  ) return;
+  window.requestAnimationFrame(() => {
+    if (!currentView.dom.isConnected || !currentView.hasFocus) return;
+    const cursor = currentView.state.selection.main.head;
+    const coordinates = currentView.coordsAtPos(cursor);
+    if (!coordinates) return;
+    const scrollBounds = currentView.scrollDOM.getBoundingClientRect();
+    const visualViewport = window.visualViewport;
+    const viewportTop = visualViewport?.offsetTop ?? 0;
+    const viewportBottom = viewportTop + (visualViewport?.height ?? window.innerHeight);
+    const visibleTop = Math.max(scrollBounds.top, viewportTop);
+    const visibleBottom = Math.min(scrollBounds.bottom, viewportBottom);
+    const visibleHeight = visibleBottom - visibleTop;
+    if (visibleHeight <= 0) return;
+    const comfortableTop = visibleTop + visibleHeight * 0.32;
+    const comfortableBottom = visibleTop + visibleHeight * 0.62;
+    if (coordinates.top >= comfortableTop && coordinates.bottom <= comfortableBottom) return;
+    currentView.dispatch({
+      effects: EditorView.scrollIntoView(cursor, { y: "center" }),
+    });
+  });
+}
+
 function safeImageAlt(filename: string) {
   return filename
     .replace(/\.[^.]+$/, "")
@@ -45,6 +73,16 @@ export function VisualMarkdownEditor({
 
   useEffect(() => { changeRef.current = onChange; }, [onChange]);
   useEffect(() => { selectionRef.current = onSelectionChange; }, [onSelectionChange]);
+  useEffect(() => {
+    if (!view) return;
+    const visualViewport = window.visualViewport;
+    const handleViewportResize = () => {
+      view.requestMeasure();
+      centerMobileCursor(view);
+    };
+    visualViewport?.addEventListener("resize", handleViewportResize);
+    return () => visualViewport?.removeEventListener("resize", handleViewportResize);
+  }, [view]);
 
   const reportSelection = (currentView: EditorView) => {
     if (currentView.composing) return;
@@ -63,7 +101,7 @@ export function VisualMarkdownEditor({
       text: selectedText,
       rect: { left: coordinates?.left ?? 0, top: coordinates?.top ?? 0 },
       replace: (text) => {
-        if (currentView.state.sliceDoc(range.from, range.to) !== selectedText) return;
+        if (currentView.state.sliceDoc(range.from, range.to) !== selectedText) return false;
         currentView.dispatch({
           changes: { from: range.from, to: range.to, insert: text },
           selection: { anchor: range.from + text.length },
@@ -71,9 +109,10 @@ export function VisualMarkdownEditor({
           userEvent: "input",
         });
         currentView.focus();
+        return true;
       },
       insertBelow: (text) => {
-        if (currentView.state.sliceDoc(range.from, range.to) !== selectedText) return;
+        if (currentView.state.sliceDoc(range.from, range.to) !== selectedText) return false;
         const insert = `\n\n${text}`;
         currentView.dispatch({
           changes: { from: range.to, insert },
@@ -82,6 +121,7 @@ export function VisualMarkdownEditor({
           userEvent: "input",
         });
         currentView.focus();
+        return true;
       },
     });
   };
@@ -198,7 +238,10 @@ export function VisualMarkdownEditor({
         },
         compositionend(_event, currentView) {
           const value = currentView.state.doc.toString();
-          queueMicrotask(() => onChange(value));
+          queueMicrotask(() => {
+            onChange(value);
+            centerMobileCursor(currentView);
+          });
           return false;
         },
       }),
@@ -266,8 +309,10 @@ export function VisualMarkdownEditor({
         }}
         onUpdate={(update) => {
           if (update.selectionSet) reportSelection(update.view);
-          if (update.selectionSet || update.docChanged)
+          if (update.selectionSet || update.docChanged) {
             setStateVersion((version) => version + 1);
+            centerMobileCursor(update.view);
+          }
         }}
         onChange={(value, update) => {
           if (update.view.composing) {

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { dateToX, getTimelineDomain, packMilestonePoints, trackRangeGeometry, xToDate } from "@/features/career/roadmap-utils";
+import { dateToX, getTimelineDomain, getVisibleItemGeometry, isDuration, packTimelineItems, trackRangeGeometry, xToDate } from "@/features/career/roadmap-utils";
 
 describe("career roadmap timeline", () => {
   const now = new Date("2026-08-07T12:00:00Z");
   const domain = getTimelineDomain(
     now,
-    [{ target_date: "2028-05-10" }],
+    [{ starts_on: null, target_date: "2028-05-10" }],
     [{ start_date: "2026-06-01", end_date: "2029-02-01" }],
   );
 
@@ -20,19 +20,34 @@ describe("career roadmap timeline", () => {
     expect(xToDate(historicalX, domain, 92)).toBe("2026-07-15");
   });
 
-  it("renders ranges only from track start/end fields", () => {
+  it("keeps track phases as their own background range", () => {
     const geometry = trackRangeGeometry({ start_date: "2026-08-01", end_date: "2026-10-01" }, domain, 92);
     expect(geometry?.width).toBeGreaterThan(180);
     expect(trackRangeGeometry({ start_date: null, end_date: "2026-10-01" }, domain, 92)).toBeNull();
   });
 
-  it("packs same-date points into independent rows", () => {
-    const rows = packMilestonePoints([
-      { id: "a", target_date: "2026-08-10" },
-      { id: "b", target_date: "2026-08-10" },
-      { id: "c", target_date: "2026-08-11" },
+  it("uses starts_on as the explicit point/range setting", () => {
+    expect(isDuration({ starts_on: null, target_date: "2026-08-10" })).toBe(false);
+    expect(isDuration({ starts_on: "2026-08-10", target_date: "2026-08-10" })).toBe(true);
+    expect(isDuration({ starts_on: "2026-08-01", target_date: "2026-08-10" })).toBe(true);
+  });
+
+  it("packs overlapping points and ranges into independent rows", () => {
+    const rows = packTimelineItems([
+      { id: "range", starts_on: "2026-08-01", target_date: "2026-08-10" },
+      { id: "inside", starts_on: null, target_date: "2026-08-05" },
+      { id: "after", starts_on: null, target_date: "2026-08-11" },
     ]);
     expect(rows).toHaveLength(2);
-    expect(rows[0].map((item) => item.id)).toEqual(["a", "c"]);
+    expect(rows[0].map((item) => item.id)).toEqual(["range", "after"]);
+  });
+
+  it("marks long ranges as clipped without changing their stored dates", () => {
+    expect(getVisibleItemGeometry({
+      itemStart: "2025-01-01",
+      itemEnd: "2027-12-31",
+      viewportStart: "2026-08-01",
+      viewportEnd: "2026-12-31",
+    })).toEqual({ intersectsViewport: true, clippedLeft: true, clippedRight: true });
   });
 });

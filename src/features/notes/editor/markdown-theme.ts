@@ -78,6 +78,7 @@ const markdownHighlight = HighlightStyle.define([
 const editorTheme = EditorView.theme({
   "&": {
     minHeight: "100%",
+    height: "100%",
     backgroundColor: "#fff",
     color: "var(--text-primary)",
     fontFamily: "var(--font-sans)",
@@ -85,8 +86,11 @@ const editorTheme = EditorView.theme({
   },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": {
-    minHeight: "calc(100dvh - 300px)",
-    overflow: "visible",
+    minHeight: "0",
+    height: "100%",
+    overflow: "auto",
+    overscrollBehavior: "contain",
+    scrollPaddingBlock: "32%",
     fontFamily: "var(--font-sans)",
     lineHeight: "1.78",
   },
@@ -94,7 +98,7 @@ const editorTheme = EditorView.theme({
     boxSizing: "border-box",
     width: "100%",
     maxWidth: "820px",
-    minHeight: "calc(100dvh - 300px)",
+    minHeight: "100%",
     margin: "0 auto",
     padding: "34px 42px 88px",
     caretColor: "var(--accent)",
@@ -130,7 +134,9 @@ const editorTheme = EditorView.theme({
   ".cm-panels": { backgroundColor: "#fff", color: "var(--text-primary)" },
   ".cm-search": { borderBottom: "1px solid var(--border-subtle)" },
   "@media (max-width: 640px)": {
-    ".cm-content": { padding: "24px 20px 72px" },
+    "&": { fontSize: "16px" },
+    ".cm-content": { padding: "22px 16px max(34dvh, 140px)" },
+    ".cm-line": { padding: "2px 0" },
   },
 });
 

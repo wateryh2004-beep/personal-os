@@ -16,10 +16,18 @@ describe("Calendar 2.0 timed event layout", () => {
     expect(items.map(({ lane, laneCount, layoutMode }) => [lane, laneCount, layoutMode])).toEqual([[0, 2, "columns"], [1, 2, "columns"]]);
   });
 
-  it("uses readable cascade cards for three simultaneous events in week view", () => {
+  it("keeps three simultaneous week events in non-overlapping columns", () => {
     const items = layout("week", event("a", "2026-08-06T09:00:00+08:00", "2026-08-06T11:00:00+08:00"), event("b", "2026-08-06T09:10:00+08:00", "2026-08-06T10:00:00+08:00"), event("c", "2026-08-06T09:20:00+08:00", "2026-08-06T10:30:00+08:00"));
-    expect(items.every((item) => item.layoutMode === "cascade" && item.width === 78)).toBe(true);
-    expect(items.map((item) => item.left)).toEqual([0, 9, 18]);
+    expect(items.every((item) => item.layoutMode === "columns" && Math.abs(item.width - 100 / 3) < 0.001)).toBe(true);
+    expect(items[0].left).toBe(0);
+    expect(items[1].left).toBeCloseTo(100 / 3);
+    expect(items[2].left).toBeCloseTo(200 / 3);
+    for (const left of items) {
+      for (const right of items) {
+        if (left.event.id >= right.event.id) continue;
+        expect(left.left + left.width <= right.left || right.left + right.width <= left.left).toBe(true);
+      }
+    }
   });
 
   it("keeps true columns for three simultaneous events in day view", () => {
