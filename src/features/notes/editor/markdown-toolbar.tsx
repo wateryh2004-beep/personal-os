@@ -38,6 +38,7 @@ import { parseMarkdownListLine } from "./markdown-list";
 type ToolbarState = {
   heading: number;
   quote: boolean;
+  codeBlock: boolean;
   bold: boolean;
   italic: boolean;
   inlineCode: boolean;
@@ -47,7 +48,7 @@ type ToolbarState = {
 
 function stateAtSelection(view: EditorView | null): ToolbarState {
   if (!view)
-    return { heading: 0, quote: false, bold: false, italic: false, inlineCode: false, link: false, list: null };
+    return { heading: 0, quote: false, codeBlock: false, bold: false, italic: false, inlineCode: false, link: false, list: null };
   const main = view.state.selection.main;
   const line = view.state.doc.lineAt(main.head);
   const list = parseMarkdownListLine(line.text)?.kind ?? null;
@@ -62,6 +63,7 @@ function stateAtSelection(view: EditorView | null): ToolbarState {
   return {
     heading,
     quote: /^\s*>\s?/.test(line.text),
+    codeBlock: names.has("FencedCode") || names.has("CodeBlock"),
     bold: names.has("StrongEmphasis"),
     italic: names.has("Emphasis"),
     inlineCode: names.has("InlineCode"),
@@ -124,13 +126,19 @@ export function MarkdownToolbar({
     command(view);
     view.focus();
   };
-  const block = active.heading ? `h${active.heading}` : active.quote ? "quote" : "paragraph";
+  const block = active.heading
+    ? `h${active.heading}`
+    : active.quote
+      ? "quote"
+      : active.codeBlock
+        ? "code"
+        : "paragraph";
   return (
-    <div className="life-markdown-toolbar" role="toolbar" aria-label="Markdown 格式工具">
+    <div className="life-markdown-toolbar" role="toolbar" aria-label="Markdown 格式工具" aria-orientation="horizontal">
       <div className="flex min-w-max items-center gap-0.5">
-        <ToolbarButton label="撤销（⌘Z）" disabled={!view} onClick={() => run(undo)}><Undo2 className="size-4" /></ToolbarButton>
-        <ToolbarButton label="重做（⇧⌘Z）" disabled={!view} onClick={() => run(redo)}><Redo2 className="size-4" /></ToolbarButton>
-        <span className="mx-1 h-5 w-px bg-[var(--border-subtle)]" />
+        <ToolbarButton label="撤销（⌘Z）" disabled={!view} onClick={() => run(undo)}><Undo2 aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton label="重做（⇧⌘Z）" disabled={!view} onClick={() => run(redo)}><Redo2 aria-hidden="true" className="size-4" /></ToolbarButton>
+        <span aria-hidden="true" className="mx-1 h-5 w-px bg-[var(--border-subtle)]" />
         <label className="sr-only" htmlFor="markdown-block-style">块样式</label>
         <select
           id="markdown-block-style"
@@ -145,8 +153,9 @@ export function MarkdownToolbar({
             else if (/^h[1-4]$/.test(value)) run(toggleHeading(Number(value.slice(1)) as 1 | 2 | 3 | 4));
             else if (active.heading) run(toggleHeading(active.heading as 1 | 2 | 3 | 4));
             else if (active.quote) run(toggleBlockquote);
+            else if (active.codeBlock) run(toggleCodeBlock);
           }}
-          className="h-8 rounded-[var(--radius-sm)] border-0 bg-transparent px-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] focus:outline-none"
+          className="h-8 rounded-[var(--radius-sm)] border-0 bg-transparent px-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
         >
           <option value="paragraph">正文</option>
           <option value="h1">标题 1</option>
@@ -156,21 +165,21 @@ export function MarkdownToolbar({
           <option value="quote">引用</option>
           <option value="code">代码块</option>
         </select>
-        <span className="mx-1 h-5 w-px bg-[var(--border-subtle)]" />
-        <ToolbarButton label="粗体（⌘B）" active={active.bold} disabled={!view} onClick={() => run(toggleBold)}><Bold className="size-4" /></ToolbarButton>
-        <ToolbarButton label="斜体（⌘I）" active={active.italic} disabled={!view} onClick={() => run(toggleItalic)}><Italic className="size-4" /></ToolbarButton>
-        <ToolbarButton label="行内代码" active={active.inlineCode} disabled={!view} onClick={() => run(toggleInlineCode)}><Code2 className="size-4" /></ToolbarButton>
-        <span className="mx-1 h-5 w-px bg-[var(--border-subtle)]" />
-        <ToolbarButton label="无序列表" active={active.list === "bullet"} disabled={!view} onClick={() => run(toggleBulletList)}><List className="size-4" /></ToolbarButton>
-        <ToolbarButton label="有序列表" active={active.list === "ordered"} disabled={!view} onClick={() => run(toggleOrderedList)}><ListOrdered className="size-4" /></ToolbarButton>
-        <ToolbarButton label="任务列表" active={active.list === "task"} disabled={!view} onClick={() => run(toggleTaskList)}><ListTodo className="size-4" /></ToolbarButton>
-        <ToolbarButton label="链接（⌘K）" active={active.link} disabled={!view} onClick={() => run(createMarkdownLink)}><Link2 className="size-4" /></ToolbarButton>
-        <ToolbarButton label="引用" active={active.quote} disabled={!view} onClick={() => run(toggleBlockquote)}><Quote className="size-4" /></ToolbarButton>
-        <ToolbarButton label="插入图片" disabled={!view} onClick={() => fileRef.current?.click()}><ImagePlus className="size-4" /></ToolbarButton>
-        <ToolbarButton label="插入表格" disabled={!view} onClick={() => { onInsertTable(); view?.focus(); }}><Table2 className="size-4" /></ToolbarButton>
+        <span aria-hidden="true" className="mx-1 h-5 w-px bg-[var(--border-subtle)]" />
+        <ToolbarButton label="粗体（⌘B）" active={active.bold} disabled={!view} onClick={() => run(toggleBold)}><Bold aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton label="斜体（⌘I）" active={active.italic} disabled={!view} onClick={() => run(toggleItalic)}><Italic aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton label="行内代码" active={active.inlineCode} disabled={!view} onClick={() => run(toggleInlineCode)}><Code2 aria-hidden="true" className="size-4" /></ToolbarButton>
+        <span aria-hidden="true" className="mx-1 h-5 w-px bg-[var(--border-subtle)]" />
+        <ToolbarButton label="无序列表" active={active.list === "bullet"} disabled={!view} onClick={() => run(toggleBulletList)}><List aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton label="有序列表" active={active.list === "ordered"} disabled={!view} onClick={() => run(toggleOrderedList)}><ListOrdered aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton label="任务列表" active={active.list === "task"} disabled={!view} onClick={() => run(toggleTaskList)}><ListTodo aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton label="链接（⌘K）" active={active.link} disabled={!view} onClick={() => run(createMarkdownLink)}><Link2 aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton label="引用" active={active.quote} disabled={!view} onClick={() => run(toggleBlockquote)}><Quote aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton label="插入图片" disabled={!view} onClick={() => fileRef.current?.click()}><ImagePlus aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton label="插入表格" disabled={!view} onClick={() => { onInsertTable(); view?.focus(); }}><Table2 aria-hidden="true" className="size-4" /></ToolbarButton>
       </div>
       <span className="min-w-3 flex-1" />
-      <ToolbarButton label="AI" disabled={!view} onClick={() => { onOpenAi?.(); view?.focus(); }}><Sparkles className="size-4" /></ToolbarButton>
+      <ToolbarButton label="AI" disabled={!view} onClick={() => { onOpenAi?.(); view?.focus(); }}><Sparkles aria-hidden="true" className="size-4" /></ToolbarButton>
       <input
         ref={fileRef}
         type="file"

@@ -419,6 +419,36 @@ export const createMarkdownLink: StateCommand = ({ state, dispatch }) => {
 
 export const toggleCodeBlock: StateCommand = ({ state, dispatch }) => {
   const range = state.selection.main;
+  let node = syntaxTree(state).resolveInner(range.head, -1);
+  while (node.name !== "FencedCode" && node.parent) node = node.parent;
+  if (node.name === "FencedCode" && range.from >= node.from && range.to <= node.to) {
+    const block = state.sliceDoc(node.from, node.to);
+    const match = /^```[^\n]*\n([\s\S]*?)\n```[ \t]*$/.exec(block);
+    if (match) {
+      const content = match[1];
+      const openingLength = block.indexOf("\n") + 1;
+      const relativeAnchor = Math.max(
+        0,
+        Math.min(content.length, range.anchor - node.from - openingLength),
+      );
+      const relativeHead = Math.max(
+        0,
+        Math.min(content.length, range.head - node.from - openingLength),
+      );
+      dispatch(
+        state.update({
+          changes: { from: node.from, to: node.to, insert: content },
+          selection: {
+            anchor: node.from + relativeAnchor,
+            head: node.from + relativeHead,
+          },
+          scrollIntoView: true,
+          userEvent: "input",
+        }),
+      );
+      return true;
+    }
+  }
   const first = state.doc.lineAt(range.from);
   const last = state.doc.lineAt(range.to);
   const selected = state.sliceDoc(first.from, last.to);

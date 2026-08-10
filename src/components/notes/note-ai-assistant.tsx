@@ -75,7 +75,7 @@ export function NoteAiAssistant({
   const [customSelection, setCustomSelection] = useState<NoteSelection | null>(
     null,
   );
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [moreSelectionText, setMoreSelectionText] = useState<string | null>(null);
   const [usePersonalContext, setUsePersonalContext] = useState(true);
   const [pending, startTransition] = useTransition();
   const resultRef = useRef<HTMLDivElement>(null);
@@ -174,32 +174,42 @@ export function NoteAiAssistant({
     <>
       {selection ? (
         <div
-          className="fixed z-40 flex items-center gap-1 rounded-[var(--radius-md)] border bg-[var(--surface-elevated)] p-1 shadow-sm"
+          aria-label="所选文字 AI 工具"
+          className="fixed z-40 flex max-w-[calc(100vw-16px)] items-center gap-1 rounded-[var(--radius-md)] border bg-[var(--surface-elevated)] p-1 shadow-sm"
+          role="toolbar"
           style={{
-            left: Math.max(8, selection.rect.left),
+            left: `clamp(8px, ${selection.rect.left}px, calc(100vw - 210px))`,
             top: Math.max(8, selection.rect.top - 38),
           }}
         >
-          <button onClick={() => selectionOperation("polishSelection")} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs hover:bg-[var(--surface-hover)]"><Sparkles className="size-3" aria-hidden="true" />AI</button>
+          <button type="button" onClick={() => selectionOperation("polishSelection")} className="inline-flex h-8 shrink-0 items-center gap-1 rounded px-2 text-xs hover:bg-[var(--surface-hover)]"><Sparkles className="size-3" aria-hidden="true" />AI</button>
           <button
+            type="button"
             onClick={() => selectionOperation("polishSelection")}
-            className="px-1.5 py-1 text-xs hover:bg-zinc-100"
+            className="h-8 shrink-0 rounded px-2 text-xs hover:bg-[var(--surface-hover)]"
           >
             润色
           </button>
           <button
+            type="button"
             onClick={() => selectionOperation("shortenSelection")}
-            className="px-1.5 py-1 text-xs hover:bg-zinc-100"
+            className="h-8 shrink-0 rounded px-2 text-xs hover:bg-[var(--surface-hover)]"
           >
             精简
           </button>
           <button
-            onClick={() => setMoreOpen((value) => !value)}
-            className="px-1.5 py-1 text-xs hover:bg-zinc-100"
+            type="button"
+            aria-expanded={moreSelectionText === selection.text}
+            onClick={() =>
+              setMoreSelectionText((value) =>
+                value === selection.text ? null : selection.text,
+              )
+            }
+            className="h-8 shrink-0 rounded px-2 text-xs hover:bg-[var(--surface-hover)]"
           >
             更多
           </button>
-          {moreOpen ? (
+          {moreSelectionText === selection.text ? (
             <div className="absolute right-0 top-8 z-50 grid w-28 rounded-md border bg-white p-1 shadow-sm">
               {[
                 ["explainSelection", "解释"],
@@ -210,22 +220,24 @@ export function NoteAiAssistant({
                 ["listSelection", "转换列表"],
               ].map(([operation, label]) => (
                 <button
+                  type="button"
                   key={operation}
                   onClick={() => {
                     selectionOperation(operation as NoteAiOperation);
-                    setMoreOpen(false);
+                    setMoreSelectionText(null);
                   }}
-                  className="rounded px-2 py-1 text-left text-xs hover:bg-zinc-100"
+                  className="rounded px-2 py-1.5 text-left text-xs hover:bg-[var(--surface-hover)]"
                 >
                   {label}
                 </button>
               ))}
               <button
+                type="button"
                 onClick={() => {
                   startCustomSelection();
-                  setMoreOpen(false);
+                  setMoreSelectionText(null);
                 }}
-                className="rounded px-2 py-1 text-left text-xs hover:bg-zinc-100"
+                className="rounded px-2 py-1.5 text-left text-xs hover:bg-[var(--surface-hover)]"
               >
                 自定义…
               </button>

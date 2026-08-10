@@ -3,6 +3,7 @@ import { RangeSetBuilder, type Extension } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
+  scrollPastEnd,
   ViewPlugin,
   type DecorationSet,
   type ViewUpdate,
@@ -75,6 +76,13 @@ const markdownHighlight = HighlightStyle.define([
   { tag: tags.quote, color: "#616661" },
 ]);
 
+export const markdownHeadingLineStyles = {
+  h1: { lineHeight: "1.35" },
+  h2: { lineHeight: "1.42" },
+  h3: { lineHeight: "1.55" },
+  h4: { lineHeight: "1.65" },
+} as const;
+
 const editorTheme = EditorView.theme({
   "&": {
     minHeight: "100%",
@@ -85,12 +93,16 @@ const editorTheme = EditorView.theme({
     fontSize: "15.5px",
   },
   "&.cm-focused": { outline: "none" },
+  "&.cm-focused .cm-scroller": {
+    boxShadow: "inset 0 0 0 1px rgba(54, 95, 120, 0.22)",
+  },
   ".cm-scroller": {
     minHeight: "0",
     height: "100%",
     overflow: "auto",
     overscrollBehavior: "contain",
-    scrollPaddingBlock: "32%",
+    scrollPaddingBlock: "28%",
+    scrollbarGutter: "stable",
     fontFamily: "var(--font-sans)",
     lineHeight: "1.78",
   },
@@ -100,11 +112,12 @@ const editorTheme = EditorView.theme({
     maxWidth: "820px",
     minHeight: "100%",
     margin: "0 auto",
-    padding: "34px 42px 88px",
+    padding: "34px 42px 64px",
     caretColor: "var(--accent)",
   },
-  ".cm-line": { padding: "1px 0" },
-  ".cm-activeLine": { backgroundColor: "rgba(54, 95, 120, 0.035)" },
+  ".cm-line": { minHeight: "1.78em", padding: "0" },
+  ".cm-activeLine": { backgroundColor: "transparent" },
+  "&.cm-focused .cm-activeLine": { backgroundColor: "rgba(54, 95, 120, 0.035)" },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)", borderLeftWidth: "1.5px" },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": {
     backgroundColor: "#dfeaed !important",
@@ -127,16 +140,34 @@ const editorTheme = EditorView.theme({
     paddingLeft: "12px",
     paddingRight: "12px",
   },
-  ".cm-note-atxheading1": { marginTop: "18px", marginBottom: "10px", lineHeight: "1.35" },
-  ".cm-note-atxheading2": { marginTop: "16px", marginBottom: "7px", lineHeight: "1.42" },
-  ".cm-note-atxheading3": { marginTop: "12px", marginBottom: "5px" },
-  ".cm-note-atxheading4": { marginTop: "9px", marginBottom: "3px" },
+  ".cm-note-atxheading1": markdownHeadingLineStyles.h1,
+  ".cm-note-atxheading2": markdownHeadingLineStyles.h2,
+  ".cm-note-atxheading3": markdownHeadingLineStyles.h3,
+  ".cm-note-atxheading4": markdownHeadingLineStyles.h4,
+  ".cm-note-image-upload": {
+    display: "inline-flex",
+    alignItems: "center",
+    marginLeft: "6px",
+    borderRadius: "5px",
+    backgroundColor: "var(--accent-soft)",
+    padding: "1px 6px",
+    color: "var(--accent)",
+    fontSize: "12px",
+    lineHeight: "1.6",
+  },
+  ".cm-note-image-upload-range": {
+    borderRadius: "3px",
+    backgroundColor: "var(--accent-soft)",
+  },
   ".cm-panels": { backgroundColor: "#fff", color: "var(--text-primary)" },
   ".cm-search": { borderBottom: "1px solid var(--border-subtle)" },
   "@media (max-width: 640px)": {
     "&": { fontSize: "16px" },
-    ".cm-content": { padding: "22px 16px max(34dvh, 140px)" },
-    ".cm-line": { padding: "2px 0" },
+    ".cm-scroller": { scrollbarGutter: "auto", scrollPaddingBlock: "24%" },
+    ".cm-content": {
+      padding: "22px 16px max(calc(env(safe-area-inset-bottom) + 24px), 48px)",
+    },
+    ".cm-line": { minHeight: "1.86em" },
   },
 });
 
@@ -145,4 +176,5 @@ export const markdownEditorTheme: Extension = [
   syntaxHighlighting(markdownHighlight),
   markdownBlockPlugin,
   EditorView.lineWrapping,
+  scrollPastEnd(),
 ];

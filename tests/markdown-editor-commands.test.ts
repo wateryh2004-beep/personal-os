@@ -247,4 +247,10 @@ describe("工具栏与快捷键共用的 Markdown 命令", () => {
       "```\nconst a = 1;\n```",
     );
   });
+
+  it("代码块可以恢复为正文，而不是重复嵌套围栏", () => {
+    expect(runCommand("```ts\nconst a = 1;|\n```", toggleCodeBlock).text).toBe(
+      "const a = 1;|",
+    );
+  });
 });

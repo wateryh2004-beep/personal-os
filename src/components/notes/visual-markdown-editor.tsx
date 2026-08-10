@@ -12,6 +12,12 @@ import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import { markdownEditorKeymap } from "@/features/notes/editor/markdown-keymap";
 import { markdownEditorTheme } from "@/features/notes/editor/markdown-theme";
 import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
+import {
+  addMarkdownUploadPlaceholder,
+  findMarkdownUploadRange,
+  markdownUploadPlaceholder,
+  removeMarkdownUploadPlaceholder,
+} from "@/features/notes/editor/markdown-upload-placeholder";
 
 type VisualMarkdownEditorProps = {
   markdown: string;
@@ -21,6 +27,13 @@ type VisualMarkdownEditorProps = {
   onOpenAi?: () => void;
   onSelectionChange?: (selection: NoteSelection | null) => void;
 };
+
+let imageUploadSequence = 0;
+
+function nextImageUploadId() {
+  imageUploadSequence += 1;
+  return `note-image-${Date.now()}-${imageUploadSequence}`;
+}
 
 function centerMobileCursor(currentView: EditorView) {
   if (
@@ -182,7 +195,7 @@ export function VisualMarkdownEditor({
           throw new Error(result.error || "图片上传后未能确认。");
         src = `/api/files/${payload.documentId}/download?inline=1`;
       }
-      onImageUploadStatus?.("图片已插入笔记。");
+      onImageUploadStatus?.("图片上传完成，正在插入…");
       return { filename, src };
     } catch (error) {
       const message =
@@ -193,19 +206,39 @@ export function VisualMarkdownEditor({
   }, [noteId, onImageUploadStatus, uploadImageThroughApp]);
 
   const insertUploadedImage = useCallback(async (file: File, currentView: EditorView) => {
+    const initialRange = currentView.state.selection.main;
+    const selected = currentView.state.sliceDoc(initialRange.from, initialRange.to).trim();
+    const uploadId = nextImageUploadId();
+    currentView.dispatch({
+      effects: addMarkdownUploadPlaceholder.of({
+        id: uploadId,
+        from: initialRange.from,
+        to: initialRange.to,
+      }),
+    });
     const result = await uploadImage(file);
-    if (!result || !currentView.dom.isConnected) return;
-    const range = currentView.state.selection.main;
-    const selected = currentView.state.sliceDoc(range.from, range.to).trim();
+    if (!currentView.dom.isConnected) return;
+    if (!result) {
+      currentView.dispatch({ effects: removeMarkdownUploadPlaceholder.of(uploadId) });
+      return;
+    }
+    const range = findMarkdownUploadRange(currentView.state, uploadId);
+    if (!range) {
+      currentView.dispatch({ effects: removeMarkdownUploadPlaceholder.of(uploadId) });
+      onImageUploadStatus?.("图片已上传，但原插入位置已经失效，请重新插入。");
+      return;
+    }
     const markdownImage = `![${selected || safeImageAlt(result.filename)}](${result.src})`;
     currentView.dispatch({
       changes: { from: range.from, to: range.to, insert: markdownImage },
       selection: { anchor: range.from + markdownImage.length },
+      effects: removeMarkdownUploadPlaceholder.of(uploadId),
       scrollIntoView: true,
       userEvent: "input",
     });
+    onImageUploadStatus?.("图片已插入笔记。");
     currentView.focus();
-  }, [uploadImage]);
+  }, [onImageUploadStatus, uploadImage]);
 
   const extensions = useMemo(
     () => [
@@ -221,9 +254,13 @@ export function VisualMarkdownEditor({
       EditorState.tabSize.of(3),
       markdownEditorKeymap,
       markdownEditorTheme,
+      markdownUploadPlaceholder,
+      EditorView.cursorScrollMargin.of({ x: 8, y: 32 }),
       EditorView.contentAttributes.of({
         "aria-label": "Markdown 正文编辑器",
         "aria-multiline": "true",
+        autocapitalize: "sentences",
+        autocorrect: "on",
         "data-note-editor": "markdown",
       }),
       EditorView.domEventHandlers({
@@ -236,10 +273,26 @@ export function VisualMarkdownEditor({
           void insertUploadedImage(image, currentView);
           return true;
         },
+        drop(event, currentView) {
+          const image = [...(event.dataTransfer?.files ?? [])].find((file) =>
+            file.type.startsWith("image/"),
+          );
+          if (!image) return false;
+          event.preventDefault();
+          const position = currentView.posAtCoords({
+            x: event.clientX,
+            y: event.clientY,
+          });
+          if (position !== null) {
+            currentView.dispatch({ selection: { anchor: position } });
+          }
+          void insertUploadedImage(image, currentView);
+          return true;
+        },
         compositionend(_event, currentView) {
-          const value = currentView.state.doc.toString();
           queueMicrotask(() => {
-            onChange(value);
+            if (!currentView.dom.isConnected) return;
+            onChange(currentView.state.doc.toString());
             centerMobileCursor(currentView);
           });
           return false;
@@ -308,7 +361,8 @@ export function VisualMarkdownEditor({
           setStateVersion((version) => version + 1);
         }}
         onUpdate={(update) => {
-          if (update.selectionSet) reportSelection(update.view);
+          if (update.selectionSet || update.viewportChanged || update.geometryChanged)
+            reportSelection(update.view);
           if (update.selectionSet || update.docChanged) {
             setStateVersion((version) => version + 1);
             centerMobileCursor(update.view);
