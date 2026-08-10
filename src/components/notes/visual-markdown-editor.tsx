@@ -12,6 +12,7 @@ import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import { markdownEditorKeymap } from "@/features/notes/editor/markdown-keymap";
 import { markdownEditorTheme } from "@/features/notes/editor/markdown-theme";
 import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
+import { markdownImagePreview } from "@/features/notes/editor/markdown-image-preview";
 import {
   addMarkdownUploadPlaceholder,
   findMarkdownUploadRange,
@@ -254,6 +255,7 @@ export function VisualMarkdownEditor({
       EditorState.tabSize.of(3),
       markdownEditorKeymap,
       markdownEditorTheme,
+      markdownImagePreview,
       markdownUploadPlaceholder,
       EditorView.cursorScrollMargin.of({ x: 8, y: 32 }),
       EditorView.contentAttributes.of({

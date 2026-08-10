@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Clock3,
@@ -41,9 +41,12 @@ import {
   moveNote,
   openDailyNote,
   renameNote,
+  renameFolder,
   toggleNotePinned,
   trashNote,
 } from "@/features/notes/actions";
+import { lastOpenedNoteSessionKey, recentNoteHref } from "@/features/notes/navigation";
+import { loadWorkspaceSession } from "@/lib/workspace-session";
 import type { NoteListItem } from "@/features/notes/types";
 import { formatNoteTimestamp } from "@/features/notes/utils";
 import { useGlobalSearch } from "@/features/search/use-global-search";
@@ -141,6 +144,7 @@ export function NotesWorkspace({
   initialView,
   dailyError,
   initialHasMore,
+  restoreRecentNote,
 }: {
   notes: NoteListItem[];
   folders: Folder[];
@@ -150,6 +154,7 @@ export function NotesWorkspace({
   initialView: "all" | "favorites" | "recent";
   dailyError: boolean;
   initialHasMore: boolean;
+  restoreRecentNote: boolean;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -159,6 +164,7 @@ export function NotesWorkspace({
   const [loadingMore, setLoadingMore] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [renameFolderTarget, setRenameFolderTarget] = useState<Folder | null>(null);
   const [renameTarget, setRenameTarget] = useState<NoteListItem | null>(null);
   const [moveTarget, setMoveTarget] = useState<NoteListItem | null>(null);
   const [, startTransition] = useTransition();
@@ -171,6 +177,12 @@ export function NotesWorkspace({
   });
   const activeView = selectedFolder ? "folder" : initialView;
   const currentFolderId = selectedFolder?.id ?? "";
+
+  useEffect(() => {
+    if (!restoreRecentNote) return;
+    const href = recentNoteHref(loadWorkspaceSession(lastOpenedNoteSessionKey));
+    if (href !== "/notes") router.replace(href);
+  }, [restoreRecentNote, router]);
 
   const listedNotes = useMemo(() => {
     const byId = new Map(notes.map((note) => [note.id, note]));
@@ -260,7 +272,7 @@ export function NotesWorkspace({
           </form>
         </div>
         <nav className="space-y-0.5">
-          <Link href="/notes" className={`flex h-8 items-center justify-between rounded-md px-2 text-sm ${activeView === "all" ? "bg-[#EDF3F6] font-medium text-[#365F78]" : "text-zinc-600 hover:bg-white hover:text-zinc-900"}`}>
+          <Link href="/notes?view=all" className={`flex h-8 items-center justify-between rounded-md px-2 text-sm ${activeView === "all" ? "bg-[#EDF3F6] font-medium text-[#365F78]" : "text-zinc-600 hover:bg-white hover:text-zinc-900"}`}>
             <span>全部笔记</span>
             <span className="font-mono text-xs text-zinc-400">{listedNotes.length}{hasMore ? "+" : ""}</span>
           </Link>
@@ -281,7 +293,7 @@ export function NotesWorkspace({
             {state === "ready" ? <button onClick={() => setCreateFolderOpen(true)} className="text-xs text-[#365F78] hover:underline">新建文件夹</button> : null}
           </div>
           {state === "ready" ? (
-            <nav className="space-y-0.5"><FolderTree folders={folders} notes={listedNotes} selectedId={selectedFolder?.id ?? null} /></nav>
+            <nav className="space-y-0.5"><FolderTree folders={folders} notes={listedNotes} selectedId={selectedFolder?.id ?? null} onRename={setRenameFolderTarget} /></nav>
           ) : (
             <p className="px-2 text-xs leading-5 text-zinc-400">文件夹将在 Notes Workspace migration 启用后显示。</p>
           )}
@@ -306,7 +318,7 @@ export function NotesWorkspace({
             {selectedFolder ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`管理文件夹 ${selectedFolder.name}`}><MoreHorizontal /></Button></DropdownMenuTrigger>
-                <DropdownMenuContent align="start"><DropdownMenuItem variant="destructive" onSelect={() => { const data = new FormData(); data.set("folder_id", selectedFolder.id); submitAction(deleteEmptyFolder, data); }}>删除空文件夹</DropdownMenuItem></DropdownMenuContent>
+                <DropdownMenuContent align="start"><DropdownMenuItem onSelect={() => setRenameFolderTarget(selectedFolder)}>重命名文件夹</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onSelect={() => { const data = new FormData(); data.set("folder_id", selectedFolder.id); submitAction(deleteEmptyFolder, data); }}>删除空文件夹</DropdownMenuItem></DropdownMenuContent>
               </DropdownMenu>
             ) : null}
           </div>
@@ -363,6 +375,7 @@ export function NotesWorkspace({
       </main>
 
       <Dialog open={createFolderOpen} onOpenChange={setCreateFolderOpen}><DialogContent><DialogHeader><DialogTitle>新建文件夹</DialogTitle><DialogDescription>可选择一个父文件夹，也可以直接创建在根目录。</DialogDescription></DialogHeader><form action={async (formData) => { await createFolder(formData); setCreateFolderOpen(false); router.refresh(); }} className="grid gap-4"><label className="grid gap-1.5 text-sm font-medium">文件夹名称<input name="name" required autoFocus className="h-8 rounded-md border bg-white px-2 text-sm font-normal" /></label><label className="grid gap-1.5 text-sm font-medium">父文件夹<select name="parent_id" className="h-8 rounded-md border bg-white px-2 text-sm font-normal"><option value="">根目录</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label><DialogFooter><DialogClose asChild><Button type="button" variant="outline">取消</Button></DialogClose><Button type="submit"><FolderPlus />创建</Button></DialogFooter></form></DialogContent></Dialog>
+      <Dialog open={Boolean(renameFolderTarget)} onOpenChange={(open) => !open && setRenameFolderTarget(null)}><DialogContent><DialogHeader><DialogTitle>重命名文件夹</DialogTitle><DialogDescription>只修改名称，不会移动或改动其中的笔记。</DialogDescription></DialogHeader>{renameFolderTarget ? <form action={async (formData) => { await renameFolder(formData); setRenameFolderTarget(null); router.refresh(); }} className="grid gap-4"><input type="hidden" name="folder_id" value={renameFolderTarget.id} /><label className="grid gap-1.5 text-sm font-medium">文件夹名称<input name="name" required maxLength={120} defaultValue={renameFolderTarget.name} autoFocus className="h-8 rounded-md border bg-white px-2 text-sm font-normal" /></label><DialogFooter><DialogClose asChild><Button type="button" variant="outline">取消</Button></DialogClose><Button type="submit">保存名称</Button></DialogFooter></form> : null}</DialogContent></Dialog>
       <Dialog open={Boolean(renameTarget)} onOpenChange={(open) => !open && setRenameTarget(null)}><DialogContent><DialogHeader><DialogTitle>重命名笔记</DialogTitle></DialogHeader>{renameTarget ? <form action={async (formData) => { await renameNote(formData); setRenameTarget(null); setAdditionalNotes([]); setLoadedHasMore(null); router.refresh(); }} className="grid gap-4"><input type="hidden" name="note_id" value={renameTarget.id} /><label className="grid gap-1.5 text-sm font-medium">标题<input name="title" required maxLength={240} defaultValue={renameTarget.title || "无标题笔记"} autoFocus className="h-8 rounded-md border bg-white px-2 text-sm font-normal" /></label><DialogFooter><DialogClose asChild><Button type="button" variant="outline">取消</Button></DialogClose><Button type="submit">保存</Button></DialogFooter></form> : null}</DialogContent></Dialog>
       <Dialog open={Boolean(moveTarget)} onOpenChange={(open) => !open && setMoveTarget(null)}><DialogContent><DialogHeader><DialogTitle>移动笔记</DialogTitle><DialogDescription>选择此笔记要归属的文件夹。</DialogDescription></DialogHeader>{moveTarget ? <form action={async (formData) => { await moveNote(formData); setMoveTarget(null); setAdditionalNotes([]); setLoadedHasMore(null); router.refresh(); }} className="grid gap-4"><input type="hidden" name="note_id" value={moveTarget.id} /><FolderPicker folders={folders} initialFolderId={moveTarget.folder_id} idPrefix={`move-${moveTarget.id}`} label="目标文件夹" /><DialogFooter><DialogClose asChild><Button type="button" variant="outline">取消</Button></DialogClose><Button type="submit">移动</Button></DialogFooter></form> : null}</DialogContent></Dialog>
     </section>

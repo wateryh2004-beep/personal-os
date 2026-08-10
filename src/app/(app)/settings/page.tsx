@@ -1,10 +1,14 @@
 import { DeepSeekSettingsForm } from "@/components/settings/deepseek-settings-form";
+import { AiPromptSettings } from "@/components/settings/ai-prompt-settings";
 import { PageHeader } from "@/components/shared/page-header";
-import { getAiSettings } from "@/features/ai/queries";
+import { getAiSettings, getNoteAiPromptSettings } from "@/features/ai/queries";
 import Link from "next/link";
 
 export default async function Settings() {
-  const ai = await getAiSettings();
+  const [ai, promptSettings] = await Promise.all([
+    getAiSettings(),
+    getNoteAiPromptSettings(),
+  ]);
   return (
     <>
       <PageHeader title="Settings" />
@@ -12,6 +16,10 @@ export default async function Settings() {
         <DeepSeekSettingsForm
           configured={Boolean(ai.settings)}
           settings={ai.settings}
+        />
+        <AiPromptSettings
+          prompts={promptSettings.prompts}
+          available={promptSettings.available}
         />
         <section className="border-t pt-5">
           <h2 className="font-medium">Memory</h2>

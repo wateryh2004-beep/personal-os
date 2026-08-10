@@ -7,6 +7,7 @@ import {
   markdownUploadPlaceholder,
   removeMarkdownUploadPlaceholder,
 } from "@/features/notes/editor/markdown-upload-placeholder";
+import { parseMarkdownImage } from "@/features/notes/editor/markdown-image-preview";
 
 describe("Markdown 编辑器交互布局", () => {
   it("标题行不使用会吞掉相邻空行点击区域的垂直 margin 或 padding", () => {
@@ -58,5 +59,17 @@ describe("Markdown 编辑器交互布局", () => {
     }).state;
 
     expect(findMarkdownUploadRange(state, "upload-empty")).toEqual({ from: 0, to: 0 });
+  });
+
+  it("把私有下载地址识别为可内联预览的 Markdown 图片", () => {
+    expect(
+      parseMarkdownImage(
+        "![截图](/api/files/0590c8dd-5b8e-4c7c-aab1-7c24f24c0654/download?inline=1)",
+      ),
+    ).toEqual({
+      alt: "截图",
+      src: "/api/files/0590c8dd-5b8e-4c7c-aab1-7c24f24c0654/download?inline=1",
+    });
+    expect(parseMarkdownImage("![危险](javascript:alert(1))")).toBeNull();
   });
 });

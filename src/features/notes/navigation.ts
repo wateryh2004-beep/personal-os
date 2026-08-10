@@ -1,5 +1,5 @@
 export const lastOpenedNoteSessionKey = "notes:last-opened";
-export const lastOpenedNoteTtlMs = 12 * 60 * 60 * 1000;
+export const lastOpenedNoteTtlMs = 20 * 60 * 1000;
 
 const noteIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

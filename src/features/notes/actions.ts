@@ -11,7 +11,7 @@ function fail(): never { throw new Error("操作未能完成，请检查输入�
 function missingWorkspaceColumn(error: unknown) { return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "PGRST204"); }
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, entityType: string, id: string, data: Record<string, unknown>) { const { error } = await supabase.from("audit_logs").insert({ user_id: userId, action, entity_type: entityType, entity_id: id, actor_type: "user", after_data: data }); if (error) fail(); }
 export async function createNote() { const { supabase, userId } = await requireOwner(); const title = "无标题笔记"; const body = ""; const hash = contentHash(body); let result = await supabase.from("notes").insert({ user_id: userId, title, body_markdown: body, status: "active", revision: 1, content_hash: hash, word_count: 0, character_count: 0, last_saved_at: new Date().toISOString() }).select("id").single(); if (result.error && missingWorkspaceColumn(result.error)) result = await supabase.from("notes").insert({ user_id: userId, title, body_markdown: body, status: "active" }).select("id").single(); if (result.error) fail(); const version = await supabase.from("note_versions").insert({ user_id: userId, note_id: result.data.id, title, body_markdown: body, version_number: 1, created_by: userId, content_hash: hash, revision: 1, reason: "initial" }); if (version.error && missingWorkspaceColumn(version.error)) { const fallback = await supabase.from("note_versions").insert({ user_id: userId, note_id: result.data.id, title, body_markdown: body, version_number: 1, created_by: userId }); if (fallback.error) fail(); } else if (version.error) fail(); await audit(supabase, userId, "create", "note", result.data.id, { revision: 1 }); redirect(`/notes/${result.data.id}`); }
-export async function saveNote(input: unknown) { const { supabase, userId } = await requireOwner(); const parsed = noteSchema.safeParse(input); if (!parsed.success || !parsed.data.noteId) fail(); const value = parsed.data; const hash = contentHash(value.bodyMarkdown); const words = value.bodyMarkdown.trim() ? value.bodyMarkdown.trim().split(/\s+/).length : 0; const now = new Date().toISOString(); const { data, error } = await supabase.from("notes").update({ title: value.title || "无标题笔记", body_markdown: value.bodyMarkdown, content_hash: hash, word_count: words, character_count: value.bodyMarkdown.length, last_saved_at: now, revision: value.expectedRevision + 1 }).eq("id", value.noteId).eq("revision", value.expectedRevision).select("id,revision").maybeSingle(); if (error && missingWorkspaceColumn(error)) { const fallback = await supabase.from("notes").update({ title: value.title || "无标题笔记", body_markdown: value.bodyMarkdown }).eq("id", value.noteId).select("id").maybeSingle(); if (fallback.error || !fallback.data) fail(); return { status: "saved" as const, revision: value.expectedRevision, lastSavedAt: now }; } if (error) fail(); if (!data) return { status: "conflict" as const }; const links = parseWikiLinks(value.bodyMarkdown); await supabase.from("note_links").delete().eq("source_note_id", value.noteId); if (links.length) { const titles = [...new Set(links.map((link) => link.targetTitle))]; const { data: targets } = await supabase.from("notes").select("id,title").in("title", titles).is("deleted_at", null); const map = new Map((targets ?? []).map((target) => [target.title, target.id])); const insert = await supabase.from("note_links").insert(links.map((link) => ({ user_id: userId, source_note_id: value.noteId!, target_note_id: map.get(link.targetTitle) ?? null, target_title: link.targetTitle, alias: link.alias, link_type: "wiki", position_start: link.start, position_end: link.end }))); if (insert.error) fail(); }
+export async function saveNote(input: unknown) { const { supabase, userId } = await requireOwner(); const parsed = noteSchema.safeParse(input); if (!parsed.success || !parsed.data.noteId) fail(); const value = parsed.data; const hash = contentHash(value.bodyMarkdown); const words = value.bodyMarkdown.trim() ? value.bodyMarkdown.trim().split(/\s+/).length : 0; const now = new Date().toISOString(); const { data, error } = await supabase.from("notes").update({ title: value.title || "无标题笔记", body_markdown: value.bodyMarkdown, content_hash: hash, word_count: words, character_count: value.bodyMarkdown.length, last_saved_at: now, revision: value.expectedRevision + 1 }).eq("id", value.noteId).eq("revision", value.expectedRevision).select("id,revision").maybeSingle(); if (error && missingWorkspaceColumn(error)) { const fallback = await supabase.from("notes").update({ title: value.title || "无标题笔记", body_markdown: value.bodyMarkdown }).eq("id", value.noteId).select("id").maybeSingle(); if (fallback.error || !fallback.data) fail(); return { status: "saved" as const, revision: value.expectedRevision, lastSavedAt: now }; } if (error) fail(); if (!data) return { status: "conflict" as const }; const links = parseWikiLinks(value.bodyMarkdown); const removed = await supabase.from("note_links").delete().eq("source_note_id", value.noteId); if (!removed.error && links.length) { const titles = [...new Set(links.map((link) => link.targetTitle))]; const { data: targets } = await supabase.from("notes").select("id,title").in("title", titles).is("deleted_at", null); const map = new Map((targets ?? []).map((target) => [target.title, target.id])); const insert = await supabase.from("note_links").insert(links.map((link) => ({ user_id: userId, source_note_id: value.noteId!, target_note_id: map.get(link.targetTitle) ?? null, target_title: link.targetTitle, alias: link.alias, link_type: "wiki", position_start: link.start, position_end: link.end }))); if (insert.error) console.error(JSON.stringify({ level: "warn", action: "sync_note_links", noteId: value.noteId, code: insert.error.code })); } else if (removed.error) console.error(JSON.stringify({ level: "warn", action: "clear_note_links", noteId: value.noteId, code: removed.error.code }));
   revalidatePath(`/notes/${value.noteId}`); revalidatePath("/notes"); return { status: "saved" as const, revision: data.revision, lastSavedAt: now };
 }
 export async function createFolder(formData: FormData) { const { supabase, userId } = await requireOwner(); const raw = Object.fromEntries(formData); const parsed = folderSchema.safeParse({ name: raw.name, parentId: raw.parent_id || null }); if (!parsed.success) fail(); if (parsed.data.parentId) { const { data } = await supabase.from("note_folders").select("id").eq("id", parsed.data.parentId).maybeSingle(); if (!data) fail(); } const existingQuery = supabase.from("note_folders").select("id").ilike("name", parsed.data.name).is("archived_at", null); const existing = await (parsed.data.parentId ? existingQuery.eq("parent_id", parsed.data.parentId) : existingQuery.is("parent_id", null)).maybeSingle(); if (existing.data) redirect("/notes?folder=exists"); const { data, error } = await supabase.from("note_folders").insert({ user_id: userId, name: parsed.data.name, parent_id: parsed.data.parentId ?? null }).select("id").single(); if (error || !data) fail(); await audit(supabase, userId, "create", "note_folder", data.id, { parent_id: parsed.data.parentId ?? null }); revalidatePath("/notes"); redirect("/notes?folder=created"); }
@@ -24,6 +24,7 @@ export async function restoreNoteVersion(formData: FormData) { const { supabase,
 const notePlacementSchema = z.object({ folderId: z.string().uuid().nullable().optional() });
 const moveNoteSchema = z.object({ noteId: z.string().uuid(), folderId: z.string().uuid().nullable().optional() });
 const renameNoteSchema = z.object({ noteId: z.string().uuid(), title: z.string().trim().min(1).max(240) });
+const renameFolderSchema = z.object({ folderId: z.string().uuid(), name: z.string().trim().min(1).max(120) });
 const folderIdSchema = z.string().uuid();
 
 async function ownedFolderId(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], value: string | null | undefined) {
@@ -84,6 +85,48 @@ export async function renameNote(formData: FormData) {
   await audit(supabase, userId, "rename", "note", note.id, { previous_title: note.title, title: parsed.data.title });
   revalidatePath("/notes");
   revalidatePath(`/notes/${note.id}`);
+}
+
+export async function renameFolder(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const parsed = renameFolderSchema.safeParse({
+    folderId: formData.get("folder_id"),
+    name: formData.get("name"),
+  });
+  if (!parsed.success) fail();
+  const { data: folder, error: folderError } = await supabase
+    .from("note_folders")
+    .select("id,name,parent_id")
+    .eq("id", parsed.data.folderId)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (folderError || !folder) fail();
+  if (folder.name === parsed.data.name) return;
+
+  let duplicateQuery = supabase
+    .from("note_folders")
+    .select("id")
+    .ilike("name", parsed.data.name)
+    .neq("id", folder.id)
+    .is("archived_at", null);
+  duplicateQuery = folder.parent_id
+    ? duplicateQuery.eq("parent_id", folder.parent_id)
+    : duplicateQuery.is("parent_id", null);
+  const { data: duplicate, error: duplicateError } = await duplicateQuery.maybeSingle();
+  if (duplicateError || duplicate) fail();
+
+  const { data: renamed, error } = await supabase
+    .from("note_folders")
+    .update({ name: parsed.data.name })
+    .eq("id", folder.id)
+    .select("id")
+    .maybeSingle();
+  if (error || !renamed) fail();
+  await audit(supabase, userId, "rename", "note_folder", folder.id, {
+    previous_name: folder.name,
+    name: parsed.data.name,
+  });
+  revalidatePath("/notes");
 }
 
 export async function toggleNotePinned(formData: FormData) {

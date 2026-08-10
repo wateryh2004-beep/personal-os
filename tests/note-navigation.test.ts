@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recentNoteHref } from "@/features/notes/navigation";
+import { lastOpenedNoteTtlMs, recentNoteHref } from "@/features/notes/navigation";
 
 describe("recent Notes navigation", () => {
   it("restores only a valid same-tab note identifier", () => {
@@ -7,5 +7,9 @@ describe("recent Notes navigation", () => {
     expect(recentNoteHref({ noteId })).toBe(`/notes/${noteId}`);
     expect(recentNoteHref({ noteId: "https://outside.example" })).toBe("/notes");
     expect(recentNoteHref(null)).toBe("/notes");
+  });
+
+  it("only remembers the most recent note for twenty minutes", () => {
+    expect(lastOpenedNoteTtlMs).toBe(20 * 60 * 1_000);
   });
 });

@@ -3,7 +3,13 @@
 import { z } from "zod";
 import { deepSeekModelIds } from "@/lib/ai/deepseek";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { noteAiInstruction, noteAiOperations } from "./ai-prompts";
+import {
+  isNoteAiPromptKey,
+  noteAiInstruction,
+  noteAiOperations,
+  noteAiSystemPrompt,
+  type NoteAiPromptKey,
+} from "./ai-prompts";
 import { runAssistant } from "@/features/assistant/runtime";
 
 const requestSchema = z.object({
@@ -48,15 +54,27 @@ export async function generateNoteAiSuggestion(
   if (!parsed.success)
     return { status: "error", message: "AI 请求内容无效。", suggestion: "" };
   try {
-    const { supabase } = await requireOwner();
-    const { data: note } = await supabase
-      .from("notes")
-      .select("id")
-      .eq("id", parsed.data.noteId)
-      .is("deleted_at", null)
-      .maybeSingle();
+    const { supabase, userId } = await requireOwner();
+    const [{ data: note }, { data: promptRows }] = await Promise.all([
+      supabase
+        .from("notes")
+        .select("id")
+        .eq("id", parsed.data.noteId)
+        .is("deleted_at", null)
+        .maybeSingle(),
+      supabase
+        .from("ai_prompt_overrides")
+        .select("prompt_key,content")
+        .eq("user_id", userId),
+    ]);
     if (!note)
       return { status: "error", message: "找不到这篇笔记。", suggestion: "" };
+    const promptOverrides: Partial<Record<NoteAiPromptKey, string>> = {};
+    for (const row of promptRows ?? []) {
+      if (isNoteAiPromptKey(row.prompt_key)) {
+        promptOverrides[row.prompt_key] = row.content;
+      }
+    }
     const result = await runAssistant({
       surface: "notes",
       mode:
@@ -69,7 +87,7 @@ export async function generateNoteAiSuggestion(
       operation: parsed.data.operation,
       usePersonalContext:
         parsed.data.scope === "note" && parsed.data.usePersonalContext === true,
-      instruction: `笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction)}`,
+      instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}`,
       currentEntity: { type: "note", id: parsed.data.noteId },
       currentSurface: {
         type: "note_draft",
