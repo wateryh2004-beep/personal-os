@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { recordNotePdfExport, saveNote } from "@/features/notes/actions";
 import { markdownFilename } from "@/features/notes/utils";
+import type { NoteLinkSuggestion } from "@/features/notes/links/types";
 import { NoteAiAssistant, type NoteSelection } from "@/components/notes/note-ai-assistant";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
@@ -80,7 +81,7 @@ function savedTimeLabel(value: string | null) {
   }).format(date)}`;
 }
 
-export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDefaultModel: DeepSeekModelId }) {
+export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: { note: Note; noteAiDefaultModel: DeepSeekModelId; recentNoteLinks?: readonly NoteLinkSuggestion[] }) {
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
   const [state, setState] = useState<SaveState>("已保存");
@@ -425,6 +426,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             onOpenAi={noteAiPanel.open}
             onSelectionChange={setSelection}
             onChange={handleBodyChange}
+            recentNoteLinks={recentNoteLinks}
           />
         </div>
       </div>

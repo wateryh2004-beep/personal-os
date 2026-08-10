@@ -7,12 +7,16 @@ import { indentUnit } from "@codemirror/language";
 import { markdown as markdownExtension, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { EditorView } from "@codemirror/view";
+import { startCompletion } from "@codemirror/autocomplete";
 import { GFM } from "@lezer/markdown";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import { markdownEditorKeymap } from "@/features/notes/editor/markdown-keymap";
 import { markdownEditorTheme } from "@/features/notes/editor/markdown-theme";
 import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
 import { markdownImagePreview } from "@/features/notes/editor/markdown-image-preview";
+import { createNoteLinkCompletion, extractNoteLinkQuery } from "@/features/notes/editor/note-link-completion";
+import { noteLinkDecoration } from "@/features/notes/editor/note-link-decoration";
+import type { NoteLinkSuggestion } from "@/features/notes/links/types";
 import {
   addMarkdownUploadPlaceholder,
   findMarkdownUploadRange,
@@ -27,6 +31,7 @@ type VisualMarkdownEditorProps = {
   onImageUploadStatus?: (message: string) => void;
   onOpenAi?: () => void;
   onSelectionChange?: (selection: NoteSelection | null) => void;
+  recentNoteLinks?: readonly NoteLinkSuggestion[];
 };
 
 let imageUploadSequence = 0;
@@ -78,6 +83,7 @@ export function VisualMarkdownEditor({
   onImageUploadStatus,
   onOpenAi,
   onSelectionChange,
+  recentNoteLinks = [],
 }: VisualMarkdownEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const changeRef = useRef(onChange);
@@ -206,6 +212,23 @@ export function VisualMarkdownEditor({
     }
   }, [noteId, onImageUploadStatus, uploadImageThroughApp]);
 
+  const searchNoteLinks = useCallback(async (query: string) => {
+    const response = await fetch(`/api/notes/link-suggestions?q=${encodeURIComponent(query)}&limit=20`, {
+      credentials: "same-origin",
+    });
+    if (!response.ok) throw new Error("无法搜索笔记。");
+    const data = (await response.json()) as { notes?: NoteLinkSuggestion[] };
+    return data.notes ?? [];
+  }, []);
+
+  const noteLinkCompletion = useMemo(
+    () => createNoteLinkCompletion({
+      recentNotes: recentNoteLinks.filter((item) => item.id !== noteId),
+      searchNotes: searchNoteLinks,
+    }),
+    [noteId, recentNoteLinks, searchNoteLinks],
+  );
+
   const insertUploadedImage = useCallback(async (file: File, currentView: EditorView) => {
     const initialRange = currentView.state.selection.main;
     const selected = currentView.state.sliceDoc(initialRange.from, initialRange.to).trim();
@@ -256,6 +279,8 @@ export function VisualMarkdownEditor({
       markdownEditorKeymap,
       markdownEditorTheme,
       markdownImagePreview,
+      noteLinkDecoration,
+      noteLinkCompletion,
       markdownUploadPlaceholder,
       EditorView.cursorScrollMargin.of({ x: 8, y: 32 }),
       EditorView.contentAttributes.of({
@@ -295,13 +320,15 @@ export function VisualMarkdownEditor({
           queueMicrotask(() => {
             if (!currentView.dom.isConnected) return;
             onChange(currentView.state.doc.toString());
+            if (extractNoteLinkQuery(currentView.state.doc.toString(), currentView.state.selection.main.head))
+              startCompletion(currentView);
             centerMobileCursor(currentView);
           });
           return false;
         },
       }),
     ],
-    [insertUploadedImage, onChange],
+    [insertUploadedImage, noteLinkCompletion, onChange],
   );
 
   const insertTable = () => {

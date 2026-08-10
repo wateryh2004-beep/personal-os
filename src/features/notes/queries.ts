@@ -5,6 +5,7 @@ import {
   parseNoteListItems,
 } from "./listing";
 import type { NoteListItem } from "./types";
+import { getNoteLinkRelations, listNoteLinkSuggestions } from "./links/queries";
 
 type QueryError = { code?: string } | null;
 type Supabase = Awaited<ReturnType<typeof requireOwner>>["supabase"];
@@ -170,6 +171,12 @@ export async function getActiveNoteFolders() {
   return result.data ?? [];
 }
 
+/** Lightweight, server-provided index used by the editor before it performs any search request. */
+export async function getRecentNoteLinkSuggestions(limit = 35) {
+  const { supabase, userId } = await requireOwner();
+  return listNoteLinkSuggestions(supabase, userId, "", limit);
+}
+
 const noteIdSchema = z.string().uuid();
 
 export async function getNote(id: string) {
@@ -190,14 +197,13 @@ export async function getNote(id: string) {
       .eq("note_id", id)
       .order("version_number", { ascending: false })
     : versionsResult;
-  const linksResult = await supabase.from("note_links").select("*").eq("source_note_id", id).is("archived_at", null);
-  const backlinksResult = await supabase.from("note_links").select("source_note_id,target_title,alias").eq("target_note_id", id).is("archived_at", null);
-  const linksUnavailable = isNotesWorkspaceSchemaMissing(linksResult.error) || isNotesWorkspaceSchemaMissing(backlinksResult.error);
+  const relations = await getNoteLinkRelations(supabase, id);
+  const linksUnavailable = relations.unavailable;
   return {
     note: { ...note, revision: note.revision ?? 0, last_saved_at: note.last_saved_at ?? null },
     versions: (versions.data ?? []).map((version) => ({ ...version, reason: (version as { reason?: string }).reason ?? "initial" })),
-    links: linksUnavailable ? [] : linksResult.data ?? [],
-    backlinks: linksUnavailable ? [] : backlinksResult.data ?? [],
+    links: relations.referenced,
+    backlinks: relations.backlinks,
     state: isNotesWorkspaceSchemaMissing(versionsResult.error) || linksUnavailable ? "base" as const : "ready" as const,
   };
 }
