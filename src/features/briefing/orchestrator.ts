@@ -213,7 +213,7 @@ export async function generateBriefingForOwner(
   try {
     const ai = await evaluateBriefingWithAi({ supabase, userId, candidates: unique, interests: (interests ?? []).map((item) => ({ name: item.name, keywords: item.keywords ?? [], excludedKeywords: item.excluded_keywords ?? [], weight: item.weight })), now });
     const selected = ai.selected;
-    const { error: runError } = await supabase.from("briefings").update({ ranking_method: ai.method, ai_model: ai.model, prompt_version: ai.model ? "briefing-ranking-v1" : null, ai_call_count: ai.calls, input_tokens: ai.inputTokens, output_tokens: ai.outputTokens, ai_usage_reported: ai.usageReported }).eq("id", briefing.id).eq("user_id", userId);
+    const { error: runError } = await supabase.from("briefings").update({ ranking_method: ai.method, ai_model: ai.model, prompt_version: ai.model ? "briefing-ranking-v1" : null, ai_call_count: ai.calls, input_tokens: ai.inputTokens, output_tokens: ai.outputTokens, ai_usage_reported: ai.usageReported, ai_failure_code: ai.failureCode }).eq("id", briefing.id).eq("user_id", userId);
     if (runError) throw new Error("无法保存 Briefing AI 运行信息。");
     if (selected.length) {
       const { error } = await supabase.from("briefing_entries").insert(

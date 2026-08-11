@@ -3,7 +3,7 @@ import { canonicalizeArticleUrl, identityKey, normalizeTitle } from "@/features/
 import { buildBriefingGenerationFeedback } from "@/features/briefing/feedback";
 import { parseFeedXml } from "@/features/briefing/parser";
 import { diversifyCandidates, rankBriefingCandidates } from "@/features/briefing/ranking";
-import { prefilterBriefingCandidates, selectDiverseAiCandidates } from "@/features/briefing/ai";
+import { briefingAiFailureCode, prefilterBriefingCandidates, selectDiverseAiCandidates } from "@/features/briefing/ai";
 import { assertPublicHttpUrl } from "@/features/briefing/safe-fetch";
 import {
   briefingRefreshDefaults,
@@ -114,5 +114,10 @@ describe("Briefing RSS-first pipeline", () => {
     const selected = selectDiverseAiCandidates(candidates, 8);
     expect(selected).toHaveLength(3);
     expect(selected.filter((item) => item.feedId === "f1")).toHaveLength(2);
+  });
+
+  it("AI 降级保留安全错误码，不暴露底层异常", () => {
+    expect(briefingAiFailureCode(new Error("deepseek_credential_unreadable"))).toBe("deepseek_credential_unreadable");
+    expect(briefingAiFailureCode(new Error("provider response included a secret"))).toBe("ai_provider_request_failed");
   });
 });
