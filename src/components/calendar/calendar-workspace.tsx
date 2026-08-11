@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { Bot, ChevronLeft, ChevronRight, Filter, Plus, RefreshCw, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { CalendarAssistant } from "@/components/calendar/calendar-assistant";
 import { CalendarCreateForm } from "@/components/calendar/calendar-create-form";
 import { CalendarEventEditForm } from "@/components/calendar/calendar-event-edit-form";
 import { CalendarFullView } from "@/components/calendar/calendar-full-view";
@@ -15,6 +15,8 @@ import { syncAndBackupMicrosoftAction, updateCalendarEvent } from "@/features/ca
 import type { CalendarCategory } from "@/features/calendar/categories/types";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
 import { Inspector } from "@/components/shared/inspector";
+
+const CalendarAssistant = dynamic(() => import("@/components/calendar/calendar-assistant").then((module) => module.CalendarAssistant), { ssr: false });
 
 type View = "day" | "week" | "month";
 type Draft = { startsAt: string; endsAt: string };

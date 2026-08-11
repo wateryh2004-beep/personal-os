@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { CheckCircle2, MoreHorizontal, RefreshCw, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { AISidecar } from "@/components/ai/ai-sidecar";
 import { Inspector } from "@/components/shared/inspector";
@@ -8,10 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MicrosoftTodoCreateDialog } from "@/components/tasks/microsoft-todo-create-dialog";
-import { TaskAssistant } from "@/components/tasks/task-assistant";
 import { completeMicrosoftTodoTaskAction, createMicrosoftTodoTaskAction, deleteMicrosoftTodoTaskAction, reopenMicrosoftTodoTaskAction, syncAndBackupMicrosoftTodoAction, syncMicrosoftTodoAction, updateMicrosoftTodoTaskAction } from "@/features/tasks/microsoft-todo";
 import type { TodoList, TodoTask, UpdateTaskPatch } from "@/features/tasks/types";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
+
+const TaskAssistant = dynamic(() => import("@/components/tasks/task-assistant").then((module) => module.TaskAssistant), { ssr: false });
 
 type View = "today" | "upcoming" | "all" | "completed";
 const labels: Record<View, string> = { today: "今天", upcoming: "即将到来", all: "全部", completed: "已完成" };
