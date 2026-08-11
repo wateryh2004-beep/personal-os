@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { CheckCircle2, MoreHorizontal, RefreshCw, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { AISidecar } from "@/components/ai/ai-sidecar";
@@ -46,6 +46,23 @@ export function TaskWorkspace({ lists, tasks, initialCreateOpen = false }: { lis
   const assistant = useWorkspacePanel("tasks-ai");
   const selected = rows.find((task) => task.id === selectedId) ?? null;
   const defaultListId = lists.find((list) => list.isDefault)?.id ?? lists[0]?.id;
+  useEffect(() => {
+    const reconcileAgentMutation = (event: Event) => {
+      const detail = (event as CustomEvent<{ actionType?: string; proposal?: Record<string, unknown> }>).detail;
+      const proposal = detail?.proposal;
+      const taskId = typeof proposal?.taskId === "string" ? proposal.taskId : null;
+      if (!taskId) return;
+      setRows((current) => {
+        if (detail.actionType === "tasks.delete") return current.filter((task) => task.id !== taskId);
+        if (detail.actionType === "tasks.complete") return current.map((task) => task.id === taskId ? { ...task, status: "completed", completedAt: new Date().toISOString() } : task);
+        if (detail.actionType === "tasks.reopen") return current.map((task) => task.id === taskId ? { ...task, status: "notStarted", completedAt: null } : task);
+        if (detail.actionType === "tasks.update" && proposal?.patch && typeof proposal.patch === "object") return current.map((task) => task.id === taskId ? { ...task, ...(proposal.patch as UpdateTaskPatch) } : task);
+        return current;
+      });
+    };
+    window.addEventListener("personal-os:tasks-mutated", reconcileAgentMutation);
+    return () => window.removeEventListener("personal-os:tasks-mutated", reconcileAgentMutation);
+  }, []);
   const mutate = async (id: string, apply: (task: TodoTask) => TodoTask, request: () => Promise<void>) => {
     const before = rows; setRows((current) => current.map((task) => task.id === id ? apply(task) : task));
     try { await request(); } catch (error) { setRows(before); throw error; }

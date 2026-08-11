@@ -24,3 +24,21 @@ Development diagnostics should be guarded by `NEXT_PUBLIC_PERF_DEBUG`; do not
 add production console loops. Browser regression tests must cover Notes save,
 Calendar navigation/mutation, Tasks completion, closed Agent, Shopping create
 and Travel reordering before a performance-sensitive change is merged.
+
+## Refresh and reload audit
+
+The following remaining calls are intentional exceptions, not routine UI
+synchronization:
+
+- Calendar's **Outlook reconcile** button refreshes the server tree only after
+  an explicit full Microsoft synchronization. Drag, resize, create, filter,
+  view, and date navigation stay local-first.
+- Microsoft device authorization reloads once after an OAuth connection has
+  changed. This is session/connection recovery, not a business mutation.
+- Notes folder administration, career-roadmap administration, and review
+  proposal workflows are low-frequency administrative operations. Any new
+  high-frequency mutation there must adopt local optimistic state instead.
+
+Files upload and extraction used to refresh the whole workspace after each
+operation. They now add or update the confirmed file record in local state;
+the ordinary next navigation still reconciles it against the server.

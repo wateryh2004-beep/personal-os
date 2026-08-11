@@ -7,7 +7,6 @@ import {
 } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -39,7 +38,6 @@ function assistantError(error: Error) {
 }
 
 export function TaskAssistant() {
-  const router = useRouter();
   const [input, setInput] = useState("");
   const [model, setModel] = useState<AssistantModel>("deepseek-v4-flash");
   const [stoppedMessage, setStoppedMessage] = useState<string | null>(null);
@@ -170,7 +168,9 @@ export function TaskAssistant() {
                 const output = part.output as { proposal?: Record<string, unknown> | null; actionId?: string | null; error?: string };
                 if (!output.proposal || !output.actionId) return <p key={part.toolCallId} className="text-sm text-amber-800">{output.error || "无法生成任务提案。"}</p>;
                 const actionType = part.type.replace("tool-proposeTodo", "tasks.").replace("Task", "create").replace("Create", "create").replace("Update", "update").replace("Delete", "delete").replace("Complete", "complete").replace("Reopen", "reopen");
-                return <AgentActionCard key={part.toolCallId} action={{ id: output.actionId, runId: "", domain: "tasks", actionType, status: "proposed", preview: output.proposal, riskLevel: actionType === "tasks.delete" ? "medium" : "low" } as AgentAction} onChanged={() => router.refresh()}/>;
+                return <AgentActionCard key={part.toolCallId} action={{ id: output.actionId, runId: "", domain: "tasks", actionType, status: "proposed", preview: output.proposal, riskLevel: actionType === "tasks.delete" ? "medium" : "low" } as AgentAction} onChanged={(result) => {
+                  if (result.status === "success") window.dispatchEvent(new CustomEvent("personal-os:tasks-mutated", { detail: { actionType, proposal: output.proposal } }));
+                }}/>;
               }
               return null;
             })}

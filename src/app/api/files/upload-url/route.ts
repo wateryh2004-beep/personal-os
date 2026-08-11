@@ -54,7 +54,26 @@ export async function POST(request: Request) {
   try {
     const uploadUrl = await createUploadUrl(key, parsed.data.contentType);
     await audit(supabase, userId, "upload_requested", documentId, { filename, size: parsed.data.size, folder_id: parsed.data.folderId ?? null, note_id: parsed.data.noteId ?? null });
-    return NextResponse.json({ documentId, uploadUrl }, { headers });
+    return NextResponse.json({
+      documentId,
+      uploadUrl,
+      // The browser keeps this small, non-sensitive record locally after the
+      // upload succeeds. It avoids a full RSC refresh merely to show a file
+      // the user has just uploaded.
+      file: {
+        id: documentId,
+        title: filename,
+        originalFilename: filename,
+        mimeType: parsed.data.contentType,
+        fileSize: parsed.data.size,
+        folderId: parsed.data.folderId ?? null,
+        textExtractionStatus: initialExtractionStatus(
+          filename,
+          parsed.data.contentType,
+          parsed.data.size,
+        ),
+      },
+    }, { headers });
   } catch {
     await supabase.from("documents").delete().eq("id", documentId);
     return fail("上传准备失败，请检查 R2 配置。", 503);
