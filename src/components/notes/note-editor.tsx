@@ -24,6 +24,7 @@ import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 import { lastOpenedNoteSessionKey, lastOpenedNoteTtlMs } from "@/features/notes/navigation";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
+import { perfMark } from "@/lib/perf";
 import {
   noteAutosaveDebounceMs,
   noteAutosaveMaxWaitMs,
@@ -166,6 +167,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
         saveQueuedRef.current = false;
         const snapshot = latestContentRef.current;
         const expectedRevision = revisionRef.current;
+        perfMark("note-autosave-start", { noteId: note.id, expectedRevision });
         setState("正在保存");
         try {
           const result = await saveNote({
@@ -181,6 +183,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
           }
           revisionRef.current = result.revision;
           setLastSavedAt(result.lastSavedAt);
+          perfMark("note-autosave-end", { noteId: note.id, revision: result.revision });
           const latest = latestContentRef.current;
           if (latest.title === snapshot.title && latest.body === snapshot.body) {
             isDirtyRef.current = false;
@@ -192,6 +195,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
             saveDraft(latest.title, latest.body, result.revision);
           }
         } catch {
+          perfMark("note-autosave-failed", { noteId: note.id });
           const latest = latestContentRef.current;
           isDirtyRef.current = true;
           setState("保存失败");

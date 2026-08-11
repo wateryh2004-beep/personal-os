@@ -7,6 +7,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin, { type EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { EventDropArg } from "@fullcalendar/core";
 import type { CalendarEventRecord } from "@/features/calendar/types";
+import { perfMark } from "@/lib/perf";
 
 type CalendarView = "timeGridWeek" | "timeGridDay" | "dayGridMonth";
 type Range = { start: Date; end: Date };
@@ -31,10 +32,10 @@ export function CalendarFullView({ events, timezone, initialView, initialDate, o
   const fetchRange = useCallback(async (range: Range) => {
     const key = rangeKey(range);
     const cached = cacheRef.current.get(key);
-    if (cached) { setVisibleEvents(cached); return; }
+    if (cached) { perfMark("calendar-range-cache-hit", { key }); setVisibleEvents(cached); return; }
     const existing = pendingRef.current.get(key);
     if (existing) { const data = await existing; if (data) setVisibleEvents(data); return; }
-    setLoadingRange(true);
+    perfMark("calendar-range-fetch", { key }); setLoadingRange(true);
     const request = (async () => {
       try {
         const params = new URLSearchParams({ start: range.start.toISOString(), end: range.end.toISOString() });
