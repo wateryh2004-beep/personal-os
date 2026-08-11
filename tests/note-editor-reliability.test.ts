@@ -14,6 +14,10 @@ const actions = readFileSync(
   new URL("../src/features/notes/actions.ts", import.meta.url),
   "utf8",
 );
+const linkService = readFileSync(
+  new URL("../src/features/notes/links/service.ts", import.meta.url),
+  "utf8",
+);
 const workspace = readFileSync(
   new URL("../src/components/notes/notes-workspace.tsx", import.meta.url),
   "utf8",
@@ -53,6 +57,13 @@ describe("Notes editor reliability", () => {
   it("does not report the authoritative note body as failed when derived link sync fails", () => {
     expect(actions).toContain('action: "sync_note_links"');
     expect(actions).not.toContain("if (insert.error) fail();");
+  });
+
+  it("keeps autosave local to the mounted editor and diffs derived links", () => {
+    expect(editor).not.toContain("router.refresh()");
+    expect(actions).not.toContain('revalidatePath(`/notes/${value.noteId}`)');
+    expect(linkService).toContain("const removedIds");
+    expect(linkService).toContain("const added");
   });
 
   it("protects prompt overrides with owner RLS and authenticated-only grants", () => {

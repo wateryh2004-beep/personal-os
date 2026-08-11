@@ -14,6 +14,7 @@ import { createClient as createBrowserSupabaseClient } from "@/lib/supabase/clie
 import { AgentActionCard } from "./agent-action-card";
 import { AgentActionGroup } from "./agent-action-group";
 import { AgentSources } from "./agent-sources";
+import { perfMark } from "@/lib/perf";
 
 const runStorageKey = "personal-os:agent:active-run:v1";
 const draftStorageKey = "personal-os:agent:draft:v1";
@@ -69,6 +70,7 @@ function errorMessage(error: Error | undefined) {
 }
 
 export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => void }) {
+  useEffect(() => { perfMark("agent-lazy-mounted"); }, []);
   const pathname = usePathname();
   const runIdRef = useRef<string | null>(null);
   const pendingSubmitRef = useRef(false);

@@ -54,14 +54,14 @@ function details(action: AgentAction) {
   return String(preview.summaryOfChanges ?? preview.bodyPreview ?? preview.contentPreview ?? preview.reason ?? "").slice(0, 220);
 }
 
-export function AgentActionCard({ action, onChanged }: { action: AgentAction; onChanged: () => void }) {
+export function AgentActionCard({ action, onChanged }: { action: AgentAction; onChanged: (result: AgentActionResult) => void }) {
   const [result, setResult] = useState<AgentActionResult | null>(null);
   const [pending, startTransition] = useTransition();
   const currentStatus = result?.status === "success" ? "succeeded" : result?.status === "conflict" ? "conflict" : result?.status === "rejected" ? "rejected" : action.status;
   const run = (kind: "approve" | "reject") => startTransition(async () => {
     const next = kind === "approve" ? await approveAgentAction(action.id) : await rejectAgentAction(action.id);
     setResult(next);
-    onChanged();
+    onChanged(next);
   });
   return <article className="rounded-[var(--radius-md)] border bg-[var(--surface-canvas)] p-3">
     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]">{labels[action.actionType] ?? action.actionType}</p><h4 className="mt-1 truncate text-sm font-medium">{primary(action.preview)}</h4>{details(action) ? <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{details(action)}</p> : null}</div><span className="shrink-0 rounded-full bg-[var(--surface-hover)] px-2 py-0.5 text-[10px] text-[var(--text-tertiary)]">{action.riskLevel === "high" ? "高风险" : action.riskLevel === "medium" ? "需确认" : "低风险"}</span></div>

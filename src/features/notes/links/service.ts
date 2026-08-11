@@ -74,14 +74,28 @@ export async function syncInternalNoteLinks(
   });
   const rows = [...markdownRows, ...wikiRows];
 
-  const { error: deleteError } = await supabase
+  // The backlink index is derived state, but it is updated during every
+  // autosave.  Diff it instead of deleting/reinserting all rows so ordinary
+  // prose edits with unchanged links produce zero note_links mutations.
+  const { data: existing, error: existingError } = await supabase
     .from("note_links")
-    .delete()
+    .select("id,target_note_id,target_title,alias,link_type,position_start,position_end")
     .eq("source_note_id", sourceNoteId)
     .in("link_type", ["markdown", "wiki"]);
-  if (deleteError) return { ok: false, code: deleteError.code ?? "delete_failed" };
-  if (!rows.length) return { ok: true };
-  const { error: insertError } = await supabase.from("note_links").insert(rows);
-  if (insertError) return { ok: false, code: insertError.code ?? "insert_failed" };
+  if (existingError) return { ok: false, code: existingError.code ?? "lookup_failed" };
+  const key = (row: { target_note_id: string; target_title: string; alias: string | null; link_type: string; position_start: number; position_end: number }) =>
+    [row.target_note_id, row.target_title, row.alias ?? "", row.link_type, row.position_start, row.position_end].join("\u0001");
+  const nextByKey = new Map(rows.map((row) => [key(row), row]));
+  const currentByKey = new Map((existing ?? []).map((row) => [key(row), row]));
+  const removedIds = [...currentByKey.entries()].filter(([rowKey]) => !nextByKey.has(rowKey)).map(([, row]) => row.id);
+  const added = [...nextByKey.entries()].filter(([rowKey]) => !currentByKey.has(rowKey)).map(([, row]) => row);
+  if (removedIds.length) {
+    const { error: deleteError } = await supabase.from("note_links").delete().in("id", removedIds);
+    if (deleteError) return { ok: false, code: deleteError.code ?? "delete_failed" };
+  }
+  if (added.length) {
+    const { error: insertError } = await supabase.from("note_links").insert(added);
+    if (insertError) return { ok: false, code: insertError.code ?? "insert_failed" };
+  }
   return { ok: true };
 }

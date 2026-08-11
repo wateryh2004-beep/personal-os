@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BriefcaseBusiness, CalendarDays, CheckSquare2, ChevronLeft, ChevronRight,
   FileText, FolderClosed, Inbox, LayoutDashboard, LogOut, Menu, Newspaper,
@@ -16,12 +17,18 @@ import { GlobalCommandPalette, type CommandCenterSection } from "@/components/se
 import { logoutAction } from "@/features/auth/actions";
 import { clearWorkspaceSessions } from "@/lib/workspace-session";
 import { cn } from "@/lib/utils";
-import { GlobalAgent } from "@/components/assistant/global-agent";
 import { isAssistantShortcut } from "@/features/assistant/shortcuts";
 import { WorkspacePanelProvider, useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
 
 const sidebarStorageKey = "personal-os:shell:v2";
 const recentStorageKey = "personal-os:recent:v1";
+
+// The assistant pulls in the AI SDK, Markdown rendering and realtime code.  It
+// must not become a cost of simply opening a private workspace page.
+const GlobalAgent = dynamic(
+  () => import("@/components/assistant/global-agent").then((module) => module.GlobalAgent),
+  { ssr: false },
+);
 
 const groups: Array<{ label: string | null; items: Array<{ name: string; href: string; icon: typeof LayoutDashboard }> }> = [
   { label: null, items: [{ name: "Now", href: "/today", icon: LayoutDashboard }, { name: "Inbox", href: "/inbox", icon: Inbox }] },
@@ -58,6 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -86,6 +94,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       localStorage.setItem(recentStorageKey, JSON.stringify([{ href: pathname, label }, ...previous.filter((item) => item.href !== pathname)].slice(0, 8)));
     } catch { /* Recents are an enhancement, never a navigation dependency. */ }
   }, [pathname]);
+  useEffect(() => {
+    // Keep the frequent personal workflow warm without prefetching every
+    // private surface at once. AppShell itself stays persistent on navigation.
+    const prefetch = () => ["/today", "/calendar", "/tasks", "/notes"].filter((href) => href !== pathname).forEach((href) => router.prefetch(href));
+    const idle = window.setTimeout(prefetch, 800);
+    return () => window.clearTimeout(idle);
+  }, [pathname, router]);
   useEffect(() => {
     const viewport = window.visualViewport;
     const updateViewportHeight = () => {
@@ -120,7 +135,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={openGlobalAgent} aria-label="询问 Personal OS" className="gap-1.5"><Sparkles className="size-4" aria-hidden="true"/><span className="hidden sm:inline">Ask</span><kbd className="hidden rounded border bg-[var(--surface-canvas)] px-1 py-0.5 font-sans text-[9px] lg:inline">⌘ J</kbd></Button></TooltipTrigger><TooltipContent>Ask Personal OS</TooltipContent></Tooltip>
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" onClick={() => openCommand("quick")} aria-label="快速新建"><Plus aria-hidden="true" /></Button></TooltipTrigger><TooltipContent>快速新建</TooltipContent></Tooltip>
       </header>
-      <div className="min-w-0"><main id="main-content" className={cn("min-w-0", shellContentClass(pathname))}>{children}</main><GlobalAgent open={globalAgentOpen} onClose={closeGlobalAgent} /></div>
+      <div className="min-w-0"><main id="main-content" className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>{globalAgentOpen ? <GlobalAgent open onClose={closeGlobalAgent} /> : null}</div>
     </div>
     <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} initialSection={commandSection} />
   </div>;

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -20,11 +19,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { recordNotePdfExport, saveNote } from "@/features/notes/actions";
 import { markdownFilename } from "@/features/notes/utils";
 import type { NoteLinkSuggestion } from "@/features/notes/links/types";
-import { NoteAiAssistant, type NoteSelection } from "@/components/notes/note-ai-assistant";
+import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 import { lastOpenedNoteSessionKey, lastOpenedNoteTtlMs } from "@/features/notes/navigation";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
+import { perfMark } from "@/lib/perf";
 import {
   noteAutosaveDebounceMs,
   noteAutosaveMaxWaitMs,
@@ -35,6 +35,7 @@ const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-mar
   ssr: false,
   loading: () => <div className="min-h-80 bg-white p-6 text-sm text-zinc-500">正在载入 Markdown 编辑器…</div>,
 });
+const NoteAiAssistant = dynamic(() => import("@/components/notes/note-ai-assistant").then((module) => module.NoteAiAssistant), { ssr: false });
 
 type Note = { id: string; title: string; body_markdown: string; revision: number; last_saved_at: string | null };
 type PdfSnapshot = { title: string; body: string };
@@ -101,7 +102,6 @@ async function copyText(value: string) {
 }
 
 export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: { note: Note; noteAiDefaultModel: DeepSeekModelId; recentNoteLinks?: readonly NoteLinkSuggestion[] }) {
-  const router = useRouter();
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
   const [state, setState] = useState<SaveState>("已保存");
@@ -167,6 +167,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
         saveQueuedRef.current = false;
         const snapshot = latestContentRef.current;
         const expectedRevision = revisionRef.current;
+        perfMark("note-autosave-start", { noteId: note.id, expectedRevision });
         setState("正在保存");
         try {
           const result = await saveNote({
@@ -182,7 +183,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
           }
           revisionRef.current = result.revision;
           setLastSavedAt(result.lastSavedAt);
-          router.refresh();
+          perfMark("note-autosave-end", { noteId: note.id, revision: result.revision });
           const latest = latestContentRef.current;
           if (latest.title === snapshot.title && latest.body === snapshot.body) {
             isDirtyRef.current = false;
@@ -194,6 +195,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
             saveDraft(latest.title, latest.body, result.revision);
           }
         } catch {
+          perfMark("note-autosave-failed", { noteId: note.id });
           const latest = latestContentRef.current;
           isDirtyRef.current = true;
           setState("保存失败");
@@ -209,7 +211,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
     } finally {
       saveInFlightRef.current = null;
     }
-  }, [note.id, noteSessionKey, router, saveDraft]);
+  }, [note.id, noteSessionKey, saveDraft]);
 
   useEffect(() => {
     if (!editVersion) return;
@@ -471,7 +473,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
           />
         </div>
       </div>
-      <NoteAiAssistant
+      {noteAiPanel.isOpen ? <NoteAiAssistant
         open={noteAiPanel.isOpen}
         onOpen={noteAiPanel.open}
         onClose={noteAiPanel.close}
@@ -489,7 +491,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
           setBody(nextBody);
           dirty(title, nextBody);
         }}
-      />
+      /> : null}
       {pdfSnapshot ? (
         <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-white p-12 text-[15px]">
           <h1 className="mb-7 text-3xl font-semibold text-zinc-900">{pdfSnapshot.title}</h1>
