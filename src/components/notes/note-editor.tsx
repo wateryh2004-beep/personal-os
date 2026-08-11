@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import {
+  Copy,
   Download,
   Maximize2,
   Minimize2,
@@ -82,6 +83,23 @@ function savedTimeLabel(value: string | null) {
   }).format(date)}`;
 }
 
+async function copyText(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const field = document.createElement("textarea");
+  field.value = value;
+  field.setAttribute("readonly", "");
+  field.style.position = "fixed";
+  field.style.opacity = "0";
+  document.body.append(field);
+  field.select();
+  const copied = document.execCommand("copy");
+  field.remove();
+  if (!copied) throw new Error("copy_failed");
+}
+
 export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: { note: Note; noteAiDefaultModel: DeepSeekModelId; recentNoteLinks?: readonly NoteLinkSuggestion[] }) {
   const router = useRouter();
   const [title, setTitle] = useState(note.title);
@@ -94,6 +112,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isFallbackFullscreen, setIsFallbackFullscreen] = useState(false);
   const [imageUploadMessage, setImageUploadMessage] = useState("");
+  const [copyMessage, setCopyMessage] = useState("");
   const noteAiPanel = useWorkspacePanel(`note-ai:${note.id}`);
   const [selection, setSelection] = useState<NoteSelection | null>(null);
   const pdfPreviewRef = useRef<HTMLElement>(null);
@@ -330,6 +349,15 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
       setIsFallbackFullscreen(true);
     }
   };
+  const copyFullNote = async () => {
+    const text = [title.trim(), body].filter(Boolean).join("\n\n");
+    try {
+      await copyText(text);
+      setCopyMessage("已复制全文");
+    } catch {
+      setCopyMessage("复制失败，请检查浏览器权限后重试。");
+    }
+  };
   return (
     <section
       ref={editorSurfaceRef}
@@ -354,6 +382,15 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
           >
             {statusLabel}
           </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void copyFullNote()}
+            aria-label="复制笔记全文"
+          >
+            <Copy aria-hidden="true" />
+            <span className="hidden sm:inline">复制全文</span>
+          </Button>
           <Button
             variant={state === "已保存" ? "ghost" : "outline"}
             size="sm"
@@ -416,6 +453,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
           </p>
         ) : null}
         {pdfError ? <p role="alert" className="px-4 py-2 text-sm text-[var(--danger)] sm:px-6">{pdfError}</p> : null}
+        {copyMessage ? <p role="status" aria-live="polite" className={`px-4 py-2 text-sm sm:px-6 ${copyMessage.includes("失败") ? "text-[var(--danger)]" : "text-[var(--success)]"}`}>{copyMessage}</p> : null}
         {imageUploadMessage ? (
           <p role="status" aria-live="polite" className={`px-4 py-2 text-sm sm:px-6 ${imageUploadMessage.includes("失败") || imageUploadMessage.includes("不支持") ? "text-[var(--danger)]" : "text-[var(--success)]"}`}>
             {imageUploadMessage}
