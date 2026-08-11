@@ -39,26 +39,6 @@ type GraphEvent = {
 
 type GraphOutlookCategory = { id?: string; displayName?: string; color?: OutlookCategoryColor };
 
-type GraphTodoList = { id?: string; displayName?: string; wellknownListName?: string | null };
-type GraphTodoTask = {
-  id?: string;
-  title?: string;
-  body?: { content?: string | null };
-  status?: "notStarted" | "inProgress" | "completed" | "waitingOnOthers" | "deferred";
-  importance?: "low" | "normal" | "high" | null;
-  dueDateTime?: { dateTime?: string } | null;
-  completedDateTime?: { dateTime?: string } | null;
-  lastModifiedDateTime?: string | null;
-};
-
-type CreateTodoTaskInput = {
-  todoListId: string;
-  title: string;
-  bodyText: string | null;
-  importance: "low" | "normal" | "high";
-  dueAt: string | null;
-};
-
 type CalendarPayload = {
   subject: string;
   description: string | null;
@@ -80,6 +60,17 @@ type CalendarDeletePayload = {
 type CalendarUpdatePayload = CalendarPayload & {
   previous: CalendarDeletePayload;
 };
+
+type GraphTodoList = { id?: string; displayName?: string; wellknownListName?: string | null };
+type GraphTodoTask = {
+  id?: string; title?: string; body?: { content?: string | null };
+  status?: "notStarted" | "inProgress" | "completed" | "waitingOnOthers" | "deferred";
+  importance?: "low" | "normal" | "high" | null;
+  dueDateTime?: { dateTime?: string } | null; completedDateTime?: { dateTime?: string } | null;
+  lastModifiedDateTime?: string | null;
+};
+type CreateTodoTaskInput = { todoListId: string; title: string; bodyText: string | null; importance: "low" | "normal" | "high"; dueAt: string | null };
+export type UpdateTodoTaskInput = { title?: string; bodyText?: string | null; importance?: "low" | "normal" | "high"; dueAt?: string | null };
 
 export class MicrosoftGraphError extends Error {
   constructor(public readonly code: string) {
@@ -176,7 +167,7 @@ export async function accessTokenForConnection(connectionId: string, userId: str
   return accessToken;
 }
 
-async function graph(accessToken: string, path: string, init?: RequestInit) {
+export async function graph(accessToken: string, path: string, init?: RequestInit) {
   let response: Response;
   try {
     response = await fetch(`${graphBaseUrl}${path}`, {
@@ -229,7 +220,7 @@ export function graphEventRecord(event: GraphEvent, userId: string, fallback?: {
   };
 }
 
-async function markConnectionError(connectionId: string, code: string) {
+export async function markConnectionError(connectionId: string, code: string) {
   const admin = createAdminClient();
   await admin.from("calendar_connections").update({ last_error_code: code }).eq("id", connectionId);
 }
@@ -346,7 +337,7 @@ export async function ensureManagedOutlookCategories(connectionId: string, userI
   return { createdCount: created.length, totalCount: all.length };
 }
 
-function optionalIso(value: string | undefined | null) {
+export function optionalIso(value: string | undefined | null) {
   return value ? toIso(value) : null;
 }
 
@@ -461,11 +452,11 @@ export async function completeMicrosoftTodoTask(connectionId: string, userId: st
   const list = task.microsoft_todo_lists as unknown as { provider_list_id: string };
   const accessToken = await accessTokenForConnection(connectionId, userId);
   const completedAt = new Date().toISOString();
-  await graph(accessToken, `/me/todo/lists/${encodeURIComponent(list.provider_list_id)}/tasks/${encodeURIComponent(task.provider_task_id)}`, {
+  const updated = await graph(accessToken, `/me/todo/lists/${encodeURIComponent(list.provider_list_id)}/tasks/${encodeURIComponent(task.provider_task_id)}`, {
     method: "PATCH",
     body: JSON.stringify({ status: "completed", completedDateTime: { dateTime: completedAt.replace("Z", ""), timeZone: "UTC" } }),
-  });
-  const { error: updateError } = await admin.from("microsoft_todo_tasks").update({ status: "completed", completed_at: completedAt, last_synced_at: completedAt }).eq("id", task.id).eq("user_id", userId);
+  }) as GraphTodoTask;
+  const { error: updateError } = await admin.from("microsoft_todo_tasks").update({ status: "completed", completed_at: optionalIso(updated.completedDateTime?.dateTime) ?? completedAt, provider_last_modified_at: optionalIso(updated.lastModifiedDateTime) ?? completedAt, last_synced_at: completedAt }).eq("id", task.id).eq("user_id", userId);
   if (updateError) throw new MicrosoftGraphError("todo_cache_failed");
 }
 
@@ -479,14 +470,71 @@ export async function reopenMicrosoftTodoTask(connectionId: string, userId: stri
   const list = task.microsoft_todo_lists as unknown as { provider_list_id: string };
   const accessToken = await accessTokenForConnection(connectionId, userId);
   const now = new Date().toISOString();
-  await graph(accessToken, `/me/todo/lists/${encodeURIComponent(list.provider_list_id)}/tasks/${encodeURIComponent(task.provider_task_id)}`, {
+  const updated = await graph(accessToken, `/me/todo/lists/${encodeURIComponent(list.provider_list_id)}/tasks/${encodeURIComponent(task.provider_task_id)}`, {
     method: "PATCH",
     body: JSON.stringify({ status: "notStarted" }),
-  });
+  }) as GraphTodoTask;
   const { error: updateError } = await admin.from("microsoft_todo_tasks")
-    .update({ status: "notStarted", completed_at: null, last_synced_at: now })
+    .update({ status: "notStarted", completed_at: null, provider_last_modified_at: optionalIso(updated.lastModifiedDateTime) ?? now, last_synced_at: now })
     .eq("id", task.id).eq("user_id", userId);
   if (updateError) throw new MicrosoftGraphError("todo_cache_failed");
+}
+
+async function ownedTodoTask(connectionId: string, userId: string, localTaskId: string) {
+  const admin = createAdminClient();
+  const { data: task, error } = await admin.from("microsoft_todo_tasks")
+    .select("id,provider_task_id,todo_list_id,title,body_text,status,importance,due_at,completed_at,provider_last_modified_at,microsoft_todo_lists!inner(provider_list_id,connection_id)")
+    .eq("id", localTaskId).eq("user_id", userId).is("archived_at", null).maybeSingle();
+  if (error || !task) throw new MicrosoftGraphError("todo_task_not_found");
+  const list = task.microsoft_todo_lists as unknown as { provider_list_id: string; connection_id: string };
+  if (list.connection_id !== connectionId) throw new MicrosoftGraphError("todo_list_not_found");
+  return { admin, task, providerListId: list.provider_list_id };
+}
+
+/** PATCHes Graph first, then synchronously writes the returned provider truth to the private cache. */
+export async function updateMicrosoftTodoTask(connectionId: string, userId: string, localTaskId: string, patch: UpdateTodoTaskInput) {
+  if (!Object.keys(patch).length) throw new MicrosoftGraphError("todo_update_empty");
+  const { admin, task, providerListId } = await ownedTodoTask(connectionId, userId, localTaskId);
+  const graphPatch: Record<string, unknown> = {};
+  if (patch.title !== undefined) graphPatch.title = patch.title;
+  if (patch.bodyText !== undefined) graphPatch.body = patch.bodyText === null ? null : { content: patch.bodyText, contentType: "text" };
+  if (patch.importance !== undefined) graphPatch.importance = patch.importance;
+  if (patch.dueAt !== undefined) graphPatch.dueDateTime = patch.dueAt === null ? null : { dateTime: patch.dueAt.replace("Z", ""), timeZone: "UTC" };
+  try {
+    const accessToken = await accessTokenForConnection(connectionId, userId);
+    const updated = await graph(accessToken, `/me/todo/lists/${encodeURIComponent(providerListId)}/tasks/${encodeURIComponent(task.provider_task_id)}`, { method: "PATCH", body: JSON.stringify(graphPatch) }) as GraphTodoTask;
+    const now = new Date().toISOString();
+    const { error } = await admin.from("microsoft_todo_tasks").update({
+      title: updated.title ?? (patch.title ?? task.title),
+      body_text: updated.body?.content ?? (patch.bodyText === undefined ? task.body_text : patch.bodyText),
+      importance: updated.importance ?? (patch.importance ?? task.importance ?? "normal"),
+      due_at: optionalIso(updated.dueDateTime?.dateTime) ?? (patch.dueAt === undefined ? task.due_at : patch.dueAt),
+      provider_last_modified_at: optionalIso(updated.lastModifiedDateTime) ?? now,
+      last_synced_at: now,
+    }).eq("id", task.id).eq("user_id", userId).is("archived_at", null);
+    if (error) throw new MicrosoftGraphError("todo_cache_failed");
+    return task.id;
+  } catch (error) {
+    const code = error instanceof MicrosoftGraphError ? error.code : "todo_update_failed";
+    await markConnectionError(connectionId, code);
+    throw new MicrosoftGraphError(code);
+  }
+}
+
+/** DELETEs the authoritative provider record, then archives the local cache record for auditability. */
+export async function deleteMicrosoftTodoTask(connectionId: string, userId: string, localTaskId: string) {
+  const { admin, task, providerListId } = await ownedTodoTask(connectionId, userId, localTaskId);
+  try {
+    const accessToken = await accessTokenForConnection(connectionId, userId);
+    await graph(accessToken, `/me/todo/lists/${encodeURIComponent(providerListId)}/tasks/${encodeURIComponent(task.provider_task_id)}`, { method: "DELETE" });
+    const now = new Date().toISOString();
+    const { error } = await admin.from("microsoft_todo_tasks").update({ archived_at: now, last_synced_at: now }).eq("id", task.id).eq("user_id", userId).is("archived_at", null);
+    if (error) throw new MicrosoftGraphError("todo_cache_failed");
+  } catch (error) {
+    const code = error instanceof MicrosoftGraphError ? error.code : "todo_delete_failed";
+    await markConnectionError(connectionId, code);
+    throw new MicrosoftGraphError(code);
+  }
 }
 
 export async function executeCalendarOperation(operationId: string, userId: string) {

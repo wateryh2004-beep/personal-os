@@ -6,31 +6,19 @@ import {
   type UIMessage,
 } from "ai";
 import { useChat } from "@ai-sdk/react";
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import {
-  createMicrosoftTodoTaskAction,
-  type TodoCreateState,
-} from "@/features/tasks/microsoft-todo";
-import {
   loadWorkspaceSession,
   saveWorkspaceSession,
 } from "@/lib/workspace-session";
+import { AgentActionCard } from "@/components/assistant/agent-action-card";
+import type { AgentAction } from "@/features/assistant/types";
 
 type AssistantModel = "deepseek-v4-flash" | "deepseek-v4-pro";
-type TodoList = { id: string; display_name: string; is_default: boolean };
-type TodoProposal = {
-  proposal: {
-    todoListId: string;
-    title: string;
-    bodyText: string | null;
-    importance: "low" | "normal" | "high";
-    dueAt: string | null;
-  } | null;
-  error?: string;
-};
 type TaskAssistantSession = {
   messages: UIMessage[];
   input: string;
@@ -38,7 +26,6 @@ type TaskAssistantSession = {
   stoppedMessage: string | null;
   interrupted: boolean;
 };
-const initialState: TodoCreateState = { status: "idle", message: "" };
 const taskSessionKey = "tasks:assistant";
 
 function assistantError(error: Error) {
@@ -51,66 +38,8 @@ function assistantError(error: Error) {
   return error.message || "DeepSeek 暂时没有完成回答，请重试。";
 }
 
-function TodoProposalForm({
-  proposal,
-  lists,
-}: {
-  proposal: NonNullable<TodoProposal["proposal"]>;
-  lists: TodoList[];
-}) {
-  const [state, action, pending] = useActionState(
-    createMicrosoftTodoTaskAction,
-    initialState,
-  );
-  const list = lists.find((item) => item.id === proposal.todoListId);
-  if (!list)
-    return <p className="mt-2 text-sm text-amber-800">任务清单尚未同步。</p>;
-  return (
-    <form
-      action={action}
-      className="mt-2 border border-[#365F78] bg-[#EDF3F6] p-3 text-left text-sm"
-    >
-      <p className="font-medium text-zinc-900">{proposal.title}</p>
-      {proposal.bodyText ? (
-        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-zinc-600">
-          {proposal.bodyText}
-        </p>
-      ) : null}
-      <p className="mt-2 text-xs text-zinc-600">
-        {list.display_name} ·{" "}
-        {proposal.importance === "high"
-          ? "高优先级"
-          : proposal.importance === "low"
-            ? "低优先级"
-            : "普通优先级"}
-        {proposal.dueAt
-          ? ` · 截止 ${new Date(proposal.dueAt).toLocaleString("zh-CN")}`
-          : ""}
-      </p>
-      <input type="hidden" name="todo_list_id" value={proposal.todoListId} />
-      <input type="hidden" name="title" value={proposal.title} />
-      <input type="hidden" name="body_text" value={proposal.bodyText ?? ""} />
-      <input type="hidden" name="importance" value={proposal.importance} />
-      <input type="hidden" name="due_at" value={proposal.dueAt ?? ""} />
-      <button
-        disabled={pending}
-        className="mt-3 bg-[#365F78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
-      >
-        {pending ? "正在创建…" : "确认创建任务"}
-      </button>
-      {state.status !== "idle" ? (
-        <p
-          role="status"
-          className={`mt-2 text-xs ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}
-        >
-          {state.message}
-        </p>
-      ) : null}
-    </form>
-  );
-}
-
-export function TaskAssistant({ lists }: { lists: TodoList[] }) {
+export function TaskAssistant() {
+  const router = useRouter();
   const [input, setInput] = useState("");
   const [model, setModel] = useState<AssistantModel>("deepseek-v4-flash");
   const [stoppedMessage, setStoppedMessage] = useState<string | null>(null);
@@ -236,22 +165,12 @@ export function TaskAssistant({ lists }: { lists: TodoList[] }) {
                     </ReactMarkdown>
                   </div>
                 );
-              if (
-                part.type === "tool-proposeTodoTask" &&
-                part.state === "output-available"
-              ) {
-                const output = part.output as TodoProposal;
-                return output.proposal ? (
-                  <TodoProposalForm
-                    key={part.toolCallId}
-                    proposal={output.proposal}
-                    lists={lists}
-                  />
-                ) : (
-                  <p key={part.toolCallId} className="text-sm text-amber-800">
-                    {output.error || "无法生成任务提案。"}
-                  </p>
-                );
+              const proposalTools = ["tool-proposeTodoCreate", "tool-proposeTodoTask", "tool-proposeTodoUpdate", "tool-proposeTodoDelete", "tool-proposeTodoComplete", "tool-proposeTodoReopen"];
+              if (proposalTools.includes(part.type) && "output" in part && part.state === "output-available") {
+                const output = part.output as { proposal?: Record<string, unknown> | null; actionId?: string | null; error?: string };
+                if (!output.proposal || !output.actionId) return <p key={part.toolCallId} className="text-sm text-amber-800">{output.error || "无法生成任务提案。"}</p>;
+                const actionType = part.type.replace("tool-proposeTodo", "tasks.").replace("Task", "create").replace("Create", "create").replace("Update", "update").replace("Delete", "delete").replace("Complete", "complete").replace("Reopen", "reopen");
+                return <AgentActionCard key={part.toolCallId} action={{ id: output.actionId, runId: "", domain: "tasks", actionType, status: "proposed", preview: output.proposal, riskLevel: actionType === "tasks.delete" ? "medium" : "low" } as AgentAction} onChanged={() => router.refresh()}/>;
               }
               return null;
             })}

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { completeMicrosoftTodoTask, createMicrosoftTodoTask, reopenMicrosoftTodoTask, syncMicrosoftTodo } from "@/lib/adapters/microsoft-graph/calendar";
+import { syncMicrosoftTodo } from "@/lib/adapters/microsoft-graph/todo";
+import { microsoftTodoRepository } from "./repository";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { syncAndBackupMicrosoftWorkspace } from "@/lib/services/microsoft-sync-backup";
 import { markInboxProcessed } from "@/features/inbox/service";
@@ -37,6 +38,14 @@ export async function syncAndBackupMicrosoftTodoAction() {
 }
 
 const completeSchema = z.object({ taskId: z.string().uuid() });
+const deleteSchema = z.object({ taskId: z.string().uuid() });
+const updateSchema = z.object({
+  taskId: z.string().uuid(),
+  title: z.string().trim().min(1).max(500).optional(),
+  bodyText: z.string().max(10_000).nullable().optional(),
+  importance: z.enum(["low", "normal", "high"]).optional(),
+  dueAt: z.string().datetime({ offset: true }).nullable().optional(),
+}).refine((value) => value.title !== undefined || value.bodyText !== undefined || value.importance !== undefined || value.dueAt !== undefined, { message: "至少修改一个字段" });
 const createSchema = z.object({
   todoListId: z.string().uuid(),
   title: z.string().trim().min(1).max(500),
@@ -62,7 +71,7 @@ export async function createMicrosoftTodoTaskAction(_: TodoCreateState, formData
   try {
     const { supabase, userId } = await requireOwner();
     const connection = await activeConnection(supabase);
-    const taskId = await createMicrosoftTodoTask(connection.id, userId, parsed.data);
+    const taskId = await microsoftTodoRepository.create(connection.id, userId, parsed.data);
     await audit(supabase, userId, "create", taskId, { provider: "microsoft_todo", todo_list_id: parsed.data.todoListId, importance: parsed.data.importance });
     await markInboxProcessed(supabase, userId, parsed.data.inboxId, "task", taskId);
     revalidatePath("/tasks");
@@ -79,8 +88,32 @@ export async function completeMicrosoftTodoTaskAction(formData: FormData) {
   if (!parsed.success) fail();
   const { supabase, userId } = await requireOwner();
   const connection = await activeConnection(supabase);
-  await completeMicrosoftTodoTask(connection.id, userId, parsed.data.taskId);
+  await microsoftTodoRepository.complete(connection.id, userId, parsed.data.taskId);
   await audit(supabase, userId, "complete", parsed.data.taskId, { provider: "microsoft_todo" });
+  revalidatePath("/tasks");
+  revalidatePath("/today");
+}
+
+export async function updateMicrosoftTodoTaskAction(input: unknown) {
+  const parsed = updateSchema.safeParse(input);
+  if (!parsed.success) throw new Error("任务更新内容无效。");
+  const { supabase, userId } = await requireOwner();
+  const connection = await activeConnection(supabase);
+  const { data: before } = await supabase.from("microsoft_todo_tasks").select("title,body_text,importance,due_at").eq("id", parsed.data.taskId).is("archived_at", null).maybeSingle();
+  await microsoftTodoRepository.update(connection.id, userId, parsed.data.taskId, parsed.data);
+  await audit(supabase, userId, "update", parsed.data.taskId, { provider: "microsoft_todo", before, patch: parsed.data });
+  revalidatePath("/tasks");
+  revalidatePath("/today");
+}
+
+export async function deleteMicrosoftTodoTaskAction(formData: FormData) {
+  const parsed = deleteSchema.safeParse({ taskId: formData.get("task_id") });
+  if (!parsed.success) fail();
+  const { supabase, userId } = await requireOwner();
+  const connection = await activeConnection(supabase);
+  const { data: before } = await supabase.from("microsoft_todo_tasks").select("title,status,todo_list_id").eq("id", parsed.data.taskId).is("archived_at", null).maybeSingle();
+  await microsoftTodoRepository.delete(connection.id, userId, parsed.data.taskId);
+  await audit(supabase, userId, "delete", parsed.data.taskId, { provider: "microsoft_todo", before });
   revalidatePath("/tasks");
   revalidatePath("/today");
 }
@@ -90,7 +123,7 @@ export async function reopenMicrosoftTodoTaskAction(formData: FormData) {
   if (!parsed.success) fail();
   const { supabase, userId } = await requireOwner();
   const connection = await activeConnection(supabase);
-  await reopenMicrosoftTodoTask(connection.id, userId, parsed.data.taskId);
+  await microsoftTodoRepository.reopen(connection.id, userId, parsed.data.taskId);
   await audit(supabase, userId, "reopen", parsed.data.taskId, { provider: "microsoft_todo" });
   revalidatePath("/tasks");
   revalidatePath("/today");

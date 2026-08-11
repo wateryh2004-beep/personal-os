@@ -8,9 +8,8 @@ import {
   updateCalendarEventSchema,
 } from "@/features/calendar/schemas";
 import { todoProposalSchema } from "@/features/tasks/schemas";
+import { microsoftTodoRepository } from "@/features/tasks/repository";
 import {
-  completeMicrosoftTodoTask,
-  createMicrosoftTodoTask,
   executeCalendarOperation,
 } from "@/lib/adapters/microsoft-graph/calendar";
 import type { createClient } from "@/lib/supabase/server";
@@ -19,6 +18,9 @@ import {
   noteCreateProposalSchema,
   noteUpdateProposalSchema,
   todoCompleteProposalSchema,
+  todoDeleteProposalSchema,
+  todoReopenProposalSchema,
+  todoUpdateProposalSchema,
   careerFactProposalSchema,
   careerMilestoneProposalSchema,
   memoryCreateProposalSchema,
@@ -40,7 +42,10 @@ export const executableAgentActionTypes: AgentActionType[] = [
   "calendar.update",
   "calendar.delete",
   "tasks.create",
+  "tasks.update",
+  "tasks.delete",
   "tasks.complete",
+  "tasks.reopen",
   "notes.create",
   "notes.update",
   "career.milestone.create",
@@ -145,25 +150,33 @@ async function executeCalendar(input: {
 async function executeTask(input: {
   supabase: Supabase;
   userId: string;
-  actionType: "tasks.create" | "tasks.complete";
+  actionType: "tasks.create" | "tasks.update" | "tasks.delete" | "tasks.complete" | "tasks.reopen";
   payload: Record<string, unknown>;
 }) {
   const connectionId = (await activeMicrosoftConnection(input.supabase)).id;
   if (input.actionType === "tasks.create") {
     const value = todoProposalSchema.parse(input.payload);
-    const taskId = await createMicrosoftTodoTask(connectionId, input.userId, value);
+    const taskId = await microsoftTodoRepository.create(connectionId, input.userId, value);
     return { taskId };
   }
-  const value = todoCompleteProposalSchema.parse(input.payload);
+  const schema = input.actionType === "tasks.complete" ? todoCompleteProposalSchema : input.actionType === "tasks.update" ? todoUpdateProposalSchema : input.actionType === "tasks.delete" ? todoDeleteProposalSchema : todoReopenProposalSchema;
+  const value = schema.parse(input.payload);
   const { data } = await input.supabase
     .from("microsoft_todo_tasks")
-    .select("id,title,status")
+    .select("id,title,status,provider_last_modified_at")
     .eq("id", value.taskId)
+    .eq("title", value.title)
     .eq("status", value.expectedStatus)
+    .eq("provider_last_modified_at", value.expectedLastModifiedAt)
     .is("archived_at", null)
     .maybeSingle();
   if (!data) throw new AgentActionConflict("task_changed");
-  await completeMicrosoftTodoTask(connectionId, input.userId, data.id);
+  if (input.actionType === "tasks.update") await microsoftTodoRepository.update(connectionId, input.userId, data.id, todoUpdateProposalSchema.parse(input.payload).patch);
+  else if (input.actionType === "tasks.delete") await microsoftTodoRepository.delete(connectionId, input.userId, data.id);
+  else if (input.actionType === "tasks.reopen") {
+    if (data.status !== "completed") throw new AgentActionConflict("task_changed");
+    await microsoftTodoRepository.reopen(connectionId, input.userId, data.id);
+  } else await microsoftTodoRepository.complete(connectionId, input.userId, data.id);
   return { taskId: data.id };
 }
 
@@ -474,7 +487,7 @@ export async function executeFrozenAgentAction(input: {
     throw new Error("unsupported_action");
   if (input.actionType === "calendar.create" || input.actionType === "calendar.update" || input.actionType === "calendar.delete")
     return executeCalendar({ ...input, actionType: input.actionType });
-  if (input.actionType === "tasks.create" || input.actionType === "tasks.complete")
+  if (input.actionType === "tasks.create" || input.actionType === "tasks.update" || input.actionType === "tasks.delete" || input.actionType === "tasks.complete" || input.actionType === "tasks.reopen")
     return executeTask({ ...input, actionType: input.actionType });
   if (input.actionType === "career.milestone.create" || input.actionType === "career.fact.create")
     return executeCareer({ ...input, actionType: input.actionType });

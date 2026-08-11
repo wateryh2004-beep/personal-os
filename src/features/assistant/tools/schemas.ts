@@ -4,7 +4,7 @@ import {
   deleteCalendarEventSchema,
   updateCalendarEventSchema,
 } from "@/features/calendar/schemas";
-import { todoProposalSchema } from "@/features/tasks/schemas";
+import { todoProposalSchema, todoUpdatePatchSchema } from "@/features/tasks/schemas";
 
 export const agentActionDomainSchema = z.enum([
   "calendar",
@@ -37,7 +37,25 @@ export const todoCompleteProposalSchema = z.object({
   taskId: z.string().uuid(),
   title: z.string().trim().min(1).max(500),
   expectedStatus: z.string().trim().min(1).max(80),
+  expectedLastModifiedAt: z.string().datetime({ offset: true }).nullable(),
 });
+
+const todoSnapshotSchema = z.object({
+  taskId: z.string().uuid(),
+  title: z.string().trim().min(1).max(500),
+  expectedStatus: z.string().trim().min(1).max(80),
+  expectedLastModifiedAt: z.string().datetime({ offset: true }).nullable(),
+});
+
+export const todoUpdateProposalSchema = todoSnapshotSchema.extend({
+  currentBodyText: z.string().max(10_000).nullable(),
+  currentImportance: z.enum(["low", "normal", "high"]),
+  currentDueAt: z.string().datetime({ offset: true }).nullable(),
+  patch: todoUpdatePatchSchema,
+  reason: z.string().trim().min(1).max(500),
+});
+export const todoDeleteProposalSchema = todoSnapshotSchema.extend({ reason: z.string().trim().min(1).max(500) });
+export const todoReopenProposalSchema = todoSnapshotSchema.extend({ reason: z.string().trim().min(1).max(500) });
 
 const optionalIso = z.string().datetime({ offset: true }).nullable().default(null);
 const optionalDate = z.string().date().nullable().default(null);
@@ -143,7 +161,10 @@ export const agentActionPayloadSchemas = {
   "calendar.update": updateCalendarEventSchema,
   "calendar.delete": deleteCalendarEventSchema,
   "tasks.create": todoProposalSchema,
+  "tasks.update": todoUpdateProposalSchema,
+  "tasks.delete": todoDeleteProposalSchema,
   "tasks.complete": todoCompleteProposalSchema,
+  "tasks.reopen": todoReopenProposalSchema,
   "notes.create": noteCreateProposalSchema,
   "notes.update": noteUpdateProposalSchema,
   "career.milestone.create": careerMilestoneProposalSchema,

@@ -6,6 +6,9 @@ import {
   careerFactProposalSchema,
   memoryCreateProposalSchema,
   projectCreateProposalSchema,
+  todoDeleteProposalSchema,
+  todoReopenProposalSchema,
+  todoUpdateProposalSchema,
   parseAgentActionPayload,
 } from "@/features/assistant/tools/schemas";
 import {
@@ -64,7 +67,18 @@ describe("Agent proposal and deterministic execution boundary", () => {
     expect(hasDeterministicExecutor("notes.update")).toBe(true);
     expect(hasDeterministicExecutor("notes.delete")).toBe(false);
     expect(hasDeterministicExecutor("projects.create")).toBe(true);
+    expect(hasDeterministicExecutor("tasks.update")).toBe(true);
+    expect(hasDeterministicExecutor("tasks.delete")).toBe(true);
+    expect(hasDeterministicExecutor("tasks.reopen")).toBe(true);
     expect(hasDeterministicExecutor("sql.execute")).toBe(false);
+  });
+
+  it("requires a guarded, non-empty task update and valid delete/reopen snapshots", () => {
+    const snapshot = { taskId: id, title: "买一把伞", expectedStatus: "notStarted", expectedLastModifiedAt: "2026-08-11T00:00:00.000Z" };
+    expect(todoUpdateProposalSchema.safeParse({ ...snapshot, currentBodyText: null, currentImportance: "normal", currentDueAt: null, patch: {}, reason: "补充规格" }).success).toBe(false);
+    expect(todoUpdateProposalSchema.safeParse({ ...snapshot, currentBodyText: null, currentImportance: "normal", currentDueAt: null, patch: { title: "买一把预算50以内，长柄伞，长度120cm左右" }, reason: "补充规格" }).success).toBe(true);
+    expect(todoDeleteProposalSchema.safeParse({ ...snapshot, reason: "不再需要" }).success).toBe(true);
+    expect(todoReopenProposalSchema.safeParse({ ...snapshot, expectedStatus: "completed", reason: "误完成" }).success).toBe(true);
   });
 
   it("validates project proposal dates before freezing", () => {

@@ -15,7 +15,10 @@ const labels: Record<string, string> = {
   "calendar.update": "修改日程",
   "calendar.delete": "删除日程",
   "tasks.create": "创建任务",
+  "tasks.update": "修改任务",
+  "tasks.delete": "删除任务",
   "tasks.complete": "完成任务",
+  "tasks.reopen": "恢复任务",
   "notes.create": "创建笔记",
   "notes.update": "修改笔记",
   "career.milestone.create": "创建职业节点",
@@ -43,8 +46,11 @@ function details(action: AgentAction) {
     if (typeof startsAt === "string" && typeof endsAt === "string")
       return `${new Date(startsAt).toLocaleString("zh-CN")} — ${new Date(endsAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`;
   }
-  if (action.domain === "tasks")
-    return [preview.listName, preview.dueAt ? `截止 ${new Date(String(preview.dueAt)).toLocaleString("zh-CN")}` : null].filter(Boolean).join(" · ");
+  if (action.domain === "tasks") {
+    const patch = preview.patch as Record<string, unknown> | undefined;
+    const titleChange = patch?.title ? `标题：${preview.title ?? ""} → ${patch.title}` : null;
+    return [titleChange, preview.listName, preview.dueAt ? `截止 ${new Date(String(preview.dueAt)).toLocaleString("zh-CN")}` : null, preview.reason].filter(Boolean).join(" · ");
+  }
   return String(preview.summaryOfChanges ?? preview.bodyPreview ?? preview.contentPreview ?? preview.reason ?? "").slice(0, 220);
 }
 
