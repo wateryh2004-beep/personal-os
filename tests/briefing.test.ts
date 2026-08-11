@@ -4,7 +4,14 @@ import { buildBriefingGenerationFeedback } from "@/features/briefing/feedback";
 import { parseFeedXml } from "@/features/briefing/parser";
 import { diversifyCandidates, rankBriefingCandidates } from "@/features/briefing/ranking";
 import { assertPublicHttpUrl } from "@/features/briefing/safe-fetch";
-import { shouldRefreshBriefingFeed } from "@/features/briefing/orchestrator";
+import {
+  briefingRefreshDefaults,
+  getBriefingItemHref,
+  isFeedEligibleForBriefing,
+  passesHardExclusions,
+  shouldRefreshBriefingFeed,
+} from "@/features/briefing/orchestrator";
+import { isRecentGeneratingRun, selectDisplayedBriefing } from "@/features/briefing/runs";
 
 describe("Briefing RSS-first pipeline", () => {
   it("只移除跟踪参数，保留业务 query", () => expect(canonicalizeArticleUrl("https://EXAMPLE.com/a/?id=7&utm_source=x&fbclid=y#part")).toBe("https://example.com/a?id=7"));
@@ -53,5 +60,46 @@ describe("Briefing RSS-first pipeline", () => {
     );
     expect(state.status).toBe("warning");
     expect(state.message).toContain("添加 RSS / Atom 订阅");
+  });
+
+  it("当天未生成时持续展示最近完成的 Briefing", () => {
+    const previous = { id: "run-a", briefing_date: "2026-08-09" };
+    expect(selectDisplayedBriefing(null, previous)).toBe(previous);
+  });
+
+  it("失败 run 不会替换已完成的 Briefing", () => {
+    const completed = { id: "run-a", briefing_date: "2026-08-09" };
+    const failedRun = { id: "run-b", status: "failed" };
+    expect(failedRun.status).toBe("failed");
+    expect(selectDisplayedBriefing(null, completed)).toBe(completed);
+  });
+
+  it("暂停或归档的订阅不会进入 Briefing 候选", () => {
+    expect(isFeedEligibleForBriefing({ status: "paused", archived_at: null })).toBe(false);
+    expect(isFeedEligibleForBriefing({ status: "active", archived_at: "2026-08-10T00:00:00Z" })).toBe(false);
+    expect(isFeedEligibleForBriefing({ status: "active", archived_at: null, verification_status: "verified" })).toBe(true);
+  });
+
+  it("待审核信源不会参与 ranking，审核通过且 active 后才会参与", () => {
+    expect(isFeedEligibleForBriefing({ status: "paused", archived_at: null, verification_status: "pending" })).toBe(false);
+    expect(isFeedEligibleForBriefing({ status: "active", archived_at: null, verification_status: "verified" })).toBe(true);
+  });
+
+  it("全局硬过滤直接排除命中内容", () => {
+    expect(passesHardExclusions({ title: "娱乐八卦热搜", excerpt: "" }, ["娱乐八卦"])).toBe(false);
+    expect(passesHardExclusions({ title: "宏观市场更新", excerpt: "" }, ["娱乐八卦"])).toBe(true);
+  });
+
+  it("文章链接优先 canonical URL，缺失时回退至原始 URL", () => {
+    expect(getBriefingItemHref({ canonical_url: null, url: "https://example.com/item" })).toBe("https://example.com/item");
+  });
+
+  it("手动与 Cron 共享刷新服务的默认并发和批量限制", () => {
+    expect(briefingRefreshDefaults).toEqual({ maxFeeds: 20, concurrency: 4 });
+  });
+
+  it("十分钟内已有 generating run 时拒绝再次生成", () => {
+    expect(isRecentGeneratingRun({ updated_at: "2026-08-10T04:55:00Z" }, new Date("2026-08-10T05:00:00Z"))).toBe(true);
+    expect(isRecentGeneratingRun({ updated_at: "2026-08-10T04:45:00Z" }, new Date("2026-08-10T05:00:00Z"))).toBe(false);
   });
 });

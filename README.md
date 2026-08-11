@@ -77,7 +77,7 @@ Outlook Calendar 与 Microsoft To Do 是日程和任务的权威执行层。Pers
 
 ## RSS-first Briefing
 
-`/briefing` 从服务器抓取并解析 RSS/Atom，按来源优先级、时效与显式关注主题进行确定性筛选，每日最多保留 8 条。系统不抓文章网页、不建立无限新闻流、不把 Feed Items 混入 Global Search 或 Proactive Engine。Vercel Cron 每天 `00:00 UTC`（北京时间 08:00）刷新最多 20 个订阅并生成当日 Briefing；必须同时配置 `CRON_SECRET`、`OWNER_EMAIL` 与 `OWNER_USER_ID`。
+`/briefing` 从服务器抓取并解析 RSS/Atom，按来源优先级、时效与显式关注主题进行确定性筛选，每日最多保留 8 条。系统不抓文章网页、不建立无限新闻流、不把 Feed Items 混入 Global Search 或 Proactive Engine。Vercel Cron 每天 `23:00 UTC`（北京时间 07:00）刷新最多 20 个订阅并生成当日 Briefing；必须同时配置 `CRON_SECRET`、`OWNER_EMAIL` 与 `OWNER_USER_ID`。
 
 用户通过 Microsoft Device Code 在官方页面授权；Calendar 2.0 需要
 `MailboxSettings.ReadWrite` 读取和维护 Outlook Master Categories。旧连接必须在“分类设置”

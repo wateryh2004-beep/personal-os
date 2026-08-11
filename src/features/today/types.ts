@@ -92,7 +92,10 @@ export type NowWorkspace = {
   };
   tasks: { overdue: NowTask[]; today: NowTask[]; upcoming: NowTask[] };
   career: { upcomingMilestones: NowCareerMilestone[] };
-  briefing: { entries: Array<{ id: string; title: string; url: string | null; section: string; reason: string | null }> };
+  briefing: {
+    entries: Array<{ id: string; title: string; url: string | null; section: string; reason: string | null }>;
+    date: string | null;
+  };
   inboxCount: number;
   nextAction: NowNextAction;
   todayBrief: TodayBriefItem[];

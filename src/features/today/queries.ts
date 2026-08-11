@@ -100,10 +100,10 @@ export async function getTodayWorkspace(
       .limit(2),
     supabase
       .from("briefings")
-      .select("id")
-      .eq("briefing_date", today)
+      .select("id,briefing_date")
       .eq("status", "completed")
-      .maybeSingle(),
+      .order("generated_at", { ascending: false, nullsFirst: false })
+      .limit(20),
   ]);
   const tasks = groupNowTasks(
     tasksResult.error ? [] : ((tasksResult.data ?? []) as NowTask[]),
@@ -160,13 +160,17 @@ export async function getTodayWorkspace(
     reason: string | null;
   }> = [];
   let briefingError = briefingResult.error;
-  if (briefingResult.data) {
+  const completedBriefings = briefingResult.data ?? [];
+  const displayedBriefing =
+    completedBriefings.find((briefing) => briefing.briefing_date === today) ??
+    completedBriefings[0];
+  if (displayedBriefing) {
     const result = await supabase
       .from("briefing_entries")
       .select(
         "id,section,relevance_reason,feed_items(title,url,canonical_url)",
       )
-      .eq("briefing_id", briefingResult.data.id)
+      .eq("briefing_id", displayedBriefing.id)
       .in("section", ["must_know", "worth_reading"])
       .order("position")
       .limit(2);
@@ -200,7 +204,7 @@ export async function getTodayWorkspace(
     },
     tasks,
     career: { upcomingMilestones: milestones },
-    briefing: { entries: briefingEntries },
+    briefing: { entries: briefingEntries, date: displayedBriefing?.briefing_date ?? null },
     inboxCount,
     nextAction: selectNextAction({
       now,

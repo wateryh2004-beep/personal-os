@@ -35,7 +35,13 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
         </TodaySectionHeader>
         <TodayBrief items={contextItems} />
         {workspace.briefing.entries.length ? (
-          <ul className={contextItems.length ? "border-t" : ""}>
+          <div className={contextItems.length ? "border-t" : ""}>
+            {workspace.briefing.date ? (
+              <p className="pt-3 text-xs text-[var(--text-tertiary)]">
+                {workspace.briefing.date.slice(5).replace("-", " 月 ")} 日 Briefing
+              </p>
+            ) : null}
+            <ul>
             {workspace.briefing.entries.map((entry) => (
               <li key={entry.id}>
                 <a
@@ -53,7 +59,8 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
                 </a>
               </li>
             ))}
-          </ul>
+            </ul>
+          </div>
         ) : null}
         {workspace.availability.briefing === "unavailable" ? (
           <p className="py-4 text-sm text-[var(--text-secondary)]">Briefing 暂不可用。</p>
