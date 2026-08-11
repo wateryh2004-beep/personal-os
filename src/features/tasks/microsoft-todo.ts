@@ -55,7 +55,7 @@ const createSchema = z.object({
   inboxId: z.string().uuid().optional(),
 });
 
-export type TodoCreateState = { status: "idle" | "success" | "error"; message: string };
+export type TodoCreateState = { status: "idle" | "success" | "error"; message: string; taskId?: string };
 
 export async function createMicrosoftTodoTaskAction(_: TodoCreateState, formData: FormData): Promise<TodoCreateState> {
   const dueAtValue = String(formData.get("due_at") || "");
@@ -77,7 +77,7 @@ export async function createMicrosoftTodoTaskAction(_: TodoCreateState, formData
     revalidatePath("/tasks");
     revalidatePath("/inbox");
     revalidatePath("/today");
-    return { status: "success", message: "任务已写入 Microsoft To Do。" };
+    return { status: "success", message: "任务已写入 Microsoft To Do。", taskId };
   } catch {
     return { status: "error", message: "任务未能写入 Microsoft To Do。请稍后重试或重新连接。" };
   }

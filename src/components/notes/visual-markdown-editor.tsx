@@ -89,6 +89,8 @@ export function VisualMarkdownEditor({
   const changeRef = useRef(onChange);
   const selectionRef = useRef(onSelectionChange);
   const [view, setView] = useState<EditorView | null>(null);
+  // Toolbar commands only need a fresh version after document changes. Cursor
+  // and viewport updates stay inside CodeMirror instead of rerendering React.
   const [stateVersion, setStateVersion] = useState(0);
 
   useEffect(() => { changeRef.current = onChange; }, [onChange]);
@@ -392,8 +394,10 @@ export function VisualMarkdownEditor({
         onUpdate={(update) => {
           if (update.selectionSet || update.viewportChanged || update.geometryChanged)
             reportSelection(update.view);
-          if (update.selectionSet || update.docChanged) {
+          if (update.docChanged) {
             setStateVersion((version) => version + 1);
+          }
+          if (update.selectionSet || update.docChanged) {
             centerMobileCursor(update.view);
           }
         }}
