@@ -62,4 +62,13 @@ describe("Note link suggestion ranking", () => {
     ];
     expect(rankNoteLinkSuggestions(notes, "华夏").map((note) => note.id)).toEqual(["3", "1", "2"]);
   });
+
+  it("finds non-contiguous title matches and prefers the tighter match", () => {
+    const notes = [
+      { id: "1", title: "产品规划复盘", folderName: null, updatedAt: "2026-08-11T00:00:00Z" },
+      { id: "2", title: "产品需求规划", folderName: null, updatedAt: "2026-08-01T00:00:00Z" },
+      { id: "3", title: "会议记录", folderName: null, updatedAt: "2026-08-10T00:00:00Z" },
+    ];
+    expect(rankNoteLinkSuggestions(notes, "产规").map((note) => note.id)).toEqual(["1", "2"]);
+  });
 });

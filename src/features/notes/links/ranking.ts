@@ -9,21 +9,42 @@ function timestamp(value: string | null) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-/** Deterministic title-first ordering: exact, prefix, contains, then update time. */
+function matchScore(title: string, needle: string) {
+  if (!needle) return 0;
+  if (title === needle) return 0;
+  if (title.startsWith(needle)) return 1;
+  if (title.includes(needle)) return 2;
+
+  // A compact subsequence score keeps partial Chinese and acronym-like queries
+  // useful without presenting unrelated notes as matches.
+  let cursor = 0;
+  let gaps = 0;
+  for (const character of needle) {
+    const found = title.indexOf(character, cursor);
+    if (found < 0) return null;
+    gaps += found - cursor;
+    cursor = found + 1;
+  }
+  return 3 + gaps / Math.max(title.length, 1);
+}
+
+/** Deterministic title similarity ordering, with recency breaking ties. */
 export function rankNoteLinkSuggestions(
   notes: readonly NoteLinkSuggestion[],
   query: string,
 ): NoteLinkSuggestion[] {
   const needle = normalized(query);
-  return [...notes].sort((left, right) => {
-    const leftTitle = normalized(left.title);
-    const rightTitle = normalized(right.title);
-    const score = (title: string) =>
-      !needle ? 3 : title === needle ? 0 : title.startsWith(needle) ? 1 : title.includes(needle) ? 2 : 4;
-    const scoreDifference = score(leftTitle) - score(rightTitle);
+  return notes
+    .flatMap((note) => {
+      const score = matchScore(normalized(note.title), needle);
+      return score === null ? [] : [{ note, score }];
+    })
+    .sort((left, right) => {
+    const scoreDifference = left.score - right.score;
     if (scoreDifference) return scoreDifference;
-    const updateDifference = timestamp(right.updatedAt) - timestamp(left.updatedAt);
+    const updateDifference = timestamp(right.note.updatedAt) - timestamp(left.note.updatedAt);
     if (updateDifference) return updateDifference;
-    return leftTitle.localeCompare(rightTitle, "zh-CN");
-  });
+    return normalized(left.note.title).localeCompare(normalized(right.note.title), "zh-CN");
+  })
+    .map(({ note }) => note);
 }

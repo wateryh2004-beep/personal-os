@@ -4,10 +4,6 @@ import type { NoteLinkPreview, NoteLinkSuggestion } from "./types";
 
 type Supabase = import("@supabase/supabase-js").SupabaseClient;
 
-function escapeLike(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-}
-
 function normalizeSuggestionRows(
   rows: { id: string; title: string; folder_id: string | null; updated_at: string | null }[],
   folders: { id: string; name: string }[],
@@ -29,7 +25,10 @@ export async function listNoteLinkSuggestions(
 ): Promise<NoteLinkSuggestion[]> {
   const safeQuery = query.trim().slice(0, 160);
   const boundedLimit = Math.max(1, Math.min(limit, 50));
-  let notesQuery = supabase
+  // Search a bounded recent candidate set locally so title similarity (rather
+  // than a strict SQL substring match) can decide the order.
+  const candidateLimit = safeQuery ? Math.max(80, boundedLimit * 5) : boundedLimit;
+  const notesQuery = supabase
     .from("notes")
     .select("id,title,folder_id,updated_at")
     .eq("user_id", userId)
@@ -37,8 +36,7 @@ export async function listNoteLinkSuggestions(
     .is("deleted_at", null)
     .is("archived_at", null)
     .order("updated_at", { ascending: false })
-    .limit(boundedLimit);
-  if (safeQuery) notesQuery = notesQuery.ilike("title", `%${escapeLike(safeQuery)}%`);
+    .limit(candidateLimit);
 
   const { data: notes, error } = await notesQuery;
   if (error || !notes?.length) return [];
@@ -46,7 +44,7 @@ export async function listNoteLinkSuggestions(
   const { data: folders } = folderIds.length
     ? await supabase.from("note_folders").select("id,name").in("id", folderIds).is("archived_at", null)
     : { data: [] as { id: string; name: string }[] };
-  return rankNoteLinkSuggestions(normalizeSuggestionRows(notes, folders ?? []), safeQuery);
+  return rankNoteLinkSuggestions(normalizeSuggestionRows(notes, folders ?? []), safeQuery).slice(0, boundedLimit);
 }
 
 export async function getNoteLinkPreview(

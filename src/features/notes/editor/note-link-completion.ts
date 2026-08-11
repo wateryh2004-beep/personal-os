@@ -84,7 +84,11 @@ export function createNoteLinkCompletion({ recentNotes, searchNotes }: NoteLinkC
       ? await loadRemoteSuggestions(token.query)
       : recentNotes;
     const options = uniqueNotes(notes).map(completionFor);
-    return { from: token.from, options };
+    // `from` intentionally includes `[[` so accepting a result replaces the
+    // whole token. Let the owner-only search rank the options: CodeMirror's
+    // default filter would otherwise try to match `[[query` against titles and
+    // hide every result.
+    return { from: token.from, options, filter: false };
   };
 
   return [
