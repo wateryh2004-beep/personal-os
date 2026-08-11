@@ -7,7 +7,7 @@ import { dateTimeInputValue, wallTimeToIso } from "@/features/calendar/timezone"
 
 const initialCalendarCreateState: CalendarCreateState = { status: "idle", message: "" };
 
-export function CalendarCreateForm({ timezone, categoriesEnabled = true, initialStart, initialEnd }: { timezone: string; categoriesEnabled?: boolean; initialStart?: string; initialEnd?: string }) {
+export function CalendarCreateForm({ timezone, categoriesEnabled = true, initialStart, initialEnd, initialAllDay = false }: { timezone: string; categoriesEnabled?: boolean; initialStart?: string; initialEnd?: string; initialAllDay?: boolean }) {
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
   const [state, formAction, pending] = useActionState(createCalendarEvent, initialCalendarCreateState);
@@ -27,7 +27,7 @@ export function CalendarCreateForm({ timezone, categoriesEnabled = true, initial
     <label className="grid gap-1 text-xs text-zinc-600">说明（可选）<textarea name="description" maxLength={10000} rows={3} placeholder="议程、链接或准备事项" className="w-full resize-y rounded-md border bg-white px-3 py-2 text-sm leading-5" /></label>
     <CalendarCategoryPicker enabled={categoriesEnabled} />
     <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-xs text-zinc-600">显示为<select name="show_as" defaultValue="busy" className="h-9 rounded-md border bg-white px-2 text-sm"><option value="busy">忙碌</option><option value="free">空闲</option><option value="tentative">暂定</option><option value="workingElsewhere">在其他地点工作</option><option value="oof">外出</option></select></label><label className="grid gap-1 text-xs text-zinc-600">重要性<select name="importance" defaultValue="normal" className="h-9 rounded-md border bg-white px-2 text-sm"><option value="low">低</option><option value="normal">普通</option><option value="high">高</option></select></label></div>
-    <label className="flex items-center gap-2 text-sm text-zinc-700"><input type="checkbox" name="is_all_day" /> 全天</label>
+    <label className="flex items-center gap-2 text-sm text-zinc-700"><input type="checkbox" name="is_all_day" defaultChecked={initialAllDay} /> 全天</label>
     <p className="text-xs text-zinc-500">时间按 {timezone} 保存；确认创建后同步至 Outlook。</p>
     <div><button disabled={pending} className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm text-white disabled:opacity-60">{pending ? "正在创建…" : "创建日程"}</button>{state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}>{state.message}</p> : null}</div>
   </form>;

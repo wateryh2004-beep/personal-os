@@ -12,6 +12,9 @@ const general = /^(?:什么是|解释(?:一下)?|为什么|如何理解|区别|�
 function unique<T>(items: T[]) { return [...new Set(items)]; }
 export function decideContextGate(input: KernelRequestContext): ContextGateDecision {
   const text = input.message.trim();
+  // Current surface is command input, not a competing retrieval source. It is
+  // mandatory for transforms even when personal context is additionally on.
+  if (input.requiresCurrentSurface) return { mode: input.usePersonalContext ? "targeted" : "local", complexity:"simple", likelyModules:[], suggestedSkills:[], needsPersonalData:Boolean(input.usePersonalContext), needsTools:Boolean(input.usePersonalContext), needsCurrentSurface:true, reasonCode:"current_surface" };
   const local = input.hasCurrentSurface && (input.surface === "notes" || /这段|当前|本文|上面/.test(text)) && !input.usePersonalContext;
   if (local) return { mode:"local", complexity:"simple", likelyModules:[], suggestedSkills:[], needsPersonalData:false, needsTools:false, needsCurrentSurface:true, reasonCode:"current_surface" };
   if (greeting.test(text) || (general.test(text) && !personal.test(text) && !search.test(text))) return { mode:"none", complexity:"simple", likelyModules:[], suggestedSkills:[], needsPersonalData:false, needsTools:false, needsCurrentSurface:false, reasonCode:greeting.test(text)?"conversation_only":"general_knowledge" };

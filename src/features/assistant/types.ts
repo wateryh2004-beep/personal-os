@@ -34,6 +34,8 @@ export type AssistantRequest = {
     metadata?: Record<string, unknown>;
   } | null;
   operation?: string | null;
+  /** A transform must fail before model invocation when its edited surface is absent. */
+  requiresCurrentSurface?: boolean;
   usePersonalContext?: boolean;
   runId?: string | null;
   currentPath?: string | null;
@@ -58,7 +60,9 @@ export type AssistantToolGroup =
   | "projects_read"
   | "projects_proposal"
   | "files_read"
+  | "shopping_read"
   | "shopping_proposal"
+  | "travel_read"
   | "travel_proposal";
 export type AssistantToolRisk = "read" | "proposal" | "execute";
 export type AgentRiskLevel = "read" | "low" | "medium" | "high";

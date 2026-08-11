@@ -27,4 +27,4 @@ export type AgentSessionState = {
   lastContextMode?: ContextMode;
   updatedAt: string;
 };
-export type KernelRequestContext = { message: string; surface: AssistantSurface; currentPath?: string | null; hasCurrentSurface: boolean; usePersonalContext?: boolean; };
+export type KernelRequestContext = { message: string; surface: AssistantSurface; currentPath?: string | null; hasCurrentSurface: boolean; requiresCurrentSurface?: boolean; usePersonalContext?: boolean; };

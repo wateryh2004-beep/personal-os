@@ -5,6 +5,7 @@ import { sealSecret, unsealSecret } from "@/lib/crypto/sealed-secret";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calendarEventForGraph, type GraphCalendarCreatePayload } from "./event-payload";
 import { managedCalendarCategories, type OutlookCategoryColor } from "@/features/calendar/classification/taxonomy";
+import { instantToDate, wallTimeToInstant } from "@/features/calendar/timezone";
 
 const MICROSOFT_CLIENT_ID = "084a3e9f-a9f4-43f7-89f9-d229cf97853e";
 const MICROSOFT_TENANT = "consumers";
@@ -201,15 +202,22 @@ function toIso(value: string | undefined) {
   return /(?:Z|[+-]\d\d:\d\d)$/.test(value) ? value : `${value}Z`;
 }
 
-export function graphEventRecord(event: GraphEvent, userId: string, fallback?: { body_text?: string | null; categories?: string[]; importance?: string; show_as?: string }) {
+export function graphEventRecord(event: GraphEvent, userId: string, fallback?: { body_text?: string | null; categories?: string[]; importance?: string; show_as?: string }, timezone = "Asia/Shanghai") {
+  const startsAt = toIso(event.start?.dateTime);
+  const endsAt = toIso(event.end?.dateTime);
+  // Graph's UTC representation of an all-day item still denotes a DATE in
+  // the owner's zone. Re-anchor that date at local midnight for our instant
+  // storage, so a later UI/Graph round trip cannot move it by one day.
+  const allDayStartsAt = event.isAllDay ? wallTimeToInstant(`${instantToDate(startsAt, timezone)}T00:00`, timezone) : startsAt;
+  const allDayEndsAt = event.isAllDay ? wallTimeToInstant(`${instantToDate(endsAt, timezone)}T00:00`, timezone) : endsAt;
   return {
     user_id: userId,
     provider_event_id: event.id,
     calendar_id: event.iCalUId ?? null,
     subject: event.subject ?? "",
     body_text: event.body?.content ?? fallback?.body_text ?? null,
-    starts_at: toIso(event.start?.dateTime),
-    ends_at: toIso(event.end?.dateTime),
+    starts_at: allDayStartsAt,
+    ends_at: allDayEndsAt,
     is_all_day: Boolean(event.isAllDay),
     location_name: event.location?.displayName ?? null,
     provider_change_key: event.changeKey ?? null,
@@ -235,7 +243,10 @@ export async function syncMicrosoftCalendar(connectionId: string, userId: string
   try {
     const accessToken = await accessTokenForConnection(connectionId, userId);
     const admin = createAdminClient();
-    const { data: connection, error: connectionError } = await admin.from("calendar_connections").select("calendar_delta_link,calendar_sync_window_start,calendar_sync_window_end").eq("id", connectionId).eq("user_id", userId).maybeSingle();
+    const [{ data: connection, error: connectionError }, { data: profile }] = await Promise.all([
+      admin.from("calendar_connections").select("calendar_delta_link,calendar_sync_window_start,calendar_sync_window_end").eq("id", connectionId).eq("user_id", userId).maybeSingle(),
+      admin.from("profiles").select("timezone").eq("user_id", userId).maybeSingle(),
+    ]);
     if (connectionError || !connection) throw new MicrosoftGraphError("calendar_not_connected");
     const now = Date.now(); const defaultStart = new Date(now - 30 * 86_400_000).toISOString(); const defaultEnd = new Date(now + 180 * 86_400_000).toISOString();
     const canUseDelta = Boolean(connection.calendar_delta_link && connection.calendar_sync_window_start && connection.calendar_sync_window_end && Date.parse(connection.calendar_sync_window_end) > now + 30 * 86_400_000);
@@ -252,7 +263,7 @@ export async function syncMicrosoftCalendar(connectionId: string, userId: string
       pagePath = payload["@odata.nextLink"]?.replace(graphBaseUrl, "") ?? "";
     }
     const deletedIds = remoteEvents.flatMap((event) => event["@removed"] && event.id ? [event.id] : []);
-    const records = remoteEvents.filter((event) => !event["@removed"]).map((event) => graphEventRecord(event, userId));
+    const records = remoteEvents.filter((event) => !event["@removed"]).map((event) => graphEventRecord(event, userId, undefined, profile?.timezone || "Asia/Shanghai"));
     if (records.length) {
       const { error } = await admin.from("calendar_events").upsert(records, { onConflict: "user_id,provider_event_id" });
       if (error) throw new MicrosoftGraphError("calendar_cache_failed");
@@ -605,7 +616,7 @@ export async function executeCalendarOperation(operationId: string, userId: stri
         method: "PATCH",
         body: JSON.stringify(calendarEventForGraph(value as GraphCalendarCreatePayload)),
       }) as GraphEvent;
-      const record = graphEventRecord(updated, userId, cached ?? undefined);
+      const record = graphEventRecord(updated, userId, cached ?? undefined, value.timeZone || "Asia/Shanghai");
       await admin.from("calendar_operations").update({ status: "remote_committed", remote_committed_at: new Date().toISOString(), provider_event_id: record.provider_event_id, provider_change_key: record.provider_change_key, result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
       const { error: cacheError } = await admin.from("calendar_events").upsert(record, { onConflict: "user_id,provider_event_id" });
       if (cacheError) {
@@ -624,7 +635,7 @@ export async function executeCalendarOperation(operationId: string, userId: stri
       method: "POST",
       body: JSON.stringify(calendarEventForGraph({ ...value, transactionId: operation.id } as GraphCalendarCreatePayload)),
     }) as GraphEvent;
-    const record = graphEventRecord(created, userId);
+    const record = graphEventRecord(created, userId, undefined, value.timeZone || "Asia/Shanghai");
     await admin.from("calendar_operations").update({ status: "remote_committed", provider_event_id: record.provider_event_id, remote_committed_at: new Date().toISOString(), provider_change_key: record.provider_change_key, result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
     const { error: cacheError } = await admin.from("calendar_events").upsert(record, { onConflict: "user_id,provider_event_id" });
     if (cacheError) {
@@ -654,8 +665,11 @@ export async function reconcileCalendarOperation(operationId: string, userId: st
     const { error: archiveError } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).eq("provider_event_id", operation.provider_event_id).is("archived_at", null);
     if (archiveError) throw new MicrosoftGraphError("calendar_cache_failed");
   } else {
-    const remote = await graph(accessToken, `/me/events/${encodeURIComponent(operation.provider_event_id)}?$select=id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs`) as GraphEvent;
-    const { error: cacheError } = await admin.from("calendar_events").upsert(graphEventRecord(remote, userId), { onConflict: "user_id,provider_event_id" });
+    const [remote, profile] = await Promise.all([
+      graph(accessToken, `/me/events/${encodeURIComponent(operation.provider_event_id)}?$select=id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs`) as Promise<GraphEvent>,
+      admin.from("profiles").select("timezone").eq("user_id", userId).maybeSingle(),
+    ]);
+    const { error: cacheError } = await admin.from("calendar_events").upsert(graphEventRecord(remote, userId, undefined, profile.data?.timezone || "Asia/Shanghai"), { onConflict: "user_id,provider_event_id" });
     if (cacheError) throw new MicrosoftGraphError("calendar_cache_failed");
   }
   await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), cache_committed_at: new Date().toISOString(), error_code: null }).eq("id", operation.id);

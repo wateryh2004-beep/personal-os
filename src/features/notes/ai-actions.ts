@@ -94,6 +94,7 @@ export async function generateNoteAiSuggestion(
         title: parsed.data.title,
         content: parsed.data.content,
       },
+      requiresCurrentSurface: true,
     });
     const suggestion = result.text.trim();
     if (!suggestion) {

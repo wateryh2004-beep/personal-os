@@ -1,3 +1,5 @@
+import { instantToDate, instantToWallTime } from "@/features/calendar/timezone";
+
 export type GraphCalendarCreatePayload = {
   subject: string;
   description: string | null;
@@ -16,6 +18,7 @@ export type GraphCalendarCreatePayload = {
 
 const windowsTimeZones: Record<string, string> = {
   "Asia/Shanghai": "China Standard Time",
+  "Asia/Singapore": "Singapore Standard Time",
   "Asia/Hong_Kong": "China Standard Time",
   "Asia/Tokyo": "Tokyo Standard Time",
   "America/Los_Angeles": "Pacific Standard Time",
@@ -30,40 +33,21 @@ export function graphTimeZone(ianaTimeZone: string) {
   return mapped;
 }
 
-function localDateTime(isoDateTime: string, timeZone: string) {
-  try {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(new Date(isoDateTime));
-    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((entry) => entry.type === type)?.value;
-    return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}:${part("second")}`;
-  } catch {
-    return isoDateTime.replace(/(?:Z|[+-]\d\d:\d\d)$/, "");
-  }
-}
-
 function nextDate(dateValue: string) {
   const date = new Date(`${dateValue}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + 1);
   return date.toISOString().slice(0, 10);
 }
 
-/** Converts application ISO values to Graph's dateTimeTimeZone representation. */
+/** The only App-instant -> Graph dateTimeTimeZone boundary. */
 export function calendarEventForGraph(value: GraphCalendarCreatePayload) {
   const timeZone = value.timeZone || "Asia/Shanghai";
   const graphZone = graphTimeZone(timeZone);
-  const localDate = (value: string) => new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+  const localDate = (value: string) => instantToDate(value, timeZone);
   const startDate = value.startDate ?? localDate(value.startsAt);
   const endDate = value.endDateExclusive ?? nextDate(startDate);
-  const start = value.isAllDay ? `${startDate}T00:00:00` : localDateTime(value.startsAt, timeZone);
-  const end = value.isAllDay ? `${endDate}T00:00:00` : localDateTime(value.endsAt, timeZone);
+  const start = value.isAllDay ? `${startDate}T00:00:00` : `${instantToWallTime(value.startsAt, timeZone)}:00`;
+  const end = value.isAllDay ? `${endDate}T00:00:00` : `${instantToWallTime(value.endsAt, timeZone)}:00`;
 
   return {
     subject: value.subject,
