@@ -7,6 +7,7 @@ import type {
   AgentRiskLevel,
   AssistantSurface,
 } from "./types";
+import type { AgentSessionState, ContextMode, PersonalOsModuleId, RequestComplexity } from "./kernel/types";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -211,6 +212,15 @@ export async function updateAgentRun(input: {
   status: "running" | "awaiting_approval" | "completed" | "failed" | "cancelled";
   model?: string | null;
   errorCode?: string | null;
+  kernel?: {
+    contextMode: ContextMode;
+    complexity: RequestComplexity;
+    initialModules: PersonalOsModuleId[];
+    activeSkills: string[];
+    initialToolNames: string[];
+    discoveredToolNames?: string[];
+    sessionState: AgentSessionState;
+  };
 }) {
   const now = new Date().toISOString();
   const { error } = await input.supabase
@@ -219,6 +229,13 @@ export async function updateAgentRun(input: {
       status: input.status,
       model: input.model ?? undefined,
       error_code: input.errorCode ?? null,
+      context_mode: input.kernel?.contextMode,
+      request_complexity: input.kernel?.complexity,
+      initial_modules: input.kernel?.initialModules,
+      active_skills: input.kernel?.activeSkills,
+      initial_tool_names: input.kernel?.initialToolNames,
+      discovered_tool_names: input.kernel?.discoveredToolNames,
+      kernel_state: input.kernel?.sessionState,
       completed_at: ["completed", "failed", "cancelled"].includes(input.status)
         ? now
         : null,
@@ -257,7 +274,7 @@ export async function getAgentRun(
   const [run, messages, steps, actions] = await Promise.all([
     supabase
       .from("agent_runs")
-      .select("id,surface,status,model,current_path,created_at,updated_at,error_code")
+      .select("id,surface,status,model,current_path,created_at,updated_at,error_code,context_mode,request_complexity,initial_modules,active_skills,initial_tool_names,kernel_state")
       .eq("id", runId)
       .single(),
     supabase

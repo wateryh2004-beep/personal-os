@@ -9,9 +9,12 @@ export function buildAssistantTools(input: {
   policy: AssistantPolicy;
   timezone?: string;
   runId?: string | null;
+  toolNames?: string[];
+  onToolsDiscovered?: (toolNames: string[]) => void;
 }) {
   assertNoExecuteToolsExposed(input.policy.tools);
   const groups = new Set(input.policy.tools);
+  const names = input.toolNames ? new Set(input.toolNames) : null;
   return Object.assign(
     {},
     ...assistantToolModules
@@ -22,10 +25,11 @@ export function buildAssistantTools(input: {
           userId: input.userId ?? "",
           timezone: input.timezone ?? "Asia/Shanghai",
           runId: input.runId,
+          onToolsDiscovered: input.onToolsDiscovered,
         });
         const allowed = new Set(
           module.definitions
-            .filter((definition) => groups.has(definition.group))
+            .filter((definition) => groups.has(definition.group) && (!names || names.has(definition.name)))
             .map((definition) => definition.name),
         );
         return Object.fromEntries(Object.entries(built).filter(([name]) => allowed.has(name)));

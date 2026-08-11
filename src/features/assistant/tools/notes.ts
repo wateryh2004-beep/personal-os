@@ -11,7 +11,7 @@ import type { AssistantToolModule } from "./types";
 
 export const noteTools: AssistantToolModule = {
   definitions: [
-    { name: "searchNotes", group: "notes_read", risk: "read", description: "搜索笔记" },
+    { name: "searchNotes", group: "notes_read", risk: "read", description: "搜索笔记", module: "notes", tags: ["笔记", "写过", "写的", "之前", "内容", "搜索"] },
     { name: "listRecentNotes", group: "notes_read", risk: "read", description: "按时间列出近期笔记" },
     { name: "readNotesBatch", group: "notes_read", risk: "read", description: "受限批量读取笔记" },
     { name: "readNote", group: "notes_read", risk: "read", description: "读取一篇笔记" },

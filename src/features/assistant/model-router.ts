@@ -1,6 +1,7 @@
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 import type { AssistantMode, AssistantSurface } from "./types";
 import type { CognitiveRoute } from "./cognitive-router";
+import type { ContextGateDecision } from "./kernel/types";
 
 export type AssistantComplexity = "simple" | "moderate" | "complex";
 
@@ -25,8 +26,10 @@ export function selectAssistantModel(input: {
   requestedModel?: DeepSeekModelId | null;
   message?: string;
   cognitiveRoute?: CognitiveRoute | null;
+  contextGate?: ContextGateDecision | null;
 }): DeepSeekModelId {
   if (input.requestedModel) return input.requestedModel;
+  if (input.contextGate) return input.contextGate.complexity === "deep" ? "deepseek-v4-pro" : "deepseek-v4-flash";
   if (input.cognitiveRoute)
     return input.cognitiveRoute.complexity === "analytical"
       ? "deepseek-v4-pro"
@@ -71,12 +74,14 @@ export function selectReasoningProviderOptionsForRequest(input: {
   mode: AssistantMode;
   operation?: string | null;
   route?: CognitiveRoute | null;
+  contextGate?: ContextGateDecision | null;
 }) {
   const isDirectNoteTransform =
     input.surface === "notes" &&
     input.mode === "transform" &&
     input.operation !== "deepThinkNote";
 
+  if (input.contextGate) return input.contextGate.complexity === "simple" ? selectReasoningProviderOptions(null) : input.contextGate.complexity === "moderate" ? { deepseek: { thinking: { type: "enabled" as const }, reasoningEffort: "high" as const } } : { deepseek: { thinking: { type: "enabled" as const }, reasoningEffort: "max" as const } };
   return selectReasoningProviderOptions(
     isDirectNoteTransform ? null : input.route,
   );

@@ -1,0 +1,5 @@
+import { ROOT_AGENT_CONSTITUTION } from "./constitution";
+import { formatOsManifestForModel } from "./os-manifest";
+import { formatSkillCatalogForModel, formatSkillInstructions, getSkills } from "../skills/registry";
+import type { AgentSessionState, ContextGateDecision } from "./types";
+export function buildRootAgentPrompt(input:{ timezone:string; sessionState:AgentSessionState; gateDecision:ContextGateDecision; currentSurfaceSummary?:string | null }) { const active=getSkills(input.sessionState.activeSkills); return `${ROOT_AGENT_CONSTITUTION}\n\nPERSONAL_OS_MANIFEST\n${formatOsManifestForModel()}\n\nAVAILABLE_SKILLS\n${formatSkillCatalogForModel()}\n\nREQUEST_GATE\nmode=${input.gateDecision.mode}; modules=${input.gateDecision.likelyModules.join(",")||"none"}; personal_data=${input.gateDecision.needsPersonalData}\n\nSESSION_STATE\ngoal=${input.sessionState.activeGoal??"none"}; topic=${input.sessionState.activeTopic??"none"}; constraints=${input.sessionState.activeConstraints.join("；")||"none"}\n${input.currentSurfaceSummary?`\nCURRENT_SURFACE\n${input.currentSurfaceSummary}`:""}\n\n${formatSkillInstructions(active)}\n当前时区：${input.timezone}。`; }

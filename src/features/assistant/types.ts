@@ -39,6 +39,10 @@ export type AssistantRequest = {
   currentPath?: string | null;
 };
 export type AssistantToolGroup =
+  | "meta"
+  | "context_read"
+  | "reviews_read"
+  | "briefing_read"
   | "search"
   | "calendar_read"
   | "calendar_proposal"
