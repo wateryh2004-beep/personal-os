@@ -1,0 +1,1 @@
+export type GeoPoint={lat:number;lng:number};export type GeocodingResult={name:string;address?:string;lat:number;lng:number;provider:string};export interface Geocoder{search(query:string):Promise<GeocodingResult[]>}

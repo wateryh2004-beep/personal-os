@@ -1,0 +1,2 @@
+import { ShoppingWorkspace } from "@/components/shopping/shopping-workspace"; import { getPurchaseItems } from "@/features/shopping/queries";
+export default async function ShoppingPage({searchParams}:{searchParams:Promise<{create?:string}>}){const [{items,stats,unavailable},params]=await Promise.all([getPurchaseItems(),searchParams]);if(unavailable)return <p role="alert">Shopping 数据暂时无法读取。</p>;return <ShoppingWorkspace items={items} stats={stats} initialCreateOpen={params.create==="1"}/>;}

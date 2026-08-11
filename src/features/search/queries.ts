@@ -23,6 +23,8 @@ export function entityHref(entityType: string, entityId: string, domain: string,
   if (domain === "files") return "/files";
   if (domain === "tasks") return "/tasks";
   if (domain === "calendar") return "/calendar";
+  if (entityType === "purchase_item") return `/shopping/${entityId}`;
+  if (entityType === "trip") return `/travel/${entityId}`;
   if (domain === "reviews") return "/reviews";
   return "/career";
 }

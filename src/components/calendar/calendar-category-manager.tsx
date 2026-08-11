@@ -7,7 +7,7 @@ import { outlookCategoryPalette } from "@/features/calendar/categories/visual";
 import { MicrosoftDeviceConnect } from "@/components/calendar/microsoft-device-connect";
 import { classifyCalendarEvent } from "@/features/calendar/classification/classifier";
 import { getManagedCalendarCategory, primaryCalendarCategories } from "@/features/calendar/classification/taxonomy";
-import type { CalendarEventRecord } from "@/components/calendar/calendar-event-card";
+import type { CalendarEventRecord } from "@/features/calendar/types";
 
 const initial: CalendarCreateState = { status: "idle", message: "" };
 

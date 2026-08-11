@@ -8,6 +8,8 @@ export const searchDomains = [
   "calendar",
   "reviews",
   "projects",
+  "shopping",
+  "travel",
 ] as const;
 
 export const searchInputSchema = z.object({

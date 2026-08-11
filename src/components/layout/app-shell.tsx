@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BriefcaseBusiness, CalendarDays, CheckSquare2, ChevronLeft, ChevronRight,
   FileText, FolderClosed, Inbox, LayoutDashboard, LogOut, Menu, Newspaper,
-  Plus, Search, Settings, SquareKanban, Star,
+  Plus, Search, Settings, ShoppingBag, SquareKanban, Star, Plane,
   Sparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -27,6 +27,7 @@ const groups: Array<{ label: string | null; items: Array<{ name: string; href: s
   { label: null, items: [{ name: "Now", href: "/today", icon: LayoutDashboard }, { name: "Inbox", href: "/inbox", icon: Inbox }] },
   { label: "Plan", items: [{ name: "Calendar", href: "/calendar", icon: CalendarDays }, { name: "Tasks", href: "/tasks", icon: CheckSquare2 }, { name: "Projects", href: "/projects", icon: SquareKanban }, { name: "Reviews", href: "/reviews", icon: Star }] },
   { label: "Knowledge", items: [{ name: "Notes", href: "/notes", icon: FileText }, { name: "Files", href: "/files", icon: FolderClosed }, { name: "Briefing", href: "/briefing", icon: Newspaper }] },
+  { label: "Life", items: [{ name: "Shopping", href: "/shopping", icon: ShoppingBag }, { name: "Travel", href: "/travel", icon: Plane }] },
   { label: null, items: [{ name: "Career", href: "/career", icon: BriefcaseBusiness }] },
 ];
 

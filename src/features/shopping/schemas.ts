@@ -1,0 +1,3 @@
+import { z } from "zod";
+export const shoppingItemCreateSchema=z.object({title:z.string().trim().min(1).max(500),category:z.string().trim().max(120).optional(),sourceUrl:z.union([z.url(),z.literal("")]).optional(),priceCny:z.coerce.number().min(0).max(9_999_999).optional(),necessity:z.enum(["unknown","necessary","nonessential"]).default("unknown"),necessityConfirmed:z.boolean().default(false),reasonToBuy:z.string().trim().max(2000).optional(),existingAlternative:z.string().trim().max(1000).optional(),notesMarkdown:z.string().max(10_000).optional()});
+export type ShoppingItemCreate=z.infer<typeof shoppingItemCreateSchema>;

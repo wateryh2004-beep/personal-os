@@ -1,6 +1,6 @@
 import type { AssistantSurface } from "../types";
 
-export const personalOsModuleIds = ["notes", "career", "memory", "calendar", "tasks", "reviews", "files", "briefing", "projects", "inbox"] as const;
+export const personalOsModuleIds = ["notes", "career", "memory", "calendar", "tasks", "reviews", "files", "briefing", "projects", "inbox", "shopping", "travel"] as const;
 export type PersonalOsModuleId = (typeof personalOsModuleIds)[number];
 export type ContextMode = "none" | "local" | "targeted" | "cross_module" | "action";
 export type RequestComplexity = "simple" | "moderate" | "deep";

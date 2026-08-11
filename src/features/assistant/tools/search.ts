@@ -7,18 +7,18 @@ import { recordAgentStep } from "../persistence";
 import { matchedExcerpt } from "../retrieval/excerpts";
 import type { AssistantToolModule } from "./types";
 
-const domains = ["notes", "career", "files", "tasks", "calendar", "reviews", "memory", "projects"] as const;
-const indexed = new Set<SearchDomain>(["notes", "career", "files", "tasks", "calendar", "reviews"]);
+const domains = ["notes", "career", "files", "tasks", "calendar", "reviews", "memory", "projects", "shopping", "travel"] as const;
+const indexed = new Set<SearchDomain>(["notes", "career", "files", "tasks", "calendar", "reviews", "projects", "shopping", "travel"]);
 
 export const searchTools: AssistantToolModule = {
   definitions: [{ name: "searchPersonalOs", group: "search", risk: "read", description: "跨域搜索 Personal OS" }],
   build: (context) => ({
     searchPersonalOs: tool({
-      description: "跨 Notes、Career、Files、Tasks、Calendar、Reviews、Memory 与 Projects 搜索。返回紧凑来源，不返回整篇正文。",
+      description: "跨 Notes、Career、Files、Tasks、Calendar、Reviews、Memory、Projects、Shopping 与 Travel 搜索。返回紧凑来源，不返回整篇正文。",
       inputSchema: z.object({ query: z.string().trim().min(1).max(200), domains: z.array(z.enum(domains)).max(domains.length).optional(), limit: z.number().int().min(1).max(20).default(10) }),
       execute: async ({ query, domains: requested, limit }) => {
         const selected = requested ?? [...domains];
-        const baseDomains = selected.filter((domain): domain is SearchDomain => indexed.has(domain as SearchDomain));
+        const baseDomains = selected.filter((domain) => indexed.has(domain as SearchDomain)) as SearchDomain[];
         const [base, memory, projects] = await Promise.all([
           baseDomains.length ? searchPersonalOs({ query, domains: baseDomains, limit }).catch(() => []) : [],
           selected.includes("memory")

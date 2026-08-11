@@ -23,6 +23,8 @@ export function decideContextGate(input: KernelRequestContext): ContextGateDecis
   if (/文件|附件|pdf/i.test(text)) modules.push("files");
   if (/复盘|review/i.test(text)) modules.push("reviews");
   if (/项目|project/i.test(text)) modules.push("projects");
+  if (/购物|待购|购买|预算|冷静期/i.test(text)) modules.push("shopping");
+  if (/旅行|旅游|行程|目的地|路线|景点/i.test(text)) modules.push("travel");
   if (/Briefing|简报|RSS/i.test(text)) modules.push("briefing");
   if (/我现在|我的情况|偏好|决定|方向/.test(text)) modules.push("memory");
   const isMutation = mutation.test(text);

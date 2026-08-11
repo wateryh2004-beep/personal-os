@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, Settings, Sparkles, SquareKanban } from "lucide-react";
+import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, Settings, ShoppingBag, Sparkles, SquareKanban, Plane } from "lucide-react";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { createNote } from "@/features/notes/actions";
 import { useGlobalSearch } from "@/features/search/use-global-search";
@@ -10,9 +10,9 @@ import { useGlobalSearch } from "@/features/search/use-global-search";
 export type CommandCenterSection = "search" | "quick";
 const recentStorageKey = "personal-os:recent:v1";
 const navigation = [
-  ["Now", "/today"], ["Inbox", "/inbox"], ["Calendar", "/calendar"], ["Tasks", "/tasks"], ["Projects", "/projects"], ["Notes", "/notes"], ["Files", "/files"], ["Career", "/career"], ["Settings", "/settings"],
+  ["Now", "/today"], ["Inbox", "/inbox"], ["Calendar", "/calendar"], ["Tasks", "/tasks"], ["Projects", "/projects"], ["Shopping", "/shopping"], ["Travel", "/travel"], ["Notes", "/notes"], ["Files", "/files"], ["Career", "/career"], ["Settings", "/settings"],
 ] as const;
-const domainLabels: Record<string, string> = { notes: "Notes", career: "Career", files: "Files", tasks: "Tasks", calendar: "Calendar", reviews: "Reviews", projects: "Projects" };
+const domainLabels: Record<string, string> = { notes: "Notes", career: "Career", files: "Files", tasks: "Tasks", calendar: "Calendar", reviews: "Reviews", projects: "Projects", shopping: "Shopping", travel: "Travel" };
 
 export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search" }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection }) {
   const router = useRouter();
@@ -46,6 +46,8 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
           <CommandItem onSelect={() => go("/tasks?create=1")}><CheckSquare2 aria-hidden="true" />新建任务<CommandShortcut>Microsoft To Do</CommandShortcut></CommandItem>
           <CommandItem onSelect={() => go("/calendar?create=1")}><CalendarPlus aria-hidden="true" />新建日程<CommandShortcut>Outlook</CommandShortcut></CommandItem>
           <CommandItem onSelect={() => go("/projects?create=1")}><SquareKanban aria-hidden="true" />新建项目</CommandItem>
+          <CommandItem onSelect={() => go("/shopping?create=1")}><ShoppingBag aria-hidden="true" />加入待购</CommandItem>
+          <CommandItem onSelect={() => go("/travel?create=1")}><Plane aria-hidden="true" />添加旅行灵感</CommandItem>
           <CommandItem onSelect={() => go("/career/opportunities?create=1")}><BriefcaseBusiness aria-hidden="true" />新建职业机会</CommandItem>
           <CommandItem onSelect={() => go("/career/experiences?create=1")}><LayoutDashboard aria-hidden="true" />添加职业经历</CommandItem>
           <CommandItem onSelect={() => go("/files?upload=1")}><FolderUp aria-hidden="true" />上传文件</CommandItem>

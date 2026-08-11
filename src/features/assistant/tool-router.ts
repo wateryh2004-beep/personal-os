@@ -48,6 +48,8 @@ const domains: Array<{
     read: "projects_read",
     proposal: "projects_proposal",
   },
+  { pattern: /购物|待购|购买|预算|冷静期/i, read: "search" },
+  { pattern: /旅行|旅游|行程|目的地|路线|景点/i, read: "search" },
   { pattern: /文件|附件|pdf|文档/i, read: "files_read" },
 ];
 
