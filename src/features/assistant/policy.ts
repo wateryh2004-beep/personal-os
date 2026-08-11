@@ -79,6 +79,8 @@ const policies: Record<AssistantSurface, AssistantPolicy> = {
       "projects_read",
       "projects_proposal",
       "files_read",
+      "shopping_proposal",
+      "travel_proposal",
     ],
     maxSteps: 8,
     maxOutputTokens: 1400,

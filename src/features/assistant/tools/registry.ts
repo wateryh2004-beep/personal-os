@@ -16,6 +16,7 @@ import { metaTools } from "./meta";
 import { contextTools } from "./context";
 import { briefingTools } from "./briefing";
 import { reviewTools } from "./reviews";
+import { lifeTools } from "./life";
 import type { PersonalOsModuleId } from "../kernel/types";
 
 export const assistantToolModules: AssistantToolModule[] = [
@@ -32,9 +33,10 @@ export const assistantToolModules: AssistantToolModule[] = [
   projectTools,
   fileTools,
   inboxTools,
+  lifeTools,
 ];
 
-const moduleForGroup: Partial<Record<AssistantToolGroup, PersonalOsModuleId | "meta">> = { meta:"meta", context_read:"memory", reviews_read:"reviews", briefing_read:"briefing", search:"notes", calendar_read:"calendar", calendar_proposal:"calendar", todo_read:"tasks", todo_proposal:"tasks", inbox_proposal:"inbox", notes_read:"notes", notes_proposal:"notes", career_read:"career", career_proposal:"career", memory_read:"memory", memory_proposal:"memory", projects_read:"projects", projects_proposal:"projects", files_read:"files" };
+const moduleForGroup: Partial<Record<AssistantToolGroup, PersonalOsModuleId | "meta">> = { meta:"meta", context_read:"memory", reviews_read:"reviews", briefing_read:"briefing", search:"notes", calendar_read:"calendar", calendar_proposal:"calendar", todo_read:"tasks", todo_proposal:"tasks", inbox_proposal:"inbox", notes_read:"notes", notes_proposal:"notes", career_read:"career", career_proposal:"career", memory_read:"memory", memory_proposal:"memory", projects_read:"projects", projects_proposal:"projects", files_read:"files", shopping_proposal:"shopping", travel_proposal:"travel" };
 function normalized(definition: AssistantToolDefinition): AssistantToolDefinition { const moduleId=definition.module ?? moduleForGroup[definition.group] ?? "meta"; return { ...definition, module:moduleId, tags:definition.tags ?? [definition.name, moduleId, definition.group, ...definition.description.match(/[A-Za-z0-9]+|[\u4e00-\u9fff]{2,}/g) ?? []], relatedTools:definition.relatedTools ?? [], alwaysActive:definition.alwaysActive ?? definition.group === "meta", defaultActive:definition.defaultActive ?? definition.group === "meta" }; }
 export const assistantToolRegistry: AssistantToolDefinition[] = assistantToolModules.flatMap((module) => module.definitions.map(normalized));
 

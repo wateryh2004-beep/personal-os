@@ -57,7 +57,9 @@ export type AssistantToolGroup =
   | "memory_proposal"
   | "projects_read"
   | "projects_proposal"
-  | "files_read";
+  | "files_read"
+  | "shopping_proposal"
+  | "travel_proposal";
 export type AssistantToolRisk = "read" | "proposal" | "execute";
 export type AgentRiskLevel = "read" | "low" | "medium" | "high";
 export type AgentRunStatus =
