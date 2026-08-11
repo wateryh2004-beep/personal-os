@@ -3,7 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDateKeyInTimeZone } from "@/features/today/utils";
 import { canonicalizeArticleUrl, digest, identityKey, normalizeTitle } from "./normalize";
 import { parseFeedXml } from "./parser";
-import { diversifyCandidates, rankBriefingCandidates } from "./ranking";
+import { rankBriefingCandidates } from "./ranking";
+import { evaluateBriefingWithAi } from "./ai";
 import {
   createBriefingRun,
   findRecentGeneratingRun,
@@ -112,6 +113,8 @@ export async function refreshBriefingFeedsForOwner(
   };
 }
 
+export const refreshBriefingSourcesForOwner = refreshBriefingFeedsForOwner;
+
 export async function generateBriefingForOwner(
   supabase: SupabaseClient,
   userId: string,
@@ -137,7 +140,7 @@ export async function generateBriefingForOwner(
       supabase
         .from("feed_items")
         .select(
-          "id,title,excerpt,url,published_at,first_seen_at,feed_id,feeds(title,priority,status,archived_at,verification_status),feed_item_cluster_members(cluster_id)",
+          "id,title,excerpt,content_hash,url,published_at,first_seen_at,feed_id,feeds(title,priority,category,personal_priority,source_quality,status,archived_at,verification_status),feed_item_cluster_members(cluster_id)",
         )
         .eq("user_id", userId)
         .is("archived_at", null)
@@ -168,6 +171,10 @@ export async function generateBriefingForOwner(
         firstSeenAt: item.first_seen_at,
         feedPriority: feed.priority,
         feedTitle: feed.title,
+        category: feed.category,
+        personalPriority: feed.personal_priority,
+        sourceQuality: feed.source_quality,
+        contentHash: item.content_hash,
       },
     ];
   });
@@ -185,7 +192,6 @@ export async function generateBriefingForOwner(
     })),
     now,
   );
-  const selected = diversifyCandidates(ranked, 8);
   const filteredCount = unique.length - ranked.length;
   const windowStart = new Date(now.getTime() - 96 * 36e5).toISOString();
   const briefing = await createBriefingRun(supabase, {
@@ -194,7 +200,7 @@ export async function generateBriefingForOwner(
     timezone,
     status: "generating",
     trigger_type: triggerType,
-    ranking_method: "deterministic",
+    ranking_method: "deterministic_fallback",
     source_window_start: windowStart,
     source_window_end: now.toISOString(),
     candidate_count: unique.length,
@@ -205,6 +211,10 @@ export async function generateBriefingForOwner(
   });
 
   try {
+    const ai = await evaluateBriefingWithAi({ supabase, userId, candidates: unique, interests: (interests ?? []).map((item) => ({ name: item.name, keywords: item.keywords ?? [], excludedKeywords: item.excluded_keywords ?? [], weight: item.weight })), now });
+    const selected = ai.selected;
+    const { error: runError } = await supabase.from("briefings").update({ ranking_method: ai.method, ai_model: ai.model, prompt_version: ai.model ? "briefing-ranking-v1" : null, ai_call_count: ai.calls, input_tokens: ai.inputTokens, output_tokens: ai.outputTokens, ai_usage_reported: ai.usageReported }).eq("id", briefing.id).eq("user_id", userId);
+    if (runError) throw new Error("无法保存 Briefing AI 运行信息。");
     if (selected.length) {
       const { error } = await supabase.from("briefing_entries").insert(
         selected.map((item, index) => ({
@@ -213,17 +223,18 @@ export async function generateBriefingForOwner(
           cluster_id: item.clusterId,
           representative_item_id: item.itemId,
           section:
-            item.score >= 58 && index < 2
+            item.score >= 78 && index < 2
               ? "must_know"
-              : index < 5
+              : item.score >= 62 && index < 5
                 ? "worth_reading"
                 : "optional",
           position: index,
-          relevance_reason: item.reason,
-          summary: item.excerpt.slice(0, 400) || null,
+          relevance_reason: item.relevanceReason ?? item.reason,
+          summary: (item.summary ?? item.excerpt.slice(0, 400)) || null,
           ranking_metadata: {
             deterministic_score: Math.round(item.score),
             matched_interests: item.matchedInterests,
+            ai: item.ai ? { personal_relevance: item.ai.personalRelevance, information_value: item.ai.informationValue, novelty: item.ai.novelty, timeliness: item.ai.timeliness, confidence: item.ai.confidence, matched_topics: item.ai.matchedTopics } : null,
           },
         })),
       );
@@ -238,6 +249,10 @@ export async function generateBriefingForOwner(
       candidateCount: unique.length,
       filteredCount,
       date: briefingDate,
+      rankingMethod: ai.method,
+      aiCallCount: ai.calls,
+      inputTokens: ai.inputTokens,
+      outputTokens: ai.outputTokens,
     };
   } catch (error) {
     await markBriefingRunFailed(supabase, userId, briefing.id);

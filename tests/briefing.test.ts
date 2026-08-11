@@ -3,6 +3,7 @@ import { canonicalizeArticleUrl, identityKey, normalizeTitle } from "@/features/
 import { buildBriefingGenerationFeedback } from "@/features/briefing/feedback";
 import { parseFeedXml } from "@/features/briefing/parser";
 import { diversifyCandidates, rankBriefingCandidates } from "@/features/briefing/ranking";
+import { prefilterBriefingCandidates, selectDiverseAiCandidates } from "@/features/briefing/ai";
 import { assertPublicHttpUrl } from "@/features/briefing/safe-fetch";
 import {
   briefingRefreshDefaults,
@@ -101,5 +102,17 @@ describe("Briefing RSS-first pipeline", () => {
   it("十分钟内已有 generating run 时拒绝再次生成", () => {
     expect(isRecentGeneratingRun({ updated_at: "2026-08-10T04:55:00Z" }, new Date("2026-08-10T05:00:00Z"))).toBe(true);
     expect(isRecentGeneratingRun({ updated_at: "2026-08-10T04:45:00Z" }, new Date("2026-08-10T05:00:00Z"))).toBe(false);
+  });
+
+  it("AI 前筛选最多保留每个信源四条和配置上限", () => {
+    const candidates = Array.from({ length: 8 }, (_, index) => ({ clusterId: `c${index}`, itemId: `i${index}`, feedId: "f1", title: `AI 条目 ${index}`, excerpt: "有足够长度的 RSS 摘要。".repeat(10), url: null, publishedAt: "2026-08-10T03:00:00Z", firstSeenAt: "2026-08-10T03:00:00Z", feedPriority: 80, feedTitle: "核心源" }));
+    expect(prefilterBriefingCandidates(candidates, [], new Date("2026-08-10T04:00:00Z"), 24)).toHaveLength(4);
+  });
+
+  it("AI 最终选择仍限制单源两条、单分类三条和总数", () => {
+    const candidates = Array.from({ length: 6 }, (_, index) => ({ clusterId: `c${index}`, itemId: `i${index}`, feedId: index < 4 ? "f1" : "f2", title: `条目 ${index}`, excerpt: "摘要", url: null, publishedAt: "2026-08-10T03:00:00Z", firstSeenAt: "2026-08-10T03:00:00Z", feedPriority: 80, feedTitle: "源", category: "科技", personalPriority: "core", score: 1, matchedInterests: [], excluded: false, reason: "近期更新", ai: { id: `i${index}`, personalRelevance: 90 - index, informationValue: 80, novelty: 70, timeliness: 80, confidence: .8, reason: "相关", matchedTopics: [] } }));
+    const selected = selectDiverseAiCandidates(candidates, 8);
+    expect(selected).toHaveLength(3);
+    expect(selected.filter((item) => item.feedId === "f1")).toHaveLength(2);
   });
 });

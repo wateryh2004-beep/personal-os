@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { generateBriefingAction } from "@/features/briefing/actions";
+import { ensureTodayBriefingAction, generateBriefingAction } from "@/features/briefing/actions";
 import { initialBriefingGenerationState } from "@/features/briefing/feedback";
 
 export function GenerateBriefingControl({ hasBriefing }: { hasBriefing: boolean }) {
+  const ensured = useRef(false);
   const [state, action, pending] = useActionState(
     generateBriefingAction,
     initialBriefingGenerationState,
@@ -22,6 +23,12 @@ export function GenerateBriefingControl({ hasBriefing }: { hasBriefing: boolean 
     });
     return () => window.cancelAnimationFrame(frame);
   }, [state.selected, state.status]);
+
+  useEffect(() => {
+    if (hasBriefing || ensured.current) return;
+    ensured.current = true;
+    void ensureTodayBriefingAction();
+  }, [hasBriefing]);
 
   const tone =
     state.status === "error"

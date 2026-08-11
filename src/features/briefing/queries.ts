@@ -42,6 +42,7 @@ export async function getBriefingWorkspace() {
       .maybeSingle(),
   ]);
   const briefing = selectDisplayedBriefing(todayBriefing, latestCompletedBriefing);
+  const { data: settings } = await supabase.from("briefing_settings").select("generation_mode").eq("user_id", userId).maybeSingle();
 
   let entries: unknown[] = [];
   let entryError: unknown = null;
@@ -67,6 +68,7 @@ export async function getBriefingWorkspace() {
     todayBriefing,
     latestCompletedBriefing,
     todayGenerating: generatingResult.data,
+    settings,
     entries,
     unavailable: Boolean(
       profileResult.error ||
@@ -94,7 +96,8 @@ export async function getBriefingInterests() {
     supabase.from("briefing_exclusions").select("*").eq("user_id", userId).is("archived_at", null).order("created_at"),
   ]);
   if (interestsError || exclusionsError) throw new Error("无法读取兴趣设置。");
-  return { interests: interests ?? [], exclusions: exclusions ?? [] };
+  const { data: settings } = await supabase.from("briefing_settings").select("*").eq("user_id", userId).maybeSingle();
+  return { interests: interests ?? [], exclusions: exclusions ?? [], settings };
 }
 
 export async function getBriefingHistory() {
