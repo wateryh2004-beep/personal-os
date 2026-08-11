@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capabilityManifest, assistantToolRegistry, definitionsForNames } from "@/features/assistant/tools/registry";
+import { capabilityManifest, assistantToolRegistry, definitionsForNames, unknownToolError } from "@/features/assistant/tools/registry";
 import { formatOsManifestForModel } from "@/features/assistant/kernel/os-manifest";
 
 describe("Agent capability contract", () => {
@@ -13,5 +13,6 @@ describe("Agent capability contract", () => {
 
   it("fails closed for an unregistered pseudo tool", () => {
     expect(definitionsForNames(["search_shopping"])).toEqual([]);
+    expect(unknownToolError("search_shopping", ["listShopping"])).toEqual({ code: "unknown_tool", requested: "search_shopping", available: ["listShopping"] });
   });
 });

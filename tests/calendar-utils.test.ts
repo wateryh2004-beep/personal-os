@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createCalendarEventSchema, deleteCalendarEventSchema } from "@/features/calendar/schemas";
-import { calendarPayload, eventForGraph } from "@/features/calendar/utils";
+import { calendarPayload } from "@/features/calendar/utils";
 
 describe("calendar operation payloads", () => {
   const event = {
@@ -27,19 +27,8 @@ describe("calendar operation payloads", () => {
     expect(deleteCalendarEventSchema.safeParse({ providerEventId: ["event-1", "event-2"], subject: event.subject, startsAt: event.startsAt, endsAt: event.endsAt }).success).toBe(false);
   });
 
-  it("keeps the queued payload minimal and converts it to Graph's event shape", () => {
+  it("keeps the queued payload provider-neutral", () => {
     const parsed = createCalendarEventSchema.parse(event);
     expect(calendarPayload(parsed)).toMatchObject({ ...event, categories: [], importance: "normal", showAs: "busy" });
-    expect(eventForGraph(parsed)).toEqual({
-      subject: "专注写作",
-      body: { contentType: "text", content: "完成第一稿，并整理待确认的问题。" },
-      start: { dateTime: event.startsAt, timeZone: "UTC" },
-      end: { dateTime: event.endsAt, timeZone: "UTC" },
-      isAllDay: false,
-      categories: [],
-      importance: "normal",
-      showAs: "busy",
-      location: { displayName: "书房" },
-    });
   });
 });

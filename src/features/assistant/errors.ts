@@ -39,6 +39,21 @@ function assistantErrorSignals(error: unknown) {
 
 export function normalizeAssistantError(error: unknown) {
   const { status, value } = assistantErrorSignals(error);
+  if (value.includes("current_surface_too_long"))
+    return {
+      code: "current_surface_too_long",
+      message: "当前正文过长，无法安全地一次处理；请缩短范围后重试。",
+    };
+  if (value.includes("current_surface_required"))
+    return {
+      code: "current_surface_required",
+      message: "当前操作需要正文，但没有读取到可用内容。请刷新笔记后重试。",
+    };
+  if (value.includes("no such tool") || value.includes("unknown tool"))
+    return {
+      code: "unknown_tool",
+      message: "模型请求了当前未注册的工具；该请求未被执行，请重新规划。",
+    };
   if (
     status === 401 ||
     value.includes("api key") ||

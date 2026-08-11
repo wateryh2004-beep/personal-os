@@ -46,6 +46,10 @@ export function definitionsForGroups(groups: AssistantToolGroup[]) {
 }
 export function definitionsForNames(names: string[]) { const wanted=new Set(names); return assistantToolRegistry.filter((definition)=>wanted.has(definition.name)); }
 
+export function unknownToolError(requested: string, available = assistantToolRegistry.map((tool) => tool.name)) {
+  return { code: "unknown_tool" as const, requested, available: [...available].sort() };
+}
+
 /** The registry is the sole model-visible capability source. */
 export function capabilityManifest() {
   return Object.values(assistantToolRegistry.reduce<Record<string, AssistantToolDefinition[]>>((all, tool) => {

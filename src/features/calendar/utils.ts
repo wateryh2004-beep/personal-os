@@ -47,17 +47,3 @@ export function calendarUpdatePayload(value: UpdateCalendarEvent, existing: { ca
     showAs: value.showAs ?? existing.show_as,
   };
 }
-
-export function eventForGraph(value: CreateCalendarEvent) {
-  return {
-    subject: value.subject,
-    ...(value.description ? { body: { contentType: "text", content: value.description } } : {}),
-    start: { dateTime: value.startsAt, timeZone: "UTC" },
-    end: { dateTime: value.endsAt, timeZone: "UTC" },
-    isAllDay: value.isAllDay,
-    categories: resolveCalendarCategories(value),
-    importance: value.importance,
-    showAs: value.showAs,
-    ...(value.locationName ? { location: { displayName: value.locationName } } : {}),
-  };
-}

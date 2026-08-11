@@ -1,7 +1,7 @@
 "use client";
 
 import FullCalendar from "@fullcalendar/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin, { type EventResizeDoneArg } from "@fullcalendar/interaction";
@@ -19,6 +19,7 @@ export function CalendarFullView({ events, timezone, initialView, initialDate, o
   const pendingRef = useRef(new Map<string, Promise<CalendarEventRecord[] | null>>());
   const [visibleEvents, setVisibleEvents] = useState(events);
   const [loadingRange, setLoadingRange] = useState(false);
+  const visualInitialDate = useMemo(() => instantToFullCalendarDate(initialDate.toISOString(), timezone), [initialDate, timezone]);
 
   // Change FullCalendar through its API. This deliberately replaces the old
   // key-based remount: a view/date switch keeps one calendar DOM instance.
@@ -26,8 +27,8 @@ export function CalendarFullView({ events, timezone, initialView, initialDate, o
     const api = calendarRef.current?.getApi();
     if (!api) return;
     if (api.view.type !== initialView) api.changeView(initialView);
-    if (api.getDate().toDateString() !== initialDate.toDateString()) api.gotoDate(initialDate);
-  }, [initialDate, initialView]);
+    if (api.getDate().toDateString() !== visualInitialDate.toDateString()) api.gotoDate(visualInitialDate);
+  }, [initialView, visualInitialDate]);
 
   const fetchRange = useCallback(async (range: Range) => {
     const start = fullCalendarDateToInstant(range.start, timezone);
@@ -77,5 +78,5 @@ export function CalendarFullView({ events, timezone, initialView, initialDate, o
     extendedProps: { event },
   }));
 
-  return <div className="relative min-h-0 flex-1 overflow-hidden"><FullCalendar ref={calendarRef} plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]} initialView={initialView} initialDate={initialDate} timeZone="UTC" headerToolbar={false} height="100%" allDaySlot selectable editable slotDuration="00:30:00" snapDuration="00:15:00" slotLabelInterval="01:00" scrollTime="08:00:00" scrollTimeReset={false} datesSet={onDatesSet} events={calendarEvents} eventClick={(info) => onOpen(info.event.extendedProps.event as CalendarEventRecord)} eventDrop={persistMove} eventResize={persistMove} select={(info) => onCreate({ startsAt: fullCalendarDateToInstant(info.start, timezone), endsAt: fullCalendarDateToInstant(info.end, timezone), isAllDay: info.allDay })} eventContent={(info) => <div className="h-full overflow-hidden border-l-[3px] border-[var(--accent)] px-1.5 py-0.5 text-xs"><p className="line-clamp-2 font-medium">{info.event.title}</p><p className="text-[10px] opacity-70">{info.timeText}</p></div>} />{loadingRange ? <span className="pointer-events-none absolute right-3 top-3 rounded bg-white/90 px-2 py-1 text-[11px] text-[var(--text-tertiary)] shadow">更新日程…</span> : null}</div>;
+  return <div className="relative min-h-0 flex-1 overflow-hidden"><FullCalendar ref={calendarRef} plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]} initialView={initialView} initialDate={visualInitialDate} timeZone="UTC" headerToolbar={false} height="100%" allDaySlot selectable editable slotDuration="00:30:00" snapDuration="00:15:00" slotLabelInterval="01:00" scrollTime="08:00:00" scrollTimeReset={false} datesSet={onDatesSet} events={calendarEvents} eventClick={(info) => onOpen(info.event.extendedProps.event as CalendarEventRecord)} eventDrop={persistMove} eventResize={persistMove} select={(info) => onCreate({ startsAt: fullCalendarDateToInstant(info.start, timezone), endsAt: fullCalendarDateToInstant(info.end, timezone), isAllDay: info.allDay })} eventContent={(info) => <div className="h-full overflow-hidden border-l-[3px] border-[var(--accent)] px-1.5 py-0.5 text-xs"><p className="line-clamp-2 font-medium">{info.event.title}</p><p className="text-[10px] opacity-70">{info.timeText}</p></div>} />{loadingRange ? <span className="pointer-events-none absolute right-3 top-3 rounded bg-white/90 px-2 py-1 text-[11px] text-[var(--text-tertiary)] shadow">更新日程…</span> : null}</div>;
 }

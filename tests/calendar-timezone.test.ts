@@ -28,4 +28,15 @@ describe("calendar timezone conversion", () => {
     const localMidnight = wallTimeToIso("2026-08-11T00:00", "Asia/Shanghai");
     expect(instantToDate(localMidnight, "Asia/Shanghai")).toBe("2026-08-11");
   });
+
+  it.each([
+    ["2026-08-11T00:15", "2026-08-10T16:15:00.000Z"],
+    ["2026-08-11T05:40", "2026-08-10T21:40:00.000Z"],
+    ["2026-08-11T08:30", "2026-08-11T00:30:00.000Z"],
+    ["2026-08-11T17:00", "2026-08-11T09:00:00.000Z"],
+    ["2026-08-11T23:45", "2026-08-11T15:45:00.000Z"],
+  ])("round-trips the boundary time %s", (wallTime, instant) => {
+    expect(wallTimeToIso(wallTime, "Asia/Singapore")).toBe(instant);
+    expect(dateTimeInputValue(instant, "Asia/Singapore")).toBe(wallTime);
+  });
 });
