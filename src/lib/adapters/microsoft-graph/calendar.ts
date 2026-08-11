@@ -35,6 +35,7 @@ type GraphEvent = {
   categories?: string[];
   importance?: "low" | "normal" | "high";
   showAs?: "free" | "tentative" | "busy" | "oof" | "workingElsewhere" | "unknown";
+  "@removed"?: { reason?: string };
 };
 
 type GraphOutlookCategory = { id?: string; displayName?: string; color?: OutlookCategoryColor };
@@ -233,23 +234,44 @@ async function audit(userId: string, action: string, entityId: string, afterData
 export async function syncMicrosoftCalendar(connectionId: string, userId: string) {
   try {
     const accessToken = await accessTokenForConnection(connectionId, userId);
-    const start = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const end = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+    const admin = createAdminClient();
+    const { data: connection, error: connectionError } = await admin.from("calendar_connections").select("calendar_delta_link,calendar_sync_window_start,calendar_sync_window_end").eq("id", connectionId).eq("user_id", userId).maybeSingle();
+    if (connectionError || !connection) throw new MicrosoftGraphError("calendar_not_connected");
+    const now = Date.now(); const defaultStart = new Date(now - 30 * 86_400_000).toISOString(); const defaultEnd = new Date(now + 180 * 86_400_000).toISOString();
+    const canUseDelta = Boolean(connection.calendar_delta_link && connection.calendar_sync_window_start && connection.calendar_sync_window_end && Date.parse(connection.calendar_sync_window_end) > now + 30 * 86_400_000);
+    const start = canUseDelta ? connection.calendar_sync_window_start! : defaultStart;
+    const end = canUseDelta ? connection.calendar_sync_window_end! : defaultEnd;
     const query = new URLSearchParams({ startDateTime: start, endDateTime: end, "$top": "500", "$select": "id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs" });
-    let pagePath = `/me/calendarView?${query.toString()}`;
+    let pagePath = canUseDelta ? connection.calendar_delta_link!.replace(graphBaseUrl, "") : `/me/calendarView/delta?${query.toString()}`;
     const remoteEvents: GraphEvent[] = [];
+    let deltaLink: string | null = null;
     while (pagePath) {
-      const payload = await graph(accessToken, pagePath) as { value?: GraphEvent[]; "@odata.nextLink"?: string };
+      const payload = await graph(accessToken, pagePath) as { value?: GraphEvent[]; "@odata.nextLink"?: string; "@odata.deltaLink"?: string };
       remoteEvents.push(...(payload.value ?? []));
+      deltaLink = payload["@odata.deltaLink"] ?? deltaLink;
       pagePath = payload["@odata.nextLink"]?.replace(graphBaseUrl, "") ?? "";
     }
-    const records = remoteEvents.map((event) => graphEventRecord(event, userId));
-    const admin = createAdminClient();
+    const deletedIds = remoteEvents.flatMap((event) => event["@removed"] && event.id ? [event.id] : []);
+    const records = remoteEvents.filter((event) => !event["@removed"]).map((event) => graphEventRecord(event, userId));
     if (records.length) {
       const { error } = await admin.from("calendar_events").upsert(records, { onConflict: "user_id,provider_event_id" });
       if (error) throw new MicrosoftGraphError("calendar_cache_failed");
     }
-    await admin.from("calendar_connections").update({ last_seen_at: new Date().toISOString(), last_sync_at: new Date().toISOString(), last_error_code: null }).eq("id", connectionId).eq("user_id", userId);
+    if (deletedIds.length) {
+      const { error } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).in("provider_event_id", deletedIds).is("archived_at", null);
+      if (error) throw new MicrosoftGraphError("calendar_cache_failed");
+    }
+    if (!canUseDelta) {
+      const remoteIds = new Set(records.map((record) => record.provider_event_id));
+      const { data: cached, error } = await admin.from("calendar_events").select("provider_event_id").eq("user_id", userId).lt("starts_at", end).gt("ends_at", start).is("archived_at", null);
+      if (error) throw new MicrosoftGraphError("calendar_cache_failed");
+      const staleIds = (cached ?? []).flatMap((event) => remoteIds.has(event.provider_event_id) ? [] : [event.provider_event_id]);
+      if (staleIds.length) {
+        const { error: archiveError } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).in("provider_event_id", staleIds).is("archived_at", null);
+        if (archiveError) throw new MicrosoftGraphError("calendar_cache_failed");
+      }
+    }
+    await admin.from("calendar_connections").update({ last_seen_at: new Date().toISOString(), last_sync_at: new Date().toISOString(), last_error_code: null, calendar_delta_link: deltaLink, calendar_sync_window_start: start, calendar_sync_window_end: end }).eq("id", connectionId).eq("user_id", userId);
     return records.length;
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "calendar_sync_failed";
@@ -562,11 +584,15 @@ export async function executeCalendarOperation(operationId: string, userId: stri
       if (!operation.provider_event_id || !value.subject || !value.startsAt || !value.endsAt) throw new MicrosoftGraphError("operation_payload_invalid");
       const accessToken = await accessTokenForConnection(operation.connection_id, userId);
       await graph(accessToken, `/me/events/${encodeURIComponent(operation.provider_event_id)}`, { method: "DELETE" });
+      await admin.from("calendar_operations").update({ status: "remote_committed", remote_committed_at: new Date().toISOString(), result: { provider_event_id: operation.provider_event_id } }).eq("id", operation.id);
       const { error: archiveError } = await admin.from("calendar_events")
         .update({ archived_at: new Date().toISOString() })
         .eq("user_id", userId).eq("provider_event_id", operation.provider_event_id).is("archived_at", null);
-      if (archiveError) throw new MicrosoftGraphError("calendar_cache_failed");
-      await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), result: { provider_event_id: operation.provider_event_id } }).eq("id", operation.id);
+      if (archiveError) {
+        await admin.from("calendar_operations").update({ status: "reconciliation_required", error_code: "calendar_remote_committed_cache_failed" }).eq("id", operation.id);
+        throw new MicrosoftGraphError("calendar_remote_committed_cache_failed");
+      }
+      await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), cache_committed_at: new Date().toISOString(), result: { provider_event_id: operation.provider_event_id } }).eq("id", operation.id);
       await audit(userId, "execute", operation.id, { operation_type: "delete", result: "succeeded", provider_event_id: operation.provider_event_id });
       return;
     }
@@ -580,9 +606,13 @@ export async function executeCalendarOperation(operationId: string, userId: stri
         body: JSON.stringify(calendarEventForGraph(value as GraphCalendarCreatePayload)),
       }) as GraphEvent;
       const record = graphEventRecord(updated, userId, cached ?? undefined);
+      await admin.from("calendar_operations").update({ status: "remote_committed", remote_committed_at: new Date().toISOString(), provider_event_id: record.provider_event_id, provider_change_key: record.provider_change_key, result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
       const { error: cacheError } = await admin.from("calendar_events").upsert(record, { onConflict: "user_id,provider_event_id" });
-      if (cacheError) throw new MicrosoftGraphError("calendar_cache_failed");
-      await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
+      if (cacheError) {
+        await admin.from("calendar_operations").update({ status: "reconciliation_required", error_code: "calendar_remote_committed_cache_failed" }).eq("id", operation.id);
+        throw new MicrosoftGraphError("calendar_remote_committed_cache_failed");
+      }
+      await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), cache_committed_at: new Date().toISOString(), provider_change_key: record.provider_change_key, result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
       await audit(userId, "execute", operation.id, { operation_type: "update", result: "succeeded", provider_event_id: record.provider_event_id });
       return;
     }
@@ -595,13 +625,13 @@ export async function executeCalendarOperation(operationId: string, userId: stri
       body: JSON.stringify(calendarEventForGraph({ ...value, transactionId: operation.id } as GraphCalendarCreatePayload)),
     }) as GraphEvent;
     const record = graphEventRecord(created, userId);
-    await admin.from("calendar_operations").update({ status: "remote_committed", provider_event_id: record.provider_event_id, remote_committed_at: new Date().toISOString(), result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
+    await admin.from("calendar_operations").update({ status: "remote_committed", provider_event_id: record.provider_event_id, remote_committed_at: new Date().toISOString(), provider_change_key: record.provider_change_key, result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
     const { error: cacheError } = await admin.from("calendar_events").upsert(record, { onConflict: "user_id,provider_event_id" });
     if (cacheError) {
       await admin.from("calendar_operations").update({ status: "reconciliation_required", error_code: "calendar_remote_committed_cache_failed" }).eq("id", operation.id);
       throw new MicrosoftGraphError("calendar_remote_committed_cache_failed");
     }
-    await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), cache_committed_at: new Date().toISOString(), provider_event_id: record.provider_event_id, result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
+    await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), cache_committed_at: new Date().toISOString(), provider_event_id: record.provider_event_id, provider_change_key: record.provider_change_key, result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
     await audit(userId, "execute", operation.id, { operation_type: "create", result: "succeeded", provider_event_id: record.provider_event_id });
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "calendar_operation_failed";

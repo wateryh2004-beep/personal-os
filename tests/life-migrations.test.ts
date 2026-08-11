@@ -25,4 +25,10 @@ describe("Life workspace migrations", () => {
     expect(sql).toContain("search_trips");
     expect(sql).toContain("status not in ('archived','abandoned')");
   });
+  it("persists the Graph delta cursor and its bounded calendar window", () => {
+    const sql = migration("20260811150000_calendar_delta_sync.sql");
+    expect(sql).toContain("calendar_delta_link text");
+    expect(sql).toContain("calendar_sync_window_start timestamptz");
+    expect(sql).toContain("calendar_sync_window_end timestamptz");
+  });
 });
