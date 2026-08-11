@@ -236,8 +236,14 @@ export async function syncMicrosoftCalendar(connectionId: string, userId: string
     const start = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const end = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
     const query = new URLSearchParams({ startDateTime: start, endDateTime: end, "$top": "500", "$select": "id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs" });
-    const payload = await graph(accessToken, `/me/calendarView?${query.toString()}`) as { value?: GraphEvent[] };
-    const records = (payload.value ?? []).map((event) => graphEventRecord(event, userId));
+    let pagePath = `/me/calendarView?${query.toString()}`;
+    const remoteEvents: GraphEvent[] = [];
+    while (pagePath) {
+      const payload = await graph(accessToken, pagePath) as { value?: GraphEvent[]; "@odata.nextLink"?: string };
+      remoteEvents.push(...(payload.value ?? []));
+      pagePath = payload["@odata.nextLink"]?.replace(graphBaseUrl, "") ?? "";
+    }
+    const records = remoteEvents.map((event) => graphEventRecord(event, userId));
     const admin = createAdminClient();
     if (records.length) {
       const { error } = await admin.from("calendar_events").upsert(records, { onConflict: "user_id,provider_event_id" });
@@ -540,10 +546,10 @@ export async function deleteMicrosoftTodoTask(connectionId: string, userId: stri
 export async function executeCalendarOperation(operationId: string, userId: string) {
   const admin = createAdminClient();
   const { data: operation, error } = await admin.from("calendar_operations")
-    .select("id,connection_id,operation_type,provider_event_id,payload,status")
-    .eq("id", operationId).eq("user_id", userId).eq("status", "queued").maybeSingle();
-  if (error || !operation) throw new MicrosoftGraphError("operation_unavailable");
-  await admin.from("calendar_operations").update({ status: "processing", claimed_at: new Date().toISOString() }).eq("id", operation.id);
+    .update({ status: "processing", claimed_at: new Date().toISOString() })
+    .eq("id", operationId).eq("user_id", userId).eq("status", "queued")
+    .select("id,connection_id,operation_type,provider_event_id,payload,status").maybeSingle();
+  if (error || !operation) throw new MicrosoftGraphError("calendar_operation_already_processed");
   try {
     if (operation.operation_type === "sync") {
       const count = await syncMicrosoftCalendar(operation.connection_id, userId);
@@ -586,19 +592,44 @@ export async function executeCalendarOperation(operationId: string, userId: stri
     const accessToken = await accessTokenForConnection(operation.connection_id, userId);
     const created = await graph(accessToken, "/me/events", {
       method: "POST",
-      body: JSON.stringify(calendarEventForGraph(value as GraphCalendarCreatePayload)),
+      body: JSON.stringify(calendarEventForGraph({ ...value, transactionId: operation.id } as GraphCalendarCreatePayload)),
     }) as GraphEvent;
     const record = graphEventRecord(created, userId);
+    await admin.from("calendar_operations").update({ status: "remote_committed", provider_event_id: record.provider_event_id, remote_committed_at: new Date().toISOString(), result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
     const { error: cacheError } = await admin.from("calendar_events").upsert(record, { onConflict: "user_id,provider_event_id" });
-    if (cacheError) throw new MicrosoftGraphError("calendar_cache_failed");
-    await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), provider_event_id: record.provider_event_id, result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
+    if (cacheError) {
+      await admin.from("calendar_operations").update({ status: "reconciliation_required", error_code: "calendar_remote_committed_cache_failed" }).eq("id", operation.id);
+      throw new MicrosoftGraphError("calendar_remote_committed_cache_failed");
+    }
+    await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), cache_committed_at: new Date().toISOString(), provider_event_id: record.provider_event_id, result: { provider_event_id: record.provider_event_id } }).eq("id", operation.id);
     await audit(userId, "execute", operation.id, { operation_type: "create", result: "succeeded", provider_event_id: record.provider_event_id });
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "calendar_operation_failed";
-    await admin.from("calendar_operations").update({ status: "failed", completed_at: new Date().toISOString(), error_code: code }).eq("id", operation.id);
+    if (code !== "calendar_remote_committed_cache_failed") await admin.from("calendar_operations").update({ status: "failed", completed_at: new Date().toISOString(), error_code: code }).eq("id", operation.id);
     await audit(userId, "execute", operation.id, { operation_type: operation.operation_type, result: "failed", error_code: code });
     throw new MicrosoftGraphError(code);
   }
+}
+
+/** Repairs the local cache after Outlook has already accepted an operation. Never issues a second create. */
+export async function reconcileCalendarOperation(operationId: string, userId: string) {
+  const admin = createAdminClient();
+  const { data: operation, error } = await admin.from("calendar_operations")
+    .select("id,connection_id,operation_type,provider_event_id,status")
+    .eq("id", operationId).eq("user_id", userId)
+    .in("status", ["remote_committed", "reconciliation_required"]).maybeSingle();
+  if (error || !operation || !operation.provider_event_id) throw new MicrosoftGraphError("calendar_operation_already_processed");
+  const accessToken = await accessTokenForConnection(operation.connection_id, userId);
+  if (operation.operation_type === "delete") {
+    const { error: archiveError } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).eq("provider_event_id", operation.provider_event_id).is("archived_at", null);
+    if (archiveError) throw new MicrosoftGraphError("calendar_cache_failed");
+  } else {
+    const remote = await graph(accessToken, `/me/events/${encodeURIComponent(operation.provider_event_id)}?$select=id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs`) as GraphEvent;
+    const { error: cacheError } = await admin.from("calendar_events").upsert(graphEventRecord(remote, userId), { onConflict: "user_id,provider_event_id" });
+    if (cacheError) throw new MicrosoftGraphError("calendar_cache_failed");
+  }
+  await admin.from("calendar_operations").update({ status: "succeeded", completed_at: new Date().toISOString(), cache_committed_at: new Date().toISOString(), error_code: null }).eq("id", operation.id);
+  await audit(userId, "reconcile", operation.id, { operation_type: operation.operation_type, provider_event_id: operation.provider_event_id });
 }
 
 export const microsoftCalendarConfiguration = { clientId: MICROSOFT_CLIENT_ID, scopes: MICROSOFT_SCOPES, scopeVersion: MICROSOFT_SCOPE_VERSION };

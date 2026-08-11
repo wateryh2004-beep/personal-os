@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graphEventRecord, microsoftCalendarConfiguration, microsoftScopeVersionForGrantedScopes, requiresCategoryReauthorization } from "@/lib/adapters/microsoft-graph/calendar";
+import { calendarEventForGraph, graphTimeZone } from "@/lib/adapters/microsoft-graph/event-payload";
 
 describe("Microsoft Graph calendar category integration", () => {
   it("requests the explicit mailbox settings permission and versions the consent", () => {
@@ -26,5 +27,11 @@ describe("Microsoft Graph calendar category integration", () => {
   it("uses the cached values if a partial Graph update response omits them", () => {
     const record = graphEventRecord({ id: "event-1", subject: "改名", start: { dateTime: "2026-08-09T08:00:00Z" }, end: { dateTime: "2026-08-09T09:00:00Z" } }, "user-1", { categories: ["Client External"], importance: "low", show_as: "free" });
     expect(record).toMatchObject({ categories: ["Client External"], importance: "low", show_as: "free" });
+  });
+
+  it("uses a stable transaction id and preserves an all-day local date", () => {
+    const payload = calendarEventForGraph({ subject: "全天", description: null, startsAt: "2026-08-10T16:00:00.000Z", endsAt: "2026-08-11T16:00:00.000Z", isAllDay: true, locationName: null, timeZone: "Asia/Shanghai", transactionId: "operation-1" });
+    expect(payload).toMatchObject({ transactionId: "operation-1", start: { dateTime: "2026-08-11T00:00:00" }, end: { dateTime: "2026-08-12T00:00:00" } });
+    expect(() => graphTimeZone("Etc/Unknown")).toThrow("calendar_timezone_unsupported");
   });
 });

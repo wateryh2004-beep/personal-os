@@ -9,6 +9,9 @@ export type GraphCalendarCreatePayload = {
   categories?: string[];
   importance?: "low" | "normal" | "high";
   showAs?: "free" | "tentative" | "busy" | "oof" | "workingElsewhere" | "unknown";
+  transactionId?: string;
+  startDate?: string;
+  endDateExclusive?: string;
 };
 
 const windowsTimeZones: Record<string, string> = {
@@ -21,8 +24,10 @@ const windowsTimeZones: Record<string, string> = {
   UTC: "UTC",
 };
 
-function graphTimeZone(ianaTimeZone: string) {
-  return windowsTimeZones[ianaTimeZone] ?? "UTC";
+export function graphTimeZone(ianaTimeZone: string) {
+  const mapped = windowsTimeZones[ianaTimeZone];
+  if (!mapped) throw new Error("calendar_timezone_unsupported");
+  return mapped;
 }
 
 function localDateTime(isoDateTime: string, timeZone: string) {
@@ -44,21 +49,25 @@ function localDateTime(isoDateTime: string, timeZone: string) {
   }
 }
 
-function tomorrowAtMidnight(isoDateTime: string) {
-  const date = new Date(`${isoDateTime.slice(0, 10)}T00:00:00Z`);
+function nextDate(dateValue: string) {
+  const date = new Date(`${dateValue}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + 1);
-  return `${date.toISOString().slice(0, 10)}T00:00:00`;
+  return date.toISOString().slice(0, 10);
 }
 
 /** Converts application ISO values to Graph's dateTimeTimeZone representation. */
 export function calendarEventForGraph(value: GraphCalendarCreatePayload) {
   const timeZone = value.timeZone || "Asia/Shanghai";
   const graphZone = graphTimeZone(timeZone);
-  const start = value.isAllDay ? `${value.startsAt.slice(0, 10)}T00:00:00` : localDateTime(value.startsAt, timeZone);
-  const end = value.isAllDay ? tomorrowAtMidnight(value.startsAt) : localDateTime(value.endsAt, timeZone);
+  const localDate = (value: string) => new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+  const startDate = value.startDate ?? localDate(value.startsAt);
+  const endDate = value.endDateExclusive ?? nextDate(startDate);
+  const start = value.isAllDay ? `${startDate}T00:00:00` : localDateTime(value.startsAt, timeZone);
+  const end = value.isAllDay ? `${endDate}T00:00:00` : localDateTime(value.endsAt, timeZone);
 
   return {
     subject: value.subject,
+    ...(value.transactionId ? { transactionId: value.transactionId } : {}),
     ...(value.description ? { body: { contentType: "text", content: value.description } } : {}),
     start: { dateTime: start, timeZone: graphZone },
     end: { dateTime: end, timeZone: graphZone },
