@@ -85,7 +85,7 @@ export type AgentSource = {
 export type AgentAction = {
   id: string;
   runId: string;
-  domain: "calendar" | "tasks" | "notes" | "career" | "memory" | "projects";
+  domain: "calendar" | "tasks" | "notes" | "career" | "memory" | "projects" | "shopping" | "travel";
   actionType: string;
   status: AgentActionStatus;
   preview: Record<string, unknown>;

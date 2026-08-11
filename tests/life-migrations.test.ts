@@ -31,4 +31,9 @@ describe("Life workspace migrations", () => {
     expect(sql).toContain("calendar_sync_window_start timestamptz");
     expect(sql).toContain("calendar_sync_window_end timestamptz");
   });
+  it("extends frozen Agent actions to Life domains and expiry", () => {
+    const sql = migration("20260811160000_agent_action_expiry_life_domains.sql");
+    expect(sql).toContain("'shopping', 'travel'");
+    expect(sql).toContain("expires_at timestamptz");
+  });
 });

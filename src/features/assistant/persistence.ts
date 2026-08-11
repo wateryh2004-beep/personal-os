@@ -170,6 +170,7 @@ export async function storeAgentAction(input: {
       preview_json: input.preview,
       risk_level: input.riskLevel,
       status: "proposed",
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     })
     .select("id")
     .single();
@@ -200,7 +201,7 @@ export async function storeAgentAction(input: {
     toolName: input.actionType,
     title: "已生成待确认操作",
     summary: `${input.domain} · ${input.actionType}`,
-    output: { actionId: data.id },
+    output: { actionId: data.id, expiresInHours: 24 },
   });
   return data.id as string;
 }

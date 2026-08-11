@@ -13,6 +13,8 @@ export const agentActionDomainSchema = z.enum([
   "career",
   "memory",
   "projects",
+  "shopping",
+  "travel",
 ]);
 export const agentRiskSchema = z.enum(["low", "medium", "high"]);
 

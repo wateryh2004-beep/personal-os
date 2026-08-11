@@ -39,12 +39,16 @@ export async function approveAgentAction(actionId: string): Promise<AgentActionR
   const { supabase, userId } = await requireOwner();
   const { data: action, error } = await supabase
     .from("agent_actions")
-    .select("id,run_id,domain,action_type,status,payload_json")
+    .select("id,run_id,domain,action_type,status,payload_json,expires_at")
     .eq("id", parsedId.data)
     .eq("user_id", userId)
     .maybeSingle();
   if (error || !action || action.status !== "proposed")
     return { status: "error", message: "这项提案已处理或不存在。", actionId };
+  if (action.expires_at && Date.parse(action.expires_at) <= Date.now()) {
+    await supabase.from("agent_actions").update({ status: "failed", error_code: "proposal_expired", executed_at: new Date().toISOString() }).eq("id", action.id).eq("status", "proposed");
+    return { status: "error", message: "这项提案已过期，请重新生成。", actionId };
+  }
   if (!parseAgentActionPayload(action.action_type, action.payload_json).success)
     return { status: "error", message: "提案数据已失效，未执行任何修改。", actionId };
   const { data: approved } = await supabase
