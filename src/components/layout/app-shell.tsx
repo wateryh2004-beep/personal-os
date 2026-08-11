@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BriefcaseBusiness, CalendarDays, CheckSquare2, ChevronLeft, ChevronRight,
   FileText, FolderClosed, Inbox, LayoutDashboard, LogOut, Menu, Newspaper,
@@ -65,6 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -93,6 +94,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       localStorage.setItem(recentStorageKey, JSON.stringify([{ href: pathname, label }, ...previous.filter((item) => item.href !== pathname)].slice(0, 8)));
     } catch { /* Recents are an enhancement, never a navigation dependency. */ }
   }, [pathname]);
+  useEffect(() => {
+    // Keep the frequent personal workflow warm without prefetching every
+    // private surface at once. AppShell itself stays persistent on navigation.
+    const prefetch = () => ["/today", "/calendar", "/tasks", "/notes"].filter((href) => href !== pathname).forEach((href) => router.prefetch(href));
+    const idle = window.setTimeout(prefetch, 800);
+    return () => window.clearTimeout(idle);
+  }, [pathname, router]);
   useEffect(() => {
     const viewport = window.visualViewport;
     const updateViewportHeight = () => {
