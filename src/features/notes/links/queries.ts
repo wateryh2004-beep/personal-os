@@ -82,14 +82,14 @@ export async function getNoteLinkRelations(supabase: Supabase, noteId: string) {
       .from("note_links")
       .select("target_note_id")
       .eq("source_note_id", noteId)
-      .eq("link_type", "markdown")
+      .in("link_type", ["markdown", "wiki"])
       .is("archived_at", null)
       .not("target_note_id", "is", null),
     supabase
       .from("note_links")
       .select("source_note_id")
       .eq("target_note_id", noteId)
-      .eq("link_type", "markdown")
+      .in("link_type", ["markdown", "wiki"])
       .is("archived_at", null),
   ]);
   if (outgoing.error || incoming.error) return { referenced: [], backlinks: [], unavailable: true };

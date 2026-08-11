@@ -3,6 +3,7 @@ import {
   internalNoteIdFromHref,
   parseInternalNoteLinkOccurrences,
   parseInternalNoteLinks,
+  parseWikiNoteLinkOccurrences,
 } from "@/features/notes/links/parser";
 import { extractNoteLinkQuery } from "@/features/notes/editor/note-link-completion";
 import { rankNoteLinkSuggestions } from "@/features/notes/links/ranking";
@@ -26,6 +27,16 @@ describe("internal Note Markdown links", () => {
     expect(internalNoteIdFromHref(`/notes/${alpha}`)).toBe(alpha);
     expect(internalNoteIdFromHref(`/notes/${alpha}?x=1`)).toBeNull();
     expect(internalNoteIdFromHref(`https://example.com/notes/${alpha}`)).toBeNull();
+  });
+});
+
+describe("hand-written Wiki Links", () => {
+  it("preserves title, alias, and source range for backlink indexing", () => {
+    const markdown = "See [[Alpha]] and [[Beta|显示名称]]";
+    expect(parseWikiNoteLinkOccurrences(markdown)).toEqual([
+      { targetTitle: "Alpha", label: "Alpha", from: 4, to: 13 },
+      { targetTitle: "Beta", label: "显示名称", from: 18, to: 31 },
+    ]);
   });
 });
 

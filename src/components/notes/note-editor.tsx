@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -82,6 +83,7 @@ function savedTimeLabel(value: string | null) {
 }
 
 export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: { note: Note; noteAiDefaultModel: DeepSeekModelId; recentNoteLinks?: readonly NoteLinkSuggestion[] }) {
+  const router = useRouter();
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
   const [state, setState] = useState<SaveState>("已保存");
@@ -161,6 +163,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
           }
           revisionRef.current = result.revision;
           setLastSavedAt(result.lastSavedAt);
+          router.refresh();
           const latest = latestContentRef.current;
           if (latest.title === snapshot.title && latest.body === snapshot.body) {
             isDirtyRef.current = false;
@@ -187,7 +190,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
     } finally {
       saveInFlightRef.current = null;
     }
-  }, [note.id, noteSessionKey, saveDraft]);
+  }, [note.id, noteSessionKey, router, saveDraft]);
 
   useEffect(() => {
     if (!editVersion) return;
