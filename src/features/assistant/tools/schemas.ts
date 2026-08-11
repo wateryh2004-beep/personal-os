@@ -5,6 +5,7 @@ import {
   updateCalendarEventSchema,
 } from "@/features/calendar/schemas";
 import { todoProposalSchema, todoUpdatePatchSchema } from "@/features/tasks/schemas";
+import { shoppingItemCreateSchema } from "@/features/shopping/schemas";
 
 export const agentActionDomainSchema = z.enum([
   "calendar",
@@ -126,6 +127,16 @@ export const memoryCreateProposalSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+export const shoppingCreateProposalSchema = shoppingItemCreateSchema.extend({
+  reason: z.string().trim().min(1).max(500),
+});
+export const travelCreateProposalSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  description: z.string().trim().max(10_000).nullable().default(null),
+  destinationLabel: z.string().trim().max(240).nullable().default(null),
+  reason: z.string().trim().min(1).max(500),
+});
+
 export const memoryUpdateProposalSchema = z
   .object({
     memoryId: z.string().uuid(),
@@ -174,6 +185,8 @@ export const agentActionPayloadSchemas = {
   "memory.create": memoryCreateProposalSchema,
   "memory.update": memoryUpdateProposalSchema,
   "projects.create": projectCreateProposalSchema,
+  "shopping.create": shoppingCreateProposalSchema,
+  "travel.create": travelCreateProposalSchema,
 } as const;
 
 export type AgentActionType = keyof typeof agentActionPayloadSchemas;

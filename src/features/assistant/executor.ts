@@ -26,6 +26,8 @@ import {
   memoryCreateProposalSchema,
   memoryUpdateProposalSchema,
   projectCreateProposalSchema,
+  shoppingCreateProposalSchema,
+  travelCreateProposalSchema,
   type AgentActionType,
 } from "./tools/schemas";
 
@@ -53,6 +55,8 @@ export const executableAgentActionTypes: AgentActionType[] = [
   "memory.create",
   "memory.update",
   "projects.create",
+  "shopping.create",
+  "travel.create",
 ];
 
 export function hasDeterministicExecutor(actionType: string): actionType is AgentActionType {
@@ -476,6 +480,24 @@ async function executeProject(input: {
   return { projectId: data.id, href: "/projects" };
 }
 
+async function executeShopping(input: { supabase: Supabase; userId: string; payload: Record<string, unknown> }) {
+  const value = shoppingCreateProposalSchema.parse(input.payload);
+  const duplicateQuery = value.title.replaceAll("%", "\\%");
+  const { data: duplicate } = await input.supabase.from("purchase_items").select("id").ilike("title", `%${duplicateQuery}%`).is("archived_at", null).not("status", "in", "(abandoned,archived)").limit(1).maybeSingle();
+  if (duplicate) throw new AgentActionConflict("purchase_duplicate");
+  const decision = value.necessity === "necessary" && value.necessityConfirmed && value.priceCny !== undefined && value.priceCny <= 50;
+  const { data, error } = await input.supabase.from("purchase_items").insert({ user_id: input.userId, title: value.title, category: value.category ?? null, source_url: value.sourceUrl || null, price_cny: value.priceCny ?? null, necessity: value.necessity, necessity_confirmed: value.necessityConfirmed, reason_to_buy: value.reasonToBuy ?? null, existing_alternative: value.existingAlternative ?? null, notes_markdown: value.notesMarkdown ?? "", created_via: "assistant", status: decision ? "ready" : "cooling", cooldown_until: decision ? null : new Date(Date.now() + 2 * 86_400_000).toISOString() }).select("id").single();
+  if (error || !data) throw new Error("shopping_create_failed");
+  return { purchaseItemId: data.id, href: `/shopping/${data.id}` };
+}
+
+async function executeTravel(input: { supabase: Supabase; userId: string; payload: Record<string, unknown> }) {
+  const value = travelCreateProposalSchema.parse(input.payload);
+  const { data, error } = await input.supabase.from("trips").insert({ user_id: input.userId, title: value.title, description: value.description, destination_label: value.destinationLabel, status: "dream", created_via: "assistant" }).select("id").single();
+  if (error || !data) throw new Error("travel_create_failed");
+  return { tripId: data.id, href: `/travel/${data.id}` };
+}
+
 export async function executeFrozenAgentAction(input: {
   supabase: Supabase;
   userId: string;
@@ -495,5 +517,7 @@ export async function executeFrozenAgentAction(input: {
     return executeMemory({ ...input, actionType: input.actionType });
   if (input.actionType === "projects.create")
     return executeProject(input);
+  if (input.actionType === "shopping.create") return executeShopping(input);
+  if (input.actionType === "travel.create") return executeTravel(input);
   return executeNote({ ...input, actionType: input.actionType });
 }
