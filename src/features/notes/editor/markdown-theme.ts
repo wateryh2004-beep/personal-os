@@ -5,6 +5,7 @@ import {
   EditorView,
   scrollPastEnd,
   ViewPlugin,
+  WidgetType,
   type DecorationSet,
   type ViewUpdate,
 } from "@codemirror/view";
@@ -79,10 +80,44 @@ function markupDecorations(view: EditorView) {
           builder.add(node.from, node.to, Decoration.mark({ class: "cm-note-markdown-hidden" }));
         else if (node.name === "HorizontalRule")
           builder.add(node.from, node.to, Decoration.mark({ class: "cm-note-markdown-hidden" }));
+        else if (node.name === "QuoteMark")
+          builder.add(node.from, node.to, Decoration.replace({}));
+        else if (node.name === "TaskMarker") {
+          const checked = view.state.sliceDoc(node.from, node.to).toLowerCase().includes("x");
+          builder.add(node.from, node.to, Decoration.replace({ widget: new MarkdownMarkerWidget(checked ? "☑" : "☐", "cm-note-task-marker") }));
+        } else if (node.name === "ListMark") {
+          const isTask = node.node.parent?.getChild("Task") !== null;
+          const isOrdered = node.node.parent?.parent?.name === "OrderedList";
+          const marker = view.state.sliceDoc(node.from, node.to).trim();
+          builder.add(node.from, node.to, Decoration.replace({
+            widget: new MarkdownMarkerWidget(isTask ? "" : isOrdered ? marker : "•", "cm-note-list-marker"),
+          }));
+        }
       },
     });
   }
   return builder.finish();
+}
+
+class MarkdownMarkerWidget extends WidgetType {
+  constructor(
+    private readonly label: string,
+    private readonly className: string,
+  ) {
+    super();
+  }
+
+  eq(other: MarkdownMarkerWidget) {
+    return this.label === other.label && this.className === other.className;
+  }
+
+  toDOM() {
+    const marker = document.createElement("span");
+    marker.className = this.className;
+    marker.textContent = this.label;
+    marker.setAttribute("aria-hidden", "true");
+    return marker;
+  }
 }
 
 const markdownMarkupPlugin = ViewPlugin.fromClass(
@@ -159,6 +194,15 @@ const editorTheme = EditorView.theme({
   ".cm-gutters": { display: "none" },
   ".cm-placeholder": { color: "var(--text-tertiary)", fontStyle: "normal" },
   ".cm-note-list-line": { paddingTop: "2px", paddingBottom: "2px" },
+  ".cm-note-list-marker, .cm-note-task-marker": {
+    display: "inline-block",
+    minWidth: "1.35em",
+    color: "var(--text-secondary)",
+    fontVariantNumeric: "tabular-nums",
+    textAlign: "center",
+    userSelect: "none",
+  },
+  ".cm-note-task-marker": { color: "var(--accent)" },
   ".cm-note-quote": {
     borderLeft: "2px solid #8aa5b4",
     backgroundColor: "#f7f9f9",

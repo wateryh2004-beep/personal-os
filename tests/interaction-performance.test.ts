@@ -13,6 +13,7 @@ const shopping = source("src/components/shopping/shopping-workspace.tsx");
 const travel = source("src/components/travel/trip-detail.tsx");
 const files = source("src/components/files/files-workspace.tsx");
 const nowWorkspace = source("src/components/today/now-workspace.tsx");
+const markdownTheme = source("src/features/notes/editor/markdown-theme.ts");
 const rlsOptimization = source("supabase/migrations/20260811104219_optimize_rls_auth_initplan.sql");
 
 describe("interaction performance guardrails", () => {
@@ -27,6 +28,13 @@ describe("interaction performance guardrails", () => {
     expect(calendar).toContain('locale="zh-cn"');
     expect(calendar).toContain("slotLabelFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
     expect(calendar).toContain("eventTimeFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
+  });
+
+  it("renders Markdown list structure as document markers rather than source syntax", () => {
+    expect(markdownTheme).toContain('node.name === "ListMark"');
+    expect(markdownTheme).toContain('node.name === "TaskMarker"');
+    expect(markdownTheme).toContain('node.name === "QuoteMark"');
+    expect(markdownTheme).toContain('new MarkdownMarkerWidget');
   });
 
   it("loads heavy agent surfaces only after the user opens them", () => {
