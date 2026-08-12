@@ -51,6 +51,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
   const [syncing, startSync] = useTransition();
   const [loadingRange, setLoadingRange] = useState(false);
   const [rangeTruncated, setRangeTruncated] = useState(false);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
   const [compactViewport, setCompactViewport] = useState(false);
   const activeRangeRef = useRef<Range | null>(null);
   const rangeCacheRef = useRef(new Map<string, CalendarEventRecord[]>());
@@ -81,7 +82,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     const key = calendarRangeKey(start, end);
     activeRangeRef.current = range;
     const cached = !force ? rangeCacheRef.current.get(key) : undefined;
-    if (cached) { setEventState(cached); setRangeTruncated(false); return cached; }
+    if (cached) { setEventState(cached); setRangeTruncated(false); setCalendarError(null); return cached; }
     const sequence = ++requestSequenceRef.current;
     setLoadingRange(true);
     try {
@@ -91,8 +92,11 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
       const data = body.events ?? [];
       if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setRangeTruncated(Boolean(body.truncated));
       rangeCacheRef.current.set(key, data);
-      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setEventState(data);
+      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) { setEventState(data); setCalendarError(null); }
       return data;
+    } catch {
+      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setCalendarError("无法读取当前日历范围；正在保留已显示的日程。请稍后重试或同步 Outlook。");
+      return null;
     } finally {
       if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setLoadingRange(false);
     }
@@ -108,7 +112,15 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
 
   const openEvent = (event: CalendarEventRecord) => { setSelected(event); setDraft(null); inspector.open(); };
   const openDraft = (range: Draft) => { setSelected(null); setDraft(range); inspector.open(); };
-  const sync = () => startSync(async () => { await syncAndBackupMicrosoftAction(); await refetchActiveRange(); router.refresh(); });
+  const sync = () => startSync(async () => {
+    try {
+      await syncAndBackupMicrosoftAction();
+      await refetchActiveRange();
+      router.refresh();
+    } catch {
+      setCalendarError("Outlook 同步未完成；当前显示的是本地已加载日程。");
+    }
+  });
   const changeCursor = (amount: number) => setCursor((date) => shiftCalendarCursor(date, timezone, view === "week" ? amount * 7 : amount));
   const moveEvent = async (event: CalendarEventRecord, range: Draft & { isAllDay: boolean }) => {
     const form = new FormData();
@@ -132,6 +144,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
       </header>
       <CalendarFullView events={filtered} categories={categories} timezone={timezone} initialView={fullCalendarView(view)} initialDate={cursor} onOpen={openEvent} onCreate={openDraft} onMove={moveEvent} onRangeChange={onRangeChange} loadingRange={loadingRange} />
       {rangeTruncated ? <p className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">当前范围仅显示前 1,000 条日程。</p> : null}
+      {calendarError ? <p role="status" className="absolute left-3 top-3 z-10 max-w-md rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-900">{calendarError}</p> : null}
     </div>
     <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="w-[min(380px,calc(100vw-8px))]">{selected ? <CalendarEventEditForm event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={async (kind) => { if (kind === "delete") { setEventState((current) => removeCalendarEvent(current, selected.id)); setSelected(null); inspector.close(); } else { const refreshed = await refetchActiveRange(); const current = refreshed?.find((event) => event.id === selected.id); if (current) setSelected(current); } invalidateCalendarCache(); }} /> : draft ? <CalendarCreateForm timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={async () => { await refetchActiveRange(); }} /> : null}</Inspector>
     {ai.isOpen ? <AISidecar open onClose={ai.close} context="Calendar"><CalendarAssistant timezone={timezone} categories={categories} /></AISidecar> : null}

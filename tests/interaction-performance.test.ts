@@ -40,6 +40,11 @@ describe("interaction performance guardrails", () => {
     expect(categoryManager).toContain('timeZone: timezone');
   });
 
+  it("keeps existing events visible and reports range or sync failures precisely", () => {
+    expect(calendarWorkspace).toContain("正在保留已显示的日程");
+    expect(calendarWorkspace).toContain("Outlook 同步未完成");
+  });
+
   it("renders Markdown list structure as document markers rather than source syntax", () => {
     expect(markdownTheme).toContain('node.name === "ListMark"');
     expect(markdownTheme).toContain('node.name === "TaskMarker"');
