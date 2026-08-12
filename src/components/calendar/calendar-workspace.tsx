@@ -81,9 +81,12 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     const end = fullCalendarDateToInstant(range.end, timezone);
     const key = calendarRangeKey(start, end);
     activeRangeRef.current = range;
+    // Every navigation supersedes earlier requests, including a navigation
+    // satisfied from cache. Otherwise an older slow request can overwrite
+    // this cached range after the user has already moved on.
+    const sequence = ++requestSequenceRef.current;
     const cached = !force ? rangeCacheRef.current.get(key) : undefined;
     if (cached) { setEventState(cached); setRangeTruncated(false); setCalendarError(null); return cached; }
-    const sequence = ++requestSequenceRef.current;
     setLoadingRange(true);
     try {
       const response = await fetch(`/api/calendar/events?${new URLSearchParams({ start, end })}`, { cache: "no-store" });

@@ -13,6 +13,11 @@ describe("calendar client state", () => {
     expect(calendarRangeKey("a", "b")).toBe("a:b");
     expect(isCurrentCalendarRangeResponse(2, 1)).toBe(false);
     expect(isCurrentCalendarRangeResponse(2, 2)).toBe(true);
+    // A cached navigation is still a navigation: it must invalidate a
+    // previously pending response for another range.
+    const pendingRequestSequence = 1;
+    const cachedNavigationSequence = 2;
+    expect(isCurrentCalendarRangeResponse(cachedNavigationSequence, pendingRequestSequence)).toBe(false);
   });
 
   it("filters the actual fetched event set, not a separate server snapshot", () => {
