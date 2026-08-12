@@ -94,6 +94,7 @@ async function executeCalendar(input: {
     const { data } = await input.supabase
       .from("calendar_events")
       .select("provider_event_id,subject,body_text,starts_at,ends_at,is_all_day,location_name,categories,importance,show_as")
+      .eq("user_id", input.userId)
       .eq("provider_event_id", value.providerEventId)
       .eq("subject", value.originalSubject)
       .eq("starts_at", value.originalStartsAt)
@@ -116,6 +117,7 @@ async function executeCalendar(input: {
     const { data } = await input.supabase
       .from("calendar_events")
       .select("provider_event_id,subject,starts_at,ends_at,is_all_day")
+      .eq("user_id", input.userId)
       .eq("provider_event_id", value.providerEventId)
       .eq("subject", value.subject)
       .eq("starts_at", value.startsAt)

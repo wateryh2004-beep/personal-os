@@ -15,6 +15,8 @@ const travel = source("src/components/travel/trip-detail.tsx");
 const files = source("src/components/files/files-workspace.tsx");
 const nowWorkspace = source("src/components/today/now-workspace.tsx");
 const markdownTheme = source("src/features/notes/editor/markdown-theme.ts");
+const calendarTools = source("src/features/assistant/tools/calendar.ts");
+const assistantExecutor = source("src/features/assistant/executor.ts");
 const rlsOptimization = source("supabase/migrations/20260811104219_optimize_rls_auth_initplan.sql");
 
 describe("interaction performance guardrails", () => {
@@ -24,6 +26,11 @@ describe("interaction performance guardrails", () => {
     expect(calendarWorkspace).toContain("rangeCacheRef");
     expect(calendarWorkspace).toContain("requestSequenceRef");
     expect(calendarWorkspace).toContain("invalidateCalendarCache");
+  });
+
+  it("scopes Calendar AI reads and approved mutations to their owner", () => {
+    expect(calendarTools).toContain('.eq("user_id", context.userId)');
+    expect(assistantExecutor).toContain('.eq("user_id", input.userId)');
   });
 
   it("renders calendar grid and event ranges in 24-hour time", () => {

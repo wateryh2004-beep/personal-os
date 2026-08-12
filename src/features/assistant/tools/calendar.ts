@@ -37,6 +37,7 @@ export const calendarTools: AssistantToolModule = {
         const { data, error } = await context.supabase
           .from("calendar_events")
           .select("id,provider_event_id,subject,body_text,starts_at,ends_at,is_all_day,location_name,categories,importance,show_as")
+          .eq("user_id", context.userId)
           .lt("starts_at", endsAt)
           .gt("ends_at", startsAt)
           .is("archived_at", null)
@@ -72,6 +73,7 @@ export const calendarTools: AssistantToolModule = {
         const { data, error } = await context.supabase
           .from("calendar_events")
           .select("starts_at,ends_at,is_all_day")
+          .eq("user_id", context.userId)
           .lt("starts_at", value.endsAt)
           .gt("ends_at", value.startsAt)
           .is("archived_at", null)
