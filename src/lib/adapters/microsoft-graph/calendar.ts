@@ -24,12 +24,13 @@ export function requiresCategoryReauthorization(scopeVersion: number | null | un
 }
 
 export type GraphDateTimeTimeZone = { dateTime?: string; timeZone?: string };
+type GraphBody = { content?: string | null; contentType?: "text" | "html" | string | null };
 
 type GraphEvent = {
   id: string;
   iCalUId?: string;
   subject?: string;
-  body?: { content?: string | null };
+  body?: GraphBody;
   start?: GraphDateTimeTimeZone;
   end?: GraphDateTimeTimeZone;
   isAllDay?: boolean;
@@ -67,7 +68,7 @@ type CalendarUpdatePayload = CalendarPayload & {
 
 type GraphTodoList = { id?: string; displayName?: string; wellknownListName?: string | null };
 type GraphTodoTask = {
-  id?: string; title?: string; body?: { content?: string | null };
+  id?: string; title?: string; body?: GraphBody;
   status?: "notStarted" | "inProgress" | "completed" | "waitingOnOthers" | "deferred";
   importance?: "low" | "normal" | "high" | null;
   dueDateTime?: { dateTime?: string } | null; completedDateTime?: { dateTime?: string } | null;
@@ -253,6 +254,27 @@ export function graphDateTimeTimeZoneToDate(value: GraphDateTimeTimeZone | undef
   return match[1];
 }
 
+/** Converts Outlook's HTML event body to compact, display-safe plain text. */
+export function graphBodyText(body: GraphBody | undefined) {
+  const content = body?.content;
+  if (!content) return null;
+  if (body.contentType?.toLowerCase() !== "html" && !/<\/?[a-z][^>]*>/i.test(content))
+    return content.replace(/\u00a0/g, " ").trim() || null;
+  return content
+    .replace(/<\s*(br|\/p|\/div|\/li|\/tr|\/h[1-6])\b[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim() || null;
+}
+
 export function graphEventRecord(event: GraphEvent, userId: string, fallback?: { body_text?: string | null; categories?: string[]; importance?: string; show_as?: string }, timezone = "Asia/Shanghai") {
   const startsAt = event.isAllDay
     ? wallTimeToInstant(`${graphDateTimeTimeZoneToDate(event.start)}T00:00`, timezone)
@@ -265,7 +287,7 @@ export function graphEventRecord(event: GraphEvent, userId: string, fallback?: {
     provider_event_id: event.id,
     calendar_id: event.iCalUId ?? null,
     subject: event.subject ?? "",
-    body_text: event.body?.content ?? fallback?.body_text ?? null,
+    body_text: graphBodyText(event.body) ?? fallback?.body_text ?? null,
     starts_at: startsAt,
     ends_at: endsAt,
     is_all_day: Boolean(event.isAllDay),

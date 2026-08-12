@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calendarEventForGraph } from "@/lib/adapters/microsoft-graph/event-payload";
-import { graphDateTimeTimeZoneToDate, graphDateTimeTimeZoneToInstant, graphEventRecord } from "@/lib/adapters/microsoft-graph/calendar";
+import { graphBodyText, graphDateTimeTimeZoneToDate, graphDateTimeTimeZoneToInstant, graphEventRecord } from "@/lib/adapters/microsoft-graph/calendar";
 import { fullCalendarDateToInstant, instantToFullCalendarDate, wallTimeToIso } from "@/features/calendar/timezone";
 import { updateCalendarEventSchema } from "@/features/calendar/schemas";
 import { calendarUpdatePayload } from "@/features/calendar/utils";
@@ -96,5 +96,17 @@ describe("Calendar Graph time boundary", () => {
     expect(record.ends_at).toBe("2026-08-14T07:30:00.000Z");
     expect(instantToFullCalendarDate(record.starts_at, "Asia/Shanghai").toISOString()).toBe("2026-08-14T14:00:00.000Z");
     expect(fullCalendarDateToInstant(instantToFullCalendarDate(record.ends_at, "Asia/Shanghai"), "Asia/Shanghai")).toBe(record.ends_at);
+  });
+
+  it("turns an Outlook HTML body into plain text before it reaches the Calendar UI", () => {
+    const html = '<html><head><meta charset="utf-8"></head><body><div>准备材料</div><div>带身份证&nbsp;&amp; 笔记本</div></body></html>';
+    expect(graphBodyText({ content: html, contentType: "html" })).toBe("准备材料\n带身份证 & 笔记本");
+    const record = graphEventRecord({
+      id: "html-body", subject: "会议",
+      start: { dateTime: "2026-08-14T04:00:00Z", timeZone: "UTC" },
+      end: { dateTime: "2026-08-14T05:30:00Z", timeZone: "UTC" },
+      body: { content: html, contentType: "html" },
+    }, "user-1");
+    expect(record.body_text).toBe("准备材料\n带身份证 & 笔记本");
   });
 });
