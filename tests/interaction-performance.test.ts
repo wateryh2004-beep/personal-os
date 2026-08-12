@@ -40,6 +40,12 @@ describe("interaction performance guardrails", () => {
     expect(calendar).toContain("durationMinutes <= 30");
   });
 
+  it("keeps concurrent calendar events readable instead of splitting them into narrow columns", () => {
+    expect(calendar).toContain('eventMaxStack={1}');
+    expect(calendar).toContain('moreLinkClick="popover"');
+    expect(calendar).toContain('另有 {info.num} 项日程');
+  });
+
   it("uses the Profile timezone in the category management surface and defaults phones to Day", () => {
     expect(calendarWorkspace).toContain('window.matchMedia("(max-width: 767px)")');
     expect(calendarWorkspace).toContain('current === "week" ? "day"');

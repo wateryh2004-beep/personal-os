@@ -35,6 +35,10 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .calendar-canvas .fc-timegrid-now-indicator-arrow { border-color:var(--danger); color:var(--danger); }
 .calendar-canvas .fc-event { border-width:1px; border-radius:4px; box-shadow:none; cursor:pointer; }
 .calendar-canvas .fc-timegrid-event { margin:1px 2px; }
+.calendar-canvas .fc-timegrid-more-link { right:4px; bottom:auto; border:1px solid var(--border-strong); border-radius:var(--radius-sm); background:var(--surface-elevated); color:var(--text-secondary); font-size:11px; font-weight:500; line-height:1.2; }
+.calendar-canvas .fc-timegrid-more-link-inner { padding:3px 6px; }
+.calendar-canvas .fc-timegrid-more-link:hover { background:var(--surface-hover); color:var(--text-primary); }
+.calendar-more-events { white-space:nowrap; }
 .calendar-canvas .fc-daygrid-event { border-radius:3px; margin:1px 2px; }
 .calendar-canvas .fc-event-main { color:inherit!important; }
 .calendar-canvas .fc-highlight { background:color-mix(in srgb,var(--accent-soft) 72%,transparent); }
