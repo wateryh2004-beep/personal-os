@@ -52,6 +52,8 @@ describe("interaction performance guardrails", () => {
     expect(createForm).toContain("createdHandledRef");
     expect(editForm).toContain("updateHandledRef");
     expect(editForm).toContain("deleteHandledRef");
+    expect(calendarWorkspace).toContain("<CalendarEventEditForm key={selected.id}");
+    expect(calendarWorkspace).toContain("<CalendarCreateForm key={`${draft.startsAt}:${draft.endsAt}");
   });
 
   it("re-reads the authoritative mirror after drag and keeps edit times ordered", () => {
