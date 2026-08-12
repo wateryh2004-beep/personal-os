@@ -30,6 +30,7 @@ describe("interaction performance guardrails", () => {
     expect(calendar).toContain('locale="zh-cn"');
     expect(calendar).toContain("slotLabelFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
     expect(calendar).toContain("eventTimeFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
+    expect(calendar).toContain("durationMinutes <= 30");
   });
 
   it("uses the Profile timezone in the category management surface and defaults phones to Day", () => {
