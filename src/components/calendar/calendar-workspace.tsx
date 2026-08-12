@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
-import { Bot, ChevronLeft, ChevronRight, Filter, Plus, RefreshCw, Settings2 } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, Filter, MoreHorizontal, Plus, RefreshCw, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { CalendarCreateForm } from "@/components/calendar/calendar-create-form";
 import { CalendarEventEditForm } from "@/components/calendar/calendar-event-edit-form";
@@ -15,13 +15,28 @@ import { syncAndBackupMicrosoftAction, updateCalendarEvent } from "@/features/ca
 import type { CalendarCategory } from "@/features/calendar/categories/types";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
 import { Inspector } from "@/components/shared/inspector";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, wallTimeToIso } from "@/features/calendar/timezone";
 
 const CalendarAssistant = dynamic(() => import("@/components/calendar/calendar-assistant").then((module) => module.CalendarAssistant), { ssr: false });
 
 type View = "day" | "week" | "month";
 type Draft = { startsAt: string; endsAt: string; isAllDay?: boolean };
+type Range = { start: Date; end: Date };
 
 const fullCalendarView = (view: View) => view === "day" ? "timeGridDay" as const : view === "week" ? "timeGridWeek" as const : "dayGridMonth" as const;
+
+function initialDraft(timezone: string): Draft {
+  const now = new Date();
+  const wall = instantToWallTime(now.toISOString(), timezone);
+  const rounded = new Date(`${wall}:00.000Z`);
+  rounded.setUTCMinutes(Math.ceil(rounded.getUTCMinutes() / 30) * 30, 0, 0);
+  const startWall = rounded.toISOString().slice(0, 16);
+  rounded.setUTCMinutes(rounded.getUTCMinutes() + 60);
+  return { startsAt: wallTimeToIso(startWall, timezone), endsAt: wallTimeToIso(rounded.toISOString().slice(0, 16), timezone) };
+}
+
+function sameRange(a: Range | null, b: Range) { return a?.start.getTime() === b.start.getTime() && a?.end.getTime() === b.end.getTime(); }
 
 export function CalendarWorkspace({ events, categories, timezone, scopeReady, initialCreateOpen = false }: { events: CalendarEventRecord[]; categories: CalendarCategory[]; timezone: string; scopeReady: boolean; initialCreateOpen?: boolean }) {
   const router = useRouter();
@@ -29,18 +44,57 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
   const [cursor, setCursor] = useState(() => new Date());
   const [eventState, setEventState] = useState(events);
   const [selected, setSelected] = useState<CalendarEventRecord | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(() => initialCreateOpen ? { startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + 3_600_000).toISOString() } : null);
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [draft, setDraft] = useState<Draft | null>(() => initialCreateOpen ? initialDraft(timezone) : null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [syncing, startSync] = useTransition();
+  const [loadingRange, setLoadingRange] = useState(false);
+  const [rangeTruncated, setRangeTruncated] = useState(false);
+  const activeRangeRef = useRef<Range | null>(null);
+  const rangeCacheRef = useRef(new Map<string, CalendarEventRecord[]>());
+  const requestSequenceRef = useRef(0);
   const ai = useWorkspacePanel("calendar-ai");
   const inspector = useWorkspacePanel("calendar-inspector");
   const filtered = useMemo(() => selectedCategories.size ? eventState.filter((event) => event.categories.some((category) => selectedCategories.has(category))) : eventState, [eventState, selectedCategories]);
+
+  const invalidateCalendarCache = useCallback(() => { rangeCacheRef.current.clear(); }, []);
+  const fetchRange = useCallback(async (range: Range, force = false) => {
+    // `datesSet` returns FullCalendar's UTC-coerced wall-time dates. They are
+    // UI boundary values, so convert them back before touching the API/cache.
+    const start = fullCalendarDateToInstant(range.start, timezone);
+    const end = fullCalendarDateToInstant(range.end, timezone);
+    const key = `${start}:${end}`;
+    activeRangeRef.current = range;
+    const cached = !force ? rangeCacheRef.current.get(key) : undefined;
+    if (cached) { setEventState(cached); setRangeTruncated(false); return cached; }
+    const sequence = ++requestSequenceRef.current;
+    setLoadingRange(true);
+    try {
+      const response = await fetch(`/api/calendar/events?${new URLSearchParams({ start, end })}`, { cache: "no-store" });
+      const body = await response.json() as { events?: CalendarEventRecord[]; truncated?: boolean };
+      if (!response.ok) throw new Error("calendar_range_failed");
+      const data = body.events ?? [];
+      if (sequence === requestSequenceRef.current) setRangeTruncated(Boolean(body.truncated));
+      rangeCacheRef.current.set(key, data);
+      if (sequence === requestSequenceRef.current) setEventState(data);
+      return data;
+    } finally {
+      if (sequence === requestSequenceRef.current) setLoadingRange(false);
+    }
+  }, [timezone]);
+  const onRangeChange = useCallback((range: Range) => {
+    if (!sameRange(activeRangeRef.current, range)) void fetchRange(range);
+  }, [fetchRange]);
+  const refetchActiveRange = useCallback(async () => {
+    invalidateCalendarCache();
+    if (activeRangeRef.current) return fetchRange(activeRangeRef.current, true);
+    return null;
+  }, [fetchRange, invalidateCalendarCache]);
+
   const openEvent = (event: CalendarEventRecord) => { setSelected(event); setDraft(null); inspector.open(); };
   const openDraft = (range: Draft) => { setSelected(null); setDraft(range); inspector.open(); };
-  const sync = () => startSync(async () => { await syncAndBackupMicrosoftAction(); router.refresh(); });
-  const changeCursor = (amount: number) => setCursor((date) => new Date(date.getFullYear(), view === "month" ? date.getMonth() + amount : date.getMonth(), view === "day" ? date.getDate() + amount : view === "week" ? date.getDate() + amount * 7 : date.getDate()));
+  const sync = () => startSync(async () => { await syncAndBackupMicrosoftAction(); await refetchActiveRange(); router.refresh(); });
+  const changeCursor = (amount: number) => setCursor((date) => shiftCalendarCursor(date, timezone, view === "week" ? amount * 7 : amount));
   const moveEvent = async (event: CalendarEventRecord, range: Draft & { isAllDay: boolean }) => {
     const form = new FormData();
     form.set("provider_event_id", event.provider_event_id); form.set("original_subject", event.subject); form.set("original_starts_at", event.starts_at); form.set("original_ends_at", event.ends_at);
@@ -48,19 +102,23 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     form.set("is_all_day_present", "true"); if (range.isAllDay) form.set("is_all_day", "on"); form.set("importance", event.importance); form.set("show_as", event.show_as === "unknown" ? "busy" : event.show_as); form.set("classification_mode", "auto"); form.set("preserve_categories", "true");
     const result = await updateCalendarEvent({ status: "idle", message: "" }, form);
     if (result.status !== "success") throw new Error(result.message);
-    setEventState((current) => current.map((item) => item.id === event.id ? { ...item, starts_at: range.startsAt, ends_at: range.endsAt, is_all_day: range.isAllDay } : item));
+    const updated = { ...event, starts_at: range.startsAt, ends_at: range.endsAt, is_all_day: range.isAllDay };
+    setEventState((current) => current.map((item) => item.id === event.id ? updated : item));
+    setSelected((current) => current?.id === event.id ? updated : current);
+    invalidateCalendarCache();
   };
+  const title = new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, month: "long", day: view === "month" ? undefined : "numeric", year: view === "month" ? "numeric" : undefined }).format(cursor);
 
   return <section className="flex h-[calc(var(--app-viewport-height)-var(--toolbar-height))] min-h-0 overflow-hidden bg-white">
     <div className="flex min-w-0 flex-1 flex-col">
-      <header className="relative flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-3">
-        <div className="flex items-center gap-1"><button onClick={() => changeCursor(-1)} aria-label="上一段日期"><ChevronLeft size={17} /></button><button onClick={() => setCursor(new Date())} className="px-2 text-sm">今天</button><button onClick={() => changeCursor(1)} aria-label="下一段日期"><ChevronRight size={17} /></button><span className="ml-2 text-sm font-medium">{cursor.toLocaleDateString("zh-CN", { month: "long", day: view === "month" ? undefined : "numeric", year: view === "month" ? "numeric" : undefined })}</span></div>
-        <div className="flex items-center gap-1"><div className="rounded bg-[var(--surface-hover)] p-0.5">{(["day", "week", "month"] as View[]).map((item) => <button key={item} onClick={() => setView(item)} className={`rounded px-2 py-1 text-xs ${view === item ? "bg-white text-[var(--accent)]" : ""}`}>{item === "day" ? "日" : item === "week" ? "周" : "月"}</button>)}</div><button onClick={sync} disabled={syncing} aria-label="对齐 Outlook" className="p-2 text-[var(--accent)]"><RefreshCw size={15} className={syncing ? "animate-spin" : ""} /></button><button onClick={() => setFilterOpen(!filterOpen)} aria-label="筛选分类" className="p-2"><Filter size={15} /></button><button onClick={() => setSettingsOpen(true)} aria-label="分类设置" className="p-2"><Settings2 size={15} /></button><button onClick={ai.toggle} aria-label="Calendar AI" className="p-2 text-[var(--accent)]"><Bot size={15} /></button><button onClick={() => { const now = new Date(); openDraft({ startsAt: now.toISOString(), endsAt: new Date(now.getTime() + 3_600_000).toISOString() }); }} className="rounded bg-[var(--accent)] px-3 py-1.5 text-xs text-white"><Plus size={14} className="mr-1 inline" />新建</button></div>
-        {filterOpen ? <div className="absolute right-24 top-12 z-30 w-56 rounded border bg-white p-2 shadow"><button onClick={() => setSelectedCategories(new Set())} className="mb-2 text-xs text-[var(--accent)]">清除筛选</button>{categories.map((category) => <label key={category.id} className="flex gap-2 py-1 text-xs"><input type="checkbox" checked={selectedCategories.has(category.display_name)} onChange={() => setSelectedCategories((current) => { const next = new Set(current); if (next.has(category.display_name)) next.delete(category.display_name); else next.add(category.display_name); return next; })} />{category.display_name}</label>)}</div> : null}
+      <header className="flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-3">
+        <div className="flex min-w-0 items-center gap-1"><button className="rounded p-1.5 hover:bg-[var(--surface-hover)]" onClick={() => changeCursor(-1)} aria-label="上一段日期"><ChevronLeft size={17} /></button><button onClick={() => setCursor(new Date())} className="rounded px-2 py-1 text-sm hover:bg-[var(--surface-hover)]">今天</button><button className="rounded p-1.5 hover:bg-[var(--surface-hover)]" onClick={() => changeCursor(1)} aria-label="下一段日期"><ChevronRight size={17} /></button><span className="ml-2 truncate text-sm font-medium">{title}</span></div>
+        <div className="flex items-center gap-1"><div className="rounded-md bg-[var(--surface-hover)] p-0.5">{(["day", "week", "month"] as View[]).map((item) => <button key={item} onClick={() => setView(item)} className={`rounded px-2 py-1 text-xs ${view === item ? "bg-white text-[var(--accent)] shadow-sm" : ""}`}>{item === "day" ? "日" : item === "week" ? "周" : "月"}</button>)}</div><Popover><PopoverTrigger asChild><button aria-label="更多日历操作" className="rounded p-2 text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><MoreHorizontal size={16} /></button></PopoverTrigger><PopoverContent align="end" className="w-56"><button onClick={sync} disabled={syncing} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><RefreshCw size={14} className={syncing ? "animate-spin" : ""}/>{syncing ? "正在同步…" : "同步 Outlook"}</button><button onClick={() => setSettingsOpen(true)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><Settings2 size={14}/>分类设置</button><button onClick={ai.toggle} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><Bot size={14}/>Calendar AI</button></PopoverContent></Popover><Popover><PopoverTrigger asChild><button aria-label="筛选分类" aria-pressed={selectedCategories.size > 0} className={`relative rounded p-2 hover:bg-[var(--surface-hover)] ${selectedCategories.size ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}><Filter size={15}/>{selectedCategories.size ? <span className="absolute right-1 top-1 size-1.5 rounded-full bg-[var(--accent)]"/> : null}</button></PopoverTrigger><PopoverContent align="end" className="w-56"><button onClick={() => setSelectedCategories(new Set())} className="mb-1 text-xs text-[var(--accent)]">清除筛选</button>{categories.map((category) => <label key={category.id} className="flex cursor-pointer gap-2 rounded px-1 py-1 text-xs hover:bg-[var(--surface-hover)]"><input type="checkbox" checked={selectedCategories.has(category.display_name)} onChange={() => setSelectedCategories((current) => { const next = new Set(current); if (next.has(category.display_name)) next.delete(category.display_name); else next.add(category.display_name); return next; })} />{category.display_name}</label>)}</PopoverContent></Popover><button onClick={() => openDraft(initialDraft(timezone))} className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs text-white"><Plus size={14} className="mr-1 inline" />新建</button></div>
       </header>
-      <CalendarFullView events={filtered} timezone={timezone} initialView={fullCalendarView(view)} initialDate={cursor} onOpen={openEvent} onCreate={openDraft} onMove={moveEvent} />
+      <CalendarFullView events={filtered} categories={categories} timezone={timezone} initialView={fullCalendarView(view)} initialDate={cursor} onOpen={openEvent} onCreate={openDraft} onMove={moveEvent} onRangeChange={onRangeChange} loadingRange={loadingRange} />
+      {rangeTruncated ? <p className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">当前范围仅显示前 1,000 条日程。</p> : null}
     </div>
-    <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="w-[min(380px,calc(100vw-8px))]">{selected ? <CalendarEventEditForm event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} /> : draft ? <CalendarCreateForm timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} /> : null}</Inspector>
+    <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="w-[min(380px,calc(100vw-8px))]">{selected ? <CalendarEventEditForm event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={async (kind) => { if (kind === "delete") { setEventState((current) => current.filter((event) => event.id !== selected.id)); setSelected(null); inspector.close(); } else { const refreshed = await refetchActiveRange(); const current = refreshed?.find((event) => event.id === selected.id); if (current) setSelected(current); } invalidateCalendarCache(); }} /> : draft ? <CalendarCreateForm timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={async () => { await refetchActiveRange(); }} /> : null}</Inspector>
     {ai.isOpen ? <AISidecar open onClose={ai.close} context="Calendar"><CalendarAssistant timezone={timezone} categories={categories} /></AISidecar> : null}
     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent><CalendarCategoryManager categories={categories} scopeReady={scopeReady} events={eventState} referenceTime={cursor.getTime()} /></DialogContent></Dialog>
   </section>;

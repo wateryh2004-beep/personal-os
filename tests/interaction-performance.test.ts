@@ -5,6 +5,7 @@ const source = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 const calendar = source("src/components/calendar/calendar-full-view.tsx");
+const calendarWorkspace = source("src/components/calendar/calendar-workspace.tsx");
 const appShell = source("src/components/layout/app-shell.tsx");
 const globalAgent = source("src/components/assistant/global-agent.tsx");
 const taskWorkspace = source("src/components/tasks/task-workspace.tsx");
@@ -17,11 +18,12 @@ const markdownTheme = source("src/features/notes/editor/markdown-theme.ts");
 const rlsOptimization = source("supabase/migrations/20260811104219_optimize_rls_auth_initplan.sql");
 
 describe("interaction performance guardrails", () => {
-  it("keeps the calendar instance stable and caches range requests", () => {
+  it("keeps the calendar instance stable and gives the workspace one cache owner", () => {
     expect(calendar).not.toContain("key={`${view}:${cursor.toDateString()}`}");
-    expect(calendar).toContain("cacheRef");
-    expect(calendar).toContain("pendingRef");
     expect(calendar).toContain("api.changeView");
+    expect(calendarWorkspace).toContain("rangeCacheRef");
+    expect(calendarWorkspace).toContain("requestSequenceRef");
+    expect(calendarWorkspace).toContain("invalidateCalendarCache");
   });
 
   it("renders calendar grid and event ranges in 24-hour time", () => {

@@ -45,7 +45,10 @@ export function calendarEventForGraph(value: GraphCalendarCreatePayload) {
   const graphZone = graphTimeZone(timeZone);
   const localDate = (value: string) => instantToDate(value, timeZone);
   const startDate = value.startDate ?? localDate(value.startsAt);
-  const endDate = value.endDateExclusive ?? nextDate(startDate);
+  // All-day end is exclusive. New commands supply that DATE directly; the
+  // same-date legacy 23:59:59 shape is normalized to a one-day exclusive end.
+  const derivedEndDate = localDate(value.endsAt);
+  const endDate = value.endDateExclusive ?? (derivedEndDate === startDate ? nextDate(startDate) : derivedEndDate);
   const start = value.isAllDay ? `${startDate}T00:00:00` : `${instantToWallTime(value.startsAt, timeZone)}:00`;
   const end = value.isAllDay ? `${endDate}T00:00:00` : `${instantToWallTime(value.endsAt, timeZone)}:00`;
 

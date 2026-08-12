@@ -23,13 +23,15 @@ export function requiresCategoryReauthorization(scopeVersion: number | null | un
   return (scopeVersion ?? 1) < MICROSOFT_SCOPE_VERSION;
 }
 
+export type GraphDateTimeTimeZone = { dateTime?: string; timeZone?: string };
+
 type GraphEvent = {
   id: string;
   iCalUId?: string;
   subject?: string;
   body?: { content?: string | null };
-  start?: { dateTime?: string };
-  end?: { dateTime?: string };
+  start?: GraphDateTimeTimeZone;
+  end?: GraphDateTimeTimeZone;
   isAllDay?: boolean;
   location?: { displayName?: string | null };
   changeKey?: string | null;
@@ -197,14 +199,48 @@ export async function graph(accessToken: string, path: string, init?: RequestIni
   return payload;
 }
 
-function toIso(value: string | undefined) {
-  if (!value) throw new MicrosoftGraphError("graph_event_invalid");
-  return /(?:Z|[+-]\d\d:\d\d)$/.test(value) ? value : `${value}Z`;
+const graphResponseTimeZones: Record<string, string> = {
+  UTC: "UTC",
+  "China Standard Time": "Asia/Shanghai",
+  "Singapore Standard Time": "Asia/Singapore",
+  "Tokyo Standard Time": "Asia/Tokyo",
+  "Eastern Standard Time": "America/New_York",
+  "Pacific Standard Time": "America/Los_Angeles",
+  "GMT Standard Time": "Europe/London",
+  "Asia/Shanghai": "Asia/Shanghai",
+  "Asia/Singapore": "Asia/Singapore",
+  "Asia/Tokyo": "Asia/Tokyo",
+  "America/New_York": "America/New_York",
+  "America/Los_Angeles": "America/Los_Angeles",
+  "Europe/London": "Europe/London",
+};
+
+/**
+ * The only Graph DateTimeTimeZone -> app-instant boundary.  A Graph
+ * `dateTime` without an offset is wall time in its accompanying `timeZone`,
+ * not UTC.  Treating it as UTC was the source of the historic +8h cache bug.
+ */
+export function graphDateTimeTimeZoneToInstant(value: GraphDateTimeTimeZone | undefined) {
+  const dateTime = value?.dateTime;
+  if (!dateTime) throw new MicrosoftGraphError("graph_event_invalid");
+  if (/(?:Z|[+-]\d\d:\d\d)$/i.test(dateTime)) {
+    const instant = new Date(dateTime);
+    if (Number.isNaN(instant.getTime())) throw new MicrosoftGraphError("graph_event_invalid");
+    return instant.toISOString();
+  }
+  const timezone = value.timeZone ? graphResponseTimeZones[value.timeZone] : undefined;
+  if (!timezone) throw new MicrosoftGraphError("graph_event_timezone_unsupported");
+  try {
+    return wallTimeToInstant(dateTime, timezone);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("calendar_wall_time_")) throw new MicrosoftGraphError(error.message);
+    throw new MicrosoftGraphError("graph_event_invalid");
+  }
 }
 
 export function graphEventRecord(event: GraphEvent, userId: string, fallback?: { body_text?: string | null; categories?: string[]; importance?: string; show_as?: string }, timezone = "Asia/Shanghai") {
-  const startsAt = toIso(event.start?.dateTime);
-  const endsAt = toIso(event.end?.dateTime);
+  const startsAt = graphDateTimeTimeZoneToInstant(event.start);
+  const endsAt = graphDateTimeTimeZoneToInstant(event.end);
   // Graph's UTC representation of an all-day item still denotes a DATE in
   // the owner's zone. Re-anchor that date at local midnight for our instant
   // storage, so a later UI/Graph round trip cannot move it by one day.
@@ -377,7 +413,13 @@ export async function ensureManagedOutlookCategories(connectionId: string, userI
 }
 
 export function optionalIso(value: string | undefined | null) {
-  return value ? toIso(value) : null;
+  if (!value) return null;
+  // Microsoft To Do's separate date-time fields do not carry a companion
+  // DateTimeTimeZone object. Preserve their existing explicit UTC contract;
+  // Calendar events must use graphDateTimeTimeZoneToInstant above instead.
+  const instant = new Date(/(?:Z|[+-]\d\d:\d\d)$/i.test(value) ? value : `${value}Z`);
+  if (Number.isNaN(instant.getTime())) throw new MicrosoftGraphError("graph_event_invalid");
+  return instant.toISOString();
 }
 
 export async function syncMicrosoftTodo(connectionId: string, userId: string) {

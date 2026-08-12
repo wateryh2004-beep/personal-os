@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateTimeInputValue, fullCalendarDateToInstant, instantToDate, instantToFullCalendarDate, wallTimeToIso } from "@/features/calendar/timezone";
+import { dateTimeInputValue, fullCalendarDateToInstant, instantToDate, instantToFullCalendarDate, shiftCalendarCursor, wallTimeToIso } from "@/features/calendar/timezone";
 
 describe("calendar timezone conversion", () => {
   it("stores Beijing wall time as the correct instant", () => {
@@ -38,5 +38,20 @@ describe("calendar timezone conversion", () => {
   ])("round-trips the boundary time %s", (wallTime, instant) => {
     expect(wallTimeToIso(wallTime, "Asia/Singapore")).toBe(instant);
     expect(dateTimeInputValue(instant, "Asia/Singapore")).toBe(wallTime);
+  });
+
+  it.each([
+    ["Asia/Shanghai", "2026-08-14T12:00", "2026-08-14T04:00:00.000Z"],
+    ["Asia/Singapore", "2026-08-14T12:00", "2026-08-14T04:00:00.000Z"],
+    ["Asia/Tokyo", "2026-08-14T12:00", "2026-08-14T03:00:00.000Z"],
+    ["America/New_York", "2026-08-14T12:00", "2026-08-14T16:00:00.000Z"],
+  ])("keeps profile timezone wall time stable for %s", (timezone, wallTime, instant) => {
+    expect(wallTimeToIso(wallTime, timezone)).toBe(instant);
+    expect(dateTimeInputValue(instant, timezone)).toBe(wallTime);
+  });
+
+  it("moves a cursor using the profile timezone rather than browser-local Date fields", () => {
+    const cursor = new Date("2026-08-13T16:30:00.000Z"); // Aug 14 00:30 Shanghai
+    expect(shiftCalendarCursor(cursor, "Asia/Shanghai", 1).toISOString()).toBe("2026-08-14T16:30:00.000Z");
   });
 });

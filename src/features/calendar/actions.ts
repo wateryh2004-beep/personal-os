@@ -14,6 +14,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export type CalendarCreateState = { status: "idle" | "success" | "error"; message: string };
 
 function fail(): never { throw new Error("日历操作未能完成，请检查输入、连接状态或网络后重试。"); }
+function operationFailureMessage(error: unknown, verb: "创建" | "更新" | "删除") {
+  if (error instanceof Error && error.message === "calendar_remote_committed_cache_failed") {
+    return `Outlook 已${verb}日程，本地日历正在等待重新同步；请勿重复操作。`;
+  }
+  return `日程未能${verb === "创建" ? "创建" : verb === "更新" ? "更新到 Outlook" : "从 Outlook 删除"}。请检查连接状态后重试。`;
+}
 function formValue(formData: FormData) {
   const categoryChoice = String(formData.get("category_choice") || "");
   const explicitMode = String(formData.get("classification_mode") || "");
@@ -97,7 +103,7 @@ export async function createCalendarEvent(_previousState: CalendarCreateState, f
       .eq("id", requested.id).eq("status", "pending_confirmation").select("id,operation_type").maybeSingle();
     if (queueError || !queued) fail();
     await audit(supabase, userId, "confirm", queued.id, { operation_type: queued.operation_type, confirmation: "single_step" });
-    try { await executeCalendarOperation(queued.id, userId); } catch { return { status: "error", message: "日程未能写入 Outlook。请检查连接状态后重试。" }; }
+    try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "创建") }; }
     await markInboxProcessed(supabase, userId, inboxId, "calendar", queued.id);
     revalidatePath("/calendar");
     revalidatePath("/inbox");
@@ -140,7 +146,7 @@ export async function updateCalendarEvent(_previousState: CalendarCreateState, f
       .eq("id", requested.id).eq("status", "pending_confirmation").select("id,operation_type").maybeSingle();
     if (queueError || !queued) fail();
     await audit(supabase, userId, "confirm", queued.id, { operation_type: "update", confirmation: "single_step" });
-    try { await executeCalendarOperation(queued.id, userId); } catch { return { status: "error", message: "日程未能更新到 Outlook，请检查连接后重试。" }; }
+    try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "更新") }; }
     revalidatePath("/calendar"); revalidatePath("/today");
     return { status: "success", message: "已更新并同步到 Outlook。" };
   } catch {
@@ -173,7 +179,7 @@ export async function deleteCalendarEvent(_previousState: CalendarCreateState, f
       .eq("id", requested.id).eq("status", "pending_confirmation").select("id,operation_type").maybeSingle();
     if (queueError || !queued) fail();
     await audit(supabase, userId, "confirm", queued.id, { operation_type: queued.operation_type, confirmation: "single_step" });
-    try { await executeCalendarOperation(queued.id, userId); } catch { return { status: "error", message: "日程未能从 Outlook 删除。请检查连接后重试。" }; }
+    try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "删除") }; }
     revalidatePath("/calendar");
     revalidatePath("/today");
     return { status: "success", message: "已从 Outlook 删除这条日程。" };
