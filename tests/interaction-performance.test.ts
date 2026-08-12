@@ -32,6 +32,13 @@ describe("interaction performance guardrails", () => {
     expect(calendar).toContain("eventTimeFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
   });
 
+  it("uses the Profile timezone in the category management surface and defaults phones to Day", () => {
+    expect(calendarWorkspace).toContain('window.matchMedia("(max-width: 767px)")');
+    expect(calendarWorkspace).toContain('current === "week" ? "day"');
+    const categoryManager = source("src/components/calendar/calendar-category-manager.tsx");
+    expect(categoryManager).toContain('timeZone: timezone');
+  });
+
   it("renders Markdown list structure as document markers rather than source syntax", () => {
     expect(markdownTheme).toContain('node.name === "ListMark"');
     expect(markdownTheme).toContain('node.name === "TaskMarker"');

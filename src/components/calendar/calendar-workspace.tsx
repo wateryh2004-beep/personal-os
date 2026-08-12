@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { Bot, ChevronLeft, ChevronRight, Filter, MoreHorizontal, Plus, RefreshCw, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -55,6 +55,15 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
   const requestSequenceRef = useRef(0);
   const ai = useWorkspacePanel("calendar-ai");
   const inspector = useWorkspacePanel("calendar-inspector");
+  // A seven-column time grid is not usable on a phone. This is a product
+  // default only; users can still choose Month after the compact Day view.
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const apply = () => { if (media.matches) setView((current) => current === "week" ? "day" : current); };
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
   const filtered = useMemo(() => selectedCategories.size ? eventState.filter((event) => event.categories.some((category) => selectedCategories.has(category))) : eventState, [eventState, selectedCategories]);
 
   const invalidateCalendarCache = useCallback(() => { rangeCacheRef.current.clear(); }, []);
@@ -120,6 +129,6 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     </div>
     <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="w-[min(380px,calc(100vw-8px))]">{selected ? <CalendarEventEditForm event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={async (kind) => { if (kind === "delete") { setEventState((current) => current.filter((event) => event.id !== selected.id)); setSelected(null); inspector.close(); } else { const refreshed = await refetchActiveRange(); const current = refreshed?.find((event) => event.id === selected.id); if (current) setSelected(current); } invalidateCalendarCache(); }} /> : draft ? <CalendarCreateForm timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={async () => { await refetchActiveRange(); }} /> : null}</Inspector>
     {ai.isOpen ? <AISidecar open onClose={ai.close} context="Calendar"><CalendarAssistant timezone={timezone} categories={categories} /></AISidecar> : null}
-    <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent><CalendarCategoryManager categories={categories} scopeReady={scopeReady} events={eventState} referenceTime={cursor.getTime()} /></DialogContent></Dialog>
+    <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent><CalendarCategoryManager categories={categories} timezone={timezone} scopeReady={scopeReady} events={eventState} referenceTime={cursor.getTime()} /></DialogContent></Dialog>
   </section>;
 }
