@@ -73,6 +73,10 @@ function runSelection(
 }
 
 describe("Markdown 有序列表事务", () => {
+  it("分割线 Enter 后保留正确的 thematic break 并开始新段落", () => {
+    expect(runCommand("---|", continueMarkdownList).text).toBe("---\n\n|");
+    expect(runCommand("***|", continueMarkdownList).text).toBe("***\n\n|");
+  });
   it("Enter 继续当前编号，并支持两位数", () => {
     expect(runCommand("1. 第一项|", continueMarkdownList).text).toBe(
       "1. 第一项\n2. |",

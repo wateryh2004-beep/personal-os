@@ -23,6 +23,12 @@ describe("interaction performance guardrails", () => {
     expect(calendar).toContain("api.changeView");
   });
 
+  it("renders calendar grid and event ranges in 24-hour time", () => {
+    expect(calendar).toContain('locale="zh-cn"');
+    expect(calendar).toContain("slotLabelFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
+    expect(calendar).toContain("eventTimeFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
+  });
+
   it("loads heavy agent surfaces only after the user opens them", () => {
     expect(appShell).toContain("dynamic(");
     expect(appShell).toContain("globalAgentOpen ? <GlobalAgent");

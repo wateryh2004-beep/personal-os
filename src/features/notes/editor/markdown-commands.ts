@@ -66,6 +66,18 @@ export const continueMarkdownList: StateCommand = (target) => {
   const selection = state.selection.main;
   if (!selection.empty) return false;
   const line = state.doc.lineAt(selection.head);
+  // A standalone --- is a thematic break, not a Setext heading underline.
+  // Explicitly leave a blank line after it so the parser and following prose
+  // consistently keep it as a divider.
+  if (selection.head === line.to && /^ {0,3}(?:\*\s*){3,}$|^ {0,3}(?:-\s*){3,}$|^ {0,3}(?:_\s*){3,}$/.test(line.text)) {
+    target.dispatch(state.update({
+      changes: { from: selection.head, insert: "\n\n" },
+      selection: { anchor: selection.head + 2 },
+      scrollIntoView: true,
+      userEvent: "input",
+    }));
+    return true;
+  }
   const context = parseMarkdownListLine(line.text);
   if (
     !context ||

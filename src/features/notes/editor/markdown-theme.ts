@@ -25,6 +25,8 @@ function blockDecorations(view: EditorView) {
         else if (node.name === "ListItem") className = "cm-note-list-line";
         else if (/^ATXHeading[1-4]$/.test(node.name))
           className = `cm-note-${node.name.toLocaleLowerCase()}`;
+        else if (node.name === "HorizontalRule")
+          className = "cm-note-horizontal-rule";
         if (!className) return;
         const first = view.state.doc.lineAt(node.from).number;
         const last = view.state.doc.lineAt(node.to).number;
@@ -57,6 +59,38 @@ const markdownBlockPlugin = ViewPlugin.fromClass(
     update(update: ViewUpdate) {
       if (update.docChanged || update.viewportChanged)
         this.decorations = blockDecorations(update.view);
+    }
+  },
+  { decorations: (value) => value.decorations },
+);
+
+/**
+ * Markdown stays canonical in the document, but its structural punctuation is
+ * visually hidden so Notes reads like a document rather than source code.
+ */
+function markupDecorations(view: EditorView) {
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const range of view.visibleRanges) {
+    syntaxTree(view.state).iterate({
+      from: range.from,
+      to: range.to,
+      enter(node) {
+        if (node.name === "HeaderMark" || node.name === "EmphasisMark")
+          builder.add(node.from, node.to, Decoration.mark({ class: "cm-note-markdown-hidden" }));
+        else if (node.name === "HorizontalRule")
+          builder.add(node.from, node.to, Decoration.mark({ class: "cm-note-markdown-hidden" }));
+      },
+    });
+  }
+  return builder.finish();
+}
+
+const markdownMarkupPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) { this.decorations = markupDecorations(view); }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) this.decorations = markupDecorations(update.view);
     }
   },
   { decorations: (value) => value.decorations },
@@ -144,6 +178,25 @@ const editorTheme = EditorView.theme({
   ".cm-note-atxheading2": markdownHeadingLineStyles.h2,
   ".cm-note-atxheading3": markdownHeadingLineStyles.h3,
   ".cm-note-atxheading4": markdownHeadingLineStyles.h4,
+  ".cm-note-markdown-hidden": {
+    color: "transparent !important",
+    fontSize: "0 !important",
+    letterSpacing: "0 !important",
+    textDecoration: "none !important",
+  },
+  ".cm-note-horizontal-rule": {
+    position: "relative",
+    minHeight: "1.78em",
+  },
+  ".cm-note-horizontal-rule::after": {
+    position: "absolute",
+    top: "50%",
+    right: "0",
+    left: "0",
+    height: "1px",
+    backgroundColor: "#d8dedb",
+    content: "\"\"",
+  },
   ".cm-note-image-upload": {
     display: "inline-flex",
     alignItems: "center",
@@ -270,6 +323,7 @@ export const markdownEditorTheme: Extension = [
   editorTheme,
   syntaxHighlighting(markdownHighlight),
   markdownBlockPlugin,
+  markdownMarkupPlugin,
   EditorView.lineWrapping,
   scrollPastEnd(),
 ];
