@@ -10,6 +10,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import { parseMarkdownListLine } from "./markdown-list";
 
 function blockDecorations(view: EditorView) {
   const builder = new RangeSetBuilder<Decoration>();
@@ -80,18 +81,40 @@ function markupDecorations(view: EditorView) {
           builder.add(node.from, node.to, Decoration.mark({ class: "cm-note-markdown-hidden" }));
         else if (node.name === "HorizontalRule")
           builder.add(node.from, node.to, Decoration.mark({ class: "cm-note-markdown-hidden" }));
-        else if (node.name === "QuoteMark")
-          builder.add(node.from, node.to, Decoration.replace({}));
+        else if (node.name === "QuoteMark") {
+          const line = view.state.doc.lineAt(node.from);
+          const prefixEnd = node.to < line.to && /\s/.test(view.state.sliceDoc(node.to, node.to + 1))
+            ? node.to + 1
+            : node.to;
+          builder.add(node.from, prefixEnd, Decoration.replace({}));
+        }
         else if (node.name === "TaskMarker") {
           const checked = view.state.sliceDoc(node.from, node.to).toLowerCase().includes("x");
           builder.add(node.from, node.to, Decoration.replace({ widget: new MarkdownMarkerWidget(checked ? "☑" : "☐", "cm-note-task-marker") }));
+          const line = view.state.doc.lineAt(node.from);
+          if (node.to < line.to && /\s/.test(view.state.sliceDoc(node.to, node.to + 1)))
+            builder.add(node.to, node.to + 1, Decoration.replace({}));
         } else if (node.name === "ListMark") {
           const isTask = node.node.parent?.getChild("Task") !== null;
           const isOrdered = node.node.parent?.parent?.name === "OrderedList";
           const marker = view.state.sliceDoc(node.from, node.to).trim();
-          builder.add(node.from, node.to, Decoration.replace({
-            widget: new MarkdownMarkerWidget(isTask ? "" : isOrdered ? marker : "•", "cm-note-list-marker"),
-          }));
+          const line = view.state.doc.lineAt(node.from);
+          const parsed = parseMarkdownListLine(line.text);
+          // Replace the complete source prefix ("- ", "1. "), rather than
+          // only its punctuation. Keeping the source whitespace beside the
+          // widget makes an active, empty list item look like raw Markdown.
+          // A task checkbox is rendered separately below, so its prefix ends
+          // immediately before the checkbox markup.
+          const prefixEnd = isTask
+            ? Math.min(line.to, node.to + 1)
+            : parsed
+              ? line.from + parsed.contentStart
+              : node.to;
+          builder.add(node.from, prefixEnd, Decoration.replace(
+            isTask
+              ? {}
+              : { widget: new MarkdownMarkerWidget(isOrdered ? marker : "•", "cm-note-list-marker") },
+          ));
         }
       },
     });

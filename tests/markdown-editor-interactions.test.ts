@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { markdownHeadingLineStyles } from "@/features/notes/editor/markdown-theme";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   addMarkdownUploadPlaceholder,
   findMarkdownUploadRange,
@@ -10,6 +12,17 @@ import {
 import { parseMarkdownImage } from "@/features/notes/editor/markdown-image-preview";
 
 describe("Markdown 编辑器交互布局", () => {
+  it("将完整列表前缀替换为视觉标记，不保留 -、编号或任务列表的源空格", () => {
+    const theme = readFileSync(
+      resolve(process.cwd(), "src/features/notes/editor/markdown-theme.ts"),
+      "utf8",
+    );
+    expect(theme).toContain("parseMarkdownListLine");
+    expect(theme).toContain("const prefixEnd");
+    expect(theme).toContain("builder.add(node.from, prefixEnd, Decoration.replace(");
+    expect(theme).toContain("node.to, node.to + 1");
+  });
+
   it("标题行不使用会吞掉相邻空行点击区域的垂直 margin 或 padding", () => {
     for (const style of Object.values(markdownHeadingLineStyles)) {
       expect(Object.keys(style)).not.toContain("marginTop");
