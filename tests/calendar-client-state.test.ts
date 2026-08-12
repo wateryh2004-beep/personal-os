@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
+import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, reconcileCalendarMutationRange, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
 import type { CalendarEventRecord } from "@/features/calendar/types";
 
 const event = (id: string, categories: string[] = []): CalendarEventRecord => ({
@@ -31,5 +31,11 @@ describe("calendar client state", () => {
     const updated = { ...events[0], subject: "已改期", starts_at: "2026-08-14T08:00:00.000Z" };
     expect(replaceCalendarEvent(events, updated)[0]).toMatchObject({ subject: "已改期", starts_at: "2026-08-14T08:00:00.000Z" });
     expect(removeCalendarEvent(events, "first").map((item) => item.id)).toEqual(["second"]);
+  });
+
+  it("distinguishes a successful move out of range from a mirror read failure", () => {
+    const events = [event("first")];
+    expect(reconcileCalendarMutationRange(events, "first")).toMatchObject({ kind: "updated", event: { id: "first" } });
+    expect(reconcileCalendarMutationRange(events, "moved")).toEqual({ kind: "moved_out_of_range" });
   });
 });

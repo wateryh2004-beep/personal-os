@@ -17,7 +17,7 @@ import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider"
 import { Inspector } from "@/components/shared/inspector";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, wallTimeToIso } from "@/features/calendar/timezone";
-import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
+import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, reconcileCalendarMutationRange, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
 
 const CalendarAssistant = dynamic(() => import("@/components/calendar/calendar-assistant").then((module) => module.CalendarAssistant), { ssr: false });
 
@@ -135,8 +135,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     // Outlook is authoritative. Re-read the Graph-backed mirror instead of
     // retaining a client-side drag approximation as the final event record.
     const refreshed = await refetchActiveRange();
-    const updated = refreshed?.find((item) => item.id === event.id);
-    if (!updated) {
+    if (!refreshed) {
       // The remote mutation may already have succeeded, but without its
       // authoritative mirror record the grid, inspector and cache cannot
       // safely claim a new local state. Throw so FullCalendar reverts its
@@ -144,8 +143,43 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
       setCalendarError("Outlook 已更新日程，但本地日历仍在对账；请稍后同步 Outlook。");
       throw new Error("calendar_local_reconciliation_pending");
     }
-    setEventState((current) => replaceCalendarEvent(current, updated));
-    setSelected((current) => current?.id === event.id ? updated : current);
+    const reconciliation = reconcileCalendarMutationRange(refreshed, event.id);
+    if (reconciliation.kind === "moved_out_of_range") {
+      // Moving an event outside the visible range is a successful mutation.
+      // The range refetch already owns the visible collection, so close any
+      // stale inspector instead of reverting it back into this range.
+      setSelected((current) => current?.id === event.id ? null : current);
+      inspector.close();
+      return;
+    }
+    setEventState((current) => replaceCalendarEvent(current, reconciliation.event));
+    setSelected((current) => current?.id === event.id ? reconciliation.event : current);
+  };
+  const reconcileInspectorMutation = async (kind: "update" | "delete") => {
+    if (kind === "delete") {
+      if (selected) setEventState((current) => removeCalendarEvent(current, selected.id));
+      setSelected(null);
+      inspector.close();
+      invalidateCalendarCache();
+      return;
+    }
+    const selectedId = selected?.id;
+    const refreshed = await refetchActiveRange();
+    if (!refreshed) {
+      setCalendarError("Outlook 已更新日程，但本地日历仍在对账；请稍后同步 Outlook。");
+    } else if (selectedId) {
+      const reconciliation = reconcileCalendarMutationRange(refreshed, selectedId);
+      if (reconciliation.kind === "updated") setSelected(reconciliation.event);
+      else {
+        setSelected(null);
+        inspector.close();
+      }
+    }
+    invalidateCalendarCache();
+  };
+  const reconcileCreatedEvent = async () => {
+    if (!(await refetchActiveRange()))
+      setCalendarError("Outlook 已创建日程，但本地日历仍在对账；请稍后同步 Outlook。");
   };
   const title = new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, month: "long", day: view === "month" ? undefined : "numeric", year: view === "month" ? "numeric" : undefined }).format(cursor);
 
@@ -159,7 +193,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
       {rangeTruncated ? <p className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">当前范围仅显示前 1,000 条日程。</p> : null}
       {calendarError ? <p role="status" className="absolute left-3 top-3 z-10 max-w-md rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-900">{calendarError}</p> : null}
     </div>
-    <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="w-[min(380px,calc(100vw-8px))]">{selected ? <CalendarEventEditForm event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={async (kind) => { if (kind === "delete") { setEventState((current) => removeCalendarEvent(current, selected.id)); setSelected(null); inspector.close(); } else { const refreshed = await refetchActiveRange(); const current = refreshed?.find((event) => event.id === selected.id); if (current) setSelected(current); } invalidateCalendarCache(); }} /> : draft ? <CalendarCreateForm timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={async () => { await refetchActiveRange(); }} /> : null}</Inspector>
+    <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="w-[min(380px,calc(100vw-8px))]">{selected ? <CalendarEventEditForm event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={reconcileInspectorMutation} /> : draft ? <CalendarCreateForm timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={reconcileCreatedEvent} /> : null}</Inspector>
     {ai.isOpen ? <AISidecar open onClose={ai.close} context="Calendar"><CalendarAssistant timezone={timezone} categories={categories} /></AISidecar> : null}
     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent><CalendarCategoryManager categories={categories} timezone={timezone} scopeReady={scopeReady} events={eventState} referenceTime={cursor.getTime()} /></DialogContent></Dialog>
   </section>;

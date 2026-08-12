@@ -15,9 +15,18 @@ export type CalendarCreateState = { status: "idle" | "success" | "error"; messag
 
 function fail(): never { throw new Error("日历操作未能完成，请检查输入、连接状态或网络后重试。"); }
 function operationFailureMessage(error: unknown, verb: "创建" | "更新" | "删除") {
-  if (error instanceof Error && error.message === "calendar_remote_committed_cache_failed") {
+  const code = error instanceof Error ? error.message : "";
+  if (code === "calendar_remote_committed_cache_failed") {
     return `Outlook 已${verb}日程，本地日历正在等待重新同步；请勿重复操作。`;
   }
+  if (code === "calendar_not_connected" || code === "invalid_grant")
+    return "Outlook 连接已过期，请重新连接后再试。";
+  if (code === "graph_access_denied")
+    return "Outlook 拒绝了本次操作；请检查日历授权。";
+  if (code === "graph_unavailable")
+    return "Outlook 暂时不可用，尚未写入本次更改。请稍后重试。";
+  if (code === "graph_invalid_request" || code === "calendar_timezone_unsupported")
+    return "日程时间或时区无效，尚未写入 Outlook。请检查后重试。";
   return `日程未能${verb === "创建" ? "创建" : verb === "更新" ? "更新到 Outlook" : "从 Outlook 删除"}。请检查连接状态后重试。`;
 }
 function formValue(formData: FormData) {
@@ -122,6 +131,7 @@ export async function updateCalendarEvent(_previousState: CalendarCreateState, f
     const value = parsed.data;
     const { data: existing, error: existingError } = await supabase.from("calendar_events")
       .select("provider_event_id,subject,body_text,starts_at,ends_at,is_all_day,location_name,categories,importance,show_as")
+      .eq("user_id", userId)
       .eq("provider_event_id", value.providerEventId)
       .eq("subject", value.originalSubject)
       .eq("starts_at", value.originalStartsAt)
@@ -161,6 +171,7 @@ export async function deleteCalendarEvent(_previousState: CalendarCreateState, f
     if (!parsed.success) return { status: "error", message: "该日程信息无效，无法删除。" };
     const { data: existing, error: existingError } = await supabase.from("calendar_events")
       .select("provider_event_id,subject,starts_at,ends_at,is_all_day").eq("provider_event_id", parsed.data.providerEventId)
+      .eq("user_id", userId)
       .eq("subject", parsed.data.subject).eq("starts_at", parsed.data.startsAt).eq("ends_at", parsed.data.endsAt).eq("is_all_day", parsed.data.isAllDay).is("archived_at", null).maybeSingle();
     if (existingError || !existing) return { status: "error", message: "该日程已变更或不存在。请先刷新日历。" };
     const activeConnection = await connection(supabase);

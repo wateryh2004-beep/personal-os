@@ -58,6 +58,8 @@ describe("interaction performance guardrails", () => {
     expect(calendarWorkspace).toContain("const refreshed = await refetchActiveRange()");
     expect(calendarWorkspace).toContain("calendar_local_reconciliation_pending");
     expect(calendarWorkspace).toContain("本地日历仍在对账");
+    expect(calendarWorkspace).toContain("Moving an event outside the visible range");
+    expect(calendarWorkspace).toContain("reconcileCalendarMutationRange");
     const editForm = source("src/components/calendar/calendar-event-edit-form.tsx");
     expect(editForm).toContain("keepEndAfterStart");
   });
