@@ -132,10 +132,14 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     form.set("is_all_day_present", "true"); if (range.isAllDay) form.set("is_all_day", "on"); form.set("importance", event.importance); form.set("show_as", event.show_as === "unknown" ? "busy" : event.show_as); form.set("classification_mode", "auto"); form.set("preserve_categories", "true");
     const result = await updateCalendarEvent({ status: "idle", message: "" }, form);
     if (result.status !== "success") throw new Error(result.message);
-    const updated = { ...event, starts_at: range.startsAt, ends_at: range.endsAt, is_all_day: range.isAllDay };
-    setEventState((current) => replaceCalendarEvent(current, updated));
-    setSelected((current) => current?.id === event.id ? updated : current);
-    invalidateCalendarCache();
+    // Outlook is authoritative. Re-read the Graph-backed mirror instead of
+    // retaining a client-side drag approximation as the final event record.
+    const refreshed = await refetchActiveRange();
+    const updated = refreshed?.find((item) => item.id === event.id);
+    if (updated) {
+      setEventState((current) => replaceCalendarEvent(current, updated));
+      setSelected((current) => current?.id === event.id ? updated : current);
+    }
   };
   const title = new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, month: "long", day: view === "month" ? undefined : "numeric", year: view === "month" ? "numeric" : undefined }).format(cursor);
 

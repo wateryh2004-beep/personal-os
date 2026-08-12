@@ -54,6 +54,12 @@ describe("interaction performance guardrails", () => {
     expect(editForm).toContain("deleteHandledRef");
   });
 
+  it("re-reads the authoritative mirror after drag and keeps edit times ordered", () => {
+    expect(calendarWorkspace).toContain("const refreshed = await refetchActiveRange()");
+    const editForm = source("src/components/calendar/calendar-event-edit-form.tsx");
+    expect(editForm).toContain("keepEndAfterStart");
+  });
+
   it("renders Markdown list structure as document markers rather than source syntax", () => {
     expect(markdownTheme).toContain('node.name === "ListMark"');
     expect(markdownTheme).toContain('node.name === "TaskMarker"');
