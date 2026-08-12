@@ -136,10 +136,16 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     // retaining a client-side drag approximation as the final event record.
     const refreshed = await refetchActiveRange();
     const updated = refreshed?.find((item) => item.id === event.id);
-    if (updated) {
-      setEventState((current) => replaceCalendarEvent(current, updated));
-      setSelected((current) => current?.id === event.id ? updated : current);
+    if (!updated) {
+      // The remote mutation may already have succeeded, but without its
+      // authoritative mirror record the grid, inspector and cache cannot
+      // safely claim a new local state. Throw so FullCalendar reverts its
+      // optimistic drag/resize while the normal reconciliation path catches up.
+      setCalendarError("Outlook 已更新日程，但本地日历仍在对账；请稍后同步 Outlook。");
+      throw new Error("calendar_local_reconciliation_pending");
     }
+    setEventState((current) => replaceCalendarEvent(current, updated));
+    setSelected((current) => current?.id === event.id ? updated : current);
   };
   const title = new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, month: "long", day: view === "month" ? undefined : "numeric", year: view === "month" ? "numeric" : undefined }).format(cursor);
 

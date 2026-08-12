@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calendarEventForGraph } from "@/lib/adapters/microsoft-graph/event-payload";
-import { graphDateTimeTimeZoneToInstant, graphEventRecord } from "@/lib/adapters/microsoft-graph/calendar";
+import { graphDateTimeTimeZoneToDate, graphDateTimeTimeZoneToInstant, graphEventRecord } from "@/lib/adapters/microsoft-graph/calendar";
 import { fullCalendarDateToInstant, instantToFullCalendarDate, wallTimeToIso } from "@/features/calendar/timezone";
 
 describe("Calendar Graph time boundary", () => {
@@ -49,5 +49,18 @@ describe("Calendar Graph time boundary", () => {
     const graph = calendarEventForGraph({ subject: "旅行", description: null, startsAt: "2026-08-13T16:00:00.000Z", endsAt: "2026-08-15T16:00:00.000Z", locationName: null, isAllDay: true, timeZone: "Asia/Shanghai" });
     expect(graph.start).toEqual({ dateTime: "2026-08-14T00:00:00", timeZone: "China Standard Time" });
     expect(graph.end).toEqual({ dateTime: "2026-08-16T00:00:00", timeZone: "China Standard Time" });
+  });
+
+  it("keeps Graph all-day DATE values stable in a west-of-UTC profile", () => {
+    const record = graphEventRecord({
+      id: "new-york-all-day",
+      subject: "全天活动",
+      isAllDay: true,
+      start: { dateTime: "2026-08-14T00:00:00.0000000", timeZone: "UTC" },
+      end: { dateTime: "2026-08-15T00:00:00.0000000", timeZone: "UTC" },
+    }, "user-1", undefined, "America/New_York");
+    expect(record.starts_at).toBe("2026-08-14T04:00:00.000Z");
+    expect(record.ends_at).toBe("2026-08-15T04:00:00.000Z");
+    expect(graphDateTimeTimeZoneToDate({ dateTime: "2026-08-14T00:00:00Z", timeZone: "UTC" })).toBe("2026-08-14");
   });
 });

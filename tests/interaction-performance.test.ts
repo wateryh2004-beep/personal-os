@@ -56,6 +56,8 @@ describe("interaction performance guardrails", () => {
 
   it("re-reads the authoritative mirror after drag and keeps edit times ordered", () => {
     expect(calendarWorkspace).toContain("const refreshed = await refetchActiveRange()");
+    expect(calendarWorkspace).toContain("calendar_local_reconciliation_pending");
+    expect(calendarWorkspace).toContain("本地日历仍在对账");
     const editForm = source("src/components/calendar/calendar-event-edit-form.tsx");
     expect(editForm).toContain("keepEndAfterStart");
   });

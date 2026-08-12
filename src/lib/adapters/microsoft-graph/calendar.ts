@@ -5,7 +5,7 @@ import { sealSecret, unsealSecret } from "@/lib/crypto/sealed-secret";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calendarEventForGraph, type GraphCalendarCreatePayload } from "./event-payload";
 import { managedCalendarCategories, type OutlookCategoryColor } from "@/features/calendar/classification/taxonomy";
-import { instantToDate, wallTimeToInstant } from "@/features/calendar/timezone";
+import { wallTimeToInstant } from "@/features/calendar/timezone";
 
 const MICROSOFT_CLIENT_ID = "084a3e9f-a9f4-43f7-89f9-d229cf97853e";
 const MICROSOFT_TENANT = "consumers";
@@ -238,22 +238,36 @@ export function graphDateTimeTimeZoneToInstant(value: GraphDateTimeTimeZone | un
   }
 }
 
+/**
+ * Microsoft Graph all-day events are DATE semantics. Their `dateTime` field
+ * names the calendar day and must not first be converted to an instant: a UTC
+ * midnight projected into a west-of-UTC profile would otherwise become the
+ * preceding day. Keep that date component and anchor it exactly once in the
+ * owner's timezone for our UTC-instant cache representation.
+ */
+export function graphDateTimeTimeZoneToDate(value: GraphDateTimeTimeZone | undefined) {
+  const dateTime = value?.dateTime;
+  const match = dateTime?.match(/^(\d{4}-\d{2}-\d{2})T/);
+  if (!match || Number.isNaN(Date.parse(`${match[1]}T00:00:00Z`)))
+    throw new MicrosoftGraphError("graph_event_invalid");
+  return match[1];
+}
+
 export function graphEventRecord(event: GraphEvent, userId: string, fallback?: { body_text?: string | null; categories?: string[]; importance?: string; show_as?: string }, timezone = "Asia/Shanghai") {
-  const startsAt = graphDateTimeTimeZoneToInstant(event.start);
-  const endsAt = graphDateTimeTimeZoneToInstant(event.end);
-  // Graph's UTC representation of an all-day item still denotes a DATE in
-  // the owner's zone. Re-anchor that date at local midnight for our instant
-  // storage, so a later UI/Graph round trip cannot move it by one day.
-  const allDayStartsAt = event.isAllDay ? wallTimeToInstant(`${instantToDate(startsAt, timezone)}T00:00`, timezone) : startsAt;
-  const allDayEndsAt = event.isAllDay ? wallTimeToInstant(`${instantToDate(endsAt, timezone)}T00:00`, timezone) : endsAt;
+  const startsAt = event.isAllDay
+    ? wallTimeToInstant(`${graphDateTimeTimeZoneToDate(event.start)}T00:00`, timezone)
+    : graphDateTimeTimeZoneToInstant(event.start);
+  const endsAt = event.isAllDay
+    ? wallTimeToInstant(`${graphDateTimeTimeZoneToDate(event.end)}T00:00`, timezone)
+    : graphDateTimeTimeZoneToInstant(event.end);
   return {
     user_id: userId,
     provider_event_id: event.id,
     calendar_id: event.iCalUId ?? null,
     subject: event.subject ?? "",
     body_text: event.body?.content ?? fallback?.body_text ?? null,
-    starts_at: allDayStartsAt,
-    ends_at: allDayEndsAt,
+    starts_at: startsAt,
+    ends_at: endsAt,
     is_all_day: Boolean(event.isAllDay),
     location_name: event.location?.displayName ?? null,
     provider_change_key: event.changeKey ?? null,
