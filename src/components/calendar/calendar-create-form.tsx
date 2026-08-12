@@ -10,9 +10,14 @@ const initialCalendarCreateState: CalendarCreateState = { status: "idle", messag
 export function CalendarCreateForm({ timezone, categoriesEnabled = true, initialStart, initialEnd, initialAllDay = false, onCreated }: { timezone: string; categoriesEnabled?: boolean; initialStart?: string; initialEnd?: string; initialAllDay?: boolean; onCreated?: () => Promise<void> | void }) {
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
+  const createdHandledRef = useRef(false);
   const [allDay, setAllDay] = useState(initialAllDay);
   const [state, formAction, pending] = useActionState(createCalendarEvent, initialCalendarCreateState);
-  useEffect(() => { if (state.status === "success") void onCreated?.(); }, [onCreated, state.status]);
+  useEffect(() => {
+    if (state.status !== "success" || createdHandledRef.current) return;
+    createdHandledRef.current = true;
+    void onCreated?.();
+  }, [onCreated, state.status]);
   const defaultStart = initialStart ? dateTimeInputValue(initialStart, timezone) : "";
   const defaultEnd = initialEnd ? dateTimeInputValue(initialEnd, timezone) : "";
   const defaultStartDate = initialStart ? instantToDate(initialStart, timezone) : "";

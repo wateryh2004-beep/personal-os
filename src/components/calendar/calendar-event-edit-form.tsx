@@ -15,11 +15,21 @@ export function CalendarEventEditForm({ event, timezone, calendarCategories, cat
   const [allDay, setAllDay] = useState(event.is_all_day);
   const startRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLInputElement>(null);
+  const updateHandledRef = useRef(false);
+  const deleteHandledRef = useRef(false);
   const [state, action, pending] = useActionState(updateCalendarEvent, initial);
   const [deleteState, deleteAction, deleting] = useActionState(deleteCalendarEvent, initial);
   const visual = resolveCalendarEventVisual(event.categories, calendarCategories);
-  useEffect(() => { if (state.status === "success") void onReconcile?.("update"); }, [onReconcile, state.status]);
-  useEffect(() => { if (deleteState.status === "success") void onReconcile?.("delete"); }, [deleteState.status, onReconcile]);
+  useEffect(() => {
+    if (state.status !== "success" || updateHandledRef.current) return;
+    updateHandledRef.current = true;
+    void onReconcile?.("update");
+  }, [onReconcile, state.status]);
+  useEffect(() => {
+    if (deleteState.status !== "success" || deleteHandledRef.current) return;
+    deleteHandledRef.current = true;
+    void onReconcile?.("delete");
+  }, [deleteState.status, onReconcile]);
   const startDate = instantToDate(event.starts_at, timezone);
   const endDate = instantToDate(event.ends_at, timezone);
   const inclusiveEndDate = event.is_all_day ? shiftCalendarDate(endDate, -1) : endDate;

@@ -46,6 +46,14 @@ describe("interaction performance guardrails", () => {
     expect(calendarWorkspace).toContain("Outlook 同步未完成");
   });
 
+  it("reconciles each calendar mutation only once after a successful action", () => {
+    const createForm = source("src/components/calendar/calendar-create-form.tsx");
+    const editForm = source("src/components/calendar/calendar-event-edit-form.tsx");
+    expect(createForm).toContain("createdHandledRef");
+    expect(editForm).toContain("updateHandledRef");
+    expect(editForm).toContain("deleteHandledRef");
+  });
+
   it("renders Markdown list structure as document markers rather than source syntax", () => {
     expect(markdownTheme).toContain('node.name === "ListMark"');
     expect(markdownTheme).toContain('node.name === "TaskMarker"');
