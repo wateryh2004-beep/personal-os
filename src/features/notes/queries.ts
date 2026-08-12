@@ -157,6 +157,56 @@ export async function getNotesWorkspace(): Promise<{
   };
 }
 
+/**
+ * The navigator deliberately fetches only file metadata. Unlike the paginated
+ * index this is the complete owner-scoped tree, so folder expansion never
+ * pretends that the first page of notes is the whole library.
+ */
+export async function getNotesNavigator(): Promise<{
+  folders: { id: string; name: string; parent_id: string | null }[];
+  notes: { id: string; title: string; folder_id: string | null; updated_at: string }[];
+}> {
+  const { supabase } = await requireOwner();
+  const [foldersResult, notesResult] = await Promise.all([
+    supabase
+      .from("note_folders")
+      .select("id,name,parent_id")
+      .is("archived_at", null)
+      .order("position")
+      .order("name"),
+    supabase
+      .from("notes")
+      .select("id,title,folder_id,updated_at")
+      .is("deleted_at", null)
+      .neq("status", "archived")
+      .order("updated_at", { ascending: false }),
+  ]);
+  if (foldersResult.error || notesResult.error) return { folders: [], notes: [] };
+  return { folders: foldersResult.data ?? [], notes: notesResult.data ?? [] };
+}
+
+export async function searchNotesWorkspace(
+  query: string,
+  folderId: string | null,
+  limit = 30,
+) {
+  const normalized = query.trim();
+  if (!normalized) return [] as NoteListItem[];
+  const { supabase } = await requireOwner();
+  let request = supabase
+    .from("notes")
+    .select("id,title,body_markdown,updated_at,pinned_at,folder_id")
+    .is("deleted_at", null)
+    .neq("status", "archived")
+    .or(`title.ilike.%${normalized.replace(/[%_,()]/g, " ")}%,body_markdown.ilike.%${normalized.replace(/[%_,()]/g, " ")}%`)
+    .order("updated_at", { ascending: false })
+    .limit(Math.max(1, Math.min(limit, 50)));
+  if (folderId && noteIdSchema.safeParse(folderId).success) request = request.eq("folder_id", folderId);
+  const { data, error } = await request;
+  if (error) return [] as NoteListItem[];
+  return parseFallbackNoteListItems(data ?? []);
+}
+
 /** Folder metadata for controls that move an already-authorized note. */
 export async function getActiveNoteFolders() {
   const { supabase } = await requireOwner();

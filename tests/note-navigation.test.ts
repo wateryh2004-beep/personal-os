@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { expandedFolderPath } from "@/features/notes/folder-tree";
 import { lastOpenedNoteTtlMs, recentNoteHref } from "@/features/notes/navigation";
 
 describe("recent Notes navigation", () => {
@@ -11,5 +12,14 @@ describe("recent Notes navigation", () => {
 
   it("only remembers the most recent note for twenty minutes", () => {
     expect(lastOpenedNoteTtlMs).toBe(20 * 60 * 1_000);
+  });
+
+  it("opens the selected folder path while preserving the user's other expanded folders", () => {
+    const folders = [
+      { id: "root", parent_id: null },
+      { id: "product", parent_id: "root" },
+      { id: "notes", parent_id: "product" },
+    ];
+    expect([...expandedFolderPath(folders, "notes")]).toEqual(["notes", "product", "root"]);
   });
 });
