@@ -35,6 +35,7 @@ describe("interaction performance guardrails", () => {
   it("uses the Profile timezone in the category management surface and defaults phones to Day", () => {
     expect(calendarWorkspace).toContain('window.matchMedia("(max-width: 767px)")');
     expect(calendarWorkspace).toContain('current === "week" ? "day"');
+    expect(calendarWorkspace).toContain('compactViewport ? ["day", "month"]');
     const categoryManager = source("src/components/calendar/calendar-category-manager.tsx");
     expect(categoryManager).toContain('timeZone: timezone');
   });

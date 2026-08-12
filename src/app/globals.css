@@ -41,7 +41,7 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .calendar-canvas .fc-more-link { color:var(--accent); font-size:11px; }
 .calendar-canvas .fc-daygrid-day-number { color:var(--text-secondary); font-size:12px; padding:5px 7px; text-decoration:none; }
 .calendar-canvas .fc-scrollgrid-section-sticky > * { background:#fff; }
-@media (max-width:767px) { .calendar-canvas .fc-timeGridWeek-view { display:none; } .calendar-canvas .fc-timegrid-slot { height:2.45em; } }
+@media (max-width:767px) { .calendar-canvas .fc-timegrid-slot { height:2.45em; } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }
 .life-markdown-editor { display:flex; height:100%; min-height:0; flex-direction:column; background:#fff; color:var(--foreground); font-family:var(--font-sans); }
 .life-markdown-toolbar { position:sticky; top:0; z-index:5; display:flex; min-height:42px; align-items:center; gap:4px; overflow-x:auto; overscroll-behavior-inline:contain; padding:4px 12px; padding-left:max(12px,env(safe-area-inset-left)); padding-right:max(12px,env(safe-area-inset-right)); border-bottom:1px solid var(--border-subtle); background:#fff; box-shadow:none; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
