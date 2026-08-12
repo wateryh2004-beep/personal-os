@@ -17,6 +17,7 @@ import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider"
 import { Inspector } from "@/components/shared/inspector";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, wallTimeToIso } from "@/features/calendar/timezone";
+import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
 
 const CalendarAssistant = dynamic(() => import("@/components/calendar/calendar-assistant").then((module) => module.CalendarAssistant), { ssr: false });
 
@@ -64,7 +65,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, []);
-  const filtered = useMemo(() => selectedCategories.size ? eventState.filter((event) => event.categories.some((category) => selectedCategories.has(category))) : eventState, [eventState, selectedCategories]);
+  const filtered = useMemo(() => filterCalendarEvents(eventState, selectedCategories), [eventState, selectedCategories]);
 
   const invalidateCalendarCache = useCallback(() => { rangeCacheRef.current.clear(); }, []);
   const fetchRange = useCallback(async (range: Range, force = false) => {
@@ -72,7 +73,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     // UI boundary values, so convert them back before touching the API/cache.
     const start = fullCalendarDateToInstant(range.start, timezone);
     const end = fullCalendarDateToInstant(range.end, timezone);
-    const key = `${start}:${end}`;
+    const key = calendarRangeKey(start, end);
     activeRangeRef.current = range;
     const cached = !force ? rangeCacheRef.current.get(key) : undefined;
     if (cached) { setEventState(cached); setRangeTruncated(false); return cached; }
@@ -83,12 +84,12 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
       const body = await response.json() as { events?: CalendarEventRecord[]; truncated?: boolean };
       if (!response.ok) throw new Error("calendar_range_failed");
       const data = body.events ?? [];
-      if (sequence === requestSequenceRef.current) setRangeTruncated(Boolean(body.truncated));
+      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setRangeTruncated(Boolean(body.truncated));
       rangeCacheRef.current.set(key, data);
-      if (sequence === requestSequenceRef.current) setEventState(data);
+      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setEventState(data);
       return data;
     } finally {
-      if (sequence === requestSequenceRef.current) setLoadingRange(false);
+      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setLoadingRange(false);
     }
   }, [timezone]);
   const onRangeChange = useCallback((range: Range) => {
@@ -112,7 +113,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     const result = await updateCalendarEvent({ status: "idle", message: "" }, form);
     if (result.status !== "success") throw new Error(result.message);
     const updated = { ...event, starts_at: range.startsAt, ends_at: range.endsAt, is_all_day: range.isAllDay };
-    setEventState((current) => current.map((item) => item.id === event.id ? updated : item));
+    setEventState((current) => replaceCalendarEvent(current, updated));
     setSelected((current) => current?.id === event.id ? updated : current);
     invalidateCalendarCache();
   };
@@ -127,7 +128,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
       <CalendarFullView events={filtered} categories={categories} timezone={timezone} initialView={fullCalendarView(view)} initialDate={cursor} onOpen={openEvent} onCreate={openDraft} onMove={moveEvent} onRangeChange={onRangeChange} loadingRange={loadingRange} />
       {rangeTruncated ? <p className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">当前范围仅显示前 1,000 条日程。</p> : null}
     </div>
-    <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="w-[min(380px,calc(100vw-8px))]">{selected ? <CalendarEventEditForm event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={async (kind) => { if (kind === "delete") { setEventState((current) => current.filter((event) => event.id !== selected.id)); setSelected(null); inspector.close(); } else { const refreshed = await refetchActiveRange(); const current = refreshed?.find((event) => event.id === selected.id); if (current) setSelected(current); } invalidateCalendarCache(); }} /> : draft ? <CalendarCreateForm timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={async () => { await refetchActiveRange(); }} /> : null}</Inspector>
+    <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="w-[min(380px,calc(100vw-8px))]">{selected ? <CalendarEventEditForm event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={async (kind) => { if (kind === "delete") { setEventState((current) => removeCalendarEvent(current, selected.id)); setSelected(null); inspector.close(); } else { const refreshed = await refetchActiveRange(); const current = refreshed?.find((event) => event.id === selected.id); if (current) setSelected(current); } invalidateCalendarCache(); }} /> : draft ? <CalendarCreateForm timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={async () => { await refetchActiveRange(); }} /> : null}</Inspector>
     {ai.isOpen ? <AISidecar open onClose={ai.close} context="Calendar"><CalendarAssistant timezone={timezone} categories={categories} /></AISidecar> : null}
     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent><CalendarCategoryManager categories={categories} timezone={timezone} scopeReady={scopeReady} events={eventState} referenceTime={cursor.getTime()} /></DialogContent></Dialog>
   </section>;
