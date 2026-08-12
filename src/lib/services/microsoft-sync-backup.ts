@@ -2,6 +2,7 @@ import "server-only";
 
 import { syncMicrosoftCalendar, syncMicrosoftTodo, syncOutlookMasterCategories } from "@/lib/adapters/microsoft-graph/calendar";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { calendarSyncOptions } from "@/features/calendar/sync-policy";
 
 export type MicrosoftSyncTrigger = "manual" | "scheduled";
 
@@ -10,7 +11,14 @@ export type MicrosoftSyncTrigger = "manual" | "scheduled";
  * each refresh. It then stores an immutable, user-owned Supabase snapshot.
  */
 export async function syncAndBackupMicrosoftWorkspace(connectionId: string, userId: string, trigger: MicrosoftSyncTrigger) {
-  const calendarEventCount = await syncMicrosoftCalendar(connectionId, userId);
+  // Manual sync doubles as a safe, authoritative cache repair. It never
+  // touches Outlook event times; it only rebuilds the local mirror through
+  // the corrected Graph DateTimeTimeZone parser.
+  const calendarEventCount = await syncMicrosoftCalendar(
+    connectionId,
+    userId,
+    calendarSyncOptions(trigger),
+  );
   const categories = await syncOutlookMasterCategories(connectionId, userId);
   const todo = await syncMicrosoftTodo(connectionId, userId);
   const admin = createAdminClient();

@@ -289,7 +289,11 @@ async function audit(userId: string, action: string, entityId: string, afterData
   await admin.from("audit_logs").insert({ user_id: userId, action, entity_type: "calendar_operation", entity_id: entityId, after_data: afterData, actor_type: "user" });
 }
 
-export async function syncMicrosoftCalendar(connectionId: string, userId: string) {
+export async function syncMicrosoftCalendar(
+  connectionId: string,
+  userId: string,
+  options: { forceFull?: boolean } = {},
+) {
   try {
     const accessToken = await accessTokenForConnection(connectionId, userId);
     const admin = createAdminClient();
@@ -299,7 +303,11 @@ export async function syncMicrosoftCalendar(connectionId: string, userId: string
     ]);
     if (connectionError || !connection) throw new MicrosoftGraphError("calendar_not_connected");
     const now = Date.now(); const defaultStart = new Date(now - 30 * 86_400_000).toISOString(); const defaultEnd = new Date(now + 180 * 86_400_000).toISOString();
-    const canUseDelta = Boolean(connection.calendar_delta_link && connection.calendar_sync_window_start && connection.calendar_sync_window_end && Date.parse(connection.calendar_sync_window_end) > now + 30 * 86_400_000);
+    // Delta only yields changes since the previous cursor. A user-triggered
+    // reconciliation must also repair legacy cache rows that were parsed
+    // incorrectly before the DateTimeTimeZone fix, even if Outlook has not
+    // changed them since, so it intentionally starts a fresh full window.
+    const canUseDelta = !options.forceFull && Boolean(connection.calendar_delta_link && connection.calendar_sync_window_start && connection.calendar_sync_window_end && Date.parse(connection.calendar_sync_window_end) > now + 30 * 86_400_000);
     const start = canUseDelta ? connection.calendar_sync_window_start! : defaultStart;
     const end = canUseDelta ? connection.calendar_sync_window_end! : defaultEnd;
     const query = new URLSearchParams({ startDateTime: start, endDateTime: end, "$top": "500", "$select": "id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs" });
