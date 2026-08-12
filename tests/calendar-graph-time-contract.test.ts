@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { calendarEventForGraph } from "@/lib/adapters/microsoft-graph/event-payload";
 import { graphDateTimeTimeZoneToDate, graphDateTimeTimeZoneToInstant, graphEventRecord } from "@/lib/adapters/microsoft-graph/calendar";
 import { fullCalendarDateToInstant, instantToFullCalendarDate, wallTimeToIso } from "@/features/calendar/timezone";
+import { updateCalendarEventSchema } from "@/features/calendar/schemas";
+import { calendarUpdatePayload } from "@/features/calendar/utils";
 
 describe("Calendar Graph time boundary", () => {
   it("sends the same Singapore wall time that the UTC instant represents", () => {
@@ -62,5 +64,37 @@ describe("Calendar Graph time boundary", () => {
     expect(record.starts_at).toBe("2026-08-14T04:00:00.000Z");
     expect(record.ends_at).toBe("2026-08-15T04:00:00.000Z");
     expect(graphDateTimeTimeZoneToDate({ dateTime: "2026-08-14T00:00:00Z", timeZone: "UTC" })).toBe("2026-08-14");
+  });
+
+  it("round-trips a Shanghai update through its operation payload, Graph response, mirror, and FullCalendar", () => {
+    const originalStart = wallTimeToIso("2026-08-14T12:00", "Asia/Shanghai");
+    const originalEnd = wallTimeToIso("2026-08-14T13:30", "Asia/Shanghai");
+    const update = updateCalendarEventSchema.parse({
+      providerEventId: "event-update",
+      originalSubject: "午间会议",
+      originalStartsAt: originalStart,
+      originalEndsAt: originalEnd,
+      subject: "下午会议",
+      startsAt: wallTimeToIso("2026-08-14T14:00", "Asia/Shanghai"),
+      endsAt: wallTimeToIso("2026-08-14T15:30", "Asia/Shanghai"),
+      isAllDay: false,
+      preserveCategories: true,
+    });
+    const operationPayload = calendarUpdatePayload(update, {
+      categories: ["领域·学习"], body_text: null, location_name: null,
+      is_all_day: false, importance: "normal", show_as: "busy",
+    });
+    const outbound = calendarEventForGraph({ ...operationPayload, timeZone: "Asia/Shanghai" });
+    expect(outbound.start).toEqual({ dateTime: "2026-08-14T14:00:00", timeZone: "China Standard Time" });
+    expect(outbound.end).toEqual({ dateTime: "2026-08-14T15:30:00", timeZone: "China Standard Time" });
+    const record = graphEventRecord({
+      id: "event-update", subject: "下午会议",
+      start: { dateTime: "2026-08-14T06:00:00.0000000", timeZone: "UTC" },
+      end: { dateTime: "2026-08-14T07:30:00.0000000", timeZone: "UTC" },
+    }, "user-1");
+    expect(record.starts_at).toBe("2026-08-14T06:00:00.000Z");
+    expect(record.ends_at).toBe("2026-08-14T07:30:00.000Z");
+    expect(instantToFullCalendarDate(record.starts_at, "Asia/Shanghai").toISOString()).toBe("2026-08-14T14:00:00.000Z");
+    expect(fullCalendarDateToInstant(instantToFullCalendarDate(record.ends_at, "Asia/Shanghai"), "Asia/Shanghai")).toBe(record.ends_at);
   });
 });
