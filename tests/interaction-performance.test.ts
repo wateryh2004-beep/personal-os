@@ -40,10 +40,12 @@ describe("interaction performance guardrails", () => {
     expect(calendar).toContain("durationMinutes <= 30");
   });
 
-  it("keeps concurrent calendar events readable instead of splitting them into narrow columns", () => {
-    expect(calendar).toContain('eventMaxStack={1}');
-    expect(calendar).toContain('moreLinkClick="popover"');
-    expect(calendar).toContain('另有 {info.num} 项日程');
+  it("keeps concurrent calendar events expanded instead of splitting or hiding them", () => {
+    expect(calendar).toContain("getTimedEventLayouts");
+    expect(calendar).toContain("eventDidMount");
+    expect(calendar).toContain('harness.style.left = "0"');
+    expect(calendar).toContain('harness.style.right = "0"');
+    expect(calendar).not.toContain("eventMaxStack={1}");
   });
 
   it("uses the Profile timezone in the category management surface and defaults phones to Day", () => {

@@ -13,6 +13,26 @@ import type { CalendarCategory } from "@/features/calendar/categories/types";
 
 type CalendarView = "timeGridWeek" | "timeGridDay" | "dayGridMonth";
 type Range = { start: Date; end: Date };
+type TimedEventLayout = { isOverlapping: boolean; overlapDepth: number };
+
+function getTimedEventLayouts(events: CalendarEventRecord[]) {
+  const timedEvents = events.filter((event) => !event.is_all_day);
+  const layouts = new Map<string, TimedEventLayout>();
+
+  for (const event of timedEvents) {
+    const eventStart = Date.parse(event.starts_at);
+    const eventEnd = Date.parse(event.ends_at);
+    const earlierOverlaps = timedEvents.filter((other) => {
+      if (other.id === event.id) return false;
+      const overlaps = eventStart < Date.parse(other.ends_at) && Date.parse(other.starts_at) < eventEnd;
+      return overlaps && (Date.parse(other.starts_at) < eventStart || (Date.parse(other.starts_at) === eventStart && other.id < event.id));
+    });
+    const isOverlapping = timedEvents.some((other) => other.id !== event.id && eventStart < Date.parse(other.ends_at) && Date.parse(other.starts_at) < eventEnd);
+    layouts.set(event.id, { isOverlapping, overlapDepth: earlierOverlaps.length });
+  }
+
+  return layouts;
+}
 
 export function CalendarFullView({ events, categories, timezone, initialView, initialDate, onOpen, onCreate, onMove, onRangeChange, loadingRange }: {
   events: CalendarEventRecord[];
@@ -28,6 +48,7 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
 }) {
   const calendarRef = useRef<FullCalendar>(null);
   const visualInitialDate = useMemo(() => instantToFullCalendarDate(initialDate.toISOString(), timezone), [initialDate, timezone]);
+  const timedEventLayouts = useMemo(() => getTimedEventLayouts(events), [events]);
 
   // One stable FullCalendar instance; all date equality is UTC-field based
   // because the component intentionally uses UTC-coerced wall-time Dates.
@@ -55,6 +76,7 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
 
   const calendarEvents = events.map((event) => {
     const visual = resolveCalendarEventVisual(event.categories, categories);
+    const timedLayout = timedEventLayouts.get(event.id) ?? { isOverlapping: false, overlapDepth: 0 };
     return {
       id: event.id,
       title: event.subject,
@@ -64,11 +86,11 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
       backgroundColor: visual.background,
       borderColor: visual.border,
       textColor: visual.foreground,
-      extendedProps: { event, visual },
+      extendedProps: { event, visual, ...timedLayout },
     };
   });
 
-  const eventContent = useCallback((info: { event: { title: string; extendedProps: { event: CalendarEventRecord; visual: { dot: string } } }; timeText: string; view: { type: CalendarView } }) => {
+  const eventContent = useCallback((info: { event: { title: string; extendedProps: { event: CalendarEventRecord; visual: { dot: string }; isOverlapping: boolean; overlapDepth: number } }; timeText: string; view: { type: CalendarView } }) => {
     if (info.view.type === "dayGridMonth") return <div className="flex min-w-0 items-center gap-1 px-1 py-0.5 text-[11px]"><span className="size-1.5 shrink-0 rounded-full" style={{ background: info.event.extendedProps.visual.dot }} /><span className="truncate font-medium">{info.event.title}</span></div>;
     const event = info.event.extendedProps.event;
     const durationMinutes = (Date.parse(event.ends_at) - Date.parse(event.starts_at)) / 60_000;
@@ -77,5 +99,5 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     return <div className="h-full overflow-hidden px-1.5 py-0.5 text-xs leading-4"><p className="line-clamp-2 font-medium">{info.event.title}</p><p className="text-[10px] opacity-70">{info.timeText}</p>{durationMinutes >= 60 && location ? <p className="line-clamp-1 text-[10px] opacity-60">{location}</p> : null}</div>;
   }, []);
 
-  return <div className="calendar-canvas relative min-h-0 flex-1 overflow-hidden"><FullCalendar ref={calendarRef} plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]} initialView={initialView} initialDate={visualInitialDate} timeZone="UTC" locale="zh-cn" headerToolbar={false} height="100%" allDaySlot selectable editable slotDuration="00:30:00" snapDuration="00:15:00" slotLabelInterval="01:00" slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} scrollTime="07:30:00" scrollTimeReset={false} slotMinTime="06:00:00" slotMaxTime="23:00:00" nowIndicator eventMaxStack={1} moreLinkClick="popover" moreLinkContent={(info) => <span className="calendar-more-events">另有 {info.num} 项日程</span>} datesSet={(info) => onRangeChange({ start: info.start, end: info.end })} events={calendarEvents} eventClick={(info) => onOpen(info.event.extendedProps.event as CalendarEventRecord)} eventDrop={persistMove} eventResize={persistMove} select={(info) => onCreate({ startsAt: fullCalendarDateToInstant(info.start, timezone), endsAt: fullCalendarDateToInstant(info.end, timezone), isAllDay: info.allDay })} eventContent={eventContent} />{loadingRange ? <span className="pointer-events-none absolute right-3 top-3 rounded bg-white/90 px-2 py-1 text-[11px] text-[var(--text-tertiary)] shadow">更新日程…</span> : null}</div>;
+  return <div className="calendar-canvas relative min-h-0 flex-1 overflow-hidden"><FullCalendar ref={calendarRef} plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]} initialView={initialView} initialDate={visualInitialDate} timeZone="UTC" locale="zh-cn" headerToolbar={false} height="100%" allDaySlot selectable editable slotDuration="00:30:00" snapDuration="00:15:00" slotLabelInterval="01:00" slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} scrollTime="07:30:00" scrollTimeReset={false} slotMinTime="06:00:00" slotMaxTime="23:00:00" nowIndicator eventDidMount={(info) => { const layout = info.event.extendedProps as TimedEventLayout; if (info.view.type === "dayGridMonth" || !layout.isOverlapping) return; const harness = info.el.parentElement; if (!harness) return; harness.style.left = "0"; harness.style.right = "0"; harness.style.marginRight = "2px"; harness.style.zIndex = String(layout.overlapDepth + 1); if (layout.overlapDepth > 0) harness.style.transform = `translateY(${Math.min(layout.overlapDepth, 3) * 6}px)`; }} datesSet={(info) => onRangeChange({ start: info.start, end: info.end })} events={calendarEvents} eventClick={(info) => onOpen(info.event.extendedProps.event as CalendarEventRecord)} eventDrop={persistMove} eventResize={persistMove} select={(info) => onCreate({ startsAt: fullCalendarDateToInstant(info.start, timezone), endsAt: fullCalendarDateToInstant(info.end, timezone), isAllDay: info.allDay })} eventContent={eventContent} />{loadingRange ? <span className="pointer-events-none absolute right-3 top-3 rounded bg-white/90 px-2 py-1 text-[11px] text-[var(--text-tertiary)] shadow">更新日程…</span> : null}</div>;
 }
