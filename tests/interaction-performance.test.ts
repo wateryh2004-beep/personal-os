@@ -5,6 +5,7 @@ const source = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 const calendar = source("src/components/calendar/calendar-full-view.tsx");
+const globalStyles = source("src/app/globals.css");
 const calendarWorkspace = source("src/components/calendar/calendar-workspace.tsx");
 const appShell = source("src/components/layout/app-shell.tsx");
 const globalAgent = source("src/components/assistant/global-agent.tsx");
@@ -43,10 +44,9 @@ describe("interaction performance guardrails", () => {
   });
 
   it("keeps concurrent calendar events expanded instead of splitting or hiding them", () => {
-    expect(calendar).toContain("getTimedEventLayouts");
-    expect(calendar).toContain("eventDidMount");
-    expect(calendar).toContain('harness.style.left = "0"');
-    expect(calendar).toContain('harness.style.right = "0"');
+    expect(globalStyles).toContain(".fc-timegrid-event-harness");
+    expect(globalStyles).toContain("left:0!important");
+    expect(globalStyles).toContain("right:0!important");
     expect(calendar).not.toContain("eventMaxStack={1}");
   });
 
