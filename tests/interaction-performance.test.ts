@@ -36,6 +36,7 @@ describe("interaction performance guardrails", () => {
 
   it("renders calendar grid and event ranges in 24-hour time", () => {
     expect(calendar).toContain('locale="zh-cn"');
+    expect(calendar).toContain("firstDay={1}");
     expect(calendar).toContain("slotLabelFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
     expect(calendar).toContain("eventTimeFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
     expect(calendar).toContain('slotDuration="01:00:00"');
