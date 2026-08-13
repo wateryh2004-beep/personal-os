@@ -14,14 +14,22 @@ import type { NoteLinkSuggestion } from "@/features/notes/links/types";
 
 export type NoteLinkQuery = { from: number; to: number; query: string };
 
+const noteLinkTriggers = ["[[", "【【"] as const;
+
 export function extractNoteLinkQuery(document: string, position: number): NoteLinkQuery | null {
   const lineStart = document.lastIndexOf("\n", Math.max(0, position - 1)) + 1;
   const beforeCursor = document.slice(lineStart, position);
-  const triggerOffset = beforeCursor.lastIndexOf("[[");
-  if (triggerOffset < 0 || beforeCursor[triggerOffset - 1] === "[") return null;
-  const query = beforeCursor.slice(triggerOffset + 2);
-  if (/[\[\]\r\n]/.test(query) || query.includes("]]")) return null;
-  return { from: lineStart + triggerOffset, to: position, query };
+  const trigger = noteLinkTriggers
+    .map((value) => ({ value, offset: beforeCursor.lastIndexOf(value) }))
+    .reduce<{ value: string; offset: number } | null>(
+      (latest, candidate) => candidate.offset > (latest?.offset ?? -1) ? candidate : latest,
+      null,
+    );
+  if (!trigger || trigger.offset < 0) return null;
+  if (trigger.value === "[[" && beforeCursor[trigger.offset - 1] === "[") return null;
+  const query = beforeCursor.slice(trigger.offset + trigger.value.length);
+  if (/[\[\]【】\r\n]/.test(query)) return null;
+  return { from: lineStart + trigger.offset, to: position, query };
 }
 
 function uniqueNotes(notes: readonly NoteLinkSuggestion[]) {
@@ -84,10 +92,10 @@ export function createNoteLinkCompletion({ recentNotes, searchNotes }: NoteLinkC
       ? await loadRemoteSuggestions(token.query)
       : recentNotes;
     const options = uniqueNotes(notes).map(completionFor);
-    // `from` intentionally includes `[[` so accepting a result replaces the
-    // whole token. Let the owner-only search rank the options: CodeMirror's
-    // default filter would otherwise try to match `[[query` against titles and
-    // hide every result.
+    // `from` intentionally includes either supported Wiki-link trigger so
+    // accepting a result replaces the whole token with the canonical link.
+    // Let the owner-only search rank the options: CodeMirror's default filter
+    // would otherwise try to match the trigger and query against titles.
     return { from: token.from, options, filter: false };
   };
 

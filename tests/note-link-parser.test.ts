@@ -45,6 +45,11 @@ describe("[[ note completion token", () => {
     expect(extractNoteLinkQuery("正文 [[华夏", 7)).toMatchObject({ from: 3, to: 7, query: "华夏" });
   });
 
+  it("treats full-width brackets from Chinese input methods as a Wiki-link trigger", () => {
+    expect(extractNoteLinkQuery("正文 【【华夏", 7)).toMatchObject({ from: 3, to: 7, query: "华夏" });
+    expect(extractNoteLinkQuery("【【华夏】】", 6)).toBeNull();
+  });
+
   it("does not trigger for ordinary Markdown, task lists, images, or closed tokens", () => {
     expect(extractNoteLinkQuery("[文字](url)", 9)).toBeNull();
     expect(extractNoteLinkQuery("- [ ] task", 10)).toBeNull();
