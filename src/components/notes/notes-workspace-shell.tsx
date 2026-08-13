@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createFolder, createNoteInFolder, renameFolder } from "@/features/notes/actions";
 import { openDailyNote } from "@/features/notes/actions";
-import { expandedFolderPath } from "@/features/notes/folder-tree";
+import { expandedFolderPath, visibleExpandedFolders } from "@/features/notes/folder-tree";
 
 export type NotesNavigatorFolder = { id: string; name: string; parent_id: string | null };
 export type NotesNavigatorNote = { id: string; title: string; folder_id: string | null; updated_at: string };
@@ -18,14 +18,15 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [expanded, setExpanded] = useState<Set<string>>(() => expandedFolderPath(folders, null));
+  const selectedFolderId = searchParams.get("folder");
+  const [expanded, setExpanded] = useState<Set<string>>(() => expandedFolderPath(folders, selectedFolderId));
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [creatingIn, setCreatingIn] = useState<string | null | undefined>(undefined);
   const [folderName, setFolderName] = useState("");
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [, startTransition] = useTransition();
   const activeNoteId = /^\/notes\/([0-9a-f-]{36})$/i.exec(pathname)?.[1] ?? null;
-  const selectedFolderId = searchParams.get("folder");
 
   const children = useMemo(() => {
     const map = new Map<string | null, NotesNavigatorFolder[]>();
@@ -37,14 +38,22 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
     notes.forEach((note) => map.set(note.folder_id, [...(map.get(note.folder_id) ?? []), note]));
     return map;
   }, [notes]);
-  const selectedPath = useMemo(() => expandedFolderPath(folders, selectedFolderId), [folders, selectedFolderId]);
-  const openFolders = useMemo(() => new Set([...expanded, ...selectedPath]), [expanded, selectedPath]);
+
+  const openFolders = useMemo(() => visibleExpandedFolders(folders, expanded, selectedFolderId, collapsed), [collapsed, expanded, folders, selectedFolderId]);
 
   const toggle = (id: string) => setExpanded((current) => {
     const next = new Set(current);
-    if (next.has(id)) next.delete(id); else next.add(id);
+    if (openFolders.has(id)) next.delete(id); else next.add(id);
     return next;
   });
+  const toggleFolder = (id: string) => {
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (openFolders.has(id)) next.add(id); else next.delete(id);
+      return next;
+    });
+    toggle(id);
+  };
   const createFolderInline = () => {
     const name = folderName.trim();
     if (!name) { setCreatingIn(undefined); return; }
@@ -77,7 +86,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
       const isOpen = openFolders.has(folder.id);
       return <div key={folder.id}>
         <div className="group flex h-8 items-center" style={{ paddingLeft: `${depth * 16}px` }}>
-          <button type="button" onClick={() => expandable && toggle(folder.id)} aria-label={`${isOpen ? "收起" : "展开"} ${folder.name}`} aria-expanded={expandable ? isOpen : undefined} className="flex size-5 shrink-0 items-center justify-center rounded text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]">{expandable ? isOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" /> : null}</button>
+          <button type="button" onClick={() => expandable && toggleFolder(folder.id)} aria-label={`${isOpen ? "收起" : "展开"} ${folder.name}`} aria-expanded={expandable ? isOpen : undefined} className="flex size-5 shrink-0 items-center justify-center rounded text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]">{expandable ? isOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" /> : null}</button>
           {renaming === folder.id ? <input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={() => commitRename(folder)} onKeyDown={(event) => { if (event.key === "Enter") commitRename(folder); if (event.key === "Escape") setRenaming(null); }} className="h-6 min-w-0 flex-1 border-b border-[var(--accent)] bg-transparent px-1 text-sm outline-none" /> : <Link onClick={onNavigate} href={`/notes?folder=${folder.id}`} className={`flex min-w-0 flex-1 items-center gap-1.5 rounded px-1.5 text-sm ${selectedFolderId === folder.id ? "bg-[var(--surface-selected)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><Folder className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{folder.name}</span></Link>}
           <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="flex size-6 shrink-0 items-center justify-center rounded text-[var(--text-tertiary)] opacity-0 hover:bg-[var(--surface-hover)] focus-visible:opacity-100 group-hover:opacity-100" aria-label={`管理文件夹 ${folder.name}`}><MoreHorizontal className="size-3.5" /></button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => { setRenaming(folder.id); setRenameValue(folder.name); }}>重命名</DropdownMenuItem><DropdownMenuItem onSelect={() => { setCreatingIn(folder.id); setFolderName(""); setExpanded((current) => new Set([...current, folder.id])); }}>新建子文件夹</DropdownMenuItem><DropdownMenuItem asChild><form action={createNoteInFolder}><input type="hidden" name="folder_id" value={folder.id} /><button className="w-full text-left">新建笔记</button></form></DropdownMenuItem></DropdownMenuContent></DropdownMenu>
         </div>

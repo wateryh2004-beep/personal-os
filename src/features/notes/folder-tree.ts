@@ -13,3 +13,13 @@ export function expandedFolderPath(folders: FolderTreeFolder[], selectedId: stri
   }
   return expanded;
 }
+
+/** Selected folders open by default, but a manual collapse always wins. */
+export function visibleExpandedFolders(
+  folders: FolderTreeFolder[],
+  expanded: ReadonlySet<string>,
+  selectedId: string | null,
+  collapsed: ReadonlySet<string>,
+) {
+  return new Set([...expanded, ...expandedFolderPath(folders, selectedId)].filter((id) => !collapsed.has(id)));
+}
