@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarSyncOptions, calendarSyncWindow, shouldUseCalendarDelta } from "@/features/calendar/sync-policy";
+import { calendarSyncOptions, calendarSyncWindow, deltaLinkCarriesSelect, shouldUseCalendarDelta } from "@/features/calendar/sync-policy";
 
 const DAY = 86_400_000;
 const now = Date.parse("2026-08-15T04:00:00.000Z");
@@ -50,5 +50,21 @@ describe("calendar history window", () => {
     const wide = calendarSyncWindow(now);
     const expired = { calendar_delta_link: "delta", calendar_sync_window_start: wide.start, calendar_sync_window_end: new Date(now + 29 * DAY).toISOString() };
     expect(shouldUseCalendarDelta(expired, now, wide.start, false)).toBe(false);
+  });
+});
+
+describe("calendar delta cursor field contract", () => {
+  it("accepts a delta link created with an explicit field select", () => {
+    const deltaLink = "https://graph.microsoft.com/v1.0/me/calendarView/delta?startDateTime=2024-01-01T00%3A00%3A00Z&%24select=id%2Csubject&%24deltatoken=abc";
+    expect(deltaLinkCarriesSelect(deltaLink)).toBe(true);
+  });
+
+  it("rejects a delta link created without a field select", () => {
+    const deltaLink = "https://graph.microsoft.com/v1.0/me/calendarView/delta?startDateTime=2024-01-01T00%3A00%3A00Z&%24deltatoken=abc";
+    expect(deltaLinkCarriesSelect(deltaLink)).toBe(false);
+  });
+
+  it("rejects a null delta link", () => {
+    expect(deltaLinkCarriesSelect(null)).toBe(false);
   });
 });

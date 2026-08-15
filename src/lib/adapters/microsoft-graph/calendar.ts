@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { calendarEventForGraph, type GraphCalendarCreatePayload } from "./event-payload";
 import { managedCalendarCategories, type OutlookCategoryColor } from "@/features/calendar/classification/taxonomy";
 import { wallTimeToInstant } from "@/features/calendar/timezone";
-import { calendarSyncWindow, shouldUseCalendarDelta } from "@/features/calendar/sync-policy";
+import { calendarSyncWindow, deltaLinkCarriesSelect, shouldUseCalendarDelta } from "@/features/calendar/sync-policy";
 
 const MICROSOFT_CLIENT_ID = "084a3e9f-a9f4-43f7-89f9-d229cf97853e";
 const MICROSOFT_TENANT = "consumers";
@@ -383,20 +383,33 @@ export async function syncMicrosoftCalendar(
     // shouldUseCalendarDelta additionally requires the stored window to cover
     // the 2-year history horizon, so the first sync after this change runs a
     // full read that backfills historical events and rebuilds the delta cursor.
-    const canUseDelta = shouldUseCalendarDelta(connection, now, defaultWindow.start, Boolean(options.forceFull));
+    // deltaLink 会编码创建时的查询参数：若它不含 $select（如历史上不带 $select
+    // 创建的光标），增量响应会缺 subject/categories 等字段。遇到这种光标直接
+    // 走全量重建，让新光标带上 $select，避免增量把新/改日程写成空值。
+    const canUseDelta = shouldUseCalendarDelta(connection, now, defaultWindow.start, Boolean(options.forceFull)) && deltaLinkCarriesSelect(connection.calendar_delta_link);
     const start = canUseDelta ? connection.calendar_sync_window_start! : defaultWindow.start;
     const end = canUseDelta ? connection.calendar_sync_window_end! : defaultWindow.end;
-    // calendarView/delta 不认 $select/$top（文档明确不支持），所以这里只带时间窗。
-    // 需要的字段（id/iCalUId/subject/body/start/end/isAllDay/location/changeKey/
-    // categories/importance/showAs）全部是 event 默认属性，响应自带。
-    // 分页大小由 Prefer: odata.maxpagesize 控制（默认每页只有 10 条）。2 年窗口
-    // 事件多，页大小必须调大，否则几百次翻页会撞限流。
-    const query = new URLSearchParams({ startDateTime: start, endDateTime: end });
+    // calendarView/delta 必须显式带 $select：不带时实际返回的是精简字段集
+    // （id/start/end 等），subject/categories/body/location 都会缺失——文档声称
+    // 「默认返回 GET /calendarView 的完整属性」，实测并不成立（曾因此出现过
+    // 日历上日程标题全部为空）。$top 被 delta 忽略，页大小由
+    // Prefer: odata.maxpagesize 控制（默认每页只有 10 条）。
+    const query = new URLSearchParams({
+      startDateTime: start,
+      endDateTime: end,
+      "$select": "id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs",
+    });
     const pageRequest: RequestInit = { headers: { Prefer: 'outlook.timezone="UTC", odata.maxpagesize=500' } };
     let pagePath = canUseDelta ? connection.calendar_delta_link!.replace(graphBaseUrl, "") : `/me/calendarView/delta?${query.toString()}`;
     const remoteEvents: GraphEvent[] = [];
     let deltaLink: string | null = null;
+    // 兜底页数上限：曾有账号级服务端 bug 让 calendarView/delta 无限返回相同页面、
+    // 永不给出 deltaLink。这里在超限时抛错而不是死循环（或把窗口内合法日程误归档）。
+    let pageCount = 0;
+    const MAX_PAGES = 200;
     while (pagePath) {
+      pageCount += 1;
+      if (pageCount > MAX_PAGES) throw new MicrosoftGraphError("graph_delta_loop");
       const payload = await graph(accessToken, pagePath, pageRequest) as { value?: GraphEvent[]; "@odata.nextLink"?: string; "@odata.deltaLink"?: string };
       remoteEvents.push(...(payload.value ?? []));
       deltaLink = payload["@odata.deltaLink"] ?? deltaLink;

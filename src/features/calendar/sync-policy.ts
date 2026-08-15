@@ -45,3 +45,13 @@ export function shouldUseCalendarDelta(connection: StoredSyncWindow, now: number
   if (Date.parse(connection.calendar_sync_window_start) > Date.parse(defaultStart)) return false;
   return true;
 }
+
+/**
+ * deltaLink 会编码创建时的查询参数。若它不含 $select（历史上曾不带 $select
+ * 创建过光标），增量响应会缺 subject/categories 等字段，新/改日程会被写成空值。
+ * 调用方应在这种情况下放弃增量、走全量重建，让新光标带上 $select。
+ */
+export function deltaLinkCarriesSelect(deltaLink: string | null | undefined) {
+  if (!deltaLink) return false;
+  return decodeURIComponent(deltaLink).includes("$select=");
+}
