@@ -19,6 +19,8 @@ import { clearWorkspaceSessions } from "@/lib/workspace-session";
 import { cn } from "@/lib/utils";
 import { isAssistantShortcut } from "@/features/assistant/shortcuts";
 import { WorkspacePanelProvider, useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
+import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import { navActive } from "@/lib/navigation";
 
 const sidebarStorageKey = "personal-os:shell:v2";
 const recentStorageKey = "personal-os:recent:v1";
@@ -38,10 +40,6 @@ const groups: Array<{ label: string | null; items: Array<{ name: string; href: s
   { label: null, items: [{ name: "Career", href: "/career", icon: BriefcaseBusiness }] },
 ];
 
-function navActive(pathname: string, href: string) {
-  return pathname === href || (href !== "/today" && pathname.startsWith(`${href}/`));
-}
-
 function Navigation({ pathname, collapsed, onNavigate }: { pathname: string; collapsed: boolean; onNavigate?: () => void }) {
   return <nav aria-label="主导航" className="space-y-5">{groups.map((group, groupIndex) => <div key={group.label ?? groupIndex}>
     {group.label && !collapsed ? <p className="mb-1 px-2 text-[11px] font-medium text-[var(--text-tertiary)]">{group.label}</p> : null}
@@ -56,7 +54,7 @@ function Navigation({ pathname, collapsed, onNavigate }: { pathname: string; col
 function shellContentClass(pathname: string) {
   if (pathname === "/calendar" || pathname === "/tasks" || pathname === "/files" || pathname === "/career/roadmap") return "p-0";
   if (pathname === "/notes" || /^\/notes\/[0-9a-f-]{36}$/.test(pathname)) return "p-0";
-  return "mx-auto w-full max-w-[var(--content-dashboard-width)] px-4 py-6 sm:px-6 lg:px-8";
+  return "mx-auto w-full max-w-[var(--content-dashboard-width)] px-4 py-6 pb-[calc(var(--tab-bar-height)+1rem)] sm:px-6 md:pb-6 lg:px-8";
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -127,9 +125,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   </aside>, [collapsed, desktopWidth, pathname]);
 
   return <div className="min-h-[var(--app-viewport-height)] bg-[var(--surface-app)]">{desktopSidebar}
-    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" className="w-[min(86vw,280px)] gap-0 bg-[var(--surface-sidebar)] p-0"><div className="flex h-14 items-center border-b px-4"><SheetTitle className="wordmark text-lg">Life of HANG</SheetTitle></div><div className="min-h-0 flex-1 overflow-y-auto p-4"><Navigation pathname={pathname} collapsed={false} onNavigate={() => setMobileOpen(false)} /></div><Link href="/settings" onClick={() => setMobileOpen(false)} className="m-3 flex h-10 items-center gap-2 border-t px-2 pt-3 text-sm text-[var(--text-secondary)]"><Settings className="size-4" aria-hidden="true" />Settings</Link></SheetContent></Sheet>
+    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" className="w-[min(86vw,280px)] gap-0 bg-[var(--surface-sidebar)] p-0"><div className="flex min-h-14 items-center border-b px-4 pt-[env(safe-area-inset-top)]"><SheetTitle className="wordmark text-lg">Life of HANG</SheetTitle></div><div className="min-h-0 flex-1 overflow-y-auto p-4"><Navigation pathname={pathname} collapsed={false} onNavigate={() => setMobileOpen(false)} /></div><Link href="/settings" onClick={() => setMobileOpen(false)} className="m-3 flex h-10 items-center gap-2 border-t px-2 pt-3 text-sm text-[var(--text-secondary)]"><Settings className="size-4" aria-hidden="true" />Settings</Link></SheetContent></Sheet>
     <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="min-w-0 md:ml-[var(--shell-width)]">
-      <header className="sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-3 border-b bg-[color:var(--surface-canvas)]/95 px-3 backdrop-blur-sm sm:px-4">
+      <header className="sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-3 border-b bg-[color:var(--surface-canvas)]/95 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-sm sm:px-4">
         <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu aria-hidden="true" /></Button>
         <button type="button" onClick={() => openCommand("search")} className="mx-auto flex h-8 w-full max-w-xl items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-hover)] px-3 text-left text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"><Search className="size-4 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden rounded border bg-[var(--surface-canvas)] px-1.5 py-0.5 font-sans text-[10px] sm:inline">⌘ K</kbd></button>
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={openGlobalAgent} aria-label="询问 Personal OS" className="gap-1.5"><Sparkles className="size-4" aria-hidden="true"/><span className="hidden sm:inline">Ask</span><kbd className="hidden rounded border bg-[var(--surface-canvas)] px-1 py-0.5 font-sans text-[9px] lg:inline">⌘ J</kbd></Button></TooltipTrigger><TooltipContent>Ask Personal OS</TooltipContent></Tooltip>
@@ -137,6 +135,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       </header>
       <div className="min-w-0"><main id="main-content" className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>{globalAgentOpen ? <GlobalAgent open onClose={closeGlobalAgent} /> : null}</div>
     </div>
+    <MobileTabBar onOpenMore={() => setMobileOpen(true)} />
     <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} initialSection={commandSection} />
   </div>;
 }

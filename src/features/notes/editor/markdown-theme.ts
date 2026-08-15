@@ -380,7 +380,7 @@ const editorTheme = EditorView.theme({
     "&": { fontSize: "16px" },
     ".cm-scroller": { scrollbarGutter: "auto", scrollPaddingBlock: "24%" },
     ".cm-content": {
-      padding: "22px 16px max(calc(env(safe-area-inset-bottom) + 24px), 48px)",
+      padding: "22px 16px max(calc(env(safe-area-inset-bottom) + 24px + var(--tab-bar-height)), 48px)",
     },
     ".cm-line": { minHeight: "1.86em" },
   },

@@ -9,13 +9,15 @@ const globals = readFileSync("src/app/globals.css", "utf8");
 describe("workspace panel layout contract", () => {
   it("keeps AI panels out of the desktop document flow", () => {
     expect(sidecar).toContain("fixed bottom-0 right-0 top-[var(--toolbar-height)]");
-    expect(sidecar).toContain("w-[min(420px,calc(100vw-8px))]");
+    expect(sidecar).toContain("md:w-[min(420px,calc(100vw-8px))]");
     expect(sidecar).not.toContain("lg:static");
     expect(sidecar).not.toContain("lg:shrink-0");
   });
 
   it("keeps inspectors out of the desktop document flow", () => {
-    expect(inspector).toContain("fixed bottom-0 right-0 top-[var(--toolbar-height)]");
+    expect(inspector).toContain("fixed bottom-0");
+    expect(inspector).toContain("md:top-[var(--toolbar-height)]");
+    expect(inspector).toContain("md:w-[min(360px,calc(100vw-8px))]");
     expect(inspector).not.toContain("xl:static");
     expect(inspector).not.toContain("xl:shrink-0");
   });
@@ -27,6 +29,6 @@ describe("workspace panel layout contract", () => {
   });
 
   it("prevents body-level horizontal overflow", () => {
-    expect(globals).toMatch(/body\s*\{[^}]*overflow-x\s*:\s*hidden/);
+    expect(globals).toMatch(/body\s*\{[^}]*overflow-x\s*:\s*(hidden|clip)/);
   });
 });

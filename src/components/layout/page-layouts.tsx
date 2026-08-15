@@ -11,7 +11,7 @@ export function CollectionLayout({ className, ...props }: LayoutProps) {
 }
 
 export function WorkspaceLayout({ className, ...props }: LayoutProps) {
-  return <div className={cn("h-[calc(var(--app-viewport-height)-var(--toolbar-height))] min-h-0 w-full overflow-hidden p-3 sm:p-4 md:min-h-[560px]", className)} {...props} />;
+  return <div className={cn("h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 w-full overflow-hidden p-3 sm:p-4 md:min-h-[560px]", className)} {...props} />;
 }
 
 export function DocumentLayout({ className, ...props }: LayoutProps) {
@@ -19,5 +19,5 @@ export function DocumentLayout({ className, ...props }: LayoutProps) {
 }
 
 export function ContextSidebar({ className, ...props }: React.ComponentProps<"aside">) {
-  return <aside className={cn("border-b bg-[var(--surface-sidebar)] p-4 md:sticky md:top-[var(--toolbar-height)] md:h-[calc(var(--app-viewport-height)-var(--toolbar-height))] md:overflow-y-auto md:border-r md:border-b-0", className)} {...props} />;
+  return <aside className={cn("border-b bg-[var(--surface-sidebar)] p-4 md:sticky md:top-[var(--toolbar-height)] md:h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] md:overflow-y-auto md:border-r md:border-b-0", className)} {...props} />;
 }

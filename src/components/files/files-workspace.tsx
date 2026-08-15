@@ -122,7 +122,7 @@ export function FilesWorkspace({ folders, files, initialUpload = false }: { fold
 
   const uploadBusy = ["preparing", "uploading", "verifying", "extracting"].includes(stage);
 
-  return <div className="grid h-[calc(var(--app-viewport-height)-var(--toolbar-height))] min-h-0 gap-0 bg-white md:min-h-[540px] md:grid-cols-[var(--context-sidebar-width)_minmax(0,1fr)]">
+  return <div className="grid h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 gap-0 bg-white md:min-h-[540px] md:grid-cols-[var(--context-sidebar-width)_minmax(0,1fr)]">
     <aside className="border-b bg-[var(--surface-sidebar)] p-4 md:border-r md:border-b-0">
       <div className="flex items-center justify-between"><p className="text-xs font-medium tracking-wide text-zinc-500">文件夹</p><button type="button" onClick={() => setCreatingFolder((value) => !value)} aria-label="新建文件夹" className="rounded p-1.5 text-[#365f78] hover:bg-[#edf3f6]"><FolderPlus size={17} /></button></div>
       {creatingFolder ? <form action={createFileFolder} className="mt-3 flex gap-1"><input name="name" required maxLength={160} autoFocus placeholder="文件夹名称" className="min-w-0 flex-1 border border-[#d8d6d0] bg-white px-2 py-1 text-xs" /><input type="hidden" name="parent_id" value={folderId ?? ""} /><button className="bg-[#365f78] px-2 text-xs text-white">创建</button></form> : null}
