@@ -128,8 +128,8 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
       await syncAndBackupMicrosoftAction();
       await refetchActiveRange();
       router.refresh();
-    } catch {
-      setCalendarError("Outlook 同步未完成；当前显示的是本地已加载日程。");
+    } catch (error) {
+      setCalendarError(error instanceof Error ? `Outlook 同步未完成：${error.message}` : "Outlook 同步未完成；当前显示的是本地已加载日程。");
     }
   });
   const changeCursor = (amount: number) => setCursor((date) => shiftCalendarCursor(date, timezone, view === "week" ? amount * 7 : amount));

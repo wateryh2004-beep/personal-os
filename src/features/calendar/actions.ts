@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { accessTokenForConnection, ensureManagedOutlookCategories, executeCalendarOperation, syncOutlookMasterCategories, updateOutlookMasterCategoryColor } from "@/lib/adapters/microsoft-graph/calendar";
+import { accessTokenForConnection, ensureManagedOutlookCategories, executeCalendarOperation, MicrosoftGraphError, syncOutlookMasterCategories, updateOutlookMasterCategoryColor } from "@/lib/adapters/microsoft-graph/calendar";
 import type { OutlookCategoryColor } from "./classification/taxonomy";
 import { classifyCalendarEvent } from "./classification/classifier";
 import { categoryNamesForKeys, managedCalendarCategories } from "./classification/taxonomy";
@@ -240,8 +240,11 @@ export async function syncAndBackupMicrosoftAction() {
     revalidatePath("/calendar");
     revalidatePath("/tasks");
     return { calendarEventCount: result.calendarEventCount, calendarCategoryCount: result.calendarCategoryCount, calendarCategoryStatus: result.calendarCategoryStatus, todoTaskCount: result.todoTaskCount };
-  } catch {
-    throw new Error("同步或备份未能完成。请检查 Outlook 连接和数据库 migration 后重试。");
+  } catch (error) {
+    // 把底层错误码透传给 UI，便于定位：graph_unavailable / graph_invalid_request /
+    // graph_request_failed / calendar_cache_failed 等。
+    const code = error instanceof MicrosoftGraphError ? error.code : error instanceof Error ? error.message : "unknown";
+    throw new Error(`同步或备份未能完成：${code}`);
   }
 }
 

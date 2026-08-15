@@ -173,32 +173,51 @@ export async function accessTokenForConnection(connectionId: string, userId: str
   return accessToken;
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function graph(accessToken: string, path: string, init?: RequestInit) {
-  let response: Response;
-  try {
-    response = await fetch(`${graphBaseUrl}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Prefer: 'outlook.timezone="UTC"',
-        "Content-Type": "application/json",
-        ...init?.headers,
-      },
-      cache: "no-store",
-    });
-  } catch {
-    throw new MicrosoftGraphError("graph_unavailable");
+  // 只对幂等读取（GET）做瞬时错误/限流重试；写入（POST/PATCH/DELETE）失败直接抛出，
+  // 避免请求被重复应用。全量同步会分页拉取 2 年窗口，撞上 429/5xx 的概率不低。
+  const isRead = !init?.method || init.method === "GET";
+  const maxAttempts = isRead ? 4 : 1;
+  for (let attempt = 0; ; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(`${graphBaseUrl}${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Prefer: 'outlook.timezone="UTC"',
+          "Content-Type": "application/json",
+          ...init?.headers,
+        },
+        cache: "no-store",
+      });
+    } catch {
+      if (isRead && attempt + 1 < maxAttempts) {
+        await delay(300 * 2 ** attempt);
+        continue;
+      }
+      throw new MicrosoftGraphError("graph_unavailable");
+    }
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const graphCode = payload && typeof payload === "object" && "error" in payload
+        && payload.error && typeof payload.error === "object" && "code" in payload.error
+        ? String(payload.error.code) : "";
+      if (graphCode === "ErrorAccessDenied" || graphCode === "Authorization_RequestDenied") throw new MicrosoftGraphError("graph_access_denied");
+      if (graphCode === "ErrorInvalidRequest" || graphCode === "ErrorInvalidTimeZone") throw new MicrosoftGraphError("graph_invalid_request");
+      if (isRead && attempt + 1 < maxAttempts && (response.status === 429 || response.status >= 500)) {
+        const retryAfter = Number(response.headers.get("Retry-After") ?? 0);
+        await delay(Math.min(retryAfter > 0 ? retryAfter * 1000 : 300 * 2 ** attempt, 5000));
+        continue;
+      }
+      throw new MicrosoftGraphError("graph_request_failed");
+    }
+    return payload;
   }
-  const payload: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const graphCode = payload && typeof payload === "object" && "error" in payload
-      && payload.error && typeof payload.error === "object" && "code" in payload.error
-      ? String(payload.error.code) : "";
-    if (graphCode === "ErrorAccessDenied" || graphCode === "Authorization_RequestDenied") throw new MicrosoftGraphError("graph_access_denied");
-    if (graphCode === "ErrorInvalidRequest" || graphCode === "ErrorInvalidTimeZone") throw new MicrosoftGraphError("graph_invalid_request");
-    throw new MicrosoftGraphError("graph_request_failed");
-  }
-  return payload;
 }
 
 const graphResponseTimeZones: Record<string, string> = {
@@ -336,12 +355,18 @@ export async function syncMicrosoftCalendar(
     const canUseDelta = shouldUseCalendarDelta(connection, now, defaultWindow.start, Boolean(options.forceFull));
     const start = canUseDelta ? connection.calendar_sync_window_start! : defaultWindow.start;
     const end = canUseDelta ? connection.calendar_sync_window_end! : defaultWindow.end;
-    const query = new URLSearchParams({ startDateTime: start, endDateTime: end, "$top": "500", "$select": "id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs" });
+    // calendarView/delta 不认 $select/$top（文档明确不支持），所以这里只带时间窗。
+    // 需要的字段（id/iCalUId/subject/body/start/end/isAllDay/location/changeKey/
+    // categories/importance/showAs）全部是 event 默认属性，响应自带。
+    // 分页大小由 Prefer: odata.maxpagesize 控制（默认每页只有 10 条）。2 年窗口
+    // 事件多，页大小必须调大，否则几百次翻页会撞限流。
+    const query = new URLSearchParams({ startDateTime: start, endDateTime: end });
+    const pageRequest: RequestInit = { headers: { Prefer: 'outlook.timezone="UTC", odata.maxpagesize=500' } };
     let pagePath = canUseDelta ? connection.calendar_delta_link!.replace(graphBaseUrl, "") : `/me/calendarView/delta?${query.toString()}`;
     const remoteEvents: GraphEvent[] = [];
     let deltaLink: string | null = null;
     while (pagePath) {
-      const payload = await graph(accessToken, pagePath) as { value?: GraphEvent[]; "@odata.nextLink"?: string; "@odata.deltaLink"?: string };
+      const payload = await graph(accessToken, pagePath, pageRequest) as { value?: GraphEvent[]; "@odata.nextLink"?: string; "@odata.deltaLink"?: string };
       remoteEvents.push(...(payload.value ?? []));
       deltaLink = payload["@odata.deltaLink"] ?? deltaLink;
       pagePath = payload["@odata.nextLink"]?.replace(graphBaseUrl, "") ?? "";
