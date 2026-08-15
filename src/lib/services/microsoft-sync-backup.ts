@@ -3,7 +3,6 @@ import "server-only";
 import { syncMicrosoftCalendar, syncMicrosoftTodo, syncOutlookMasterCategories } from "@/lib/adapters/microsoft-graph/calendar";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { classifyUnlabeledCalendarEvents } from "@/features/calendar/classification/backfill";
-import { calendarSyncOptions } from "@/features/calendar/sync-policy";
 
 export type MicrosoftSyncTrigger = "manual" | "scheduled";
 
@@ -12,14 +11,11 @@ export type MicrosoftSyncTrigger = "manual" | "scheduled";
  * each refresh. It then stores an immutable, user-owned Supabase snapshot.
  */
 export async function syncAndBackupMicrosoftWorkspace(connectionId: string, userId: string, trigger: MicrosoftSyncTrigger) {
-  // Manual sync doubles as a safe, authoritative cache repair. It never
-  // touches Outlook event times; it only rebuilds the local mirror through
-  // the corrected Graph DateTimeTimeZone parser.
-  const calendarEventCount = await syncMicrosoftCalendar(
-    connectionId,
-    userId,
-    calendarSyncOptions(trigger),
-  );
+  // Sync always performs a full, authoritative Graph read: it never touches
+  // Outlook event times; it only rebuilds the local mirror through the
+  // corrected Graph DateTimeTimeZone parser and the non-delta calendarView
+  // (delta trims recurring-occurrence fields).
+  const calendarEventCount = await syncMicrosoftCalendar(connectionId, userId);
   const categories = await syncOutlookMasterCategories(connectionId, userId);
   // 手动同步是用户主动触发的全量重建；Outlook 上无分类的日程 Graph 返回 []，
   // 若不补分类，历史日程会一直保持灰色无分类。手动后自动跑一遍分类器，

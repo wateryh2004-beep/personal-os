@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { calendarEventForGraph, type GraphCalendarCreatePayload } from "./event-payload";
 import { managedCalendarCategories, type OutlookCategoryColor } from "@/features/calendar/classification/taxonomy";
 import { wallTimeToInstant } from "@/features/calendar/timezone";
-import { calendarSyncWindow, deltaLinkCarriesEventFields, shouldUseCalendarDelta } from "@/features/calendar/sync-policy";
+import { calendarSyncWindow } from "@/features/calendar/sync-policy";
 
 const MICROSOFT_CLIENT_ID = "084a3e9f-a9f4-43f7-89f9-d229cf97853e";
 const MICROSOFT_TENANT = "consumers";
@@ -387,7 +387,6 @@ async function existingCalendarEvents(admin: ReturnType<typeof createAdminClient
 export async function syncMicrosoftCalendar(
   connectionId: string,
   userId: string,
-  options: { forceFull?: boolean } = {},
 ) {
   try {
     const accessToken = await accessTokenForConnection(connectionId, userId);
@@ -397,52 +396,51 @@ export async function syncMicrosoftCalendar(
       admin.from("profiles").select("timezone").eq("user_id", userId).maybeSingle(),
     ]);
     if (connectionError || !connection) throw new MicrosoftGraphError("calendar_not_connected");
-    const now = Date.now(); const defaultWindow = calendarSyncWindow(now);
-    // Delta only yields changes since the previous cursor. A user-triggered
-    // reconciliation must also repair legacy cache rows that were parsed
-    // incorrectly before the DateTimeTimeZone fix, even if Outlook has not
-    // changed them since, so it intentionally starts a fresh full window.
-    // shouldUseCalendarDelta additionally requires the stored window to cover
-    // the 2-year history horizon, so the first sync after this change runs a
-    // full read that backfills historical events and rebuilds the delta cursor.
-    // deltaLink 会编码创建时的查询参数：若字段契约不完整（不带 $select，或
-    // $select 缺 type/seriesMasterId），增量响应会缺 subject 或循环日程拼不回
-    // master。遇到这种光标直接走全量重建，让新光标带上完整字段，避免把新/改
-    // 日程写成空值。
-    const canUseDelta = shouldUseCalendarDelta(connection, now, defaultWindow.start, Boolean(options.forceFull)) && deltaLinkCarriesEventFields(connection.calendar_delta_link);
-    const start = canUseDelta ? connection.calendar_sync_window_start! : defaultWindow.start;
-    const end = canUseDelta ? connection.calendar_sync_window_end! : defaultWindow.end;
-    // calendarView/delta 必须显式带 $select：不带时实际返回的是精简字段集
-    // （id/start/end 等），subject/categories/body/location 都会缺失——文档声称
-    // 「默认返回 GET /calendarView 的完整属性」，实测并不成立（曾因此出现过
-    // 日历上日程标题全部为空）。$top 被 delta 忽略，页大小由
-    // Prefer: odata.maxpagesize 控制（默认每页只有 10 条）。
+    const now = Date.now();
+    const { start, end } = calendarSyncWindow(now);
+    // 用非 delta 的 calendarView 全量读（65be700 的已知可用版本）。calendarView/delta
+    // 对循环日程的 occurrence 只返回精简实体——subject/body/location/categories 全缺，
+    // 即使带 $select 也一样（b6698b9 引入 delta 后，每天 8:30-17:00 的固定实习日程被
+    // 写成「未命名」，用户数据实证 iCalUId/calendar_id 为 NULL）。统一走全量读，用
+    // 窗口覆盖 2 年回看 + 180 天未来，自然修复历史镜像里的空标题行。
     const query = new URLSearchParams({
-      startDateTime: start,
-      endDateTime: end,
+      "$top": "500",
       "$select": "id,iCalUId,type,seriesMasterId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs",
     });
     const pageRequest: RequestInit = { headers: { Prefer: 'outlook.timezone="UTC", odata.maxpagesize=500' } };
-    let pagePath = canUseDelta ? connection.calendar_delta_link!.replace(graphBaseUrl, "") : `/me/calendarView/delta?${query.toString()}`;
     const remoteEvents: GraphEvent[] = [];
-    let deltaLink: string | null = null;
-    // 兜底页数上限：曾有账号级服务端 bug 让 calendarView/delta 无限返回相同页面、
-    // 永不给出 deltaLink。这里在超限时抛错而不是死循环（或把窗口内合法日程误归档）。
-    let pageCount = 0;
-    const MAX_PAGES = 200;
-    while (pagePath) {
-      pageCount += 1;
-      if (pageCount > MAX_PAGES) throw new MicrosoftGraphError("graph_delta_loop");
-      const payload = await graph(accessToken, pagePath, pageRequest) as { value?: GraphEvent[]; "@odata.nextLink"?: string; "@odata.deltaLink"?: string };
-      remoteEvents.push(...(payload.value ?? []));
-      deltaLink = payload["@odata.deltaLink"] ?? deltaLink;
-      pagePath = payload["@odata.nextLink"]?.replace(graphBaseUrl, "") ?? "";
+    const seen = new Set<string>();
+    // 910 天窗口单请求风险大（超时/服务端裁页）。按约 31 天分块，块内再翻页；跨块
+    // 边界的日程会被相邻块重复读到，但按 provider_event_id 幂等去重，无副作用。
+    const CHUNK_MS = 31 * 86_400_000;
+    for (let chunkStart = Date.parse(start); chunkStart < Date.parse(end); chunkStart += CHUNK_MS) {
+      const chunkEnd = Math.min(chunkStart + CHUNK_MS, Date.parse(end));
+      const chunkQuery = new URLSearchParams(query);
+      chunkQuery.set("startDateTime", new Date(chunkStart).toISOString());
+      chunkQuery.set("endDateTime", new Date(chunkEnd).toISOString());
+      let pagePath = `/me/calendarView?${chunkQuery.toString()}`;
+      // 兜底页数上限：曾有账号级服务端 bug 让分页无限返回相同页面。超限抛错而非
+      // 死循环（或把窗口内合法日程误归档）。
+      let pageCount = 0;
+      const MAX_PAGES = 200;
+      while (pagePath) {
+        pageCount += 1;
+        if (pageCount > MAX_PAGES) throw new MicrosoftGraphError("graph_page_loop");
+        const payload = await graph(accessToken, pagePath, pageRequest) as { value?: GraphEvent[]; "@odata.nextLink"?: string };
+        for (const event of payload.value ?? []) {
+          if (event.id && !seen.has(event.id)) {
+            seen.add(event.id);
+            remoteEvents.push(event);
+          }
+        }
+        pagePath = payload["@odata.nextLink"]?.replace(graphBaseUrl, "") ?? "";
+      }
     }
     const deletedIds = remoteEvents.flatMap((event) => event["@removed"] && event.id ? [event.id] : []);
     const existing = await existingCalendarEvents(admin, userId, start, end);
-    // delta 对循环日程的 occurrence 只返回精简实体（subject/body 为空），完整字段在
-    // 同响应内的 series master 上；先按 id 索引 master，再把每个 occurrence 拼回。
-    // series master 是系列元数据而非可排期实例，只作查询用、不写入镜像（避免幽灵日程）。
+    // 保险：即便 Graph 对某 occurrence 返回精简实体，也先从同响应内的 series master
+    // 或镜像旧值补齐字段，避免写成「未命名」。series master 是系列元数据而非可排期
+    // 实例，只作查询用、不写入镜像（避免幽灵日程）。
     const masterById = new Map(remoteEvents.filter((event) => event.type === "seriesMaster" && event.id).map((event) => [event.id, event]));
     const records = remoteEvents.filter((event) => !event["@removed"] && event.type !== "seriesMaster").map((event) => graphEventRecord(event, userId, seriesMasterFallback(event, masterById.get(event.seriesMasterId ?? ""), existing.get(event.id)), profile?.timezone || "Asia/Shanghai"));
     if (records.length) {
@@ -457,7 +455,7 @@ export async function syncMicrosoftCalendar(
       const { error } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).in("provider_event_id", deletedIds).is("archived_at", null);
       if (error) throw new MicrosoftGraphError("calendar_cache_failed");
     }
-    if (!canUseDelta) {
+    {
       const remoteIds = new Set(records.map((record) => record.provider_event_id));
       // 镜像内 2 年窗口可能远超 PostgREST 单页 1000 行上限；若不分页只拿到前 1000 条，
       // 其余会被误判为「Outlook 已删除」而归档（数据丢失）。与 existingCalendarEvents
@@ -478,7 +476,7 @@ export async function syncMicrosoftCalendar(
         if (archiveError) throw new MicrosoftGraphError("calendar_cache_failed");
       }
     }
-    await admin.from("calendar_connections").update({ last_seen_at: new Date().toISOString(), last_sync_at: new Date().toISOString(), last_error_code: null, calendar_delta_link: deltaLink, calendar_sync_window_start: start, calendar_sync_window_end: end }).eq("id", connectionId).eq("user_id", userId);
+    await admin.from("calendar_connections").update({ last_seen_at: new Date().toISOString(), last_sync_at: new Date().toISOString(), last_error_code: null, calendar_delta_link: null, calendar_sync_window_start: start, calendar_sync_window_end: end }).eq("id", connectionId).eq("user_id", userId);
     return records.length;
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "calendar_sync_failed";
