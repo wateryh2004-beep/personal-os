@@ -432,9 +432,20 @@ export async function syncMicrosoftCalendar(
     }
     if (!canUseDelta) {
       const remoteIds = new Set(records.map((record) => record.provider_event_id));
-      const { data: cached, error } = await admin.from("calendar_events").select("provider_event_id").eq("user_id", userId).lt("starts_at", end).gt("ends_at", start).is("archived_at", null);
-      if (error) throw new MicrosoftGraphError("calendar_cache_failed");
-      const staleIds = (cached ?? []).flatMap((event) => remoteIds.has(event.provider_event_id) ? [] : [event.provider_event_id]);
+      // 镜像内 2 年窗口可能远超 PostgREST 单页 1000 行上限；若不分页只拿到前 1000 条，
+      // 其余会被误判为「Outlook 已删除」而归档（数据丢失）。与 existingCalendarEvents
+      // 同样用 range 分页全量读回，再与 Graph 全量结果比对。
+      const cachedIds: string[] = [];
+      let cacheOffset = 0;
+      for (;;) {
+        const { data: cached, error } = await admin.from("calendar_events").select("provider_event_id").eq("user_id", userId).lt("starts_at", end).gt("ends_at", start).is("archived_at", null).order("provider_event_id").range(cacheOffset, cacheOffset + 999);
+        if (error) throw new MicrosoftGraphError("calendar_cache_failed");
+        const batch = cached ?? [];
+        cachedIds.push(...batch.map((row) => row.provider_event_id));
+        if (batch.length < 1000) break;
+        cacheOffset += 1000;
+      }
+      const staleIds = cachedIds.filter((id) => !remoteIds.has(id));
       if (staleIds.length) {
         const { error: archiveError } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).in("provider_event_id", staleIds).is("archived_at", null);
         if (archiveError) throw new MicrosoftGraphError("calendar_cache_failed");
