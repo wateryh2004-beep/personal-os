@@ -2,6 +2,7 @@ import "server-only";
 
 import { syncMicrosoftCalendar, syncMicrosoftTodo, syncOutlookMasterCategories } from "@/lib/adapters/microsoft-graph/calendar";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { classifyUnlabeledCalendarEvents } from "@/features/calendar/classification/backfill";
 import { calendarSyncOptions } from "@/features/calendar/sync-policy";
 
 export type MicrosoftSyncTrigger = "manual" | "scheduled";
@@ -20,6 +21,11 @@ export async function syncAndBackupMicrosoftWorkspace(connectionId: string, user
     calendarSyncOptions(trigger),
   );
   const categories = await syncOutlookMasterCategories(connectionId, userId);
+  // 手动同步是用户主动触发的全量重建；Outlook 上无分类的日程 Graph 返回 []，
+  // 若不补分类，历史日程会一直保持灰色无分类。手动后自动跑一遍分类器，
+  // 保证「同步一次、分类还在」；定时增量同步不重复扫，避免无谓写库。
+  // 放在 syncOutlookMasterCategories 之后，避免刚补上的托管分类行被其归档。
+  if (trigger === "manual") await classifyUnlabeledCalendarEvents(userId);
   const todo = await syncMicrosoftTodo(connectionId, userId);
   const admin = createAdminClient();
   const [eventsResult, categoriesResult, listsResult, tasksResult] = await Promise.all([

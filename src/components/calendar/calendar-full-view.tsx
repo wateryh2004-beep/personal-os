@@ -57,7 +57,9 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     const visual = resolveCalendarEventVisual(event.categories, categories);
     return {
       id: event.id,
-      title: event.subject,
+      // Outlook 里有些日程没有标题（纯占位时间块），渲染成纯空白方块会让用户
+      // 误以为数据丢失；给一个明确兜底标签而不是留白。
+      title: event.subject?.trim() || "未命名",
       start: event.is_all_day ? allDayDateToFullCalendarDate(instantToDate(event.starts_at, timezone)) : instantToFullCalendarDate(event.starts_at, timezone),
       end: event.is_all_day ? allDayDateToFullCalendarDate(instantToDate(event.ends_at, timezone)) : instantToFullCalendarDate(event.ends_at, timezone),
       allDay: event.is_all_day,

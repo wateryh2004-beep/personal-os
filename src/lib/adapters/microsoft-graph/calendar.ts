@@ -295,7 +295,7 @@ export function graphBodyText(body: GraphBody | undefined) {
     .trim() || null;
 }
 
-export function graphEventRecord(event: GraphEvent, userId: string, fallback?: { body_text?: string | null; categories?: string[]; importance?: string; show_as?: string }, timezone = "Asia/Shanghai") {
+export function graphEventRecord(event: GraphEvent, userId: string, fallback?: { subject?: string | null; location_name?: string | null; body_text?: string | null; categories?: string[] | null; importance?: string; show_as?: string }, timezone = "Asia/Shanghai") {
   const startsAt = event.isAllDay
     ? wallTimeToInstant(`${graphDateTimeTimeZoneToDate(event.start)}T00:00`, timezone)
     : graphDateTimeTimeZoneToInstant(event.start);
@@ -306,14 +306,17 @@ export function graphEventRecord(event: GraphEvent, userId: string, fallback?: {
     user_id: userId,
     provider_event_id: event.id,
     calendar_id: event.iCalUId ?? null,
-    subject: event.subject ?? "",
+    // Graph 同步/更新响应有时对未变更字段返回空值；全量重同步如果照单全收，
+    // 会把 App 打好的分类、标题等缓存覆盖成空。只在 Graph 给出真实值时采用，
+    // 空值回退到镜像既有值，避免「同步一次、分类全没」。
+    subject: event.subject?.trim() ? event.subject : fallback?.subject ?? "",
     body_text: graphBodyText(event.body) ?? fallback?.body_text ?? null,
     starts_at: startsAt,
     ends_at: endsAt,
     is_all_day: Boolean(event.isAllDay),
-    location_name: event.location?.displayName ?? null,
+    location_name: event.location?.displayName?.trim() ? event.location.displayName : fallback?.location_name ?? null,
     provider_change_key: event.changeKey ?? null,
-    categories: event.categories ?? fallback?.categories ?? [],
+    categories: event.categories?.length ? event.categories : fallback?.categories ?? [],
     importance: event.importance ?? fallback?.importance ?? "normal",
     show_as: event.showAs ?? fallback?.show_as ?? "unknown",
     last_synced_at: new Date().toISOString(),
@@ -329,6 +332,34 @@ export async function markConnectionError(connectionId: string, code: string) {
 async function audit(userId: string, action: string, entityId: string, afterData: Record<string, unknown>) {
   const admin = createAdminClient();
   await admin.from("audit_logs").insert({ user_id: userId, action, entity_type: "calendar_operation", entity_id: entityId, after_data: afterData, actor_type: "user" });
+}
+
+type ExistingMirrorEvent = { provider_event_id: string; subject: string | null; location_name: string | null; body_text: string | null; categories: string[] | null };
+
+/**
+ * 读取同步窗口内镜像已存在的日程，供 graphEventRecord 在 Graph 返回空值
+ * （subject/location/categories/body 为空）时回退保留。镜像里 App 打好的分类、
+ * 标题必须跨全量重同步存活，否则「同步一次、分类全没」。
+ */
+async function existingCalendarEvents(admin: ReturnType<typeof createAdminClient>, userId: string, start: string, end: string) {
+  const rows: ExistingMirrorEvent[] = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await admin.from("calendar_events")
+      .select("provider_event_id,subject,location_name,body_text,categories")
+      .eq("user_id", userId)
+      .lt("starts_at", end)
+      .gt("ends_at", start)
+      .is("archived_at", null)
+      .order("provider_event_id")
+      .range(offset, offset + 999);
+    if (error) throw new MicrosoftGraphError("calendar_cache_failed");
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < 1000) break;
+    offset += 1000;
+  }
+  return new Map(rows.map((row) => [row.provider_event_id, row]));
 }
 
 export async function syncMicrosoftCalendar(
@@ -372,7 +403,8 @@ export async function syncMicrosoftCalendar(
       pagePath = payload["@odata.nextLink"]?.replace(graphBaseUrl, "") ?? "";
     }
     const deletedIds = remoteEvents.flatMap((event) => event["@removed"] && event.id ? [event.id] : []);
-    const records = remoteEvents.filter((event) => !event["@removed"]).map((event) => graphEventRecord(event, userId, undefined, profile?.timezone || "Asia/Shanghai"));
+    const existing = await existingCalendarEvents(admin, userId, start, end);
+    const records = remoteEvents.filter((event) => !event["@removed"]).map((event) => graphEventRecord(event, userId, existing.get(event.id), profile?.timezone || "Asia/Shanghai"));
     if (records.length) {
       // 2 年窗口可能返回数千条日程；分批 upsert 避免单次请求超出 Supabase 负载上限。
       const CHUNK = 400;
@@ -730,7 +762,7 @@ export async function executeCalendarOperation(operationId: string, userId: stri
       const value = operation.payload as CalendarUpdatePayload;
       if (!operation.provider_event_id || !value.subject || !value.startsAt || !value.endsAt || !value.previous) throw new MicrosoftGraphError("operation_payload_invalid");
       const accessToken = await accessTokenForConnection(operation.connection_id, userId);
-      const { data: cached } = await admin.from("calendar_events").select("body_text,categories,importance,show_as").eq("user_id", userId).eq("provider_event_id", operation.provider_event_id).maybeSingle();
+      const { data: cached } = await admin.from("calendar_events").select("subject,location_name,body_text,categories,importance,show_as").eq("user_id", userId).eq("provider_event_id", operation.provider_event_id).maybeSingle();
       const updated = await graph(accessToken, `/me/events/${encodeURIComponent(operation.provider_event_id)}`, {
         method: "PATCH",
         body: JSON.stringify(calendarEventForGraph(value as GraphCalendarCreatePayload)),
