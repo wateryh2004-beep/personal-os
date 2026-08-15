@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { accessTokenForConnection, ensureManagedOutlookCategories, executeCalendarOperation, syncOutlookMasterCategories, updateOutlookMasterCategoryColor } from "@/lib/adapters/microsoft-graph/calendar";
 import type { OutlookCategoryColor } from "./classification/taxonomy";
+import { classifyCalendarEvent } from "./classification/classifier";
+import { categoryNamesForKeys, managedCalendarCategories } from "./classification/taxonomy";
 import { syncAndBackupMicrosoftWorkspace } from "@/lib/services/microsoft-sync-backup";
 import { cancelOperationSchema, confirmOperationSchema, createCalendarEventSchema, deleteCalendarEventSchema, updateCalendarEventSchema } from "./schemas";
 import { calendarPayload, calendarUpdatePayload } from "./utils";
@@ -293,5 +295,94 @@ export async function updateCalendarCategoryAiAction(_previousState: CalendarCre
     return { status: "success", message: "AI 分类设置已保存。" };
   } catch {
     return { status: "error", message: "请检查说明和关键词后重试。" };
+  }
+}
+
+export type CalendarBackfillState = { status: "idle" | "success" | "error"; message: string };
+
+/**
+ * 为已有日程回填托管分类（纯本地，不依赖 Outlook）。
+ * 1) 补齐 calendar_categories 缺失的托管分类，保证事件可按颜色渲染；
+ * 2) 对尚无托管主分类的事件用真实分类器打标，保留外部分类、低置信度不打标。
+ */
+export async function backfillCalendarCategoriesAction(_previousState: CalendarBackfillState): Promise<CalendarBackfillState> {
+  void _previousState;
+  try {
+    const { supabase, userId } = await requireOwner();
+
+    const { data: existing } = await supabase
+      .from("calendar_categories")
+      .select("display_name")
+      .eq("user_id", userId)
+      .is("archived_at", null);
+    const existingNames = new Set((existing ?? []).map((row) => row.display_name));
+    const missing = managedCalendarCategories.filter((category) => !existingNames.has(category.displayName));
+    if (missing.length) {
+      const admin = createAdminClient();
+      const { error } = await admin.from("calendar_categories").upsert(
+        missing.map((category) => ({
+          user_id: userId,
+          display_name: category.displayName,
+          color: category.color,
+          managed_key: category.key,
+          category_kind: category.kind,
+          keywords: category.keywords,
+          ai_description: category.aiDescription,
+          is_ai_managed: true,
+          ai_enabled: true,
+          display_order: category.order,
+        })),
+        { onConflict: "user_id,display_name" },
+      );
+      if (error) throw error;
+    }
+
+    const rules = (await classificationOptions(supabase, true)).rules;
+    const managedNames = new Set(managedCalendarCategories.map((category) => category.displayName));
+    const { data: events, error: eventsError } = await supabase
+      .from("calendar_events")
+      .select("id,subject,body_text,location_name,categories")
+      .eq("user_id", userId)
+      .is("archived_at", null)
+      .limit(5000);
+    if (eventsError) throw eventsError;
+
+    let updated = 0;
+    let alreadyLabeled = 0;
+    let lowConfidence = 0;
+    for (const event of events ?? []) {
+      const existingCategories: string[] = event.categories ?? [];
+      const external = existingCategories.filter((name) => !managedNames.has(name));
+      const hasManagedPrimary = existingCategories.some((name) => managedNames.has(name) && name.startsWith("领域·"));
+      if (hasManagedPrimary) {
+        alreadyLabeled += 1;
+        continue;
+      }
+      const result = classifyCalendarEvent(
+        { subject: event.subject ?? "", description: event.body_text ?? null, locationName: event.location_name ?? null },
+        rules,
+      );
+      let next: string[];
+      if (result.needsConfirmation) {
+        next = external;
+        lowConfidence += 1;
+      } else {
+        next = [...new Set([...categoryNamesForKeys(result.primaryCategoryKey, result.contextCategoryKeys), ...external])];
+        updated += 1;
+      }
+      if (JSON.stringify(next) !== JSON.stringify(existingCategories)) {
+        await supabase.from("calendar_events").update({ categories: next }).eq("id", event.id);
+      }
+    }
+
+    revalidatePath("/calendar");
+    const parts = [
+      updated ? `已为 ${updated} 条历史日程分类` : "",
+      alreadyLabeled ? `${alreadyLabeled} 条已有分类未改动` : "",
+      lowConfidence ? `${lowConfidence} 条低置信度未打标` : "",
+    ].filter(Boolean);
+    return { status: "success", message: `分类完成：${parts.join("，")}。` };
+  } catch {
+    return { status: "error", message: "历史日程分类未能完成，请稍后重试。" };
   }
 }

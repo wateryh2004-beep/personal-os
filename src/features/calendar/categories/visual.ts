@@ -1,4 +1,5 @@
 import type { CalendarCategory } from "./types";
+import { managedCalendarCategories } from "../classification/taxonomy";
 
 export type CalendarEventVisual = {
   primaryCategory: CalendarCategory | null;
@@ -54,7 +55,18 @@ export function resolveCalendarEventVisual(eventCategories: string[], categories
     return category ? [category] : [];
   });
   const primaryCategory = records.find((category) => category.category_kind === "primary") ?? records[0] ?? null;
-  const tokens = primaryCategory ? outlookPresetTokens[primaryCategory.color] ?? neutral : neutral;
+  let tokens;
+  if (primaryCategory) {
+    tokens = outlookPresetTokens[primaryCategory.color] ?? neutral;
+  } else {
+    // 分类表尚未同步时，回退到 taxonomy 内置色，保证已带管理分类的事件仍有颜色。
+    const managed = eventCategories.flatMap((name) => {
+      const category = managedCalendarCategories.find((item) => item.displayName === name);
+      return category ? [category] : [];
+    });
+    const managedPrimary = managed.find((category) => category.kind === "primary") ?? managed[0] ?? null;
+    tokens = managedPrimary ? outlookPresetTokens[managedPrimary.color] ?? neutral : neutral;
+  }
   return { primaryCategory, ...tokens };
 }
 
