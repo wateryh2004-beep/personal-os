@@ -16,6 +16,7 @@ import {
 } from "@/features/notes/ai-actions";
 import {
   isRewriteOperation,
+  noteAiOperationLabel,
   type NoteAiOperation,
 } from "@/features/notes/ai-prompts";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
@@ -303,6 +304,15 @@ export function NoteAiAssistant({
           </div>
         }
       >
+          {pending && request ? (
+            <p
+              role="status"
+              aria-live="polite"
+              className="mb-3 text-xs text-[var(--text-tertiary)]"
+            >
+              正在{noteAiOperationLabel(request.operation)}（{request.content.length} 字）
+            </p>
+          ) : null}
           <div className="grid grid-cols-2 gap-2">
             {shortcuts.map(([operation, label, icon]) => (
               <button
@@ -384,7 +394,7 @@ export function NoteAiAssistant({
                   <p className="text-sm font-medium text-[var(--text-primary)]">AI 结果预览</p>
                   <p className="mt-1 text-xs text-[var(--text-secondary)]">使用底部固定确认区决定是否写入笔记。</p>
                 </div>
-                <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[10px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? "所选文字" : "当前笔记"}</span>
+                <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[10px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? `所选文字 · ${request.content.length} 字` : "当前笔记"}</span>
               </div>
               <pre className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">{result.suggestion}</pre>
               {result.contextSources?.length ? (

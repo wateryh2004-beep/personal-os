@@ -5,11 +5,14 @@ import { deepSeekModelIds } from "@/lib/ai/deepseek";
 import { requireOwner } from "@/lib/auth/require-owner";
 import {
   isNoteAiPromptKey,
+  isRewriteOperation,
+  markdownStructureProtectionRule,
   noteAiInstruction,
   noteAiOperations,
   noteAiSystemPrompt,
   type NoteAiPromptKey,
 } from "./ai-prompts";
+import { protectNoteStructures } from "./ai-protect";
 import { runAssistant } from "@/features/assistant/runtime";
 
 const requestSchema = z.object({
@@ -75,6 +78,20 @@ export async function generateNoteAiSuggestion(
         promptOverrides[row.prompt_key] = row.content;
       }
     }
+    // 结构保护：rewrite 类操作的输出会写回笔记，先把内部链接/双链/图片/代码块
+    // 换成占位符再发给模型，返回后还原，避免润色时被当成乱码删掉。辅助类操作
+    // （askNote/summarize/explain 等）不保护，模型需要看到真实链接才能回答。
+    const shouldProtect = isRewriteOperation(parsed.data.operation);
+    const { protected: protectedContent, restore } = shouldProtect
+      ? protectNoteStructures(parsed.data.content)
+      : { protected: parsed.data.content, restore: (text: string) => text };
+    const structureRule = shouldProtect
+      ? `\n\n${markdownStructureProtectionRule}`
+      : "";
+    const selectionNote =
+      parsed.data.scope === "selection"
+        ? "\n\n上下文：这是用户从笔记中选中的一段文字，可能位于文章中间；只处理这段文字，保留其原有的内部链接、双链、图片与代码块。"
+        : "";
     const result = await runAssistant({
       surface: "notes",
       mode:
@@ -87,12 +104,12 @@ export async function generateNoteAiSuggestion(
       operation: parsed.data.operation,
       usePersonalContext:
         parsed.data.scope === "note" && parsed.data.usePersonalContext === true,
-      instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}`,
+      instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}${structureRule}${selectionNote}`,
       currentEntity: { type: "note", id: parsed.data.noteId },
       currentSurface: {
         type: "note_draft",
         title: parsed.data.title,
-        content: parsed.data.content,
+        content: protectedContent,
       },
       requiresCurrentSurface: true,
     });
@@ -104,7 +121,7 @@ export async function generateNoteAiSuggestion(
         suggestion: "",
       };
     }
-    return {
+    const response: NoteAiState = {
       status: "success",
       message: "预览已生成。确认操作已显示在抽屉底部。",
       suggestion,
@@ -112,6 +129,9 @@ export async function generateNoteAiSuggestion(
       scope: parsed.data.scope,
       contextSources: result.contextSources,
     };
+    // 结构保护还原：模型输出里可能残留占位符，映射回真实的链接/双链/图片/代码块。
+    if (shouldProtect) response.suggestion = restore(response.suggestion).trim();
+    return response;
   } catch {
     return {
       status: "error",
