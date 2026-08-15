@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { calendarEventForGraph, type GraphCalendarCreatePayload } from "./event-payload";
 import { managedCalendarCategories, type OutlookCategoryColor } from "@/features/calendar/classification/taxonomy";
 import { wallTimeToInstant } from "@/features/calendar/timezone";
-import { calendarSyncWindow, deltaLinkCarriesSelect, shouldUseCalendarDelta } from "@/features/calendar/sync-policy";
+import { calendarSyncWindow, deltaLinkCarriesEventFields, shouldUseCalendarDelta } from "@/features/calendar/sync-policy";
 
 const MICROSOFT_CLIENT_ID = "084a3e9f-a9f4-43f7-89f9-d229cf97853e";
 const MICROSOFT_TENANT = "consumers";
@@ -30,6 +30,8 @@ type GraphBody = { content?: string | null; contentType?: "text" | "html" | stri
 type GraphEvent = {
   id: string;
   iCalUId?: string;
+  type?: "singleInstance" | "occurrence" | "exception" | "seriesMaster";
+  seriesMasterId?: string | null;
   subject?: string;
   body?: GraphBody;
   start?: GraphDateTimeTimeZone;
@@ -324,6 +326,26 @@ export function graphEventRecord(event: GraphEvent, userId: string, fallback?: {
   };
 }
 
+/**
+ * 拼回循环日程的 series master，为被 delta 精简的 occurrence 补字段。
+ *
+ * calendarView/delta 对循环日程的 occurrence/exception 只返回精简实体
+ * （subject/body/location 为空），完整字段在同一个响应内的 series master 上
+ * （type === "seriesMaster"）。缺失字段的取数顺序：occurrence 自身 → master →
+ * 镜像旧值，保证循环日程标题不丢、也不覆盖 App 已打好的分类。
+ */
+export function seriesMasterFallback(event: Pick<GraphEvent, "seriesMasterId">, master: GraphEvent | undefined, existingRow: ExistingMirrorEvent | undefined) {
+  const source = event.seriesMasterId ? master : undefined;
+  return {
+    subject: source?.subject?.trim() ? source.subject : existingRow?.subject,
+    location_name: source?.location?.displayName?.trim() ? source.location.displayName : existingRow?.location_name,
+    body_text: source ? (graphBodyText(source.body) ?? existingRow?.body_text) : existingRow?.body_text,
+    categories: source?.categories?.length ? source.categories : existingRow?.categories,
+    ...(source?.importance ? { importance: source.importance } : {}),
+    ...(source?.showAs ? { show_as: source.showAs } : {}),
+  };
+}
+
 export async function markConnectionError(connectionId: string, code: string) {
   const admin = createAdminClient();
   await admin.from("calendar_connections").update({ last_error_code: code }).eq("id", connectionId);
@@ -383,10 +405,11 @@ export async function syncMicrosoftCalendar(
     // shouldUseCalendarDelta additionally requires the stored window to cover
     // the 2-year history horizon, so the first sync after this change runs a
     // full read that backfills historical events and rebuilds the delta cursor.
-    // deltaLink 会编码创建时的查询参数：若它不含 $select（如历史上不带 $select
-    // 创建的光标），增量响应会缺 subject/categories 等字段。遇到这种光标直接
-    // 走全量重建，让新光标带上 $select，避免增量把新/改日程写成空值。
-    const canUseDelta = shouldUseCalendarDelta(connection, now, defaultWindow.start, Boolean(options.forceFull)) && deltaLinkCarriesSelect(connection.calendar_delta_link);
+    // deltaLink 会编码创建时的查询参数：若字段契约不完整（不带 $select，或
+    // $select 缺 type/seriesMasterId），增量响应会缺 subject 或循环日程拼不回
+    // master。遇到这种光标直接走全量重建，让新光标带上完整字段，避免把新/改
+    // 日程写成空值。
+    const canUseDelta = shouldUseCalendarDelta(connection, now, defaultWindow.start, Boolean(options.forceFull)) && deltaLinkCarriesEventFields(connection.calendar_delta_link);
     const start = canUseDelta ? connection.calendar_sync_window_start! : defaultWindow.start;
     const end = canUseDelta ? connection.calendar_sync_window_end! : defaultWindow.end;
     // calendarView/delta 必须显式带 $select：不带时实际返回的是精简字段集
@@ -397,7 +420,7 @@ export async function syncMicrosoftCalendar(
     const query = new URLSearchParams({
       startDateTime: start,
       endDateTime: end,
-      "$select": "id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs",
+      "$select": "id,iCalUId,type,seriesMasterId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs",
     });
     const pageRequest: RequestInit = { headers: { Prefer: 'outlook.timezone="UTC", odata.maxpagesize=500' } };
     let pagePath = canUseDelta ? connection.calendar_delta_link!.replace(graphBaseUrl, "") : `/me/calendarView/delta?${query.toString()}`;
@@ -417,7 +440,10 @@ export async function syncMicrosoftCalendar(
     }
     const deletedIds = remoteEvents.flatMap((event) => event["@removed"] && event.id ? [event.id] : []);
     const existing = await existingCalendarEvents(admin, userId, start, end);
-    const records = remoteEvents.filter((event) => !event["@removed"]).map((event) => graphEventRecord(event, userId, existing.get(event.id), profile?.timezone || "Asia/Shanghai"));
+    // delta 对循环日程的 occurrence 只返回精简实体（subject/body 为空），完整字段在
+    // 同响应内的 series master 上；先按 id 索引 master，再把每个 occurrence 拼回。
+    const masterById = new Map(remoteEvents.filter((event) => event.type === "seriesMaster" && event.id).map((event) => [event.id, event]));
+    const records = remoteEvents.filter((event) => !event["@removed"]).map((event) => graphEventRecord(event, userId, seriesMasterFallback(event, masterById.get(event.seriesMasterId ?? ""), existing.get(event.id)), profile?.timezone || "Asia/Shanghai"));
     if (records.length) {
       // 2 年窗口可能返回数千条日程；分批 upsert 避免单次请求超出 Supabase 负载上限。
       const CHUNK = 400;

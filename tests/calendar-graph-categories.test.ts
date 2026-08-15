@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { graphEventRecord, microsoftCalendarConfiguration, microsoftScopeVersionForGrantedScopes, requiresCategoryReauthorization } from "@/lib/adapters/microsoft-graph/calendar";
+import { graphEventRecord, microsoftCalendarConfiguration, microsoftScopeVersionForGrantedScopes, requiresCategoryReauthorization, seriesMasterFallback } from "@/lib/adapters/microsoft-graph/calendar";
 import { calendarEventForGraph, graphTimeZone } from "@/lib/adapters/microsoft-graph/event-payload";
 
 describe("Microsoft Graph calendar category integration", () => {
@@ -45,6 +45,36 @@ describe("Microsoft Graph calendar category integration", () => {
   it("prefers a real Graph subject over the cached fallback", () => {
     const record = graphEventRecord({ id: "event-1", subject: "改名后的标题", start: { dateTime: "2026-08-09T08:00:00Z" }, end: { dateTime: "2026-08-09T09:00:00Z" } }, "user-1", { subject: "旧标题" });
     expect(record.subject).toBe("改名后的标题");
+  });
+
+  it("fills delta-minimized occurrences from the series master", () => {
+    // calendarView/delta 对循环日程的 occurrence 只返回精简实体（subject/body 为空），
+    // 完整字段在同一个响应内的 series master 上。缺失字段必须从 master 补齐，
+    // 否则每天固定 8:30-17:00 的循环实习日程会被写成「未命名」。
+    const occurrence = { id: "occ-1", type: "occurrence" as const, seriesMasterId: "master-1", start: { dateTime: "2026-08-09T08:00:00Z" }, end: { dateTime: "2026-08-09T09:00:00Z" } };
+    const master = { id: "master-1", type: "seriesMaster" as const, subject: "华夏基金实习", location: { displayName: "华夏基金" }, body: { content: "正文", contentType: "text" }, categories: ["领域·实习/工作"], importance: "high" as const, showAs: "busy" as const };
+    const record = graphEventRecord(occurrence, "user-1", seriesMasterFallback(occurrence, master, undefined));
+    expect(record).toMatchObject({ subject: "华夏基金实习", location_name: "华夏基金", body_text: "正文", categories: ["领域·实习/工作"], importance: "high", show_as: "busy" });
+  });
+
+  it("prefers the occurrence's own fields over the series master", () => {
+    const occurrence = { id: "occ-1", type: "occurrence" as const, seriesMasterId: "master-1", subject: "改名的单次", categories: ["领域·娱乐/社交"], start: { dateTime: "2026-08-09T08:00:00Z" }, end: { dateTime: "2026-08-09T09:00:00Z" } };
+    const master = { id: "master-1", type: "seriesMaster" as const, subject: "华夏基金实习", start: { dateTime: "2026-01-01T00:00:00Z" }, end: { dateTime: "2026-01-01T08:00:00Z" } };
+    const record = graphEventRecord(occurrence, "user-1", seriesMasterFallback(occurrence, master, undefined));
+    expect(record).toMatchObject({ subject: "改名的单次", categories: ["领域·娱乐/社交"] });
+  });
+
+  it("falls back to the mirror row when no series master resolves", () => {
+    const occurrence = { id: "occ-1", type: "occurrence" as const, seriesMasterId: "master-1", start: { dateTime: "2026-08-09T08:00:00Z" }, end: { dateTime: "2026-08-09T09:00:00Z" } };
+    const record = graphEventRecord(occurrence, "user-1", seriesMasterFallback(occurrence, undefined, { provider_event_id: "occ-1", subject: "镜像旧标题", location_name: null, body_text: null, categories: ["领域·实习/工作"] }));
+    expect(record).toMatchObject({ subject: "镜像旧标题", categories: ["领域·实习/工作"] });
+  });
+
+  it("keeps app-assigned mirror categories when the master reports an empty list", () => {
+    const occurrence = { id: "occ-1", type: "occurrence" as const, seriesMasterId: "master-1", start: { dateTime: "2026-08-09T08:00:00Z" }, end: { dateTime: "2026-08-09T09:00:00Z" } };
+    const master = { id: "master-1", type: "seriesMaster" as const, subject: "华夏基金实习", categories: [] };
+    const record = graphEventRecord(occurrence, "user-1", seriesMasterFallback(occurrence, master, { provider_event_id: "occ-1", subject: null, location_name: null, body_text: null, categories: ["领域·实习/工作"] }));
+    expect(record.categories).toEqual(["领域·实习/工作"]);
   });
 
   it("uses a stable transaction id and preserves an all-day local date", () => {

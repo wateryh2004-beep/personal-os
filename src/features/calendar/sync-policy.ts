@@ -47,11 +47,13 @@ export function shouldUseCalendarDelta(connection: StoredSyncWindow, now: number
 }
 
 /**
- * deltaLink 会编码创建时的查询参数。若它不含 $select（历史上曾不带 $select
- * 创建过光标），增量响应会缺 subject/categories 等字段，新/改日程会被写成空值。
- * 调用方应在这种情况下放弃增量、走全量重建，让新光标带上 $select。
+ * deltaLink 会编码创建时的查询参数。增量响应依赖其中 $select 指定的事件字段：
+ * - 历史曾不带 $select 创建过光标 → subject/categories 等字段全缺；
+ * - 即便带了 $select，若不含 type/seriesMasterId，循环日程无法拼回 master，
+ *   其 occurrence 的 subject 仍会是空。
+ * 只要字段契约不完整就放弃增量、走全量重建，让新光标带上完整字段。
  */
-export function deltaLinkCarriesSelect(deltaLink: string | null | undefined) {
+export function deltaLinkCarriesEventFields(deltaLink: string | null | undefined) {
   if (!deltaLink) return false;
-  return decodeURIComponent(deltaLink).includes("$select=");
+  return decodeURIComponent(deltaLink).includes("seriesMasterId");
 }
