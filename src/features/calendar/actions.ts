@@ -232,19 +232,24 @@ export async function queueCalendarSync() {
   revalidatePath("/calendar");
 }
 
-export async function syncAndBackupMicrosoftAction() {
+export async function syncAndBackupMicrosoftAction(): Promise<
+  | { status: "success"; calendarEventCount: number; calendarCategoryCount: number; calendarCategoryStatus: string; todoTaskCount: number }
+  | { status: "error"; message: string }
+> {
   const { supabase, userId } = await requireOwner();
   const activeConnection = await connection(supabase);
   try {
     const result = await syncAndBackupMicrosoftWorkspace(activeConnection.id, userId, "manual");
     revalidatePath("/calendar");
     revalidatePath("/tasks");
-    return { calendarEventCount: result.calendarEventCount, calendarCategoryCount: result.calendarCategoryCount, calendarCategoryStatus: result.calendarCategoryStatus, todoTaskCount: result.todoTaskCount };
+    return { status: "success", calendarEventCount: result.calendarEventCount, calendarCategoryCount: result.calendarCategoryCount, calendarCategoryStatus: result.calendarCategoryStatus, todoTaskCount: result.todoTaskCount };
   } catch (error) {
-    // 把底层错误码透传给 UI，便于定位：graph_unavailable / graph_invalid_request /
-    // graph_request_failed / calendar_cache_failed 等。
+    // 返回错误结果而非抛异常：开发/生产环境都能可靠显示真实错误码
+    // （graph_unavailable / graph_invalid_request / graph_request_failed /
+    // calendar_cache_failed 等），并同步打到 dev 终端便于查日志。
     const code = error instanceof MicrosoftGraphError ? error.code : error instanceof Error ? error.message : "unknown";
-    throw new Error(`同步或备份未能完成：${code}`);
+    console.error("[calendar-sync] failed:", code);
+    return { status: "error", message: `同步或备份未能完成：${code}` };
   }
 }
 

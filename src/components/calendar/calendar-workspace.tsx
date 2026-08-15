@@ -124,13 +124,13 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
   const openEvent = (event: CalendarEventRecord) => { setSelected(event); setDraft(null); inspector.open(); };
   const openDraft = (range: Draft) => { setSelected(null); setDraft(range); inspector.open(); };
   const sync = () => startSync(async () => {
-    try {
-      await syncAndBackupMicrosoftAction();
-      await refetchActiveRange();
-      router.refresh();
-    } catch (error) {
-      setCalendarError(error instanceof Error ? `Outlook 同步未完成：${error.message}` : "Outlook 同步未完成；当前显示的是本地已加载日程。");
+    const result = await syncAndBackupMicrosoftAction();
+    if (result.status === "error") {
+      setCalendarError(`Outlook 同步未完成：${result.message}`);
+      return;
     }
+    await refetchActiveRange();
+    router.refresh();
   });
   const changeCursor = (amount: number) => setCursor((date) => shiftCalendarCursor(date, timezone, view === "week" ? amount * 7 : amount));
   const moveEvent = async (event: CalendarEventRecord, range: Draft & { isAllDay: boolean }) => {
