@@ -232,7 +232,7 @@ export async function queueCalendarSync() {
 }
 
 export async function syncAndBackupMicrosoftAction(): Promise<
-  | { status: "success"; calendarEventCount: number; calendarCategoryCount: number; calendarCategoryStatus: string; todoTaskCount: number }
+  | { status: "success"; calendarEventCount: number; calendarCategoryCount: number; calendarCategoryStatus: string; todoTaskCount: number; degraded: string[] }
   | { status: "error"; message: string }
 > {
   const { supabase, userId } = await requireOwner();
@@ -241,7 +241,7 @@ export async function syncAndBackupMicrosoftAction(): Promise<
     const result = await syncAndBackupMicrosoftWorkspace(activeConnection.id, userId, "manual");
     revalidatePath("/calendar");
     revalidatePath("/tasks");
-    return { status: "success", calendarEventCount: result.calendarEventCount, calendarCategoryCount: result.calendarCategoryCount, calendarCategoryStatus: result.calendarCategoryStatus, todoTaskCount: result.todoTaskCount };
+    return { status: "success", calendarEventCount: result.calendarEventCount, calendarCategoryCount: result.calendarCategoryCount, calendarCategoryStatus: result.calendarCategoryStatus, todoTaskCount: result.todoTaskCount, degraded: result.degraded };
   } catch (error) {
     // 返回错误结果而非抛异常：开发/生产环境都能可靠显示真实错误码
     // （graph_unavailable / graph_invalid_request / graph_request_failed /

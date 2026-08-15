@@ -443,9 +443,10 @@ export async function syncMicrosoftCalendar(
     // 实例，只作查询用、不写入镜像（避免幽灵日程）。
     const masterById = new Map(remoteEvents.filter((event) => event.type === "seriesMaster" && event.id).map((event) => [event.id, event]));
     const records = remoteEvents.filter((event) => !event["@removed"] && event.type !== "seriesMaster").map((event) => graphEventRecord(event, userId, seriesMasterFallback(event, masterById.get(event.seriesMasterId ?? ""), existing.get(event.id)), profile?.timezone || "Asia/Shanghai"));
+    // 2 年窗口可能返回数千条日程；upsert 与 stale 归档都按此分批，
+    // 避免单次请求超出 Supabase 负载上限或 PostgREST URL 长度上限。
+    const CHUNK = 400;
     if (records.length) {
-      // 2 年窗口可能返回数千条日程；分批 upsert 避免单次请求超出 Supabase 负载上限。
-      const CHUNK = 400;
       for (let index = 0; index < records.length; index += CHUNK) {
         const { error } = await admin.from("calendar_events").upsert(records.slice(index, index + CHUNK), { onConflict: "user_id,provider_event_id" });
         if (error) throw new MicrosoftGraphError("calendar_cache_failed");
@@ -471,8 +472,10 @@ export async function syncMicrosoftCalendar(
         cacheOffset += 1000;
       }
       const staleIds = cachedIds.filter((id) => !remoteIds.has(id));
-      if (staleIds.length) {
-        const { error: archiveError } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).in("provider_event_id", staleIds).is("archived_at", null);
+      // 2 年全量镜像可能数千条；一次 .in() 会超出 PostgREST URL 长度上限
+      // （整批归档失败即整次同步失败），按批次归档。
+      for (let index = 0; index < staleIds.length; index += CHUNK) {
+        const { error: archiveError } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).in("provider_event_id", staleIds.slice(index, index + CHUNK)).is("archived_at", null);
         if (archiveError) throw new MicrosoftGraphError("calendar_cache_failed");
       }
     }

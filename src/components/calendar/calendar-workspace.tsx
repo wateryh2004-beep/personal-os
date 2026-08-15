@@ -125,12 +125,18 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
   const openDraft = (range: Draft) => { setSelected(null); setDraft(range); inspector.open(); };
   const sync = () => startSync(async () => {
     const result = await syncAndBackupMicrosoftAction();
+    // 无论同步是否完整成功，都先刷新本地镜像：日历数据很可能已经写入
+    // （分类/Todo/备份等辅助环节失败会中止整体报错），不能让用户停留在
+    // 旧的空标题缓存上。
+    await refetchActiveRange();
+    router.refresh();
     if (result.status === "error") {
       setCalendarError(`Outlook 同步未完成：${result.message}`);
       return;
     }
-    await refetchActiveRange();
-    router.refresh();
+    if (result.degraded.length) {
+      setCalendarError(`日历已同步；部分辅助环节未完成：${result.degraded.join("；")}`);
+    }
   });
   const changeCursor = (amount: number) => setCursor((date) => shiftCalendarCursor(date, timezone, view === "week" ? amount * 7 : amount));
   const moveEvent = async (event: CalendarEventRecord, range: Draft & { isAllDay: boolean }) => {
