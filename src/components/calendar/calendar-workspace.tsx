@@ -19,7 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, wallTimeToIso } from "@/features/calendar/timezone";
 import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, reconcileCalendarMutationRange, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
 import { primaryCalendarCategories } from "@/features/calendar/classification/taxonomy";
-import { resolveCalendarEventVisual } from "@/features/calendar/categories/visual";
+import { outlookCategoryDot, resolveCalendarEventVisual } from "@/features/calendar/categories/visual";
 
 const CalendarAssistant = dynamic(() => import("@/components/calendar/calendar-assistant").then((module) => module.CalendarAssistant), { ssr: false });
 
@@ -199,7 +199,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
       </header>
       <div className="flex items-center gap-1 overflow-x-auto border-b bg-[var(--surface-canvas)] px-3 py-1.5 [scrollbar-width:thin]">
         {primaryCalendarCategories.map((category) => {
-          const dot = resolveCalendarEventVisual([category.displayName], categories).dot;
+          const dot = outlookCategoryDot(category.color);
           const active = selectedCategories.has(category.displayName);
           return (
             <button

@@ -57,3 +57,11 @@ export function resolveCalendarEventVisual(eventCategories: string[], categories
   const tokens = primaryCategory ? outlookPresetTokens[primaryCategory.color] ?? neutral : neutral;
   return { primaryCategory, ...tokens };
 }
+
+/**
+ * 按 Outlook 预设色直接取色点 hex。用于无需依赖同步分类列表即可
+ * 呈现「颜色=类别」的场景（如图例行），保证每个类别颜色恒有区分。
+ */
+export function outlookCategoryDot(color: string): string {
+  return outlookPresetTokens[color]?.dot ?? neutral.dot;
+}
