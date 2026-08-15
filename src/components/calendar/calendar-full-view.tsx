@@ -74,7 +74,13 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     if (info.view.type === "dayGridMonth") return <div className="flex min-w-0 items-center gap-1 px-1 py-0.5 text-[11px]"><span className="size-1.5 shrink-0 rounded-full" style={{ background: info.event.extendedProps.visual.dot }} /><span className="truncate font-medium">{info.event.title}</span></div>;
     const event = info.event.extendedProps.event;
     const durationMinutes = (Date.parse(event.ends_at) - Date.parse(event.starts_at)) / 60_000;
-    if (durationMinutes <= 30) return <div className="h-full overflow-hidden px-1.5 py-0.5 text-xs leading-4"><p className="truncate font-medium">{info.event.title}</p></div>;
+    if (durationMinutes <= 30) {
+      // 半小时以内的日程方块很矮，标题在窄列里放不下（truncate 成 …）。方块保持
+      // 窄小以编码时间间隔，悬停时用浮层展示完整标题与时间；fc-short-event 供
+      // CSS 放行默认裁剪并抬升层级，否则浮层会被 .fc-event-main 切掉或被后续
+      // 日程盖住。
+      return <div className="fc-short-event group relative h-full overflow-visible px-1.5 py-0.5 text-xs leading-4"><p className="truncate font-medium">{info.event.title}</p><div className="pointer-events-none absolute left-0 top-full z-50 hidden whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-2.5 py-1.5 shadow-lg group-hover:block"><p className="text-xs font-medium">{info.event.title}</p><p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">{info.timeText}</p></div></div>;
+    }
     const location = event.location_name;
     return <div className="h-full overflow-hidden px-1.5 py-0.5 text-xs leading-4"><p className="line-clamp-2 font-medium">{info.event.title}</p><p className="text-[10px] opacity-70">{info.timeText}</p>{durationMinutes >= 60 && location ? <p className="line-clamp-1 text-[10px] opacity-60">{location}</p> : null}</div>;
   }, []);

@@ -42,6 +42,11 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .calendar-canvas .fc-daygrid-event { border-radius:3px; margin:1px 2px; }
 .calendar-canvas .fc-event-main { color:inherit!important; }
 .calendar-canvas .fc-highlight { background:color-mix(in srgb,var(--accent-soft) 72%,transparent); }
+/* 短日程悬停浮层：.fc-event-main 默认 overflow:hidden 会裁剪溢出浮层，需放行；
+   悬停时把事件整体抬升，避免浮层被同列后续日程盖住。 */
+.calendar-canvas .fc-event:has(.fc-short-event) { overflow: visible; }
+.calendar-canvas .fc-event:has(.fc-short-event) .fc-event-main { overflow: visible; }
+.calendar-canvas .fc-event:has(.fc-short-event):hover { z-index: 20; }
 .calendar-canvas .fc-more-link { color:var(--accent); font-size:11px; }
 .calendar-canvas .fc-daygrid-day-number { color:var(--text-secondary); font-size:12px; padding:5px 7px; text-decoration:none; }
 .calendar-canvas .fc-scrollgrid-section-sticky > * { background:#fff; }
