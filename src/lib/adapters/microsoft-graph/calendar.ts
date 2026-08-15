@@ -442,8 +442,9 @@ export async function syncMicrosoftCalendar(
     const existing = await existingCalendarEvents(admin, userId, start, end);
     // delta 对循环日程的 occurrence 只返回精简实体（subject/body 为空），完整字段在
     // 同响应内的 series master 上；先按 id 索引 master，再把每个 occurrence 拼回。
+    // series master 是系列元数据而非可排期实例，只作查询用、不写入镜像（避免幽灵日程）。
     const masterById = new Map(remoteEvents.filter((event) => event.type === "seriesMaster" && event.id).map((event) => [event.id, event]));
-    const records = remoteEvents.filter((event) => !event["@removed"]).map((event) => graphEventRecord(event, userId, seriesMasterFallback(event, masterById.get(event.seriesMasterId ?? ""), existing.get(event.id)), profile?.timezone || "Asia/Shanghai"));
+    const records = remoteEvents.filter((event) => !event["@removed"] && event.type !== "seriesMaster").map((event) => graphEventRecord(event, userId, seriesMasterFallback(event, masterById.get(event.seriesMasterId ?? ""), existing.get(event.id)), profile?.timezone || "Asia/Shanghai"));
     if (records.length) {
       // 2 年窗口可能返回数千条日程；分批 upsert 避免单次请求超出 Supabase 负载上限。
       const CHUNK = 400;
