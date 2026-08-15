@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { calendarEventForGraph, type GraphCalendarCreatePayload } from "./event-payload";
 import { managedCalendarCategories, type OutlookCategoryColor } from "@/features/calendar/classification/taxonomy";
 import { wallTimeToInstant } from "@/features/calendar/timezone";
+import { calendarSyncWindow, shouldUseCalendarDelta } from "@/features/calendar/sync-policy";
 
 const MICROSOFT_CLIENT_ID = "084a3e9f-a9f4-43f7-89f9-d229cf97853e";
 const MICROSOFT_TENANT = "consumers";
@@ -324,14 +325,17 @@ export async function syncMicrosoftCalendar(
       admin.from("profiles").select("timezone").eq("user_id", userId).maybeSingle(),
     ]);
     if (connectionError || !connection) throw new MicrosoftGraphError("calendar_not_connected");
-    const now = Date.now(); const defaultStart = new Date(now - 30 * 86_400_000).toISOString(); const defaultEnd = new Date(now + 180 * 86_400_000).toISOString();
+    const now = Date.now(); const defaultWindow = calendarSyncWindow(now);
     // Delta only yields changes since the previous cursor. A user-triggered
     // reconciliation must also repair legacy cache rows that were parsed
     // incorrectly before the DateTimeTimeZone fix, even if Outlook has not
     // changed them since, so it intentionally starts a fresh full window.
-    const canUseDelta = !options.forceFull && Boolean(connection.calendar_delta_link && connection.calendar_sync_window_start && connection.calendar_sync_window_end && Date.parse(connection.calendar_sync_window_end) > now + 30 * 86_400_000);
-    const start = canUseDelta ? connection.calendar_sync_window_start! : defaultStart;
-    const end = canUseDelta ? connection.calendar_sync_window_end! : defaultEnd;
+    // shouldUseCalendarDelta additionally requires the stored window to cover
+    // the 2-year history horizon, so the first sync after this change runs a
+    // full read that backfills historical events and rebuilds the delta cursor.
+    const canUseDelta = shouldUseCalendarDelta(connection, now, defaultWindow.start, Boolean(options.forceFull));
+    const start = canUseDelta ? connection.calendar_sync_window_start! : defaultWindow.start;
+    const end = canUseDelta ? connection.calendar_sync_window_end! : defaultWindow.end;
     const query = new URLSearchParams({ startDateTime: start, endDateTime: end, "$top": "500", "$select": "id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs" });
     let pagePath = canUseDelta ? connection.calendar_delta_link!.replace(graphBaseUrl, "") : `/me/calendarView/delta?${query.toString()}`;
     const remoteEvents: GraphEvent[] = [];
@@ -345,8 +349,12 @@ export async function syncMicrosoftCalendar(
     const deletedIds = remoteEvents.flatMap((event) => event["@removed"] && event.id ? [event.id] : []);
     const records = remoteEvents.filter((event) => !event["@removed"]).map((event) => graphEventRecord(event, userId, undefined, profile?.timezone || "Asia/Shanghai"));
     if (records.length) {
-      const { error } = await admin.from("calendar_events").upsert(records, { onConflict: "user_id,provider_event_id" });
-      if (error) throw new MicrosoftGraphError("calendar_cache_failed");
+      // 2 年窗口可能返回数千条日程；分批 upsert 避免单次请求超出 Supabase 负载上限。
+      const CHUNK = 400;
+      for (let index = 0; index < records.length; index += CHUNK) {
+        const { error } = await admin.from("calendar_events").upsert(records.slice(index, index + CHUNK), { onConflict: "user_id,provider_event_id" });
+        if (error) throw new MicrosoftGraphError("calendar_cache_failed");
+      }
     }
     if (deletedIds.length) {
       const { error } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).in("provider_event_id", deletedIds).is("archived_at", null);
