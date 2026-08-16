@@ -1,20 +1,15 @@
 "use client";
 
-import { DefaultChatTransport, type UIMessage } from "ai";
-import { useChat } from "@ai-sdk/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Archive,
-  Bot,
-  CalendarDays,
-  CheckSquare,
   FileText,
-  LoaderCircle,
   Plus,
   RotateCcw,
   Sparkles,
 } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   createCalendarEvent,
   type CalendarCreateState,
@@ -24,18 +19,19 @@ import {
   captureInboxItem,
   convertInboxToDailyNote,
   convertInboxToNote,
+  dismissInboxProposal,
+  reclassifyInboxItem,
   restoreInboxItem,
 } from "@/features/inbox/actions";
 import type { InboxProposal } from "@/features/inbox/schemas";
-import { initialInboxCaptureState } from "@/features/inbox/state";
+import {
+  initialInboxCaptureState,
+  initialInboxClassifyState,
+} from "@/features/inbox/state";
 import {
   createMicrosoftTodoTaskAction,
   type TodoCreateState,
 } from "@/features/tasks/microsoft-todo";
-import {
-  loadWorkspaceSession,
-  saveWorkspaceSession,
-} from "@/lib/workspace-session";
 
 type InboxItem = {
   id: string;
@@ -45,19 +41,29 @@ type InboxItem = {
   converted_task_id: string | null;
   converted_note_id: string | null;
   archived_at?: string | null;
+  ai_proposal: InboxProposal | null;
+  ai_status: "ready" | "failed" | null;
+  ai_error: string | null;
 };
 type TodoList = { id: string; display_name: string; is_default: boolean };
-type ProposalOutput = { proposal: InboxProposal };
-type InboxToolPart = { type: string; state?: string; output?: unknown };
+type ManualKind = "task" | "calendar" | "note" | "daily";
+
 const calendarInitial: CalendarCreateState = { status: "idle", message: "" };
 const todoInitial: TodoCreateState = { status: "idle", message: "" };
-const inboxSessionKey = "inbox:workspace";
-type InboxSession = {
-  messages: UIMessage[];
-  selectedId: string | null;
-  captureInput: string;
-  interrupted: boolean;
-};
+
+function firstLine(text: string) {
+  return text.split(/\n/)[0].trim();
+}
+
+/** 任一确认/识别动作成功后刷新服务端列表，让条目落到对应分区。 */
+function useRefreshOnSuccess(status: string) {
+  const router = useRouter();
+  useEffect(() => {
+    if (status !== "success") return;
+    const timer = window.setTimeout(() => router.refresh(), 120);
+    return () => window.clearTimeout(timer);
+  }, [status, router]);
+}
 
 function ProposalCard({
   proposal,
@@ -90,6 +96,7 @@ function TaskProposal({
     createMicrosoftTodoTaskAction,
     todoInitial,
   );
+  useRefreshOnSuccess(state.status);
   const list = lists.find((item) => item.id === proposal.todoListId);
   if (!list)
     return (
@@ -124,7 +131,7 @@ function TaskProposal({
         disabled={pending}
         className="mt-3 bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
       >
-        {pending ? "正在创建…" : "确认创建任务"}
+        {pending ? "正在创建…" : "同意，创建任务"}
       </button>
       {state.status !== "idle" ? (
         <p
@@ -149,6 +156,7 @@ function CalendarProposal({
     createCalendarEvent,
     calendarInitial,
   );
+  useRefreshOnSuccess(state.status);
   return (
     <form
       action={action}
@@ -186,7 +194,7 @@ function CalendarProposal({
         disabled={pending}
         className="mt-3 bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
       >
-        {pending ? "正在创建…" : "确认创建日程"}
+        {pending ? "正在创建…" : "同意，创建日程"}
       </button>
       {state.status !== "idle" ? (
         <p
@@ -211,6 +219,7 @@ function NoteProposal({
     convertInboxToNote,
     initialInboxCaptureState,
   );
+  useRefreshOnSuccess(state.status);
   return (
     <form
       action={action}
@@ -227,7 +236,7 @@ function NoteProposal({
         disabled={pending}
         className="mt-3 bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
       >
-        {pending ? "正在创建…" : "确认创建笔记"}
+        {pending ? "正在创建…" : "同意，创建笔记"}
       </button>
       {state.status !== "idle" ? (
         <p
@@ -246,6 +255,7 @@ function DailyProposal({ inboxId }: { inboxId: string }) {
     convertInboxToDailyNote,
     initialInboxCaptureState,
   );
+  useRefreshOnSuccess(state.status);
   return (
     <form
       action={action}
@@ -261,7 +271,7 @@ function DailyProposal({ inboxId }: { inboxId: string }) {
         className="mt-3 inline-flex items-center gap-1 bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
       >
         <FileText size={14} />
-        {pending ? "正在写入…" : state.status === "success" ? "已写入" : "确认写入今日日记"}
+        {pending ? "正在写入…" : state.status === "success" ? "已写入" : "同意，写入今日日记"}
       </button>
       {state.status !== "idle" ? (
         <p
@@ -275,6 +285,58 @@ function DailyProposal({ inboxId }: { inboxId: string }) {
             </Link>
           ) : null}
         </p>
+      ) : null}
+    </form>
+  );
+}
+
+function DismissProposalControl({ inboxId }: { inboxId: string }) {
+  const [state, action, pending] = useActionState(
+    dismissInboxProposal,
+    initialInboxClassifyState,
+  );
+  useRefreshOnSuccess(state.status);
+  return (
+    <form action={action} className="mt-2">
+      <input type="hidden" name="inbox_id" value={inboxId} />
+      <button
+        disabled={pending}
+        className="text-xs text-zinc-500 underline-offset-2 hover:text-zinc-900 hover:underline disabled:opacity-50"
+      >
+        {pending ? "处理中…" : "不是这个，放回收集盒"}
+      </button>
+      {state.status === "error" ? (
+        <span role="status" className="ml-2 text-xs text-red-700">
+          {state.message}
+        </span>
+      ) : null}
+    </form>
+  );
+}
+
+function ReclassifyControl({ inboxId }: { inboxId: string }) {
+  const [state, action, pending] = useActionState(
+    reclassifyInboxItem,
+    initialInboxClassifyState,
+  );
+  useRefreshOnSuccess(state.status);
+  return (
+    <form action={action}>
+      <input type="hidden" name="inbox_id" value={inboxId} />
+      <button
+        disabled={pending}
+        className="inline-flex items-center gap-1 text-xs font-medium text-[#365f78] hover:underline disabled:opacity-50"
+      >
+        <Sparkles size={13} />
+        {pending ? "识别中…" : "智能整理"}
+      </button>
+      {state.status !== "idle" ? (
+        <span
+          role="status"
+          className={`ml-2 text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+        >
+          {state.message}
+        </span>
       ) : null}
     </form>
   );
@@ -350,6 +412,223 @@ function RestoreInboxControl({ inboxId }: { inboxId: string }) {
   );
 }
 
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+function toLocalInput(date: Date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+function addHoursToInput(input: string, hours: number) {
+  if (!input) return "";
+  const date = new Date(input);
+  date.setHours(date.getHours() + hours);
+  return toLocalInput(date);
+}
+function inputToIso(input: string) {
+  return input ? new Date(input).toISOString() : "";
+}
+
+const inputClass =
+  "w-full border border-[#d8d6d0] bg-white px-2 py-1.5 text-sm outline-none transition focus:border-[#365f78]";
+
+function ManualTaskForm({
+  item,
+  lists,
+}: {
+  item: InboxItem;
+  lists: TodoList[];
+}) {
+  const [state, action, pending] = useActionState(
+    createMicrosoftTodoTaskAction,
+    todoInitial,
+  );
+  useRefreshOnSuccess(state.status);
+  const defaultList = lists.find((list) => list.is_default) ?? lists[0];
+  const [listId, setListId] = useState(defaultList?.id ?? "");
+  const [dueAt, setDueAt] = useState("");
+  return (
+    <form action={action} className="mt-3 space-y-2 border border-[#b5c9d2] bg-[#edf3f6] p-3">
+      <p className="text-xs font-medium text-zinc-700">手动转成任务</p>
+      <input type="hidden" name="todo_list_id" value={listId} />
+      <input type="hidden" name="importance" value="normal" />
+      <input type="hidden" name="due_at" value={inputToIso(dueAt)} />
+      <input type="hidden" name="inbox_id" value={item.id} />
+      <input type="hidden" name="body_text" value={item.content_markdown} />
+      <input
+        name="title"
+        required
+        maxLength={500}
+        defaultValue={firstLine(item.content_markdown).slice(0, 500)}
+        placeholder="任务标题"
+        className={inputClass}
+      />
+      <div className="flex gap-2">
+        <select
+          value={listId}
+          onChange={(event) => setListId(event.target.value)}
+          className={inputClass}
+        >
+          {lists.map((list) => (
+            <option key={list.id} value={list.id}>
+              {list.display_name}
+            </option>
+          ))}
+        </select>
+        <input
+          type="datetime-local"
+          value={dueAt}
+          onChange={(event) => setDueAt(event.target.value)}
+          className={inputClass}
+          aria-label="截止时间（可选）"
+        />
+      </div>
+      <button
+        disabled={pending}
+        className="bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+      >
+        {pending ? "正在创建…" : "创建任务"}
+      </button>
+      {state.status !== "idle" ? (
+        <p
+          role="status"
+          className={`text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+        >
+          {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function ManualCalendarForm({ item }: { item: InboxItem }) {
+  const [state, action, pending] = useActionState(
+    createCalendarEvent,
+    calendarInitial,
+  );
+  useRefreshOnSuccess(state.status);
+  const [range, setRange] = useState(() => {
+    const start = new Date();
+    start.setHours(start.getHours() + 1, 0, 0, 0);
+    const end = new Date(start.getTime() + 3_600_000);
+    return { start: toLocalInput(start), end: toLocalInput(end) };
+  });
+  const { start: startsAt, end: endsAt } = range;
+  const setStart = (value: string) =>
+    setRange({ start: value, end: addHoursToInput(value, 1) });
+  const setEnd = (value: string) => setRange((current) => ({ ...current, end: value }));
+  return (
+    <form action={action} className="mt-3 space-y-2 border border-[#b5c9d2] bg-[#edf3f6] p-3">
+      <p className="text-xs font-medium text-zinc-700">手动转成日程</p>
+      <input type="hidden" name="starts_at" value={inputToIso(startsAt)} />
+      <input type="hidden" name="ends_at" value={inputToIso(endsAt)} />
+      <input type="hidden" name="is_all_day" value="" />
+      <input type="hidden" name="inbox_id" value={item.id} />
+      <input type="hidden" name="description" value={item.content_markdown} />
+      <input
+        name="subject"
+        required
+        maxLength={500}
+        defaultValue={firstLine(item.content_markdown).slice(0, 500)}
+        placeholder="日程标题"
+        className={inputClass}
+      />
+      <div className="flex gap-2">
+        <input
+          type="datetime-local"
+          value={startsAt}
+          onChange={(event) => setStart(event.target.value)}
+          className={inputClass}
+          aria-label="开始时间"
+        />
+        <input
+          type="datetime-local"
+          value={endsAt}
+          onChange={(event) => setEnd(event.target.value)}
+          className={inputClass}
+          aria-label="结束时间"
+        />
+      </div>
+      <button
+        disabled={pending}
+        className="bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+      >
+        {pending ? "正在创建…" : "创建日程"}
+      </button>
+      {state.status !== "idle" ? (
+        <p
+          role="status"
+          className={`text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+        >
+          {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function ManualNoteForm({ item }: { item: InboxItem }) {
+  const [state, action, pending] = useActionState(
+    convertInboxToNote,
+    initialInboxCaptureState,
+  );
+  useRefreshOnSuccess(state.status);
+  return (
+    <form action={action} className="mt-3 space-y-2 border border-[#b5c9d2] bg-[#edf3f6] p-3">
+      <p className="text-xs font-medium text-zinc-700">手动转成笔记</p>
+      <input type="hidden" name="inbox_id" value={item.id} />
+      <input
+        name="title"
+        required
+        maxLength={240}
+        defaultValue={firstLine(item.content_markdown).slice(0, 240)}
+        placeholder="笔记标题"
+        className={inputClass}
+      />
+      <textarea
+        name="body_markdown"
+        rows={3}
+        maxLength={10_000}
+        defaultValue={item.content_markdown}
+        className={inputClass}
+      />
+      <button
+        disabled={pending}
+        className="bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+      >
+        {pending ? "正在创建…" : "创建笔记"}
+      </button>
+      {state.status !== "idle" ? (
+        <p
+          role="status"
+          className={`text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+        >
+          {state.message}
+          {state.destinationHref ? (
+            <Link className="ml-2 underline" href={state.destinationHref}>
+              打开笔记
+            </Link>
+          ) : null}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function ManualImportForm({
+  kind,
+  item,
+  lists,
+}: {
+  kind: ManualKind;
+  item: InboxItem;
+  lists: TodoList[];
+}) {
+  if (kind === "task") return <ManualTaskForm item={item} lists={lists} />;
+  if (kind === "calendar") return <ManualCalendarForm item={item} />;
+  if (kind === "note") return <ManualNoteForm item={item} />;
+  return <DailyProposal inboxId={item.id} />;
+}
+
 export function InboxWorkspace({
   items,
   archivedItems,
@@ -359,135 +638,85 @@ export function InboxWorkspace({
   archivedItems: InboxItem[];
   lists: TodoList[];
 }) {
+  const router = useRouter();
   const [captureState, captureAction, capturePending] = useActionState(
     captureInboxItem,
     initialInboxCaptureState,
   );
-  const [selected, setSelected] = useState<InboxItem | null>(null);
   const [captureInput, setCaptureInput] = useState("");
-  const restoredRef = useRef(false);
-  const {
-    messages,
-    setMessages,
-    sendMessage,
-    status,
-    error,
-    stop,
-    clearError,
-  } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/assistant",
-      body: () => ({ surface: "inbox" }),
-    }),
-  });
-  const waiting = status !== "ready";
-
-  useEffect(() => {
-    const snapshot = loadWorkspaceSession<InboxSession>(inboxSessionKey);
-    const timer = window.setTimeout(() => {
-      if (snapshot) {
-        setMessages(snapshot.messages);
-        setCaptureInput(snapshot.captureInput);
-        setSelected(
-          items.find((item) => item.id === snapshot.selectedId) ?? null,
-        );
-      }
-      restoredRef.current = true;
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [items, setMessages]);
-
-  useEffect(() => {
-    if (!restoredRef.current) return;
-    saveWorkspaceSession(inboxSessionKey, {
-      messages,
-      selectedId: selected?.id ?? null,
-      captureInput,
-      interrupted: waiting,
-    });
-  }, [captureInput, messages, selected?.id, waiting]);
+  const [manual, setManual] = useState<{ id: string; kind: ManualKind } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (captureState.status !== "success") return;
-    const timer = window.setTimeout(() => setCaptureInput(""), 0);
+    const timer = window.setTimeout(() => {
+      setCaptureInput("");
+      router.refresh();
+    }, 0);
     return () => window.clearTimeout(timer);
-  }, [captureState.status]);
+  }, [captureState.status, router]);
 
-  const latestProposal = (
-    [...messages]
-      .reverse()
-      .flatMap((message) => message.parts) as InboxToolPart[]
-  ).find(
-    (part) =>
-      part.type === "tool-proposeInboxDestination" &&
-      part.state === "output-available",
+  const readyItems = items.filter(
+    (item) => item.ai_status === "ready" && item.ai_proposal && !item.processed_at,
   );
-  const proposal = latestProposal
-    ? (latestProposal.output as ProposalOutput).proposal
-    : null;
-
-  const organize = (item: InboxItem) => {
-    if (waiting) return;
-    clearError();
-    setSelected(item);
-    sendMessage({ text: item.content_markdown });
-  };
+  const collectionItems = items.filter(
+    (item) => item.ai_status !== "ready" && !item.processed_at,
+  );
+  const processedItems = items.filter((item) => item.processed_at);
+  const toggleManual = (id: string, kind: ManualKind) =>
+    setManual((current) =>
+      current && current.id === id && current.kind === kind ? null : { id, kind },
+    );
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <div>
-        <form action={captureAction} className="border-b border-[#e7e5e4] pb-6">
-          <label htmlFor="inbox-capture" className="sr-only">
-            记录想法
-          </label>
-          <textarea
-            id="inbox-capture"
-            name="content"
-            value={captureInput}
-            onChange={(event) => setCaptureInput(event.target.value)}
-            maxLength={10_000}
-            rows={3}
-            placeholder="想到什么，就先记下来…"
-            className="w-full resize-none border border-[#d8d6d0] bg-white px-3 py-3 text-sm outline-none transition focus:border-[#365f78]"
-          />
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <p className="text-xs text-zinc-500">先捕捉，之后再决定去向。</p>
-            <button
-              disabled={capturePending}
-              className="inline-flex items-center gap-2 bg-[#365f78] px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              <Plus size={16} />
-              {capturePending ? "正在保存…" : "加入 Inbox"}
-            </button>
-          </div>
-          {captureState.status !== "idle" ? (
-            <p
-              role="status"
-              className={`mt-3 text-sm ${captureState.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
-            >
-              {captureState.message}
-            </p>
-          ) : null}
-        </form>
+    <div>
+      <form action={captureAction} className="border-b border-[#e7e5e4] pb-6">
+        <label htmlFor="inbox-capture" className="sr-only">
+          记录想法
+        </label>
+        <textarea
+          id="inbox-capture"
+          name="content"
+          value={captureInput}
+          onChange={(event) => setCaptureInput(event.target.value)}
+          maxLength={10_000}
+          rows={3}
+          placeholder="想到什么，就先记下来…"
+          className="w-full resize-none border border-[#d8d6d0] bg-white px-3 py-3 text-sm outline-none transition focus:border-[#365f78]"
+        />
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-zinc-500">
+            写入后自动识别：任务、日程、笔记或今日日记，点同意即可。
+          </p>
+          <button
+            disabled={capturePending}
+            className="inline-flex items-center gap-2 bg-[#365f78] px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            <Plus size={16} />
+            {capturePending ? "正在识别…" : "加入 Inbox"}
+          </button>
+        </div>
+        {captureState.status !== "idle" ? (
+          <p
+            role="status"
+            className={`mt-3 text-sm ${captureState.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+          >
+            {captureState.message}
+          </p>
+        ) : null}
+      </form>
 
-        <div className="mt-6 flex items-center justify-between border-b border-[#e7e5e4] pb-3">
-          <h2 className="font-semibold text-zinc-900">
-            待整理{" "}
+      {readyItems.length ? (
+        <section className="mt-6">
+          <h2 className="border-b border-[#e7e5e4] pb-3 font-semibold text-zinc-900">
+            已识别，待确认{" "}
             <span className="ml-1 font-mono text-sm font-normal text-zinc-400">
-              {items.filter((item) => !item.processed_at).length}
+              {readyItems.length}
             </span>
           </h2>
-        </div>
-        {!items.length ? (
-          <div className="py-16 text-center">
-            <InboxIcon />
-            <p className="mt-3 text-sm text-zinc-500">
-              这里收集尚未决定去向的想法。
-            </p>
-          </div>
-        ) : (
           <ul className="divide-y divide-[#eceae6]">
-            {items.map((item) => (
+            {readyItems.map((item) => (
               <li key={item.id} className="py-4">
                 <div className="flex items-start justify-between gap-4">
                   <p className="min-w-0 whitespace-pre-wrap text-sm leading-6 text-zinc-800">
@@ -495,8 +724,8 @@ export function InboxWorkspace({
                   </p>
                   <ArchiveInboxControl inboxId={item.id} />
                 </div>
-                <div className="mt-3 flex items-center gap-3">
-                  <span className="text-xs text-zinc-400">
+                <div className="mt-1 flex items-center gap-3 text-xs text-zinc-400">
+                  <span>
                     {new Date(item.created_at).toLocaleString("zh-CN", {
                       month: "numeric",
                       day: "numeric",
@@ -504,116 +733,167 @@ export function InboxWorkspace({
                       minute: "2-digit",
                     })}
                   </span>
-                  {item.processed_at ? (
-                    <span className="flex items-center gap-2 text-xs text-[#365f78]">
-                      已整理
-                      {item.converted_note_id ? (
-                        <Link
-                          href={`/notes/${item.converted_note_id}`}
-                          className="font-medium underline underline-offset-2"
-                        >
-                          打开笔记
-                        </Link>
-                      ) : null}
-                    </span>
-                  ) : (
-                    <button
-                      disabled={waiting}
-                      onClick={() => organize(item)}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-[#365f78] hover:underline disabled:opacity-50"
-                    >
-                      <Sparkles size={13} />
-                      AI 整理
-                    </button>
-                  )}
+                  <span className="text-[#365f78]">AI 识别为 {proposalLabel(item.ai_proposal)}</span>
                 </div>
+                {item.ai_proposal ? (
+                  <ProposalCard
+                    proposal={item.ai_proposal}
+                    inboxId={item.id}
+                    lists={lists}
+                  />
+                ) : null}
+                <DismissProposalControl inboxId={item.id} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <section className="mt-6">
+        <h2 className="border-b border-[#e7e5e4] pb-3 font-semibold text-zinc-900">
+          收集盒{" "}
+          <span className="ml-1 font-mono text-sm font-normal text-zinc-400">
+            {collectionItems.length}
+          </span>
+        </h2>
+        {!collectionItems.length ? (
+          <div className="py-14 text-center">
+            <InboxIcon />
+            <p className="mt-3 text-sm text-zinc-500">
+              这里放无法自动识别的记录，可手动选择去向。
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-[#eceae6]">
+            {collectionItems.map((item) => (
+              <li key={item.id} className="py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <p className="min-w-0 whitespace-pre-wrap text-sm leading-6 text-zinc-800">
+                    {item.content_markdown}
+                  </p>
+                  <ArchiveInboxControl inboxId={item.id} />
+                </div>
+                <div className="mt-1 flex items-center gap-3 text-xs text-zinc-400">
+                  <span>
+                    {new Date(item.created_at).toLocaleString("zh-CN", {
+                      month: "numeric",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  {item.ai_status === "failed" ? (
+                    <span className="text-zinc-500">
+                      AI 未能识别{item.ai_error ? `：${item.ai_error}` : ""}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <ReclassifyControl inboxId={item.id} />
+                  <span className="text-zinc-300">|</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleManual(item.id, "task")}
+                    className="text-xs text-zinc-600 hover:text-[#365f78] hover:underline"
+                  >
+                    转任务
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleManual(item.id, "calendar")}
+                    className="text-xs text-zinc-600 hover:text-[#365f78] hover:underline"
+                  >
+                    转日程
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleManual(item.id, "note")}
+                    className="text-xs text-zinc-600 hover:text-[#365f78] hover:underline"
+                  >
+                    转笔记
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleManual(item.id, "daily")}
+                    className="text-xs text-zinc-600 hover:text-[#365f78] hover:underline"
+                  >
+                    写今日日记
+                  </button>
+                </div>
+                {manual && manual.id === item.id ? (
+                  <ManualImportForm kind={manual.kind} item={item} lists={lists} />
+                ) : null}
               </li>
             ))}
           </ul>
         )}
-        {archivedItems.length ? (
-          <details className="mt-8 border-t border-[#e7e5e4] pt-4">
-            <summary className="cursor-pointer text-sm font-medium text-zinc-500 hover:text-zinc-900">
-              已归档 · {archivedItems.length}
-            </summary>
-            <p className="mt-2 text-xs text-zinc-400">
-              归档内容仍然保留，可随时恢复到 Inbox。
-            </p>
-            <ul className="mt-3 divide-y divide-[#eceae6]">
-              {archivedItems.map((item) => (
-                <li key={item.id} className="flex items-start gap-4 py-3">
-                  <p className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-6 text-zinc-600">
-                    {item.content_markdown}
-                  </p>
-                  <RestoreInboxControl inboxId={item.id} />
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
-      </div>
+      </section>
 
-      <aside className="border-t border-[#e7e5e4] pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-        <div className="flex items-center gap-2">
-          <Bot size={18} className="text-[#365f78]" />
-          <h2 className="font-semibold text-zinc-900">AI 整理</h2>
-        </div>
-        <p className="mt-2 text-sm leading-6 text-zinc-500">
-          选中一条 Inbox 后，让 AI 建议最合适的去向。
-        </p>
-        {selected ? (
-          <div className="mt-4 border border-[#e7e5e4] bg-white p-3">
-            <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-zinc-700">
-              {selected.content_markdown}
-            </p>
-            {waiting ? (
-              <p className="mt-3 flex items-center gap-2 text-sm text-zinc-500">
-                <LoaderCircle size={16} className="animate-spin" />
-                正在整理…{" "}
-                <button
-                  type="button"
-                  onClick={() => void stop()}
-                  className="ml-auto text-xs text-[#365f78] hover:underline"
-                >
-                  停止
-                </button>
-              </p>
-            ) : null}
-            {proposal && !waiting ? (
-              <ProposalCard
-                proposal={proposal}
-                inboxId={selected.id}
-                lists={lists}
-              />
-            ) : null}
-            {error ? (
-              <p role="status" className="mt-3 text-sm text-red-700">
-                {error.message || "AI 暂时不可用，请重试。"}
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <div className="mt-4 border-l-2 border-[#365f78] bg-[#edf3f6] px-3 py-3 text-sm leading-6 text-zinc-600">
-            可把想法整理成任务、日程、笔记，或转去写今日日记。
-          </div>
-        )}
-        <div className="mt-6 space-y-2 border-t border-[#e7e5e4] pt-4 text-sm text-zinc-600">
-          <p className="flex gap-2">
-            <CheckSquare size={16} className="mt-0.5 text-zinc-400" />
-            任务会写入 Microsoft To Do
+      {processedItems.length ? (
+        <details className="mt-8 border-t border-[#e7e5e4] pt-4">
+          <summary className="cursor-pointer text-sm font-medium text-zinc-500 hover:text-zinc-900">
+            已整理 · {processedItems.length}
+          </summary>
+          <ul className="mt-3 divide-y divide-[#eceae6]">
+            {processedItems.map((item) => (
+              <li key={item.id} className="flex items-start gap-4 py-3">
+                <p className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-6 text-zinc-600">
+                  {item.content_markdown}
+                </p>
+                <span className="flex items-center gap-2 text-xs text-[#365f78]">
+                  已整理
+                  {item.converted_note_id ? (
+                    <Link
+                      href={`/notes/${item.converted_note_id}`}
+                      className="font-medium underline underline-offset-2"
+                    >
+                      打开笔记
+                    </Link>
+                  ) : null}
+                </span>
+                <ArchiveInboxControl inboxId={item.id} />
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+
+      {archivedItems.length ? (
+        <details className="mt-8 border-t border-[#e7e5e4] pt-4">
+          <summary className="cursor-pointer text-sm font-medium text-zinc-500 hover:text-zinc-900">
+            已归档 · {archivedItems.length}
+          </summary>
+          <p className="mt-2 text-xs text-zinc-400">
+            归档内容仍然保留，可随时恢复到 Inbox。
           </p>
-          <p className="flex gap-2">
-            <CalendarDays size={16} className="mt-0.5 text-zinc-400" />
-            日程会写入 Outlook
-          </p>
-          <p className="flex gap-2">
-            <FileText size={16} className="mt-0.5 text-zinc-400" />
-            笔记保存在 Notes
-          </p>
-        </div>
-      </aside>
+          <ul className="mt-3 divide-y divide-[#eceae6]">
+            {archivedItems.map((item) => (
+              <li key={item.id} className="flex items-start gap-4 py-3">
+                <p className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-6 text-zinc-600">
+                  {item.content_markdown}
+                </p>
+                <RestoreInboxControl inboxId={item.id} />
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
     </div>
   );
+}
+
+function proposalLabel(proposal: InboxProposal | null) {
+  if (!proposal) return "";
+  switch (proposal.target) {
+    case "task":
+      return "任务";
+    case "calendar":
+      return "日程";
+    case "note":
+      return "笔记";
+    case "daily":
+      return "今日日记";
+  }
 }
 
 function InboxIcon() {

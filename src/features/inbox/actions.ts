@@ -6,7 +6,8 @@ import { requireOwner } from "@/lib/auth/require-owner";
 import { contentHash } from "@/features/notes/utils";
 import { appendInboxToDailyNote } from "@/features/notes/daily-note-service";
 import { inboxCaptureSchema } from "./schemas";
-import type { InboxCaptureState } from "./state";
+import { classifyInboxItem } from "./classify";
+import type { InboxCaptureState, InboxClassifyState } from "./state";
 
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, entityId: string, data: Record<string, unknown>) {
   await supabase.from("audit_logs").insert({ user_id: userId, action, entity_type: "inbox_item", entity_id: entityId, actor_type: "user", after_data: data });
@@ -23,14 +24,68 @@ export async function captureInboxItem(_: InboxCaptureState, formData: FormData)
       .single();
     if (error || !data) throw new Error("inbox_insert_failed");
     await audit(supabase, userId, "capture", data.id, { character_count: parsed.data.content.length });
+    // 无对话式识别：写入后立即判定去向，失败不阻塞保存（落入收集盒）。
+    let classified = false;
+    try {
+      const result = await classifyInboxItem({ supabase, userId, inboxId: data.id });
+      classified = result.status === "ready";
+    } catch (error) {
+      console.error("[inbox:capture] classify failed", {
+        reason: error instanceof Error ? error.message : "unknown_error",
+      });
+    }
     revalidatePath("/inbox");
     revalidatePath("/today");
-    return { status: "success", message: "已加入 Inbox。" };
+    return { status: "success", message: "已加入 Inbox。", inboxId: data.id, classified };
   } catch (error) {
     console.error("[inbox:capture] failed", {
       reason: error instanceof Error ? error.message : "unknown_error",
     });
     return { status: "error", message: "暂时无法保存，请检查网络后重试。" };
+  }
+}
+
+export async function reclassifyInboxItem(_: InboxClassifyState, formData: FormData): Promise<InboxClassifyState> {
+  const parsed = inboxIdSchema.safeParse({ inboxId: formData.get("inbox_id") });
+  if (!parsed.success) return { status: "error", message: "无效的 Inbox 记录。" };
+  try {
+    const { supabase, userId } = await requireOwner();
+    const result = await classifyInboxItem({ supabase, userId, inboxId: parsed.data.inboxId });
+    await audit(supabase, userId, "reclassify", parsed.data.inboxId, { status: result.status });
+    revalidatePath("/inbox");
+    return {
+      status: "success",
+      message: result.status === "ready" ? "已识别出去向，请在列表确认。" : "仍无法判断，可手动选择去向。",
+    };
+  } catch (error) {
+    console.error("[inbox:reclassify] failed", { reason: error instanceof Error ? error.message : "unknown_error" });
+    return { status: "error", message: "识别失败，请稍后重试。" };
+  }
+}
+
+export async function dismissInboxProposal(_: InboxClassifyState, formData: FormData): Promise<InboxClassifyState> {
+  const parsed = inboxIdSchema.safeParse({ inboxId: formData.get("inbox_id") });
+  if (!parsed.success) return { status: "error", message: "无效的 Inbox 记录。" };
+  try {
+    const { supabase, userId } = await requireOwner();
+    const { data, error } = await supabase.from("inbox_items")
+      .update({
+        ai_proposal: null,
+        ai_status: "failed",
+        ai_updated_at: new Date().toISOString(),
+        ai_error: "用户拒绝提案",
+      })
+      .eq("user_id", userId)
+      .eq("id", parsed.data.inboxId)
+      .is("archived_at", null)
+      .select("id")
+      .maybeSingle();
+    if (error || !data) throw new Error("inbox_dismiss_failed");
+    await audit(supabase, userId, "dismiss_proposal", data.id, {});
+    revalidatePath("/inbox");
+    return { status: "success", message: "已放回收集盒。" };
+  } catch {
+    return { status: "error", message: "操作失败，请重试。" };
   }
 }
 
