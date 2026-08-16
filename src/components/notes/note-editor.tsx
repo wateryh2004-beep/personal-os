@@ -19,7 +19,6 @@ import { isInternalEntityHref } from "@/features/links/parser";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { recordNotePdfExport, saveNote } from "@/features/notes/actions";
 import { markdownFilename } from "@/features/notes/utils";
-import type { NoteLinkSuggestion } from "@/features/notes/links/types";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
@@ -102,7 +101,7 @@ async function copyText(value: string) {
   if (!copied) throw new Error("copy_failed");
 }
 
-export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: { note: Note; noteAiDefaultModel: DeepSeekModelId; recentNoteLinks?: readonly NoteLinkSuggestion[] }) {
+export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDefaultModel: DeepSeekModelId }) {
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
   const [state, setState] = useState<SaveState>("已保存");
@@ -470,7 +469,6 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
             onOpenAi={noteAiPanel.open}
             onSelectionChange={setSelection}
             onChange={handleBodyChange}
-            recentNoteLinks={recentNoteLinks}
           />
         </div>
       </div>

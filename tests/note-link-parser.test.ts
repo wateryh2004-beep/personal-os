@@ -40,21 +40,22 @@ describe("hand-written Wiki Links", () => {
   });
 });
 
-describe("[[ note completion token", () => {
-  it("finds the active trigger and its replacement range", () => {
-    expect(extractNoteLinkQuery("正文 [[华夏", 7)).toMatchObject({ from: 3, to: 7, query: "华夏" });
+describe("@ note completion token", () => {
+  it("finds the active @ trigger and its replacement range", () => {
+    expect(extractNoteLinkQuery("正文 @华夏", 7)).toMatchObject({ from: 3, to: 7, query: "华夏", kind: "entity" });
   });
 
-  it("treats full-width brackets from Chinese input methods as a Wiki-link trigger", () => {
-    expect(extractNoteLinkQuery("正文 【【华夏", 7)).toMatchObject({ from: 3, to: 7, query: "华夏" });
-    expect(extractNoteLinkQuery("【【华夏】】", 6)).toBeNull();
+  it("triggers at line start and stays silent after an email-like character", () => {
+    expect(extractNoteLinkQuery("@华夏", 3)).toMatchObject({ from: 0, to: 3, query: "华夏" });
+    expect(extractNoteLinkQuery("联系 foo@bar.com", 17)).toBeNull();
+    expect(extractNoteLinkQuery("foo@华夏", 6)).toBeNull();
   });
 
-  it("does not trigger for ordinary Markdown, task lists, images, or closed tokens", () => {
-    expect(extractNoteLinkQuery("[文字](url)", 9)).toBeNull();
-    expect(extractNoteLinkQuery("- [ ] task", 10)).toBeNull();
-    expect(extractNoteLinkQuery("![image](url)", 13)).toBeNull();
-    expect(extractNoteLinkQuery("[[华夏]] 后续", 9)).toBeNull();
+  it("does not trigger for empty query, whitespace, brackets, or repeated @", () => {
+    expect(extractNoteLinkQuery("正文 @", 4)).toBeNull();
+    expect(extractNoteLinkQuery("正文 @华夏 更多", 8)).toBeNull();
+    expect(extractNoteLinkQuery("正文 @华夏[", 7)).toBeNull();
+    expect(extractNoteLinkQuery("正文 @@华夏", 7)).toMatchObject({ from: 4, to: 7, query: "华夏" });
   });
 });
 
