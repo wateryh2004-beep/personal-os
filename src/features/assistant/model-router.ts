@@ -81,6 +81,16 @@ export function selectReasoningProviderOptionsForRequest(input: {
     input.mode === "transform" &&
     input.operation !== "deepThinkNote";
 
+  // 生成标题需要真正理解全文，不参与 notes transform 的 thinking 禁用，
+  // 单独开启深度思考，配合固定 Pro 模型保证质量。
+  if (input.operation === "generateTitle") {
+    return {
+      deepseek: {
+        thinking: { type: "enabled" as const },
+        reasoningEffort: "high" as const,
+      },
+    };
+  }
   if (input.contextGate) return input.contextGate.complexity === "simple" ? selectReasoningProviderOptions(null) : input.contextGate.complexity === "moderate" ? { deepseek: { thinking: { type: "enabled" as const }, reasoningEffort: "high" as const } } : { deepseek: { thinking: { type: "enabled" as const }, reasoningEffort: "max" as const } };
   return selectReasoningProviderOptions(
     isDirectNoteTransform ? null : input.route,

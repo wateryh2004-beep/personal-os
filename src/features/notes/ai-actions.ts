@@ -113,7 +113,12 @@ export async function generateNoteAiSuggestion(
           : parsed.data.operation === "askNote"
             ? "chat"
             : "transform",
-      model: parsed.data.model,
+      // 生成标题对质量敏感，固定用 Pro（只输出几个字，成本可忽略），
+      // 其他操作跟随用户面板选择。
+      model:
+        parsed.data.operation === "generateTitle"
+          ? "deepseek-v4-pro"
+          : parsed.data.model,
       operation: parsed.data.operation,
       // 个人上下文检索用用户真实问题/笔记标题做 query，而不是整段 system prompt。
       contextQuery: parsed.data.instruction?.trim() || parsed.data.title,

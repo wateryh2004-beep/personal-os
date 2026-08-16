@@ -108,7 +108,7 @@ export function NoteAiAssistant({
     data.set("content", next.content);
     data.set("operation", next.operation);
     data.set("scope", next.scope);
-    data.set("model", model);
+    data.set("model", next.operation === "generateTitle" ? "deepseek-v4-pro" : model);
     data.set("use_personal_context", String(usePersonalContext));
     if (next.instruction) data.set("instruction", next.instruction);
     if (next.contextBefore) data.set("context_before", next.contextBefore);
