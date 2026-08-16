@@ -16,6 +16,7 @@ import type { createClient } from "@/lib/supabase/server";
 import { noteRevisionMatches } from "./action-guards";
 import {
   noteCreateProposalSchema,
+  noteMoveProposalSchema,
   noteUpdateProposalSchema,
   todoCompleteProposalSchema,
   todoDeleteProposalSchema,
@@ -50,6 +51,7 @@ export const executableAgentActionTypes: AgentActionType[] = [
   "tasks.reopen",
   "notes.create",
   "notes.update",
+  "notes.move",
   "career.milestone.create",
   "career.fact.create",
   "memory.create",
@@ -189,7 +191,7 @@ async function executeTask(input: {
 async function executeNote(input: {
   supabase: Supabase;
   userId: string;
-  actionType: "notes.create" | "notes.update";
+  actionType: "notes.create" | "notes.update" | "notes.move";
   payload: Record<string, unknown>;
 }) {
   const now = new Date().toISOString();
@@ -235,6 +237,67 @@ async function executeNote(input: {
       reason: "assistant_confirmed",
     });
     if (version.error) throw new Error("note_version_failed");
+    return { noteId: note.id, href: `/notes/${note.id}` };
+  }
+  if (input.actionType === "notes.move") {
+    const value = noteMoveProposalSchema.parse(input.payload);
+    const { data: note } = await input.supabase
+      .from("notes")
+      .select("id")
+      .eq("id", value.noteId)
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .is("archived_at", null)
+      .maybeSingle();
+    if (!note) throw new AgentActionConflict("note_not_found");
+    let targetFolderId: string | null = null;
+    if (value.newFolderName) {
+      // 新建文件夹：复用根级同名已有文件夹，避免重复建夹；否则新建（parent_id null）。
+      const { data: existing } = await input.supabase
+        .from("note_folders")
+        .select("id")
+        .eq("user_id", input.userId)
+        .is("parent_id", null)
+        .is("archived_at", null)
+        .ilike("name", value.newFolderName.trim())
+        .maybeSingle();
+      if (existing) {
+        targetFolderId = existing.id;
+      } else {
+        const { data: folder, error } = await input.supabase
+          .from("note_folders")
+          .insert({
+            user_id: input.userId,
+            parent_id: null,
+            name: value.newFolderName.trim(),
+            position: 0,
+          })
+          .select("id")
+          .single();
+        if (error || !folder) throw new Error("folder_create_failed");
+        targetFolderId = folder.id;
+      }
+    } else if (value.destinationFolderId) {
+      const { data: folder } = await input.supabase
+        .from("note_folders")
+        .select("id")
+        .eq("id", value.destinationFolderId)
+        .is("archived_at", null)
+        .maybeSingle();
+      if (!folder) throw new AgentActionConflict("folder_changed");
+      targetFolderId = folder.id;
+    } else {
+      throw new AgentActionConflict("folder_required");
+    }
+    const { error } = await input.supabase
+      .from("notes")
+      .update({ folder_id: targetFolderId })
+      .eq("id", value.noteId)
+      .eq("user_id", input.userId)
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .is("archived_at", null);
+    if (error) throw new Error("note_move_failed");
     return { noteId: note.id, href: `/notes/${note.id}` };
   }
   const value = noteUpdateProposalSchema.parse(input.payload);

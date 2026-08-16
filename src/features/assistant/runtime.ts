@@ -39,7 +39,7 @@ async function setup(request:AssistantRequest) {
   // 跨域 search 组也算进来，不能用于只读笔记定位）。
   const initial=gate.needsTools
     ? request.surface === "notes-library"
-      ? ["searchNotes","listRecentNotes","readNotesBatch","readNote","proposeNoteCreate","proposeNoteUpdate"]
+      ? ["searchNotes","listRecentNotes","readNotesBatch","readNote","proposeNoteCreate","proposeNoteUpdate","listNoteOrganization","proposeNoteMove"]
       : initialToolNames(gate)
     : [];
   if(request.runId) { await updateAgentRun({supabase,userId,runId:request.runId,status:"running",model:resolved.modelId,kernel:{contextMode:gate.mode,complexity:gate.complexity,initialModules:gate.likelyModules,activeSkills:sessionState.activeSkills,initialToolNames:initial,discoveredToolNames:sessionState.discoveredToolNames,sessionState}}); await recordAgentStep({supabase,userId,runId:request.runId,stepType:"context",title:gate.needsPersonalData?"已准备个人上下文":"未访问 Personal OS",summary:gate.needsPersonalData?`模式 ${gate.mode}；来源 ${personalContextPack?.sources.length??0} 条（${personalContextPack?.diagnostics.totalChars??0} 字符）`:"普通问题直接回答",output:{contextMode:gate.mode,complexity:gate.complexity,initialModules:gate.likelyModules,activeSkills:sessionState.activeSkills,initialToolNames:initial,personalDataAccessed:Boolean(personalContextPack),osManifestChars:system.length,skillInstructionsChars:0,contextChars:personalContextPack?.diagnostics.totalChars??0}}); }

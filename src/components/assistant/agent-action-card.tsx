@@ -21,6 +21,7 @@ const labels: Record<string, string> = {
   "tasks.reopen": "恢复任务",
   "notes.create": "创建笔记",
   "notes.update": "修改笔记",
+  "notes.move": "移动笔记",
   "career.milestone.create": "创建职业节点",
   "career.fact.create": "添加经历事实",
   "memory.create": "保存 Memory / Decision",
@@ -50,6 +51,16 @@ function details(action: AgentAction) {
     const patch = preview.patch as Record<string, unknown> | undefined;
     const titleChange = patch?.title ? `标题：${preview.title ?? ""} → ${patch.title}` : null;
     return [titleChange, preview.listName, preview.dueAt ? `截止 ${new Date(String(preview.dueAt)).toLocaleString("zh-CN")}` : null, preview.reason].filter(Boolean).join(" · ");
+  }
+  if (action.domain === "notes" && action.actionType === "notes.move") {
+    const target =
+      typeof preview.newFolderName === "string" && preview.newFolderName
+        ? `新建文件夹「${preview.newFolderName}」`
+        : typeof preview.folderName === "string" && preview.folderName
+          ? `文件夹「${preview.folderName}」`
+          : "";
+    const reason = typeof preview.reason === "string" && preview.reason ? preview.reason : "";
+    return `移入${target}${reason ? ` · ${reason}` : ""}`;
   }
   return String(preview.summaryOfChanges ?? preview.bodyPreview ?? preview.contentPreview ?? preview.reason ?? "").slice(0, 220);
 }

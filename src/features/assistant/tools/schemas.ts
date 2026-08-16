@@ -36,6 +36,20 @@ export const noteUpdateProposalSchema = z.object({
   summaryOfChanges: z.string().trim().min(1).max(1000),
 });
 
+/** 笔记移动提案：把一篇笔记移入已有文件夹或新建文件夹。目标二选一，确认前绝不移动。 */
+export const noteMoveProposalSchema = z
+  .object({
+    noteId: z.string().uuid(),
+    noteTitle: z.string().trim().min(1).max(240),
+    destinationFolderId: z.string().uuid().nullable().default(null),
+    newFolderName: z.string().trim().min(1).max(120).nullable().default(null),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .refine(
+    (data) => Boolean(data.destinationFolderId) !== Boolean(data.newFolderName),
+    { message: "目标必须且只能给一个（destinationFolderId 或 newFolderName）" },
+  );
+
 export const todoCompleteProposalSchema = z.object({
   taskId: z.string().uuid(),
   title: z.string().trim().min(1).max(500),
@@ -180,6 +194,7 @@ export const agentActionPayloadSchemas = {
   "tasks.reopen": todoReopenProposalSchema,
   "notes.create": noteCreateProposalSchema,
   "notes.update": noteUpdateProposalSchema,
+  "notes.move": noteMoveProposalSchema,
   "career.milestone.create": careerMilestoneProposalSchema,
   "career.fact.create": careerFactProposalSchema,
   "memory.create": memoryCreateProposalSchema,

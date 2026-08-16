@@ -6,7 +6,7 @@ import { extractQueryConcepts } from "../cognitive-router";
 import { listRecentNotes as queryRecentNotes, readNotesBatch as queryNotesBatch } from "../retrieval/notes";
 import { searchPersonalOs } from "@/features/search/queries";
 import { recordAgentStep, storeAgentAction } from "../persistence";
-import { noteCreateProposalSchema, noteUpdateProposalSchema } from "./schemas";
+import { noteCreateProposalSchema, noteMoveProposalSchema, noteUpdateProposalSchema } from "./schemas";
 import type { AssistantToolModule } from "./types";
 
 export const noteTools: AssistantToolModule = {
@@ -17,6 +17,8 @@ export const noteTools: AssistantToolModule = {
     { name: "readNote", group: "notes_read", risk: "read", description: "读取一篇笔记" },
     { name: "proposeNoteCreate", group: "notes_proposal", risk: "proposal", description: "创建笔记提案" },
     { name: "proposeNoteUpdate", group: "notes_proposal", risk: "proposal", description: "修改笔记提案" },
+    { name: "listNoteOrganization", group: "notes_read", risk: "read", description: "列出全部文件夹与根目录散件", module: "notes", tags: ["整理", "文件夹", "归类", "根目录", "移动"] },
+    { name: "proposeNoteMove", group: "notes_proposal", risk: "proposal", description: "移动笔记提案" },
   ],
   build: (context) => ({
     searchNotes: tool({
@@ -210,6 +212,151 @@ export const noteTools: AssistantToolModule = {
             payload: proposal,
             preview: { noteId: proposal.noteId, currentTitle: proposal.currentTitle, newTitle: proposal.newTitle, bodyPreview: proposal.suggestedBody.slice(0, 500), summaryOfChanges: proposal.summaryOfChanges },
             riskLevel: "medium",
+          }),
+        };
+      },
+    }),
+    listNoteOrganization: tool({
+      description: "列出当前用户所有文件夹（含每夹笔记数与代表性标题）与根目录散件清单（未归入任何文件夹的笔记），用于整理归类判断。",
+      inputSchema: z.object({ maxRootNotes: z.number().int().min(1).max(200).default(100) }),
+      execute: async ({ maxRootNotes }) => {
+        const [foldersResult, folderAssignments, recentTitled, rootResult, rootCountResult] = await Promise.all([
+          context.supabase
+            .from("note_folders")
+            .select("id,name")
+            .eq("user_id", context.userId)
+            .is("archived_at", null)
+            .order("position", { ascending: true })
+            .order("name", { ascending: true }),
+          context.supabase
+            .from("notes")
+            .select("folder_id")
+            .eq("user_id", context.userId)
+            .eq("status", "active")
+            .is("deleted_at", null)
+            .is("archived_at", null)
+            .not("folder_id", "is", null),
+          context.supabase
+            .from("notes")
+            .select("folder_id,title")
+            .eq("user_id", context.userId)
+            .eq("status", "active")
+            .is("deleted_at", null)
+            .is("archived_at", null)
+            .not("folder_id", "is", null)
+            .order("updated_at", { ascending: false })
+            .limit(300),
+          context.supabase
+            .from("notes")
+            .select("id,title,updated_at")
+            .eq("user_id", context.userId)
+            .eq("status", "active")
+            .is("deleted_at", null)
+            .is("archived_at", null)
+            .is("folder_id", null)
+            .order("updated_at", { ascending: false })
+            .limit(maxRootNotes),
+          context.supabase
+            .from("notes")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", context.userId)
+            .eq("status", "active")
+            .is("deleted_at", null)
+            .is("archived_at", null)
+            .is("folder_id", null),
+        ]);
+        const countByFolder = new Map<string, number>();
+        for (const row of folderAssignments.data ?? []) {
+          const folderId = row.folder_id as string | null;
+          if (folderId) countByFolder.set(folderId, (countByFolder.get(folderId) ?? 0) + 1);
+        }
+        const titlesByFolder = new Map<string, string[]>();
+        for (const row of recentTitled.data ?? []) {
+          const folderId = row.folder_id as string | null;
+          if (!folderId) continue;
+          const titles = titlesByFolder.get(folderId) ?? [];
+          if (titles.length < 3) titles.push(row.title as string);
+          titlesByFolder.set(folderId, titles);
+        }
+        const folders = (foldersResult.data ?? []).map((folder) => ({
+          id: folder.id,
+          name: folder.name,
+          noteCount: countByFolder.get(folder.id as string) ?? 0,
+          sampleTitles: titlesByFolder.get(folder.id as string) ?? [],
+        }));
+        const rootNotes = (rootResult.data ?? []).map((note) => ({
+          id: note.id,
+          title: note.title,
+          updatedAt: note.updated_at,
+          href: `/notes/${note.id}`,
+        }));
+        const totalRoot = foldersResult.error ? 0 : (rootCountResult.count ?? rootNotes.length);
+        await recordAgentStep({
+          ...context,
+          stepType: "tool",
+          toolName: "listNoteOrganization",
+          title: "已列出笔记库结构",
+          summary: `共 ${folders.length} 个文件夹，根目录散件 ${rootNotes.length}/${totalRoot} 篇`,
+          input: { maxRootNotes },
+          output: { folderCount: folders.length, rootNoteCount: rootNotes.length, rootNoteIds: rootNotes.map((note) => note.id) },
+          status: foldersResult.error ? "failed" : "succeeded",
+        });
+        return { folders, rootNotes, rootTotal: totalRoot, unavailable: Boolean(foldersResult.error) };
+      },
+    }),
+    proposeNoteMove: tool({
+      description: "冻结笔记移动提案：把一篇根目录散件移入已有文件夹，或移入一个新建文件夹。不会直接移动，用户确认后才执行。",
+      inputSchema: noteMoveProposalSchema,
+      execute: async (proposal) => {
+        const { data: note } = await context.supabase
+          .from("notes")
+          .select("id,title")
+          .eq("id", proposal.noteId)
+          .eq("status", "active")
+          .is("deleted_at", null)
+          .is("archived_at", null)
+          .maybeSingle();
+        if (!note)
+          return { proposal: null, actionId: null, error: "这篇笔记不存在或已删除，请重新列出后再提案。" };
+        let folderName: string | null = null;
+        if (proposal.destinationFolderId) {
+          const { data: folder } = await context.supabase
+            .from("note_folders")
+            .select("id,name")
+            .eq("id", proposal.destinationFolderId)
+            .is("archived_at", null)
+            .maybeSingle();
+          if (!folder) return { proposal: null, actionId: null, error: "目标文件夹不存在或已归档，请重新列出文件夹。" };
+          folderName = folder.name;
+        } else if (proposal.newFolderName) {
+          const { data: existing } = await context.supabase
+            .from("note_folders")
+            .select("id,name")
+            .eq("user_id", context.userId)
+            .is("parent_id", null)
+            .is("archived_at", null)
+            .ilike("name", proposal.newFolderName.trim())
+            .maybeSingle();
+          if (existing)
+            return { proposal: null, actionId: null, error: `已存在同名文件夹「${existing.name}」，请改用 destinationFolderId 指向它，不要重复新建。` };
+          folderName = proposal.newFolderName;
+        }
+        return {
+          proposal,
+          actionId: await storeAgentAction({
+            ...context,
+            domain: "notes",
+            actionType: "notes.move",
+            payload: proposal,
+            preview: {
+              noteId: proposal.noteId,
+              title: proposal.noteTitle,
+              destinationFolderId: proposal.destinationFolderId,
+              newFolderName: proposal.newFolderName,
+              folderName,
+              reason: proposal.reason,
+            },
+            riskLevel: "low",
           }),
         };
       },
