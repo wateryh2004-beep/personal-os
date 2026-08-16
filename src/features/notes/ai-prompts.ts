@@ -161,3 +161,38 @@ export function isRewriteOperation(operation: NoteAiOperation) {
 export function noteAiOperationLabel(operation: NoteAiOperation) {
   return labels[operation];
 }
+
+/** 把一次 AI 请求转成可读的用户消息文本，用于云端会话记录与线程展示。 */
+export function noteAiUserMessage(
+  operation: NoteAiOperation,
+  instruction?: string,
+  scope?: "note" | "selection",
+) {
+  const label = labels[operation];
+  if (instruction?.trim()) {
+    if (operation === "askNote") return `询问当前笔记：${instruction.trim()}`;
+    if (operation === "customSelection")
+      return `对所选文字自定义处理：${instruction.trim()}`;
+    return `${label}（额外要求：${instruction.trim()}）`;
+  }
+  return scope === "selection"
+    ? `对所选文字执行「${label}」`
+    : `对当前笔记执行「${label}」`;
+}
+
+/**
+ * 多轮讨论：把前几轮对话嵌入当前请求，让模型延续上下文而不是当成全新任务。
+ * 笔记在这几轮之间可能被用户修改过，所以明确要求以本次提交的笔记全文为准。
+ */
+export function noteAiConversationHistory(
+  history: Array<{ role: "user" | "assistant"; content: string }>,
+) {
+  if (!history.length) return "";
+  const transcript = history
+    .map(
+      (turn, index) =>
+        `${turn.role === "user" ? "用户" : "助手"}（第 ${index + 1} 轮）：${turn.content}`,
+    )
+    .join("\n\n");
+  return `\n\n## 之前的讨论\n\n以下是之前几轮你和用户的对话记录。这几轮之间笔记可能已被用户修改过，请以本次提供的笔记全文为准；延续这些讨论的上下文，不要重复已经回答过的问题，也不要把它当成一个全新任务。\n\n${transcript}`;
+}

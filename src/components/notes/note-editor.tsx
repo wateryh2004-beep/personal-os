@@ -510,6 +510,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
         </div>
       </div>
       <NoteAiAssistant
+        key={note.id}
         open={noteAiPanel.isOpen}
         onOpen={noteAiPanel.open}
         onClose={noteAiPanel.close}

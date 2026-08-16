@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import type { UIMessage } from "ai";
 import { deepSeekModelIds } from "@/lib/ai/deepseek";
 import { requireOwner } from "@/lib/auth/require-owner";
 import {
@@ -9,15 +10,26 @@ import {
   markdownStructureProtectionRule,
   noteAiCitationOperations,
   noteAiCitationRule,
+  noteAiConversationHistory,
   noteAiInstruction,
   noteAiOperations,
   noteAiSelectionContext,
   noteAiSystemPrompt,
+  noteAiUserMessage,
   type NoteAiPromptKey,
 } from "./ai-prompts";
 import { protectNoteStructures } from "./ai-protect";
 import { evaluateRewriteGuardrail } from "./ai-guardrails";
+import {
+  assertOwnedRun,
+  createAgentRun,
+  persistAgentMessage,
+  updateAgentRun,
+} from "@/features/assistant/persistence";
 import { runAssistant } from "@/features/assistant/runtime";
+import type { createClient } from "@/lib/supabase/server";
+
+type Supabase = Awaited<ReturnType<typeof createClient>>;
 
 const requestSchema = z.object({
   noteId: z.string().uuid(),
@@ -30,6 +42,16 @@ const requestSchema = z.object({
   usePersonalContext: z.boolean().optional(),
   contextBefore: z.string().max(4_000).optional(),
   contextAfter: z.string().max(4_000).optional(),
+  runId: z.string().uuid().nullable().optional(),
+  history: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().max(20_000),
+      }),
+    )
+    .max(10)
+    .optional(),
 });
 export type NoteAiState = {
   status: "idle" | "success" | "error";
@@ -46,27 +68,50 @@ export type NoteAiState = {
     href?: string | null;
     reasons: string[];
   }>;
+  runId?: string;
 };
+
+/** history 由前端序列化后经 FormData 传入，JSON 解析失败时静默丢弃。 */
+function parseHistory(
+  value: FormDataEntryValue | null,
+): Array<{ role: "user" | "assistant"; content: string }> | undefined {
+  if (typeof value !== "string" || !value) return undefined;
+  try {
+    return JSON.parse(value) as Array<{
+      role: "user" | "assistant";
+      content: string;
+    }>;
+  } catch {
+    return undefined;
+  }
+}
 
 export async function generateNoteAiSuggestion(
   formData: FormData,
 ): Promise<NoteAiState> {
-  const parsed = requestSchema.safeParse({
-    noteId: formData.get("note_id"),
-    title: formData.get("title"),
-    content: formData.get("content"),
-    operation: formData.get("operation"),
-    instruction: formData.get("instruction") || undefined,
-    model: formData.get("model") || undefined,
-    scope: formData.get("scope"),
-    usePersonalContext: formData.get("use_personal_context") === "true",
-    contextBefore: formData.get("context_before") || undefined,
-    contextAfter: formData.get("context_after") || undefined,
-  });
-  if (!parsed.success)
-    return { status: "error", message: "AI 请求内容无效。", suggestion: "" };
+  let runId: string | null = null;
+  let supabase: Supabase | null = null;
+  let userId = "";
   try {
-    const { supabase, userId } = await requireOwner();
+    const parsed = requestSchema.safeParse({
+      noteId: formData.get("note_id"),
+      title: formData.get("title"),
+      content: formData.get("content"),
+      operation: formData.get("operation"),
+      instruction: formData.get("instruction") || undefined,
+      model: formData.get("model") || undefined,
+      scope: formData.get("scope"),
+      usePersonalContext: formData.get("use_personal_context") === "true",
+      contextBefore: formData.get("context_before") || undefined,
+      contextAfter: formData.get("context_after") || undefined,
+      runId: formData.get("run_id") || null,
+      history: parseHistory(formData.get("history")),
+    });
+    if (!parsed.success)
+      return { status: "error", message: "AI 请求内容无效。", suggestion: "" };
+    const owner = await requireOwner();
+    supabase = owner.supabase;
+    userId = owner.userId;
     const [{ data: note }, { data: promptRows }] = await Promise.all([
       supabase
         .from("notes")
@@ -87,6 +132,39 @@ export async function generateNoteAiSuggestion(
         promptOverrides[row.prompt_key] = row.content;
       }
     }
+    // 会话持久化：同一条 run 累积这篇笔记的多轮 AI 对话。无 runId 时新建一个
+    // surface=notes 的 run（每轮记录都会存进 agent_messages，形成跨刷新、跨设备
+    // 可回看的"文档讨论历史"）；有 runId 时续跑同一 run。
+    const userMessage = noteAiUserMessage(
+      parsed.data.operation,
+      parsed.data.instruction,
+      parsed.data.scope,
+    );
+    if (parsed.data.runId) {
+      await assertOwnedRun(owner.supabase, owner.userId, parsed.data.runId);
+      runId = parsed.data.runId;
+    } else {
+      runId = await createAgentRun({
+        supabase: owner.supabase,
+        userId: owner.userId,
+        surface: "notes",
+        userRequest: userMessage,
+        currentPath: `/notes/${parsed.data.noteId}`,
+        currentEntity: { type: "note", id: parsed.data.noteId },
+      });
+    }
+    await persistAgentMessage({
+      supabase: owner.supabase,
+      userId: owner.userId,
+      runId,
+      message: {
+        id: crypto.randomUUID(),
+        role: "user",
+        parts: [{ type: "text", text: userMessage }],
+      } as unknown as UIMessage,
+    });
+    // 多轮讨论：把前几轮对话嵌入 prompt，让模型延续上下文而非当成全新任务。
+    const historyBlock = noteAiConversationHistory(parsed.data.history ?? []);
     // 结构保护：rewrite 类操作的输出会写回笔记，先把内部链接/双链/图片/代码块
     // 换成占位符再发给模型，返回后还原，避免润色时被当成乱码删掉。辅助类操作
     // （askNote/summarize/explain 等）不保护，模型需要看到真实链接才能回答。
@@ -124,7 +202,7 @@ export async function generateNoteAiSuggestion(
       contextQuery: parsed.data.instruction?.trim() || parsed.data.title,
       usePersonalContext:
         parsed.data.scope === "note" && parsed.data.usePersonalContext === true,
-      instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}${structureRule}${selectionNote}${citationRule}`,
+      instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}${historyBlock}${structureRule}${selectionNote}${citationRule}`,
       currentEntity: { type: "note", id: parsed.data.noteId },
       currentSurface: {
         type: "note_draft",
@@ -132,6 +210,7 @@ export async function generateNoteAiSuggestion(
         content: protectedContent,
       },
       requiresCurrentSurface: true,
+      runId,
     });
     const suggestion = result.text.trim();
     if (!suggestion) {
@@ -166,8 +245,33 @@ export async function generateNoteAiSuggestion(
     } else if (warning) {
       response.warning = warning;
     }
-    return response;
+    // 把 AI 结果作为本轮助手消息落库，与用户消息形成完整对话记录。
+    await persistAgentMessage({
+      supabase: owner.supabase,
+      userId: owner.userId,
+      runId,
+      message: {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        parts: [{ type: "text", text: response.suggestion }],
+      } as unknown as UIMessage,
+    });
+    await updateAgentRun({
+      supabase: owner.supabase,
+      userId: owner.userId,
+      runId,
+      status: "completed",
+      model: result.modelId,
+    });
+    return { ...response, runId };
   } catch {
+    if (runId && supabase && userId)
+      await updateAgentRun({
+        supabase,
+        userId,
+        runId,
+        status: "failed",
+      }).catch(() => undefined);
     return {
       status: "error",
       message:

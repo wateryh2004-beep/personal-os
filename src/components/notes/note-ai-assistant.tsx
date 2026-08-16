@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
+  Check,
   CheckSquare,
   Copy,
   FileText,
@@ -10,6 +11,9 @@ import {
   Sparkles,
   WandSparkles,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import { AISidecar } from "@/components/ai/ai-sidecar";
 import {
   generateNoteAiSuggestion,
@@ -18,6 +22,7 @@ import {
 import {
   isRewriteOperation,
   noteAiOperationLabel,
+  noteAiUserMessage,
   type NoteAiOperation,
 } from "@/features/notes/ai-prompts";
 import { wordDiff } from "@/features/notes/diff-preview";
@@ -47,6 +52,28 @@ const shortcuts: Array<[NoteAiOperation, string, React.ReactNode]> = [
   ["deepThinkNote", "深入思考", <Lightbulb key="think" />],
   ["generateTitle", "生成标题", <FileText key="title" />],
 ];
+
+/** 一篇笔记的 AI 多轮讨论线程：user 为发起的问题/操作，assistant 为 AI 回复。 */
+type ThreadItem = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  /** 当前轮（结果预览区正在展示、尚未落笔/放弃）——渲染时跳过，避免与预览重复。 */
+  current?: boolean;
+  /** 已写入笔记（替换/插入/标题已替换）。 */
+  applied?: boolean;
+};
+
+/** 每篇笔记一个持久化的 run：云端存 agent_messages，本机只存 runId 用于恢复。 */
+const runStorageKey = (noteId: string) => `personal-os:note-ai:run:${noteId}:v1`;
+
+/** 线程 → 模型上下文：只带最近几轮、每轮截断，避免超长笔记 + 长历史撑爆 prompt。 */
+function threadToHistory(thread: ThreadItem[]) {
+  return thread.slice(-10).map((item) => ({
+    role: item.role,
+    content: item.content.slice(0, 4_000),
+  }));
+}
 
 /**
  * AI 内容落笔时的来源标注：分割线 + 「AI 生成 · 生成日期 · 基于什么操作」。
@@ -99,7 +126,56 @@ export function NoteAiAssistant({
   const [showDiff, setShowDiff] = useState(true);
   const [usePersonalContext, setUsePersonalContext] = useState(true);
   const [pending, startTransition] = useTransition();
+  const [thread, setThread] = useState<ThreadItem[]>([]);
+  const [runId, setRunId] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+
+  // 打开面板时从云端恢复这篇笔记的 AI 讨论线程。父组件用 key={note.id} 挂载，
+  // 切换笔记会整体重挂载，不需要手动清空旧线程。
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(async () => {
+      setRestoring(true);
+      const savedRunId = localStorage.getItem(runStorageKey(noteId));
+      if (savedRunId) {
+        try {
+          const response = await fetch(`/api/assistant/runs/${savedRunId}`, {
+            cache: "no-store",
+          });
+          if (response.ok) {
+            const payload = (await response.json()) as {
+              messages?: Array<{
+                id: string;
+                role: string;
+                parts: Array<{ type: string; text?: string }>;
+              }>;
+            };
+            const messages = payload.messages;
+            if (Array.isArray(messages) && messages.length) {
+              setRunId(savedRunId);
+              setThread(
+                messages.map((message) => ({
+                  id: message.id,
+                  role: message.role === "user" ? "user" : "assistant",
+                  content: (message.parts ?? [])
+                    .filter((part) => part.type === "text")
+                    .map((part) => part.text ?? "")
+                    .join("\n"),
+                })),
+              );
+            } else {
+              localStorage.removeItem(runStorageKey(noteId));
+            }
+          }
+        } catch {
+          /* 恢复失败不阻塞面板；runId 保留，下次打开可重试。 */
+        }
+      }
+      setRestoring(false);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [open, noteId]);
   const run = (next: Request, targetSelection: NoteSelection | null = null) => {
     if (!next.content.trim()) {
       setResult({
@@ -109,6 +185,16 @@ export function NoteAiAssistant({
       });
       return;
     }
+    // 本轮用户消息先进线程；history 只取此前轮次，让模型延续上下文。
+    const userText = noteAiUserMessage(
+      next.operation,
+      next.instruction,
+      next.scope,
+    );
+    setThread((prev) => [
+      ...prev,
+      { id: `note-ai-user-${Date.now()}`, role: "user", content: userText },
+    ]);
     setRequest(next);
     setResultSelection(next.scope === "selection" ? targetSelection : null);
     setResult({ status: "idle", message: "", suggestion: "" });
@@ -120,20 +206,49 @@ export function NoteAiAssistant({
     data.set("scope", next.scope);
     data.set("model", next.operation === "generateTitle" ? "deepseek-v4-pro" : model);
     data.set("use_personal_context", String(usePersonalContext));
+    if (runId) data.set("run_id", runId);
+    const history = threadToHistory(thread);
+    if (history.length) data.set("history", JSON.stringify(history));
     if (next.instruction) data.set("instruction", next.instruction);
     if (next.contextBefore) data.set("context_before", next.contextBefore);
     if (next.contextAfter) data.set("context_after", next.contextAfter);
-    startTransition(async () =>
-      setResult(await generateNoteAiSuggestion(data)),
-    );
+    startTransition(async () => {
+      const nextResult = await generateNoteAiSuggestion(data);
+      if (nextResult.runId) {
+        setRunId(nextResult.runId);
+        localStorage.setItem(runStorageKey(noteId), nextResult.runId);
+      }
+      if (nextResult.suggestion) {
+        setThread((prev) => [
+          ...prev,
+          {
+            id: `note-ai-assistant-${Date.now()}`,
+            role: "assistant",
+            content: nextResult.suggestion,
+            current: true,
+          },
+        ]);
+      }
+      if (next.operation === "generateTitle" && nextResult.suggestion) {
+        // 标题是自动替换的，立即标记为已写入（撤回由标题栏负责）。
+        setThread((prev) =>
+          prev.map((item) =>
+            item.current ? { ...item, applied: true, current: false } : item,
+          ),
+        );
+      }
+      setResult(nextResult);
+    });
   };
-  const runNote = (operation: NoteAiOperation) =>
+  const runNote = (operation: NoteAiOperation) => {
     run({
       operation,
       scope: "note",
       content: bodyMarkdown,
       instruction: operation === "askNote" ? question : undefined,
     });
+    if (operation === "askNote") setQuestion("");
+  };
   const apply = (mode: "replace" | "insert") => {
     if (!result.suggestion || !request) return;
     if (request.scope === "selection") {
@@ -158,6 +273,12 @@ export function NoteAiAssistant({
     const appliedMessage = request.scope === "selection"
       ? mode === "replace" ? "已替换所选文字，笔记正在自动保存。" : "已插入到选区下方，笔记正在自动保存。"
       : mode === "replace" ? "已替换全文，笔记正在自动保存。" : "已插入到笔记末尾，笔记正在自动保存。";
+    // 本轮 AI 回复标记为"已写入"，对话继续不中断。
+    setThread((prev) =>
+      prev.map((item) =>
+        item.current ? { ...item, applied: true, current: false } : item,
+      ),
+    );
     setRequest(null);
     setResultSelection(null);
     setResult({ status: "success", message: appliedMessage, suggestion: "" });
@@ -372,6 +493,41 @@ export function NoteAiAssistant({
           </div>
         }
       >
+          {restoring ? (
+            <p className="mb-4 text-xs text-[var(--text-tertiary)]">
+              正在恢复这篇笔记的 AI 讨论…
+            </p>
+          ) : null}
+          {thread.length ? (
+            <div className="mb-5 space-y-4 border-b border-[var(--border-subtle)] pb-5">
+              {thread.map((item) =>
+                item.role === "user" ? (
+                  <div key={item.id} className="flex justify-end">
+                    <div className="max-w-[85%] whitespace-pre-wrap rounded-[var(--radius-md)] bg-[var(--accent-soft)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)]">
+                      {item.content}
+                    </div>
+                  </div>
+                ) : item.current && result.suggestion ? null : (
+                  <div key={item.id} className="space-y-1">
+                    <div className="text-sm leading-6 text-[var(--text-primary)]">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeSanitize]}
+                      >
+                        {item.content}
+                      </ReactMarkdown>
+                    </div>
+                    {item.applied ? (
+                      <p className="inline-flex items-center gap-1 text-[11px] text-emerald-700">
+                        <Check className="size-3" aria-hidden="true" />
+                        已写入笔记
+                      </p>
+                    ) : null}
+                  </div>
+                ),
+              )}
+            </div>
+          ) : null}
           {pending && request ? (
             <p
               role="status"
@@ -396,7 +552,7 @@ export function NoteAiAssistant({
           </div>
           <div className="mt-5 border-t pt-4">
             <label className="sr-only" htmlFor="note-ai-question">
-              {customSelection ? "处理所选文字" : "询问这篇笔记"}
+              {customSelection ? "处理所选文字" : "继续讨论这篇笔记"}
             </label>
             <textarea
               id="note-ai-question"
@@ -405,7 +561,7 @@ export function NoteAiAssistant({
               placeholder={
                 customSelection
                   ? "说明如何处理所选文字…"
-                  : "询问这篇笔记，或结合你的 Personal OS 分析…"
+                  : "继续讨论这篇笔记，或结合你的 Personal OS 分析…"
               }
               className="min-h-24 w-full resize-none rounded-md border bg-white px-3 py-2 text-sm"
             />
