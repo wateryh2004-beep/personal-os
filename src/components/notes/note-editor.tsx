@@ -473,7 +473,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
           />
         </div>
       </div>
-      {noteAiPanel.isOpen ? <NoteAiAssistant
+      <NoteAiAssistant
         open={noteAiPanel.isOpen}
         onOpen={noteAiPanel.open}
         onClose={noteAiPanel.close}
@@ -491,7 +491,7 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
           setBody(nextBody);
           dirty(title, nextBody);
         }}
-      /> : null}
+      />
       {pdfSnapshot ? (
         <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-white p-12 text-[15px]">
           <h1 className="mb-7 text-3xl font-semibold text-zinc-900">{pdfSnapshot.title}</h1>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   CheckSquare,
   Copy,
@@ -19,6 +19,7 @@ import {
   noteAiOperationLabel,
   type NoteAiOperation,
 } from "@/features/notes/ai-prompts";
+import { wordDiff } from "@/features/notes/diff-preview";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 
 export type NoteSelection = {
@@ -81,6 +82,7 @@ export function NoteAiAssistant({
     null,
   );
   const [moreSelectionText, setMoreSelectionText] = useState<string | null>(null);
+  const [showDiff, setShowDiff] = useState(true);
   const [usePersonalContext, setUsePersonalContext] = useState(true);
   const [pending, startTransition] = useTransition();
   const resultRef = useRef<HTMLDivElement>(null);
@@ -164,6 +166,11 @@ export function NoteAiAssistant({
   const rewrite = result.operation
     ? isRewriteOperation(result.operation as NoteAiOperation)
     : false;
+  // 词级 diff：rewrite 类操作拿原文本对比还原后的结果；大文档或非 rewrite 返回 null。
+  const diffSegments = useMemo(() => {
+    if (!result.suggestion || !request || !rewrite) return null;
+    return wordDiff(request.content, result.suggestion);
+  }, [request, result.suggestion, rewrite]);
   const statusColor =
     result.status === "error" ? "text-red-700" : "text-[#365F78]";
   const replaceLabel = request?.scope === "selection"
@@ -399,6 +406,16 @@ export function NoteAiAssistant({
               </label>
             ) : null}
           </div>
+          {pending && request ? (
+            <div aria-hidden="true" className="mt-4 border-t pt-4">
+              <div className="h-3 w-28 animate-pulse rounded bg-[var(--surface-hover)]" />
+              <div className="mt-3 space-y-2">
+                <div className="h-3 w-full animate-pulse rounded bg-[var(--surface-hover)]" />
+                <div className="h-3 w-11/12 animate-pulse rounded bg-[var(--surface-hover)]" />
+                <div className="h-3 w-4/5 animate-pulse rounded bg-[var(--surface-hover)]" />
+              </div>
+            </div>
+          ) : null}
           {result.status !== "idle" ? (
             <p role="status" className={`mt-4 text-sm ${statusColor}`}>
               {result.message}
@@ -411,9 +428,47 @@ export function NoteAiAssistant({
                   <p className="text-sm font-medium text-[var(--text-primary)]">AI 结果预览</p>
                   <p className="mt-1 text-xs text-[var(--text-secondary)]">使用底部固定确认区决定是否写入笔记。</p>
                 </div>
-                <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[10px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? `所选文字 · ${request.content.length} 字` : "当前笔记"}</span>
+                <div className="flex items-center gap-2">
+                  {diffSegments ? (
+                    <div className="flex overflow-hidden rounded-md border border-[var(--surface-hover)] text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setShowDiff(true)}
+                        className={`px-2 py-1 ${showDiff ? "bg-[#365F78] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}
+                      >
+                        对比
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowDiff(false)}
+                        className={`px-2 py-1 ${!showDiff ? "bg-[#365F78] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}
+                      >
+                        纯结果
+                      </button>
+                    </div>
+                  ) : null}
+                  <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[10px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? `所选文字 · ${request.content.length} 字` : "当前笔记"}</span>
+                </div>
               </div>
-              <pre className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">{result.suggestion}</pre>
+              {diffSegments && showDiff ? (
+                <div className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">
+                  {diffSegments.map((segment, index) =>
+                    segment.type === "equal" ? (
+                      <span key={index}>{segment.text}</span>
+                    ) : segment.type === "insert" ? (
+                      <span key={index} className="rounded bg-green-100 px-0.5 text-green-900">
+                        {segment.text}
+                      </span>
+                    ) : (
+                      <span key={index} className="rounded bg-red-50 px-0.5 text-red-500 line-through">
+                        {segment.text}
+                      </span>
+                    ),
+                  )}
+                </div>
+              ) : (
+                <pre className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">{result.suggestion}</pre>
+              )}
               {result.warning ? (
                 <p role="status" className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   {result.warning}
