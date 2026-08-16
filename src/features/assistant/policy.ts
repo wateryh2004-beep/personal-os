@@ -46,7 +46,7 @@ ${formatManagedTaxonomyForPrompt()}
   },
   inbox: {
     context: "personal",
-    tools: ["todo_read", "inbox_proposal"],
+    tools: ["inbox_read", "todo_read", "inbox_proposal"],
     maxSteps: 3,
     maxOutputTokens: 500,
     instruction:
@@ -75,6 +75,8 @@ ${formatManagedTaxonomyForPrompt()}
       "calendar_proposal",
       "todo_read",
       "todo_proposal",
+      "inbox_read",
+      "inbox_proposal",
       "notes_read",
       "notes_proposal",
       "career_read",

@@ -115,6 +115,8 @@ export async function generateNoteAiSuggestion(
             : "transform",
       model: parsed.data.model,
       operation: parsed.data.operation,
+      // 个人上下文检索用用户真实问题/笔记标题做 query，而不是整段 system prompt。
+      contextQuery: parsed.data.instruction?.trim() || parsed.data.title,
       usePersonalContext:
         parsed.data.scope === "note" && parsed.data.usePersonalContext === true,
       instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}${structureRule}${selectionNote}${citationRule}`,

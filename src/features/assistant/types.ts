@@ -37,6 +37,8 @@ export type AssistantRequest = {
   /** A transform must fail before model invocation when its edited surface is absent. */
   requiresCurrentSurface?: boolean;
   usePersonalContext?: boolean;
+  /** 个人上下文检索用的精简 query；缺省时回退到 instruction / 最近一条用户消息。 */
+  contextQuery?: string | null;
   runId?: string | null;
   currentPath?: string | null;
 };
@@ -50,6 +52,7 @@ export type AssistantToolGroup =
   | "calendar_proposal"
   | "todo_read"
   | "todo_proposal"
+  | "inbox_read"
   | "inbox_proposal"
   | "notes_read"
   | "notes_proposal"
