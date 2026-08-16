@@ -106,6 +106,8 @@ export type AssistantResult = {
   status: "success" | "error";
   text: string;
   modelId?: DeepSeekModelId;
+  /** 生成结束原因；"length" 表示输出撞到 token 上限被截断，结果不完整。 */
+  finishReason?: "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other" | "unknown";
   contextSources: Array<{
     id: string;
     title: string;

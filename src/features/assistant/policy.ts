@@ -20,7 +20,7 @@ const policies: Record<AssistantSurface, AssistantPolicy> = {
     context: "local",
     tools: [],
     maxSteps: 1,
-    maxOutputTokens: 1200,
+    maxOutputTokens: 5000,
     instruction:
       "笔记编辑任务只处理当前提供的文本，保留事实、专有名词、日期和数字。",
   },

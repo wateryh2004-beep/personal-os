@@ -150,7 +150,14 @@ export async function generateNoteAiSuggestion(
     const warning = shouldProtect
       ? evaluateRewriteGuardrail(parsed.data.content.length, response.suggestion.length)
       : null;
-    if (warning) response.warning = warning;
+    // 截断护栏：finishReason="length" 表示输出撞到 token 上限被硬截断，
+    // 比"远短于原文"更直接地说明末尾内容可能没处理完。优先展示截断提示。
+    if (result.finishReason === "length") {
+      response.warning =
+        "AI 输出达到长度上限被截断，原文末尾可能未处理完整。建议对超长笔记改用选区分块润色。";
+    } else if (warning) {
+      response.warning = warning;
+    }
     return response;
   } catch {
     return {
