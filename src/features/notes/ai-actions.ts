@@ -7,6 +7,8 @@ import {
   isNoteAiPromptKey,
   isRewriteOperation,
   markdownStructureProtectionRule,
+  noteAiCitationOperations,
+  noteAiCitationRule,
   noteAiInstruction,
   noteAiOperations,
   noteAiSelectionContext,
@@ -99,6 +101,10 @@ export async function generateNoteAiSuggestion(
       parsed.data.scope === "selection"
         ? `\n\n上下文：这是用户从笔记中选中的一段文字，可能位于文章中间；只处理这段文字，保留其原有的内部链接、双链、图片与代码块。${noteAiSelectionContext({ before: parsed.data.contextBefore, after: parsed.data.contextAfter })}`
         : "";
+    // 「懂」类操作（问答/思考/解释）要求附原文依据，防止脑补或混淆 Personal Context。
+    const citationRule = noteAiCitationOperations.includes(parsed.data.operation)
+      ? `\n\n${noteAiCitationRule}`
+      : "";
     const result = await runAssistant({
       surface: "notes",
       mode:
@@ -111,7 +117,7 @@ export async function generateNoteAiSuggestion(
       operation: parsed.data.operation,
       usePersonalContext:
         parsed.data.scope === "note" && parsed.data.usePersonalContext === true,
-      instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}${structureRule}${selectionNote}`,
+      instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}${structureRule}${selectionNote}${citationRule}`,
       currentEntity: { type: "note", id: parsed.data.noteId },
       currentSurface: {
         type: "note_draft",
