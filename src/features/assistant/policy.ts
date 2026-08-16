@@ -20,7 +20,9 @@ const policies: Record<AssistantSurface, AssistantPolicy> = {
     context: "local",
     tools: [],
     maxSteps: 1,
-    maxOutputTokens: 5000,
+    // 输出上限远低于 DeepSeek V4 的 384K 上限；调大不改变短内容行为，
+    // 只给长笔记润色留足空间（此前 1200 导致长随想被硬截断）。
+    maxOutputTokens: 32768,
     instruction:
       "笔记编辑任务只处理当前提供的文本，保留事实、专有名词、日期和数字。",
   },
