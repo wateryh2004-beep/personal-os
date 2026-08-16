@@ -48,6 +48,16 @@ const shortcuts: Array<[NoteAiOperation, string, React.ReactNode]> = [
   ["generateTitle", "生成标题", <FileText key="title" />],
 ];
 
+/**
+ * AI 内容落笔时的来源标注：分割线 + 「AI 生成 · 生成日期 · 基于什么操作」。
+ * 让后来者一眼知道这段是谁写的、为什么写，避免一段语气不符的内容凭空出现。
+ */
+function noteAiAttribution(operation: NoteAiOperation) {
+  const now = new Date();
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return `---\n\n> 以下内容由 AI 生成于 ${date}，基于「${noteAiOperationLabel(operation)}」操作。\n\n`;
+}
+
 export function NoteAiAssistant({
   open,
   onOpen,
@@ -138,8 +148,13 @@ export function NoteAiAssistant({
         setResult({ status: "error", message: "所选文字已发生变化。为避免覆盖错误内容，请重新选择后再生成。", suggestion: "" });
         return;
       }
-    } else if (mode === "replace") onReplaceNote(result.suggestion);
-    else onInsertNote(result.suggestion);
+    } else {
+      // 落笔时在 AI 内容前标注来源（分割线 + 生成日期 + 请求目的）。
+      // 选区操作不加，避免在段落中间插入分割线打断文档。
+      const attributed = `${noteAiAttribution(request.operation)}${result.suggestion}`;
+      if (mode === "replace") onReplaceNote(attributed);
+      else onInsertNote(attributed);
+    }
     const appliedMessage = request.scope === "selection"
       ? mode === "replace" ? "已替换所选文字，笔记正在自动保存。" : "已插入到选区下方，笔记正在自动保存。"
       : mode === "replace" ? "已替换全文，笔记正在自动保存。" : "已插入到笔记末尾，笔记正在自动保存。";
