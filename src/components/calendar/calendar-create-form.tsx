@@ -5,6 +5,7 @@ import { createCalendarEvent, type CalendarCreateState } from "@/features/calend
 import { CalendarCategoryPicker } from "@/components/calendar/calendar-category-picker";
 import { dateTimeInputValue, instantToDate, shiftCalendarDate, wallTimeToIso } from "@/features/calendar/timezone";
 import { classifyCalendarEvent } from "@/features/calendar/classification/classifier";
+import { MentionTextarea } from "@/components/links/entity-mention-textarea";
 import { getManagedCalendarCategory } from "@/features/calendar/classification/taxonomy";
 
 const initialCalendarCreateState: CalendarCreateState = { status: "idle", message: "" };
@@ -16,6 +17,7 @@ export function CalendarCreateForm({ timezone, categoriesEnabled = true, initial
   const [allDay, setAllDay] = useState(initialAllDay);
   const [subject, setSubject] = useState("");
   const [location, setLocation] = useState("");
+  const [description, setDescription] = useState("");
   const [categoryMode, setCategoryMode] = useState("__auto");
   const [state, formAction, pending] = useActionState(createCalendarEvent, initialCalendarCreateState);
   const autoClassification = useMemo(() => {
@@ -67,7 +69,7 @@ export function CalendarCreateForm({ timezone, categoriesEnabled = true, initial
       }
       return <p className="-mt-1 flex items-center gap-1.5 text-xs text-[var(--text-secondary)]"><span className="size-1.5 shrink-0 rounded-full bg-[var(--text-tertiary)]" />自动判断：暂不归类（低置信度，创建后可到分类设置整理）</p>;
     })() : null}
-    <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm text-zinc-600">更多选项</summary><div className="mt-3 grid gap-3"><label className="grid gap-1 text-xs text-zinc-600">说明（可选）<textarea name="description" maxLength={10000} rows={3} placeholder="议程、链接或准备事项" className="w-full resize-y rounded-md border bg-white px-3 py-2 text-sm leading-5" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-xs text-zinc-600">显示为<select name="show_as" defaultValue="busy" className="h-9 rounded-md border bg-white px-2 text-sm"><option value="busy">忙碌</option><option value="free">空闲</option><option value="tentative">暂定</option><option value="workingElsewhere">在其他地点工作</option><option value="oof">外出</option></select></label><label className="grid gap-1 text-xs text-zinc-600">重要性<select name="importance" defaultValue="normal" className="h-9 rounded-md border bg-white px-2 text-sm"><option value="low">低</option><option value="normal">普通</option><option value="high">高</option></select></label></div></div></details>
+    <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm text-zinc-600">更多选项</summary><div className="mt-3 grid gap-3"><label className="grid gap-1 text-xs text-zinc-600">说明（可选）<MentionTextarea value={description} onChange={setDescription} name="description" maxLength={10000} rows={3} placeholder="议程、链接或准备事项；输入 @ 引用笔记/任务/日程/文件" className="w-full resize-y rounded-md border bg-white px-3 py-2 text-sm leading-5" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-xs text-zinc-600">显示为<select name="show_as" defaultValue="busy" className="h-9 rounded-md border bg-white px-2 text-sm"><option value="busy">忙碌</option><option value="free">空闲</option><option value="tentative">暂定</option><option value="workingElsewhere">在其他地点工作</option><option value="oof">外出</option></select></label><label className="grid gap-1 text-xs text-zinc-600">重要性<select name="importance" defaultValue="normal" className="h-9 rounded-md border bg-white px-2 text-sm"><option value="low">低</option><option value="normal">普通</option><option value="high">高</option></select></label></div></div></details>
     <p className="text-xs text-zinc-500">时间按 {timezone} 保存；确认创建后同步至 Outlook。</p>
     <div><button disabled={pending} className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm text-white disabled:opacity-60">{pending ? "正在创建…" : "创建日程"}</button>{state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}>{state.message}</p> : null}</div>
   </form>;

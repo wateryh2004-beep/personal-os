@@ -20,6 +20,11 @@ export function entityHref(entityType: string, entityId: string, domain: string,
   if (entityType === "skill") return "/career/skills";
   if (entityType === "certification") return "/career/certifications";
   if (entityType === "project") return "/projects";
+  // 跨实体内链的规范 href(与 features/links/parser 保持一致):任务/日程/文件
+  // 用 searchParams 定位,页面侧据此高亮对应实体。
+  if (entityType === "todo_task") return `/tasks?task=${entityId}`;
+  if (entityType === "calendar_event") return `/calendar?event=${entityId}`;
+  if (entityType === "document") return `/files?file=${entityId}`;
   if (domain === "files") return "/files";
   if (domain === "tasks") return "/tasks";
   if (domain === "calendar") return "/calendar";

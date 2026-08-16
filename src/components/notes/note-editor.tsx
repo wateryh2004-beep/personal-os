@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { isInternalEntityHref } from "@/features/links/parser";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { recordNotePdfExport, saveNote } from "@/features/notes/actions";
 import { markdownFilename } from "@/features/notes/utils";
@@ -65,7 +66,7 @@ function MarkdownDocument({ body }: { body: string }) {
     blockquote: ({ children }) => <blockquote className="mb-4 border-l-2 border-[#365F78] pl-4 italic text-zinc-600">{children}</blockquote>,
     pre: ({ children }) => <pre className="mb-4 overflow-x-auto bg-zinc-950 p-4 text-sm leading-6 text-zinc-100">{children}</pre>,
     code: ({ children, className }) => className ? <code className={className}>{children}</code> : <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-[0.85em] text-zinc-800">{children}</code>,
-    a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-[#365F78] underline underline-offset-2">{children}</a>,
+    a: ({ children, href }) => isInternalEntityHref(href) ? <a href={href} className="text-[#365F78] underline underline-offset-2">{children}</a> : <a href={href} target="_blank" rel="noreferrer" className="text-[#365F78] underline underline-offset-2">{children}</a>,
     table: ({ children }) => <div className="mb-4 overflow-x-auto"><table className="w-full border-collapse text-left text-sm">{children}</table></div>,
     th: ({ children }) => <th className="border bg-zinc-50 px-3 py-2 font-medium">{children}</th>,
     td: ({ children }) => <td className="border px-3 py-2 align-top">{children}</td>,

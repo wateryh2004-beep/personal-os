@@ -17,6 +17,7 @@ import { markdownImagePreview } from "@/features/notes/editor/markdown-image-pre
 import { createNoteLinkCompletion, extractNoteLinkQuery } from "@/features/notes/editor/note-link-completion";
 import { noteLinkDecoration } from "@/features/notes/editor/note-link-decoration";
 import type { NoteLinkSuggestion } from "@/features/notes/links/types";
+import type { EntityLinkSuggestion } from "@/features/links/types";
 import {
   addMarkdownUploadPlaceholder,
   findMarkdownUploadRange,
@@ -35,6 +36,8 @@ type VisualMarkdownEditorProps = {
 };
 
 let imageUploadSequence = 0;
+
+const entityLabels: Record<string, string> = { note: "笔记", todo_task: "任务", calendar_event: "日程", document: "文件" };
 
 function nextImageUploadId() {
   imageUploadSequence += 1;
@@ -230,12 +233,29 @@ export function VisualMarkdownEditor({
     return data.notes ?? [];
   }, []);
 
+  const searchEntities = useCallback(async (query: string): Promise<EntityLinkSuggestion[]> => {
+    const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=20`, {
+      credentials: "same-origin",
+    });
+    if (!response.ok) throw new Error("无法搜索。");
+    const data = (await response.json()) as { results?: Array<{ entityType: string; entityId: string; title: string; href: string }> };
+    return (data.results ?? [])
+      .filter((item) => ["note", "todo_task", "calendar_event", "document"].includes(item.entityType))
+      .map((item) => ({
+        id: item.entityId,
+        title: item.title,
+        href: item.href,
+        label: entityLabels[item.entityType] ?? "引用",
+      }));
+  }, []);
+
   const noteLinkCompletion = useMemo(
     () => createNoteLinkCompletion({
       recentNotes: recentNoteLinks.filter((item) => item.id !== noteId),
       searchNotes: searchNoteLinks,
+      searchEntities,
     }),
-    [noteId, recentNoteLinks, searchNoteLinks],
+    [noteId, recentNoteLinks, searchNoteLinks, searchEntities],
   );
 
   const insertUploadedImage = useCallback(async (file: File, currentView: EditorView) => {

@@ -20,6 +20,7 @@ import { fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, wall
 import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, reconcileCalendarMutationRange, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
 import { primaryCalendarCategories } from "@/features/calendar/classification/taxonomy";
 import { outlookCategoryDot, resolveCalendarEventVisual } from "@/features/calendar/categories/visual";
+import { EntityBacklinks } from "@/components/links/entity-backlinks";
 
 const CalendarAssistant = dynamic(() => import("@/components/calendar/calendar-assistant").then((module) => module.CalendarAssistant), { ssr: false });
 
@@ -41,7 +42,7 @@ function initialDraft(timezone: string): Draft {
 
 function sameRange(a: Range | null, b: Range) { return a?.start.getTime() === b.start.getTime() && a?.end.getTime() === b.end.getTime(); }
 
-export function CalendarWorkspace({ events, categories, timezone, scopeReady, initialCreateOpen = false }: { events: CalendarEventRecord[]; categories: CalendarCategory[]; timezone: string; scopeReady: boolean; initialCreateOpen?: boolean }) {
+export function CalendarWorkspace({ events, categories, timezone, scopeReady, initialCreateOpen = false, initialEventId }: { events: CalendarEventRecord[]; categories: CalendarCategory[]; timezone: string; scopeReady: boolean; initialCreateOpen?: boolean; initialEventId?: string }) {
   const router = useRouter();
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState(() => new Date());
@@ -72,6 +73,29 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, []);
+  // 跨实体内链跳转：/calendar?event={本地 id}。命中当前窗口直接选中，否则按 id 拉取单条日程。
+  useEffect(() => {
+    if (!initialEventId) return;
+    let cancelled = false;
+    const openById = (event: CalendarEventRecord) => {
+      if (cancelled) return;
+      setSelected(event);
+      setDraft(null);
+      inspector.open();
+    };
+    const local = events.find((item) => item.id === initialEventId);
+    if (local) { openById(local); return; }
+    void fetch(`/api/calendar/events/by-id?id=${encodeURIComponent(initialEventId)}`, { cache: "no-store", credentials: "same-origin" })
+      .then((response) => response.json())
+      .then((data: { event?: CalendarEventRecord }) => {
+        if (!data.event) return;
+        setEventState((current) => current.some((item) => item.id === data.event!.id) ? current : [data.event!, ...current]);
+        openById(data.event!);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEventId]);
   const availableViews: View[] = compactViewport ? ["day", "month"] : ["day", "week", "month"];
   const filtered = useMemo(() => filterCalendarEvents(eventState, selectedCategories), [eventState, selectedCategories]);
   const toggleCategory = (name: string) => setSelectedCategories((current) => {
@@ -238,7 +262,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
       {rangeTruncated ? <p className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">当前范围仅显示前 1,000 条日程。</p> : null}
       {calendarError ? <p role="status" className="absolute left-3 top-3 z-10 max-w-md rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-900">{calendarError}</p> : null}
     </div>
-    <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="w-[min(380px,calc(100vw-8px))]">{selected ? <CalendarEventEditForm key={selected.id} event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={reconcileInspectorMutation} /> : draft ? <CalendarCreateForm key={`${draft.startsAt}:${draft.endsAt}:${draft.isAllDay ? "all-day" : "timed"}`} timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={reconcileCreatedEvent} /> : null}</Inspector>
+    <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="w-[min(380px,calc(100vw-8px))]">{selected ? <><CalendarEventEditForm key={selected.id} event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={reconcileInspectorMutation} /><EntityBacklinks type="calendar_event" id={selected.id} /></> : draft ? <CalendarCreateForm key={`${draft.startsAt}:${draft.endsAt}:${draft.isAllDay ? "all-day" : "timed"}`} timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={reconcileCreatedEvent} /> : null}</Inspector>
     {ai.isOpen ? <AISidecar open onClose={ai.close} context="Calendar"><CalendarAssistant timezone={timezone} categories={categories} /></AISidecar> : null}
     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent><CalendarCategoryManager categories={categories} timezone={timezone} scopeReady={scopeReady} events={eventState} referenceTime={cursor.getTime()} /></DialogContent></Dialog>
   </section>;

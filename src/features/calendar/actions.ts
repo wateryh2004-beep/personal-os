@@ -11,6 +11,7 @@ import { calendarPayload, calendarUpdatePayload } from "./utils";
 import { markInboxProcessed } from "@/features/inbox/service";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { syncEntityReferenceLinks } from "@/features/links/service";
 
 export type CalendarCreateState = { status: "idle" | "success" | "error"; message: string };
 
@@ -87,6 +88,21 @@ async function classificationOptions(supabase: Awaited<ReturnType<typeof require
   return error ? { enabled: true as const } : { enabled: true as const, rules: data ?? [] };
 }
 
+/**
+ * 日程保存后把说明里的跨实体内链写入 entity_links。
+ * 先经 calendar_operations.result 拿 provider_event_id，再解析本地 calendar_events.id；
+ * 失败只记日志，不影响保存主流程。
+ */
+async function syncCalendarEventLinks(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, operationId: string, description: string | null | undefined) {
+  if (description === undefined) return;
+  const { data: operation } = await supabase.from("calendar_operations").select("provider_event_id").eq("id", operationId).maybeSingle();
+  if (!operation?.provider_event_id) return;
+  const { data: event } = await supabase.from("calendar_events").select("id").eq("user_id", userId).eq("provider_event_id", operation.provider_event_id).is("archived_at", null).maybeSingle();
+  if (!event?.id) return;
+  const linkSync = await syncEntityReferenceLinks(supabase, userId, "calendar_event", event.id, description ?? "");
+  if (!linkSync.ok) console.error(JSON.stringify({ level: "warn", action: "sync_entity_reference_links", calendarEventId: event.id, code: linkSync.code }));
+}
+
 export async function createCalendarEvent(_previousState: CalendarCreateState, formData: FormData): Promise<CalendarCreateState> {
   try {
     const { supabase, userId } = await requireOwner();
@@ -115,6 +131,7 @@ export async function createCalendarEvent(_previousState: CalendarCreateState, f
     await audit(supabase, userId, "confirm", queued.id, { operation_type: queued.operation_type, confirmation: "single_step" });
     try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "创建") }; }
     await markInboxProcessed(supabase, userId, inboxId, "calendar", queued.id);
+    await syncCalendarEventLinks(supabase, userId, queued.id, parsed.data.description);
     revalidatePath("/calendar");
     revalidatePath("/inbox");
     revalidatePath("/today");
@@ -158,6 +175,7 @@ export async function updateCalendarEvent(_previousState: CalendarCreateState, f
     if (queueError || !queued) fail();
     await audit(supabase, userId, "confirm", queued.id, { operation_type: "update", confirmation: "single_step" });
     try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "更新") }; }
+    await syncCalendarEventLinks(supabase, userId, queued.id, value.description);
     revalidatePath("/calendar"); revalidatePath("/today");
     return { status: "success", message: "已更新并同步到 Outlook。" };
   } catch {
