@@ -2,7 +2,7 @@
 
 import { Archive, Download, File, FilePlus2, Folder, FolderPlus, LoaderCircle, MoreHorizontal, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { archiveFile, createFileFolder, moveFile, renameFile } from "@/features/files/actions";
+import { archiveFile, createFileFolder, moveFile, renameFile, restoreFile } from "@/features/files/actions";
 import { directUploadFailureMessage } from "@/features/files/r2-errors";
 import type { FileFolder, FileRecord } from "@/features/files/queries";
 
@@ -46,7 +46,7 @@ async function browserR2NetworkMessage() {
   return directUploadFailureMessage(null);
 }
 
-export function FilesWorkspace({ folders, files, initialUpload = false }: { folders: FileFolder[]; files: FileRecord[]; initialUpload?: boolean }) {
+export function FilesWorkspace({ folders, files, archivedFiles = [], initialUpload = false }: { folders: FileFolder[]; files: FileRecord[]; archivedFiles?: FileRecord[]; initialUpload?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [fileRows, setFileRows] = useState(files);
   const [folderId, setFolderId] = useState<string | null>(null);
@@ -88,6 +88,7 @@ export function FilesWorkspace({ folders, files, initialUpload = false }: { fold
             folder_id: payload.file.folderId,
             uploaded_at: now,
             created_at: now,
+            archived_at: null,
             text_extraction_status: verification.extractionStatus ?? payload.file.textExtractionStatus,
             extracted_character_count: 0,
           };
@@ -134,6 +135,12 @@ export function FilesWorkspace({ folders, files, initialUpload = false }: { fold
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e7e5e4] pb-4"><div><h1 className="text-xl font-semibold text-zinc-900">{activeFolder?.name ?? "全部文件"}</h1><p className="mt-1 text-sm text-zinc-500">{activeFolder ? `${visibleFiles.length} 个文件` : `${fileRows.length} 个文件`}</p></div><div><input ref={inputRef} className="hidden" type="file" multiple onChange={(event) => void upload(event.target.files)} /><button disabled={uploadBusy} onClick={() => inputRef.current?.click()} className="inline-flex items-center gap-2 bg-[#365f78] px-3 py-2 text-sm font-medium text-white disabled:opacity-60">{uploadBusy ? <LoaderCircle size={16} className="animate-spin" /> : <Upload size={16} />}{stage === "preparing" ? "正在准备…" : stage === "uploading" ? `正在上传… ${progress}%` : stage === "verifying" ? "正在确认…" : stage === "extracting" ? "正在解析文本…" : "上传文件"}</button></div></div>
       {message ? <p role="status" className={`mt-3 text-sm ${message.startsWith("已") ? "text-[#365f78]" : "text-red-700"}`}>{message}</p> : null}
       {!visibleFiles.length ? <div className="flex min-h-64 flex-col items-center justify-center text-center"><FilePlus2 size={28} className="text-[#365f78]" /><h2 className="mt-3 font-medium text-zinc-900">这里还没有文件</h2><p className="mt-1 text-sm text-zinc-500">上传文件，或切换到其他文件夹。</p></div> : <ul className="divide-y divide-[#eceae6]">{visibleFiles.map((file) => <li className="flex items-center gap-3 py-3" key={file.id}><File size={18} className="shrink-0 text-zinc-400" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-zinc-800">{file.title}</p><p className="mt-0.5 font-mono text-xs text-zinc-400">{formatBytes(file.file_size)} · {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}{file.text_extraction_status === "completed" ? ` · 已索引 ${file.extracted_character_count.toLocaleString("zh-CN")} 字` : file.text_extraction_status === "processing" || file.text_extraction_status === "pending" ? " · 正在建立全文索引" : file.text_extraction_status === "too_large" ? " · 文件过大，暂不解析" : file.text_extraction_status === "unsupported" ? " · 此类型暂不解析" : file.text_extraction_status === "failed" ? " · 文本解析失败" : ""}</p></div>{["failed", "pending", "not_requested"].includes(file.text_extraction_status) ? <button type="button" disabled={extractingId === file.id} onClick={() => void retryExtraction(file.id)} className="rounded px-2 py-1 text-xs text-[#365f78] hover:bg-[#edf3f6] disabled:opacity-50">{extractingId === file.id ? "解析中…" : "解析文本"}</button> : null}<a href={`/api/files/${file.id}/download`} className="rounded p-1.5 text-zinc-500 hover:bg-[#edf3f6] hover:text-[#365f78]" aria-label={`下载 ${file.title}`}><Download size={16} /></a><details className="relative"><summary aria-label={`操作 ${file.title}`} className="list-none rounded p-1.5 text-zinc-500 hover:bg-zinc-100"><MoreHorizontal size={16} /></summary><div className="absolute right-0 z-10 mt-1 w-52 border border-[#e7e5e4] bg-white p-2 shadow-lg"><form action={renameFile} className="space-y-2"><input name="title" defaultValue={file.title} className="w-full border border-[#d8d6d0] px-2 py-1 text-xs" /><input type="hidden" name="document_id" value={file.id} /><button className="text-xs text-[#365f78]">重命名</button></form><form action={moveFile} className="mt-2 border-t pt-2"><input type="hidden" name="document_id" value={file.id} /><select name="folder_id" defaultValue={file.folder_id ?? ""} className="w-full border border-[#d8d6d0] px-2 py-1 text-xs"><option value="">根目录</option>{sortedFolders.map((folder) => <option key={folder.id} value={folder.id}>{"　".repeat(folderDepth(folder, folders))}{folder.name}</option>)}</select><button className="mt-2 text-xs text-[#365f78]">移动文件</button></form><form action={archiveFile} className="mt-2 border-t pt-2"><input type="hidden" name="document_id" value={file.id} /><button className="inline-flex items-center gap-1 text-xs text-red-700"><Archive size={13} />归档</button></form></div></details></li>)}</ul>}
+      {archivedFiles.length > 0 ? (
+        <details className="mt-6 border-t border-[#eceae6] pt-4">
+          <summary className="flex cursor-pointer select-none items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700"><Archive size={15} />已归档 <span className="font-mono text-xs text-zinc-400">{archivedFiles.length}</span></summary>
+          <ul className="mt-2 divide-y divide-[#f2f0ec]">{archivedFiles.map((file) => <li className="flex items-center gap-3 py-2.5" key={file.id}><File size={16} className="shrink-0 text-zinc-400" /><div className="min-w-0 flex-1"><p className="truncate text-sm text-zinc-700">{file.title}</p><p className="mt-0.5 font-mono text-xs text-zinc-400">{formatBytes(file.file_size)} · 归档于 {new Date(file.archived_at ?? file.uploaded_at).toLocaleDateString("zh-CN")}</p></div><a href={`/api/files/${file.id}/download`} className="rounded p-1.5 text-zinc-500 hover:bg-[#edf3f6] hover:text-[#365f78]" aria-label={`下载 ${file.title}`}><Download size={15} /></a><form action={restoreFile}><input type="hidden" name="document_id" value={file.id} /><button className="rounded bg-[#edf3f6] px-2 py-1 text-xs text-[#365f78] hover:bg-[#dfeaf0]">恢复</button></form></li>)}</ul>
+        </details>
+      ) : null}
     </section>
   </div>;
 }
