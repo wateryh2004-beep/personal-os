@@ -184,12 +184,12 @@ export async function convertInboxToDailyNote(_: InboxCaptureState, formData: Fo
   try {
     const { supabase, userId } = await requireOwner();
     const { data: item, error: itemError } = await supabase.from("inbox_items")
-      .select("id,content_markdown,converted_task_id,converted_note_id")
+      .select("id,content_markdown,converted_task_id,converted_todo_task_id,converted_note_id")
       .eq("user_id", userId)
       .eq("id", parsed.data.inboxId)
       .maybeSingle();
     if (itemError || !item) throw new Error("inbox_not_found");
-    if (item.converted_task_id) {
+    if (item.converted_task_id || item.converted_todo_task_id) {
       return { status: "error", message: "这条内容已经转成任务，不能再次写入日记。" };
     }
     if (item.converted_note_id) {

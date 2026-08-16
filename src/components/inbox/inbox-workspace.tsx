@@ -39,6 +39,7 @@ type InboxItem = {
   created_at: string;
   processed_at: string | null;
   converted_task_id: string | null;
+  converted_todo_task_id: string | null;
   converted_note_id: string | null;
   archived_at?: string | null;
   ai_proposal: InboxProposal | null;
