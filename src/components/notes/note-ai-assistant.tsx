@@ -23,6 +23,8 @@ import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 
 export type NoteSelection = {
   text: string;
+  contextBefore?: string;
+  contextAfter?: string;
   rect: { left: number; top: number };
   replace: (text: string) => boolean;
   insertBelow: (text: string) => boolean;
@@ -32,6 +34,8 @@ type Request = {
   scope: "note" | "selection";
   instruction?: string;
   content: string;
+  contextBefore?: string;
+  contextAfter?: string;
 };
 const shortcuts: Array<[NoteAiOperation, string, React.ReactNode]> = [
   ["summarizeNote", "总结", <Sparkles key="summary" />],
@@ -101,6 +105,8 @@ export function NoteAiAssistant({
     data.set("model", model);
     data.set("use_personal_context", String(usePersonalContext));
     if (next.instruction) data.set("instruction", next.instruction);
+    if (next.contextBefore) data.set("context_before", next.contextBefore);
+    if (next.contextAfter) data.set("context_after", next.contextAfter);
     startTransition(async () =>
       setResult(await generateNoteAiSuggestion(data)),
     );
@@ -138,7 +144,16 @@ export function NoteAiAssistant({
   const selectionOperation = (operation: NoteAiOperation) => {
     if (!selection) return;
     onOpen();
-    run({ operation, scope: "selection", content: selection.text }, selection);
+    run(
+      {
+        operation,
+        scope: "selection",
+        content: selection.text,
+        contextBefore: selection.contextBefore,
+        contextAfter: selection.contextAfter,
+      },
+      selection,
+    );
   };
   const startCustomSelection = () => {
     if (!selection) return;
@@ -354,6 +369,8 @@ export function NoteAiAssistant({
                       scope: "selection",
                       content: customSelection.text,
                       instruction: question,
+                      contextBefore: customSelection.contextBefore,
+                      contextAfter: customSelection.contextAfter,
                     }, customSelection)
                   : runNote("askNote")
               }
@@ -397,6 +414,11 @@ export function NoteAiAssistant({
                 <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[10px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? `所选文字 · ${request.content.length} 字` : "当前笔记"}</span>
               </div>
               <pre className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">{result.suggestion}</pre>
+              {result.warning ? (
+                <p role="status" className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {result.warning}
+                </p>
+              ) : null}
               {result.contextSources?.length ? (
                 <details className="mt-4 border-t pt-3 text-xs">
                   <summary className="cursor-pointer text-zinc-500">

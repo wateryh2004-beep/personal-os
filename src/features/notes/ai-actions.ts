@@ -9,10 +9,12 @@ import {
   markdownStructureProtectionRule,
   noteAiInstruction,
   noteAiOperations,
+  noteAiSelectionContext,
   noteAiSystemPrompt,
   type NoteAiPromptKey,
 } from "./ai-prompts";
 import { protectNoteStructures } from "./ai-protect";
+import { evaluateRewriteGuardrail } from "./ai-guardrails";
 import { runAssistant } from "@/features/assistant/runtime";
 
 const requestSchema = z.object({
@@ -24,6 +26,8 @@ const requestSchema = z.object({
   model: z.enum(deepSeekModelIds).optional(),
   scope: z.enum(["note", "selection"]),
   usePersonalContext: z.boolean().optional(),
+  contextBefore: z.string().max(4_000).optional(),
+  contextAfter: z.string().max(4_000).optional(),
 });
 export type NoteAiState = {
   status: "idle" | "success" | "error";
@@ -31,6 +35,7 @@ export type NoteAiState = {
   suggestion: string;
   operation?: string;
   scope?: "note" | "selection";
+  warning?: string;
   contextSources?: Array<{
     id: string;
     title: string;
@@ -53,6 +58,8 @@ export async function generateNoteAiSuggestion(
     model: formData.get("model") || undefined,
     scope: formData.get("scope"),
     usePersonalContext: formData.get("use_personal_context") === "true",
+    contextBefore: formData.get("context_before") || undefined,
+    contextAfter: formData.get("context_after") || undefined,
   });
   if (!parsed.success)
     return { status: "error", message: "AI 请求内容无效。", suggestion: "" };
@@ -90,7 +97,7 @@ export async function generateNoteAiSuggestion(
       : "";
     const selectionNote =
       parsed.data.scope === "selection"
-        ? "\n\n上下文：这是用户从笔记中选中的一段文字，可能位于文章中间；只处理这段文字，保留其原有的内部链接、双链、图片与代码块。"
+        ? `\n\n上下文：这是用户从笔记中选中的一段文字，可能位于文章中间；只处理这段文字，保留其原有的内部链接、双链、图片与代码块。${noteAiSelectionContext({ before: parsed.data.contextBefore, after: parsed.data.contextAfter })}`
         : "";
     const result = await runAssistant({
       surface: "notes",
@@ -131,6 +138,11 @@ export async function generateNoteAiSuggestion(
     };
     // 结构保护还原：模型输出里可能残留占位符，映射回真实的链接/双链/图片/代码块。
     if (shouldProtect) response.suggestion = restore(response.suggestion).trim();
+    // 改写护栏：改写类输出远短于原文时提示可能丢失内容（软提醒，不阻断确认）。
+    const warning = shouldProtect
+      ? evaluateRewriteGuardrail(parsed.data.content.length, response.suggestion.length)
+      : null;
+    if (warning) response.warning = warning;
     return response;
   } catch {
     return {

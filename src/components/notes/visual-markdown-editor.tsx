@@ -118,9 +118,16 @@ export function VisualMarkdownEditor({
       selectionRef.current?.(null);
       return;
     }
+    // 选区上下文窗口：把选区前后紧邻的原文一并上报，避免选区成为"上下文孤岛"。
+    const contextWindow = 400;
+    const doc = currentView.state.doc;
+    const contextBefore = doc.sliceString(Math.max(0, range.from - contextWindow), range.from);
+    const contextAfter = doc.sliceString(range.to, Math.min(doc.length, range.to + contextWindow));
     const coordinates = currentView.coordsAtPos(range.from);
     selectionRef.current?.({
       text: selectedText,
+      contextBefore,
+      contextAfter,
       rect: { left: coordinates?.left ?? 0, top: coordinates?.top ?? 0 },
       replace: (text) => {
         if (currentView.state.sliceDoc(range.from, range.to) !== selectedText) return false;

@@ -44,4 +44,9 @@ describe("note AI prompt registry", () => {
     expect(noteAiInstruction("polishNote", undefined, overrides)).toBe("保留我的原话");
     expect(personalKnowledgeSystemPrompt).not.toBe("自定义系统边界");
   });
+
+  it("carries the output contract into the global system prompt", () => {
+    expect(personalKnowledgeSystemPrompt).toContain("输出契约");
+    expect(personalKnowledgeSystemPrompt).toContain("不要用 Markdown 代码围栏");
+  });
 });
