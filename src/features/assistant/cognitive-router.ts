@@ -47,7 +47,7 @@ const patterns: Array<{ recipe: CognitiveRecipe; patterns: RegExp[]; weight: num
   { recipe: "next_best_action", patterns: [/下一步|接下来.{0,8}(?:做什么|该做)|现在最该|优先做什么|最佳行动/], weight: 9 },
   { recipe: "decision_support", patterns: [/决策|取舍|权衡|该不该|要不要|怎么选|选择哪个|利弊/], weight: 8 },
   { recipe: "career_strategy", patterns: [/职业|求职|实习|秋招|校招|岗位|简历|面试|offer|职业路线|职业方向|量化/i], weight: 7 },
-  { recipe: "time_planning", patterns: [/空闲|日程|时间安排|时间段|本周计划|今天计划|明天计划|什么时候做|如何安排时间/], weight: 7 },
+  { recipe: "time_planning", patterns: [/空闲|有时间|有空|日程|时间安排|时间段|本周计划|今天计划|明天计划|什么时候做|如何安排时间|下周|本周|这周|要做什么|有什么安排|安排什么/], weight: 7 },
   { recipe: "semantic_recall", patterns: [/我记得|大概提过|类似的|相关的旧笔记|以前怎么想|模糊记得|找回/], weight: 6 },
   { recipe: "factual_lookup", patterns: [/搜索|查找|找到|哪篇|在哪里|提到过|记录过|查一下/], weight: 5 },
 ];
@@ -83,7 +83,7 @@ export function routeCognitiveTask(input: {
     recipe = "retrospective_thinking";
     confidence = 0.96;
     signals.push("self_profile");
-  } else if (mutationPattern.test(message) && !/(改变.{0,8}(?:看法|观点|想法)|变化)/.test(message)) {
+  } else if (mutationPattern.test(message) && !/(改变.{0,8}(?:看法|观点|想法)|变化)/.test(message) && !/(?:有什么|什么|哪些|我的)安排/.test(message)) {
     recipe = "mutation_request";
     confidence = 0.94;
     signals.push("explicit_mutation");

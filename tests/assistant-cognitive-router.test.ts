@@ -48,6 +48,14 @@ describe("Cognitive Task Router", () => {
     expect(routeCognitiveTask({ message, surface: "global" }).recipe).toBe(expected);
   });
 
+  it.each([
+    ["我下周要做什么？", "time_planning"],
+    ["这周有什么安排？", "time_planning"],
+    ["明天下午有空吗？", "time_planning"],
+  ])("routes week questions %s to %s", (message, expected) => {
+    expect(routeCognitiveTask({ message, surface: "global" }).recipe).toBe(expected);
+  });
+
   it("keeps calendar mutations on read + proposal tools", () => {
     const message = "明天下午三点帮我安排会议。";
     const route = routeCognitiveTask({ message, surface: "global" });

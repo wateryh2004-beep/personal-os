@@ -24,4 +24,9 @@ describe("Assistant Context Gate", () => {
     expect(gate("我是谁")).toMatchObject({ mode:"cross_module", needsPersonalData:true });
     expect(gate("你好")).toMatchObject({ mode:"none", needsPersonalData:false });
   });
+  it("下周等周次引用路由到日历与任务，而非普通常识", () => {
+    expect(gate("我下周要做什么？")).toMatchObject({ mode:"targeted", likelyModules:["calendar","tasks"], needsPersonalData:true, needsTools:true });
+    expect(gate("这周有什么安排？")).toMatchObject({ mode:"targeted", likelyModules:["calendar","tasks"], needsPersonalData:true });
+    expect(gate("帮我安排下周的会议。")).toMatchObject({ mode:"action", likelyModules:["calendar"] });
+  });
 });

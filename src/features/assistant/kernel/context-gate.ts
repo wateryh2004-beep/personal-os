@@ -3,8 +3,8 @@ import type { KernelRequestContext, ContextGateDecision, PersonalOsModuleId } fr
 const personal = /(?:\b(?:my|mine|me)\b|我(?:的|现在|最近|之前|曾经|还|是|觉得自己)|觉得我|认为我|看待我|了解我|懂我|认识我|结合我|适合我|关于我|我这个人|个人|记录过)/i;
 const mutation = /创建|新建|添加|写入|修改|更新|改成|改为|删除|完成|安排|改期|取消|保存|归档/;
 const search = /搜索|查找|找到|之前|记录过|笔记|文件|日记|回顾|复盘/;
-const calendar = /日程|会议|空闲|有时间|明天|后天|上午|下午|晚上|\d{1,2}(?::\d{2}|点)/;
-const tasks = /任务|待办|todo|截止|逾期/iu;
+const calendar = /日程|会议|空闲|有时间|明天|后天|上午|下午|晚上|下周|本周|这周|上周|周[一二三四五六日]|星期[一二三四五六日天]|\d{1,2}(?::\d{2}|点)/;
+const tasks = /任务|待办|todo|截止|逾期|要做什么|有什么安排|有什么计划/iu;
 const career = /职业|求职|实习|秋招|校招|岗位|简历|面试|offer|量化|REIT/i;
 const retrospective = /最近.{0,12}(?:想|思考|关注|反复)|这段时间|观点.{0,8}变化|改变.{0,8}(?:看法|想法|观点)/;
 const greeting = /^(?:你好|嗨|hello|hi|谢谢|感谢|好的|ok)[！!。.]?$/i;
@@ -31,7 +31,7 @@ export function decideContextGate(input: KernelRequestContext): ContextGateDecis
   if (/旅行|旅游|行程|目的地|路线|景点/i.test(text)) modules.push("travel");
   if (/Briefing|简报|RSS/i.test(text)) modules.push("briefing");
   if (/我现在|我的情况|偏好|决定|方向/.test(text)) modules.push("memory");
-  const isMutation = mutation.test(text);
+  const isMutation = mutation.test(text) && !/(?:有什么|什么|哪些|我的)安排/.test(text);
   if (isMutation) return { mode:"action", complexity:"moderate", likelyModules:unique(modules.length ? modules : ["tasks"]), suggestedSkills:calendar.test(text)?["time-planning"]:[], needsPersonalData:true, needsTools:true, needsCurrentSurface:false, reasonCode:"mutation" };
   if (retrospective.test(text)) { const changing = /变化|改变|看法/.test(text); const retrospectiveModules: PersonalOsModuleId[] = changing ? ["memory", "notes"] : ["memory", "notes", "reviews"]; return { mode:"cross_module", complexity:"deep", likelyModules:unique(retrospectiveModules), suggestedSkills:[changing?"belief-change":"retrospective-thinking"], needsPersonalData:true, needsTools:true, needsCurrentSurface:false, reasonCode:"personal_analysis" }; }
   if (selfProfile.test(text)) return { mode:"cross_module", complexity:"deep", likelyModules:["memory","notes","reviews"], suggestedSkills:["retrospective-thinking"], needsPersonalData:true, needsTools:true, needsCurrentSurface:false, reasonCode:"self_profile" };

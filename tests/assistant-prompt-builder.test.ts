@@ -51,6 +51,26 @@ describe("Root agent prompt builder", () => {
     expect(prompt).toContain("不要罗列功能");
   });
 
+  it("提供 now 时注入 CURRENT_TIME 真实时间，否则回退到时区行", () => {
+    const withNow = buildRootAgentPrompt({
+      timezone: "Asia/Shanghai",
+      now: new Date("2026-08-16T04:00:00.000Z"),
+      userName: "余航",
+      sessionState,
+      gateDecision: greetingGate,
+    });
+    expect(withNow).toContain("CURRENT_TIME\n现在（用户时区 Asia/Shanghai）：2026-08-16 星期日 12:00");
+    expect(withNow).not.toContain("当前时区：Asia/Shanghai。");
+    const withoutNow = buildRootAgentPrompt({
+      timezone: "Asia/Shanghai",
+      userName: "余航",
+      sessionState,
+      gateDecision: greetingGate,
+    });
+    expect(withoutNow).toContain("当前时区：Asia/Shanghai。");
+    expect(withoutNow).not.toContain("现在（用户时区 Asia/Shanghai）");
+  });
+
   it("需要个人数据时注入 Manifest 与技能清单", () => {
     const prompt = buildRootAgentPrompt({
       timezone: "Asia/Shanghai",
