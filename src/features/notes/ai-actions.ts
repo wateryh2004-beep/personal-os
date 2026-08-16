@@ -138,7 +138,10 @@ export async function generateNoteAiSuggestion(
     }
     const response: NoteAiState = {
       status: "success",
-      message: "预览已生成。确认操作已显示在抽屉底部。",
+      message:
+        parsed.data.operation === "generateTitle"
+          ? "已生成标题并替换，可在标题栏旁撤回。"
+          : "预览已生成。确认操作已显示在抽屉底部。",
       suggestion,
       operation: parsed.data.operation,
       scope: parsed.data.scope,

@@ -1,4 +1,4 @@
-export const noteAiOperations = ["summarizeNote", "extractActions", "restructureNote", "polishNote", "deepThinkNote", "askNote", "polishSelection", "shortenSelection", "expandSelection", "summarizeSelection", "explainSelection", "clarifySelection", "formalSelection", "naturalSelection", "actionsSelection", "listSelection", "customSelection"] as const;
+export const noteAiOperations = ["summarizeNote", "extractActions", "restructureNote", "polishNote", "deepThinkNote", "generateTitle", "askNote", "polishSelection", "shortenSelection", "expandSelection", "summarizeSelection", "explainSelection", "clarifySelection", "formalSelection", "naturalSelection", "actionsSelection", "listSelection", "customSelection"] as const;
 export type NoteAiOperation = typeof noteAiOperations[number];
 export type NoteAiPromptKey = "notes.system" | `notes.${NoteAiOperation}`;
 
@@ -73,6 +73,7 @@ const instructions: Record<NoteAiOperation, string> = {
   restructureNote: "保留全部事实与原意，重新组织标题、段落和层级，使结构更清楚。仅输出可替换的 Markdown 正文。",
   polishNote: "目标是让文字更顺、更好读、更清晰。可以调整语序、重组段落、重排事件顺序，但原文里说到的每一件事、观点和细节都必须保留在结果里：不得删除任何完整段落、主题或信息点，只允许删掉句内明显重复的词。不增加新事实，不改变专有名词、日期或数字。保留第一人称语气与口语原声（停顿、语气词、吐槽、未说完的话），不要把真实、粗粝或尚未想清楚的内容强行改成成熟结论。仅输出可替换的 Markdown 正文。",
   deepThinkNote: "仅基于当前笔记，识别关键判断、隐含假设、因果跳跃、可能反例、风险与待确认问题。必须区分原文事实和推论；不要迎合原结论，也不要补充原文没有依据的事实。优先追问具体证据和替代解释，最后把仍应由 Hang Yu 判断的问题单列出来。",
+  generateTitle: "根据整篇笔记的内容与语气，生成一个准确、有信息量的中文标题。标题要概括核心主题或结论，简洁有力，10~20 字为宜。只输出标题本身，不加引号、冒号、序号、解释或任何 Markdown 格式。",
   askNote: "只回答用户关于当前笔记的问题；原文没有依据时明确说“笔记中没有说明”，不要猜测。",
   polishSelection: "只润色所选文字：可调整语序、重组句子让表达更顺，但保留原意、专有名词、日期与数字，不删除任何内容或信息点；仅输出替换后的文字。",
   shortenSelection: "只精简所选文字，保留关键事实与语气；仅输出替换后的文字。",
@@ -93,6 +94,7 @@ const labels: Record<NoteAiOperation, string> = {
   restructureNote: "整理结构",
   polishNote: "润色全文",
   deepThinkNote: "深入思考",
+  generateTitle: "生成标题",
   askNote: "询问当前笔记",
   polishSelection: "选区润色",
   shortenSelection: "选区精简",

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   CheckSquare,
   Copy,
+  FileText,
   Lightbulb,
   ListTree,
   Sparkles,
@@ -44,6 +45,7 @@ const shortcuts: Array<[NoteAiOperation, string, React.ReactNode]> = [
   ["restructureNote", "整理结构", <ListTree key="structure" />],
   ["polishNote", "润色全文", <WandSparkles key="polish" />],
   ["deepThinkNote", "深入思考", <Lightbulb key="think" />],
+  ["generateTitle", "生成标题", <FileText key="title" />],
 ];
 
 export function NoteAiAssistant({
@@ -57,6 +59,7 @@ export function NoteAiAssistant({
   selection,
   onReplaceNote,
   onInsertNote,
+  onReplaceTitle,
 }: {
   open: boolean;
   onOpen: () => void;
@@ -68,6 +71,7 @@ export function NoteAiAssistant({
   selection: NoteSelection | null;
   onReplaceNote: (text: string) => void;
   onInsertNote: (text: string) => void;
+  onReplaceTitle: (title: string) => void;
 }) {
   const [model, setModel] = useState<DeepSeekModelId>(defaultModel);
   const [question, setQuestion] = useState("");
@@ -185,6 +189,17 @@ export function NoteAiAssistant({
     setResult({ status: "idle", message: "", suggestion: "" });
   };
 
+  // 生成标题是「直接替换」型操作：结果返回后立即替换标题，撤回由标题栏负责。
+  useEffect(() => {
+    if (
+      request?.operation === "generateTitle" &&
+      result.status === "success" &&
+      result.suggestion
+    ) {
+      onReplaceTitle(result.suggestion);
+    }
+  }, [request?.operation, result.status, result.suggestion, onReplaceTitle]);
+
   useEffect(() => {
     if (!result.suggestion) return;
     const frame = window.requestAnimationFrame(() => {
@@ -274,7 +289,7 @@ export function NoteAiAssistant({
         context="当前笔记"
         footer={
           <div className="space-y-3">
-            {result.suggestion ? (
+            {result.suggestion && request?.operation !== "generateTitle" ? (
               <div aria-label="AI 结果确认操作" className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium text-[var(--text-primary)]">AI 结果待确认</p>
@@ -317,6 +332,22 @@ export function NoteAiAssistant({
                     放弃
                   </button>
                 </div>
+              </div>
+            ) : null}
+            {result.suggestion && request?.operation === "generateTitle" ? (
+              <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+                <p className="text-xs font-medium text-emerald-800">
+                  已替换标题为「{result.suggestion}」
+                </p>
+                <p className="text-xs text-emerald-700">
+                  不满意可点笔记标题栏旁的「撤回标题」按钮恢复原标题。
+                </p>
+                <button
+                  onClick={() => request && run(request, resultSelection)}
+                  className="min-h-8 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                >
+                  重新生成
+                </button>
               </div>
             ) : null}
             <div className="flex items-center justify-between border-t pt-2">

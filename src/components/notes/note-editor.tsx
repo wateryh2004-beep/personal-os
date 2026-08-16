@@ -104,6 +104,8 @@ async function copyText(value: string) {
 export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDefaultModel: DeepSeekModelId }) {
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
+  const [titleUndoStack, setTitleUndoStack] = useState<string[]>([]);
+  const titleUndoStackRef = useRef<string[]>([]);
   const [state, setState] = useState<SaveState>("已保存");
   const [lastSavedAt, setLastSavedAt] = useState(note.last_saved_at);
   const [editVersion, setEditVersion] = useState(0);
@@ -327,6 +329,28 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
     setBody(value);
     dirty(title, value);
   }, [dirty, title]);
+  // AI 生成标题：直接替换标题，旧标题压栈供撤回（支持连续多次生成逐步撤回）。
+  const handleAiReplaceTitle = useCallback((newTitle: string) => {
+    const next = newTitle
+      .trim()
+      .replace(/^[「『“”‘’"']+/, "")
+      .replace(/[」』“”‘’"']+$/, "")
+      .trim();
+    if (!next || next === title) return;
+    titleUndoStackRef.current = [...titleUndoStackRef.current, title];
+    setTitleUndoStack([...titleUndoStackRef.current]);
+    setTitle(next);
+    dirty(next, body);
+  }, [body, dirty, title]);
+  const handleAiUndoTitle = useCallback(() => {
+    const stack = titleUndoStackRef.current;
+    if (!stack.length) return;
+    const prev = stack[stack.length - 1];
+    titleUndoStackRef.current = stack.slice(0, -1);
+    setTitleUndoStack([...titleUndoStackRef.current]);
+    setTitle(prev);
+    dirty(prev, body);
+  }, [body, dirty]);
   const isExporting = Boolean(pdfSnapshot);
   const fullscreenActive = isFullscreen || isFallbackFullscreen;
   const statusLabel = state === "已保存" ? savedTimeLabel(lastSavedAt) : state;
@@ -372,6 +396,9 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             value={title}
             onChange={(event) => {
               const nextTitle = event.target.value;
+              // 手动编辑标题后 AI 标题的撤回栈失效，避免撤回覆盖手动修改。
+              titleUndoStackRef.current = [];
+              setTitleUndoStack([]);
               setTitle(nextTitle);
               dirty(nextTitle, body);
             }}
@@ -384,6 +411,16 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
           >
             {statusLabel}
           </span>
+          {titleUndoStack.length ? (
+            <button
+              type="button"
+              onClick={handleAiUndoTitle}
+              title={`恢复标题：${titleUndoStack[titleUndoStack.length - 1]}`}
+              className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800 hover:bg-amber-100"
+            >
+              撤回标题
+            </button>
+          ) : null}
           <Button
             variant="ghost"
             size="sm"
@@ -485,6 +522,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
           setBody(suggestion);
           dirty(title, suggestion);
         }}
+        onReplaceTitle={handleAiReplaceTitle}
         onInsertNote={(suggestion) => {
           const nextBody = `${body}${body.trim() ? "\n\n" : ""}${suggestion}`;
           setBody(nextBody);
