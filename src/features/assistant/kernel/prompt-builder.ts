@@ -2,4 +2,18 @@ import { ROOT_AGENT_CONSTITUTION } from "./constitution";
 import { formatOsManifestForModel } from "./os-manifest";
 import { formatSkillCatalogForModel, formatSkillInstructions, getSkills } from "../skills/registry";
 import type { AgentSessionState, ContextGateDecision } from "./types";
-export function buildRootAgentPrompt(input:{ timezone:string; sessionState:AgentSessionState; gateDecision:ContextGateDecision; currentSurfaceSummary?:string | null }) { const active=getSkills(input.sessionState.activeSkills); return `${ROOT_AGENT_CONSTITUTION}\n\nPERSONAL_OS_MANIFEST\n${formatOsManifestForModel()}\n\nAVAILABLE_SKILLS\n${formatSkillCatalogForModel()}\n\nREQUEST_GATE\nmode=${input.gateDecision.mode}; modules=${input.gateDecision.likelyModules.join(",")||"none"}; personal_data=${input.gateDecision.needsPersonalData}\n\nSESSION_STATE\ngoal=${input.sessionState.activeGoal??"none"}; topic=${input.sessionState.activeTopic??"none"}; constraints=${input.sessionState.activeConstraints.join("；")||"none"}\n${input.currentSurfaceSummary?`\nCURRENT_SURFACE\n${input.currentSurfaceSummary}`:""}\n\n${formatSkillInstructions(active)}\n当前时区：${input.timezone}。`; }
+export function buildRootAgentPrompt(input:{ timezone:string; userName?: string | null; sessionState:AgentSessionState; gateDecision:ContextGateDecision; currentSurfaceSummary?:string | null }) {
+  const active=getSkills(input.sessionState.activeSkills);
+  const sections:string[]=[ROOT_AGENT_CONSTITUTION];
+  if(input.userName) sections.push(`USER_IDENTITY\n你是 ${input.userName} 的 Personal OS 助手，只为本用户服务，当前对话方就是本用户本人。用「${input.userName}」或「你」称呼本用户，不要用「用户」这类泛指来指代；称呼要自然，不必每句都喊名字。`);
+  if(input.gateDecision.needsTools) sections.push(`PERSONAL_OS_MANIFEST\n${formatOsManifestForModel()}`);
+  if(input.gateDecision.needsTools) sections.push(`AVAILABLE_SKILLS\n${formatSkillCatalogForModel()}`);
+  sections.push(`REQUEST_GATE\nmode=${input.gateDecision.mode}; modules=${input.gateDecision.likelyModules.join(",")||"none"}; personal_data=${input.gateDecision.needsPersonalData}`);
+  sections.push(`SESSION_STATE\ngoal=${input.sessionState.activeGoal??"none"}; topic=${input.sessionState.activeTopic??"none"}; constraints=${input.sessionState.activeConstraints.join("；")||"none"}`);
+  if(input.currentSurfaceSummary) sections.push(`CURRENT_SURFACE\n${input.currentSurfaceSummary}`);
+  const skillInstructions=formatSkillInstructions(active);
+  if(skillInstructions) sections.push(skillInstructions);
+  sections.push(`当前时区：${input.timezone}。`);
+  if(input.gateDecision.reasonCode==="conversation_only") sections.push(`本次是纯寒暄：用一句话自然回应并带上称呼即可，不要罗列功能、不要提问，把主动权交还用户。`);
+  return sections.join("\n\n");
+}

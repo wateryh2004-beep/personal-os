@@ -36,6 +36,8 @@ export function extractQueryConcepts(message: string, max = 6) {
 }
 
 const mutationPattern = /(?:创建|新建|添加|写入|修改|更新|改到|改成|改为|删除|完成|移动|安排|改期|延期|取消|保存|归档)(?:.{0,20})(?:日程|会议|任务|待办|笔记|记忆|项目|文件|提醒)?/;
+const identityRecall = /你(?:知道|了解|记得).{0,8}(?:我是谁|我的情况|关于我)|你对我(?:知道|了解)多少/;
+const selfProfile = /我(?:觉得|是)(?:个|一个)?什么(?:样)?(?:的)?人|我是谁|我的(?:性格|画像|类型|特点|标签|为人|兴趣|性格特点)|(?:概括|总结|描述|评价|分析|介绍)(?:一下)?我|你觉得我是一个|你(?:会)?怎么(?:看待|评价|认识)我|了解我|认识我/;
 const patterns: Array<{ recipe: CognitiveRecipe; patterns: RegExp[]; weight: number }> = [
   { recipe: "contradiction_detection", patterns: [/矛盾|冲突|前后不一|自相矛盾|不一致|相互抵触/], weight: 10 },
   { recipe: "belief_change", patterns: [/改变.{0,8}(?:看法|想法|观点|判断|方向)|(?:看法|想法|观点|判断).{0,8}(?:发生)?变化|为什么放弃|不再(?:认为|考虑|选择)|从.{1,12}转向/], weight: 10 },
@@ -73,10 +75,14 @@ export function routeCognitiveTask(input: {
   let confidence = 0.45;
   const signals: string[] = [];
 
-  if (/(?:你(?:知道|了解|记得).{0,8}(?:我是谁|我的情况|关于我)|我是谁|你对我(?:知道|了解)多少)/.test(message)) {
+  if (identityRecall.test(message)) {
     recipe = "semantic_recall";
     confidence = 0.96;
     signals.push("identity_context");
+  } else if (selfProfile.test(message)) {
+    recipe = "retrospective_thinking";
+    confidence = 0.96;
+    signals.push("self_profile");
   } else if (mutationPattern.test(message) && !/(改变.{0,8}(?:看法|观点|想法)|变化)/.test(message)) {
     recipe = "mutation_request";
     confidence = 0.94;

@@ -27,5 +27,5 @@ const words = (value: string) => {
 };
 export function searchSkills(query:string, limit=6) { const queryWords=words(query); return assistantSkillRegistry.map((item) => ({ item, score:queryWords.reduce((score, word) => score + (item.id.includes(word)||item.name.includes(word)||item.description.includes(word)||item.activateWhen.some((value)=>value.includes(word)) ? 3:0),0) })).filter((row)=>row.score>0).sort((a,b)=>b.score-a.score).slice(0,limit).map(({item})=>item); }
 export function getSkills(ids:string[]) { const wanted=new Set(ids); return assistantSkillRegistry.filter((item)=>wanted.has(item.id)); }
-export function formatSkillCatalogForModel() { return assistantSkillRegistry.map((item)=>`${item.id}：${item.description}`).join("\n"); }
+export function formatSkillCatalogForModel() { return `以下方法只用于内部选择分析路径，绝不要向用户罗列这些方法，也不要询问用户想用哪个。\n${assistantSkillRegistry.map((item)=>`${item.id}：${item.description}`).join("\n")}`; }
 export function formatSkillInstructions(skills:AssistantSkill[]) { return skills.map((item)=>`SKILL ${item.id}\n${item.instructions}`).join("\n\n"); }

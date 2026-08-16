@@ -1,6 +1,6 @@
 import type { KernelRequestContext, ContextGateDecision, PersonalOsModuleId } from "./types";
 
-const personal = /(?:\b(?:my|mine|me)\b|我(?:的|现在|最近|之前|曾经|还)|结合我|适合我|关于我|个人|记录过)/i;
+const personal = /(?:\b(?:my|mine|me)\b|我(?:的|现在|最近|之前|曾经|还|是|觉得自己)|觉得我|认为我|看待我|了解我|懂我|认识我|结合我|适合我|关于我|我这个人|个人|记录过)/i;
 const mutation = /创建|新建|添加|写入|修改|更新|改成|改为|删除|完成|安排|改期|取消|保存|归档/;
 const search = /搜索|查找|找到|之前|记录过|笔记|文件|日记|回顾|复盘/;
 const calendar = /日程|会议|空闲|有时间|明天|后天|上午|下午|晚上|\d{1,2}(?::\d{2}|点)/;
@@ -8,6 +8,7 @@ const tasks = /任务|待办|todo|截止|逾期/iu;
 const career = /职业|求职|实习|秋招|校招|岗位|简历|面试|offer|量化|REIT/i;
 const retrospective = /最近.{0,12}(?:想|思考|关注|反复)|这段时间|观点.{0,8}变化|改变.{0,8}(?:看法|想法|观点)/;
 const greeting = /^(?:你好|嗨|hello|hi|谢谢|感谢|好的|ok)[！!。.]?$/i;
+const selfProfile = /我(?:觉得|是)(?:个|一个)?什么(?:样)?(?:的)?人|我是谁|我的(?:性格|画像|类型|特点|标签|为人|兴趣|性格特点)|(?:概括|总结|描述|评价|分析|介绍)(?:一下)?我|你觉得我是一个|你(?:会)?怎么(?:看待|评价|认识)我|了解我|认识我/;
 const general = /^(?:什么是|解释(?:一下)?|为什么|如何理解|区别|翻译)/;
 function unique<T>(items: T[]) { return [...new Set(items)]; }
 export function decideContextGate(input: KernelRequestContext): ContextGateDecision {
@@ -33,6 +34,7 @@ export function decideContextGate(input: KernelRequestContext): ContextGateDecis
   const isMutation = mutation.test(text);
   if (isMutation) return { mode:"action", complexity:"moderate", likelyModules:unique(modules.length ? modules : ["tasks"]), suggestedSkills:calendar.test(text)?["time-planning"]:[], needsPersonalData:true, needsTools:true, needsCurrentSurface:false, reasonCode:"mutation" };
   if (retrospective.test(text)) { const changing = /变化|改变|看法/.test(text); const retrospectiveModules: PersonalOsModuleId[] = changing ? ["memory", "notes"] : ["memory", "notes", "reviews"]; return { mode:"cross_module", complexity:"deep", likelyModules:unique(retrospectiveModules), suggestedSkills:[changing?"belief-change":"retrospective-thinking"], needsPersonalData:true, needsTools:true, needsCurrentSurface:false, reasonCode:"personal_analysis" }; }
+  if (selfProfile.test(text)) return { mode:"cross_module", complexity:"deep", likelyModules:["memory","notes","reviews"], suggestedSkills:["retrospective-thinking"], needsPersonalData:true, needsTools:true, needsCurrentSurface:false, reasonCode:"self_profile" };
   if (career.test(text) && personal.test(text)) return { mode:"cross_module", complexity:"deep", likelyModules:unique(["career","memory"]), suggestedSkills:["career-strategy","decision-support"], needsPersonalData:true, needsTools:true, needsCurrentSurface:false, reasonCode:"cross_domain" };
   if (modules.length || personal.test(text) || search.test(text)) return { mode:"targeted", complexity:(modules.length > 1 ? "moderate" : "simple"), likelyModules:unique(modules.length ? modules : ["memory"]), suggestedSkills:[], needsPersonalData:true, needsTools:true, needsCurrentSurface:false, reasonCode:calendar.test(text)?"time_context":search.test(text)?"retrieval":"personal_fact" };
   return { mode:"none", complexity:"simple", likelyModules:[], suggestedSkills:[], needsPersonalData:false, needsTools:false, needsCurrentSurface:false, reasonCode:"general_knowledge" };
