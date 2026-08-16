@@ -10,6 +10,7 @@ export const assistantSurfaces = [
   "career",
   "reviews",
   "global",
+  "notes-library",
 ] as const;
 export type AssistantSurface = (typeof assistantSurfaces)[number];
 export type AssistantMode = "chat" | "transform" | "triage";

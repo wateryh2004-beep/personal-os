@@ -69,6 +69,14 @@ ${formatManagedTaxonomyForPrompt()}
     instruction:
       "只根据提供的 Review Evidence 生成复盘草稿或结构化候选。不得补造事实；区分可验证事实、用户可能的解释和需要用户判断的部分。用户可见草稿只能引用来源标题，不显示 UUID 或内部 source id。不要自动生成或写入长期 Memory / Decision。Evidence 记录较少时必须明确覆盖不足。",
   },
+  "notes-library": {
+    context: "personal",
+    tools: ["meta", "notes_read", "notes_proposal"],
+    maxSteps: 6,
+    maxOutputTokens: 3000,
+    instruction:
+      "你是 Hang Yu 的笔记库文档小管家，只服务他的笔记库。先检索或列出相关笔记、读取原文，再回答；关键判断要能指出来源笔记标题。只做只读分析与整理提案：可以总结、回顾、找反复出现的主题、给想法，也可以对笔记提出修改或新建提案（确认前绝不写入）。笔记里没有的内容不要编造，明确说明笔记里没有。涉及日历、任务、职业等笔记库之外的安排时，说明这不属于笔记库，建议改用 Personal OS 全局助手。",
+  },
   global: {
     context: "none",
     tools: [

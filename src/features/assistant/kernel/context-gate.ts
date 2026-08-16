@@ -13,6 +13,9 @@ const general = /^(?:什么是|解释(?:一下)?|为什么|如何理解|区别|�
 function unique<T>(items: T[]) { return [...new Set(items)]; }
 export function decideContextGate(input: KernelRequestContext): ContextGateDecision {
   const text = input.message.trim();
+  // 笔记库子 AI 恒为定向检索：只访问笔记，个人上下文作补充。
+  if (input.surface === "notes-library")
+    return { mode:"targeted", complexity:"moderate", likelyModules:["notes"], suggestedSkills:[], needsPersonalData:true, needsTools:true, needsCurrentSurface:false, reasonCode:"retrieval" };
   // Current surface is command input, not a competing retrieval source. It is
   // mandatory for transforms even when personal context is additionally on.
   if (input.requiresCurrentSurface) return { mode: input.usePersonalContext ? "targeted" : "local", complexity:"simple", likelyModules:[], suggestedSkills:[], needsPersonalData:Boolean(input.usePersonalContext), needsTools:Boolean(input.usePersonalContext), needsCurrentSurface:true, reasonCode:"current_surface" };
