@@ -20,17 +20,20 @@ export type NoteLinkQuery = {
   query: string;
 };
 
-// `[[` 是笔记专用入口；`@` 保留跨实体入口，单独输入时显示最近笔记。
+// `[[` / `【【` 是等价的笔记专用入口；`@` 保留跨实体入口，单独输入时显示最近笔记。
 // @ 前是普通字符(如邮箱 foo@bar)时不触发，避免误判邮件地址。
 export function extractNoteLinkQuery(document: string, position: number): NoteLinkQuery | null {
   const lineStart = document.lastIndexOf("\n", Math.max(0, position - 1)) + 1;
   const beforeCursor = document.slice(lineStart, position);
 
-  const wikiOffset = beforeCursor.lastIndexOf("[[");
+  const asciiWikiOffset = beforeCursor.lastIndexOf("[[");
+  const fullWidthWikiOffset = beforeCursor.lastIndexOf("【【");
+  const wikiOffset = Math.max(asciiWikiOffset, fullWidthWikiOffset);
   if (wikiOffset >= 0) {
-    if (beforeCursor[wikiOffset - 1] === "[") return null;
+    const trigger = wikiOffset === fullWidthWikiOffset ? "【【" : "[[";
+    if (beforeCursor[wikiOffset - 1] === trigger[0]) return null;
     const query = beforeCursor.slice(wikiOffset + 2);
-    if (/[\[\]\r\n]/.test(query)) return null;
+    if (/[\[\]【】\r\n]/.test(query)) return null;
     return { kind: "note", from: lineStart + wikiOffset, to: position, query };
   }
 

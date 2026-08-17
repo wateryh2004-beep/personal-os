@@ -56,11 +56,18 @@ describe("note link completion tokens", () => {
     expect(extractNoteLinkQuery("联系 foo@bar.com", 17)).toBeNull();
   });
 
-  it("recognizes an unfinished [[ query and ignores completed or malformed links", () => {
+  it("treats [[ and 【【 as equivalent note-link triggers", () => {
     expect(extractNoteLinkQuery("正文 [[华夏", 7)).toMatchObject({ from: 3, to: 7, query: "华夏", kind: "note" });
     expect(extractNoteLinkQuery("正文 [[", 5)).toMatchObject({ from: 3, to: 5, query: "", kind: "note" });
+    expect(extractNoteLinkQuery("正文 【【华夏", 7)).toMatchObject({ from: 3, to: 7, query: "华夏", kind: "note" });
+    expect(extractNoteLinkQuery("正文 【【", 5)).toMatchObject({ from: 3, to: 5, query: "", kind: "note" });
+  });
+
+  it("ignores completed or malformed Wiki links", () => {
     expect(extractNoteLinkQuery("[[华夏]]", 7)).toBeNull();
     expect(extractNoteLinkQuery("[[[华夏", 6)).toBeNull();
+    expect(extractNoteLinkQuery("【【华夏】】", 6)).toBeNull();
+    expect(extractNoteLinkQuery("【【【华夏", 6)).toBeNull();
   });
 
   it("does not trigger @ completion after whitespace, brackets, or repeated @", () => {
