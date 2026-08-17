@@ -201,10 +201,10 @@ const editorTheme = EditorView.theme({
   ".cm-content": {
     boxSizing: "border-box",
     width: "100%",
-    maxWidth: "820px",
+    maxWidth: "780px",
     minHeight: "100%",
     margin: "0 auto",
-    padding: "34px 42px 64px",
+    padding: "38px 48px 72px",
     caretColor: "var(--accent)",
   },
   ".cm-line": { minHeight: "1.78em", padding: "0" },

@@ -95,7 +95,7 @@ function ToolbarButton({
           disabled={disabled}
           onMouseDown={(event) => event.preventDefault()}
           onClick={onClick}
-          className={`inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-35 ${active ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}
+          className={`inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--text-secondary)] transition-[background-color,color,box-shadow] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:bg-[var(--accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)] disabled:opacity-35 ${active ? "bg-[var(--accent-soft)] text-[var(--accent)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_12%,transparent)]" : ""}`}
         >
           {children}
         </button>
@@ -155,7 +155,7 @@ export function MarkdownToolbar({
             else if (active.quote) run(toggleBlockquote);
             else if (active.codeBlock) run(toggleCodeBlock);
           }}
-          className="h-8 rounded-[var(--radius-sm)] border-0 bg-transparent px-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
+          className="h-8 rounded-[var(--radius-sm)] border border-transparent bg-transparent px-2 text-xs font-medium text-[var(--text-secondary)] transition-[background-color,border-color,color] ui-transition hover:border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)] disabled:opacity-35"
         >
           <option value="paragraph">正文</option>
           <option value="h1">标题 1</option>

@@ -51,16 +51,20 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 /* FullCalendar writes overlap widths as inline left/right percentages after every
    layout. Keep every timed event readable across reflows, navigation and drag. */
 .calendar-canvas .fc .fc-timegrid-event-harness { left:0!important; right:0!important; margin-left:0!important; margin-right:2px!important; }
-.calendar-canvas .fc-daygrid-event { border-radius:4px; margin:2px 3px; min-height:22px; }
+.calendar-canvas .fc-daygrid-day-frame { min-height:112px; }
+.calendar-canvas .fc-daygrid-event { border-radius:5px; margin:2px 3px; min-height:22px; transition:box-shadow var(--motion-fast) var(--ease-standard),filter var(--motion-fast) var(--ease-standard); }
+.calendar-canvas .fc-event:hover { box-shadow:0 2px 7px rgba(24,24,27,.12); filter:saturate(1.06); }
+.calendar-canvas .fc-day-other .fc-daygrid-day-number { color:color-mix(in srgb,var(--text-tertiary) 58%,transparent); }
+.calendar-canvas .fc-day-other { background:color-mix(in srgb,var(--surface-hover) 48%,transparent); }
 .calendar-canvas .fc-event-main { color:inherit!important; }
 .calendar-canvas .fc-highlight { background:color-mix(in srgb,var(--accent-soft) 72%,transparent); }
 .calendar-canvas .fc-more-link { color:var(--accent); font-size:11px; }
 .calendar-canvas .fc-daygrid-day-number { color:var(--text-secondary); font-size:12px; padding:5px 7px; text-decoration:none; }
 .calendar-canvas .fc-scrollgrid-section-sticky > * { background:#fff; }
-@media (max-width:767px) { .calendar-canvas .fc-timegrid-slot { height:2.45em; } }
+@media (max-width:767px) { .calendar-canvas .fc-timegrid-slot { height:2.45em; } .calendar-canvas .fc-daygrid-day-frame { min-height:84px; } .calendar-canvas .fc-daygrid-event { margin:2px 1px; } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }
 .life-markdown-editor { display:flex; height:100%; min-height:0; flex-direction:column; background:#fff; color:var(--foreground); font-family:var(--font-sans); }
-.life-markdown-toolbar { position:sticky; top:0; z-index:5; display:flex; min-height:42px; align-items:center; gap:4px; overflow-x:auto; overscroll-behavior-inline:contain; padding:4px 12px; padding-left:max(12px,env(safe-area-inset-left)); padding-right:max(12px,env(safe-area-inset-right)); border-bottom:1px solid var(--border-subtle); background:#fff; box-shadow:none; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.life-markdown-toolbar { position:sticky; top:0; z-index:5; display:flex; min-height:44px; align-items:center; gap:4px; overflow-x:auto; overscroll-behavior-inline:contain; padding:4px 12px; padding-left:max(12px,env(safe-area-inset-left)); padding-right:max(12px,env(safe-area-inset-right)); border-bottom:1px solid var(--border-subtle); background:color-mix(in srgb,#fff 94%,var(--surface-sidebar)); box-shadow:0 1px 3px rgba(24,24,27,.025); scrollbar-width:none; -webkit-overflow-scrolling:touch; }
 .life-markdown-toolbar::-webkit-scrollbar { display:none; }
 .life-codemirror { min-height:0; flex:1; overflow:hidden; }
 .life-codemirror .cm-editor { height:100%; min-height:0; }
@@ -71,6 +75,7 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .notes-editor-surface:fullscreen { box-sizing:border-box; height:var(--app-viewport-height); overflow:hidden; background:var(--background); padding:1.25rem 1.5rem; }
 @media (max-width:767px) {
   .workspace-scroll { scrollbar-gutter:auto; }
-  .life-markdown-toolbar { min-height:40px; padding-left:max(8px,env(safe-area-inset-left)); padding-right:max(8px,env(safe-area-inset-right)); }
+  .life-markdown-toolbar { min-height:44px; padding-left:max(8px,env(safe-area-inset-left)); padding-right:max(8px,env(safe-area-inset-right)); }
+  .life-markdown-toolbar button,.life-markdown-toolbar select { min-width:36px; min-height:36px; }
   .notes-editor-surface:fullscreen { padding:0; }
 }
