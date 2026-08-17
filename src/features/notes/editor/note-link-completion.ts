@@ -136,6 +136,7 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities }: NoteLi
       override: [source],
       activateOnTyping: false,
       defaultKeymap: false,
+      icons: false,
       maxRenderedOptions: 20,
       tooltipClass: () => "cm-note-link-completion",
     }),
