@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { CheckCircle2, CircleAlert } from "lucide-react";
-import { completeMicrosoftTodoTaskAction } from "@/features/tasks/microsoft-todo";
+import { CircleAlert } from "lucide-react";
 import type { NowWorkspace } from "@/features/today/types";
 import { buildTodayFocusStack } from "@/features/today/utils";
+import { CompleteTaskControl } from "./complete-task-control";
 import { TodaySectionHeader } from "./section-header";
 
 export function TodayFocusStack({ workspace }: { workspace: NowWorkspace }) {
@@ -33,15 +33,7 @@ export function TodayFocusStack({ workspace }: { workspace: NowWorkspace }) {
           <ul className="divide-y">
             {stack.tasks.map(({ task, label }) => (
               <li key={task.id} className="flex items-center gap-2.5">
-                <form action={completeMicrosoftTodoTaskAction}>
-                  <input type="hidden" name="task_id" value={task.id} />
-                  <button
-                    aria-label={`完成 ${task.title}`}
-                    className="rounded-full text-[var(--text-tertiary)] hover:text-[var(--accent)]"
-                  >
-                    <CheckCircle2 className="size-[18px]" aria-hidden="true" />
-                  </button>
-                </form>
+                <CompleteTaskControl taskId={task.id} title={task.title} compact />
                 <Link href="/tasks" className="min-w-0 flex-1 py-2.5 hover:text-[var(--accent)]">
                   <span className="block truncate text-sm font-medium">
                     {task.title || "未命名任务"}

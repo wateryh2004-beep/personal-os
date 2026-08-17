@@ -2,14 +2,13 @@ import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
-  Check,
   CheckCircle2,
   Compass,
   Inbox,
   Milestone,
 } from "lucide-react";
-import { completeMicrosoftTodoTaskAction } from "@/features/tasks/microsoft-todo";
 import type { NowNextAction } from "@/features/today/types";
+import { CompleteTaskControl } from "./complete-task-control";
 
 function formatTime(value: string, timezone: string) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -90,13 +89,7 @@ export function NextActionCard({
               <ArrowRight className="size-3.5" aria-hidden="true" />
             </Link>
             {next.kind === "task" ? (
-              <form action={completeMicrosoftTodoTaskAction}>
-                <input type="hidden" name="task_id" value={next.task.id} />
-                <button className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 text-xs font-medium text-white hover:opacity-90">
-                  <Check className="size-3.5" aria-hidden="true" />
-                  完成
-                </button>
-              </form>
+              <CompleteTaskControl taskId={next.task.id} title={next.task.title} />
             ) : null}
           </div>
         ) : null}
