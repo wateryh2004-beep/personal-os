@@ -51,7 +51,7 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 /* FullCalendar writes overlap widths as inline left/right percentages after every
    layout. Keep every timed event readable across reflows, navigation and drag. */
 .calendar-canvas .fc .fc-timegrid-event-harness { left:0!important; right:0!important; margin-left:0!important; margin-right:2px!important; }
-.calendar-canvas .fc-daygrid-event { border-radius:3px; margin:1px 2px; }
+.calendar-canvas .fc-daygrid-event { border-radius:4px; margin:2px 3px; min-height:22px; }
 .calendar-canvas .fc-event-main { color:inherit!important; }
 .calendar-canvas .fc-highlight { background:color-mix(in srgb,var(--accent-soft) 72%,transparent); }
 .calendar-canvas .fc-more-link { color:var(--accent); font-size:11px; }

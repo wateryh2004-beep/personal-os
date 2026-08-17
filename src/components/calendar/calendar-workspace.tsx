@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
-import { Bot, ChevronLeft, ChevronRight, Filter, MoreHorizontal, Plus, RefreshCw, Settings2 } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, EyeOff, Filter, MoreHorizontal, Plus, RefreshCw, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { CalendarCreateForm } from "@/components/calendar/calendar-create-form";
 import { CalendarEventEditForm } from "@/components/calendar/calendar-event-edit-form";
@@ -53,6 +53,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
   const [draft, setDraft] = useState<Draft | null>(() => initialCreateOpen ? initialDraft(timezone) : null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [hideInternship, setHideInternship] = useState(false);
   const [syncing, startSync] = useTransition();
   const [loadingRange, setLoadingRange] = useState(false);
   const [rangeTruncated, setRangeTruncated] = useState(false);
@@ -65,15 +66,16 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
   useEffect(() => {
     if (initialEventId || initialCreateOpen) return;
     const restore = window.setTimeout(() => {
-      const session = loadWorkspaceSession<{ view?: View; cursor?: string; categories?: string[] }>("calendar:workspace");
+      const session = loadWorkspaceSession<{ view?: View; cursor?: string; categories?: string[]; hideInternship?: boolean }>("calendar:workspace");
       if (!session) return;
       if (session.view) setView(session.view);
       if (session.cursor && !Number.isNaN(new Date(session.cursor).getTime())) setCursor(new Date(session.cursor));
       if (session.categories) setSelectedCategories(new Set(session.categories));
+      if (typeof session.hideInternship === "boolean") setHideInternship(session.hideInternship);
     }, 0);
     return () => window.clearTimeout(restore);
   }, [initialCreateOpen, initialEventId]);
-  useEffect(() => { saveWorkspaceSession("calendar:workspace", { view, cursor: cursor.toISOString(), categories: [...selectedCategories] }); }, [cursor, selectedCategories, view]);
+  useEffect(() => { saveWorkspaceSession("calendar:workspace", { view, cursor: cursor.toISOString(), categories: [...selectedCategories], hideInternship }); }, [cursor, hideInternship, selectedCategories, view]);
   // A seven-column time grid is not usable on a phone. This is a product
   // default only; users can still choose Month after the compact Day view.
   useEffect(() => {
@@ -110,7 +112,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialEventId]);
   const availableViews: View[] = compactViewport ? ["day", "month"] : ["day", "week", "month"];
-  const filtered = useMemo(() => filterCalendarEvents(eventState, selectedCategories), [eventState, selectedCategories]);
+  const filtered = useMemo(() => filterCalendarEvents(eventState, selectedCategories, hideInternship), [eventState, hideInternship, selectedCategories]);
   const toggleCategory = (name: string) => setSelectedCategories((current) => {
     const next = new Set(current);
     if (next.has(name)) next.delete(name);
@@ -235,7 +237,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     <div className="flex min-w-0 flex-1 flex-col">
       <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-2 border-b px-3">
         <div className="flex min-w-0 items-center gap-1"><button className="rounded p-1.5 hover:bg-[var(--surface-hover)]" onClick={() => changeCursor(-1)} aria-label="上一段日期"><ChevronLeft size={17} /></button><button onClick={() => setCursor(new Date())} className="rounded px-2 py-1 text-sm hover:bg-[var(--surface-hover)]">今天</button><button className="rounded p-1.5 hover:bg-[var(--surface-hover)]" onClick={() => changeCursor(1)} aria-label="下一段日期"><ChevronRight size={17} /></button><span className="ml-2 truncate text-sm font-medium">{title}</span></div>
-        <div className="flex flex-wrap items-center gap-1"><div className="rounded-md bg-[var(--surface-hover)] p-0.5">{availableViews.map((item) => <button key={item} onClick={() => setView(item)} className={`rounded px-2 py-1 text-xs ${view === item ? "bg-white text-[var(--accent)] shadow-sm" : ""}`}>{item === "day" ? "日" : item === "week" ? "周" : "月"}</button>)}</div><Popover><PopoverTrigger asChild><button aria-label="更多日历操作" className="rounded p-2 text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><MoreHorizontal size={16} /></button></PopoverTrigger><PopoverContent align="end" className="w-56"><button onClick={sync} disabled={syncing} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><RefreshCw size={14} className={syncing ? "animate-spin" : ""}/>{syncing ? "正在同步…" : "同步 Outlook"}</button><button onClick={() => setSettingsOpen(true)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><Settings2 size={14}/>分类设置</button><button onClick={ai.toggle} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><Bot size={14}/>Calendar AI</button></PopoverContent></Popover><Popover><PopoverTrigger asChild><button aria-label="筛选分类" aria-pressed={selectedCategories.size > 0} className={`relative rounded p-2 hover:bg-[var(--surface-hover)] ${selectedCategories.size ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}><Filter size={15}/>{selectedCategories.size ? <span className="absolute right-1 top-1 size-1.5 rounded-full bg-[var(--accent)]"/> : null}</button></PopoverTrigger><PopoverContent align="end" className="w-56"><button onClick={() => setSelectedCategories(new Set())} className="mb-1 text-xs text-[var(--accent)]">清除筛选</button>{categories.map((category) => <label key={category.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-[var(--surface-hover)]"><input type="checkbox" checked={selectedCategories.has(category.display_name)} onChange={() => toggleCategory(category.display_name)} /><span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: resolveCalendarEventVisual([category.display_name], categories).dot }} /><span className="truncate">{category.display_name}</span></label>)}</PopoverContent></Popover><button onClick={() => openDraft(initialDraft(timezone))} className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs text-white"><Plus size={14} className="mr-1 inline" />新建</button></div>
+        <div className="flex flex-wrap items-center gap-1"><div className="rounded-md bg-[var(--surface-hover)] p-0.5">{availableViews.map((item) => <button key={item} onClick={() => setView(item)} className={`rounded px-2 py-1 text-xs ${view === item ? "bg-white text-[var(--accent)] shadow-sm" : ""}`}>{item === "day" ? "日" : item === "week" ? "周" : "月"}</button>)}</div><button type="button" onClick={() => setHideInternship((current) => !current)} aria-pressed={hideInternship} className={`flex items-center gap-1 rounded px-2 py-1.5 text-xs transition-colors ${hideInternship ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><EyeOff size={14}/>{hideInternship ? "显示实习" : "隐藏实习"}</button><Popover><PopoverTrigger asChild><button aria-label="更多日历操作" className="rounded p-2 text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><MoreHorizontal size={16} /></button></PopoverTrigger><PopoverContent align="end" className="w-56"><button onClick={sync} disabled={syncing} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><RefreshCw size={14} className={syncing ? "animate-spin" : ""}/>{syncing ? "正在同步…" : "同步 Outlook"}</button><button onClick={() => setSettingsOpen(true)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><Settings2 size={14}/>分类设置</button><button onClick={ai.toggle} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><Bot size={14}/>Calendar AI</button></PopoverContent></Popover><Popover><PopoverTrigger asChild><button aria-label="筛选分类" aria-pressed={selectedCategories.size > 0} className={`relative rounded p-2 hover:bg-[var(--surface-hover)] ${selectedCategories.size ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}><Filter size={15}/>{selectedCategories.size ? <span className="absolute right-1 top-1 size-1.5 rounded-full bg-[var(--accent)]"/> : null}</button></PopoverTrigger><PopoverContent align="end" className="w-56"><button onClick={() => setSelectedCategories(new Set())} className="mb-1 text-xs text-[var(--accent)]">清除筛选</button>{categories.map((category) => <label key={category.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-[var(--surface-hover)]"><input type="checkbox" checked={selectedCategories.has(category.display_name)} onChange={() => toggleCategory(category.display_name)} /><span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: resolveCalendarEventVisual([category.display_name], categories).dot }} /><span className="truncate">{category.display_name}</span></label>)}</PopoverContent></Popover><button onClick={() => openDraft(initialDraft(timezone))} className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs text-white"><Plus size={14} className="mr-1 inline" />新建</button></div>
       </header>
       <div className="flex items-center gap-1 overflow-x-auto border-b bg-[var(--surface-canvas)] px-3 py-1.5 [scrollbar-width:thin]">
         {primaryCalendarCategories.map((category) => {

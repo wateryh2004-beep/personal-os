@@ -29,17 +29,17 @@ describe("calendar category behavior", () => {
   });
 
   it("maps a synced Outlook category to semantic event colors and falls back neutrally", () => {
-    expect(resolveCalendarEventVisual(["领域·实习/工作"], categories)).toMatchObject({ border: "#47758f", primaryCategory: categories[0] });
-    expect(resolveCalendarEventVisual(["Unknown"], categories)).toMatchObject({ border: "#a1a1aa", primaryCategory: null });
+    expect(resolveCalendarEventVisual(["领域·实习/工作"], categories)).toMatchObject({ background: "#2563eb", border: "#1d4ed8", foreground: "#ffffff", primaryCategory: categories[0] });
+    expect(resolveCalendarEventVisual(["Unknown"], categories)).toMatchObject({ background: "#64748b", border: "#475569", foreground: "#ffffff", primaryCategory: null });
   });
 
   it("renders synced external Outlook categories with their real preset color", () => {
     const external: CalendarCategory = { ...categories[0], id: "external-1", display_name: "重要客户", color: "preset22", managed_key: null, category_kind: "external", is_ai_managed: false };
-    expect(resolveCalendarEventVisual(["重要客户"], [external])).toMatchObject({ border: "#82415c", primaryCategory: external });
+    expect(resolveCalendarEventVisual(["重要客户"], [external])).toMatchObject({ background: "#be185d", border: "#9d174d", primaryCategory: external });
   });
 
   it("falls back to taxonomy colors when the synced category table is empty", () => {
-    expect(resolveCalendarEventVisual(["领域·实习/工作"], [])).toMatchObject({ border: "#47758f", dot: "#365f78", primaryCategory: null });
-    expect(resolveCalendarEventVisual(["场景·人大"], [])).toMatchObject({ dot: "#6b4f8a" });
+    expect(resolveCalendarEventVisual(["领域·实习/工作"], [])).toMatchObject({ background: "#2563eb", border: "#1d4ed8", dot: "#2563eb", primaryCategory: null });
+    expect(resolveCalendarEventVisual(["场景·人大"], [])).toMatchObject({ dot: "#7c3aed" });
   });
 });

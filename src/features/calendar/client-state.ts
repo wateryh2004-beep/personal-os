@@ -1,5 +1,7 @@
 import type { CalendarEventRecord } from "./types";
 
+export const internshipCategoryName = "领域·实习/工作";
+
 /** Pure state helpers used by the Calendar workspace and regression tests. */
 export function calendarRangeKey(startsAt: string, endsAt: string) {
   return `${startsAt}:${endsAt}`;
@@ -9,10 +11,11 @@ export function isCurrentCalendarRangeResponse(currentSequence: number, response
   return currentSequence === responseSequence;
 }
 
-export function filterCalendarEvents(events: CalendarEventRecord[], categories: Set<string>) {
-  return categories.size
-    ? events.filter((event) => event.categories.some((category) => categories.has(category)))
-    : events;
+export function filterCalendarEvents(events: CalendarEventRecord[], categories: Set<string>, hideInternship = false) {
+  return events.filter((event) => {
+    if (hideInternship && event.categories.includes(internshipCategoryName)) return false;
+    return !categories.size || event.categories.some((category) => categories.has(category));
+  });
 }
 
 export function replaceCalendarEvent(events: CalendarEventRecord[], next: CalendarEventRecord) {

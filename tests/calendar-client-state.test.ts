@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, reconcileCalendarMutationRange, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
+import { calendarRangeKey, filterCalendarEvents, internshipCategoryName, isCurrentCalendarRangeResponse, reconcileCalendarMutationRange, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
 import type { CalendarEventRecord } from "@/features/calendar/types";
 
 const event = (id: string, categories: string[] = []): CalendarEventRecord => ({
@@ -24,6 +24,12 @@ describe("calendar client state", () => {
     const events = [event("work", ["工作"]), event("life", ["生活"]), event("none")];
     expect(filterCalendarEvents(events, new Set(["工作"])).map((item) => item.id)).toEqual(["work"]);
     expect(filterCalendarEvents(events, new Set()).map((item) => item.id)).toEqual(["work", "life", "none"]);
+  });
+
+  it("can hide internship events without changing the normal category filter", () => {
+    const events = [event("internship", [internshipCategoryName]), event("life", ["生活"]), event("uncategorized")];
+    expect(filterCalendarEvents(events, new Set(), true).map((item) => item.id)).toEqual(["life", "uncategorized"]);
+    expect(filterCalendarEvents(events, new Set(["生活"]), true).map((item) => item.id)).toEqual(["life"]);
   });
 
   it("reconciles update and delete mutations into the same visible collection", () => {

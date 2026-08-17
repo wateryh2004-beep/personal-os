@@ -63,6 +63,9 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
       start: event.is_all_day ? allDayDateToFullCalendarDate(instantToDate(event.starts_at, timezone)) : instantToFullCalendarDate(event.starts_at, timezone),
       end: event.is_all_day ? allDayDateToFullCalendarDate(instantToDate(event.ends_at, timezone)) : instantToFullCalendarDate(event.ends_at, timezone),
       allDay: event.is_all_day,
+      // Month view should read like a plan, not a list of dotted labels.
+      // Keep every event as a filled block even when it is not all-day.
+      display: "block" as const,
       backgroundColor: visual.background,
       borderColor: visual.border,
       textColor: visual.foreground,
@@ -71,7 +74,7 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
   });
 
   const eventContent = useCallback((info: { event: { title: string; extendedProps: { event: CalendarEventRecord; visual: { dot: string } } }; timeText: string; view: { type: CalendarView } }) => {
-    if (info.view.type === "dayGridMonth") return <div className="flex min-w-0 items-center gap-1 px-1 py-0.5 text-[11px]"><span className="size-1.5 shrink-0 rounded-full" style={{ background: info.event.extendedProps.visual.dot }} /><span className="truncate font-medium">{info.event.title}</span></div>;
+    if (info.view.type === "dayGridMonth") return <div className="min-w-0 truncate px-1.5 py-0.5 text-[11px] font-semibold leading-4">{info.event.title}</div>;
     const event = info.event.extendedProps.event;
     const durationMinutes = (Date.parse(event.ends_at) - Date.parse(event.starts_at)) / 60_000;
     if (durationMinutes <= 30) {
