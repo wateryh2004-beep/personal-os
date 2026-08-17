@@ -52,6 +52,10 @@ type ManualKind = "task" | "calendar" | "note" | "daily";
 
 const calendarInitial: CalendarCreateState = { status: "idle", message: "" };
 const todoInitial: TodoCreateState = { status: "idle", message: "" };
+const proposalCardClass =
+  "mt-3 rounded-[var(--radius-lg)] border border-[color-mix(in_srgb,var(--accent)_20%,var(--border))] bg-[var(--accent-soft)]/65 p-3.5 shadow-[0_1px_2px_rgba(24,24,27,0.025)]";
+const primaryActionClass =
+  "rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
 
 function firstLine(text: string) {
   return text.split(/\n/)[0].trim();
@@ -109,15 +113,15 @@ function TaskProposal({
   return (
     <form
       action={action}
-      className="mt-3 border border-[#b5c9d2] bg-[#edf3f6] p-3"
+      className={proposalCardClass}
     >
-      <p className="text-sm font-medium text-zinc-900">{proposal.title}</p>
+      <p className="text-sm font-semibold text-[var(--foreground)]">{proposal.title}</p>
       {proposal.bodyText ? (
-        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-zinc-600">
+        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[var(--muted-foreground)]">
           {proposal.bodyText}
         </p>
       ) : null}
-      <p className="mt-2 text-xs text-zinc-600">
+      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
         任务 · {list.display_name}
         {proposal.dueAt
           ? ` · ${new Date(proposal.dueAt).toLocaleString("zh-CN")}`
@@ -131,14 +135,14 @@ function TaskProposal({
       <input type="hidden" name="inbox_id" value={inboxId} />
       <button
         disabled={pending}
-        className="mt-3 bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+        className={`mt-3 ${primaryActionClass}`}
       >
         {pending ? "正在创建…" : "同意，创建任务"}
       </button>
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`mt-2 text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+          className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
         >
           {state.message}
         </p>
@@ -162,15 +166,15 @@ function CalendarProposal({
   return (
     <form
       action={action}
-      className="mt-3 border border-[#b5c9d2] bg-[#edf3f6] p-3"
+      className={proposalCardClass}
     >
-      <p className="text-sm font-medium text-zinc-900">{proposal.subject}</p>
+      <p className="text-sm font-semibold text-[var(--foreground)]">{proposal.subject}</p>
       {proposal.description ? (
-        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-zinc-600">
+        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[var(--muted-foreground)]">
           {proposal.description}
         </p>
       ) : null}
-      <p className="mt-2 text-xs text-zinc-600">
+      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
         日程 · {new Date(proposal.startsAt).toLocaleString("zh-CN")}
       </p>
       <input type="hidden" name="subject" value={proposal.subject} />
@@ -194,14 +198,14 @@ function CalendarProposal({
       <input type="hidden" name="inbox_id" value={inboxId} />
       <button
         disabled={pending}
-        className="mt-3 bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+        className={`mt-3 ${primaryActionClass}`}
       >
         {pending ? "正在创建…" : "同意，创建日程"}
       </button>
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`mt-2 text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+          className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
         >
           {state.message}
         </p>
@@ -225,10 +229,10 @@ function NoteProposal({
   return (
     <form
       action={action}
-      className="mt-3 border border-[#b5c9d2] bg-[#edf3f6] p-3"
+      className={proposalCardClass}
     >
-      <p className="text-sm font-medium text-zinc-900">{proposal.title}</p>
-      <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-zinc-600">
+      <p className="text-sm font-semibold text-[var(--foreground)]">{proposal.title}</p>
+      <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-[var(--muted-foreground)]">
         {proposal.bodyMarkdown}
       </p>
       <input type="hidden" name="inbox_id" value={inboxId} />
@@ -236,14 +240,14 @@ function NoteProposal({
       <input type="hidden" name="body_markdown" value={proposal.bodyMarkdown} />
       <button
         disabled={pending}
-        className="mt-3 bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+        className={`mt-3 ${primaryActionClass}`}
       >
         {pending ? "正在创建…" : "同意，创建笔记"}
       </button>
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`mt-2 text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+          className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
         >
           {state.message}
         </p>
@@ -261,16 +265,16 @@ function DailyProposal({ inboxId }: { inboxId: string }) {
   return (
     <form
       action={action}
-      className="mt-3 border border-[#b5c9d2] bg-[#edf3f6] p-3"
+      className={proposalCardClass}
     >
-      <p className="text-sm font-medium text-zinc-900">写入今日日记</p>
-      <p className="mt-1 text-xs leading-5 text-zinc-600">
+      <p className="text-sm font-semibold text-[var(--foreground)]">写入今日日记</p>
+      <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
         确认后会追加到今天日记的“感受与想法”，并保留 Inbox 来源。
       </p>
       <input type="hidden" name="inbox_id" value={inboxId} />
       <button
         disabled={pending || state.status === "success"}
-        className="mt-3 inline-flex items-center gap-1 bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+        className={`mt-3 inline-flex items-center gap-1 ${primaryActionClass}`}
       >
         <FileText size={14} />
         {pending ? "正在写入…" : state.status === "success" ? "已写入" : "同意，写入今日日记"}
@@ -278,7 +282,7 @@ function DailyProposal({ inboxId }: { inboxId: string }) {
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`mt-2 text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+          className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
         >
           {state.message}
           {state.destinationHref ? (
@@ -413,7 +417,7 @@ function inputToIso(input: string) {
 }
 
 const inputClass =
-  "w-full border border-[#d8d6d0] bg-white px-2 py-1.5 text-sm outline-none transition focus:border-[#365f78]";
+  "w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-2.5 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]";
 
 function ManualTaskForm({
   item,
@@ -431,8 +435,8 @@ function ManualTaskForm({
   const [listId, setListId] = useState(defaultList?.id ?? "");
   const [dueAt, setDueAt] = useState("");
   return (
-    <form action={action} className="mt-3 space-y-2 border border-[#b5c9d2] bg-[#edf3f6] p-3">
-      <p className="text-xs font-medium text-zinc-700">手动转成任务</p>
+    <form action={action} className={`${proposalCardClass} space-y-2`}>
+      <p className="text-xs font-semibold text-[var(--foreground)]">手动转成任务</p>
       <input type="hidden" name="todo_list_id" value={listId} />
       <input type="hidden" name="importance" value="normal" />
       <input type="hidden" name="due_at" value={inputToIso(dueAt)} />
@@ -468,14 +472,14 @@ function ManualTaskForm({
       </div>
       <button
         disabled={pending}
-        className="bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+        className={primaryActionClass}
       >
         {pending ? "正在创建…" : "创建任务"}
       </button>
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+          className={`text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
         >
           {state.message}
         </p>
@@ -501,8 +505,8 @@ function ManualCalendarForm({ item }: { item: InboxItem }) {
     setRange({ start: value, end: addHoursToInput(value, 1) });
   const setEnd = (value: string) => setRange((current) => ({ ...current, end: value }));
   return (
-    <form action={action} className="mt-3 space-y-2 border border-[#b5c9d2] bg-[#edf3f6] p-3">
-      <p className="text-xs font-medium text-zinc-700">手动转成日程</p>
+    <form action={action} className={`${proposalCardClass} space-y-2`}>
+      <p className="text-xs font-semibold text-[var(--foreground)]">手动转成日程</p>
       <input type="hidden" name="starts_at" value={inputToIso(startsAt)} />
       <input type="hidden" name="ends_at" value={inputToIso(endsAt)} />
       <input type="hidden" name="is_all_day" value="" />
@@ -534,14 +538,14 @@ function ManualCalendarForm({ item }: { item: InboxItem }) {
       </div>
       <button
         disabled={pending}
-        className="bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+        className={primaryActionClass}
       >
         {pending ? "正在创建…" : "创建日程"}
       </button>
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+          className={`text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
         >
           {state.message}
         </p>
@@ -557,8 +561,8 @@ function ManualNoteForm({ item }: { item: InboxItem }) {
   );
   useRefreshOnSuccess(state.status);
   return (
-    <form action={action} className="mt-3 space-y-2 border border-[#b5c9d2] bg-[#edf3f6] p-3">
-      <p className="text-xs font-medium text-zinc-700">手动转成笔记</p>
+    <form action={action} className={`${proposalCardClass} space-y-2`}>
+      <p className="text-xs font-semibold text-[var(--foreground)]">手动转成笔记</p>
       <input type="hidden" name="inbox_id" value={item.id} />
       <input
         name="title"
@@ -577,14 +581,14 @@ function ManualNoteForm({ item }: { item: InboxItem }) {
       />
       <button
         disabled={pending}
-        className="bg-[#365f78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+        className={primaryActionClass}
       >
         {pending ? "正在创建…" : "创建笔记"}
       </button>
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+          className={`text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
         >
           {state.message}
           {state.destinationHref ? (
