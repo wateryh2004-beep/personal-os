@@ -22,6 +22,7 @@ import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse,
 import { primaryCalendarCategories } from "@/features/calendar/classification/taxonomy";
 import { outlookCategoryDot, resolveCalendarEventVisual } from "@/features/calendar/categories/visual";
 import { EntityBacklinks } from "@/components/links/entity-backlinks";
+import { calendarRangeResource, invalidateCalendarRangeResources } from "@/features/calendar/workspace-resource";
 
 const CalendarAssistant = dynamic(() => import("@/components/calendar/calendar-assistant").then((module) => module.CalendarAssistant), { ssr: false });
 
@@ -58,7 +59,6 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
   const [calendarError, setCalendarError] = useState<string | null>(null);
   const [compactViewport, setCompactViewport] = useState(false);
   const activeRangeRef = useRef<Range | null>(null);
-  const rangeCacheRef = useRef(new Map<string, CalendarEventRecord[]>());
   const requestSequenceRef = useRef(0);
   const ai = useWorkspacePanel("calendar-ai");
   const inspector = useWorkspacePanel("calendar-inspector");
@@ -118,7 +118,7 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     return next;
   });
 
-  const invalidateCalendarCache = useCallback(() => { rangeCacheRef.current.clear(); }, []);
+  const invalidateCalendarCache = useCallback(() => { invalidateCalendarRangeResources(); }, []);
   const fetchRange = useCallback(async (range: Range, force = false) => {
     // `datesSet` returns FullCalendar's UTC-coerced wall-time dates. They are
     // UI boundary values, so convert them back before touching the API/cache.
@@ -130,18 +130,15 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     // satisfied from cache. Otherwise an older slow request can overwrite
     // this cached range after the user has already moved on.
     const sequence = ++requestSequenceRef.current;
-    const cached = !force ? rangeCacheRef.current.get(key) : undefined;
-    if (cached) { setEventState(cached); setRangeTruncated(false); setCalendarError(null); return cached; }
+    const resource = calendarRangeResource(`calendar:range:${key}`, start, end);
+    const cached = !force ? resource.get().data : undefined;
+    if (cached) { setEventState(cached.events); setRangeTruncated(cached.truncated); setCalendarError(null); return cached.events; }
     setLoadingRange(true);
     try {
-      const response = await fetch(`/api/calendar/events?${new URLSearchParams({ start, end })}`, { cache: "no-store" });
-      const body = await response.json() as { events?: CalendarEventRecord[]; truncated?: boolean };
-      if (!response.ok) throw new Error("calendar_range_failed");
-      const data = body.events ?? [];
-      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setRangeTruncated(Boolean(body.truncated));
-      rangeCacheRef.current.set(key, data);
-      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) { setEventState(data); setCalendarError(null); }
-      return data;
+      const data = await resource.revalidate({ force });
+      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setRangeTruncated(data.truncated);
+      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) { setEventState(data.events); setCalendarError(null); }
+      return data.events;
     } catch {
       if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setCalendarError("无法读取当前日历范围；正在保留已显示的日程。请稍后重试或同步 Outlook。");
       return null;

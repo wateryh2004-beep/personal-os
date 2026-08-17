@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { isOwnerEmail } from "@/lib/auth/owner";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
+import { withPerfSpan } from "@/lib/performance/server-perf";
 
 export class OwnerAuthenticationError extends Error {
   constructor(public readonly code: "configuration" | "unauthenticated" | "not-authorized") {
@@ -11,13 +12,15 @@ export class OwnerAuthenticationError extends Error {
 }
 
 async function resolveOwner() {
-  if (!isSupabaseConfigured) throw new OwnerAuthenticationError("configuration");
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
-  const email = data?.claims.email as string | undefined;
-  if (error || !data?.claims.sub) throw new OwnerAuthenticationError("unauthenticated");
-  if (!isOwnerEmail(email)) throw new OwnerAuthenticationError("not-authorized");
-  return { supabase, userId: data.claims.sub, email: email! };
+  return withPerfSpan("auth.require-owner", async () => {
+    if (!isSupabaseConfigured) throw new OwnerAuthenticationError("configuration");
+    const supabase = await createClient();
+    const { data, error } = await withPerfSpan("auth.get-claims", () => supabase.auth.getClaims());
+    const email = data?.claims.email as string | undefined;
+    if (error || !data?.claims.sub) throw new OwnerAuthenticationError("unauthenticated");
+    if (!isOwnerEmail(email)) throw new OwnerAuthenticationError("not-authorized");
+    return { supabase, userId: data.claims.sub, email: email! };
+  });
 }
 
 /** Route Handlers must return protocol responses instead of rendering redirects. */

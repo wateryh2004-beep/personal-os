@@ -19,6 +19,7 @@ import { useActionFeedback } from "@/components/shared/action-feedback";
 import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 import { formatDate } from "@/lib/format";
 import { useWorkspaceScrollRestoration } from "@/components/shared/use-workspace-scroll-restoration";
+import { tasksWorkspaceResource } from "@/features/tasks/workspace-resource";
 
 const TaskAssistant = dynamic(() => import("@/components/tasks/task-assistant").then((module) => module.TaskAssistant), { ssr: false });
 
@@ -65,6 +66,10 @@ export function TaskWorkspace({ lists, tasks, initialCreateOpen = false, initial
     return () => window.clearTimeout(restore);
   }, [initialTaskId, tasks]);
   useEffect(() => { saveWorkspaceSession("tasks:workspace", { view, listId, selectedId }); }, [listId, selectedId, view]);
+  // Keep the session resource coherent with optimistic task mutations. The
+  // server/provider still reconciles in the background; this only prevents a
+  // route hop from resurrecting a stale list in the same tab.
+  useEffect(() => { tasksWorkspaceResource.mutate((workspace) => workspace ? { ...workspace, lists, tasks: rows } : undefined); }, [lists, rows]);
   const selected = rows.find((task) => task.id === selectedId) ?? null;
   const defaultListId = lists.find((list) => list.isDefault)?.id ?? lists[0]?.id;
   useEffect(() => {

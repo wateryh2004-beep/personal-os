@@ -1,12 +1,15 @@
 import { requireOwner } from "@/lib/auth/require-owner";
+import { withPerfSpan } from "@/lib/performance/server-perf";
 import type { TodoImportance, TodoList, TodoStatus, TodoTask } from "./types";
 
-export async function getMicrosoftTodoWorkspace() {
-  const { supabase } = await requireOwner();
+type Owner = Awaited<ReturnType<typeof requireOwner>>;
+
+export async function getMicrosoftTodoWorkspace(owner?: Owner) {
+  const { supabase } = owner ?? await withPerfSpan("tasks.workspace.auth", () => requireOwner());
   const [connection, lists, tasks] = await Promise.all([
-    supabase.from("calendar_connections").select("id,status,oauth_connected_at,last_error_code").is("archived_at", null).maybeSingle(),
-    supabase.from("microsoft_todo_lists").select("id,display_name,is_default").is("archived_at", null).order("display_name"),
-    supabase.from("microsoft_todo_tasks").select("id,provider_task_id,title,body_text,status,due_at,completed_at,todo_list_id,importance,provider_last_modified_at").is("archived_at", null).order("status").order("due_at", { ascending: true, nullsFirst: false }),
+    withPerfSpan("tasks.workspace.connection", () => supabase.from("calendar_connections").select("id,status,oauth_connected_at,last_error_code").is("archived_at", null).maybeSingle()),
+    withPerfSpan("tasks.workspace.lists", () => supabase.from("microsoft_todo_lists").select("id,display_name,is_default").is("archived_at", null).order("display_name")),
+    withPerfSpan("tasks.workspace.tasks", () => supabase.from("microsoft_todo_tasks").select("id,provider_task_id,title,body_text,status,due_at,completed_at,todo_list_id,importance,provider_last_modified_at").is("archived_at", null).order("status").order("due_at", { ascending: true, nullsFirst: false })),
   ]);
   const schemaMissing = [lists.error, tasks.error].some((error) => error && ["42P01", "PGRST205"].includes(error.code));
   const taskRows = tasks.data ?? [];

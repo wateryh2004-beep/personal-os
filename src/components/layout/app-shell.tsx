@@ -16,6 +16,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { GlobalCommandPalette, type CommandCenterSection } from "@/components/search/global-command-palette";
 import { logoutAction } from "@/features/auth/actions";
 import { clearWorkspaceSessions } from "@/lib/workspace-session";
+import { clearWorkspaceResources } from "@/lib/workspace-resource-cache";
+import { tasksWorkspaceResource } from "@/features/tasks/workspace-resource";
+import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
+import { calendarWorkspaceResource } from "@/features/calendar/workspace-resource";
+import { todayWorkspaceResource } from "@/features/today/workspace-resource";
 import { cn } from "@/lib/utils";
 import { isAssistantShortcut } from "@/features/assistant/shortcuts";
 import { WorkspacePanelProvider, useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
@@ -44,12 +49,12 @@ const groups: Array<{ label: string | null; items: Array<{ name: string; href: s
   { label: null, items: [{ name: "Career", href: "/career", icon: BriefcaseBusiness }] },
 ];
 
-function Navigation({ pathname, collapsed, pendingHref, onNavigate }: { pathname: string; collapsed: boolean; pendingHref?: string | null; onNavigate?: (href: string) => void }) {
+function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent }: { pathname: string; collapsed: boolean; pendingHref?: string | null; onNavigate?: (href: string) => void; onIntent?: (href: string) => void }) {
   return <nav aria-label="主导航" className="space-y-5">{groups.map((group, groupIndex) => <div key={group.label ?? groupIndex}>
     {group.label && !collapsed ? <p className="mb-1 px-2 text-[11px] font-medium text-[var(--text-tertiary)]">{group.label}</p> : null}
     <div className="space-y-0.5">{group.items.map(({ name, href, icon: Icon }) => {
       const active = navActive(pathname, href); const pending = pendingHref === href;
-      const link = <Link href={href} onClick={() => onNavigate?.(href)} aria-current={active ? "page" : undefined} aria-label={collapsed ? name : undefined} className={cn("relative flex h-9 min-w-0 items-center gap-2.5 rounded-[var(--radius-md)] px-2 text-sm transition-[background-color,color]", active || pending ? "bg-[var(--surface-selected)] font-medium text-[var(--accent)] before:absolute before:inset-y-2 before:-left-2 before:w-0.5 before:rounded-full before:bg-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]", pending && "opacity-70", collapsed && "justify-center px-0")}><Icon className="size-[17px] shrink-0" aria-hidden="true" />{collapsed ? null : <span className="truncate">{name}</span>}</Link>;
+      const link = <Link href={href} onClick={() => onNavigate?.(href)} onPointerEnter={() => onIntent?.(href)} onFocus={() => onIntent?.(href)} onPointerDown={() => onIntent?.(href)} aria-current={active ? "page" : undefined} aria-label={collapsed ? name : undefined} className={cn("relative flex h-9 min-w-0 items-center gap-2.5 rounded-[var(--radius-md)] px-2 text-sm transition-[background-color,color]", active || pending ? "bg-[var(--surface-selected)] font-medium text-[var(--accent)] before:absolute before:inset-y-2 before:-left-2 before:w-0.5 before:rounded-full before:bg-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]", pending && "opacity-70", collapsed && "justify-center px-0")}><Icon className="size-[17px] shrink-0" aria-hidden="true" />{collapsed ? null : <span className="truncate">{name}</span>}</Link>;
       return collapsed ? <Tooltip key={href}><TooltipTrigger asChild>{link}</TooltipTrigger><TooltipContent side="right">{name}</TooltipContent></Tooltip> : <div key={href}>{link}</div>;
     })}</div>
   </div>)}</nav>;
@@ -72,6 +77,10 @@ function contextualCreateKind(pathname: string) {
   return undefined;
 }
 
+function shouldAvoidBackgroundPrefetch() {
+  return (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   return <ActionFeedbackProvider><WorkspacePanelProvider><AppShellInner>{children}</AppShellInner></WorkspacePanelProvider></ActionFeedbackProvider>;
 }
@@ -88,7 +97,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { const timer = window.setTimeout(() => { try { setCollapsed(JSON.parse(localStorage.getItem(sidebarStorageKey) || "false") === true); } catch { /* Keep the usable default. */ } }, 0); return () => window.clearTimeout(timer); }, []);
   useEffect(() => {
-    if (!pendingHref) return;
+    if (!pendingHref || pathname !== pendingHref) return;
+    perfMark("route-commit", { href: pathname });
+    perfMeasure("route-commit", "navigation-click", { href: pathname });
+    // Retain the long-lived diagnostic name for existing local dashboards.
     perfMeasure("navigation-ready", "navigation-click", { href: pathname });
   }, [pathname, pendingHref]);
   useEffect(() => {
@@ -116,7 +128,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Keep the frequent personal workflow warm without prefetching every
     // private surface at once. AppShell itself stays persistent on navigation.
-    const prefetch = () => ["/today", "/calendar", "/tasks", "/notes"].filter((href) => href !== pathname).forEach((href) => router.prefetch(href));
+    const prefetch = () => ["/today", "/calendar", "/tasks", "/notes"].filter((href) => href !== pathname).forEach((href) => {
+      router.prefetch(href);
+      if (!shouldAvoidBackgroundPrefetch() && href === "/tasks") void tasksWorkspaceResource.prefetch().catch(() => {});
+      if (!shouldAvoidBackgroundPrefetch() && href === "/notes") void notesWorkspaceResource.prefetch().catch(() => {});
+      if (!shouldAvoidBackgroundPrefetch() && href === "/calendar") void calendarWorkspaceResource.prefetch().catch(() => {});
+      if (!shouldAvoidBackgroundPrefetch() && href === "/today") void todayWorkspaceResource.prefetch().catch(() => {});
+    });
     const idle = window.setTimeout(prefetch, 800);
     return () => window.clearTimeout(idle);
   }, [pathname, router]);
@@ -138,6 +156,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const toggleCollapsed = () => setCollapsed((value) => { const next = !value; localStorage.setItem(sidebarStorageKey, JSON.stringify(next)); return next; });
   const openCommand = (section: CommandCenterSection) => { setCommandSection(section); setCommandOpen(true); };
   const navigate = useCallback((href: string) => { if (href === pathname) return; setPendingHref(href); perfMark("navigation-click", { href }); }, [pathname]);
+  const prefetchWorkspace = useCallback((href: string) => {
+    router.prefetch(href);
+    if (!shouldAvoidBackgroundPrefetch() && href === "/tasks") void tasksWorkspaceResource.prefetch().catch(() => {});
+    if (!shouldAvoidBackgroundPrefetch() && href === "/notes") void notesWorkspaceResource.prefetch().catch(() => {});
+    if (!shouldAvoidBackgroundPrefetch() && href === "/calendar") void calendarWorkspaceResource.prefetch().catch(() => {});
+    if (!shouldAvoidBackgroundPrefetch() && href === "/today") void todayWorkspaceResource.prefetch().catch(() => {});
+  }, [router]);
   const visiblePendingHref = pendingHref === pathname ? null : pendingHref;
   const createKind = contextualCreateKind(pathname);
   const openContextualCreate = () => window.dispatchEvent(new CustomEvent("personal-os:create-open", { detail: createKind ? { kind: createKind } : undefined }));
@@ -145,12 +170,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   const desktopSidebar = useMemo(() => <aside style={{ width: desktopWidth }} className="fixed inset-y-0 left-0 z-30 hidden shrink-0 flex-col border-r bg-[var(--surface-sidebar)] md:flex">
     <div className={cn("flex h-14 items-center border-b px-3", collapsed ? "justify-center" : "justify-between")}><Link href="/today" aria-label="Life of HANG，返回 Now" className={cn("wordmark truncate font-semibold", collapsed ? "text-lg" : "text-[18px]")}>{collapsed ? "H" : "Life of HANG"}</Link>{collapsed ? null : <button type="button" onClick={toggleCollapsed} className="rounded-[var(--radius-sm)] p-1.5 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]" aria-label="折叠侧栏"><ChevronLeft className="size-4" aria-hidden="true" /></button>}</div>
-    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4"><Navigation pathname={pathname} collapsed={collapsed} pendingHref={visiblePendingHref} onNavigate={navigate} /></div>
-    <div className="space-y-1 border-t p-3">{collapsed ? <Tooltip><TooltipTrigger asChild><button type="button" onClick={toggleCollapsed} className="flex h-9 w-full items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]" aria-label="展开侧栏"><ChevronRight className="size-[17px]" aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="right">展开侧栏</TooltipContent></Tooltip> : null}<Link href="/settings" aria-current={pathname === "/settings" ? "page" : undefined} className={cn("flex h-9 items-center gap-2.5 rounded-[var(--radius-md)] text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]", collapsed ? "justify-center" : "px-2")} aria-label={collapsed ? "Settings" : undefined}><Settings className="size-[17px]" aria-hidden="true" />{collapsed ? null : "Settings"}</Link><form action={logoutAction} onSubmit={() => clearWorkspaceSessions()}><button className={cn("flex h-9 w-full items-center gap-2.5 rounded-[var(--radius-md)] text-sm text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]", collapsed ? "justify-center" : "px-2")} aria-label={collapsed ? "退出登录" : undefined}><LogOut className="size-[17px]" aria-hidden="true" />{collapsed ? null : "退出登录"}</button></form></div>
-  </aside>, [collapsed, desktopWidth, navigate, pathname, visiblePendingHref]);
+    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4"><Navigation pathname={pathname} collapsed={collapsed} pendingHref={visiblePendingHref} onNavigate={navigate} onIntent={prefetchWorkspace} /></div>
+    <div className="space-y-1 border-t p-3">{collapsed ? <Tooltip><TooltipTrigger asChild><button type="button" onClick={toggleCollapsed} className="flex h-9 w-full items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]" aria-label="展开侧栏"><ChevronRight className="size-[17px]" aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="right">展开侧栏</TooltipContent></Tooltip> : null}<Link href="/settings" aria-current={pathname === "/settings" ? "page" : undefined} className={cn("flex h-9 items-center gap-2.5 rounded-[var(--radius-md)] text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]", collapsed ? "justify-center" : "px-2")} aria-label={collapsed ? "Settings" : undefined}><Settings className="size-[17px]" aria-hidden="true" />{collapsed ? null : "Settings"}</Link><form action={logoutAction} onSubmit={() => { clearWorkspaceSessions(); clearWorkspaceResources(); }}><button className={cn("flex h-9 w-full items-center gap-2.5 rounded-[var(--radius-md)] text-sm text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]", collapsed ? "justify-center" : "px-2")} aria-label={collapsed ? "退出登录" : undefined}><LogOut className="size-[17px]" aria-hidden="true" />{collapsed ? null : "退出登录"}</button></form></div>
+  </aside>, [collapsed, desktopWidth, navigate, pathname, prefetchWorkspace, visiblePendingHref]);
 
   return <div className="min-h-[var(--app-viewport-height)] bg-[var(--surface-app)]">{desktopSidebar}
-    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" className="w-[min(86vw,280px)] gap-0 bg-[var(--surface-sidebar)] p-0"><div className="flex min-h-14 items-center border-b px-4 pt-[env(safe-area-inset-top)]"><SheetTitle className="wordmark text-lg">Life of HANG</SheetTitle></div><div className="min-h-0 flex-1 overflow-y-auto p-4"><Navigation pathname={pathname} collapsed={false} pendingHref={visiblePendingHref} onNavigate={(href) => { navigate(href); setMobileOpen(false); }} /></div><Link href="/settings" onClick={() => setMobileOpen(false)} className="m-3 flex h-10 items-center gap-2 border-t px-2 pt-3 text-sm text-[var(--text-secondary)]"><Settings className="size-4" aria-hidden="true" />Settings</Link></SheetContent></Sheet>
+    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" className="w-[min(86vw,280px)] gap-0 bg-[var(--surface-sidebar)] p-0"><div className="flex min-h-14 items-center border-b px-4 pt-[env(safe-area-inset-top)]"><SheetTitle className="wordmark text-lg">Life of HANG</SheetTitle></div><div className="min-h-0 flex-1 overflow-y-auto p-4"><Navigation pathname={pathname} collapsed={false} pendingHref={visiblePendingHref} onNavigate={(href) => { navigate(href); setMobileOpen(false); }} onIntent={prefetchWorkspace} /></div><Link href="/settings" onClick={() => setMobileOpen(false)} className="m-3 flex h-10 items-center gap-2 border-t px-2 pt-3 text-sm text-[var(--text-secondary)]"><Settings className="size-4" aria-hidden="true" />Settings</Link></SheetContent></Sheet>
     <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="min-w-0 md:ml-[var(--shell-width)]">
       <header className="sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-3 border-b bg-[color:var(--surface-canvas)]/95 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-sm sm:px-4">
         <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu aria-hidden="true" /></Button>

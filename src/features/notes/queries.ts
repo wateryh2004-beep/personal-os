@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
+import { withPerfSpan } from "@/lib/performance/server-perf";
 import {
   parseFallbackNoteListItems,
   parseNoteListItems,
@@ -9,6 +10,7 @@ import { getNoteLinkRelations, listNoteLinkSuggestions } from "./links/queries";
 
 type QueryError = { code?: string } | null;
 type Supabase = Awaited<ReturnType<typeof requireOwner>>["supabase"];
+type Owner = Awaited<ReturnType<typeof requireOwner>>;
 type WorkspaceState = "ready" | "base" | "unavailable";
 
 const defaultNotesPageSize = 100;
@@ -79,10 +81,10 @@ export async function listNotesWorkspacePage(
 ) {
   const boundedOffset = Math.max(0, offset);
   const boundedLimit = Math.max(1, Math.min(limit, 100));
-  const result = await supabase.rpc("list_notes_workspace", {
+  const result = await withPerfSpan("notes.workspace.rpc", () => supabase.rpc("list_notes_workspace", {
     p_limit: boundedLimit + 1,
     p_offset: boundedOffset,
-  });
+  }));
 
   if (isNotesWorkspaceSchemaMissing(result.error)) {
     return fallbackNotesPage(supabase, boundedOffset, boundedLimit);
@@ -99,26 +101,26 @@ export async function listNotesWorkspacePage(
   };
 }
 
-export async function getNotesWorkspace(): Promise<{
+export async function getNotesWorkspace(owner?: Owner): Promise<{
   notes: NoteListItem[];
   folders: { id: string; name: string; parent_id: string | null }[];
   timezone: string;
   state: WorkspaceState;
   hasMore: boolean;
 }> {
-  const { supabase, userId } = await requireOwner();
+  const { supabase, userId } = owner ?? await withPerfSpan("notes.workspace.auth", () => requireOwner());
   const [profileResult, notesPage, foldersResult] = await Promise.all([
-    supabase
+    withPerfSpan("notes.workspace.profile", () => supabase
       .from("profiles")
       .select("timezone")
       .eq("user_id", userId)
-      .maybeSingle(),
+      .maybeSingle()),
     listNotesWorkspacePage(supabase),
-    supabase
+    withPerfSpan("notes.workspace.folders", () => supabase
       .from("note_folders")
       .select("id,name,parent_id")
       .is("archived_at", null)
-      .order("position"),
+      .order("position")),
   ]);
   const timezone = profileResult.data?.timezone || "Asia/Shanghai";
 

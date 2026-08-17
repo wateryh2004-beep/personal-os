@@ -24,7 +24,7 @@ describe("interaction performance guardrails", () => {
   it("keeps the calendar instance stable and gives the workspace one cache owner", () => {
     expect(calendar).not.toContain("key={`${view}:${cursor.toDateString()}`}");
     expect(calendar).toContain("api.changeView");
-    expect(calendarWorkspace).toContain("rangeCacheRef");
+    expect(calendarWorkspace).toContain("calendarRangeResource");
     expect(calendarWorkspace).toContain("requestSequenceRef");
     expect(calendarWorkspace).toContain("invalidateCalendarCache");
   });

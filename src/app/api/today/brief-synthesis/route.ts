@@ -10,10 +10,9 @@ const headers = { "Cache-Control": "private, no-store, max-age=0" };
 
 export async function POST() {
   try {
-    const [{ supabase, userId }, workspace] = await Promise.all([
-      requireOwnerApi(),
-      getTodayWorkspace(),
-    ]);
+    const owner = await requireOwnerApi();
+    const { supabase, userId } = owner;
+    const workspace = await getTodayWorkspace(new Date(), owner);
     if (!workspace.todayBrief.length)
       return NextResponse.json({ error: "今天还没有足够信息可供总结。" }, { status: 422, headers });
     const result = await synthesizeTodayBrief({

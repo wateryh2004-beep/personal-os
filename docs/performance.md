@@ -48,6 +48,14 @@ the ordinary next navigation still reconciles it against the server.
 The user sees local feedback, not a promise about provider response time:
 
 - Navigation click → pending active state: **under 100 ms**.
+- Warm restore for an already visited Today, Tasks, Notes, or Calendar
+  workspace: cached useful UI **≤200 ms** (ideal: under 100 ms); refresh is a
+  background concern and must not clear the previous snapshot.
+- Cold private route: useful workspace chrome should normally appear around
+  **1 s** on production networks, materially below the former 2–3 s wait. It
+  is a target to benchmark, not a fabricated local guarantee.
+- Provider mutation → optimistic visible UI: **under 100 ms**; a failed
+  provider reconciliation must roll back visibly.
 - Panel, dialog, and quick capture: state changes in the next frame; CSS motion
   completes in roughly **150–200 ms**.
 - Quick-create submit → local pending state: immediate; confirmation happens

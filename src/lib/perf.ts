@@ -5,7 +5,7 @@ export function perfMark(name: string, detail?: Record<string, unknown>) {
   if (process.env.NEXT_PUBLIC_PERF_DEBUG !== "true") return;
   const mark = `personal-os:${name}`;
   performance.mark(mark);
-  console.info(`[perf] ${name}`, detail ?? {});
+  console.info(JSON.stringify({ type: "perf", event: name, at: Math.round(performance.now()), ...(detail ?? {}) }));
 }
 
 /** Measure an interaction from a previous mark without creating production analytics. */
@@ -16,7 +16,7 @@ export function perfMeasure(name: string, start: string, detail?: Record<string,
   try {
     performance.measure(measure, startMark);
     const duration = performance.getEntriesByName(measure).at(-1)?.duration;
-    console.info(`[perf] ${name}`, { duration: duration ? Math.round(duration) : undefined, ...detail });
+    console.info(JSON.stringify({ type: "perf", event: name, durationMs: duration ? Math.round(duration) : undefined, ...(detail ?? {}) }));
   } catch {
     // A measurement is diagnostic only; a missing prior mark must never affect UX.
   }

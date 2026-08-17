@@ -13,6 +13,7 @@ import { createNoteInFolder, moveNote, renameNote, toggleNotePinned, trashNote }
 import type { NoteListItem } from "@/features/notes/types";
 import { formatNoteTimestamp } from "@/features/notes/utils";
 import { useWorkspaceScrollRestoration } from "@/components/shared/use-workspace-scroll-restoration";
+import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
 
 type Folder = { id: string; name: string; parent_id: string | null };
 type WorkspaceState = "ready" | "base" | "unavailable";
@@ -97,7 +98,13 @@ export function NotesWorkspace({ notes, folders, timezone, state, selectedFolder
   }, [activeFolderId, normalizedQuery]);
 
   const updateQuery = (value: string) => { setQuery(value); const next = new URLSearchParams(params.toString()); if (value.trim()) next.set("q", value); else next.delete("q"); if (scope === "all") next.set("scope", "all"); else next.delete("scope"); router.replace(`/notes?${next.toString()}`, { scroll: false }); };
-  const mutate = (action: (form: FormData) => Promise<void>, form: FormData) => startTransition(async () => { await action(form); router.refresh(); });
+  const mutate = (action: (form: FormData) => Promise<void>, form: FormData) => startTransition(async () => {
+    await action(form);
+    // Keep the existing private snapshot visible; the read model reconciles
+    // after the mutation instead of re-entering the route's server critical path.
+    notesWorkspaceResource.invalidate();
+    void notesWorkspaceResource.revalidate().catch(() => {});
+  });
   const loadMore = async () => { setLoadingMore(true); try { const response = await fetch(`/api/notes/list?offset=${allNotes.length}&limit=50`); const body = await response.json() as { notes?: NoteListItem[]; hasMore?: boolean }; if (!response.ok) throw new Error(); setAdditional((current) => [...current, ...(body.notes ?? [])]); setHasMore(Boolean(body.hasMore)); } finally { setLoadingMore(false); } };
 
   return <main ref={listScrollRef} className="workspace-scroll h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pt-14 pb-5 md:pt-5 sm:px-7 lg:px-10">
