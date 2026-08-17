@@ -46,7 +46,7 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .calendar-canvas .fc-timegrid-slot-label-cushion { color:var(--text-tertiary); font-size:11px; padding-right:10px; }
 .calendar-canvas .fc-timegrid-now-indicator-line { border-color:var(--danger); border-width:1px; }
 .calendar-canvas .fc-timegrid-now-indicator-arrow { border-color:var(--danger); color:var(--danger); }
-.calendar-canvas .fc-event { border-width:1px; border-radius:4px; box-shadow:none; cursor:pointer; }
+.calendar-canvas .fc-event { border-width:1px 1px 1px 3px; border-radius:5px; box-shadow:none; cursor:pointer; }
 .calendar-canvas .fc-timegrid-event { margin:1px 2px; }
 /* FullCalendar writes overlap widths as inline left/right percentages after every
    layout. Keep every timed event readable across reflows, navigation and drag. */

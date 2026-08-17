@@ -9,34 +9,37 @@ export type CalendarEventVisual = {
   dot: string;
 };
 
-const neutral = { background: "#64748b", border: "#475569", foreground: "#ffffff", dot: "#64748b" };
+// Categories need to be immediately recognisable without turning a full-day
+// work block into the loudest element on the page. The fill is a distinct,
+// lightly tinted surface; the border, text and dot carry the saturated cue.
+const neutral = { background: "#eef2f6", border: "#718096", foreground: "#334155", dot: "#718096" };
 
 const outlookPresetTokens: Record<string, Omit<CalendarEventVisual, "primaryCategory">> = {
-  preset0: { background: "#dc2626", border: "#b91c1c", foreground: "#ffffff", dot: "#dc2626" },
-  preset1: { background: "#ea580c", border: "#c2410c", foreground: "#ffffff", dot: "#ea580c" },
-  preset2: { background: "#a16207", border: "#854d0e", foreground: "#ffffff", dot: "#a16207" },
-  preset3: { background: "#ca8a04", border: "#a16207", foreground: "#ffffff", dot: "#ca8a04" },
-  preset4: { background: "#16a34a", border: "#15803d", foreground: "#ffffff", dot: "#16a34a" },
-  preset5: { background: "#0f766e", border: "#0f5f59", foreground: "#ffffff", dot: "#0f766e" },
-  preset6: { background: "#65a30d", border: "#4d7c0f", foreground: "#ffffff", dot: "#65a30d" },
-  preset7: { background: "#2563eb", border: "#1d4ed8", foreground: "#ffffff", dot: "#2563eb" },
-  preset8: { background: "#7c3aed", border: "#6d28d9", foreground: "#ffffff", dot: "#7c3aed" },
-  preset9: { background: "#db2777", border: "#be185d", foreground: "#ffffff", dot: "#db2777" },
-  preset10: { background: "#0284c7", border: "#0369a1", foreground: "#ffffff", dot: "#0284c7" },
-  preset11: { background: "#475569", border: "#334155", foreground: "#ffffff", dot: "#475569" },
-  preset12: { background: "#64748b", border: "#475569", foreground: "#ffffff", dot: "#64748b" },
-  preset13: { background: "#b91c1c", border: "#991b1b", foreground: "#ffffff", dot: "#b91c1c" },
-  preset14: { background: "#c2410c", border: "#9a3412", foreground: "#ffffff", dot: "#c2410c" },
-  preset15: { background: "#78350f", border: "#5c2a0b", foreground: "#ffffff", dot: "#78350f" },
-  preset16: { background: "#a16207", border: "#854d0e", foreground: "#ffffff", dot: "#a16207" },
-  preset17: { background: "#15803d", border: "#166534", foreground: "#ffffff", dot: "#15803d" },
-  preset18: { background: "#0f766e", border: "#115e59", foreground: "#ffffff", dot: "#0f766e" },
-  preset19: { background: "#15803d", border: "#166534", foreground: "#ffffff", dot: "#15803d" },
-  preset20: { background: "#1d4ed8", border: "#1e40af", foreground: "#ffffff", dot: "#1d4ed8" },
-  preset21: { background: "#6d28d9", border: "#5b21b6", foreground: "#ffffff", dot: "#6d28d9" },
-  preset22: { background: "#be185d", border: "#9d174d", foreground: "#ffffff", dot: "#be185d" },
-  preset23: { background: "#27272a", border: "#18181b", foreground: "#ffffff", dot: "#27272a" },
-  preset24: { background: "#9f1239", border: "#881337", foreground: "#ffffff", dot: "#9f1239" },
+  preset0: { background: "#fdeced", border: "#cf4d54", foreground: "#8a2931", dot: "#cf4d54" },
+  preset1: { background: "#fff1e5", border: "#d97928", foreground: "#8a4b18", dot: "#d97928" },
+  preset2: { background: "#f7eee8", border: "#a66b49", foreground: "#68422d", dot: "#a66b49" },
+  preset3: { background: "#fff8de", border: "#b79224", foreground: "#735b0d", dot: "#b79224" },
+  preset4: { background: "#e9f7ee", border: "#3e9362", foreground: "#23603d", dot: "#3e9362" },
+  preset5: { background: "#e5f6f3", border: "#238a81", foreground: "#155c56", dot: "#238a81" },
+  preset6: { background: "#f2f6e3", border: "#809237", foreground: "#526019", dot: "#809237" },
+  preset7: { background: "#eaf2ff", border: "#4b7fd0", foreground: "#294f88", dot: "#4b7fd0" },
+  preset8: { background: "#f1ebfb", border: "#8465bf", foreground: "#543c83", dot: "#8465bf" },
+  preset9: { background: "#fbeaf1", border: "#c56589", foreground: "#813a57", dot: "#c56589" },
+  preset10: { background: "#eaf3f7", border: "#52829a", foreground: "#31576a", dot: "#52829a" },
+  preset11: { background: "#eef1f4", border: "#68737e", foreground: "#404b57", dot: "#68737e" },
+  preset12: { background: "#f1f3f5", border: "#838c96", foreground: "#505861", dot: "#838c96" },
+  preset13: { background: "#fae9e9", border: "#a74545", foreground: "#6d2929", dot: "#a74545" },
+  preset14: { background: "#fbeddf", border: "#b86425", foreground: "#733d17", dot: "#b86425" },
+  preset15: { background: "#f3ebe6", border: "#835d48", foreground: "#52392d", dot: "#835d48" },
+  preset16: { background: "#fbf4dc", border: "#9b7d1e", foreground: "#62500f", dot: "#9b7d1e" },
+  preset17: { background: "#e8f3eb", border: "#3d7d50", foreground: "#275137", dot: "#3d7d50" },
+  preset18: { background: "#e4f2f1", border: "#397a76", foreground: "#24524f", dot: "#397a76" },
+  preset19: { background: "#eaf3ec", border: "#4d7f5a", foreground: "#30533a", dot: "#4d7f5a" },
+  preset20: { background: "#e8f0fa", border: "#3d6eaa", foreground: "#284b76", dot: "#3d6eaa" },
+  preset21: { background: "#eeeafa", border: "#6d58a3", foreground: "#49386f", dot: "#6d58a3" },
+  preset22: { background: "#f8e9ef", border: "#a84f70", foreground: "#6e3349", dot: "#a84f70" },
+  preset23: { background: "#eceef0", border: "#4b5561", foreground: "#303841", dot: "#4b5561" },
+  preset24: { background: "#f9ebf0", border: "#a85b72", foreground: "#713d4d", dot: "#a85b72" },
 };
 
 export const outlookCategoryPalette: Record<string, { label: string }> = {
