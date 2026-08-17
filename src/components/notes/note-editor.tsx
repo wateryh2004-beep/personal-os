@@ -33,7 +33,7 @@ import {
 
 const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-markdown-editor").then((module) => module.VisualMarkdownEditor), {
   ssr: false,
-  loading: () => <div className="min-h-80 bg-white p-6 text-sm text-zinc-500">正在载入 Markdown 编辑器…</div>,
+  loading: () => <div className="notes-editor-loading" aria-label="正在载入 Markdown 编辑器" aria-busy="true" />,
 });
 const NoteAiAssistant = dynamic(() => import("@/components/notes/note-ai-assistant").then((module) => module.NoteAiAssistant), { ssr: false });
 
@@ -54,23 +54,23 @@ const pdfCloneStyles = `
 `;
 
 function MarkdownDocument({ body }: { body: string }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{
-    h1: ({ children }) => <h1 className="mb-5 mt-1 text-3xl font-semibold tracking-tight text-zinc-900">{children}</h1>,
-    h2: ({ children }) => <h2 className="mb-3 mt-8 border-b pb-2 text-xl font-semibold text-zinc-900">{children}</h2>,
-    h3: ({ children }) => <h3 className="mb-2 mt-6 text-base font-semibold text-zinc-900">{children}</h3>,
-    p: ({ children }) => <p className="mb-4 leading-7 text-zinc-700">{children}</p>,
-    ul: ({ children }) => <ul className="mb-4 list-disc space-y-1 pl-6 text-zinc-700">{children}</ul>,
-    ol: ({ children }) => <ol className="mb-4 list-decimal space-y-1 pl-6 text-zinc-700">{children}</ol>,
+  return <div className="markdown-document"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{
+    h1: ({ children }) => <h1 className="mb-5 mt-1 text-3xl font-semibold tracking-tight">{children}</h1>,
+    h2: ({ children }) => <h2 className="mb-3 mt-8 border-b pb-2 text-xl font-semibold">{children}</h2>,
+    h3: ({ children }) => <h3 className="mb-2 mt-6 text-base font-semibold">{children}</h3>,
+    p: ({ children }) => <p className="mb-4 leading-7">{children}</p>,
+    ul: ({ children }) => <ul className="mb-4 list-disc space-y-1 pl-6">{children}</ul>,
+    ol: ({ children }) => <ol className="mb-4 list-decimal space-y-1 pl-6">{children}</ol>,
     li: ({ children }) => <li className="pl-1 leading-7">{children}</li>,
-    blockquote: ({ children }) => <blockquote className="mb-4 border-l-2 border-[#365F78] pl-4 italic text-zinc-600">{children}</blockquote>,
+    blockquote: ({ children }) => <blockquote className="mb-4 border-l-2 pl-4 italic">{children}</blockquote>,
     pre: ({ children }) => <pre className="mb-4 overflow-x-auto bg-zinc-950 p-4 text-sm leading-6 text-zinc-100">{children}</pre>,
-    code: ({ children, className }) => className ? <code className={className}>{children}</code> : <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-[0.85em] text-zinc-800">{children}</code>,
-    a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-[#365F78] underline underline-offset-2">{children}</a>,
+    code: ({ children, className }) => className ? <code className={className}>{children}</code> : <code className="px-1 py-0.5 font-mono text-[0.85em]">{children}</code>,
+    a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2">{children}</a>,
     table: ({ children }) => <div className="mb-4 overflow-x-auto"><table className="w-full border-collapse text-left text-sm">{children}</table></div>,
-    th: ({ children }) => <th className="border bg-zinc-50 px-3 py-2 font-medium">{children}</th>,
+    th: ({ children }) => <th className="border px-3 py-2 font-medium">{children}</th>,
     td: ({ children }) => <td className="border px-3 py-2 align-top">{children}</td>,
-    hr: () => <hr className="my-7 border-zinc-200" />,
-  }}>{body}</ReactMarkdown>;
+    hr: () => <hr className="my-7" />,
+  }}>{body}</ReactMarkdown></div>;
 }
 
 function savedTimeLabel(value: string | null) {

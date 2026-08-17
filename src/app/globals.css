@@ -8,8 +8,9 @@
   --sidebar-width:216px; --sidebar-collapsed-width:60px; --context-sidebar-width:216px;
   --content-document-width:800px; --content-dashboard-width:1180px; --toolbar-height:48px; --app-viewport-height:100dvh;
   --radius-sm:5px; --radius-md:7px; --radius-lg:10px;
+  --motion-fast:120ms; --motion-base:160ms; --motion-panel:180ms; --ease-standard:cubic-bezier(.2,.8,.2,1);
 }
-@theme inline { --color-background:var(--surface-app); --color-foreground:var(--text-primary); --color-card:var(--surface-canvas); --color-border:var(--border-subtle); --color-primary:var(--accent); --color-muted:var(--surface-hover); --color-muted-foreground:var(--text-secondary); --color-popover:var(--surface-elevated); --color-popover-foreground:var(--text-primary); --color-destructive:var(--danger); --color-ring:var(--accent); --font-sans:"Geist", "PingFang SC", "Microsoft YaHei", sans-serif; --font-mono:"Geist Mono", ui-monospace, monospace; }
+@theme inline { --color-background:var(--surface-app); --color-foreground:var(--text-primary); --color-card:var(--surface-canvas); --color-card-foreground:var(--text-primary); --color-popover:var(--surface-elevated); --color-popover-foreground:var(--text-primary); --color-primary:var(--accent); --color-primary-foreground:#fff; --color-secondary:var(--surface-hover); --color-secondary-foreground:var(--text-primary); --color-muted:var(--surface-hover); --color-muted-foreground:var(--text-secondary); --color-accent:var(--accent-soft); --color-accent-foreground:var(--text-primary); --color-input:var(--border-subtle); --color-border:var(--border-subtle); --color-ring:var(--accent); --color-destructive:var(--danger); --color-destructive-foreground:#fff; --font-sans:"Geist", "PingFang SC", "Microsoft YaHei", sans-serif; --font-mono:"Geist Mono", ui-monospace, monospace; }
 * { border-color:var(--border-subtle); }
 html { background:var(--surface-app); }
 body { background:var(--surface-app); color:var(--text-primary); font-family:var(--font-sans); overflow-x:hidden; }
@@ -18,8 +19,19 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 ::selection { background:var(--accent-soft); color:var(--text-primary); }
 .surface-canvas { background:var(--surface-canvas); }
+.surface-elevated { background:var(--surface-elevated); }
 .text-secondary { color:var(--text-secondary); }
 .text-tertiary { color:var(--text-tertiary); }
+.ui-transition { transition-duration:var(--motion-fast); transition-timing-function:var(--ease-standard); }
+.ui-panel-transition { transition-duration:var(--motion-panel); transition-timing-function:var(--ease-standard); }
+.markdown-document { color:var(--text-secondary); }
+.markdown-document h1,.markdown-document h2,.markdown-document h3 { color:var(--text-primary); }
+.markdown-document h2 { border-color:var(--border-subtle); }
+.markdown-document blockquote { border-color:var(--accent); color:var(--text-secondary); }
+.markdown-document :not(pre) > code { border-radius:var(--radius-sm); background:var(--surface-hover); color:var(--text-primary); }
+.markdown-document th { border-color:var(--border-subtle); background:var(--surface-hover); }
+.markdown-document td,.markdown-document hr { border-color:var(--border-subtle); }
+.markdown-document a { color:var(--accent); }
 .workspace-scroll { scrollbar-gutter:stable; overscroll-behavior:contain; }
 .notes-editor-surface input[aria-label="笔记标题"]:focus-visible { border-radius:var(--radius-sm); outline:2px solid var(--accent); outline-offset:2px; }
 .calendar-canvas .fc { height:100%; color:var(--text-primary); font-size:13px; }
@@ -52,6 +64,9 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .life-codemirror { min-height:0; flex:1; overflow:hidden; }
 .life-codemirror .cm-editor { height:100%; min-height:0; }
 .life-codemirror .cm-scroller { -webkit-tap-highlight-color:transparent; }
+.notes-editor-loading { min-height:20rem; padding:1.5rem; background:var(--surface-canvas); }
+.notes-editor-loading::before { content:""; display:block; height:1rem; width:36%; border-radius:var(--radius-sm); background:var(--surface-hover); box-shadow:0 2.5rem 0 var(--surface-hover),0 5rem 0 var(--surface-hover),0 7.5rem 0 var(--surface-hover); animation:notes-editor-pulse 1.2s var(--ease-standard) infinite alternate; }
+@keyframes notes-editor-pulse { to { opacity:.55; } }
 .notes-editor-surface:fullscreen { box-sizing:border-box; height:var(--app-viewport-height); overflow:hidden; background:var(--background); padding:1.25rem 1.5rem; }
 @media (max-width:767px) {
   .workspace-scroll { scrollbar-gutter:auto; }

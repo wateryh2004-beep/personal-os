@@ -23,11 +23,11 @@ export default async function Settings() {
         />
         <section className="border-t pt-5">
           <h2 className="font-medium">Memory</h2>
-          <p className="mt-1 text-zinc-500">
+          <p className="mt-1 text-[var(--text-secondary)]">
             查看、确认与维护提供给个人助手的重要信息。
           </p>
           <Link
-            className="mt-3 inline-block text-[#365F78] hover:underline"
+            className="mt-3 inline-block text-[var(--accent)] hover:underline"
             href="/memory"
           >
             管理 Memory →

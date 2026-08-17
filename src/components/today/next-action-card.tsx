@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { completeMicrosoftTodoTaskAction } from "@/features/tasks/microsoft-todo";
 import type { NowNextAction } from "@/features/today/types";
 
@@ -61,20 +62,14 @@ export function NextActionCard({
         </div>
         {next.kind !== "none" ? (
           <div className="flex shrink-0 items-center gap-1.5">
-            <Link
-              href={next.href}
-              className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-md)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
-            >
-              {actionCopy(next)}
-              <ArrowRight className="size-3.5" aria-hidden="true" />
-            </Link>
+            <Button asChild variant="ghost" size="sm" className="text-xs text-[var(--text-secondary)] hover:text-[var(--accent)]"><Link href={next.href}>{actionCopy(next)}<ArrowRight className="size-3.5" aria-hidden="true" /></Link></Button>
             {next.kind === "task" ? (
               <form action={completeMicrosoftTodoTaskAction}>
                 <input type="hidden" name="task_id" value={next.task.id} />
-                <button className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 text-xs font-medium text-white hover:opacity-90">
+                <Button size="sm" className="text-xs">
                   <Check className="size-3.5" aria-hidden="true" />
                   完成
-                </button>
+                </Button>
               </form>
             ) : null}
           </div>
