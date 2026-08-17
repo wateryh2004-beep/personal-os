@@ -57,7 +57,7 @@ export async function POST(request: Request) {
         { status: 400, headers: noStore },
       );
     runUserId = owner.userId;
-    if (parsed.data.surface === "global") {
+    if (parsed.data.surface === "global" || parsed.data.surface === "notes-library") {
       runId = parsed.data.runId ?? await createAgentRun({
         supabase: owner.supabase,
         userId: owner.userId,

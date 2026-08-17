@@ -16,7 +16,7 @@ import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
 import { markdownImagePreview } from "@/features/notes/editor/markdown-image-preview";
 import { createNoteLinkCompletion, extractNoteLinkQuery } from "@/features/notes/editor/note-link-completion";
 import { noteLinkDecoration } from "@/features/notes/editor/note-link-decoration";
-import type { NoteLinkSuggestion } from "@/features/notes/links/types";
+import type { EntityLinkSuggestion } from "@/features/links/types";
 import {
   addMarkdownUploadPlaceholder,
   findMarkdownUploadRange,
@@ -31,10 +31,11 @@ type VisualMarkdownEditorProps = {
   onImageUploadStatus?: (message: string) => void;
   onOpenAi?: () => void;
   onSelectionChange?: (selection: NoteSelection | null) => void;
-  recentNoteLinks?: readonly NoteLinkSuggestion[];
 };
 
 let imageUploadSequence = 0;
+
+const entityLabels: Record<string, string> = { note: "笔记", todo_task: "任务", calendar_event: "日程", document: "文件" };
 
 function nextImageUploadId() {
   imageUploadSequence += 1;
@@ -83,7 +84,6 @@ export function VisualMarkdownEditor({
   onImageUploadStatus,
   onOpenAi,
   onSelectionChange,
-  recentNoteLinks = [],
 }: VisualMarkdownEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const changeRef = useRef(onChange);
@@ -118,9 +118,16 @@ export function VisualMarkdownEditor({
       selectionRef.current?.(null);
       return;
     }
+    // 选区上下文窗口：把选区前后紧邻的原文一并上报，避免选区成为"上下文孤岛"。
+    const contextWindow = 400;
+    const doc = currentView.state.doc;
+    const contextBefore = doc.sliceString(Math.max(0, range.from - contextWindow), range.from);
+    const contextAfter = doc.sliceString(range.to, Math.min(doc.length, range.to + contextWindow));
     const coordinates = currentView.coordsAtPos(range.from);
     selectionRef.current?.({
       text: selectedText,
+      contextBefore,
+      contextAfter,
       rect: { left: coordinates?.left ?? 0, top: coordinates?.top ?? 0 },
       replace: (text) => {
         if (currentView.state.sliceDoc(range.from, range.to) !== selectedText) return false;
@@ -214,21 +221,26 @@ export function VisualMarkdownEditor({
     }
   }, [noteId, onImageUploadStatus, uploadImageThroughApp]);
 
-  const searchNoteLinks = useCallback(async (query: string) => {
-    const response = await fetch(`/api/notes/link-suggestions?q=${encodeURIComponent(query)}&limit=20`, {
+  const searchEntities = useCallback(async (query: string): Promise<EntityLinkSuggestion[]> => {
+    const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=20`, {
       credentials: "same-origin",
     });
-    if (!response.ok) throw new Error("无法搜索笔记。");
-    const data = (await response.json()) as { notes?: NoteLinkSuggestion[] };
-    return data.notes ?? [];
-  }, []);
+    if (!response.ok) throw new Error("无法搜索。");
+    const data = (await response.json()) as { results?: Array<{ entityType: string; entityId: string; title: string; href: string }> };
+    return (data.results ?? [])
+      .filter((item) => ["note", "todo_task", "calendar_event", "document"].includes(item.entityType))
+      .filter((item) => item.entityId !== noteId)
+      .map((item) => ({
+        id: item.entityId,
+        title: item.title,
+        href: item.href,
+        label: entityLabels[item.entityType] ?? "引用",
+      }));
+  }, [noteId]);
 
   const noteLinkCompletion = useMemo(
-    () => createNoteLinkCompletion({
-      recentNotes: recentNoteLinks.filter((item) => item.id !== noteId),
-      searchNotes: searchNoteLinks,
-    }),
-    [noteId, recentNoteLinks, searchNoteLinks],
+    () => createNoteLinkCompletion({ searchEntities }),
+    [searchEntities],
   );
 
   const insertUploadedImage = useCallback(async (file: File, currentView: EditorView) => {

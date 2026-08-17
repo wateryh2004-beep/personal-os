@@ -36,6 +36,8 @@ export function extractQueryConcepts(message: string, max = 6) {
 }
 
 const mutationPattern = /(?:创建|新建|添加|写入|修改|更新|改到|改成|改为|删除|完成|移动|安排|改期|延期|取消|保存|归档)(?:.{0,20})(?:日程|会议|任务|待办|笔记|记忆|项目|文件|提醒)?/;
+const identityRecall = /你(?:知道|了解|记得).{0,8}(?:我是谁|我的情况|关于我)|你对我(?:知道|了解)多少/;
+const selfProfile = /我(?:觉得|是)(?:个|一个)?什么(?:样)?(?:的)?人|我是谁|我的(?:性格|画像|类型|特点|标签|为人|兴趣|性格特点)|(?:概括|总结|描述|评价|分析|介绍)(?:一下)?我|你觉得我是一个|你(?:会)?怎么(?:看待|评价|认识)我|了解我|认识我/;
 const patterns: Array<{ recipe: CognitiveRecipe; patterns: RegExp[]; weight: number }> = [
   { recipe: "contradiction_detection", patterns: [/矛盾|冲突|前后不一|自相矛盾|不一致|相互抵触/], weight: 10 },
   { recipe: "belief_change", patterns: [/改变.{0,8}(?:看法|想法|观点|判断|方向)|(?:看法|想法|观点|判断).{0,8}(?:发生)?变化|为什么放弃|不再(?:认为|考虑|选择)|从.{1,12}转向/], weight: 10 },
@@ -45,7 +47,7 @@ const patterns: Array<{ recipe: CognitiveRecipe; patterns: RegExp[]; weight: num
   { recipe: "next_best_action", patterns: [/下一步|接下来.{0,8}(?:做什么|该做)|现在最该|优先做什么|最佳行动/], weight: 9 },
   { recipe: "decision_support", patterns: [/决策|取舍|权衡|该不该|要不要|怎么选|选择哪个|利弊/], weight: 8 },
   { recipe: "career_strategy", patterns: [/职业|求职|实习|秋招|校招|岗位|简历|面试|offer|职业路线|职业方向|量化/i], weight: 7 },
-  { recipe: "time_planning", patterns: [/空闲|日程|时间安排|时间段|本周计划|今天计划|明天计划|什么时候做|如何安排时间/], weight: 7 },
+  { recipe: "time_planning", patterns: [/空闲|有时间|有空|日程|时间安排|时间段|本周计划|今天计划|明天计划|什么时候做|如何安排时间|下周|本周|这周|要做什么|有什么安排|安排什么/], weight: 7 },
   { recipe: "semantic_recall", patterns: [/我记得|大概提过|类似的|相关的旧笔记|以前怎么想|模糊记得|找回/], weight: 6 },
   { recipe: "factual_lookup", patterns: [/搜索|查找|找到|哪篇|在哪里|提到过|记录过|查一下/], weight: 5 },
 ];
@@ -73,11 +75,15 @@ export function routeCognitiveTask(input: {
   let confidence = 0.45;
   const signals: string[] = [];
 
-  if (/(?:你(?:知道|了解|记得).{0,8}(?:我是谁|我的情况|关于我)|我是谁|你对我(?:知道|了解)多少)/.test(message)) {
+  if (identityRecall.test(message)) {
     recipe = "semantic_recall";
     confidence = 0.96;
     signals.push("identity_context");
-  } else if (mutationPattern.test(message) && !/(改变.{0,8}(?:看法|观点|想法)|变化)/.test(message)) {
+  } else if (selfProfile.test(message)) {
+    recipe = "retrospective_thinking";
+    confidence = 0.96;
+    signals.push("self_profile");
+  } else if (mutationPattern.test(message) && !/(改变.{0,8}(?:看法|观点|想法)|变化)/.test(message) && !/(?:有什么|什么|哪些|我的)安排/.test(message)) {
     recipe = "mutation_request";
     confidence = 0.94;
     signals.push("explicit_mutation");

@@ -40,6 +40,7 @@ describe("Unified Assistant policy", () => {
     expect(Object.keys(inbox).sort()).toEqual([
       "listTodoLists",
       "proposeInboxDestination",
+      "searchInbox",
       "searchTodoTasks",
     ]);
   });

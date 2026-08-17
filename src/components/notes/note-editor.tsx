@@ -15,10 +15,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { isInternalEntityHref } from "@/features/links/parser";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { recordNotePdfExport, saveNote } from "@/features/notes/actions";
 import { markdownFilename } from "@/features/notes/utils";
-import type { NoteLinkSuggestion } from "@/features/notes/links/types";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
@@ -33,7 +33,7 @@ import {
 
 const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-markdown-editor").then((module) => module.VisualMarkdownEditor), {
   ssr: false,
-  loading: () => <div className="notes-editor-loading" aria-label="正在载入 Markdown 编辑器" aria-busy="true" />,
+  loading: () => <div className="min-h-80 bg-white p-6 text-sm text-zinc-500">正在载入 Markdown 编辑器…</div>,
 });
 const NoteAiAssistant = dynamic(() => import("@/components/notes/note-ai-assistant").then((module) => module.NoteAiAssistant), { ssr: false });
 
@@ -54,23 +54,23 @@ const pdfCloneStyles = `
 `;
 
 function MarkdownDocument({ body }: { body: string }) {
-  return <div className="markdown-document"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{
-    h1: ({ children }) => <h1 className="mb-5 mt-1 text-3xl font-semibold tracking-tight">{children}</h1>,
-    h2: ({ children }) => <h2 className="mb-3 mt-8 border-b pb-2 text-xl font-semibold">{children}</h2>,
-    h3: ({ children }) => <h3 className="mb-2 mt-6 text-base font-semibold">{children}</h3>,
-    p: ({ children }) => <p className="mb-4 leading-7">{children}</p>,
-    ul: ({ children }) => <ul className="mb-4 list-disc space-y-1 pl-6">{children}</ul>,
-    ol: ({ children }) => <ol className="mb-4 list-decimal space-y-1 pl-6">{children}</ol>,
+  return <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{
+    h1: ({ children }) => <h1 className="mb-5 mt-1 text-3xl font-semibold tracking-tight text-zinc-900">{children}</h1>,
+    h2: ({ children }) => <h2 className="mb-3 mt-8 border-b pb-2 text-xl font-semibold text-zinc-900">{children}</h2>,
+    h3: ({ children }) => <h3 className="mb-2 mt-6 text-base font-semibold text-zinc-900">{children}</h3>,
+    p: ({ children }) => <p className="mb-4 leading-7 text-zinc-700">{children}</p>,
+    ul: ({ children }) => <ul className="mb-4 list-disc space-y-1 pl-6 text-zinc-700">{children}</ul>,
+    ol: ({ children }) => <ol className="mb-4 list-decimal space-y-1 pl-6 text-zinc-700">{children}</ol>,
     li: ({ children }) => <li className="pl-1 leading-7">{children}</li>,
-    blockquote: ({ children }) => <blockquote className="mb-4 border-l-2 pl-4 italic">{children}</blockquote>,
+    blockquote: ({ children }) => <blockquote className="mb-4 border-l-2 border-[#365F78] pl-4 italic text-zinc-600">{children}</blockquote>,
     pre: ({ children }) => <pre className="mb-4 overflow-x-auto bg-zinc-950 p-4 text-sm leading-6 text-zinc-100">{children}</pre>,
-    code: ({ children, className }) => className ? <code className={className}>{children}</code> : <code className="px-1 py-0.5 font-mono text-[0.85em]">{children}</code>,
-    a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2">{children}</a>,
+    code: ({ children, className }) => className ? <code className={className}>{children}</code> : <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-[0.85em] text-zinc-800">{children}</code>,
+    a: ({ children, href }) => isInternalEntityHref(href) ? <a href={href} className="text-[#365F78] underline underline-offset-2">{children}</a> : <a href={href} target="_blank" rel="noreferrer" className="text-[#365F78] underline underline-offset-2">{children}</a>,
     table: ({ children }) => <div className="mb-4 overflow-x-auto"><table className="w-full border-collapse text-left text-sm">{children}</table></div>,
-    th: ({ children }) => <th className="border px-3 py-2 font-medium">{children}</th>,
+    th: ({ children }) => <th className="border bg-zinc-50 px-3 py-2 font-medium">{children}</th>,
     td: ({ children }) => <td className="border px-3 py-2 align-top">{children}</td>,
-    hr: () => <hr className="my-7" />,
-  }}>{body}</ReactMarkdown></div>;
+    hr: () => <hr className="my-7 border-zinc-200" />,
+  }}>{body}</ReactMarkdown>;
 }
 
 function savedTimeLabel(value: string | null) {
@@ -101,9 +101,11 @@ async function copyText(value: string) {
   if (!copied) throw new Error("copy_failed");
 }
 
-export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: { note: Note; noteAiDefaultModel: DeepSeekModelId; recentNoteLinks?: readonly NoteLinkSuggestion[] }) {
+export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDefaultModel: DeepSeekModelId }) {
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
+  const [titleUndoStack, setTitleUndoStack] = useState<string[]>([]);
+  const titleUndoStackRef = useRef<string[]>([]);
   const [state, setState] = useState<SaveState>("已保存");
   const [lastSavedAt, setLastSavedAt] = useState(note.last_saved_at);
   const [editVersion, setEditVersion] = useState(0);
@@ -327,6 +329,28 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
     setBody(value);
     dirty(title, value);
   }, [dirty, title]);
+  // AI 生成标题：直接替换标题，旧标题压栈供撤回（支持连续多次生成逐步撤回）。
+  const handleAiReplaceTitle = useCallback((newTitle: string) => {
+    const next = newTitle
+      .trim()
+      .replace(/^[「『“”‘’"']+/, "")
+      .replace(/[」』“”‘’"']+$/, "")
+      .trim();
+    if (!next || next === title) return;
+    titleUndoStackRef.current = [...titleUndoStackRef.current, title];
+    setTitleUndoStack([...titleUndoStackRef.current]);
+    setTitle(next);
+    dirty(next, body);
+  }, [body, dirty, title]);
+  const handleAiUndoTitle = useCallback(() => {
+    const stack = titleUndoStackRef.current;
+    if (!stack.length) return;
+    const prev = stack[stack.length - 1];
+    titleUndoStackRef.current = stack.slice(0, -1);
+    setTitleUndoStack([...titleUndoStackRef.current]);
+    setTitle(prev);
+    dirty(prev, body);
+  }, [body, dirty]);
   const isExporting = Boolean(pdfSnapshot);
   const fullscreenActive = isFullscreen || isFallbackFullscreen;
   const statusLabel = state === "已保存" ? savedTimeLabel(lastSavedAt) : state;
@@ -372,6 +396,9 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
             value={title}
             onChange={(event) => {
               const nextTitle = event.target.value;
+              // 手动编辑标题后 AI 标题的撤回栈失效，避免撤回覆盖手动修改。
+              titleUndoStackRef.current = [];
+              setTitleUndoStack([]);
               setTitle(nextTitle);
               dirty(nextTitle, body);
             }}
@@ -384,6 +411,16 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
           >
             {statusLabel}
           </span>
+          {titleUndoStack.length ? (
+            <button
+              type="button"
+              onClick={handleAiUndoTitle}
+              title={`恢复标题：${titleUndoStack[titleUndoStack.length - 1]}`}
+              className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800 hover:bg-amber-100"
+            >
+              撤回标题
+            </button>
+          ) : null}
           <Button
             variant="ghost"
             size="sm"
@@ -469,11 +506,11 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
             onOpenAi={noteAiPanel.open}
             onSelectionChange={setSelection}
             onChange={handleBodyChange}
-            recentNoteLinks={recentNoteLinks}
           />
         </div>
       </div>
-      {noteAiPanel.isOpen ? <NoteAiAssistant
+      <NoteAiAssistant
+        key={note.id}
         open={noteAiPanel.isOpen}
         onOpen={noteAiPanel.open}
         onClose={noteAiPanel.close}
@@ -486,12 +523,13 @@ export function NoteEditor({ note, noteAiDefaultModel, recentNoteLinks = [] }: {
           setBody(suggestion);
           dirty(title, suggestion);
         }}
+        onReplaceTitle={handleAiReplaceTitle}
         onInsertNote={(suggestion) => {
           const nextBody = `${body}${body.trim() ? "\n\n" : ""}${suggestion}`;
           setBody(nextBody);
           dirty(title, nextBody);
         }}
-      /> : null}
+      />
       {pdfSnapshot ? (
         <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-white p-12 text-[15px]">
           <h1 className="mb-7 text-3xl font-semibold text-zinc-900">{pdfSnapshot.title}</h1>

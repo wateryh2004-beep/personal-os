@@ -11,7 +11,7 @@ export function TodaySectionHeader({
   label?: string;
 }) {
   return (
-    <div className="flex items-center justify-between border-b pb-2.5">
+    <div className="flex items-center justify-between">
       <h2 className="text-sm font-semibold">{children}</h2>
       {href ? (
         <Link

@@ -7,6 +7,7 @@ import { microsoftTodoRepository } from "./repository";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { syncAndBackupMicrosoftWorkspace } from "@/lib/services/microsoft-sync-backup";
 import { markInboxProcessed } from "@/features/inbox/service";
+import { syncEntityReferenceLinks } from "@/features/links/service";
 
 function fail(): never { throw new Error("Microsoft To Do 操作未能完成，请重新连接后重试。"); }
 
@@ -74,6 +75,8 @@ export async function createMicrosoftTodoTaskAction(_: TodoCreateState, formData
     const taskId = await microsoftTodoRepository.create(connection.id, userId, parsed.data);
     await audit(supabase, userId, "create", taskId, { provider: "microsoft_todo", todo_list_id: parsed.data.todoListId, importance: parsed.data.importance });
     await markInboxProcessed(supabase, userId, parsed.data.inboxId, "task", taskId);
+    const bodyLinkSync = await syncEntityReferenceLinks(supabase, userId, "todo_task", taskId, parsed.data.bodyText ?? "");
+    if (!bodyLinkSync.ok) console.error(JSON.stringify({ level: "warn", action: "sync_entity_reference_links", taskId, code: bodyLinkSync.code }));
     revalidatePath("/tasks");
     revalidatePath("/inbox");
     revalidatePath("/today");
@@ -102,6 +105,10 @@ export async function updateMicrosoftTodoTaskAction(input: unknown) {
   const { data: before } = await supabase.from("microsoft_todo_tasks").select("title,body_text,importance,due_at").eq("id", parsed.data.taskId).is("archived_at", null).maybeSingle();
   await microsoftTodoRepository.update(connection.id, userId, parsed.data.taskId, parsed.data);
   await audit(supabase, userId, "update", parsed.data.taskId, { provider: "microsoft_todo", before, patch: parsed.data });
+  if (parsed.data.bodyText !== undefined) {
+    const bodyLinkSync = await syncEntityReferenceLinks(supabase, userId, "todo_task", parsed.data.taskId, parsed.data.bodyText ?? "");
+    if (!bodyLinkSync.ok) console.error(JSON.stringify({ level: "warn", action: "sync_entity_reference_links", taskId: parsed.data.taskId, code: bodyLinkSync.code }));
+  }
   revalidatePath("/tasks");
   revalidatePath("/today");
 }

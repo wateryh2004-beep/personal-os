@@ -12,7 +12,7 @@ export type ContextGateDecision = {
   needsPersonalData: boolean;
   needsTools: boolean;
   needsCurrentSurface: boolean;
-  reasonCode: "general_knowledge" | "conversation_only" | "current_surface" | "personal_fact" | "personal_analysis" | "retrieval" | "time_context" | "mutation" | "cross_domain";
+  reasonCode: "general_knowledge" | "conversation_only" | "current_surface" | "personal_fact" | "personal_analysis" | "self_profile" | "retrieval" | "time_context" | "mutation" | "cross_domain";
 };
 export type AgentSessionState = {
   activeGoal?: string;

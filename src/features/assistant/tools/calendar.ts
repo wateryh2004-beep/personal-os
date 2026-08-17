@@ -10,7 +10,7 @@ import { findFreeTimeSlots } from "../free-time";
 import { recordAgentStep, storeAgentAction } from "../persistence";
 import type { AssistantToolModule } from "./types";
 import { classifyCalendarEvent } from "@/features/calendar/classification/classifier";
-import { managedCalendarCategories } from "@/features/calendar/classification/taxonomy";
+import { formatManagedTaxonomyForPrompt } from "@/features/calendar/classification/taxonomy";
 
 const rangeSchema = z
   .object({
@@ -108,7 +108,7 @@ export const calendarTools: AssistantToolModule = {
       },
     }),
     proposeCalendarEvent: tool({
-      description: `冻结一个待用户确认的 Outlook 日程创建提案。时间必须是与 ${context.timezone} 相符的带 offset ISO 值。分类只能引用以下稳定 key，不得创造标签：${managedCalendarCategories.map((category) => `${category.key}=${category.displayName}`).join("；")}。若用户没有明确指定分类，将 primaryCategoryKey 留空，由确定性分类器处理。不会直接写 Outlook。`,
+      description: `冻结一个待用户确认的 Outlook 日程创建提案。时间必须是与 ${context.timezone} 相符的带 offset ISO 值。根据日程主题、描述与地点的语义主动选择分类，只能引用以下稳定 key，不得创造标签：${formatManagedTaxonomyForPrompt()}。选定主分类后若同时符合某长期场景则叠加场景分类；仅当语义完全无法判断时才将 primaryCategoryKey 留空，由确定性分类器处理。不会直接写 Outlook。`,
       inputSchema: createCalendarEventSchema,
       execute: async (proposal) => {
         const { data: rules } = await context.supabase.from("calendar_categories").select("managed_key,keywords,ai_enabled").not("managed_key", "is", null).is("archived_at", null);

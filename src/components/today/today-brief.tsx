@@ -33,7 +33,7 @@ export function TodayBrief({ items }: { items: TodayBriefItem[] }) {
   }
 
   return (
-    <section aria-labelledby="today-brief-heading" className="py-2">
+    <section aria-labelledby="today-brief-heading" className="pt-1">
       <div className="flex items-center justify-between">
         <h3 id="today-brief-heading" className="text-xs font-medium text-[var(--text-tertiary)]">
           今日上下文

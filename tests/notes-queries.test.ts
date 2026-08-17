@@ -63,7 +63,7 @@ describe("Notes database compatibility", () => {
         pinned_at: null,
       },
     ]);
-    expect(note.excerpt.length).toBeLessThanOrEqual(220);
+    expect(note.excerpt?.length ?? 0).toBeLessThanOrEqual(220);
     expect(note.folder_id).toBeNull();
     expect(note).not.toHaveProperty("body_markdown");
   });

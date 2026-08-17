@@ -1,6 +1,13 @@
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  ArrowRight,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  Compass,
+  Inbox,
+  Milestone,
+} from "lucide-react";
 import { completeMicrosoftTodoTaskAction } from "@/features/tasks/microsoft-todo";
 import type { NowNextAction } from "@/features/today/types";
 
@@ -18,6 +25,14 @@ function actionCopy(next: Exclude<NowNextAction, { kind: "none" }>) {
   if (next.kind === "career_milestone") return "打开职业路线";
   if (next.kind === "inbox") return "整理 Inbox";
   return "打开 Tasks";
+}
+
+function ActionIcon({ kind }: { kind: NowNextAction["kind"] }) {
+  if (kind === "event") return <CalendarDays className="size-5" aria-hidden="true" />;
+  if (kind === "task") return <CheckCircle2 className="size-5" aria-hidden="true" />;
+  if (kind === "career_milestone") return <Milestone className="size-5" aria-hidden="true" />;
+  if (kind === "inbox") return <Inbox className="size-5" aria-hidden="true" />;
+  return <Compass className="size-5" aria-hidden="true" />;
 }
 
 export function NextActionCard({
@@ -47,29 +62,40 @@ export function NextActionCard({
   return (
     <section
       aria-labelledby="next-action-heading"
-      className="border-l-2 border-[var(--accent)] bg-[var(--surface-canvas)] px-4 py-4 sm:px-5"
+      className="rounded-lg border-l-4 border-l-[var(--accent)] bg-[var(--accent-soft)] px-5 py-5"
     >
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-[var(--accent)]">下一步</p>
-          <h2 id="next-action-heading" className="mt-1 truncate text-lg font-semibold">
-            {title || "未命名事项"}
-          </h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            {next.reason}
-            {detail ? ` · ${detail}` : ""}
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div className="flex min-w-0 items-center gap-3.5">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white">
+            <ActionIcon kind={next.kind} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-[var(--accent)]">下一步</p>
+            <h2 id="next-action-heading" className="mt-0.5 truncate text-lg font-semibold">
+              {title || "未命名事项"}
+            </h2>
+            <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
+              {next.reason}
+              {detail ? ` · ${detail}` : ""}
+            </p>
+          </div>
         </div>
         {next.kind !== "none" ? (
           <div className="flex shrink-0 items-center gap-1.5">
-            <Button asChild variant="ghost" size="sm" className="text-xs text-[var(--text-secondary)] hover:text-[var(--accent)]"><Link href={next.href}>{actionCopy(next)}<ArrowRight className="size-3.5" aria-hidden="true" /></Link></Button>
+            <Link
+              href={next.href}
+              className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-md)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
+            >
+              {actionCopy(next)}
+              <ArrowRight className="size-3.5" aria-hidden="true" />
+            </Link>
             {next.kind === "task" ? (
               <form action={completeMicrosoftTodoTaskAction}>
                 <input type="hidden" name="task_id" value={next.task.id} />
-                <Button size="sm" className="text-xs">
+                <button className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 text-xs font-medium text-white hover:opacity-90">
                   <Check className="size-3.5" aria-hidden="true" />
                   完成
-                </Button>
+                </button>
               </form>
             ) : null}
           </div>

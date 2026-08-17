@@ -4,7 +4,9 @@ import type { NoteListItem } from "./types";
 const noteListItemSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
-  excerpt: z.string(),
+  // Always null from the RPC listing (browsing shows no snippet); search and
+  // the fallback listing populate it via excerptFromMarkdown.
+  excerpt: z.string().nullable(),
   updated_at: z.string(),
   pinned_at: z.string().nullable(),
   folder_id: z.string().uuid().nullable(),

@@ -52,3 +52,12 @@ export async function archiveFile(formData: FormData) {
   if (error || !data) fail();
   await audit(supabase, userId, "archive", data.id); revalidatePath("/files");
 }
+
+export async function restoreFile(formData: FormData) {
+  const documentId = String(formData.get("document_id") || "");
+  if (!/^[0-9a-f-]{36}$/i.test(documentId)) fail();
+  const { supabase, userId } = await requireOwner();
+  const { data, error } = await supabase.from("documents").update({ archived_at: null, storage_state: "available" }).eq("id", documentId).eq("storage_provider", "cloudflare_r2").not("archived_at", "is", null).select("id").maybeSingle();
+  if (error || !data) fail();
+  await audit(supabase, userId, "restore", data.id); revalidatePath("/files");
+}

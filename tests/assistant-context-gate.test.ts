@@ -18,4 +18,15 @@ describe("Assistant Context Gate", () => {
     expect(gate("明天下午三点帮我安排 CFA 学习。")).toMatchObject({ mode:"action", likelyModules:["calendar"] });
   });
   it("明确查找笔记时只打开 Notes", () => expect(gate("找到我之前关于银行总行的笔记。")).toMatchObject({ mode:"targeted", likelyModules:["notes"] }));
+  it("自我画像类问题路由到个人分析并读取 Personal OS", () => {
+    expect(gate("你觉得我是一个什么样的人？")).toMatchObject({ mode:"cross_module", complexity:"deep", likelyModules:["memory","notes","reviews"], suggestedSkills:["retrospective-thinking"], needsPersonalData:true, needsTools:true, reasonCode:"self_profile" });
+    expect(gate("我的性格特点是什么？")).toMatchObject({ mode:"cross_module", needsPersonalData:true });
+    expect(gate("我是谁")).toMatchObject({ mode:"cross_module", needsPersonalData:true });
+    expect(gate("你好")).toMatchObject({ mode:"none", needsPersonalData:false });
+  });
+  it("下周等周次引用路由到日历与任务，而非普通常识", () => {
+    expect(gate("我下周要做什么？")).toMatchObject({ mode:"targeted", likelyModules:["calendar","tasks"], needsPersonalData:true, needsTools:true });
+    expect(gate("这周有什么安排？")).toMatchObject({ mode:"targeted", likelyModules:["calendar","tasks"], needsPersonalData:true });
+    expect(gate("帮我安排下周的会议。")).toMatchObject({ mode:"action", likelyModules:["calendar"] });
+  });
 });

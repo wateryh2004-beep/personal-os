@@ -4,6 +4,7 @@ import type {
   AssistantToolGroup,
 } from "./types";
 import { ROOT_AGENT_CONSTITUTION } from "./kernel/constitution";
+import { formatManagedTaxonomyForPrompt } from "@/features/calendar/classification/taxonomy";
 
 /** @deprecated Root Agent 改由 Agent Kernel 的 Constitution 驱动。 */
 export const BASE_ASSISTANT_SYSTEM_POLICY = ROOT_AGENT_CONSTITUTION;
@@ -19,7 +20,9 @@ const policies: Record<AssistantSurface, AssistantPolicy> = {
     context: "local",
     tools: [],
     maxSteps: 1,
-    maxOutputTokens: 1200,
+    // 输出上限远低于 DeepSeek V4 的 384K 上限；调大不改变短内容行为，
+    // 只给长笔记润色留足空间（此前 1200 导致长随想被硬截断）。
+    maxOutputTokens: 32768,
     instruction:
       "笔记编辑任务只处理当前提供的文本，保留事实、专有名词、日期和数字。",
   },
@@ -29,7 +32,11 @@ const policies: Record<AssistantSurface, AssistantPolicy> = {
     maxSteps: 4,
     maxOutputTokens: 700,
     instruction:
-      "日程工具只生成提案；按钮是唯一确认入口，不得把聊天中的“确认”描述成已执行，也不得要求二次确认。删除或修改前必须查询且只允许一条明确匹配。改期必须使用 update，不得删除后重建，也不得改变未被用户明确提及的分类、重要性、地点等字段。创建日程时使用结构化 Calendar taxonomy；不得临时发明 Outlook Category。所有用户可见时间都按提供的用户时区表达，工具参数必须携带与该时区相符的 UTC offset，绝不能把本地钟点直接写成 Z。生成提案后只需提示用户点击对应按钮，不要重复汇总旧提案。",
+      `日程工具只生成提案；按钮是唯一确认入口，不得把聊天中的“确认”描述成已执行，也不得要求二次确认。删除或修改前必须查询且只允许一条明确匹配。改期必须使用 update，不得删除后重建，也不得改变未被用户明确提及的分类、重要性、地点等字段。创建日程时根据主题、描述与地点的语义主动选择分类，使用以下结构化 Calendar taxonomy，不得临时发明 Outlook Category：
+
+${formatManagedTaxonomyForPrompt()}
+
+选定主分类后，若同时符合某个长期场景（如华夏基金、高力国际、人大、Personal OS），叠加对应的场景分类。仅当语义完全无法判断或明显跨领域时才将 primaryCategoryKey 留空，交由确定性分类器处理。所有用户可见时间都按提供的用户时区表达，工具参数必须携带与该时区相符的 UTC offset，绝不能把本地钟点直接写成 Z。生成提案后只需提示用户点击对应按钮，不要重复汇总旧提案。`,
   },
   tasks: {
     context: "personal",
@@ -41,7 +48,7 @@ const policies: Record<AssistantSurface, AssistantPolicy> = {
   },
   inbox: {
     context: "personal",
-    tools: ["todo_read", "inbox_proposal"],
+    tools: ["inbox_read", "todo_read", "inbox_proposal"],
     maxSteps: 3,
     maxOutputTokens: 500,
     instruction:
@@ -62,6 +69,14 @@ const policies: Record<AssistantSurface, AssistantPolicy> = {
     instruction:
       "只根据提供的 Review Evidence 生成复盘草稿或结构化候选。不得补造事实；区分可验证事实、用户可能的解释和需要用户判断的部分。用户可见草稿只能引用来源标题，不显示 UUID 或内部 source id。不要自动生成或写入长期 Memory / Decision。Evidence 记录较少时必须明确覆盖不足。",
   },
+  "notes-library": {
+    context: "personal",
+    tools: ["meta", "notes_read", "notes_proposal"],
+    maxSteps: 6,
+    maxOutputTokens: 3000,
+    instruction:
+      "你是 Hang Yu 的笔记库文档小管家，只服务他的笔记库。先检索或列出相关笔记、读取原文，再回答；关键判断要能指出来源笔记标题。只做只读分析与整理提案：可以总结、回顾、找反复出现的主题、给想法，也可以对笔记提出修改、新建或移动提案（确认前绝不写入）。笔记里没有的内容不要编造，明确说明笔记里没有。涉及日历、任务、职业等笔记库之外的安排时，说明这不属于笔记库，建议改用 Personal OS 全局助手。\n\n整理归类的做法：当 Hang Yu 要求整理时，先用 listNoteOrganization 看全貌（文件夹列表 + 根目录散件），然后只针对根目录散件做归类：①第一步看标题，标题风格能直接对上现有文件夹的（例如「0815 开发日志」对上「开发日志」）就是高置信度，直接提移动提案；②标题拿不准的用 readNote 读内容再判断；③只对高置信度的文件提移动提案，每篇一个 proposeNoteMove（给出移动理由）；④确实拿不准归属的，不要硬猜，不要移动，在回复末尾单独列成「待定，等你决定」清单，说明每篇为什么拿不准；⑤不删除、不重命名任何文件，只做移动；⑥只有在多篇同类散件（≥2）且没有合适的现有文件夹时才新建文件夹，命名要简短、贴合内容；⑦一次整理提的移动提案不要超过 6 条，避免确认卡刷屏；⑧移动提案的目标文件夹必须在 listNoteOrganization 返回的文件夹 id 中选择，或填 newFolderName 新建，两者不能同时给。",
+  },
   global: {
     context: "none",
     tools: [
@@ -70,6 +85,8 @@ const policies: Record<AssistantSurface, AssistantPolicy> = {
       "calendar_proposal",
       "todo_read",
       "todo_proposal",
+      "inbox_read",
+      "inbox_proposal",
       "notes_read",
       "notes_proposal",
       "career_read",

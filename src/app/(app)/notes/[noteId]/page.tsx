@@ -2,8 +2,9 @@ import { notFound } from "next/navigation";
 import { NoteEditor } from "@/components/notes/note-editor";
 import { NoteDocumentShell } from "@/components/notes/note-document-shell";
 import { NoteBacklinks } from "@/components/notes/note-backlinks";
+import { EntityBacklinks } from "@/components/links/entity-backlinks";
 import { FolderPicker } from "@/components/notes/folder-picker";
-import { getActiveNoteFolders, getNote, getRecentNoteLinkSuggestions } from "@/features/notes/queries";
+import { getActiveNoteFolders, getNote } from "@/features/notes/queries";
 import { getAiSettings } from "@/features/ai/queries";
 import { archiveNote, createNoteVersion, moveNote, restoreNoteVersion, trashNote } from "@/features/notes/actions";
 
@@ -11,10 +12,9 @@ export default async function NotePage({ params }: { params: Promise<{ noteId: s
   const { noteId } = await params;
   const data = await getNote(noteId);
   if (!data) notFound();
-  const [folders, ai, recentNoteLinks] = await Promise.all([
+  const [folders, ai] = await Promise.all([
     getActiveNoteFolders(),
     getAiSettings(),
-    getRecentNoteLinkSuggestions(),
   ]);
   const inspector = <div className="text-sm">
     {data.state === "base" ? <p className="mb-5 border-l-2 border-amber-600 bg-amber-50 px-3 py-2 text-xs text-amber-800">当前为兼容模式；链接和完整版本功能待 migration 应用后启用。</p> : null}
@@ -27,6 +27,7 @@ export default async function NotePage({ params }: { params: Promise<{ noteId: s
       </form>
     </section>
     <NoteBacklinks referenced={data.links} backlinks={data.backlinks} />
+    <EntityBacklinks type="note" id={data.note.id} />
     <section className="mt-7">
       <h2 className="text-xs font-medium text-[var(--text-tertiary)]">Versions</h2>
       <form action={createNoteVersion} className="mt-2"><input type="hidden" name="note_id" value={data.note.id} /><button className="text-xs text-[var(--accent)] hover:underline">创建版本</button></form>
@@ -39,5 +40,5 @@ export default async function NotePage({ params }: { params: Promise<{ noteId: s
       <form action={trashNote} className="mt-3"><input type="hidden" name="note_id" value={data.note.id} /><button className="text-[var(--danger)]">移入回收站</button></form>
     </details>
   </div>;
-  return <NoteDocumentShell noteId={data.note.id} editor={<NoteEditor note={data.note} recentNoteLinks={recentNoteLinks} noteAiDefaultModel={ai.settings?.model === "deepseek-v4-pro" ? "deepseek-v4-pro" : "deepseek-v4-flash"} />} inspector={inspector} />;
+  return <NoteDocumentShell noteId={data.note.id} editor={<NoteEditor note={data.note} noteAiDefaultModel={ai.settings?.model === "deepseek-v4-pro" ? "deepseek-v4-pro" : "deepseek-v4-flash"} />} inspector={inspector} />;
 }

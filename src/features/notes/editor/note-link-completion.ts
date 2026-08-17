@@ -10,43 +10,36 @@ import {
 } from "@codemirror/autocomplete";
 import { keymap, EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
-import type { NoteLinkSuggestion } from "@/features/notes/links/types";
+import type { EntityLinkSuggestion } from "@/features/links/types";
 
-export type NoteLinkQuery = { from: number; to: number; query: string };
+export type NoteLinkQuery = { kind: "entity"; from: number; to: number; query: string };
 
-const noteLinkTriggers = ["[[", "【【"] as const;
-
+// 唯一触发符是 @（飞书风格），笔记与跨实体统一走同一入口。
+// @ 前是普通字符(如邮箱 foo@bar)时不触发，避免误判邮件地址。
 export function extractNoteLinkQuery(document: string, position: number): NoteLinkQuery | null {
   const lineStart = document.lastIndexOf("\n", Math.max(0, position - 1)) + 1;
   const beforeCursor = document.slice(lineStart, position);
-  const trigger = noteLinkTriggers
-    .map((value) => ({ value, offset: beforeCursor.lastIndexOf(value) }))
-    .reduce<{ value: string; offset: number } | null>(
-      (latest, candidate) => candidate.offset > (latest?.offset ?? -1) ? candidate : latest,
-      null,
-    );
-  if (!trigger || trigger.offset < 0) return null;
-  if (trigger.value === "[[" && beforeCursor[trigger.offset - 1] === "[") return null;
-  const query = beforeCursor.slice(trigger.offset + trigger.value.length);
-  if (/[\[\]【】\r\n]/.test(query)) return null;
-  return { from: lineStart + trigger.offset, to: position, query };
+
+  const atOffset = beforeCursor.lastIndexOf("@");
+  if (atOffset < 0) return null;
+  const beforeAt = beforeCursor[atOffset - 1];
+  if (beforeAt && /[A-Za-z0-9_.-]/.test(beforeAt)) return null;
+  const query = beforeCursor.slice(atOffset + 1);
+  if (!query || /[\s\[\]【】@]/.test(query)) return null;
+  return { kind: "entity", from: lineStart + atOffset, to: position, query };
 }
 
-function uniqueNotes(notes: readonly NoteLinkSuggestion[]) {
-  return [...new Map(notes.map((note) => [note.id, note])).values()];
+function uniqueEntities(entities: readonly EntityLinkSuggestion[]) {
+  return [...new Map(entities.map((entity) => [entity.id, entity])).values()];
 }
 
-function markdownLink(note: NoteLinkSuggestion) {
-  return `[${note.title}](/notes/${note.id})`;
-}
-
-function completionFor(note: NoteLinkSuggestion): Completion {
+function entityCompletionFor(entity: EntityLinkSuggestion): Completion {
   return {
-    label: note.title,
-    detail: note.folderName || "笔记",
+    label: entity.title,
+    detail: entity.label,
     type: "text",
     apply(view, _completion, from, to) {
-      const insert = markdownLink(note);
+      const insert = `[${entity.title}](${entity.href})`;
       view.dispatch({
         changes: { from, to, insert },
         selection: { anchor: from + insert.length },
@@ -58,28 +51,26 @@ function completionFor(note: NoteLinkSuggestion): Completion {
 }
 
 export type NoteLinkCompletionOptions = {
-  recentNotes: readonly NoteLinkSuggestion[];
-  searchNotes: (query: string) => Promise<NoteLinkSuggestion[]>;
+  searchEntities: (query: string) => Promise<EntityLinkSuggestion[]>;
 };
 
 /**
- * Uses CodeMirror's own completion state and keyboard controls. Empty queries
- * are entirely local; only a real title query reaches the owner-only endpoint.
+ * 补全入口只有 @：没有 query 时不弹出，只有真实标题查询才会请求 owner-only 搜索端点。
  */
-export function createNoteLinkCompletion({ recentNotes, searchNotes }: NoteLinkCompletionOptions): Extension {
+export function createNoteLinkCompletion({ searchEntities }: NoteLinkCompletionOptions): Extension {
   let suppressedFrom: number | null = null;
   let controller: AbortController | null = null;
   let requestSequence = 0;
 
-  const loadRemoteSuggestions = async (query: string) => {
+  const loadRemoteSuggestions = async <T>(query: string, loader: (query: string) => Promise<T[]>) => {
     controller?.abort();
     controller = new AbortController();
     const sequence = ++requestSequence;
     await new Promise((resolve) => window.setTimeout(resolve, 120));
     if (sequence !== requestSequence) return [];
     try {
-      const notes = await searchNotes(query);
-      return sequence === requestSequence ? notes : [];
+      const items = await loader(query);
+      return sequence === requestSequence ? items : [];
     } catch {
       return [];
     }
@@ -88,15 +79,10 @@ export function createNoteLinkCompletion({ recentNotes, searchNotes }: NoteLinkC
   const source: CompletionSource = async (context: CompletionContext) => {
     const token = extractNoteLinkQuery(context.state.doc.toString(), context.pos);
     if (!token || token.from === suppressedFrom) return null;
-    const notes = token.query.trim()
-      ? await loadRemoteSuggestions(token.query)
-      : recentNotes;
-    const options = uniqueNotes(notes).map(completionFor);
-    // `from` intentionally includes either supported Wiki-link trigger so
-    // accepting a result replaces the whole token with the canonical link.
-    // Let the owner-only search rank the options: CodeMirror's default filter
-    // would otherwise try to match the trigger and query against titles.
-    return { from: token.from, options, filter: false };
+    const query = token.query.trim();
+    if (!query) return null;
+    const entities = await loadRemoteSuggestions(query, searchEntities);
+    return { from: token.from, options: uniqueEntities(entities).map(entityCompletionFor), filter: false };
   };
 
   return [

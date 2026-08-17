@@ -10,6 +10,7 @@ export const assistantSurfaces = [
   "career",
   "reviews",
   "global",
+  "notes-library",
 ] as const;
 export type AssistantSurface = (typeof assistantSurfaces)[number];
 export type AssistantMode = "chat" | "transform" | "triage";
@@ -37,6 +38,8 @@ export type AssistantRequest = {
   /** A transform must fail before model invocation when its edited surface is absent. */
   requiresCurrentSurface?: boolean;
   usePersonalContext?: boolean;
+  /** 个人上下文检索用的精简 query；缺省时回退到 instruction / 最近一条用户消息。 */
+  contextQuery?: string | null;
   runId?: string | null;
   currentPath?: string | null;
 };
@@ -50,6 +53,7 @@ export type AssistantToolGroup =
   | "calendar_proposal"
   | "todo_read"
   | "todo_proposal"
+  | "inbox_read"
   | "inbox_proposal"
   | "notes_read"
   | "notes_proposal"
@@ -103,6 +107,8 @@ export type AssistantResult = {
   status: "success" | "error";
   text: string;
   modelId?: DeepSeekModelId;
+  /** 生成结束原因；"length" 表示输出撞到 token 上限被截断，结果不完整。 */
+  finishReason?: "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other" | "unknown";
   contextSources: Array<{
     id: string;
     title: string;

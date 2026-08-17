@@ -28,6 +28,16 @@ export async function createDirection(formData: FormData) {
   const { data, error } = await supabase.from("career_directions").insert({ ...value, user_id: userId }).select("id").single(); if (error) failed(error);
   await audit(supabase, userId, "create", "career_direction", data.id, { name: value.name }); revalidatePath("/career"); revalidatePath("/career/directions");
 }
+export async function updateDirection(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const directionId = String(formData.get("direction_id") || ""); const value = parse(careerDirectionSchema, formObject(formData));
+  await own(supabase, "career_directions", directionId); const { error } = await supabase.from("career_directions").update(value).eq("id", directionId);
+  if (error) failed(error); await audit(supabase, userId, "update", "career_direction", directionId, { name: value.name, status: value.status, priority: value.priority }); revalidatePath("/career"); revalidatePath("/career/directions");
+}
+export async function archiveDirection(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const directionId = String(formData.get("direction_id") || ""); await own(supabase, "career_directions", directionId);
+  const { error } = await supabase.from("career_directions").update({ archived_at: new Date().toISOString(), status: "archived" }).eq("id", directionId);
+  if (error) failed(error); await audit(supabase, userId, "archive", "career_direction", directionId); revalidatePath("/career"); revalidatePath("/career/directions");
+}
 export async function createCareerTrack(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const value = parse(careerTrackSchema, formObject(formData));
   const { data, error } = await supabase.from("career_tracks").insert({ ...value, user_id: userId }).select("id").single(); if (error || !data) failed(error);
@@ -114,7 +124,29 @@ export async function approveBullet(formData: FormData) {
   await audit(supabase, userId, "approve", "experience_bullet", bulletId); revalidatePath(`/career/experiences/${bullet.experience_id}`);
 }
 export async function createSkill(formData: FormData) { const { supabase, userId } = await requireOwner(); const value = parse(skillSchema, formObject(formData)); const { data, error } = await supabase.from("skills").insert({ ...value, user_id: userId }).select("id").single(); if (error) failed(error); await audit(supabase, userId, "create", "skill", data.id, { name: value.name }); revalidatePath("/career/skills"); }
+export async function updateSkill(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const skillId = String(formData.get("skill_id") || ""); const value = parse(skillSchema, formObject(formData));
+  await own(supabase, "skills", skillId); const { error } = await supabase.from("skills").update(value).eq("id", skillId);
+  if (error) failed(error); await audit(supabase, userId, "update", "skill", skillId, { name: value.name, category: value.category, proficiency: value.proficiency }); revalidatePath("/career"); revalidatePath("/career/skills");
+}
+export async function archiveSkill(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const skillId = String(formData.get("skill_id") || ""); await own(supabase, "skills", skillId);
+  const { error } = await supabase.from("skills").update({ archived_at: new Date().toISOString() }).eq("id", skillId);
+  if (error) failed(error); await audit(supabase, userId, "archive", "skill", skillId); revalidatePath("/career"); revalidatePath("/career/skills");
+}
 export async function createCertification(formData: FormData) { const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(certificationSchema, { ...raw, document_id: raw.document_id || null }); if (value.document_id) await own(supabase, "documents", value.document_id); const { data, error } = await supabase.from("certifications").insert({ ...value, user_id: userId }).select("id").single(); if (error) failed(error); await audit(supabase, userId, "create", "certification", data.id, { name: value.name }); revalidatePath("/career/certifications"); }
+export async function updateCertification(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(certificationSchema, { ...raw, document_id: raw.document_id || null });
+  const certificationId = String(formData.get("certification_id") || ""); await own(supabase, "certifications", certificationId);
+  if (value.document_id) await own(supabase, "documents", value.document_id);
+  const { error } = await supabase.from("certifications").update(value).eq("id", certificationId);
+  if (error) failed(error); await audit(supabase, userId, "update", "certification", certificationId, { name: value.name, status: value.status }); revalidatePath("/career"); revalidatePath("/career/certifications");
+}
+export async function archiveCertification(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const certificationId = String(formData.get("certification_id") || ""); await own(supabase, "certifications", certificationId);
+  const { error } = await supabase.from("certifications").update({ archived_at: new Date().toISOString() }).eq("id", certificationId);
+  if (error) failed(error); await audit(supabase, userId, "archive", "certification", certificationId); revalidatePath("/career"); revalidatePath("/career/certifications");
+}
 export async function archiveExperience(formData: FormData) { const { supabase, userId } = await requireOwner(); const id = String(formData.get("experience_id") || ""); await own(supabase, "experiences", id); const { error } = await supabase.from("experiences").update({ archived_at: new Date().toISOString(), status: "archived" }).eq("id", id); if (error) failed(error); await audit(supabase, userId, "archive", "experience", id); revalidatePath("/career"); revalidatePath("/career/experiences"); redirect("/career/experiences"); }
 const allowedFiles: Record<string, string[]> = { "application/pdf": ["pdf"], "image/png": ["png"], "image/jpeg": ["jpg", "jpeg"], "image/webp": ["webp"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ["docx"] };
 export async function uploadEvidence(formData: FormData) {
@@ -180,6 +212,29 @@ export async function finalizeResumeVersion(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const resumeId = String(formData.get("resume_id") || ""); await own(supabase, "resume_versions", resumeId);
   const { error } = await supabase.rpc("finalize_resume_version", { p_resume_id: resumeId }); if (error) failed(error);
   await audit(supabase, userId, "finalize", "resume_version", resumeId); revalidatePath("/career/resumes");
+}
+
+export async function updateResumeVersion(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const resumeId = String(formData.get("resume_id") || ""); const raw = formObject(formData);
+  const value = parse(resumeVersionSchema, { ...raw, target_direction_id: raw.target_direction_id || null });
+  await own(supabase, "resume_versions", resumeId);
+  const { data: resume } = await supabase.from("resume_versions").select("id,status").eq("id", resumeId).maybeSingle();
+  if (!resume || resume.status !== "draft") failed(new Error("只有草稿简历可以编辑，定稿版本请新建版本再改。"));
+  if (value.target_direction_id) await own(supabase, "career_directions", value.target_direction_id);
+  const documentId = String(raw.document_id || "").trim() || null;
+  if (documentId) await own(supabase, "documents", documentId);
+  const { error } = await supabase.from("resume_versions").update({ ...value, document_id: documentId }).eq("id", resumeId);
+  if (error) failed(error);
+  await audit(supabase, userId, "update", "resume_version", resumeId, { title: value.title, document_id: documentId }); revalidatePath("/career/resumes"); revalidatePath("/career");
+}
+
+export async function archiveResumeVersion(formData: FormData) {
+  const { supabase, userId } = await requireOwner(); const resumeId = String(formData.get("resume_id") || ""); await own(supabase, "resume_versions", resumeId);
+  const { data: resume } = await supabase.from("resume_versions").select("id,status").eq("id", resumeId).maybeSingle();
+  if (!resume || resume.status !== "draft") failed(new Error("只有草稿简历可以归档。"));
+  const { error } = await supabase.from("resume_versions").update({ archived_at: new Date().toISOString(), status: "archived" }).eq("id", resumeId);
+  if (error) failed(error);
+  await audit(supabase, userId, "archive", "resume_version", resumeId); revalidatePath("/career/resumes"); revalidatePath("/career");
 }
 
 export async function setResumeVersionBullets(formData: FormData) {

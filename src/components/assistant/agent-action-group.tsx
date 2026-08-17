@@ -15,8 +15,11 @@ export function AgentActionGroup({
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const proposed = actions.filter((action) => action.status === "proposed");
+  // 移动类操作要求逐条确认（每篇文件都要单独看过目标位置和理由再批），
+  // 不提供"全部确认"，避免用户没细看就批量移动多篇文件。
+  const hasPerItemOnly = proposed.some((action) => action.actionType === "notes.move");
 
-  if (proposed.length < 2) return null;
+  if (proposed.length < 2 || hasPerItemOnly) return null;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] bg-[var(--surface-hover)] px-3 py-2">

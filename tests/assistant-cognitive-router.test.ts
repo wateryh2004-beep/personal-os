@@ -38,6 +38,24 @@ describe("Cognitive Task Router", () => {
     expect(plan.includeTimeContext).toBe(false);
   });
 
+  it.each([
+    ["你觉得我是一个什么样的人？", "retrospective_thinking"],
+    ["总结一下我是一个什么样的人", "retrospective_thinking"],
+    ["我的性格特点是什么？", "retrospective_thinking"],
+    ["我是谁", "retrospective_thinking"],
+    ["你对我了解多少？", "semantic_recall"],
+  ])("routes self-profile question %s to %s", (message, expected) => {
+    expect(routeCognitiveTask({ message, surface: "global" }).recipe).toBe(expected);
+  });
+
+  it.each([
+    ["我下周要做什么？", "time_planning"],
+    ["这周有什么安排？", "time_planning"],
+    ["明天下午有空吗？", "time_planning"],
+  ])("routes week questions %s to %s", (message, expected) => {
+    expect(routeCognitiveTask({ message, surface: "global" }).recipe).toBe(expected);
+  });
+
   it("keeps calendar mutations on read + proposal tools", () => {
     const message = "明天下午三点帮我安排会议。";
     const route = routeCognitiveTask({ message, surface: "global" });

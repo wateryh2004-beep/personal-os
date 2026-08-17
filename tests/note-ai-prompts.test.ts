@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   isRewriteOperation,
+  noteAiCitationOperations,
+  noteAiCitationRule,
   noteAiInstruction,
   noteAiOperations,
   noteAiPromptDefinitions,
@@ -43,5 +45,15 @@ describe("note AI prompt registry", () => {
     expect(noteAiSystemPrompt(overrides)).toBe("自定义系统边界");
     expect(noteAiInstruction("polishNote", undefined, overrides)).toBe("保留我的原话");
     expect(personalKnowledgeSystemPrompt).not.toBe("自定义系统边界");
+  });
+
+  it("carries the output contract into the global system prompt", () => {
+    expect(personalKnowledgeSystemPrompt).toContain("输出契约");
+    expect(personalKnowledgeSystemPrompt).toContain("不要用 Markdown 代码围栏");
+  });
+
+  it("defines a citation rule scoped to understanding operations", () => {
+    expect(noteAiCitationRule).toContain("原文没有说明");
+    expect(noteAiCitationOperations).toEqual(["askNote", "deepThinkNote", "explainSelection"]);
   });
 });

@@ -12,8 +12,9 @@ export function NowClock({ timezone }: { timezone: string }) {
   return (
     <time
       dateTime={now.toISOString()}
+      title={timezone}
       suppressHydrationWarning
-      className="font-mono text-sm tabular-nums text-[var(--text-tertiary)]"
+      className="font-mono text-sm tabular-nums text-[var(--text-secondary)]"
     >
       {new Intl.DateTimeFormat("zh-CN", {
         timeZone: timezone,

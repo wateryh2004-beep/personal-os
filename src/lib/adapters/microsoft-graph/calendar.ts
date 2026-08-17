@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { calendarEventForGraph, type GraphCalendarCreatePayload } from "./event-payload";
 import { managedCalendarCategories, type OutlookCategoryColor } from "@/features/calendar/classification/taxonomy";
 import { wallTimeToInstant } from "@/features/calendar/timezone";
+import { calendarSyncWindow } from "@/features/calendar/sync-policy";
 
 const MICROSOFT_CLIENT_ID = "084a3e9f-a9f4-43f7-89f9-d229cf97853e";
 const MICROSOFT_TENANT = "consumers";
@@ -29,6 +30,8 @@ type GraphBody = { content?: string | null; contentType?: "text" | "html" | stri
 type GraphEvent = {
   id: string;
   iCalUId?: string;
+  type?: "singleInstance" | "occurrence" | "exception" | "seriesMaster";
+  seriesMasterId?: string | null;
   subject?: string;
   body?: GraphBody;
   start?: GraphDateTimeTimeZone;
@@ -172,32 +175,51 @@ export async function accessTokenForConnection(connectionId: string, userId: str
   return accessToken;
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function graph(accessToken: string, path: string, init?: RequestInit) {
-  let response: Response;
-  try {
-    response = await fetch(`${graphBaseUrl}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Prefer: 'outlook.timezone="UTC"',
-        "Content-Type": "application/json",
-        ...init?.headers,
-      },
-      cache: "no-store",
-    });
-  } catch {
-    throw new MicrosoftGraphError("graph_unavailable");
+  // 只对幂等读取（GET）做瞬时错误/限流重试；写入（POST/PATCH/DELETE）失败直接抛出，
+  // 避免请求被重复应用。全量同步会分页拉取 2 年窗口，撞上 429/5xx 的概率不低。
+  const isRead = !init?.method || init.method === "GET";
+  const maxAttempts = isRead ? 4 : 1;
+  for (let attempt = 0; ; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(`${graphBaseUrl}${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Prefer: 'outlook.timezone="UTC"',
+          "Content-Type": "application/json",
+          ...init?.headers,
+        },
+        cache: "no-store",
+      });
+    } catch {
+      if (isRead && attempt + 1 < maxAttempts) {
+        await delay(300 * 2 ** attempt);
+        continue;
+      }
+      throw new MicrosoftGraphError("graph_unavailable");
+    }
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const graphCode = payload && typeof payload === "object" && "error" in payload
+        && payload.error && typeof payload.error === "object" && "code" in payload.error
+        ? String(payload.error.code) : "";
+      if (graphCode === "ErrorAccessDenied" || graphCode === "Authorization_RequestDenied") throw new MicrosoftGraphError("graph_access_denied");
+      if (graphCode === "ErrorInvalidRequest" || graphCode === "ErrorInvalidTimeZone") throw new MicrosoftGraphError("graph_invalid_request");
+      if (isRead && attempt + 1 < maxAttempts && (response.status === 429 || response.status >= 500)) {
+        const retryAfter = Number(response.headers.get("Retry-After") ?? 0);
+        await delay(Math.min(retryAfter > 0 ? retryAfter * 1000 : 300 * 2 ** attempt, 5000));
+        continue;
+      }
+      throw new MicrosoftGraphError("graph_request_failed");
+    }
+    return payload;
   }
-  const payload: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const graphCode = payload && typeof payload === "object" && "error" in payload
-      && payload.error && typeof payload.error === "object" && "code" in payload.error
-      ? String(payload.error.code) : "";
-    if (graphCode === "ErrorAccessDenied" || graphCode === "Authorization_RequestDenied") throw new MicrosoftGraphError("graph_access_denied");
-    if (graphCode === "ErrorInvalidRequest" || graphCode === "ErrorInvalidTimeZone") throw new MicrosoftGraphError("graph_invalid_request");
-    throw new MicrosoftGraphError("graph_request_failed");
-  }
-  return payload;
 }
 
 const graphResponseTimeZones: Record<string, string> = {
@@ -275,7 +297,7 @@ export function graphBodyText(body: GraphBody | undefined) {
     .trim() || null;
 }
 
-export function graphEventRecord(event: GraphEvent, userId: string, fallback?: { body_text?: string | null; categories?: string[]; importance?: string; show_as?: string }, timezone = "Asia/Shanghai") {
+export function graphEventRecord(event: GraphEvent, userId: string, fallback?: { subject?: string | null; location_name?: string | null; body_text?: string | null; categories?: string[] | null; importance?: string; show_as?: string }, timezone = "Asia/Shanghai") {
   const startsAt = event.isAllDay
     ? wallTimeToInstant(`${graphDateTimeTimeZoneToDate(event.start)}T00:00`, timezone)
     : graphDateTimeTimeZoneToInstant(event.start);
@@ -286,18 +308,41 @@ export function graphEventRecord(event: GraphEvent, userId: string, fallback?: {
     user_id: userId,
     provider_event_id: event.id,
     calendar_id: event.iCalUId ?? null,
-    subject: event.subject ?? "",
+    // Graph 同步/更新响应有时对未变更字段返回空值；全量重同步如果照单全收，
+    // 会把 App 打好的分类、标题等缓存覆盖成空。只在 Graph 给出真实值时采用，
+    // 空值回退到镜像既有值，避免「同步一次、分类全没」。
+    subject: event.subject?.trim() ? event.subject : fallback?.subject ?? "",
     body_text: graphBodyText(event.body) ?? fallback?.body_text ?? null,
     starts_at: startsAt,
     ends_at: endsAt,
     is_all_day: Boolean(event.isAllDay),
-    location_name: event.location?.displayName ?? null,
+    location_name: event.location?.displayName?.trim() ? event.location.displayName : fallback?.location_name ?? null,
     provider_change_key: event.changeKey ?? null,
-    categories: event.categories ?? fallback?.categories ?? [],
+    categories: event.categories?.length ? event.categories : fallback?.categories ?? [],
     importance: event.importance ?? fallback?.importance ?? "normal",
     show_as: event.showAs ?? fallback?.show_as ?? "unknown",
     last_synced_at: new Date().toISOString(),
     archived_at: null,
+  };
+}
+
+/**
+ * 拼回循环日程的 series master，为被 delta 精简的 occurrence 补字段。
+ *
+ * calendarView/delta 对循环日程的 occurrence/exception 只返回精简实体
+ * （subject/body/location 为空），完整字段在同一个响应内的 series master 上
+ * （type === "seriesMaster"）。缺失字段的取数顺序：occurrence 自身 → master →
+ * 镜像旧值，保证循环日程标题不丢、也不覆盖 App 已打好的分类。
+ */
+export function seriesMasterFallback(event: Pick<GraphEvent, "seriesMasterId">, master: GraphEvent | undefined, existingRow: ExistingMirrorEvent | undefined) {
+  const source = event.seriesMasterId ? master : undefined;
+  return {
+    subject: source?.subject?.trim() ? source.subject : existingRow?.subject,
+    location_name: source?.location?.displayName?.trim() ? source.location.displayName : existingRow?.location_name,
+    body_text: source ? (graphBodyText(source.body) ?? existingRow?.body_text) : existingRow?.body_text,
+    categories: source?.categories?.length ? source.categories : existingRow?.categories,
+    ...(source?.importance ? { importance: source.importance } : {}),
+    ...(source?.showAs ? { show_as: source.showAs } : {}),
   };
 }
 
@@ -311,10 +356,37 @@ async function audit(userId: string, action: string, entityId: string, afterData
   await admin.from("audit_logs").insert({ user_id: userId, action, entity_type: "calendar_operation", entity_id: entityId, after_data: afterData, actor_type: "user" });
 }
 
+type ExistingMirrorEvent = { provider_event_id: string; subject: string | null; location_name: string | null; body_text: string | null; categories: string[] | null };
+
+/**
+ * 读取同步窗口内镜像已存在的日程，供 graphEventRecord 在 Graph 返回空值
+ * （subject/location/categories/body 为空）时回退保留。镜像里 App 打好的分类、
+ * 标题必须跨全量重同步存活，否则「同步一次、分类全没」。
+ */
+async function existingCalendarEvents(admin: ReturnType<typeof createAdminClient>, userId: string, start: string, end: string) {
+  const rows: ExistingMirrorEvent[] = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await admin.from("calendar_events")
+      .select("provider_event_id,subject,location_name,body_text,categories")
+      .eq("user_id", userId)
+      .lt("starts_at", end)
+      .gt("ends_at", start)
+      .is("archived_at", null)
+      .order("provider_event_id")
+      .range(offset, offset + 999);
+    if (error) throw new MicrosoftGraphError("calendar_cache_failed");
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < 1000) break;
+    offset += 1000;
+  }
+  return new Map(rows.map((row) => [row.provider_event_id, row]));
+}
+
 export async function syncMicrosoftCalendar(
   connectionId: string,
   userId: string,
-  options: { forceFull?: boolean } = {},
 ) {
   try {
     const accessToken = await accessTokenForConnection(connectionId, userId);
@@ -324,45 +396,90 @@ export async function syncMicrosoftCalendar(
       admin.from("profiles").select("timezone").eq("user_id", userId).maybeSingle(),
     ]);
     if (connectionError || !connection) throw new MicrosoftGraphError("calendar_not_connected");
-    const now = Date.now(); const defaultStart = new Date(now - 30 * 86_400_000).toISOString(); const defaultEnd = new Date(now + 180 * 86_400_000).toISOString();
-    // Delta only yields changes since the previous cursor. A user-triggered
-    // reconciliation must also repair legacy cache rows that were parsed
-    // incorrectly before the DateTimeTimeZone fix, even if Outlook has not
-    // changed them since, so it intentionally starts a fresh full window.
-    const canUseDelta = !options.forceFull && Boolean(connection.calendar_delta_link && connection.calendar_sync_window_start && connection.calendar_sync_window_end && Date.parse(connection.calendar_sync_window_end) > now + 30 * 86_400_000);
-    const start = canUseDelta ? connection.calendar_sync_window_start! : defaultStart;
-    const end = canUseDelta ? connection.calendar_sync_window_end! : defaultEnd;
-    const query = new URLSearchParams({ startDateTime: start, endDateTime: end, "$top": "500", "$select": "id,iCalUId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs" });
-    let pagePath = canUseDelta ? connection.calendar_delta_link!.replace(graphBaseUrl, "") : `/me/calendarView/delta?${query.toString()}`;
+    const now = Date.now();
+    const { start, end } = calendarSyncWindow(now);
+    // 用非 delta 的 calendarView 全量读（65be700 的已知可用版本）。calendarView/delta
+    // 对循环日程的 occurrence 只返回精简实体——subject/body/location/categories 全缺，
+    // 即使带 $select 也一样（b6698b9 引入 delta 后，每天 8:30-17:00 的固定实习日程被
+    // 写成「未命名」，用户数据实证 iCalUId/calendar_id 为 NULL）。统一走全量读，用
+    // 窗口覆盖 2 年回看 + 180 天未来，自然修复历史镜像里的空标题行。
+    const query = new URLSearchParams({
+      "$top": "500",
+      "$select": "id,iCalUId,type,seriesMasterId,subject,body,start,end,isAllDay,location,changeKey,categories,importance,showAs",
+    });
+    const pageRequest: RequestInit = { headers: { Prefer: 'outlook.timezone="UTC", odata.maxpagesize=500' } };
     const remoteEvents: GraphEvent[] = [];
-    let deltaLink: string | null = null;
-    while (pagePath) {
-      const payload = await graph(accessToken, pagePath) as { value?: GraphEvent[]; "@odata.nextLink"?: string; "@odata.deltaLink"?: string };
-      remoteEvents.push(...(payload.value ?? []));
-      deltaLink = payload["@odata.deltaLink"] ?? deltaLink;
-      pagePath = payload["@odata.nextLink"]?.replace(graphBaseUrl, "") ?? "";
+    const seen = new Set<string>();
+    // 910 天窗口单请求风险大（超时/服务端裁页）。按约 31 天分块，块内再翻页；跨块
+    // 边界的日程会被相邻块重复读到，但按 provider_event_id 幂等去重，无副作用。
+    const CHUNK_MS = 31 * 86_400_000;
+    for (let chunkStart = Date.parse(start); chunkStart < Date.parse(end); chunkStart += CHUNK_MS) {
+      const chunkEnd = Math.min(chunkStart + CHUNK_MS, Date.parse(end));
+      const chunkQuery = new URLSearchParams(query);
+      chunkQuery.set("startDateTime", new Date(chunkStart).toISOString());
+      chunkQuery.set("endDateTime", new Date(chunkEnd).toISOString());
+      let pagePath = `/me/calendarView?${chunkQuery.toString()}`;
+      // 兜底页数上限：曾有账号级服务端 bug 让分页无限返回相同页面。超限抛错而非
+      // 死循环（或把窗口内合法日程误归档）。
+      let pageCount = 0;
+      const MAX_PAGES = 200;
+      while (pagePath) {
+        pageCount += 1;
+        if (pageCount > MAX_PAGES) throw new MicrosoftGraphError("graph_page_loop");
+        const payload = await graph(accessToken, pagePath, pageRequest) as { value?: GraphEvent[]; "@odata.nextLink"?: string };
+        for (const event of payload.value ?? []) {
+          if (event.id && !seen.has(event.id)) {
+            seen.add(event.id);
+            remoteEvents.push(event);
+          }
+        }
+        pagePath = payload["@odata.nextLink"]?.replace(graphBaseUrl, "") ?? "";
+      }
     }
     const deletedIds = remoteEvents.flatMap((event) => event["@removed"] && event.id ? [event.id] : []);
-    const records = remoteEvents.filter((event) => !event["@removed"]).map((event) => graphEventRecord(event, userId, undefined, profile?.timezone || "Asia/Shanghai"));
+    const existing = await existingCalendarEvents(admin, userId, start, end);
+    // 保险：即便 Graph 对某 occurrence 返回精简实体，也先从同响应内的 series master
+    // 或镜像旧值补齐字段，避免写成「未命名」。series master 是系列元数据而非可排期
+    // 实例，只作查询用、不写入镜像（避免幽灵日程）。
+    const masterById = new Map(remoteEvents.filter((event) => event.type === "seriesMaster" && event.id).map((event) => [event.id, event]));
+    const records = remoteEvents.filter((event) => !event["@removed"] && event.type !== "seriesMaster").map((event) => graphEventRecord(event, userId, seriesMasterFallback(event, masterById.get(event.seriesMasterId ?? ""), existing.get(event.id)), profile?.timezone || "Asia/Shanghai"));
+    // 2 年窗口可能返回数千条日程；upsert 与 stale 归档都按此分批，
+    // 避免单次请求超出 Supabase 负载上限或 PostgREST URL 长度上限。
+    const CHUNK = 400;
     if (records.length) {
-      const { error } = await admin.from("calendar_events").upsert(records, { onConflict: "user_id,provider_event_id" });
-      if (error) throw new MicrosoftGraphError("calendar_cache_failed");
+      for (let index = 0; index < records.length; index += CHUNK) {
+        const { error } = await admin.from("calendar_events").upsert(records.slice(index, index + CHUNK), { onConflict: "user_id,provider_event_id" });
+        if (error) throw new MicrosoftGraphError("calendar_cache_failed");
+      }
     }
     if (deletedIds.length) {
       const { error } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).in("provider_event_id", deletedIds).is("archived_at", null);
       if (error) throw new MicrosoftGraphError("calendar_cache_failed");
     }
-    if (!canUseDelta) {
+    {
       const remoteIds = new Set(records.map((record) => record.provider_event_id));
-      const { data: cached, error } = await admin.from("calendar_events").select("provider_event_id").eq("user_id", userId).lt("starts_at", end).gt("ends_at", start).is("archived_at", null);
-      if (error) throw new MicrosoftGraphError("calendar_cache_failed");
-      const staleIds = (cached ?? []).flatMap((event) => remoteIds.has(event.provider_event_id) ? [] : [event.provider_event_id]);
-      if (staleIds.length) {
-        const { error: archiveError } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).in("provider_event_id", staleIds).is("archived_at", null);
+      // 镜像内 2 年窗口可能远超 PostgREST 单页 1000 行上限；若不分页只拿到前 1000 条，
+      // 其余会被误判为「Outlook 已删除」而归档（数据丢失）。与 existingCalendarEvents
+      // 同样用 range 分页全量读回，再与 Graph 全量结果比对。
+      const cachedIds: string[] = [];
+      let cacheOffset = 0;
+      for (;;) {
+        const { data: cached, error } = await admin.from("calendar_events").select("provider_event_id").eq("user_id", userId).lt("starts_at", end).gt("ends_at", start).is("archived_at", null).order("provider_event_id").range(cacheOffset, cacheOffset + 999);
+        if (error) throw new MicrosoftGraphError("calendar_cache_failed");
+        const batch = cached ?? [];
+        cachedIds.push(...batch.map((row) => row.provider_event_id));
+        if (batch.length < 1000) break;
+        cacheOffset += 1000;
+      }
+      const staleIds = cachedIds.filter((id) => !remoteIds.has(id));
+      // 2 年全量镜像可能数千条；一次 .in() 会超出 PostgREST URL 长度上限
+      // （整批归档失败即整次同步失败），按批次归档。
+      for (let index = 0; index < staleIds.length; index += CHUNK) {
+        const { error: archiveError } = await admin.from("calendar_events").update({ archived_at: new Date().toISOString() }).eq("user_id", userId).in("provider_event_id", staleIds.slice(index, index + CHUNK)).is("archived_at", null);
         if (archiveError) throw new MicrosoftGraphError("calendar_cache_failed");
       }
     }
-    await admin.from("calendar_connections").update({ last_seen_at: new Date().toISOString(), last_sync_at: new Date().toISOString(), last_error_code: null, calendar_delta_link: deltaLink, calendar_sync_window_start: start, calendar_sync_window_end: end }).eq("id", connectionId).eq("user_id", userId);
+    await admin.from("calendar_connections").update({ last_seen_at: new Date().toISOString(), last_sync_at: new Date().toISOString(), last_error_code: null, calendar_delta_link: null, calendar_sync_window_start: start, calendar_sync_window_end: end }).eq("id", connectionId).eq("user_id", userId);
     return records.length;
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "calendar_sync_failed";
@@ -697,7 +814,7 @@ export async function executeCalendarOperation(operationId: string, userId: stri
       const value = operation.payload as CalendarUpdatePayload;
       if (!operation.provider_event_id || !value.subject || !value.startsAt || !value.endsAt || !value.previous) throw new MicrosoftGraphError("operation_payload_invalid");
       const accessToken = await accessTokenForConnection(operation.connection_id, userId);
-      const { data: cached } = await admin.from("calendar_events").select("body_text,categories,importance,show_as").eq("user_id", userId).eq("provider_event_id", operation.provider_event_id).maybeSingle();
+      const { data: cached } = await admin.from("calendar_events").select("subject,location_name,body_text,categories,importance,show_as").eq("user_id", userId).eq("provider_event_id", operation.provider_event_id).maybeSingle();
       const updated = await graph(accessToken, `/me/events/${encodeURIComponent(operation.provider_event_id)}`, {
         method: "PATCH",
         body: JSON.stringify(calendarEventForGraph(value as GraphCalendarCreatePayload)),

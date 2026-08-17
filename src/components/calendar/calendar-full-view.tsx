@@ -57,7 +57,9 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     const visual = resolveCalendarEventVisual(event.categories, categories);
     return {
       id: event.id,
-      title: event.subject,
+      // Outlook 里有些日程没有标题（纯占位时间块），渲染成纯空白方块会让用户
+      // 误以为数据丢失；给一个明确兜底标签而不是留白。
+      title: event.subject?.trim() || "未命名",
       start: event.is_all_day ? allDayDateToFullCalendarDate(instantToDate(event.starts_at, timezone)) : instantToFullCalendarDate(event.starts_at, timezone),
       end: event.is_all_day ? allDayDateToFullCalendarDate(instantToDate(event.ends_at, timezone)) : instantToFullCalendarDate(event.ends_at, timezone),
       allDay: event.is_all_day,
@@ -72,7 +74,12 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     if (info.view.type === "dayGridMonth") return <div className="flex min-w-0 items-center gap-1 px-1 py-0.5 text-[11px]"><span className="size-1.5 shrink-0 rounded-full" style={{ background: info.event.extendedProps.visual.dot }} /><span className="truncate font-medium">{info.event.title}</span></div>;
     const event = info.event.extendedProps.event;
     const durationMinutes = (Date.parse(event.ends_at) - Date.parse(event.starts_at)) / 60_000;
-    if (durationMinutes <= 30) return <div className="h-full overflow-hidden px-1.5 py-0.5 text-xs leading-4"><p className="truncate font-medium">{info.event.title}</p></div>;
+    if (durationMinutes <= 30) {
+      // 半小时以内的日程方块很矮，截断的标题（truncate 成 …）观感粗糙，方块内
+      // 不放文字、保持纯色条编码时间间隔，完整标题与时间只在悬停浮层展示；
+      // fc-short-event 供 CSS 放行默认裁剪并抬升层级。
+      return <div className="fc-short-event group relative h-full overflow-visible"><div className="pointer-events-none absolute left-0 top-full z-50 hidden whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-2.5 py-1.5 shadow-lg group-hover:block"><p className="text-xs font-medium">{info.event.title}</p><p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">{info.timeText}</p></div></div>;
+    }
     const location = event.location_name;
     return <div className="h-full overflow-hidden px-1.5 py-0.5 text-xs leading-4"><p className="line-clamp-2 font-medium">{info.event.title}</p><p className="text-[10px] opacity-70">{info.timeText}</p>{durationMinutes >= 60 && location ? <p className="line-clamp-1 text-[10px] opacity-60">{location}</p> : null}</div>;
   }, []);

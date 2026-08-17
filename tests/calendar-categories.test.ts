@@ -37,4 +37,9 @@ describe("calendar category behavior", () => {
     const external: CalendarCategory = { ...categories[0], id: "external-1", display_name: "重要客户", color: "preset22", managed_key: null, category_kind: "external", is_ai_managed: false };
     expect(resolveCalendarEventVisual(["重要客户"], [external])).toMatchObject({ border: "#82415c", primaryCategory: external });
   });
+
+  it("falls back to taxonomy colors when the synced category table is empty", () => {
+    expect(resolveCalendarEventVisual(["领域·实习/工作"], [])).toMatchObject({ border: "#47758f", dot: "#365f78", primaryCategory: null });
+    expect(resolveCalendarEventVisual(["场景·人大"], [])).toMatchObject({ dot: "#6b4f8a" });
+  });
 });

@@ -2,14 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { accessTokenForConnection, ensureManagedOutlookCategories, executeCalendarOperation, syncOutlookMasterCategories, updateOutlookMasterCategoryColor } from "@/lib/adapters/microsoft-graph/calendar";
+import { accessTokenForConnection, ensureManagedOutlookCategories, executeCalendarOperation, MicrosoftGraphError, syncOutlookMasterCategories, updateOutlookMasterCategoryColor } from "@/lib/adapters/microsoft-graph/calendar";
 import type { OutlookCategoryColor } from "./classification/taxonomy";
+import { classifyUnlabeledCalendarEvents } from "./classification/backfill";
 import { syncAndBackupMicrosoftWorkspace } from "@/lib/services/microsoft-sync-backup";
 import { cancelOperationSchema, confirmOperationSchema, createCalendarEventSchema, deleteCalendarEventSchema, updateCalendarEventSchema } from "./schemas";
 import { calendarPayload, calendarUpdatePayload } from "./utils";
 import { markInboxProcessed } from "@/features/inbox/service";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { syncEntityReferenceLinks } from "@/features/links/service";
 
 export type CalendarCreateState = { status: "idle" | "success" | "error"; message: string };
 
@@ -86,6 +88,21 @@ async function classificationOptions(supabase: Awaited<ReturnType<typeof require
   return error ? { enabled: true as const } : { enabled: true as const, rules: data ?? [] };
 }
 
+/**
+ * 日程保存后把说明里的跨实体内链写入 entity_links。
+ * 先经 calendar_operations.result 拿 provider_event_id，再解析本地 calendar_events.id；
+ * 失败只记日志，不影响保存主流程。
+ */
+async function syncCalendarEventLinks(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, operationId: string, description: string | null | undefined) {
+  if (description === undefined) return;
+  const { data: operation } = await supabase.from("calendar_operations").select("provider_event_id").eq("id", operationId).maybeSingle();
+  if (!operation?.provider_event_id) return;
+  const { data: event } = await supabase.from("calendar_events").select("id").eq("user_id", userId).eq("provider_event_id", operation.provider_event_id).is("archived_at", null).maybeSingle();
+  if (!event?.id) return;
+  const linkSync = await syncEntityReferenceLinks(supabase, userId, "calendar_event", event.id, description ?? "");
+  if (!linkSync.ok) console.error(JSON.stringify({ level: "warn", action: "sync_entity_reference_links", calendarEventId: event.id, code: linkSync.code }));
+}
+
 export async function createCalendarEvent(_previousState: CalendarCreateState, formData: FormData): Promise<CalendarCreateState> {
   try {
     const { supabase, userId } = await requireOwner();
@@ -114,6 +131,7 @@ export async function createCalendarEvent(_previousState: CalendarCreateState, f
     await audit(supabase, userId, "confirm", queued.id, { operation_type: queued.operation_type, confirmation: "single_step" });
     try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "创建") }; }
     await markInboxProcessed(supabase, userId, inboxId, "calendar", queued.id);
+    await syncCalendarEventLinks(supabase, userId, queued.id, parsed.data.description);
     revalidatePath("/calendar");
     revalidatePath("/inbox");
     revalidatePath("/today");
@@ -157,6 +175,7 @@ export async function updateCalendarEvent(_previousState: CalendarCreateState, f
     if (queueError || !queued) fail();
     await audit(supabase, userId, "confirm", queued.id, { operation_type: "update", confirmation: "single_step" });
     try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "更新") }; }
+    await syncCalendarEventLinks(supabase, userId, queued.id, value.description);
     revalidatePath("/calendar"); revalidatePath("/today");
     return { status: "success", message: "已更新并同步到 Outlook。" };
   } catch {
@@ -230,16 +249,24 @@ export async function queueCalendarSync() {
   revalidatePath("/calendar");
 }
 
-export async function syncAndBackupMicrosoftAction() {
+export async function syncAndBackupMicrosoftAction(): Promise<
+  | { status: "success"; calendarEventCount: number; calendarCategoryCount: number; calendarCategoryStatus: string; todoTaskCount: number; degraded: string[] }
+  | { status: "error"; message: string }
+> {
   const { supabase, userId } = await requireOwner();
   const activeConnection = await connection(supabase);
   try {
     const result = await syncAndBackupMicrosoftWorkspace(activeConnection.id, userId, "manual");
     revalidatePath("/calendar");
     revalidatePath("/tasks");
-    return { calendarEventCount: result.calendarEventCount, calendarCategoryCount: result.calendarCategoryCount, calendarCategoryStatus: result.calendarCategoryStatus, todoTaskCount: result.todoTaskCount };
-  } catch {
-    throw new Error("同步或备份未能完成。请检查 Outlook 连接和数据库 migration 后重试。");
+    return { status: "success", calendarEventCount: result.calendarEventCount, calendarCategoryCount: result.calendarCategoryCount, calendarCategoryStatus: result.calendarCategoryStatus, todoTaskCount: result.todoTaskCount, degraded: result.degraded };
+  } catch (error) {
+    // 返回错误结果而非抛异常：开发/生产环境都能可靠显示真实错误码
+    // （graph_unavailable / graph_invalid_request / graph_request_failed /
+    // calendar_cache_failed 等），并同步打到 dev 终端便于查日志。
+    const code = error instanceof MicrosoftGraphError ? error.code : error instanceof Error ? error.message : "unknown";
+    console.error("[calendar-sync] failed:", code);
+    return { status: "error", message: `同步或备份未能完成：${code}` };
   }
 }
 
@@ -293,5 +320,28 @@ export async function updateCalendarCategoryAiAction(_previousState: CalendarCre
     return { status: "success", message: "AI 分类设置已保存。" };
   } catch {
     return { status: "error", message: "请检查说明和关键词后重试。" };
+  }
+}
+
+export type CalendarBackfillState = { status: "idle" | "success" | "error"; message: string };
+
+/**
+ * 为已有日程回填托管分类（纯本地，不依赖 Outlook），复用手动同步后的同一套
+ * 分类逻辑（classifyUnlabeledCalendarEvents），保证行为一致、覆盖全量。
+ */
+export async function backfillCalendarCategoriesAction(_previousState: CalendarBackfillState): Promise<CalendarBackfillState> {
+  void _previousState;
+  try {
+    const { userId } = await requireOwner();
+    const counts = await classifyUnlabeledCalendarEvents(userId);
+    revalidatePath("/calendar");
+    const parts = [
+      counts.updated ? `已为 ${counts.updated} 条历史日程分类` : "",
+      counts.alreadyLabeled ? `${counts.alreadyLabeled} 条已有分类未改动` : "",
+      counts.lowConfidence ? `${counts.lowConfidence} 条低置信度未打标` : "",
+    ].filter(Boolean);
+    return { status: "success", message: `分类完成：${parts.join("，")}。` };
+  } catch {
+    return { status: "error", message: "历史日程分类未能完成，请稍后重试。" };
   }
 }

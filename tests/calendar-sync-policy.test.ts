@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { calendarSyncOptions } from "@/features/calendar/sync-policy";
+import { calendarSyncWindow } from "@/features/calendar/sync-policy";
 
-describe("calendar sync policy", () => {
-  it("uses an authoritative full Graph read for manual cache repair", () => {
-    expect(calendarSyncOptions("manual")).toEqual({ forceFull: true });
-  });
+const DAY = 86_400_000;
+const now = Date.parse("2026-08-15T04:00:00.000Z");
 
-  it("keeps scheduled reconciliation efficient with the delta cursor", () => {
-    expect(calendarSyncOptions("scheduled")).toEqual({ forceFull: false });
+describe("calendar history window", () => {
+  it("covers two years of past events so Outlook history is mirrored", () => {
+    const window = calendarSyncWindow(now);
+    expect(Date.parse(window.start)).toBe(now - 730 * DAY);
+    expect(Date.parse(window.end)).toBe(now + 180 * DAY);
   });
 });
