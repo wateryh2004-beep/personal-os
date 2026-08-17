@@ -125,6 +125,11 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const saveQueuedRef = useRef(false);
   const isDirtyRef = useRef(false);
   const noteSessionKey = `notes:draft:${note.id}`;
+  useEffect(() => {
+    const openNoteAi = () => noteAiPanel.open();
+    window.addEventListener("personal-os:notes-library-open", openNoteAi);
+    return () => window.removeEventListener("personal-os:notes-library-open", openNoteAi);
+  }, [noteAiPanel]);
   const saveDraft = useCallback((nextTitle: string, nextBody: string, baseRevision = revisionRef.current) => {
     saveWorkspaceSession<NoteDraftSession>(
       noteSessionKey,

@@ -15,6 +15,7 @@ import { syncAndBackupMicrosoftAction, updateCalendarEvent } from "@/features/ca
 import type { CalendarCategory } from "@/features/calendar/categories/types";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
 import { Inspector } from "@/components/shared/inspector";
+import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, wallTimeToIso } from "@/features/calendar/timezone";
 import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, reconcileCalendarMutationRange, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
@@ -61,6 +62,18 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
   const requestSequenceRef = useRef(0);
   const ai = useWorkspacePanel("calendar-ai");
   const inspector = useWorkspacePanel("calendar-inspector");
+  useEffect(() => {
+    if (initialEventId || initialCreateOpen) return;
+    const restore = window.setTimeout(() => {
+      const session = loadWorkspaceSession<{ view?: View; cursor?: string; categories?: string[] }>("calendar:workspace");
+      if (!session) return;
+      if (session.view) setView(session.view);
+      if (session.cursor && !Number.isNaN(new Date(session.cursor).getTime())) setCursor(new Date(session.cursor));
+      if (session.categories) setSelectedCategories(new Set(session.categories));
+    }, 0);
+    return () => window.clearTimeout(restore);
+  }, [initialCreateOpen, initialEventId]);
+  useEffect(() => { saveWorkspaceSession("calendar:workspace", { view, cursor: cursor.toISOString(), categories: [...selectedCategories] }); }, [cursor, selectedCategories, view]);
   // A seven-column time grid is not usable on a phone. This is a product
   // default only; users can still choose Month after the compact Day view.
   useEffect(() => {

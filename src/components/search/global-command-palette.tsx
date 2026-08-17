@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, Settings, ShoppingBag, Sparkles, SquareKanban, Plane } from "lucide-react";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { createNote } from "@/features/notes/actions";
@@ -16,6 +16,7 @@ const domainLabels: Record<string, string> = { notes: "Notes", career: "Career",
 
 export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search" }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [recents, setRecents] = useState<Array<{ href: string; label: string }>>([]);
   const [, startTransition] = useTransition();
@@ -25,6 +26,7 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
   useEffect(() => { if (!open) return; const timer = window.setTimeout(() => { setQuery(""); try { setRecents(JSON.parse(localStorage.getItem(recentStorageKey) || "[]")); } catch { setRecents([]); } }, 0); return () => window.clearTimeout(timer); }, [initialSection, open]);
   const go = (href: string) => { onOpenChange(false); router.push(href); };
   const newNote = () => { onOpenChange(false); startTransition(() => createNote()); };
+  const openCreate = (kind?: string) => { onOpenChange(false); window.dispatchEvent(new CustomEvent("personal-os:create-open", { detail: kind ? { kind } : undefined })); };
   const askAgent = (value: string) => {
     onOpenChange(false);
     window.dispatchEvent(new CustomEvent("personal-os:agent-open"));
@@ -32,6 +34,7 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
   };
   const groups = Object.entries(Object.groupBy(results, (result) => domainLabels[result.domain] ?? result.domain));
   const showQuick = !query && initialSection === "quick";
+  const contextActions = pathname.startsWith("/notes") ? [["新建笔记", () => openCreate("note")], ["问笔记库", () => { onOpenChange(false); window.dispatchEvent(new CustomEvent("personal-os:notes-library-open")); }]] as const : pathname === "/calendar" ? [["新建日程", () => openCreate("calendar")], ["回到今天", () => go("/calendar")]] as const : pathname === "/tasks" ? [["新建任务", () => openCreate("task")], ["询问今日任务", () => askAgent("请总结我今天的任务")]] as const : [];
 
   return <CommandDialog open={open} onOpenChange={onOpenChange} title="Personal OS Command Center" description="搜索、导航或快速新建" className="max-h-[min(78dvh,680px)] border-[var(--border-strong)] bg-[var(--surface-elevated)] sm:max-w-2xl">
     <Command shouldFilter={!query} label="Personal OS Command Center">
@@ -40,17 +43,18 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
         {query && loading ? <p role="status" aria-live="polite" className="px-4 py-8 text-center text-sm text-[var(--text-tertiary)]">正在搜索…</p> : null}
         {query && search.status === "error" ? <p role="alert" className="px-4 py-8 text-center text-sm text-[var(--danger)]">{search.error}</p> : null}
         {query && search.status === "success" && !results.length ? <CommandEmpty>没有找到相关内容。尝试更短或不同的关键词。</CommandEmpty> : null}
-        {!query ? <CommandGroup heading="Quick Actions">
+        {!query && contextActions.length ? <CommandGroup heading="Context Actions">{contextActions.map(([label, action]) => <CommandItem key={label} onSelect={action}><Sparkles aria-hidden="true" />{label}</CommandItem>)}</CommandGroup> : null}
+        {!query ? <CommandGroup heading="Create">
           <CommandItem onSelect={() => askAgent("我现在最需要关注什么？")}><Sparkles aria-hidden="true" />Ask Personal OS<CommandShortcut>⌘ J</CommandShortcut></CommandItem>
           <CommandItem onSelect={newNote}><FilePlus2 aria-hidden="true" />新建笔记<CommandShortcut>直接进入编辑器</CommandShortcut></CommandItem>
-          <CommandItem onSelect={() => go("/tasks?create=1")}><CheckSquare2 aria-hidden="true" />新建任务<CommandShortcut>Microsoft To Do</CommandShortcut></CommandItem>
-          <CommandItem onSelect={() => go("/calendar?create=1")}><CalendarPlus aria-hidden="true" />新建日程<CommandShortcut>Outlook</CommandShortcut></CommandItem>
-          <CommandItem onSelect={() => go("/projects?create=1")}><SquareKanban aria-hidden="true" />新建项目</CommandItem>
-          <CommandItem onSelect={() => go("/shopping?create=1")}><ShoppingBag aria-hidden="true" />加入待购</CommandItem>
-          <CommandItem onSelect={() => go("/travel?create=1")}><Plane aria-hidden="true" />添加旅行灵感</CommandItem>
+          <CommandItem onSelect={() => openCreate("task")}><CheckSquare2 aria-hidden="true" />新建任务<CommandShortcut>Microsoft To Do</CommandShortcut></CommandItem>
+          <CommandItem onSelect={() => openCreate("calendar")}><CalendarPlus aria-hidden="true" />新建日程<CommandShortcut>Outlook</CommandShortcut></CommandItem>
+          <CommandItem onSelect={() => openCreate("project")}><SquareKanban aria-hidden="true" />新建项目</CommandItem>
+          <CommandItem onSelect={() => openCreate("shopping")}><ShoppingBag aria-hidden="true" />加入待购</CommandItem>
+          <CommandItem onSelect={() => openCreate("travel")}><Plane aria-hidden="true" />添加旅行灵感</CommandItem>
           <CommandItem onSelect={() => go("/career/opportunities?create=1")}><BriefcaseBusiness aria-hidden="true" />新建职业机会</CommandItem>
           <CommandItem onSelect={() => go("/career/experiences?create=1")}><LayoutDashboard aria-hidden="true" />添加职业经历</CommandItem>
-          <CommandItem onSelect={() => go("/files?upload=1")}><FolderUp aria-hidden="true" />上传文件</CommandItem>
+          <CommandItem onSelect={() => openCreate("inbox")}><FolderUp aria-hidden="true" />记录到 Inbox</CommandItem>
         </CommandGroup> : null}
         {!query && recents.length ? <><CommandSeparator /><CommandGroup heading="Recent">{recents.slice(0, 6).map((item) => <CommandItem key={item.href} onSelect={() => go(item.href)}><FileText aria-hidden="true" /><span className="min-w-0 truncate">{item.label}</span><CommandShortcut>{item.href}</CommandShortcut></CommandItem>)}</CommandGroup></> : null}
         {!query && !showQuick ? <><CommandSeparator /><CommandGroup heading="Navigation">{navigation.map(([label, href]) => <CommandItem key={href} onSelect={() => go(href)}>{href === "/settings" ? <Settings aria-hidden="true" /> : <LayoutDashboard aria-hidden="true" />}{label}<CommandShortcut>{href}</CommandShortcut></CommandItem>)}</CommandGroup></> : null}

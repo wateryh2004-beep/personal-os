@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ChevronDown, ChevronRight, FilePlus2, FileText, Folder, FolderPlus, Menu, MoreHorizontal, Star, Trash2, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -105,10 +105,47 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
 
 export function NotesWorkspaceShell({ folders, notes, children }: { folders: NotesNavigatorFolder[]; notes: NotesNavigatorNote[]; children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [navigatorWidth, setNavigatorWidth] = useState(272);
+  const navigatorWidthRef = useRef(272);
   const pathname = usePathname();
   const isEditorRoute = /^\/notes\/[0-9a-f-]{36}$/i.test(pathname);
+  useEffect(() => {
+    const restore = window.setTimeout(() => {
+      try {
+        const stored = Number(localStorage.getItem("personal-os:notes-navigator-width:v1"));
+        if (Number.isFinite(stored)) {
+          const next = Math.max(220, Math.min(360, stored));
+          navigatorWidthRef.current = next;
+          setNavigatorWidth(next);
+        }
+      } catch { /* Keep the useful default when storage is unavailable. */ }
+    }, 0);
+    return () => window.clearTimeout(restore);
+  }, []);
+  const resizeNavigator = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = navigatorWidthRef.current;
+    const onMove = (move: PointerEvent) => {
+      const next = Math.max(220, Math.min(360, startWidth + move.clientX - startX));
+      navigatorWidthRef.current = next;
+      setNavigatorWidth(next);
+    };
+    const onEnd = () => {
+      try { localStorage.setItem("personal-os:notes-navigator-width:v1", String(Math.round(navigatorWidthRef.current))); } catch { /* no-op */ }
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd, { once: true });
+  };
+  const resetNavigator = () => {
+    navigatorWidthRef.current = 272;
+    setNavigatorWidth(272);
+    try { localStorage.removeItem("personal-os:notes-navigator-width:v1"); } catch { /* no-op */ }
+  };
   return <section className="flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
-    <aside className="hidden h-full w-[272px] shrink-0 border-r md:block"><NotesNavigator folders={folders} notes={notes} /></aside>
+    <aside style={{ width: navigatorWidth }} className="relative hidden h-full shrink-0 border-r md:block"><NotesNavigator folders={folders} notes={notes} /><button type="button" onPointerDown={resizeNavigator} onDoubleClick={resetNavigator} className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none" aria-label="调整笔记导航宽度，双击恢复默认" /></aside>
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" showCloseButton className="w-[min(86vw,320px)] p-0"><SheetTitle className="sr-only">Notes 文件</SheetTitle><NotesNavigator folders={folders} notes={notes} onNavigate={() => setMobileOpen(false)} /></SheetContent></Sheet>
     <div className="relative min-w-0 flex-1">{isEditorRoute ? null : <button type="button" onClick={() => setMobileOpen(true)} className="absolute left-3 top-3 z-10 flex h-8 items-center gap-1.5 rounded-full bg-[var(--surface-canvas)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-sm md:hidden" aria-label="打开笔记文件"><Menu className="size-4" />文件夹</button>}{children}</div>
   </section>;

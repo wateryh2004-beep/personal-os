@@ -12,6 +12,7 @@ import { FolderPicker } from "@/components/notes/folder-picker";
 import { createNoteInFolder, moveNote, renameNote, toggleNotePinned, trashNote } from "@/features/notes/actions";
 import type { NoteListItem } from "@/features/notes/types";
 import { formatNoteTimestamp } from "@/features/notes/utils";
+import { useWorkspaceScrollRestoration } from "@/components/shared/use-workspace-scroll-restoration";
 
 type Folder = { id: string; name: string; parent_id: string | null };
 type WorkspaceState = "ready" | "base" | "unavailable";
@@ -62,6 +63,12 @@ export function NotesWorkspace({ notes, folders, timezone, state, selectedFolder
   const [moving, setMoving] = useState<NoteListItem | null>(null);
   const [, startTransition] = useTransition();
   const requestRef = useRef<AbortController | null>(null);
+  const listScrollRef = useWorkspaceScrollRestoration("notes:list");
+  useEffect(() => {
+    const openLibrary = () => openNotesLibrary();
+    window.addEventListener("personal-os:notes-library-open", openLibrary);
+    return () => window.removeEventListener("personal-os:notes-library-open", openLibrary);
+  }, [openNotesLibrary]);
   const normalizedQuery = query.trim();
   const activeFolderId = scope === "context" ? selectedFolder?.id ?? null : null;
   const allNotes = useMemo(() => { const byId = new Map(notes.map((note) => [note.id, note])); additional.forEach((note) => byId.set(note.id, note)); return [...byId.values()]; }, [additional, notes]);
@@ -93,7 +100,7 @@ export function NotesWorkspace({ notes, folders, timezone, state, selectedFolder
   const mutate = (action: (form: FormData) => Promise<void>, form: FormData) => startTransition(async () => { await action(form); router.refresh(); });
   const loadMore = async () => { setLoadingMore(true); try { const response = await fetch(`/api/notes/list?offset=${allNotes.length}&limit=50`); const body = await response.json() as { notes?: NoteListItem[]; hasMore?: boolean }; if (!response.ok) throw new Error(); setAdditional((current) => [...current, ...(body.notes ?? [])]); setHasMore(Boolean(body.hasMore)); } finally { setLoadingMore(false); } };
 
-  return <main className="workspace-scroll h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pt-14 pb-5 md:pt-5 sm:px-7 lg:px-10">
+  return <main ref={listScrollRef} className="workspace-scroll h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pt-14 pb-5 md:pt-5 sm:px-7 lg:px-10">
     <div className="mx-auto max-w-5xl">
       {state === "base" ? <p role="status" className="mb-5 border-l-2 border-amber-600 bg-amber-50 px-3 py-2 text-sm text-amber-800">笔记基础功能正在使用兼容模式；文件夹与链接功能会在迁移启用后完整可用。</p> : null}
       {state === "unavailable" ? <p role="alert" className="mb-5 border-l-2 border-red-700 bg-red-50 px-3 py-2 text-sm text-red-800">暂时无法读取笔记库。请检查 Supabase 环境变量、登录状态和数据库连接。</p> : null}

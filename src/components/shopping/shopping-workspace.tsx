@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/shared/page-header";
 import { createPurchaseItem } from "@/features/shopping/actions";
+import { formatCny } from "@/lib/format";
 
 type Item = { id: string; title: string; price_cny: number | null; status: string; cooldown_until: string | null; category: string | null; necessity: string };
 
@@ -50,5 +51,5 @@ export function ShoppingWorkspace({ items, stats: _stats, initialCreateOpen }: {
 }
 
 function ItemSection({ title, items }: { title: string; items: Item[] }) {
-  return <section><h2 className="mb-3 text-sm font-medium text-[var(--text-secondary)]">{title}</h2><div className="divide-y border-y">{items.length ? items.map((item) => item.id.startsWith("optimistic-") ? <div key={item.id} className="flex items-center justify-between gap-4 px-4 py-3 opacity-70"><div><p className="font-medium">{item.title}</p><p className="mt-1 text-xs text-[var(--text-tertiary)]">正在保存…</p></div><span className="text-sm tabular-nums">{item.price_cny === null ? "价格未知" : `¥${item.price_cny}`}</span></div> : <Link key={item.id} href={`/shopping/${item.id}`} className="flex items-center justify-between gap-4 px-4 py-3 transition-[background-color,color] ui-transition hover:bg-[var(--surface-hover)]"><div><p className="font-medium">{item.title}</p><p className="mt-1 text-xs text-[var(--text-tertiary)]">{item.category || "未分类"} · {item.status.toUpperCase()}</p></div><span className="text-sm tabular-nums">{item.price_cny === null ? "价格未知" : `¥${item.price_cny}`}</span></Link>) : <p className="px-4 py-5 text-sm text-[var(--text-tertiary)]">暂无项目。</p>}</div></section>;
+  return <section><h2 className="mb-3 text-sm font-medium text-[var(--text-secondary)]">{title}</h2><div className="divide-y border-y">{items.length ? items.map((item) => item.id.startsWith("optimistic-") ? <div key={item.id} className="flex items-center justify-between gap-4 px-4 py-3 opacity-70"><div><p className="font-medium">{item.title}</p><p className="mt-1 text-xs text-[var(--text-tertiary)]">正在保存…</p></div><span className="text-sm tabular-nums">{item.price_cny === null ? "价格未知" : formatCny(item.price_cny)}</span></div> : <Link key={item.id} href={`/shopping/${item.id}`} className="flex items-center justify-between gap-4 px-4 py-3 transition-[background-color,color] ui-transition hover:bg-[var(--surface-hover)]"><div><p className="font-medium">{item.title}</p><p className="mt-1 text-xs text-[var(--text-tertiary)]">{item.category || "未分类"} · {item.status.toUpperCase()}</p></div><span className="text-sm tabular-nums">{item.price_cny === null ? "价格未知" : formatCny(item.price_cny)}</span></Link>) : <p className="px-4 py-5 text-sm text-[var(--text-tertiary)]">暂无项目。</p>}</div></section>;
 }

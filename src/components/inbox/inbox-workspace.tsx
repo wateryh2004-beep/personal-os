@@ -32,6 +32,7 @@ import {
   createMicrosoftTodoTaskAction,
   type TodoCreateState,
 } from "@/features/tasks/microsoft-todo";
+import { useActionFeedback } from "@/components/shared/action-feedback";
 
 type InboxItem = {
   id: string;
@@ -344,42 +345,24 @@ function ReclassifyControl({ inboxId }: { inboxId: string }) {
 }
 
 function ArchiveInboxControl({ inboxId }: { inboxId: string }) {
-  const [confirming, setConfirming] = useState(false);
   const [state, action, pending] = useActionState(
     archiveInboxItem,
     initialInboxCaptureState,
   );
+  const { show } = useActionFeedback();
+  const router = useRouter();
+  useRefreshOnSuccess(state.status);
+  useEffect(() => {
+    if (state.status !== "success") return;
+    show({ message: "已归档 Inbox 项", tone: "success", undo: () => {
+      const form = new FormData(); form.set("inbox_id", inboxId);
+      void restoreInboxItem(initialInboxCaptureState, form).then((result) => { if (result.status === "success") router.refresh(); else show({ message: result.message, tone: "error" }); }).catch(() => show({ message: "恢复失败，该项目仍在归档区。", tone: "error" }));
+    } });
+  }, [inboxId, router, show, state.status]);
   return (
     <form action={action} className="shrink-0">
       <input type="hidden" name="inbox_id" value={inboxId} />
-      {confirming ? (
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-zinc-500">确认归档？</span>
-          <button
-            disabled={pending}
-            className="font-medium text-red-700 disabled:opacity-50"
-          >
-            {pending ? "归档中…" : "确认"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirming(false)}
-            className="text-zinc-500 hover:text-zinc-900"
-          >
-            取消
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          aria-label="归档这条 Inbox"
-          title="归档"
-          className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
-        >
-          <Archive size={16} />
-        </button>
-      )}
+      <button disabled={pending} aria-label="归档这条 Inbox" title="归档（可撤回）" className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-50"><Archive size={16} /></button>
       {state.status === "error" ? (
         <p role="status" className="mt-1 max-w-44 text-right text-xs text-red-700">
           {state.message}

@@ -42,3 +42,23 @@ synchronization:
 Files upload and extraction used to refresh the whole workspace after each
 operation. They now add or update the confirmed file record in local state;
 the ordinary next navigation still reconciles it against the server.
+
+## Interaction budget and local diagnostics
+
+The user sees local feedback, not a promise about provider response time:
+
+- Navigation click → pending active state: **under 100 ms**.
+- Panel, dialog, and quick capture: state changes in the next frame; CSS motion
+  completes in roughly **150–200 ms**.
+- Quick-create submit → local pending state: immediate; confirmation happens
+  after the provider responds.
+- Search debounce: **120–180 ms**.
+
+When `NEXT_PUBLIC_PERF_DEBUG=true`, `perfMark` / `perfMeasure` write only
+development console diagnostics for navigation, quick capture and lazy panels.
+They do not send analytics or persist personal behavior.
+
+`npm run audit:ui` is a warning-only regression guardrail. It flags likely
+design-system drift and raw feature-level controls, while keeping deliberate
+renderer/third-party exceptions in a small allowlist. It is intentionally not
+a blocking lint rule until historical exceptions are retired.

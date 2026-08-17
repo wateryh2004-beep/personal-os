@@ -3,6 +3,7 @@ import { AiPromptSettings } from "@/components/settings/ai-prompt-settings";
 import { PageHeader } from "@/components/shared/page-header";
 import { getAiSettings, getNoteAiPromptSettings } from "@/features/ai/queries";
 import Link from "next/link";
+import { shortcuts } from "@/features/shortcuts/registry";
 
 export default async function Settings() {
   const [ai, promptSettings] = await Promise.all([
@@ -21,6 +22,11 @@ export default async function Settings() {
           prompts={promptSettings.prompts}
           available={promptSettings.available}
         />
+        <section className="border-t pt-5">
+          <h2 className="font-medium">快捷键</h2>
+          <p className="mt-1 text-[var(--text-secondary)]">常用操作保持一致；编辑文本时不会抢占输入快捷键。</p>
+          <dl className="mt-3 divide-y border-y text-sm">{Object.values(shortcuts).map((shortcut) => <div key={shortcut.keys} className="flex items-center justify-between gap-4 px-1 py-2.5"><dt>{shortcut.label}</dt><dd><kbd className="rounded border bg-[var(--surface-hover)] px-1.5 py-0.5 font-sans text-xs tabular-nums">{shortcut.keys}</kbd></dd></div>)}</dl>
+        </section>
         <section className="border-t pt-5">
           <h2 className="font-medium">Memory</h2>
           <p className="mt-1 text-[var(--text-secondary)]">
