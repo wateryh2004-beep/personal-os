@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateToX, getTimelineDomain, getVisibleItemGeometry, isDuration, packTimelineItems, trackRangeGeometry, xToDate } from "@/features/career/roadmap-utils";
+import { dateToX, getPointLabelPlacement, getTimelineDomain, getVisibleItemGeometry, isDuration, packTimelineItems, trackRangeGeometry, xToDate } from "@/features/career/roadmap-utils";
 
 describe("career roadmap timeline", () => {
   const now = new Date("2026-08-07T12:00:00Z");
@@ -40,6 +40,14 @@ describe("career roadmap timeline", () => {
     ]);
     expect(rows).toHaveLength(2);
     expect(rows[0].map((item) => item.id)).toEqual(["range", "after"]);
+  });
+
+  it("flips a point label left before it can cover the next duration", () => {
+    expect(getPointLabelPlacement({ pointX: 160, desiredWidth: 128, obstacles: [{ left: 184, right: 460 }], timelineWidth: 720 })).toEqual({ side: "left", width: 128 });
+  });
+
+  it("keeps the point label on its natural right side when it fits", () => {
+    expect(getPointLabelPlacement({ pointX: 132, desiredWidth: 96, obstacles: [{ left: 320, right: 460 }], timelineWidth: 720 })).toEqual({ side: "right", width: 96 });
   });
 
   it("marks long ranges as clipped without changing their stored dates", () => {

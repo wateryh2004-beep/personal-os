@@ -120,6 +120,31 @@ export function getDurationLabelPosition({ barLeft, barRight, viewportLeft, view
   };
 }
 
+export type TimelineObstacle = { left: number; right: number };
+
+/**
+ * A point milestone has no time width, but its title does. Keep its label in
+ * the same compact lane and choose the side with enough real pixel space
+ * before a neighbouring duration bar, rather than letting the title cover it.
+ */
+export function getPointLabelPlacement({ pointX, desiredWidth, obstacles, timelineWidth, gap = 12 }: {
+  pointX: number;
+  desiredWidth: number;
+  obstacles: TimelineObstacle[];
+  timelineWidth: number;
+  gap?: number;
+}) {
+  const leftObstacle = obstacles.reduce((closest, obstacle) => obstacle.right <= pointX && obstacle.right > closest ? obstacle.right : closest, 0);
+  const rightObstacle = obstacles.reduce((closest, obstacle) => obstacle.left >= pointX && obstacle.left < closest ? obstacle.left : closest, timelineWidth);
+  const leftSpace = Math.max(0, pointX - leftObstacle - gap);
+  const rightSpace = Math.max(0, rightObstacle - pointX - gap);
+  if (rightSpace >= desiredWidth) return { side: "right" as const, width: desiredWidth };
+  if (leftSpace >= desiredWidth) return { side: "left" as const, width: desiredWidth };
+  return leftSpace > rightSpace
+    ? { side: "left" as const, width: leftSpace }
+    : { side: "right" as const, width: rightSpace };
+}
+
 /** Track phases remain a separate, higher-level background range. */
 export function trackRangeGeometry(range: TimelineTrackRange, domain: TimelineDomain, monthWidth: number) {
   if (!range.start_date || !range.end_date) return null;
