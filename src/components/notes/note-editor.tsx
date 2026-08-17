@@ -10,13 +10,11 @@ import {
   Download,
   Maximize2,
   Minimize2,
-  MoreHorizontal,
   Save as SaveIcon,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isInternalEntityHref } from "@/features/links/parser";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { recordNotePdfExport, saveNote } from "@/features/notes/actions";
 import { markdownFilename } from "@/features/notes/utils";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
@@ -463,25 +461,19 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             <Sparkles aria-hidden="true" />
             <span className="hidden sm:inline">AI</span>
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label="笔记更多操作">
-                <MoreHorizontal aria-hidden="true" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                disabled={isExporting}
-                onSelect={() => {
-                  setPdfError("");
-                  setPdfSnapshot({ title: title || "无标题笔记", body });
-                }}
-              >
-                <Download aria-hidden="true" />
-                {isExporting ? "正在生成 PDF…" : "导出 PDF"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={isExporting}
+            onClick={() => {
+              setPdfError("");
+              setPdfSnapshot({ title: title || "无标题笔记", body });
+            }}
+            aria-label="导出笔记 PDF"
+          >
+            <Download aria-hidden="true" />
+            <span className="hidden sm:inline">{isExporting ? "正在生成 PDF…" : "导出 PDF"}</span>
+          </Button>
         </div>
         {state !== "已保存" ? (
           <p

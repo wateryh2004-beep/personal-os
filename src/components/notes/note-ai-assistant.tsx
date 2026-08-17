@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Check,
   CheckSquare,
+  ChevronDown,
   Copy,
   FileText,
   Lightbulb,
@@ -349,42 +350,44 @@ export function NoteAiAssistant({
       {selection ? (
         <div
           aria-label="所选文字 AI 工具"
-          className="fixed z-40 flex max-w-[calc(100vw-16px)] items-center gap-1 rounded-[var(--radius-md)] border bg-[var(--surface-elevated)] p-1 shadow-sm"
+          className="fixed z-40 flex max-w-[calc(100vw-16px)] items-center gap-0.5 rounded-[var(--radius-lg)] border border-[color-mix(in_srgb,var(--border)_75%,var(--accent)_25%)] bg-[var(--surface-elevated)] p-1 shadow-[0_10px_24px_rgba(24,24,27,0.12),0_1px_3px_rgba(24,24,27,0.06)]"
           role="toolbar"
           style={{
             left: `clamp(8px, ${selection.rect.left}px, calc(100vw - 210px))`,
-            top: Math.max(8, selection.rect.top - 38),
+            top: Math.max(8, selection.rect.top - 42),
           }}
         >
-          <button type="button" onClick={() => selectionOperation("polishSelection")} className="inline-flex h-8 shrink-0 items-center gap-1 rounded px-2 text-xs hover:bg-[var(--surface-hover)]"><Sparkles className="size-3" aria-hidden="true" />AI</button>
           <button
             type="button"
             onClick={() => selectionOperation("polishSelection")}
-            className="h-8 shrink-0 rounded px-2 text-xs hover:bg-[var(--surface-hover)]"
+            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[var(--radius-md)] bg-[var(--accent-soft)] px-2.5 text-xs font-medium text-[var(--accent)] transition-colors hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
           >
+            <Sparkles className="size-3.5" aria-hidden="true" />
             润色
           </button>
           <button
             type="button"
             onClick={() => selectionOperation("shortenSelection")}
-            className="h-8 shrink-0 rounded px-2 text-xs hover:bg-[var(--surface-hover)]"
+            className="h-8 shrink-0 rounded-[var(--radius-md)] px-2.5 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
           >
             精简
           </button>
           <button
             type="button"
             aria-expanded={moreSelectionText === selection.text}
+            aria-haspopup="menu"
             onClick={() =>
               setMoreSelectionText((value) =>
                 value === selection.text ? null : selection.text,
               )
             }
-            className="h-8 shrink-0 rounded px-2 text-xs hover:bg-[var(--surface-hover)]"
+            className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-[var(--radius-md)] px-2 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
           >
             更多
+            <ChevronDown className="size-3.5" aria-hidden="true" />
           </button>
           {moreSelectionText === selection.text ? (
-            <div className="absolute right-0 top-8 z-50 grid w-28 rounded-md border bg-white p-1 shadow-sm">
+            <div role="menu" className="absolute right-0 top-10 z-50 grid w-32 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-elevated)] p-1 shadow-[0_12px_28px_rgba(24,24,27,0.12)]">
               {[
                 ["explainSelection", "解释"],
                 ["clarifySelection", "更清晰"],
@@ -396,22 +399,24 @@ export function NoteAiAssistant({
                 <button
                   type="button"
                   key={operation}
+                  role="menuitem"
                   onClick={() => {
                     selectionOperation(operation as NoteAiOperation);
                     setMoreSelectionText(null);
                   }}
-                  className="rounded px-2 py-1.5 text-left text-xs hover:bg-[var(--surface-hover)]"
+                  className="rounded-[var(--radius-md)] px-2.5 py-2 text-left text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:bg-[var(--accent-soft)] focus-visible:outline-none"
                 >
                   {label}
                 </button>
               ))}
               <button
                 type="button"
+                role="menuitem"
                 onClick={() => {
                   startCustomSelection();
                   setMoreSelectionText(null);
                 }}
-                className="rounded px-2 py-1.5 text-left text-xs hover:bg-[var(--surface-hover)]"
+                className="rounded-[var(--radius-md)] px-2.5 py-2 text-left text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:bg-[var(--accent-soft)] focus-visible:outline-none"
               >
                 自定义…
               </button>
@@ -435,7 +440,7 @@ export function NoteAiAssistant({
                   {rewrite ? (
                     <button
                       onClick={() => apply("replace")}
-                      className="min-h-10 rounded-md bg-[#365F78] px-3 py-2 text-xs font-medium text-white"
+                      className="min-h-10 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-2 text-xs font-medium text-white shadow-sm transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                     >
                       {replaceLabel}
                     </button>
@@ -543,7 +548,7 @@ export function NoteAiAssistant({
                 key={operation}
                 disabled={pending || !bodyMarkdown.trim()}
                 onClick={() => runNote(operation)}
-                className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-hover)] px-3 py-2 text-left text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-selected)] disabled:opacity-50"
+                className="flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] border border-transparent bg-[var(--surface-hover)] px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition-[background-color,border-color,color] hover:border-[color-mix(in_srgb,var(--accent)_18%,transparent)] hover:bg-[var(--surface-selected)] hover:text-[var(--text-primary)] focus-visible:border-[var(--accent)] focus-visible:outline-none disabled:opacity-50"
               >
                 {icon}
                 {label}
@@ -563,7 +568,19 @@ export function NoteAiAssistant({
                   ? "说明如何处理所选文字…"
                   : "继续讨论这篇笔记，或结合你的 Personal OS 分析…"
               }
-              className="min-h-24 w-full resize-none rounded-md border bg-white px-3 py-2 text-sm"
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  if (!pending && question.trim() && (customSelection || bodyMarkdown.trim())) {
+                    if (customSelection) {
+                      run({ operation: "customSelection", scope: "selection", content: customSelection.text, instruction: question, contextBefore: customSelection.contextBefore, contextAfter: customSelection.contextAfter }, customSelection);
+                    } else {
+                      runNote("askNote");
+                    }
+                  }
+                }
+              }}
+              className="min-h-24 w-full resize-none rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2.5 text-sm leading-6 text-[var(--text-primary)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--text-tertiary)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]"
             />
             <button
               disabled={
@@ -583,7 +600,7 @@ export function NoteAiAssistant({
                     }, customSelection)
                   : runNote("askNote")
               }
-              className="mt-2 rounded-md bg-[#365F78] px-3 py-2 text-sm text-white disabled:opacity-50"
+              className="mt-2 min-h-10 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:opacity-50"
             >
               {pending ? "正在生成…" : "发送"}
             </button>
