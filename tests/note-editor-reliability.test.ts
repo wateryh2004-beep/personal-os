@@ -76,12 +76,13 @@ describe("Notes editor reliability", () => {
     expect(picker).not.toContain("levels.map");
   });
 
-  it("keeps save and fullscreen visible while folding PDF export into the overflow menu", () => {
+  it("keeps save, fullscreen, and PDF export directly accessible in the editor header", () => {
     expect(editor).toContain("立即保存，当前状态");
     expect(editor).toContain("进入全屏编辑");
     expect(editor).toContain("setIsFallbackFullscreen(true)");
     expect(editor).toContain("导出 PDF");
-    expect(editor.indexOf("进入全屏编辑")).toBeLessThan(editor.indexOf("<DropdownMenu>"));
+    expect(editor.indexOf("进入全屏编辑")).toBeLessThan(editor.indexOf('aria-label="导出笔记 PDF"'));
+    expect(editor).not.toContain("<DropdownMenu>");
   });
 
   it("does not report the authoritative note body as failed when derived link sync fails", () => {

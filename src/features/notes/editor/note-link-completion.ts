@@ -11,26 +11,61 @@ import {
 import { keymap, EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import type { EntityLinkSuggestion } from "@/features/links/types";
+import type { NoteLinkSuggestion } from "@/features/notes/links/types";
 
-export type NoteLinkQuery = { kind: "entity"; from: number; to: number; query: string };
+export type NoteLinkQuery = {
+  kind: "note" | "entity";
+  from: number;
+  to: number;
+  query: string;
+};
 
-// 唯一触发符是 @（飞书风格），笔记与跨实体统一走同一入口。
+// `[[` 是笔记专用入口；`@` 保留跨实体入口，单独输入时显示最近笔记。
 // @ 前是普通字符(如邮箱 foo@bar)时不触发，避免误判邮件地址。
 export function extractNoteLinkQuery(document: string, position: number): NoteLinkQuery | null {
   const lineStart = document.lastIndexOf("\n", Math.max(0, position - 1)) + 1;
   const beforeCursor = document.slice(lineStart, position);
+
+  const wikiOffset = beforeCursor.lastIndexOf("[[");
+  if (wikiOffset >= 0) {
+    if (beforeCursor[wikiOffset - 1] === "[") return null;
+    const query = beforeCursor.slice(wikiOffset + 2);
+    if (/[\[\]\r\n]/.test(query)) return null;
+    return { kind: "note", from: lineStart + wikiOffset, to: position, query };
+  }
 
   const atOffset = beforeCursor.lastIndexOf("@");
   if (atOffset < 0) return null;
   const beforeAt = beforeCursor[atOffset - 1];
   if (beforeAt && /[A-Za-z0-9_.-]/.test(beforeAt)) return null;
   const query = beforeCursor.slice(atOffset + 1);
-  if (!query || /[\s\[\]【】@]/.test(query)) return null;
+  if (/[\s\[\]【】@]/.test(query)) return null;
   return { kind: "entity", from: lineStart + atOffset, to: position, query };
+}
+
+function uniqueNotes(notes: readonly NoteLinkSuggestion[]) {
+  return [...new Map(notes.map((note) => [note.id, note])).values()];
 }
 
 function uniqueEntities(entities: readonly EntityLinkSuggestion[]) {
   return [...new Map(entities.map((entity) => [entity.id, entity])).values()];
+}
+
+function noteCompletionFor(note: NoteLinkSuggestion): Completion {
+  return {
+    label: note.title,
+    detail: note.folderName || "笔记",
+    type: "text",
+    apply(view, _completion, from, to) {
+      const insert = `[${note.title}](/notes/${note.id})`;
+      view.dispatch({
+        changes: { from, to, insert },
+        selection: { anchor: from + insert.length },
+        scrollIntoView: true,
+        userEvent: "input.complete",
+      });
+    },
+  };
 }
 
 function entityCompletionFor(entity: EntityLinkSuggestion): Completion {
@@ -51,13 +86,14 @@ function entityCompletionFor(entity: EntityLinkSuggestion): Completion {
 }
 
 export type NoteLinkCompletionOptions = {
+  searchNotes: (query: string) => Promise<NoteLinkSuggestion[]>;
   searchEntities: (query: string) => Promise<EntityLinkSuggestion[]>;
 };
 
 /**
- * 补全入口只有 @：没有 query 时不弹出，只有真实标题查询才会请求 owner-only 搜索端点。
+ * `[[` 始终搜索笔记；`@` 无查询时显示最近笔记，输入查询后搜索全部可引用实体。
  */
-export function createNoteLinkCompletion({ searchEntities }: NoteLinkCompletionOptions): Extension {
+export function createNoteLinkCompletion({ searchNotes, searchEntities }: NoteLinkCompletionOptions): Extension {
   let suppressedFrom: number | null = null;
   let controller: AbortController | null = null;
   let requestSequence = 0;
@@ -80,7 +116,14 @@ export function createNoteLinkCompletion({ searchEntities }: NoteLinkCompletionO
     const token = extractNoteLinkQuery(context.state.doc.toString(), context.pos);
     if (!token || token.from === suppressedFrom) return null;
     const query = token.query.trim();
-    if (!query) return null;
+    if (token.kind === "note" || !query) {
+      const notes = await loadRemoteSuggestions(query, searchNotes);
+      return {
+        from: token.from,
+        options: uniqueNotes(notes).map(noteCompletionFor),
+        filter: false,
+      };
+    }
     const entities = await loadRemoteSuggestions(query, searchEntities);
     return { from: token.from, options: uniqueEntities(entities).map(entityCompletionFor), filter: false };
   };

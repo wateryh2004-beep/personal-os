@@ -40,7 +40,7 @@ describe("hand-written Wiki Links", () => {
   });
 });
 
-describe("@ note completion token", () => {
+describe("note link completion tokens", () => {
   it("finds the active @ trigger and its replacement range", () => {
     expect(extractNoteLinkQuery("正文 @华夏", 7)).toMatchObject({ from: 3, to: 7, query: "华夏", kind: "entity" });
   });
@@ -51,8 +51,19 @@ describe("@ note completion token", () => {
     expect(extractNoteLinkQuery("foo@华夏", 6)).toBeNull();
   });
 
-  it("does not trigger for empty query, whitespace, brackets, or repeated @", () => {
-    expect(extractNoteLinkQuery("正文 @", 4)).toBeNull();
+  it("opens recent Notes for an empty @ and preserves the email guard", () => {
+    expect(extractNoteLinkQuery("正文 @", 4)).toMatchObject({ from: 3, to: 4, query: "", kind: "entity" });
+    expect(extractNoteLinkQuery("联系 foo@bar.com", 17)).toBeNull();
+  });
+
+  it("recognizes an unfinished [[ query and ignores completed or malformed links", () => {
+    expect(extractNoteLinkQuery("正文 [[华夏", 7)).toMatchObject({ from: 3, to: 7, query: "华夏", kind: "note" });
+    expect(extractNoteLinkQuery("正文 [[", 5)).toMatchObject({ from: 3, to: 5, query: "", kind: "note" });
+    expect(extractNoteLinkQuery("[[华夏]]", 7)).toBeNull();
+    expect(extractNoteLinkQuery("[[[华夏", 6)).toBeNull();
+  });
+
+  it("does not trigger @ completion after whitespace, brackets, or repeated @", () => {
     expect(extractNoteLinkQuery("正文 @华夏 更多", 8)).toBeNull();
     expect(extractNoteLinkQuery("正文 @华夏[", 7)).toBeNull();
     expect(extractNoteLinkQuery("正文 @@华夏", 7)).toMatchObject({ from: 4, to: 7, query: "华夏" });

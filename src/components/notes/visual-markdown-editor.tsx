@@ -17,6 +17,7 @@ import { markdownImagePreview } from "@/features/notes/editor/markdown-image-pre
 import { createNoteLinkCompletion, extractNoteLinkQuery } from "@/features/notes/editor/note-link-completion";
 import { noteLinkDecoration } from "@/features/notes/editor/note-link-decoration";
 import type { EntityLinkSuggestion } from "@/features/links/types";
+import type { NoteLinkSuggestion } from "@/features/notes/links/types";
 import {
   addMarkdownUploadPlaceholder,
   findMarkdownUploadRange,
@@ -221,6 +222,15 @@ export function VisualMarkdownEditor({
     }
   }, [noteId, onImageUploadStatus, uploadImageThroughApp]);
 
+  const searchNoteLinks = useCallback(async (query: string): Promise<NoteLinkSuggestion[]> => {
+    const response = await fetch(`/api/notes/link-suggestions?q=${encodeURIComponent(query)}&limit=20`, {
+      credentials: "same-origin",
+    });
+    if (!response.ok) throw new Error("无法搜索笔记。");
+    const data = (await response.json()) as { notes?: NoteLinkSuggestion[] };
+    return (data.notes ?? []).filter((item) => item.id !== noteId);
+  }, [noteId]);
+
   const searchEntities = useCallback(async (query: string): Promise<EntityLinkSuggestion[]> => {
     const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=20`, {
       credentials: "same-origin",
@@ -239,8 +249,8 @@ export function VisualMarkdownEditor({
   }, [noteId]);
 
   const noteLinkCompletion = useMemo(
-    () => createNoteLinkCompletion({ searchEntities }),
-    [searchEntities],
+    () => createNoteLinkCompletion({ searchNotes: searchNoteLinks, searchEntities }),
+    [searchEntities, searchNoteLinks],
   );
 
   const insertUploadedImage = useCallback(async (file: File, currentView: EditorView) => {
