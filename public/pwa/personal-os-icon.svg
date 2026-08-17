@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Personal OS">
+  <rect width="512" height="512" fill="#f7f5ef"/>
+  <path fill="#383b88" d="M164 137c0-15.5 12.5-28 28-28h12c15.5 0 28 12.5 28 28v91h48v-91c0-15.5 12.5-28 28-28h12c15.5 0 28 12.5 28 28v238c0 15.5-12.5 28-28 28h-12c-15.5 0-28-12.5-28-28v-91h-48v91c0 15.5-12.5 28-28 28h-12c-15.5 0-28-12.5-28-28V137Z"/>
+  <rect x="238" y="228" width="36" height="56" rx="18" fill="#f7f5ef"/>
+</svg>
