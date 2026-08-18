@@ -166,7 +166,7 @@ export async function getNotesWorkspace(owner?: Owner): Promise<{
  */
 export async function getNotesNavigator(): Promise<{
   folders: { id: string; name: string; parent_id: string | null }[];
-  notes: { id: string; title: string; folder_id: string | null; updated_at: string }[];
+  notes: { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null }[];
 }> {
   const { supabase } = await requireOwner();
   const [foldersResult, notesResult] = await Promise.all([
@@ -178,7 +178,7 @@ export async function getNotesNavigator(): Promise<{
       .order("name"),
     supabase
       .from("notes")
-      .select("id,title,folder_id,updated_at")
+      .select("id,title,folder_id,updated_at,content_origin")
       .is("deleted_at", null)
       .neq("status", "archived")
       .order("updated_at", { ascending: false }),
