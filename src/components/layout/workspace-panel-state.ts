@@ -1,6 +1,5 @@
 export type WorkspacePanelId =
   | "global-agent"
-  | "notes-library"
   | "calendar-ai"
   | "calendar-inspector"
   | "tasks-ai"

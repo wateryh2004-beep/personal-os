@@ -34,7 +34,7 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
   };
   const groups = Object.entries(Object.groupBy(results, (result) => domainLabels[result.domain] ?? result.domain));
   const showQuick = !query && initialSection === "quick";
-  const contextActions = pathname.startsWith("/notes") ? [["新建笔记", () => openCreate("note")], ["问笔记库", () => { onOpenChange(false); window.dispatchEvent(new CustomEvent("personal-os:notes-library-open")); }]] as const : pathname === "/calendar" ? [["新建日程", () => openCreate("calendar")], ["回到今天", () => go("/calendar")]] as const : pathname === "/tasks" ? [["新建任务", () => openCreate("task")], ["询问今日任务", () => askAgent("请总结我今天的任务")]] as const : [];
+  const contextActions = pathname.startsWith("/notes") ? [["新建笔记", () => openCreate("note")], ["问笔记库", () => { onOpenChange(false); go("/notes/ask"); }]] as const : pathname === "/calendar" ? [["新建日程", () => openCreate("calendar")], ["回到今天", () => go("/calendar")]] as const : pathname === "/tasks" ? [["新建任务", () => openCreate("task")], ["询问今日任务", () => askAgent("请总结我今天的任务")]] as const : [];
 
   return <CommandDialog open={open} onOpenChange={onOpenChange} title="Personal OS Command Center" description="搜索、导航或快速新建" className="max-h-[min(78dvh,680px)] border-[var(--border-strong)] bg-[var(--surface-elevated)] sm:max-w-2xl">
     <Command shouldFilter={!query} label="Personal OS Command Center">

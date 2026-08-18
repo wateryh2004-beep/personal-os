@@ -55,13 +55,14 @@ describe("interaction continuity contracts", () => {
     expect(notes).toContain('useWorkspaceScrollRestoration("notes:list")');
   });
 
-  it("routes Notes context actions to Notes AI without leaving the workspace", () => {
+  it("routes Notes context actions to the full-screen notes chat workspace", () => {
     const palette = source("src/components/search/global-command-palette.tsx");
     const workspace = source("src/components/notes/notes-workspace.tsx");
-    const editor = source("src/components/notes/note-editor.tsx");
-    expect(palette).toContain("personal-os:notes-library-open");
-    expect(workspace).toContain("personal-os:notes-library-open");
-    expect(editor).toContain("personal-os:notes-library-open");
+    const chat = source("src/components/assistant/notes-library-chat.tsx");
+    expect(palette).toContain('go("/notes/ask")');
+    expect(workspace).toContain('router.push("/notes/ask")');
+    expect(chat).toContain("notes-library");
+    expect(chat).not.toContain("SidePanelShell");
   });
 
   it("does not capture contextual create while a user is editing text", () => {
