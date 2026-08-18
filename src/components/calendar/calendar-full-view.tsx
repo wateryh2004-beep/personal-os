@@ -77,15 +77,23 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     if (info.view.type === "dayGridMonth") return <div className="min-w-0 truncate px-1.5 py-0.5 text-[11px] font-semibold leading-4">{info.event.title}</div>;
     const event = info.event.extendedProps.event;
     const durationMinutes = (Date.parse(event.ends_at) - Date.parse(event.starts_at)) / 60_000;
-    if (durationMinutes <= 30) {
-      // 半小时以内的日程方块很矮，截断的标题（truncate 成 …）观感粗糙，方块内
-      // 不放文字、保持纯色条编码时间间隔，完整标题与时间只在悬停浮层展示；
-      // fc-short-event 供 CSS 放行默认裁剪并抬升层级。
-      return <div className="fc-short-event group relative h-full overflow-visible"><div className="pointer-events-none absolute left-0 top-full z-50 hidden whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-2.5 py-1.5 shadow-lg group-hover:block"><p className="text-xs font-medium">{info.event.title}</p><p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">{info.timeText}</p></div></div>;
-    }
     const location = event.location_name;
+    if (durationMinutes <= 30) {
+      // 半小时以内的日程：半格高度下依然显示单行小标题（避免纯色条让人误以为
+      // 数据丢失）；完整标题+时间仍留在 hover 浮层里。fc-short-event 供 CSS
+      // 放行默认裁剪并抬升层级。
+      return (
+        <div className="fc-short-event group relative h-full overflow-visible">
+          <p className="flex h-full items-center truncate px-1.5 text-[11px] font-medium">{info.event.title}</p>
+          <div className="pointer-events-none absolute left-0 top-full z-50 hidden whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--surface-elevated)] px-2.5 py-1.5 shadow-lg group-hover:block">
+            <p className="text-xs font-medium">{info.event.title}</p>
+            <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">{info.timeText}</p>
+          </div>
+        </div>
+      );
+    }
     return <div className="h-full overflow-hidden px-1.5 py-0.5 text-xs leading-4"><p className="line-clamp-2 font-medium">{info.event.title}</p><p className="text-[10px] opacity-70">{info.timeText}</p>{durationMinutes >= 60 && location ? <p className="line-clamp-1 text-[10px] opacity-60">{location}</p> : null}</div>;
   }, []);
 
-  return <div className="calendar-canvas relative min-h-0 flex-1 overflow-hidden"><FullCalendar ref={calendarRef} plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]} initialView={initialView} initialDate={visualInitialDate} timeZone="UTC" locale="zh-cn" firstDay={1} headerToolbar={false} height="100%" allDaySlot selectable editable slotDuration="01:00:00" snapDuration="00:15:00" slotLabelInterval="01:00" slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} scrollTime="07:30:00" scrollTimeReset={false} slotMinTime="06:00:00" slotMaxTime="23:00:00" nowIndicator datesSet={(info) => onRangeChange({ start: info.start, end: info.end })} events={calendarEvents} eventClick={(info) => onOpen(info.event.extendedProps.event as CalendarEventRecord)} eventDrop={persistMove} eventResize={persistMove} select={(info) => onCreate({ startsAt: fullCalendarDateToInstant(info.start, timezone), endsAt: fullCalendarDateToInstant(info.end, timezone), isAllDay: info.allDay })} eventContent={eventContent} />{loadingRange ? <span className="pointer-events-none absolute right-3 top-3 rounded bg-white/90 px-2 py-1 text-[11px] text-[var(--text-tertiary)] shadow">更新日程…</span> : null}</div>;
+  return <div className="calendar-canvas relative min-h-0 flex-1 overflow-hidden"><FullCalendar ref={calendarRef} plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]} initialView={initialView} initialDate={visualInitialDate} timeZone="UTC" locale="zh-cn" firstDay={1} headerToolbar={false} height="100%" allDaySlot selectable editable slotDuration="00:30:00" snapDuration="00:15:00" slotLabelInterval="01:00" slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} scrollTime="09:00:00" scrollTimeReset={false} slotMinTime="08:00:00" slotMaxTime="23:00:00" nowIndicator datesSet={(info) => onRangeChange({ start: info.start, end: info.end })} events={calendarEvents} eventClick={(info) => onOpen(info.event.extendedProps.event as CalendarEventRecord)} eventDrop={persistMove} eventResize={persistMove} select={(info) => onCreate({ startsAt: fullCalendarDateToInstant(info.start, timezone), endsAt: fullCalendarDateToInstant(info.end, timezone), isAllDay: info.allDay })} eventContent={eventContent} />{loadingRange ? <span className="pointer-events-none absolute right-3 top-3 rounded bg-white/90 px-2 py-1 text-[11px] text-[var(--text-tertiary)] shadow">更新日程…</span> : null}</div>;
 }

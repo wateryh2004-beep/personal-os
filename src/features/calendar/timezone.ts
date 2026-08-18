@@ -82,6 +82,25 @@ export function shiftCalendarDate(value: CalendarDate, amount: number) {
   return date.toISOString().slice(0, 10) as CalendarDate;
 }
 
+/**
+ * Returns the Monday-to-Sunday wall-clock date range containing the given
+ * instant, for the given IANA timezone. Used by the week view to render a
+ * correct cross-month title (e.g. "8月31日 – 9月6日") and by the date-jump
+ * picker. Keeps the module's UTC-coercion contract: pure arithmetic on
+ * UTC fields, never browser-local time.
+ */
+export function weekRangeInTimeZone(value: string | Date, timezone: string): { start: CalendarDate; end: CalendarDate } {
+  const { year, month, day } = partsForInstant(value, timezone);
+  const wallNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const weekday = wallNoon.getUTCDay(); // 0 = Sunday … 6 = Saturday
+  const sinceMonday = (weekday + 6) % 7; // days after this week's Monday
+  const monday = new Date(wallNoon.getTime() - sinceMonday * 864e5);
+  const sunday = new Date(wallNoon.getTime() + (6 - sinceMonday) * 864e5);
+  const fmt = (date: Date) =>
+    `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}` as CalendarDate;
+  return { start: fmt(monday), end: fmt(sunday) };
+}
+
 /** Moves a calendar cursor in the profile timezone, never in device-local time. */
 export function shiftCalendarCursor(value: Date, timezone: string, amount: number) {
   const wall = instantToWallTime(value.toISOString(), timezone);
