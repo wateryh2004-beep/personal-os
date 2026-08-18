@@ -59,6 +59,12 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .calendar-canvas .fc .fc-timegrid-event-harness { left:0!important; right:0!important; margin-left:0!important; margin-right:2px!important; }
 .calendar-canvas .fc-daygrid-day-frame { min-height:112px; }
 .calendar-canvas .fc-daygrid-event { border-radius:5px; margin:2px 3px; min-height:22px; transition:box-shadow var(--motion-fast) var(--ease-standard),filter var(--motion-fast) var(--ease-standard); }
+/* all-day 条压缩到半小时格高：全天事件横向并排（通常 1–3 个），不再遮挡时间格。
+   超窄时省略号截断；窄条内的 daygrid frame 也归零，避免把区域撑高。 */
+.calendar-canvas .fc-timegrid .fc-daygrid-day-frame { min-height:0!important; }
+.calendar-canvas .fc-timegrid .fc-daygrid-day-events { min-height:0!important; margin:0!important; display:flex; flex-wrap:wrap; align-items:flex-start; }
+.calendar-canvas .fc-timegrid .fc-daygrid-day-events > .fc-daygrid-event-harness { flex:1 1 0%; min-width:0; margin-right:2px; }
+.calendar-canvas .fc-timegrid .fc-daygrid-day-events > .fc-daygrid-event-harness .fc-daygrid-event { display:block; width:100%!important; min-height:0!important; margin:1px 0!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .calendar-canvas .fc-event:hover { box-shadow:0 2px 7px rgba(24,24,27,.12); filter:saturate(1.06); }
 .calendar-canvas .fc-day-other .fc-daygrid-day-number { color:color-mix(in srgb,var(--text-tertiary) 58%,transparent); }
 .calendar-canvas .fc-day-other { background:color-mix(in srgb,var(--surface-hover) 48%,transparent); }

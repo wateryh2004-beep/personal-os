@@ -35,7 +35,8 @@ describe("interaction performance guardrails", () => {
   });
 
   it("renders calendar grid and event ranges in 24-hour time", () => {
-    expect(calendar).toContain('locale="zh-cn"');
+    expect(calendar).toContain('from "@fullcalendar/core/locales/zh-cn"');
+    expect(calendar).toContain("locale={zhCnLocale}");
     expect(calendar).toContain("firstDay={1}");
     expect(calendar).toContain("slotLabelFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
     expect(calendar).toContain("eventTimeFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
@@ -49,6 +50,14 @@ describe("interaction performance guardrails", () => {
     expect(globalStyles).toContain("left:0!important");
     expect(globalStyles).toContain("right:0!important");
     expect(calendar).not.toContain("eventMaxStack={1}");
+  });
+
+  it("keeps the all-day strip at half-slot height with events laid out side by side", () => {
+    expect(globalStyles).toContain(".fc-timegrid .fc-daygrid-day-events");
+    expect(globalStyles).toContain("min-height:0!important");
+    expect(globalStyles).toContain("display:flex");
+    expect(globalStyles).toContain("flex-wrap:wrap");
+    expect(globalStyles).toContain("text-overflow:ellipsis");
   });
 
   it("uses the Profile timezone in the category management surface and defaults phones to Day", () => {
