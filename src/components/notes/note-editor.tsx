@@ -568,6 +568,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
         bodyMarkdown={body}
         defaultModel={noteAiDefaultModel}
         selection={selection}
+        onClearSelection={() => setSelection(null)}
         onReplaceNote={(suggestion) => {
           setBody(suggestion);
           dirty(title, suggestion);

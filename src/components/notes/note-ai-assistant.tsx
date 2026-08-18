@@ -14,6 +14,7 @@ import {
   Quote,
   Sparkles,
   WandSparkles,
+  X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -99,6 +100,7 @@ export function NoteAiAssistant({
   bodyMarkdown,
   defaultModel,
   selection,
+  onClearSelection,
   onReplaceNote,
   onInsertNote,
   onReplaceTitle,
@@ -111,6 +113,7 @@ export function NoteAiAssistant({
   bodyMarkdown: string;
   defaultModel: DeepSeekModelId;
   selection: NoteSelection | null;
+  onClearSelection: () => void;
   onReplaceNote: (text: string) => void;
   onInsertNote: (text: string) => void;
   onReplaceTitle: (title: string) => void;
@@ -426,6 +429,17 @@ export function NoteAiAssistant({
               </button>
             </div>
           ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              onClearSelection();
+              setMoreSelectionText(null);
+            }}
+            className="ml-0.5 inline-flex h-8 shrink-0 items-center rounded-[var(--radius-md)] px-2 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
+            aria-label="关闭所选文字 AI 工具"
+          >
+            <X className="size-3.5" aria-hidden="true" />
+          </button>
         </div>
       ) : null}
       <AISidecar

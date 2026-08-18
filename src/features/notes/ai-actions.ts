@@ -16,9 +16,7 @@ import {
   noteAiOperations,
   noteAiSelectionContext,
   noteAiSystemPrompt,
-  noteAiTitleJudgePrompt,
   noteAiUserMessage,
-  parseTitleCandidates,
   cleanTitle,
   type NoteAiPromptKey,
 } from "./ai-prompts";
@@ -213,35 +211,17 @@ export async function generateNoteAiSuggestion(
     };
     let result: Awaited<ReturnType<typeof runAssistant>>;
     if (parsed.data.operation === "generateTitle") {
-      // 多 Agent 标题：第一步让 Pro 生成 5 个角度各异的候选（JSON 数组），
-      // 第二步用独立评审视角（noteAiTitleJudgePrompt）从候选里选定最终标题，
-      // 避免生成模型按惯性句式一遍遍产出同一形态。两步都只产出几十个字，
-      // 成本可忽略。候选解析失败时退化为单次生成，功能不回退。
-      const candidateRequest = {
+      // 单步生成标题：提示词让 Pro 先在心中列出 5 个角度各异的候选、互相比较，
+      // 最终只输出最贴切的一个（语法层禁止逗号/顿号，避免「A，B」对仗套路）。
+      // 输出可能残留引号/序号，落笔前用 cleanTitle 净化。
+      result = await runAssistant({
         ...baseRequest,
         mode: "transform" as const,
         model: "deepseek-v4-pro" as const,
         usePersonalContext: parsed.data.usePersonalContext === true,
         instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction("generateTitle", parsed.data.instruction, promptOverrides)}`,
-      };
-      const candidateText = (await runAssistant(candidateRequest)).text;
-      const candidates = parseTitleCandidates(candidateText);
-      if (candidates.length >= 2) {
-        const judged = await runAssistant({
-          ...baseRequest,
-          mode: "transform" as const,
-          model: "deepseek-v4-pro" as const,
-          usePersonalContext: false,
-          instruction: noteAiTitleJudgePrompt(
-            { title: parsed.data.title, content: protectedContent },
-            candidates,
-          ),
-        });
-        result = { ...judged, text: cleanTitle(judged.text) };
-      } else {
-        // 候选解析失败：退化为单次生成，直接用生成模型的输出。
-        result = await runAssistant(candidateRequest);
-      }
+      });
+      result.text = cleanTitle(result.text);
     } else {
       result = await runAssistant({
         ...baseRequest,

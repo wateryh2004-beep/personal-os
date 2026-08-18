@@ -8,8 +8,6 @@ import {
   noteAiOperations,
   noteAiPromptDefinitions,
   noteAiSystemPrompt,
-  noteAiTitleJudgePrompt,
-  parseTitleCandidates,
   personalKnowledgeSystemPrompt,
 } from "@/features/notes/ai-prompts";
 
@@ -72,33 +70,19 @@ describe("note AI prompt registry", () => {
     expect(isRewriteOperation("extractKeyInsights")).toBe(false);
   });
 
-  it("asks for diverse title shapes instead of one repeated formula", () => {
+  it("bans the comma-joined formula at the syntax level, without a second judge", () => {
     const prompt = noteAiInstruction("generateTitle");
-    expect(prompt).toContain("5 个标题候选");
-    expect(prompt).toContain("句式禁令");
-    expect(prompt).toContain("「A，B」对仗");
-    expect(prompt).toContain("JSON 字符串数组");
+    // 单步生成：让模型在心中列出多角度候选后只输出最终标题，不再走独立评审。
+    expect(prompt).toContain("列出 5 个不同角度的候选");
+    expect(prompt).toContain("硬性语法禁令");
+    expect(prompt).toContain("绝对禁止出现任何逗号");
+    expect(prompt).toContain("顿号「、」");
+    expect(prompt).toContain("「选择，还是行动」");
+    expect(prompt).toContain("只输出最终标题本身");
+    expect(prompt).not.toContain("JSON 字符串数组");
   });
 
-  it("sends candidates to a separate title judge with its own criteria", () => {
-    const prompt = noteAiTitleJudgePrompt({ title: "测试", content: "正文" }, ["候选一", "候选二"]);
-    expect(prompt).toContain("候选标题");
-    expect(prompt).toContain("候选一");
-    expect(prompt).toContain("准确性");
-    expect(prompt).toContain("唤起记忆");
-    expect(prompt).toContain("个人气味");
-    expect(prompt).toContain("拒绝套路");
-  });
-
-  it("parses a JSON candidate array and cleans the final title", () => {
-    expect(parseTitleCandidates('["选择，还是行动","辞职去旅行的第 40 天","我的 AI 焦虑"]')).toEqual([
-      "选择，还是行动",
-      "辞职去旅行的第 40 天",
-      "我的 AI 焦虑",
-    ]);
-    expect(parseTitleCandidates("```json\n[\"一\",\"二\"]\n```")).toEqual(["一", "二"]);
-    expect(parseTitleCandidates("1. 候选甲\n2. 候选乙")).toEqual(["候选甲", "候选乙"]);
-    expect(parseTitleCandidates("不是数组的一句话")).toEqual(["不是数组的一句话"]);
+  it("cleans the final title before it lands in the title field", () => {
     expect(cleanTitle("「辞职去旅行」")).toBe("辞职去旅行");
     expect(cleanTitle("3、我的 AI 焦虑")).toBe("我的 AI 焦虑");
     expect(cleanTitle("  标题  ")).toBe("标题");
