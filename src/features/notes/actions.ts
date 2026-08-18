@@ -28,6 +28,7 @@ export async function restoreNoteVersion(formData: FormData) { const { supabase,
 
 const notePlacementSchema = z.object({ folderId: z.string().uuid().nullable().optional() });
 const moveNoteSchema = z.object({ noteId: z.string().uuid(), folderId: z.string().uuid().nullable().optional() });
+const moveFolderSchema = z.object({ folderId: z.string().uuid(), parentId: z.string().uuid().nullable().optional() });
 const renameNoteSchema = z.object({ noteId: z.string().uuid(), title: z.string().trim().min(1).max(240) });
 const renameFolderSchema = z.object({ folderId: z.string().uuid(), name: z.string().trim().min(1).max(120) });
 const folderIdSchema = z.string().uuid();
@@ -76,6 +77,70 @@ export async function moveNote(formData: FormData) {
   });
   revalidatePath("/notes");
   revalidatePath(`/notes/${note.id}`);
+}
+
+export async function moveFolder(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const parsed = moveFolderSchema.safeParse({
+    folderId: formData.get("folder_id"),
+    parentId: String(formData.get("parent_id") || "") || null,
+  });
+  if (!parsed.success) fail();
+
+  const { data: folder, error: folderError } = await supabase
+    .from("note_folders")
+    .select("id,name,parent_id")
+    .eq("id", parsed.data.folderId)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (folderError || !folder) fail();
+
+  const targetParentId = await ownedFolderId(supabase, parsed.data.parentId);
+  if (folder.parent_id === targetParentId) return;
+  if (targetParentId === folder.id) fail();
+
+  // Inspect the entire owner-scoped tree before reparenting. This makes a
+  // circular hierarchy impossible even if a client bypasses drag safeguards.
+  if (targetParentId) {
+    const { data: tree, error: treeError } = await supabase
+      .from("note_folders")
+      .select("id,parent_id")
+      .is("archived_at", null);
+    if (treeError) fail();
+    const byId = new Map((tree ?? []).map((item) => [item.id, item]));
+    const seen = new Set<string>();
+    let current = byId.get(targetParentId);
+    while (current && !seen.has(current.id)) {
+      if (current.id === folder.id) fail();
+      seen.add(current.id);
+      current = current.parent_id ? byId.get(current.parent_id) : undefined;
+    }
+  }
+
+  let duplicateQuery = supabase
+    .from("note_folders")
+    .select("id")
+    .ilike("name", folder.name)
+    .neq("id", folder.id)
+    .is("archived_at", null);
+  duplicateQuery = targetParentId
+    ? duplicateQuery.eq("parent_id", targetParentId)
+    : duplicateQuery.is("parent_id", null);
+  const { data: duplicate, error: duplicateError } = await duplicateQuery.maybeSingle();
+  if (duplicateError || duplicate) fail();
+
+  const { data: moved, error } = await supabase
+    .from("note_folders")
+    .update({ parent_id: targetParentId })
+    .eq("id", folder.id)
+    .select("id")
+    .maybeSingle();
+  if (error || !moved) fail();
+  await audit(supabase, userId, "move", "note_folder", folder.id, {
+    from_parent_id: folder.parent_id,
+    to_parent_id: targetParentId,
+  });
+  revalidatePath("/notes");
 }
 
 export async function renameNote(formData: FormData) {

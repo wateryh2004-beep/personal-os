@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandedFolderPath, visibleExpandedFolders } from "@/features/notes/folder-tree";
+import { canMoveFolderTo, expandedFolderPath, isFolderDescendant, visibleExpandedFolders } from "@/features/notes/folder-tree";
 
 const folders = [
   { id: "journal", parent_id: null },
@@ -15,6 +15,13 @@ describe("notes folder tree", () => {
 
   it("keeps the tree collapsed when no folder is selected", () => {
     expect([...expandedFolderPath(folders, null)]).toEqual([]);
+  });
+
+  it("never permits nesting a folder inside itself or one of its descendants", () => {
+    expect(isFolderDescendant(folders, "journal", "08")).toBe(true);
+    expect(canMoveFolderTo(folders, "journal", "08")).toBe(false);
+    expect(canMoveFolderTo(folders, "2026", "2026")).toBe(false);
+    expect(canMoveFolderTo(folders, "08", "journal")).toBe(true);
   });
 
   it("opens a newly selected path once without making it impossible to collapse", () => {
