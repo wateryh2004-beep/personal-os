@@ -42,6 +42,10 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .calendar-canvas .fc-col-header-cell { background:#fafaf8; }
 .calendar-canvas .fc-col-header-cell-cushion { padding:9px 4px; color:var(--text-secondary); font-weight:500; text-decoration:none; }
 .calendar-canvas .fc-day-today { background:color-mix(in srgb,var(--accent-soft) 42%,transparent)!important; }
+/* 今天列在日/周视图的表头数字用 accent 强调，月视图数字做 accent 圆底白字，
+   让「今天」在所有视图里一眼可辨。 */
+.calendar-canvas .fc-day-today .fc-col-header-cell-cushion { color:var(--accent); font-weight:700; }
+.calendar-canvas .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { display:inline-block; min-width:23px; margin-top:2px; margin-right:6px; padding:2px 6px; text-align:center; background:var(--accent); color:#fff; border-radius:9999px; }
 /* 半小时一格：slot 高度按半格计，1 小时约 60px，短日程也有标题空间。 */
 .calendar-canvas .fc-timegrid-slot { height:1.85em; border-color:#ecece8; }
 .calendar-canvas .fc-timegrid-slot-minor { border-top-style:dotted; border-top-color:#f0f0ec; }
