@@ -13,6 +13,7 @@ describe("application proxy paths", () => {
 
   it("keeps only intended protocol paths public and leaves APIs to handler authentication", () => {
     expect(isPublicPath("/login")).toBe(true);
+    expect(isPublicPath("/manifest.webmanifest")).toBe(true);
     expect(isPublicPath("/today")).toBe(false);
     expect(isPrivateAppPath("/api/exports/notes/note-id")).toBe(false);
     expect(isAuthCallbackPath("/api/auth/callback")).toBe(true);

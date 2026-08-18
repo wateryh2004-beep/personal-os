@@ -3,7 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isOwnerEmail } from "@/lib/auth/owner";
 import { env, isSupabaseConfigured } from "@/lib/env";
 
-const publicPaths = new Set(["/login"]);
+// The manifest is fetched by Chrome's installability check outside the signed-in
+// application flow. It must remain readable without a session so the browser
+// receives JSON rather than a login redirect.
+const publicPaths = new Set(["/login", "/manifest.webmanifest"]);
 const authCallbackPaths = ["/api/auth/callback", "/api/integrations/microsoft/callback"];
 
 export function isPublicPath(pathname: string) {
