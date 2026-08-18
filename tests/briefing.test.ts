@@ -109,11 +109,77 @@ describe("Briefing RSS-first pipeline", () => {
     expect(prefilterBriefingCandidates(candidates, [], new Date("2026-08-10T04:00:00Z"), 24)).toHaveLength(4);
   });
 
-  it("AI 最终选择仍限制单源两条、单分类三条和总数", () => {
-    const candidates = Array.from({ length: 6 }, (_, index) => ({ clusterId: `c${index}`, itemId: `i${index}`, feedId: index < 4 ? "f1" : "f2", title: `条目 ${index}`, excerpt: "摘要", url: null, publishedAt: "2026-08-10T03:00:00Z", firstSeenAt: "2026-08-10T03:00:00Z", feedPriority: 80, feedTitle: "源", category: "科技", personalPriority: "core", score: 1, matchedInterests: [], excluded: false, reason: "近期更新", ai: { id: `i${index}`, personalRelevance: 90 - index, informationValue: 80, novelty: 70, timeliness: 80, confidence: .8, reason: "相关", matchedTopics: [] } }));
+  it("AI 前筛选仍限制每个信源最多四条", () => {
+    const candidates = Array.from({ length: 8 }, (_, index) => ({ clusterId: `c${index}`, itemId: `i${index}`, feedId: "f1", title: `AI 条目 ${index}`, excerpt: "有足够长度的 RSS 摘要。".repeat(10), url: null, publishedAt: "2026-08-10T03:00:00Z", firstSeenAt: "2026-08-10T03:00:00Z", feedPriority: 80, feedTitle: "核心源" }));
+    expect(prefilterBriefingCandidates(candidates, [], new Date("2026-08-10T04:00:00Z"), 24)).toHaveLength(4);
+  });
+
+  function aiCandidate(index: number, feedId: string, topicBucket: "ai_tech" | "business_startup" | "finance_investing" | "economy_society" | "wildcard", value: number, personalPriority: string = "normal") {
+    return { clusterId: `c${index}`, itemId: `i${index}`, feedId, title: `条目 ${index}`, excerpt: "摘要", url: null, publishedAt: "2026-08-10T03:00:00Z", firstSeenAt: "2026-08-10T03:00:00Z", feedPriority: 80, feedTitle: "源", category: "科技", personalPriority, score: 1, matchedInterests: [] as string[], excluded: false, reason: "近期更新", ai: { id: `i${index}`, topicBucket, informationValue: value, learningValue: value, decisionValue: value, novelty: value, sourceConfidence: 80, whyWorthReading: "", keyQuestion: "", uncertainty: "", confidence: .8 } };
+  }
+
+  it("按 topic bucket 软配额分配，不会 8 条全是 AI", () => {
+    const candidates = [
+      ...Array.from({ length: 20 }, (_, index) => aiCandidate(index, `f-ai-${index}`, "ai_tech", 80 - index * 2)),
+      aiCandidate(100, "fb1", "business_startup", 78),
+      aiCandidate(101, "fb2", "business_startup", 76),
+      aiCandidate(102, "fb3", "business_startup", 74),
+      aiCandidate(103, "fb4", "business_startup", 72),
+      aiCandidate(104, "ff1", "finance_investing", 70),
+      aiCandidate(105, "fe1", "economy_society", 68),
+    ];
     const selected = selectDiverseAiCandidates(candidates, 8);
-    expect(selected).toHaveLength(3);
-    expect(selected.filter((item) => item.feedId === "f1")).toHaveLength(2);
+    expect(selected.filter((item) => item.ai.topicBucket === "ai_tech")).toHaveLength(3);
+    expect(selected.filter((item) => item.ai.topicBucket === "business_startup")).toHaveLength(2);
+    expect(selected.filter((item) => item.ai.topicBucket === "finance_investing")).toHaveLength(1);
+    expect(selected.filter((item) => item.ai.topicBucket === "economy_society")).toHaveLength(1);
+    expect(selected).toHaveLength(7);
+  });
+
+  it("高质量 explore 信源内容可以占据 wildcard 配额", () => {
+    const candidates = [
+      aiCandidate(0, "fa", "ai_tech", 80),
+      aiCandidate(1, "fb", "ai_tech", 78),
+      aiCandidate(2, "fc", "ai_tech", 76),
+      aiCandidate(3, "fda", "business_startup", 74),
+      aiCandidate(4, "fdb", "business_startup", 72),
+      aiCandidate(5, "ff", "finance_investing", 70),
+      aiCandidate(6, "fe", "economy_society", 68),
+      aiCandidate(7, "fexplore", "wildcard", 66, "explore"),
+    ];
+    const selected = selectDiverseAiCandidates(candidates, 8);
+    expect(selected.filter((item) => item.ai.topicBucket === "wildcard")).toHaveLength(1);
+  });
+
+  it("没有高质量 wildcard 时不会硬凑数量", () => {
+    const candidates = [
+      aiCandidate(0, "fa", "ai_tech", 80),
+      aiCandidate(1, "fb", "ai_tech", 78),
+      aiCandidate(2, "fc", "ai_tech", 76),
+      aiCandidate(3, "fw", "wildcard", 20),
+      aiCandidate(4, "fda", "business_startup", 74),
+      aiCandidate(5, "fdb", "business_startup", 72),
+      aiCandidate(6, "ff", "finance_investing", 70),
+      aiCandidate(7, "fe", "economy_society", 68),
+    ];
+    const selected = selectDiverseAiCandidates(candidates, 8);
+    expect(selected.filter((item) => item.ai.topicBucket === "wildcard")).toHaveLength(0);
+    expect(selected).toHaveLength(7);
+  });
+
+  it("同一 feed 最多两条，不会霸榜", () => {
+    const candidates = [
+      aiCandidate(0, "same", "ai_tech", 90),
+      aiCandidate(1, "same", "ai_tech", 88),
+      aiCandidate(2, "same", "ai_tech", 86),
+      aiCandidate(3, "same", "ai_tech", 84),
+      aiCandidate(4, "fb", "business_startup", 74),
+      aiCandidate(5, "fda", "business_startup", 72),
+      aiCandidate(6, "ff", "finance_investing", 70),
+      aiCandidate(7, "fe", "economy_society", 68),
+    ];
+    const selected = selectDiverseAiCandidates(candidates, 8);
+    expect(selected.filter((item) => item.feedId === "same")).toHaveLength(2);
   });
 
   it("AI 降级保留安全错误码，不暴露底层异常", () => {

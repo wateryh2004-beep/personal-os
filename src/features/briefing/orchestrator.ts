@@ -4,7 +4,7 @@ import { getDateKeyInTimeZone } from "@/features/today/utils";
 import { canonicalizeArticleUrl, digest, identityKey, normalizeTitle } from "./normalize";
 import { parseFeedXml } from "./parser";
 import { rankBriefingCandidates } from "./ranking";
-import { evaluateBriefingWithAi } from "./ai";
+import { BRIEFING_AI_PROMPT_VERSION, evaluateBriefingWithAi } from "./ai";
 import {
   createBriefingRun,
   findRecentGeneratingRun,
@@ -140,7 +140,7 @@ export async function generateBriefingForOwner(
       supabase
         .from("feed_items")
         .select(
-          "id,title,excerpt,content_hash,url,published_at,first_seen_at,feed_id,feeds(title,priority,category,personal_priority,source_quality,status,archived_at,verification_status),feed_item_cluster_members(cluster_id)",
+          "id,title,excerpt,content_hash,url,published_at,first_seen_at,feed_id,feeds(title,priority,category,personal_priority,source_quality,reason_for_subscription,status,archived_at,verification_status),feed_item_cluster_members(cluster_id)",
         )
         .eq("user_id", userId)
         .is("archived_at", null)
@@ -175,6 +175,7 @@ export async function generateBriefingForOwner(
         personalPriority: feed.personal_priority,
         sourceQuality: feed.source_quality,
         contentHash: item.content_hash,
+        sourceReason: feed.reason_for_subscription ?? null,
       },
     ];
   });
@@ -213,7 +214,7 @@ export async function generateBriefingForOwner(
   try {
     const ai = await evaluateBriefingWithAi({ supabase, userId, candidates: unique, interests: (interests ?? []).map((item) => ({ name: item.name, keywords: item.keywords ?? [], excludedKeywords: item.excluded_keywords ?? [], weight: item.weight })), now });
     const selected = ai.selected;
-    const { error: runError } = await supabase.from("briefings").update({ ranking_method: ai.method, ai_model: ai.model, prompt_version: ai.model ? "briefing-ranking-v1" : null, ai_call_count: ai.calls, input_tokens: ai.inputTokens, output_tokens: ai.outputTokens, ai_usage_reported: ai.usageReported, ai_failure_code: ai.failureCode }).eq("id", briefing.id).eq("user_id", userId);
+    const { error: runError } = await supabase.from("briefings").update({ ranking_method: ai.method, ai_model: ai.model, prompt_version: ai.model ? BRIEFING_AI_PROMPT_VERSION : null, ai_call_count: ai.calls, input_tokens: ai.inputTokens, output_tokens: ai.outputTokens, ai_usage_reported: ai.usageReported, ai_failure_code: ai.failureCode }).eq("id", briefing.id).eq("user_id", userId);
     if (runError) throw new Error("无法保存 Briefing AI 运行信息。");
     if (selected.length) {
       const { error } = await supabase.from("briefing_entries").insert(
@@ -234,7 +235,20 @@ export async function generateBriefingForOwner(
           ranking_metadata: {
             deterministic_score: Math.round(item.score),
             matched_interests: item.matchedInterests,
-            ai: item.ai ? { personal_relevance: item.ai.personalRelevance, information_value: item.ai.informationValue, novelty: item.ai.novelty, timeliness: item.ai.timeliness, confidence: item.ai.confidence, matched_topics: item.ai.matchedTopics } : null,
+            ai: item.ai ? {
+              topic_bucket: item.ai.topicBucket,
+              information_value: item.ai.informationValue,
+              learning_value: item.ai.learningValue,
+              decision_value: item.ai.decisionValue,
+              novelty: item.ai.novelty,
+              source_confidence: item.ai.sourceConfidence,
+              confidence: item.ai.confidence,
+              why_worth_reading: item.ai.whyWorthReading,
+              what_happened: item.summary ?? null,
+              why_it_matters: item.whyItMatters ?? null,
+              key_question: item.keyQuestion ?? null,
+              uncertainty: item.ai.uncertainty,
+            } : null,
           },
         })),
       );

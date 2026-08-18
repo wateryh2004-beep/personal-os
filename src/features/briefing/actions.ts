@@ -14,6 +14,7 @@ import {
   refreshFeedForOwner,
 } from "./orchestrator";
 import { feedSchema, interestSchema, sourceGovernanceSchema } from "./schemas";
+import { reviewAtForPeriod } from "./judgments";
 import { assertPublicHttpUrl, safeFetchFeed } from "./safe-fetch";
 import type { BriefingGenerationState } from "./types";
 import { z } from "zod";
@@ -89,3 +90,95 @@ export async function updateBriefingInterestAction(formData: FormData) { const v
 export async function setBriefingInterestStatusAction(formData: FormData) { const status=String(formData.get("status")||""); if(!["active","paused","archived"].includes(status)) throw new Error("无效主题状态。"); const {supabase,userId}=await requireOwner(); const update=status==="archived"?{status,archived_at:new Date().toISOString()}:{status,archived_at:null}; const {data,error}=await supabase.from("briefing_interests").update(update).eq("id",String(formData.get("interest_id")||"")).eq("user_id",userId).select("id").maybeSingle(); if(error||!data) throw new Error("无法更新关注主题。"); revalidatePath("/briefing/interests"); }
 export async function createBriefingExclusionAction(formData: FormData) { const phrase=String(formData.get("phrase")||"").trim(); if(!phrase||phrase.length>160) throw new Error("过滤词长度应在 1–160 字之间。"); const {supabase,userId}=await requireOwner(); const {error}=await supabase.from("briefing_exclusions").insert({user_id:userId,phrase}); if(error) throw new Error("无法保存全局过滤词。"); revalidatePath("/briefing/interests"); }
 export async function archiveBriefingExclusionAction(formData: FormData) { const {supabase,userId}=await requireOwner(); const {error}=await supabase.from("briefing_exclusions").update({archived_at:new Date().toISOString()}).eq("id",String(formData.get("exclusion_id")||"")).eq("user_id",userId); if(error) throw new Error("无法移除全局过滤词。"); revalidatePath("/briefing/interests"); }
+
+const judgmentFormSchema = z.object({
+  entryId: z.string().uuid(),
+  judgment: z.string().trim().min(1).max(5000),
+  confidence: z.coerce.number().int().min(0).max(100),
+  falsification: z.string().trim().max(2000).optional().transform((value) => value || null),
+  reviewPeriod: z.enum(["1_month", "3_months", "6_months", "1_year"]),
+});
+
+/**
+ * 保存用户对某条 Briefing 条目的判断。
+ * 判断是 user-authored cognition：created_via 固定写死 'manual'，本 action 不接收任何
+ * AI 生成内容，AI 上下文与用户判断在数据层明确分离（ai_generated_context vs user_judgment）。
+ * 复用 decisions + decision_sources：source_type='briefing_entry' 建立 relation，无新表。
+ */
+export async function saveBriefingJudgmentAction(formData: FormData) {
+  const value = judgmentFormSchema.parse({
+    entryId: formData.get("entry_id"),
+    judgment: formData.get("judgment"),
+    confidence: formData.get("confidence"),
+    falsification: formData.get("falsification"),
+    reviewPeriod: formData.get("review_period"),
+  });
+  const { supabase, userId } = await requireOwner();
+  const { data: entry } = await supabase
+    .from("briefing_entries")
+    .select("id, representative_item_id, briefing_id, feed_items(id,title,url,canonical_url), briefings(briefing_date)")
+    .eq("id", value.entryId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!entry) throw new Error("找不到这条 Briefing 条目。");
+  const item = Array.isArray(entry.feed_items) ? entry.feed_items[0] : entry.feed_items;
+  const briefing = Array.isArray(entry.briefings) ? entry.briefings[0] : entry.briefings;
+  const title = `关于「${item?.title ?? "未命名资讯"}」的判断`;
+  const now = new Date().toISOString();
+  const reviewAt = reviewAtForPeriod(new Date(), value.reviewPeriod);
+  const rationale = value.falsification ? `**什么会证明我错了**\n\n${value.falsification}` : "";
+
+  const { data: link } = await supabase
+    .from("decision_sources")
+    .select("decision_id")
+    .eq("user_id", userId)
+    .eq("source_type", "briefing_entry")
+    .eq("source_id", value.entryId)
+    .maybeSingle();
+
+  if (link) {
+    const { error } = await supabase
+      .from("decisions")
+      .update({
+        decision_text: value.judgment,
+        confidence: value.confidence,
+        falsification_condition: value.falsification,
+        rationale_markdown: rationale,
+        review_at: reviewAt,
+        updated_at: now,
+      })
+      .eq("id", link.decision_id)
+      .eq("user_id", userId);
+    if (error) throw new Error("无法更新判断。");
+  } else {
+    const { data: decision, error: decisionError } = await supabase
+      .from("decisions")
+      .insert({
+        user_id: userId,
+        title,
+        decision_text: value.judgment,
+        rationale_markdown: rationale,
+        context_markdown: briefing?.briefing_date ? `来自 Briefing ${briefing.briefing_date}` : "",
+        status: "active",
+        importance: "normal",
+        created_via: "manual",
+        ai_visibility: "normal",
+        decided_at: now,
+        review_at: reviewAt,
+        confidence: value.confidence,
+        falsification_condition: value.falsification,
+      })
+      .select("id")
+      .single();
+    if (decisionError || !decision) throw new Error("无法保存判断。");
+    const sources: Array<Record<string, unknown>> = [
+      { decision_id: decision.id, user_id: userId, source_type: "briefing_entry", source_id: value.entryId, source_role: "origin" },
+    ];
+    if (item?.id) sources.push({ decision_id: decision.id, user_id: userId, source_type: "feed_item", source_id: item.id, source_role: "context" });
+    const { error: linkError } = await supabase.from("decision_sources").insert(sources);
+    if (linkError) throw new Error("无法关联判断来源。");
+  }
+  revalidatePath("/briefing");
+  revalidatePath("/briefing/history");
+  revalidatePath(`/briefing/history/${entry.briefing_id}`);
+}

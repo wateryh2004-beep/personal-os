@@ -1,5 +1,6 @@
 import { requireOwner } from "@/lib/auth/require-owner";
 import { getDateKeyInTimeZone } from "@/features/today/utils";
+import { getJudgmentsByEntryId } from "./judgments";
 import {
   getLatestCompletedBriefing,
   getLatestCompletedBriefingForDate,
@@ -44,7 +45,7 @@ export async function getBriefingWorkspace() {
   const briefing = selectDisplayedBriefing(todayBriefing, latestCompletedBriefing);
   const { data: settings } = await supabase.from("briefing_settings").select("generation_mode").eq("user_id", userId).maybeSingle();
 
-  let entries: unknown[] = [];
+  let entries: Array<Record<string, unknown>> = [];
   let entryError: unknown = null;
   if (briefing) {
     const result = await supabase
@@ -55,8 +56,16 @@ export async function getBriefingWorkspace() {
       .eq("user_id", userId)
       .eq("briefing_id", briefing.id)
       .order("position");
-    entries = result.data ?? [];
+    entries = (result.data ?? []) as Array<Record<string, unknown>>;
     entryError = result.error;
+    if (!entryError && entries.length) {
+      const judgments = await getJudgmentsByEntryId(
+        supabase,
+        userId,
+        entries.map((entry) => String(entry.id)),
+      );
+      entries = entries.map((entry) => ({ ...entry, judgment: judgments.get(String(entry.id)) ?? null }));
+    }
   }
 
   return {
@@ -112,5 +121,11 @@ export async function getBriefingHistoryRun(briefingId: string) {
   const { data: briefing, error } = await supabase.from("briefings").select("*").eq("id", briefingId).eq("user_id", userId).maybeSingle();
   if (error || !briefing) return null;
   const { data: entries } = await supabase.from("briefing_entries").select("*,feed_items(title,url,canonical_url,author,published_at,feeds(title,category)),feed_item_clusters(source_count)").eq("briefing_id", briefingId).eq("user_id", userId).order("position");
-  return { briefing, entries: entries ?? [] };
+  const rows = (entries ?? []) as Array<Record<string, unknown>>;
+  let withJudgments = rows;
+  if (rows.length) {
+    const judgments = await getJudgmentsByEntryId(supabase, userId, rows.map((entry) => String(entry.id)));
+    withJudgments = rows.map((entry) => ({ ...entry, judgment: judgments.get(String(entry.id)) ?? null }));
+  }
+  return { briefing, entries: withJudgments };
 }
