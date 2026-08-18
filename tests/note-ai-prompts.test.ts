@@ -70,15 +70,17 @@ describe("note AI prompt registry", () => {
     expect(isRewriteOperation("extractKeyInsights")).toBe(false);
   });
 
-  it("bans the comma-joined formula at the syntax level, without a second judge", () => {
+  it("pushes for diverse title shapes and quality instead of banning punctuation", () => {
     const prompt = noteAiInstruction("generateTitle");
-    // 单步生成：让模型在心中列出多角度候选后只输出最终标题，不再走独立评审。
-    expect(prompt).toContain("列出 5 个不同角度的候选");
-    expect(prompt).toContain("硬性语法禁令");
-    expect(prompt).toContain("绝对禁止出现任何逗号");
-    expect(prompt).toContain("顿号「、」");
-    expect(prompt).toContain("「选择，还是行动」");
-    expect(prompt).toContain("只输出最终标题本身");
+    // 单步生成：模型在心中列多角度候选、自选最优，不再走独立评审。
+    // 追求的是句式多样与质量，而不是一刀切禁逗号。
+    expect(prompt).toContain("5 个角度各异的候选");
+    expect(prompt).toContain("句式多样性");
+    expect(prompt).toContain("对仗式");
+    expect(prompt).toContain("记忆点");
+    expect(prompt).toContain("个人气味");
+    expect(prompt).toContain("只输出最终选中的标题本身");
+    expect(prompt).not.toContain("绝对禁止出现任何逗号");
     expect(prompt).not.toContain("JSON 字符串数组");
   });
 
