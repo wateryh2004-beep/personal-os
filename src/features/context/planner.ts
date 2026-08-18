@@ -19,11 +19,21 @@ export function buildFallbackContextPlan(
     surface: request.surface === "global" ? "global" : request.surface,
     hasCurrentDocument: Boolean(request.currentSurface),
   });
+  // 笔记库对话（notes-library，surface 映射为 notes 且无当前文档）：Hang Yu 希望
+  // AI 想了解多少就了解多少，因此强制开启最近笔记 + 复盘，扩大时间窗与条数，
+  // 不再依赖认知路由恰好命中某个 recipe。
+  const notesLibraryConversation =
+    request.surface === "notes" && !request.currentSurface;
   const analytical = route.complexity === "analytical";
-  const recentNotes = route.capabilities.includes("recent_notes");
-  const workingMemory = route.capabilities.includes("working_memory") || analytical;
+  const recentNotes =
+    route.capabilities.includes("recent_notes") || notesLibraryConversation;
+  const workingMemory =
+    route.capabilities.includes("working_memory") || analytical;
   const timeContext = route.capabilities.includes("time_context");
-  const recentHistory = route.capabilities.includes("reviews") || recentNotes;
+  const recentHistory =
+    route.capabilities.includes("reviews") ||
+    recentNotes ||
+    notesLibraryConversation;
   const domains: SearchDomain[] = route.recipe === "career_strategy"
     ? ["career", "notes", "reviews", "tasks", "calendar", "files"]
     : route.preferredDomains.filter((domain): domain is SearchDomain =>
@@ -43,10 +53,14 @@ export function buildFallbackContextPlan(
     includeRecentHistory: recentHistory,
     recentNotes: {
       enabled: recentNotes,
-      days: route.timeWindow.days,
-      expandedDays: route.timeWindow.expandedDays,
+      days: notesLibraryConversation
+        ? Math.max(route.timeWindow.days, 90)
+        : route.timeWindow.days,
+      expandedDays: notesLibraryConversation
+        ? Math.max(route.timeWindow.expandedDays, 365)
+        : route.timeWindow.expandedDays,
       minimumNotes: route.timeWindow.minimumRecentNotes,
-      limit: analytical ? 24 : 12,
+      limit: analytical ? 24 : notesLibraryConversation ? 50 : 12,
       includeDailyNotes: true,
     },
     retrievalOrder: route.capabilities,

@@ -16,7 +16,10 @@ import type {
   PersonalContextRequest,
 } from "./types";
 
-const limits = { total: 22_000, item: 2_400, surface: 6_000, items: 22 };
+// 个人上下文的预算上限。Hang Yu 明确要求"AI 想了解多少就了解多少、不要写死"，
+// 因此上限放宽到足以覆盖几万字级别的人工笔记；实际塞进上下文的量仍由检索命中
+// 和排名决定，候选不足时不会硬凑。
+const limits = { total: 64_000, item: 4_000, surface: 12_000, items: 64 };
 const clip = (value: unknown, max = limits.item) => {
   const text = String(value ?? "").trim();
   return text.length > max ? `${text.slice(0, max)}…` : text;
