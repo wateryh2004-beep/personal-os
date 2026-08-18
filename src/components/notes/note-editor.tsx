@@ -114,6 +114,8 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const [isFallbackFullscreen, setIsFallbackFullscreen] = useState(false);
   const [imageUploadMessage, setImageUploadMessage] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
+  const [originMessage, setOriginMessage] = useState("");
+  const originMessageTimerRef = useRef<number | null>(null);
   const noteAiPanel = useWorkspacePanel(`note-ai:${note.id}`);
   const [selection, setSelection] = useState<NoteSelection | null>(null);
   const [contentOrigin, setContentOrigin] = useState(note.content_origin ?? "human");
@@ -362,14 +364,30 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const statusLabel = state === "已保存" ? savedTimeLabel(lastSavedAt) : state;
   const saveHasError = state === "保存失败" || state === "版本冲突";
   const aiGenerated = isAiGeneratedNote(contentOrigin);
+  const showOriginMessage = (message: string) => {
+    setOriginMessage(message);
+    if (originMessageTimerRef.current !== null) window.clearTimeout(originMessageTimerRef.current);
+    originMessageTimerRef.current = window.setTimeout(() => setOriginMessage(""), 3200);
+  };
+  useEffect(() => {
+    return () => {
+      if (originMessageTimerRef.current !== null) window.clearTimeout(originMessageTimerRef.current);
+    };
+  }, []);
   const toggleContentOrigin = () => {
     const next = aiGenerated ? "human" : "ai_generated";
     setContentOrigin(next);
     startContentOriginTransition(async () => {
       try {
         await setNoteContentOrigin({ noteId: note.id, contentOrigin: next });
+        showOriginMessage(
+          next === "ai_generated"
+            ? "已标记为 AI 生成：AI 读取背景时不会引用此笔记。"
+            : "已标记为人工内容。",
+        );
       } catch {
         setContentOrigin(aiGenerated ? "ai_generated" : "human");
+        showOriginMessage("标记失败，请检查网络后重试。");
       }
     });
   };
@@ -409,6 +427,15 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex min-h-[var(--toolbar-height)] shrink-0 items-center gap-1.5 border-b px-2 sm:gap-2 sm:px-5">
+          {aiGenerated ? (
+            <span
+              className="flex shrink-0 items-center gap-1 rounded-[var(--radius-sm)] bg-[var(--ai-accent-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--ai-accent)]"
+              title="AI 生成内容：AI 读取背景时不会引用此笔记"
+            >
+              <Sparkles aria-hidden="true" className="size-3" />
+              AI
+            </span>
+          ) : null}
           <input
             aria-label="笔记标题"
             value={title}
@@ -420,7 +447,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
               setTitle(nextTitle);
               dirty(nextTitle, body);
             }}
-            className="min-w-20 flex-1 bg-transparent text-base font-semibold tracking-[-0.01em] outline-none placeholder:text-[var(--text-tertiary)] sm:text-lg"
+            className={`min-w-20 flex-1 bg-transparent text-base font-semibold tracking-[-0.01em] outline-none placeholder:text-[var(--text-tertiary)] sm:text-lg ${aiGenerated ? "text-[var(--ai-accent)]" : ""}`}
             placeholder="无标题笔记"
           />
           <span
@@ -445,11 +472,12 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             disabled={isChangingContentOrigin}
             onClick={toggleContentOrigin}
             aria-pressed={aiGenerated}
+            className={aiGenerated ? "border-[var(--ai-accent)] text-[var(--ai-accent)]" : ""}
             aria-label={aiGenerated ? "取消 AI 生成标记" : "标记为 AI 生成内容"}
             title={aiGenerated ? "AI 读取背景时会跳过此笔记；点击恢复为人工内容" : "标记后，AI 读取背景时会跳过此笔记"}
           >
             <Sparkles aria-hidden="true" />
-            <span className="hidden sm:inline">{isChangingContentOrigin ? "更新中" : aiGenerated ? "AI 生成" : "标记 AI"}</span>
+            <span className="hidden sm:inline">{isChangingContentOrigin ? "更新中…" : aiGenerated ? "AI 生成" : "标记 AI"}</span>
           </Button>
           <Button
             variant="ghost"
@@ -518,6 +546,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
         ) : null}
         {pdfError ? <p role="alert" className="px-4 py-2 text-sm text-[var(--danger)] sm:px-6">{pdfError}</p> : null}
         {copyMessage ? <p role="status" aria-live="polite" className={`px-4 py-2 text-sm sm:px-6 ${copyMessage.includes("失败") ? "text-[var(--danger)]" : "text-[var(--success)]"}`}>{copyMessage}</p> : null}
+        {originMessage ? <p role="status" aria-live="polite" className={`px-4 py-2 text-sm sm:px-6 ${originMessage.includes("失败") ? "text-[var(--danger)]" : "text-[var(--success)]"}`}>{originMessage}</p> : null}
         {imageUploadMessage ? (
           <p role="status" aria-live="polite" className={`px-4 py-2 text-sm sm:px-6 ${imageUploadMessage.includes("失败") || imageUploadMessage.includes("不支持") ? "text-[var(--danger)]" : "text-[var(--success)]"}`}>
             {imageUploadMessage}

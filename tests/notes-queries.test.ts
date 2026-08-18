@@ -36,6 +36,7 @@ describe("Notes database compatibility", () => {
         updated_at: "2026-08-09T08:00:00.000Z",
         pinned_at: null,
         folder_id: null,
+        content_origin: "ai_generated",
       },
     ]);
     expect(note).toEqual({
@@ -45,9 +46,24 @@ describe("Notes database compatibility", () => {
       updated_at: "2026-08-09T08:00:00.000Z",
       pinned_at: null,
       folder_id: null,
+      content_origin: "ai_generated",
     });
     expect(note).not.toHaveProperty("body_markdown");
     expect(workspaceSource).not.toContain("body_markdown");
+  });
+
+  it("parses the RPC listing without content_origin (pre-migration) as null", () => {
+    const [note] = parseNoteListItems([
+      {
+        id: "20cbfbca-c1af-40aa-9796-7564f985f009",
+        title: "旧列表笔记",
+        excerpt: null,
+        updated_at: "2026-08-09T08:00:00.000Z",
+        pinned_at: null,
+        folder_id: null,
+      },
+    ]);
+    expect(note.content_origin).toBeNull();
   });
 
   it("creates a bounded server-side excerpt in compatibility mode", () => {
@@ -61,10 +77,12 @@ describe("Notes database compatibility", () => {
         body_markdown: `# ${"长正文".repeat(100)}`,
         updated_at: "2026-08-09T08:00:00.000Z",
         pinned_at: null,
+        content_origin: "ai_generated",
       },
     ]);
     expect(note.excerpt?.length ?? 0).toBeLessThanOrEqual(220);
     expect(note.folder_id).toBeNull();
+    expect(note.content_origin).toBe("ai_generated");
     expect(note).not.toHaveProperty("body_markdown");
   });
 });

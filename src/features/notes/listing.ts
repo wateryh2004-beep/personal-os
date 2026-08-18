@@ -10,6 +10,8 @@ const noteListItemSchema = z.object({
   updated_at: z.string(),
   pinned_at: z.string().nullable(),
   folder_id: z.string().uuid().nullable(),
+  // Optional so an un-migrated remote listing still parses; null hides the AI badge.
+  content_origin: z.string().nullable().optional(),
 });
 
 const fallbackNoteSchema = z.object({
@@ -19,6 +21,7 @@ const fallbackNoteSchema = z.object({
   updated_at: z.string(),
   pinned_at: z.string().nullable(),
   folder_id: z.string().uuid().nullable().optional(),
+  content_origin: z.string().nullable().optional(),
 });
 
 export function excerptFromMarkdown(markdown: string, maxLength = 220) {
@@ -32,7 +35,15 @@ export function excerptFromMarkdown(markdown: string, maxLength = 220) {
 }
 
 export function parseNoteListItems(input: unknown): NoteListItem[] {
-  return z.array(noteListItemSchema).parse(input);
+  return z.array(noteListItemSchema).parse(input).map((note) => ({
+    id: note.id,
+    title: note.title,
+    excerpt: note.excerpt,
+    updated_at: note.updated_at,
+    pinned_at: note.pinned_at,
+    folder_id: note.folder_id,
+    content_origin: note.content_origin ?? null,
+  }));
 }
 
 export function parseFallbackNoteListItems(input: unknown): NoteListItem[] {
@@ -43,5 +54,6 @@ export function parseFallbackNoteListItems(input: unknown): NoteListItem[] {
     updated_at: note.updated_at,
     pinned_at: note.pinned_at,
     folder_id: note.folder_id ?? null,
+    content_origin: note.content_origin ?? null,
   }));
 }

@@ -42,7 +42,7 @@ async function fallbackNotesPage(
   const end = Math.min(offset + limit, maximumFallbackRows - 1);
   const workspaceResult = await supabase
     .from("notes")
-    .select("id,title,body_markdown,updated_at,pinned_at,folder_id")
+    .select("id,title,body_markdown,updated_at,pinned_at,folder_id,content_origin")
     .is("deleted_at", null)
     .neq("status", "archived")
     .order("pinned_at", { ascending: false })
@@ -54,7 +54,7 @@ async function fallbackNotesPage(
   if (isNotesWorkspaceSchemaMissing(workspaceResult.error)) {
     const baseResult = await supabase
       .from("notes")
-      .select("id,title,body_markdown,updated_at,pinned_at")
+      .select("id,title,body_markdown,updated_at,pinned_at,content_origin")
       .neq("status", "archived")
       .order("pinned_at", { ascending: false })
       .order("updated_at", { ascending: false })
@@ -197,7 +197,7 @@ export async function searchNotesWorkspace(
   const { supabase } = await requireOwner();
   let request = supabase
     .from("notes")
-    .select("id,title,body_markdown,updated_at,pinned_at,folder_id")
+    .select("id,title,body_markdown,updated_at,pinned_at,folder_id,content_origin")
     .is("deleted_at", null)
     .neq("status", "archived")
     .or(`title.ilike.%${normalized.replace(/[%_,()]/g, " ")}%,body_markdown.ilike.%${normalized.replace(/[%_,()]/g, " ")}%`)
