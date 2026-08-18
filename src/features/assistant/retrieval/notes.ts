@@ -1,6 +1,7 @@
 import "server-only";
 import type { AssistantSupabase } from "../tools/types";
 import { clipBatch, matchedExcerpt } from "./excerpts";
+import { isAiGeneratedNote } from "@/features/notes/content-origin";
 
 export type RetrievedNote = {
   id: string;
@@ -14,6 +15,34 @@ export type RetrievedNote = {
   contentHash: string;
   href: string;
 };
+
+type NoteSearchResult = { entityType: string; entityId: string };
+type NoteRecord = { id: string };
+
+export async function excludeAiGeneratedNotes<T extends NoteRecord>(
+  supabase: AssistantSupabase,
+  notes: T[],
+) {
+  if (!notes.length) return notes;
+  const { data, error } = await supabase.from("notes").select("id,content_origin").in("id", notes.map((note) => note.id));
+  if (error) return notes;
+  const humanIds = new Set((data ?? []).filter((note) => !isAiGeneratedNote(note.content_origin)).map((note) => note.id));
+  return notes.filter((note) => humanIds.has(note.id));
+}
+
+/** Keep AI-authored Notes searchable in the library, but never send them to an AI as background context. */
+export async function excludeAiGeneratedNoteResults<T extends NoteSearchResult>(
+  supabase: AssistantSupabase,
+  results: T[],
+) {
+  const noteIds = [...new Set(results.filter((item) => item.entityType === "note").map((item) => item.entityId))];
+  if (!noteIds.length) return results;
+  const { data, error } = await supabase.from("notes").select("id,content_origin").in("id", noteIds);
+  // Keep search functional during a rolling deployment before the migration is applied.
+  if (error) return results;
+  const humanIds = new Set((data ?? []).filter((note) => !isAiGeneratedNote(note.content_origin)).map((note) => note.id));
+  return results.filter((item) => item.entityType !== "note" || humanIds.has(item.entityId));
+}
 
 const dailyTitle = /^(?:日记|今日日记|Daily Note)\s*[·・:\-]?\s*\d{4}[-/]\d{1,2}[-/]\d{1,2}/i;
 
@@ -56,7 +85,7 @@ export async function listRecentNotes(
       tagMap.set(row.note_id, names);
     }
   }
-  const notes = (data ?? [])
+  const notes = (await excludeAiGeneratedNotes(supabase, data ?? []))
     .filter((note) => input.includeDailyNotes !== false || !dailyTitle.test(note.title))
     .map((note) => ({
       id: note.id,
@@ -92,7 +121,8 @@ export async function readNotesBatch(
     .is("deleted_at", null)
     .is("archived_at", null);
   if (error) return { notes: [] as Array<RetrievedNote & { truncated: boolean }>, unavailable: true };
-  const byId = new Map((data ?? []).map((note) => [note.id, note]));
+  const humanNotes = await excludeAiGeneratedNotes(supabase, data ?? []);
+  const byId = new Map(humanNotes.map((note) => [note.id, note]));
   const ordered = ids.flatMap((id) => {
     const note = byId.get(id);
     return note

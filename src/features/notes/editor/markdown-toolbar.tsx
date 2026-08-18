@@ -179,7 +179,7 @@ export function MarkdownToolbar({
         <ToolbarButton label="插入表格" disabled={!view} onClick={() => { onInsertTable(); view?.focus(); }}><Table2 aria-hidden="true" className="size-4" /></ToolbarButton>
       </div>
       <span className="min-w-3 flex-1" />
-      <ToolbarButton label="AI" disabled={!view} onClick={() => { onOpenAi?.(); view?.focus(); }}><Sparkles aria-hidden="true" className="size-4" /></ToolbarButton>
+      <ToolbarButton label={onOpenAi ? "AI" : "AI 生成内容已排除"} disabled={!view || !onOpenAi} onClick={() => { onOpenAi?.(); view?.focus(); }}><Sparkles aria-hidden="true" className="size-4" /></ToolbarButton>
       <input
         ref={fileRef}
         type="file"

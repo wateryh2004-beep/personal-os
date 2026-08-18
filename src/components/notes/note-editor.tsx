@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isInternalEntityHref } from "@/features/links/parser";
-import { recordNotePdfExport, saveNote } from "@/features/notes/actions";
+import { recordNotePdfExport, saveNote, setNoteContentOrigin } from "@/features/notes/actions";
+import { isAiGeneratedNote } from "@/features/notes/content-origin";
 import { markdownFilename } from "@/features/notes/utils";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
@@ -35,7 +36,7 @@ const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-mar
 });
 const NoteAiAssistant = dynamic(() => import("@/components/notes/note-ai-assistant").then((module) => module.NoteAiAssistant), { ssr: false });
 
-type Note = { id: string; title: string; body_markdown: string; revision: number; last_saved_at: string | null };
+type Note = { id: string; title: string; body_markdown: string; revision: number; last_saved_at: string | null; content_origin?: "human" | "ai_generated" };
 type PdfSnapshot = { title: string; body: string };
 type NoteDraftSession = { title: string; body: string; baseRevision: number };
 type SaveState = "已保存" | "有未保存修改" | "正在保存" | "保存失败" | "版本冲突";
@@ -115,6 +116,8 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const [copyMessage, setCopyMessage] = useState("");
   const noteAiPanel = useWorkspacePanel(`note-ai:${note.id}`);
   const [selection, setSelection] = useState<NoteSelection | null>(null);
+  const [contentOrigin, setContentOrigin] = useState(note.content_origin ?? "human");
+  const [isChangingContentOrigin, startContentOriginTransition] = useTransition();
   const pdfPreviewRef = useRef<HTMLElement>(null);
   const editorSurfaceRef = useRef<HTMLElement>(null);
   const latestContentRef = useRef({ title: note.title, body: note.body_markdown });
@@ -358,6 +361,18 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const fullscreenActive = isFullscreen || isFallbackFullscreen;
   const statusLabel = state === "已保存" ? savedTimeLabel(lastSavedAt) : state;
   const saveHasError = state === "保存失败" || state === "版本冲突";
+  const aiGenerated = isAiGeneratedNote(contentOrigin);
+  const toggleContentOrigin = () => {
+    const next = aiGenerated ? "human" : "ai_generated";
+    setContentOrigin(next);
+    startContentOriginTransition(async () => {
+      try {
+        await setNoteContentOrigin({ noteId: note.id, contentOrigin: next });
+      } catch {
+        setContentOrigin(aiGenerated ? "ai_generated" : "human");
+      }
+    });
+  };
   const toggleFullscreen = async () => {
     if (isFallbackFullscreen) {
       setIsFallbackFullscreen(false);
@@ -425,6 +440,18 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             </button>
           ) : null}
           <Button
+            variant={aiGenerated ? "outline" : "ghost"}
+            size="sm"
+            disabled={isChangingContentOrigin}
+            onClick={toggleContentOrigin}
+            aria-pressed={aiGenerated}
+            aria-label={aiGenerated ? "取消 AI 生成标记" : "标记为 AI 生成内容"}
+            title={aiGenerated ? "AI 读取背景时会跳过此笔记；点击恢复为人工内容" : "标记后，AI 读取背景时会跳过此笔记"}
+          >
+            <Sparkles aria-hidden="true" />
+            <span className="hidden sm:inline">{isChangingContentOrigin ? "更新中" : aiGenerated ? "AI 生成" : "标记 AI"}</span>
+          </Button>
+          <Button
             variant="ghost"
             size="sm"
             onClick={() => void copyFullNote()}
@@ -454,8 +481,9 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
           <Button
             variant="ghost"
             size="sm"
+            disabled={aiGenerated}
             onClick={noteAiPanel.toggle}
-            aria-label="打开笔记 AI"
+            aria-label={aiGenerated ? "AI 生成内容不会作为 AI 上下文读取" : "打开笔记 AI"}
             aria-pressed={noteAiPanel.isOpen}
           >
             <Sparkles aria-hidden="true" />
@@ -500,7 +528,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             markdown={body}
             noteId={note.id}
             onImageUploadStatus={setImageUploadMessage}
-            onOpenAi={noteAiPanel.open}
+            onOpenAi={aiGenerated ? undefined : noteAiPanel.open}
             onSelectionChange={setSelection}
             onChange={handleBodyChange}
           />
@@ -508,7 +536,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
       </div>
       <NoteAiAssistant
         key={note.id}
-        open={noteAiPanel.isOpen}
+        open={aiGenerated ? false : noteAiPanel.isOpen}
         onOpen={noteAiPanel.open}
         onClose={noteAiPanel.close}
         noteId={note.id}

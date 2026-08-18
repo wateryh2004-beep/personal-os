@@ -11,6 +11,7 @@ import { buildRootAgentPrompt } from "./kernel/prompt-builder";
 import { createPrepareStep, initialToolNames } from "./kernel/prepare-step";
 import { unknownToolError } from "./tools/registry";
 import { buildAiExecutionContext, formatCurrentSurfaceForModel } from "./kernel/execution-context";
+import { excludeAiGeneratedNotes } from "./retrieval/notes";
 import { deriveSessionState } from "./kernel/session-state";
 import { buildPersonalContext } from "@/features/context/engine";
 import { formatPersonalContextForModel, mapPersonalContextSources } from "@/features/context/formatter";
@@ -23,7 +24,7 @@ function toContextSurface(surface:AssistantSurface):ContextSurface { if(surface=
 async function setup(request:AssistantRequest) {
   const {supabase,userId}=await requireOwner(); const {data:profile}=await supabase.from("profiles").select("timezone, display_name").eq("user_id",userId).maybeSingle(); const timezone=profile?.timezone||"Asia/Shanghai"; const userName=profile?.display_name?.trim()||"Hang Yu"; const message=latestText(request); const now=new Date(); const policy=resolveAssistantPolicy(request);
   let currentSurface=request.currentSurface?.content?{title:request.currentSurface.title,content:request.currentSurface.content}:null;
-  if(!currentSurface&&request.currentEntity?.type==="note") { const {data:note}=await supabase.from("notes").select("title,body_markdown").eq("id",request.currentEntity.id).eq("status","active").is("deleted_at",null).is("archived_at",null).maybeSingle(); if(note) currentSurface={title:note.title,content:note.body_markdown.slice(0,20_000)}; }
+  if(!currentSurface&&request.currentEntity?.type==="note") { const {data:note}=await supabase.from("notes").select("id,title,body_markdown").eq("id",request.currentEntity.id).eq("status","active").is("deleted_at",null).is("archived_at",null).maybeSingle(); const humanNote=(await excludeAiGeneratedNotes(supabase,note?[note]:[]))[0]; if(humanNote) currentSurface={title:humanNote.title,content:humanNote.body_markdown.slice(0,20_000)}; }
   const executionContext=buildAiExecutionContext({currentSurface,requiresCurrentSurface:request.requiresCurrentSurface,usePersonalContext:request.usePersonalContext});
   const gate=decideContextGate({message,surface:request.surface,currentPath:request.currentPath,hasCurrentSurface:Boolean(currentSurface),requiresCurrentSurface:request.requiresCurrentSurface,usePersonalContext:request.usePersonalContext ?? (request.operation === "askNote" || request.operation === "deepThinkNote")});
   let previous:Partial<AgentSessionState>|null=null;

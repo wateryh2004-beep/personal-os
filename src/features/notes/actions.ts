@@ -8,6 +8,7 @@ import { getOrCreateDailyNote } from "./daily-note-service";
 import { syncInternalNoteLinks } from "./links/service";
 import { syncEntityReferenceLinks } from "@/features/links/service";
 import { noteRelationSignature } from "./links/signature";
+import { noteContentOrigins } from "./content-origin";
 const noteSchema = z.object({ noteId: z.string().uuid().optional(), expectedRevision: z.coerce.number().int().min(0), title: z.string().max(240), bodyMarkdown: z.string().max(200000) });
 const folderSchema = z.object({ name: z.string().trim().min(1).max(120), parentId: z.string().uuid().nullable().optional() });
 function fail(): never { throw new Error("操作未能完成，请检查输入、权限或网络后重试。"); }
@@ -31,7 +32,29 @@ const moveNoteSchema = z.object({ noteId: z.string().uuid(), folderId: z.string(
 const moveFolderSchema = z.object({ folderId: z.string().uuid(), parentId: z.string().uuid().nullable().optional() });
 const renameNoteSchema = z.object({ noteId: z.string().uuid(), title: z.string().trim().min(1).max(240) });
 const renameFolderSchema = z.object({ folderId: z.string().uuid(), name: z.string().trim().min(1).max(120) });
+const noteContentOriginSchema = z.object({ noteId: z.string().uuid(), contentOrigin: z.enum(noteContentOrigins) });
 const folderIdSchema = z.string().uuid();
+
+/** Labels a note's provenance without changing its Markdown or revision. */
+export async function setNoteContentOrigin(input: unknown) {
+  const parsed = noteContentOriginSchema.safeParse(input);
+  if (!parsed.success) fail();
+  const { supabase, userId } = await requireOwner();
+  const { data: note, error } = await supabase
+    .from("notes")
+    .update({ content_origin: parsed.data.contentOrigin })
+    .eq("id", parsed.data.noteId)
+    .is("deleted_at", null)
+    .select("id,content_origin")
+    .maybeSingle();
+  if (error || !note) fail();
+  await audit(supabase, userId, "set_content_origin", "note", note.id, {
+    content_origin: note.content_origin,
+  });
+  revalidatePath("/notes");
+  revalidatePath(`/notes/${note.id}`);
+  return { contentOrigin: note.content_origin };
+}
 
 async function ownedFolderId(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], value: string | null | undefined) {
   const parsed = notePlacementSchema.safeParse({ folderId: value || null });

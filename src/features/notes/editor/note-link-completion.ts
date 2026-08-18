@@ -9,7 +9,7 @@ import {
   type CompletionSource,
 } from "@codemirror/autocomplete";
 import { keymap, EditorView } from "@codemirror/view";
-import type { Extension } from "@codemirror/state";
+import { Prec, type Extension } from "@codemirror/state";
 import type { EntityLinkSuggestion } from "@/features/links/types";
 import type { NoteLinkSuggestion } from "@/features/notes/links/types";
 
@@ -140,7 +140,10 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities }: NoteLi
       maxRenderedOptions: 20,
       tooltipClass: () => "cm-note-link-completion",
     }),
-    keymap.of([
+    // Keep completion navigation ahead of the editor's own keymaps. Without
+    // this priority the base editor consumes ArrowUp/ArrowDown before the
+    // suggestion list sees them.
+    Prec.highest(keymap.of([
       {
         key: "Escape",
         run(view) {
@@ -150,7 +153,7 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities }: NoteLi
         },
       },
       ...completionKeymap,
-    ]),
+    ])),
     EditorView.updateListener.of((update) => {
       if ((!update.docChanged && !update.selectionSet) || update.view.composing) return;
       const token = extractNoteLinkQuery(

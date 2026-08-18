@@ -3,7 +3,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { noteRevisionMatches } from "../action-guards";
 import { extractQueryConcepts } from "../cognitive-router";
-import { listRecentNotes as queryRecentNotes, readNotesBatch as queryNotesBatch } from "../retrieval/notes";
+import { excludeAiGeneratedNoteResults, excludeAiGeneratedNotes, listRecentNotes as queryRecentNotes, readNotesBatch as queryNotesBatch } from "../retrieval/notes";
 import { searchPersonalOs } from "@/features/search/queries";
 import { recordAgentStep, storeAgentAction } from "../persistence";
 import { noteCreateProposalSchema, noteMoveProposalSchema, noteUpdateProposalSchema } from "./schemas";
@@ -37,7 +37,7 @@ export const noteTools: AssistantToolModule = {
           const prior = unique.get(result.entityId);
           if (!prior || result.score > prior.score) unique.set(result.entityId, result);
         }
-        const results = [...unique.values()]
+        const results = (await excludeAiGeneratedNoteResults(context.supabase, [...unique.values()]))
           .sort((left, right) => right.score - left.score)
           .slice(0, limit)
           .map((note) => ({
@@ -131,16 +131,17 @@ export const noteTools: AssistantToolModule = {
           .is("deleted_at", null)
           .is("archived_at", null)
           .maybeSingle();
-        const note = data
+        const humanNote = (await excludeAiGeneratedNotes(context.supabase, data ? [data] : []))[0];
+        const note = humanNote
           ? {
-              id: data.id,
-              title: data.title,
-              bodyMarkdown: data.body_markdown.slice(0, maxChars),
-              truncated: data.body_markdown.length > maxChars,
-              revision: data.revision,
-              contentHash: data.content_hash,
-              updatedAt: data.updated_at,
-              href: `/notes/${data.id}`,
+              id: humanNote.id,
+              title: humanNote.title,
+              bodyMarkdown: humanNote.body_markdown.slice(0, maxChars),
+              truncated: humanNote.body_markdown.length > maxChars,
+              revision: humanNote.revision,
+              contentHash: humanNote.content_hash,
+              updatedAt: humanNote.updated_at,
+              href: `/notes/${humanNote.id}`,
             }
           : null;
         await recordAgentStep({

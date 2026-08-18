@@ -5,7 +5,7 @@ import { getExperienceGraph } from "@/features/graph/queries";
 import { getMemoriesForContext } from "@/features/memory/queries";
 import { getReviewsForContext } from "@/features/reviews/queries";
 import { addLocalDays, getDateKeyInTimeZone } from "@/features/reviews/periods";
-import { listRecentNotes, type RetrievedNote } from "@/features/assistant/retrieval/notes";
+import { excludeAiGeneratedNoteResults, listRecentNotes, type RetrievedNote } from "@/features/assistant/retrieval/notes";
 import { classifyTopicTrends, findRecurringTopics, recurrenceScoreForDocument } from "@/features/assistant/retrieval/topics";
 import { getSemanticRetriever } from "@/features/assistant/retrieval/semantic";
 import { buildFallbackContextPlan } from "./planner";
@@ -388,8 +388,8 @@ export async function buildPersonalContext(
       }).catch(() => []),
     ),
   );
-  const search = searchResults
-    .flat()
+  const humanSearchResults = await excludeAiGeneratedNoteResults(supabase, searchResults.flat());
+  const search = humanSearchResults
     .slice(0, 12)
     .map((row) =>
       candidate({
@@ -415,6 +415,7 @@ export async function buildPersonalContext(
     const semanticDomains = plan.searchQueries[0]?.domains ?? ["notes"];
     semantic = await semanticRetriever
       .search({ query: semanticQuery, domains: semanticDomains, limit: 10 })
+      .then((rows) => excludeAiGeneratedNoteResults(supabase, rows))
       .then((rows) =>
         rows.map((row) =>
           candidate({
