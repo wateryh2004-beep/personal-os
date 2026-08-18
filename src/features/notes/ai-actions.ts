@@ -16,7 +16,10 @@ import {
   noteAiOperations,
   noteAiSelectionContext,
   noteAiSystemPrompt,
+  noteAiTitleJudgePrompt,
   noteAiUserMessage,
+  parseTitleCandidates,
+  cleanTitle,
   type NoteAiPromptKey,
 } from "./ai-prompts";
 import { protectNoteStructures } from "./ai-protect";
@@ -88,6 +91,7 @@ function parseHistory(
     return undefined;
   }
 }
+
 
 export async function generateNoteAiSuggestion(
   formData: FormData,
@@ -193,30 +197,61 @@ export async function generateNoteAiSuggestion(
     const citationRule = noteAiCitationOperations.includes(parsed.data.operation)
       ? `\n\n${noteAiCitationRule}`
       : "";
-    const result = await runAssistant({
-      surface: "notes",
-      mode: discussion ? "chat" : "transform",
-      // 生成标题对质量敏感，固定用 Pro（只输出几个字，成本可忽略），
-      // 其他操作跟随用户面板选择。
-      model:
-        parsed.data.operation === "generateTitle"
-          ? "deepseek-v4-pro"
-          : parsed.data.model,
+    const baseRequest = {
+      surface: "notes" as const,
       operation: parsed.data.operation,
       // 个人上下文检索用用户真实问题/笔记标题做 query，而不是整段 system prompt。
       contextQuery: parsed.data.instruction?.trim() || parsed.data.title,
-      usePersonalContext:
-        parsed.data.scope === "note" && parsed.data.usePersonalContext === true,
-      instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}${historyBlock}${structureRule}${selectionNote}${citationRule}${continuationNote}`,
-      currentEntity: { type: "note", id: parsed.data.noteId },
+      currentEntity: { type: "note" as const, id: parsed.data.noteId },
       currentSurface: {
-        type: "note_draft",
+        type: "note_draft" as const,
         title: parsed.data.title,
         content: protectedContent,
       },
       requiresCurrentSurface: true,
       runId,
-    });
+    };
+    let result: Awaited<ReturnType<typeof runAssistant>>;
+    if (parsed.data.operation === "generateTitle") {
+      // 多 Agent 标题：第一步让 Pro 生成 5 个角度各异的候选（JSON 数组），
+      // 第二步用独立评审视角（noteAiTitleJudgePrompt）从候选里选定最终标题，
+      // 避免生成模型按惯性句式一遍遍产出同一形态。两步都只产出几十个字，
+      // 成本可忽略。候选解析失败时退化为单次生成，功能不回退。
+      const candidateRequest = {
+        ...baseRequest,
+        mode: "transform" as const,
+        model: "deepseek-v4-pro" as const,
+        usePersonalContext: parsed.data.usePersonalContext === true,
+        instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction("generateTitle", parsed.data.instruction, promptOverrides)}`,
+      };
+      const candidateText = (await runAssistant(candidateRequest)).text;
+      const candidates = parseTitleCandidates(candidateText);
+      if (candidates.length >= 2) {
+        const judged = await runAssistant({
+          ...baseRequest,
+          mode: "transform" as const,
+          model: "deepseek-v4-pro" as const,
+          usePersonalContext: false,
+          instruction: noteAiTitleJudgePrompt(
+            { title: parsed.data.title, content: protectedContent },
+            candidates,
+          ),
+        });
+        result = { ...judged, text: cleanTitle(judged.text) };
+      } else {
+        // 候选解析失败：退化为单次生成，直接用生成模型的输出。
+        result = await runAssistant(candidateRequest);
+      }
+    } else {
+      result = await runAssistant({
+        ...baseRequest,
+        mode: discussion ? "chat" : "transform",
+        model: parsed.data.model,
+        usePersonalContext:
+          parsed.data.scope === "note" && parsed.data.usePersonalContext === true,
+        instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}${historyBlock}${structureRule}${selectionNote}${citationRule}${continuationNote}`,
+      });
+    }
     const suggestion = result.text.trim();
     if (!suggestion) {
       return {
@@ -239,9 +274,11 @@ export async function generateNoteAiSuggestion(
     // 结构保护还原：模型输出里可能残留占位符，映射回真实的链接/双链/图片/代码块。
     if (shouldProtect) response.suggestion = restore(response.suggestion).trim();
     // 改写护栏：改写类输出远短于原文时提示可能丢失内容（软提醒，不阻断确认）。
-    const warning = shouldProtect
-      ? evaluateRewriteGuardrail(parsed.data.content.length, response.suggestion.length)
-      : null;
+    // 大纲本身就是对全文的压缩，"短于原文"是预期，跳过该护栏避免误报。
+    const warning =
+      shouldProtect && parsed.data.operation !== "outlineNote"
+        ? evaluateRewriteGuardrail(parsed.data.content.length, response.suggestion.length)
+        : null;
     // 截断护栏：finishReason="length" 表示输出撞到 token 上限被硬截断，
     // 比"远短于原文"更直接地说明末尾内容可能没处理完。优先展示截断提示。
     if (result.finishReason === "length") {

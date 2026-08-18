@@ -7,8 +7,11 @@ import {
   ChevronDown,
   Copy,
   FileText,
+  Languages,
   Lightbulb,
+  ListOrdered,
   ListTree,
+  Quote,
   Sparkles,
   WandSparkles,
 } from "lucide-react";
@@ -53,6 +56,9 @@ const shortcuts: Array<[NoteAiOperation, string, React.ReactNode]> = [
   ["polishNote", "润色全文", <WandSparkles key="polish" />],
   ["deepThinkNote", "深入思考", <Lightbulb key="think" />],
   ["generateTitle", "生成标题", <FileText key="title" />],
+  ["extractKeyInsights", "提炼洞见", <Quote key="insights" />],
+  ["translateNote", "翻译全文", <Languages key="translate" />],
+  ["outlineNote", "生成大纲", <ListOrdered key="outline" />],
 ];
 
 /** 一篇笔记的 AI 多轮讨论线程：user 为发起的问题/操作，assistant 为 AI 回复。 */

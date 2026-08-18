@@ -1,4 +1,4 @@
-export const noteAiOperations = ["summarizeNote", "extractActions", "restructureNote", "polishNote", "deepThinkNote", "generateTitle", "askNote", "polishSelection", "shortenSelection", "expandSelection", "summarizeSelection", "explainSelection", "clarifySelection", "formalSelection", "naturalSelection", "actionsSelection", "listSelection", "customSelection", "discussSelection"] as const;
+export const noteAiOperations = ["summarizeNote", "extractActions", "restructureNote", "polishNote", "deepThinkNote", "generateTitle", "extractKeyInsights", "translateNote", "outlineNote", "askNote", "polishSelection", "shortenSelection", "expandSelection", "summarizeSelection", "explainSelection", "clarifySelection", "formalSelection", "naturalSelection", "actionsSelection", "listSelection", "customSelection", "discussSelection"] as const;
 export type NoteAiOperation = typeof noteAiOperations[number];
 export type NoteAiPromptKey = "notes.system" | `notes.${NoteAiOperation}`;
 
@@ -73,7 +73,10 @@ const instructions: Record<NoteAiOperation, string> = {
   restructureNote: "保留全部事实与原意，重新组织标题、段落和层级，使结构更清楚。仅输出可替换的 Markdown 正文。",
   polishNote: "目标是让文字更顺、更好读、更清晰。可以调整语序、重组段落、重排事件顺序，但原文里说到的每一件事、观点和细节都必须保留在结果里：不得删除任何完整段落、主题或信息点，只允许删掉句内明显重复的词。不增加新事实，不改变专有名词、日期或数字。保留第一人称语气与口语原声（停顿、语气词、吐槽、未说完的话），不要把真实、粗粝或尚未想清楚的内容强行改成成熟结论。仅输出可替换的 Markdown 正文。",
   deepThinkNote: "仅基于当前笔记，识别关键判断、隐含假设、因果跳跃、可能反例、风险与待确认问题。必须区分原文事实和推论；不要迎合原结论，也不要补充原文没有依据的事实。优先追问具体证据和替代解释，最后把仍应由 Hang Yu 判断的问题单列出来。",
-  generateTitle: "为这篇个人笔记生成一个标题。分三步：\n第一步，完整通读全文，理解整篇在讲什么、核心信息、语气与目的。不要只看开头或某一段，不要望文生义。\n第二步，判断笔记类型，按类型选择标题策略：①个人思考/复盘/随想——凝练出『思考的核心问题或结论』，可带态度与口语化，让人想起当时为什么写、在纠结什么；②事实记录/事件/日记——直接点明记的是什么（关键人物、事件或时间），信息准确即可；③学习/知识笔记——点明主题，必要时带上最关键的角度。\n第三步，写出标题。总标准：作者自己以后看到这个标题，就能立刻想起『这篇在讲什么、为什么值得我写』。标题必须准确承载全文重点，宁可真、不要炫；能短则短，一般不超过 20 字。避免『关于…的思考』『…的复盘』『论…』这类空泛模板。\n只输出标题本身，不加引号、冒号、序号、解释或任何 Markdown 格式。",
+  generateTitle: "为这篇个人笔记生成 5 个标题候选，每个从不同角度切入、用不同句式，彼此不要雷同。\n句式禁令：不要默认都用「A，B」对仗式（例如「选择，还是行动」）——这种结构最多允许出现一次，其余候选必须换成别的形态。\n候选角度（每次挑不同的角度组合，不要五个都同型）：①一句具体的话——笔记里最有冲击力的一句判断或结论；②一个真实场景或意象——笔记里出现的某个能代表整篇的细节；③一个设问——以真正驱动这篇笔记的问题开头；④一个有态度的断言——作者真实、有棱角的判断；⑤一个干净的主题名词短语；⑥一句带个人口吻的短话——像作者自己会说的。\n总标准：这个标题必须是这篇笔记独有的——作者以后看到它，就能立刻想起「这篇在讲什么、为什么值得我写」。准确承载全文重点，宁可真、不要炫；一般不超过 20 字。避免「关于…的思考」「…的复盘」「论…」「从…到…」这类空泛模板。\n只输出一个 JSON 字符串数组，例如 [\"候选一\",\"候选二\",\"候选三\",\"候选四\",\"候选五\"]；不要输出数组之外的任何内容。",
+  extractKeyInsights: "仅依据当前笔记，提炼 3–5 条真正值得记住的洞见或原句金句。逐条列出：笔记里有现成原句能概括的就原样引用，否则用一两句平实的话概括这条洞见。优先选带作者个人判断、反常识或反复出现的主题；避免「生活就是…」「一切都是…」式空泛格言。只输出 Markdown 列表，不要开场白。",
+  translateNote: "把当前笔记完整翻译成英文。保留全部信息与语气，以及原文的内部链接、双链、图片与代码块结构。保持口语原声：停顿、语气词、未说完的话意译时不要翻成正式书面腔。专有名词、人名、地名保留原文，首次出现可加英文注释。仅输出可替换的 Markdown 正文。",
+  outlineNote: "为当前笔记生成一份结构清晰的大纲：用 Markdown 层级标题列出主要部分，每部分下面用要点概括该部分讲了什么。仅依据笔记已有内容，不新增事实；保留专有名词、日期、数字与内部链接。仅输出可替换的 Markdown 大纲正文。",
   askNote: "只回答用户关于当前笔记的问题；原文没有依据时明确说“笔记中没有说明”，不要猜测。",
   polishSelection: "只润色所选文字：可调整语序、重组句子让表达更顺，但保留原意、专有名词、日期与数字，不删除任何内容或信息点；仅输出替换后的文字。",
   shortenSelection: "只精简所选文字，保留关键事实与语气；仅输出替换后的文字。",
@@ -96,6 +99,9 @@ const labels: Record<NoteAiOperation, string> = {
   polishNote: "润色全文",
   deepThinkNote: "深入思考",
   generateTitle: "生成标题",
+  extractKeyInsights: "提炼洞见",
+  translateNote: "翻译全文",
+  outlineNote: "生成大纲",
   askNote: "询问当前笔记",
   polishSelection: "选区润色",
   shortenSelection: "选区精简",
@@ -156,7 +162,71 @@ export function noteAiInstruction(operation: NoteAiOperation, customInstruction?
 }
 
 export function isRewriteOperation(operation: NoteAiOperation) {
-  return ["restructureNote", "polishNote", "polishSelection", "shortenSelection", "expandSelection", "clarifySelection", "formalSelection", "naturalSelection", "listSelection", "customSelection"].includes(operation);
+  return ["restructureNote", "polishNote", "translateNote", "outlineNote", "polishSelection", "shortenSelection", "expandSelection", "clarifySelection", "formalSelection", "naturalSelection", "listSelection", "customSelection"].includes(operation);
+}
+
+/**
+ * 标题评审 Agent 的提示词：拿到 5 个候选标题与笔记全文，先内部逐条评估，
+ * 再输出最终标题。单独一步、独立视角，避免生成标题的模型因"惯性句式"
+ * 一遍遍产出同一形态（如「A，B」对仗）。输出契约是"只输出标题本身"，
+ * 与标题的自动替换落笔逻辑兼容。
+ */
+export const noteAiTitleJudgePrompt = (note: { title: string; content: string }, candidates: string[]) => `你是一个挑剔的中文标题评审。下面给出同一篇笔记和它的一组候选标题。先在心里逐一评估每个候选的强弱，再给出最终选定的标题。
+
+笔记标题：${note.title || "无标题笔记"}
+
+笔记全文：
+${note.content}
+
+候选标题：
+${candidates.map((title, index) => `${index + 1}. ${title}`).join("\n")}
+
+评审标准（按重要程度）：
+1. 准确性——是否精准承载这篇笔记真正在讲什么；换成别的笔记是否仍成立。
+2. 唤起记忆——作者以后看到这个标题，能否立刻想起当时为什么写、在纠结什么。
+3. 个人气味——是否保留作者自己的语气、态度或口语感，而不是通用 AI 腔。
+4. 拒绝套路——是否避开了「A，B」对仗、破折号说明、「关于…」「…的复盘」等万能句式。
+5. 简洁——一般不超过 20 字，能短则短。
+
+最终标题可以是某个候选，也可以在其基础上改出一版更贴切的。只输出最终标题本身——不要序号、引号、理由、解释或任何 Markdown 格式。`;
+
+/**
+ * 把标题候选从模型输出里解析出来：优先 JSON 数组，失败后回退到
+ * 编号/破折号行列表。40 字上限用于过滤模型偶发输出的一句废话。
+ */
+export function parseTitleCandidates(text: string): string[] {
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  try {
+    const parsed: unknown = JSON.parse(cleaned);
+    if (Array.isArray(parsed)) {
+      const titles = parsed
+        .filter((item): item is string => typeof item === "string")
+        .map((title) => title.trim())
+        .filter((title) => title.length > 0 && title.length <= 40);
+      if (titles.length >= 2) return titles;
+    }
+  } catch {
+    /* 落到行式解析 */
+  }
+  const titles = cleaned
+    .split(/\n+/)
+    .map((line) => line.replace(/^[\s\d\-*•、.]+/, "").trim())
+    .filter((line) => line.length > 0 && line.length <= 40);
+  return [...new Set(titles)];
+}
+
+/** 标题落笔前的净化：去掉可能残留的引号、序号与首尾空白。 */
+export function cleanTitle(text: string): string {
+  return text
+    .trim()
+    .replace(/^["'「『]/, "")
+    .replace(/["'」』]$/, "")
+    .replace(/^\d+[.、)]\s*/, "")
+    .trim();
 }
 
 /** Discussion belongs to the persisted conversation unless explicitly saved later. */

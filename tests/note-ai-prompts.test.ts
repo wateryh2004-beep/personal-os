@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cleanTitle,
   isRewriteOperation,
   noteAiCitationOperations,
   noteAiCitationRule,
@@ -7,6 +8,8 @@ import {
   noteAiOperations,
   noteAiPromptDefinitions,
   noteAiSystemPrompt,
+  noteAiTitleJudgePrompt,
+  parseTitleCandidates,
   personalKnowledgeSystemPrompt,
 } from "@/features/notes/ai-prompts";
 
@@ -55,5 +58,49 @@ describe("note AI prompt registry", () => {
   it("defines a citation rule scoped to understanding operations", () => {
     expect(noteAiCitationRule).toContain("原文没有说明");
     expect(noteAiCitationOperations).toEqual(["askNote", "deepThinkNote", "explainSelection"]);
+  });
+
+  it("registers the extra presets as real operations", () => {
+    expect(noteAiOperations).toContain("extractKeyInsights");
+    expect(noteAiOperations).toContain("translateNote");
+    expect(noteAiOperations).toContain("outlineNote");
+    expect(noteAiInstruction("extractKeyInsights")).toContain("提炼");
+    expect(noteAiInstruction("translateNote")).toContain("翻译成英文");
+    expect(noteAiInstruction("outlineNote")).toContain("大纲");
+    expect(isRewriteOperation("translateNote")).toBe(true);
+    expect(isRewriteOperation("outlineNote")).toBe(true);
+    expect(isRewriteOperation("extractKeyInsights")).toBe(false);
+  });
+
+  it("asks for diverse title shapes instead of one repeated formula", () => {
+    const prompt = noteAiInstruction("generateTitle");
+    expect(prompt).toContain("5 个标题候选");
+    expect(prompt).toContain("句式禁令");
+    expect(prompt).toContain("「A，B」对仗");
+    expect(prompt).toContain("JSON 字符串数组");
+  });
+
+  it("sends candidates to a separate title judge with its own criteria", () => {
+    const prompt = noteAiTitleJudgePrompt({ title: "测试", content: "正文" }, ["候选一", "候选二"]);
+    expect(prompt).toContain("候选标题");
+    expect(prompt).toContain("候选一");
+    expect(prompt).toContain("准确性");
+    expect(prompt).toContain("唤起记忆");
+    expect(prompt).toContain("个人气味");
+    expect(prompt).toContain("拒绝套路");
+  });
+
+  it("parses a JSON candidate array and cleans the final title", () => {
+    expect(parseTitleCandidates('["选择，还是行动","辞职去旅行的第 40 天","我的 AI 焦虑"]')).toEqual([
+      "选择，还是行动",
+      "辞职去旅行的第 40 天",
+      "我的 AI 焦虑",
+    ]);
+    expect(parseTitleCandidates("```json\n[\"一\",\"二\"]\n```")).toEqual(["一", "二"]);
+    expect(parseTitleCandidates("1. 候选甲\n2. 候选乙")).toEqual(["候选甲", "候选乙"]);
+    expect(parseTitleCandidates("不是数组的一句话")).toEqual(["不是数组的一句话"]);
+    expect(cleanTitle("「辞职去旅行」")).toBe("辞职去旅行");
+    expect(cleanTitle("3、我的 AI 焦虑")).toBe("我的 AI 焦虑");
+    expect(cleanTitle("  标题  ")).toBe("标题");
   });
 });
