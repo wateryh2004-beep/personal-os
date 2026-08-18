@@ -24,6 +24,7 @@ import {
   markdownUploadPlaceholder,
   removeMarkdownUploadPlaceholder,
 } from "@/features/notes/editor/markdown-upload-placeholder";
+import { extractPastedUrl } from "@/features/links/link-url";
 
 type VisualMarkdownEditorProps = {
   markdown: string;
@@ -288,6 +289,49 @@ export function VisualMarkdownEditor({
     currentView.focus();
   }, [onImageUploadStatus, uploadImage]);
 
+  // 粘贴纯 URL 时自动抓取标题：先插入占位，再异步替换为 [标题](url)。
+  // 占位带唯一 token，替换时若用户已删改则放弃，避免破坏用户输入。
+  const insertTitledLink = useCallback(async (rawUrl: string, currentView: EditorView) => {
+    const range = currentView.state.selection.main;
+    const token = `lt-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
+    const placeholder = `[解析链接标题… ${token}](${rawUrl})`;
+    currentView.dispatch({
+      changes: { from: range.from, to: range.to, insert: placeholder },
+      selection: { anchor: range.from + placeholder.length },
+      scrollIntoView: true,
+      userEvent: "input",
+    });
+    let title: string | null = null;
+    try {
+      const response = await fetch(`/api/link-title?url=${encodeURIComponent(rawUrl)}`);
+      if (response.ok) {
+        const payload = (await response.json()) as { title?: string | null };
+        title = payload.title?.trim() ? payload.title.trim() : null;
+      }
+    } catch {
+      title = null;
+    }
+    if (!currentView.dom.isConnected) return;
+    const marker = `[解析链接标题… ${token}`;
+    const text = currentView.state.doc.toString();
+    const from = text.lastIndexOf(marker);
+    if (from === -1) return;
+    const tail = `](${rawUrl})`;
+    const tailIndex = text.indexOf(tail, from);
+    if (tailIndex === -1) return;
+    const safeTitle = title
+      ? title.replace(/[\n\r]/g, " ").replace(/[\[\]]/g, "")
+      : rawUrl;
+    const replacement = `[${safeTitle}](${rawUrl})`;
+    currentView.dispatch({
+      changes: { from, to: tailIndex + tail.length, insert: replacement },
+      selection: { anchor: from + replacement.length },
+      scrollIntoView: true,
+      userEvent: "input",
+    });
+    currentView.focus();
+  }, []);
+
   const extensions = useMemo(
     () => [
       markdownExtension({
@@ -319,10 +363,20 @@ export function VisualMarkdownEditor({
           const image = [...(event.clipboardData?.files ?? [])].find((file) =>
             file.type.startsWith("image/"),
           );
-          if (!image) return false;
-          event.preventDefault();
-          void insertUploadedImage(image, currentView);
-          return true;
+          if (image) {
+            event.preventDefault();
+            void insertUploadedImage(image, currentView);
+            return true;
+          }
+          const pastedUrl = extractPastedUrl(
+            event.clipboardData?.getData("text/plain") ?? "",
+          );
+          if (pastedUrl) {
+            event.preventDefault();
+            void insertTitledLink(pastedUrl, currentView);
+            return true;
+          }
+          return false;
         },
         drop(event, currentView) {
           const image = [...(event.dataTransfer?.files ?? [])].find((file) =>
@@ -352,7 +406,7 @@ export function VisualMarkdownEditor({
         },
       }),
     ],
-    [insertUploadedImage, noteLinkCompletion, onChange],
+    [insertTitledLink, insertUploadedImage, noteLinkCompletion, onChange],
   );
 
   const insertTable = () => {
