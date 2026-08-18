@@ -3,7 +3,7 @@ import {
   apiAuthenticationFailure,
   requireOwnerApi,
 } from "@/lib/auth/require-owner";
-import { createAgentRun } from "@/features/assistant/persistence";
+import { createAgentRun, getLatestNoteAgentRun } from "@/features/assistant/persistence";
 import { assistantSurfaces } from "@/features/assistant/types";
 
 export const runtime = "nodejs";
@@ -29,5 +29,18 @@ export async function POST(request: Request) {
     return Response.json({ runId }, { status: 201, headers: noStore });
   } catch (error) {
     return apiAuthenticationFailure(error) ?? Response.json({ error: "Agent 会话暂时不可用。" }, { status: 503, headers: noStore });
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const owner = await requireOwnerApi();
+    const noteId = new URL(request.url).searchParams.get("noteId");
+    if (!noteId || !z.string().uuid().safeParse(noteId).success)
+      return Response.json({ error: "笔记标识无效。" }, { status: 400, headers: noStore });
+    const thread = await getLatestNoteAgentRun(owner.supabase, owner.userId, noteId);
+    return Response.json(thread ?? { run: null, messages: [], steps: [], actions: [] }, { headers: noStore });
+  } catch (error) {
+    return apiAuthenticationFailure(error) ?? Response.json({ error: "无法读取笔记讨论。" }, { status: 503, headers: noStore });
   }
 }

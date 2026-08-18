@@ -6,6 +6,7 @@ import { deepSeekModelIds } from "@/lib/ai/deepseek";
 import { requireOwner } from "@/lib/auth/require-owner";
 import {
   isNoteAiPromptKey,
+  isDiscussionOperation,
   isRewriteOperation,
   markdownStructureProtectionRule,
   noteAiCitationOperations,
@@ -34,7 +35,7 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
 const requestSchema = z.object({
   noteId: z.string().uuid(),
   title: z.string().trim().max(240),
-  content: z.string().trim().min(1).max(200_000),
+  content: z.string().trim().min(1).max(800_000),
   operation: z.enum(noteAiOperations),
   instruction: z.string().trim().max(2_000).optional(),
   model: z.enum(deepSeekModelIds).optional(),
@@ -47,11 +48,12 @@ const requestSchema = z.object({
     .array(
       z.object({
         role: z.enum(["user", "assistant"]),
-        content: z.string().max(20_000),
+        content: z.string().max(384_000),
       }),
     )
-    .max(10)
+    .max(16)
     .optional(),
+  continuationAfter: z.string().max(32_000).optional(),
 });
 export type NoteAiState = {
   status: "idle" | "success" | "error";
@@ -60,6 +62,7 @@ export type NoteAiState = {
   operation?: string;
   scope?: "note" | "selection";
   warning?: string;
+  truncated?: boolean;
   contextSources?: Array<{
     id: string;
     title: string;
@@ -106,6 +109,7 @@ export async function generateNoteAiSuggestion(
       contextAfter: formData.get("context_after") || undefined,
       runId: formData.get("run_id") || null,
       history: parseHistory(formData.get("history")),
+      continuationAfter: formData.get("continuation_after") || undefined,
     });
     if (!parsed.success)
       return { status: "error", message: "AI 请求内容无效。", suggestion: "" };
@@ -175,22 +179,23 @@ export async function generateNoteAiSuggestion(
     const structureRule = shouldProtect
       ? `\n\n${markdownStructureProtectionRule}`
       : "";
+    const discussion = isDiscussionOperation(parsed.data.operation);
     const selectionNote =
       parsed.data.scope === "selection"
-        ? `\n\n上下文：这是用户从笔记中选中的一段文字，可能位于文章中间；只处理这段文字，保留其原有的内部链接、双链、图片与代码块。${noteAiSelectionContext({ before: parsed.data.contextBefore, after: parsed.data.contextAfter })}`
+        ? discussion
+          ? `\n\n上下文：这是用户从笔记中选中的一段文字。围绕它讨论即可，绝不把回答伪装成待替换的正文。${noteAiSelectionContext({ before: parsed.data.contextBefore, after: parsed.data.contextAfter })}`
+          : `\n\n上下文：这是用户从笔记中选中的一段文字，可能位于文章中间；只处理这段文字，保留其原有的内部链接、双链、图片与代码块。${noteAiSelectionContext({ before: parsed.data.contextBefore, after: parsed.data.contextAfter })}`
         : "";
+    const continuationNote = parsed.data.continuationAfter
+      ? `\n\n上一轮回答已在长度上限处中断。下面是末尾片段：\n${parsed.data.continuationAfter}\n\n从中断处自然继续；不要重复前文、不要重新开始任务。`
+      : "";
     // 「懂」类操作（问答/思考/解释）要求附原文依据，防止脑补或混淆 Personal Context。
     const citationRule = noteAiCitationOperations.includes(parsed.data.operation)
       ? `\n\n${noteAiCitationRule}`
       : "";
     const result = await runAssistant({
       surface: "notes",
-      mode:
-        parsed.data.scope === "selection"
-          ? "transform"
-          : parsed.data.operation === "askNote"
-            ? "chat"
-            : "transform",
+      mode: discussion ? "chat" : "transform",
       // 生成标题对质量敏感，固定用 Pro（只输出几个字，成本可忽略），
       // 其他操作跟随用户面板选择。
       model:
@@ -202,7 +207,7 @@ export async function generateNoteAiSuggestion(
       contextQuery: parsed.data.instruction?.trim() || parsed.data.title,
       usePersonalContext:
         parsed.data.scope === "note" && parsed.data.usePersonalContext === true,
-      instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}${historyBlock}${structureRule}${selectionNote}${citationRule}`,
+      instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}${historyBlock}${structureRule}${selectionNote}${citationRule}${continuationNote}`,
       currentEntity: { type: "note", id: parsed.data.noteId },
       currentSurface: {
         type: "note_draft",
@@ -240,6 +245,7 @@ export async function generateNoteAiSuggestion(
     // 截断护栏：finishReason="length" 表示输出撞到 token 上限被硬截断，
     // 比"远短于原文"更直接地说明末尾内容可能没处理完。优先展示截断提示。
     if (result.finishReason === "length") {
+      response.truncated = true;
       response.warning =
         "AI 输出达到长度上限被截断，原文末尾可能未处理完整。建议对超长笔记改用选区分块润色。";
     } else if (warning) {

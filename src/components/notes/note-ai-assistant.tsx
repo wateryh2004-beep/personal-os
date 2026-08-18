@@ -21,6 +21,7 @@ import {
   type NoteAiState,
 } from "@/features/notes/ai-actions";
 import {
+  isDiscussionOperation,
   isRewriteOperation,
   noteAiOperationLabel,
   noteAiUserMessage,
@@ -65,14 +66,11 @@ type ThreadItem = {
   applied?: boolean;
 };
 
-/** 每篇笔记一个持久化的 run：云端存 agent_messages，本机只存 runId 用于恢复。 */
-const runStorageKey = (noteId: string) => `personal-os:note-ai:run:${noteId}:v1`;
-
-/** 线程 → 模型上下文：只带最近几轮、每轮截断，避免超长笔记 + 长历史撑爆 prompt。 */
+/** 线程 → 模型上下文：优先保留最近几轮及回答末尾，供长回答续写。 */
 function threadToHistory(thread: ThreadItem[]) {
-  return thread.slice(-10).map((item) => ({
+  return thread.slice(-16).map((item) => ({
     role: item.role,
-    content: item.content.slice(0, 4_000),
+    content: item.content.slice(-16_000),
   }));
 }
 
@@ -138,14 +136,13 @@ export function NoteAiAssistant({
     if (!open) return;
     const timer = window.setTimeout(async () => {
       setRestoring(true);
-      const savedRunId = localStorage.getItem(runStorageKey(noteId));
-      if (savedRunId) {
-        try {
-          const response = await fetch(`/api/assistant/runs/${savedRunId}`, {
+      try {
+          const response = await fetch(`/api/assistant/runs?noteId=${encodeURIComponent(noteId)}`, {
             cache: "no-store",
           });
           if (response.ok) {
             const payload = (await response.json()) as {
+              run?: { id?: string } | null;
               messages?: Array<{
                 id: string;
                 role: string;
@@ -153,8 +150,8 @@ export function NoteAiAssistant({
               }>;
             };
             const messages = payload.messages;
-            if (Array.isArray(messages) && messages.length) {
-              setRunId(savedRunId);
+            if (payload.run?.id && Array.isArray(messages) && messages.length) {
+              setRunId(payload.run.id);
               setThread(
                 messages.map((message) => ({
                   id: message.id,
@@ -165,19 +162,14 @@ export function NoteAiAssistant({
                     .join("\n"),
                 })),
               );
-            } else {
-              localStorage.removeItem(runStorageKey(noteId));
             }
           }
-        } catch {
-          /* 恢复失败不阻塞面板；runId 保留，下次打开可重试。 */
-        }
-      }
+        } catch { /* 恢复失败不阻塞面板，下次打开仍会从数据库重试。 */ }
       setRestoring(false);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [open, noteId]);
-  const run = (next: Request, targetSelection: NoteSelection | null = null) => {
+  const run = (next: Request, targetSelection: NoteSelection | null = null, continuationAfter?: string) => {
     if (!next.content.trim()) {
       setResult({
         status: "error",
@@ -213,11 +205,11 @@ export function NoteAiAssistant({
     if (next.instruction) data.set("instruction", next.instruction);
     if (next.contextBefore) data.set("context_before", next.contextBefore);
     if (next.contextAfter) data.set("context_after", next.contextAfter);
+    if (continuationAfter) data.set("continuation_after", continuationAfter);
     startTransition(async () => {
       const nextResult = await generateNoteAiSuggestion(data);
       if (nextResult.runId) {
         setRunId(nextResult.runId);
-        localStorage.setItem(runStorageKey(noteId), nextResult.runId);
       }
       if (nextResult.suggestion) {
         setThread((prev) => [
@@ -307,6 +299,7 @@ export function NoteAiAssistant({
   const rewrite = result.operation
     ? isRewriteOperation(result.operation as NoteAiOperation)
     : false;
+  const discussion = request ? isDiscussionOperation(request.operation) : false;
   // 词级 diff：rewrite 类操作拿原文本对比还原后的结果；大文档或非 rewrite 返回 null。
   const diffSegments = useMemo(() => {
     if (!result.suggestion || !request || !rewrite) return null;
@@ -324,6 +317,10 @@ export function NoteAiAssistant({
     setRequest(null);
     setResultSelection(null);
     setResult({ status: "idle", message: "", suggestion: "" });
+  };
+  const continueResult = () => {
+    if (!request || !result.suggestion) return;
+    run({ ...request, instruction: `${request.instruction ? `${request.instruction}\n\n` : ""}请从上一段被截断的位置继续。` }, resultSelection, result.suggestion.slice(-32_000));
   };
 
   // 生成标题是「直接替换」型操作：结果返回后立即替换标题，撤回由标题栏负责。
@@ -389,6 +386,7 @@ export function NoteAiAssistant({
           {moreSelectionText === selection.text ? (
             <div role="menu" className="absolute right-0 top-10 z-50 grid w-32 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-elevated)] p-1 shadow-[0_12px_28px_rgba(24,24,27,0.12)]">
               {[
+                ["discussSelection", "讨论"],
                 ["explainSelection", "解释"],
                 ["clarifySelection", "更清晰"],
                 ["formalSelection", "更正式"],
@@ -430,7 +428,7 @@ export function NoteAiAssistant({
         context="当前笔记"
         footer={
           <div className="space-y-3">
-            {result.suggestion && request?.operation !== "generateTitle" ? (
+            {result.suggestion && request?.operation !== "generateTitle" && !discussion ? (
               <div aria-label="AI 结果确认操作" className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium text-[var(--text-primary)]">AI 结果待确认</p>
@@ -461,10 +459,10 @@ export function NoteAiAssistant({
                     复制
                   </button>
                   <button
-                    onClick={() => request && run(request, resultSelection)}
+                    onClick={() => result.truncated ? continueResult() : request && run(request, resultSelection)}
                     className="min-h-8 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   >
-                    重新生成
+                    {result.truncated ? "从截断处继续" : "重新生成"}
                   </button>
                   <button
                     onClick={discardResult}
@@ -644,8 +642,8 @@ export function NoteAiAssistant({
             <div ref={resultRef} className="mt-4 border-t pt-4">
               <div className="flex items-center justify-between gap-3 pb-3">
                 <div>
-                  <p className="text-sm font-medium text-[var(--text-primary)]">AI 结果预览</p>
-                  <p className="mt-1 text-xs text-[var(--text-secondary)]">使用底部固定确认区决定是否写入笔记。</p>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{discussion ? "讨论回复" : "AI 结果预览"}</p>
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">{discussion ? "这段回复已保存到本篇笔记的讨论历史，不会写入正文。" : "使用底部固定确认区决定是否写入笔记。"}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {diffSegments ? (
@@ -692,6 +690,11 @@ export function NoteAiAssistant({
                 <p role="status" className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   {result.warning}
                 </p>
+              ) : null}
+              {result.truncated ? (
+                <button onClick={continueResult} className="mt-3 min-h-9 rounded-[var(--radius-md)] border border-[var(--accent)] px-3 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">
+                  从截断处继续
+                </button>
               ) : null}
               {result.contextSources?.length ? (
                 <details className="mt-4 border-t pt-3 text-xs">

@@ -12,6 +12,7 @@ import type { AgentSessionState, ContextMode, PersonalOsModuleId, RequestComplex
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
 const runIdSchema = z.string().uuid();
+const persistedMessageMaxChars = 384_000;
 const safeText = (value: unknown, max: number) =>
   String(value ?? "").trim().slice(0, max);
 
@@ -22,7 +23,7 @@ function textFromMessage(message: UIMessage) {
     )
     .map((part) => part.text)
     .join("\n")
-    .slice(0, 20_000);
+    .slice(0, persistedMessageMaxChars);
 }
 
 export async function createAgentRun(input: {
@@ -307,7 +308,7 @@ export async function getAgentRun(
           type: "text" as const,
           text: safeText(
             (message.content_json as { text?: unknown } | null)?.text,
-            20_000,
+            persistedMessageMaxChars,
           ),
         },
       ],
@@ -325,4 +326,25 @@ export async function getAgentRun(
       result: action.result_json,
     })) as AgentAction[],
   };
+}
+
+/** The database is authoritative for restoring a document discussion on any device. */
+export async function getLatestNoteAgentRun(
+  supabase: Supabase,
+  userId: string,
+  noteId: string,
+) {
+  if (!runIdSchema.safeParse(noteId).success) throw new Error("agent_run_invalid");
+  const { data, error } = await supabase
+    .from("agent_runs")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("surface", "notes")
+    .eq("current_entity_type", "note")
+    .eq("current_entity_id", noteId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error("agent_run_load_failed");
+  return data ? getAgentRun(supabase, userId, data.id) : null;
 }

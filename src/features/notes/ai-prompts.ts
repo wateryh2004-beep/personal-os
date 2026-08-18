@@ -1,4 +1,4 @@
-export const noteAiOperations = ["summarizeNote", "extractActions", "restructureNote", "polishNote", "deepThinkNote", "generateTitle", "askNote", "polishSelection", "shortenSelection", "expandSelection", "summarizeSelection", "explainSelection", "clarifySelection", "formalSelection", "naturalSelection", "actionsSelection", "listSelection", "customSelection"] as const;
+export const noteAiOperations = ["summarizeNote", "extractActions", "restructureNote", "polishNote", "deepThinkNote", "generateTitle", "askNote", "polishSelection", "shortenSelection", "expandSelection", "summarizeSelection", "explainSelection", "clarifySelection", "formalSelection", "naturalSelection", "actionsSelection", "listSelection", "customSelection", "discussSelection"] as const;
 export type NoteAiOperation = typeof noteAiOperations[number];
 export type NoteAiPromptKey = "notes.system" | `notes.${NoteAiOperation}`;
 
@@ -86,6 +86,7 @@ const instructions: Record<NoteAiOperation, string> = {
   actionsSelection: "只从所选文字提取明确行动；没有行动时明确说明。",
   listSelection: "只将所选文字转换为清晰的 Markdown 列表，不增加信息。",
   customSelection: "只按照用户给出的要求处理所选文字。保留原文事实、专有名词、日期与数字；没有依据时明确说明，不要补充新事实。",
+  discussSelection: "围绕所选文字与用户展开讨论：解释它意味着什么、其中的假设、证据缺口、反例或可继续追问的方向。不要改写、替换或复述成可直接写回正文的版本。",
 };
 
 const labels: Record<NoteAiOperation, string> = {
@@ -107,6 +108,7 @@ const labels: Record<NoteAiOperation, string> = {
   actionsSelection: "从选区提取行动",
   listSelection: "选区转为列表",
   customSelection: "选区自定义处理",
+  discussSelection: "讨论所选文字",
 };
 
 export type NoteAiPromptDefinition = {
@@ -149,12 +151,17 @@ export function noteAiSystemPrompt(overrides?: Partial<Record<NoteAiPromptKey, s
 
 export function noteAiInstruction(operation: NoteAiOperation, customInstruction?: string, overrides?: Partial<Record<NoteAiPromptKey, string>>) {
   const instruction = overrides?.[`notes.${operation}`]?.trim() || instructions[operation];
-  if ((operation === "askNote" || operation === "customSelection") && customInstruction?.trim()) return `${instruction}\n\n用户要求：${customInstruction.trim()}`;
+  if ((operation === "askNote" || operation === "customSelection" || operation === "discussSelection") && customInstruction?.trim()) return `${instruction}\n\n用户要求：${customInstruction.trim()}`;
   return instruction;
 }
 
 export function isRewriteOperation(operation: NoteAiOperation) {
   return ["restructureNote", "polishNote", "polishSelection", "shortenSelection", "expandSelection", "clarifySelection", "formalSelection", "naturalSelection", "listSelection", "customSelection"].includes(operation);
+}
+
+/** Discussion belongs to the persisted conversation unless explicitly saved later. */
+export function isDiscussionOperation(operation: NoteAiOperation) {
+  return ["askNote", "deepThinkNote", "discussSelection"].includes(operation);
 }
 
 /** 操作的展示名，供前端（如 AI 面板的"正在…"范围指示）使用。 */
