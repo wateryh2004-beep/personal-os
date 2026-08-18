@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
-import { Bot, ChevronDown, ChevronLeft, ChevronRight, EyeOff, MoreHorizontal, Plus, RefreshCw, Settings2 } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, EyeOff, Filter, MoreHorizontal, Plus, RefreshCw, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { CalendarCreateForm } from "@/components/calendar/calendar-create-form";
 import { CalendarEventEditForm } from "@/components/calendar/calendar-event-edit-form";
@@ -17,10 +17,10 @@ import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider"
 import { Inspector } from "@/components/shared/inspector";
 import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, wallTimeToIso, weekRangeInTimeZone } from "@/features/calendar/timezone";
+import { fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, wallTimeToIso } from "@/features/calendar/timezone";
 import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, reconcileCalendarMutationRange, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
 import { primaryCalendarCategories } from "@/features/calendar/classification/taxonomy";
-import { outlookCategoryDot } from "@/features/calendar/categories/visual";
+import { outlookCategoryDot, resolveCalendarEventVisual } from "@/features/calendar/categories/visual";
 import { EntityBacklinks } from "@/components/links/entity-backlinks";
 import { calendarRangeResource, invalidateCalendarRangeResources } from "@/features/calendar/workspace-resource";
 
@@ -175,12 +175,6 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     }
   });
   const changeCursor = (amount: number) => setCursor((date) => shiftCalendarCursor(date, timezone, view === "week" ? amount * 7 : amount));
-  // 标题点击跳转：周/日视图选一天、月视图选一月。用正午墙钟时间构造 instant，
-  // 避免当天首尾的时区偏移把 cursor 挪到相邻日期。
-  const jumpToDate = (value: string) => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
-    setCursor(new Date(wallTimeToIso(`${value}T12:00`, timezone)));
-  };
   const moveEvent = async (event: CalendarEventRecord, range: Draft & { isAllDay: boolean }) => {
     const form = new FormData();
     form.set("provider_event_id", event.provider_event_id); form.set("original_subject", event.subject); form.set("original_starts_at", event.starts_at); form.set("original_ends_at", event.ends_at);
@@ -237,18 +231,13 @@ export function CalendarWorkspace({ events, categories, timezone, scopeReady, in
     if (!(await refetchActiveRange()))
       setCalendarError("Outlook 已创建日程，但本地日历仍在对账；请稍后同步 Outlook。");
   };
-  // 周视图标题显示周一–周日范围（跨月时如「8月31日 – 9月6日」），不再只显示单个日期。
-  const weekRange = view === "week" ? weekRangeInTimeZone(cursor.toISOString(), timezone) : null;
-  const formatWallDate = (date: string) => { const [, month, day] = date.split("-"); return `${Number(month)}月${Number(day)}日`; };
-  const title = view === "week" && weekRange
-    ? `${formatWallDate(weekRange.start)} – ${formatWallDate(weekRange.end)}`
-    : new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, month: "long", day: view === "month" ? undefined : "numeric", year: view === "month" ? "numeric" : undefined }).format(cursor);
+  const title = new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, month: "long", day: view === "month" ? undefined : "numeric", year: view === "month" ? "numeric" : undefined }).format(cursor);
 
   return <section className="flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-white">
     <div className="flex min-w-0 flex-1 flex-col">
       <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-2 border-b bg-[var(--surface-canvas)]/96 px-3 py-2 shadow-[0_1px_2px_rgba(24,24,27,0.02)] backdrop-blur-sm">
-        <div className="flex min-w-0 items-center gap-1"><button className="rounded p-1.5 hover:bg-[var(--surface-hover)]" onClick={() => changeCursor(-1)} aria-label="上一段日期"><ChevronLeft size={17} /></button><button onClick={() => setCursor(new Date())} className="rounded px-2 py-1 text-sm hover:bg-[var(--surface-hover)]">今天</button><button className="rounded p-1.5 hover:bg-[var(--surface-hover)]" onClick={() => changeCursor(1)} aria-label="下一段日期"><ChevronRight size={17} /></button><Popover><PopoverTrigger asChild><button type="button" title={view === "month" ? "跳到月份" : "跳到日期"} className="ml-2 flex max-w-56 items-center gap-1 rounded px-1.5 py-1 text-sm font-medium hover:bg-[var(--surface-hover)]"><span className="truncate">{title}</span><ChevronDown size={13} className="shrink-0 text-[var(--text-tertiary)]" /></button></PopoverTrigger><PopoverContent align="start" className="w-auto p-3"><label className="grid gap-1.5 text-xs text-[var(--text-secondary)]">{view === "month" ? "跳到月份" : "跳到日期"}<input type={view === "month" ? "month" : "date"} defaultValue={instantToWallTime(cursor.toISOString(), timezone).slice(0, view === "month" ? 7 : 10)} onChange={(event) => { const value = event.target.value; if (value) jumpToDate(view === "month" ? `${value}-01` : value); }} className="h-9 min-w-52 rounded-md border bg-white px-3 text-sm outline-none focus:border-[var(--accent)]" /></label></PopoverContent></Popover></div>
-        <div className="flex flex-wrap items-center gap-1"><div className="rounded-md bg-[var(--surface-hover)] p-0.5">{availableViews.map((item) => <button key={item} onClick={() => setView(item)} className={`rounded px-2 py-1 text-xs ${view === item ? "bg-white text-[var(--accent)] shadow-sm" : ""}`}>{item === "day" ? "日" : item === "week" ? "周" : "月"}</button>)}</div><button type="button" onClick={() => setHideInternship((current) => !current)} aria-pressed={hideInternship} className={`flex items-center gap-1 rounded px-2 py-1.5 text-xs transition-colors ${hideInternship ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><EyeOff size={14}/>{hideInternship ? "显示实习" : "隐藏实习"}</button><Popover><PopoverTrigger asChild><button aria-label="更多日历操作" className="rounded p-2 text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><MoreHorizontal size={16} /></button></PopoverTrigger><PopoverContent align="end" className="w-56"><button onClick={sync} disabled={syncing} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><RefreshCw size={14} className={syncing ? "animate-spin" : ""}/>{syncing ? "正在同步…" : "同步 Outlook"}</button><button onClick={ai.toggle} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><Bot size={14}/>Calendar AI</button></PopoverContent></Popover><button onClick={() => openDraft(initialDraft(timezone))} className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs text-white"><Plus size={14} className="mr-1 inline" />新建</button></div>
+        <div className="flex min-w-0 items-center gap-1"><button className="rounded p-1.5 hover:bg-[var(--surface-hover)]" onClick={() => changeCursor(-1)} aria-label="上一段日期"><ChevronLeft size={17} /></button><button onClick={() => setCursor(new Date())} className="rounded px-2 py-1 text-sm hover:bg-[var(--surface-hover)]">今天</button><button className="rounded p-1.5 hover:bg-[var(--surface-hover)]" onClick={() => changeCursor(1)} aria-label="下一段日期"><ChevronRight size={17} /></button><span className="ml-2 truncate text-sm font-medium">{title}</span></div>
+        <div className="flex flex-wrap items-center gap-1"><div className="rounded-md bg-[var(--surface-hover)] p-0.5">{availableViews.map((item) => <button key={item} onClick={() => setView(item)} className={`rounded px-2 py-1 text-xs ${view === item ? "bg-white text-[var(--accent)] shadow-sm" : ""}`}>{item === "day" ? "日" : item === "week" ? "周" : "月"}</button>)}</div><button type="button" onClick={() => setHideInternship((current) => !current)} aria-pressed={hideInternship} className={`flex items-center gap-1 rounded px-2 py-1.5 text-xs transition-colors ${hideInternship ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><EyeOff size={14}/>{hideInternship ? "显示实习" : "隐藏实习"}</button><Popover><PopoverTrigger asChild><button aria-label="更多日历操作" className="rounded p-2 text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><MoreHorizontal size={16} /></button></PopoverTrigger><PopoverContent align="end" className="w-56"><button onClick={sync} disabled={syncing} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><RefreshCw size={14} className={syncing ? "animate-spin" : ""}/>{syncing ? "正在同步…" : "同步 Outlook"}</button><button onClick={() => setSettingsOpen(true)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><Settings2 size={14}/>分类设置</button><button onClick={ai.toggle} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-hover)]"><Bot size={14}/>Calendar AI</button></PopoverContent></Popover><Popover><PopoverTrigger asChild><button aria-label="筛选分类" aria-pressed={selectedCategories.size > 0} className={`relative rounded p-2 hover:bg-[var(--surface-hover)] ${selectedCategories.size ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}><Filter size={15}/>{selectedCategories.size ? <span className="absolute right-1 top-1 size-1.5 rounded-full bg-[var(--accent)]"/> : null}</button></PopoverTrigger><PopoverContent align="end" className="w-56"><button onClick={() => setSelectedCategories(new Set())} className="mb-1 text-xs text-[var(--accent)]">清除筛选</button>{categories.map((category) => <label key={category.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-[var(--surface-hover)]"><input type="checkbox" checked={selectedCategories.has(category.display_name)} onChange={() => toggleCategory(category.display_name)} /><span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: resolveCalendarEventVisual([category.display_name], categories).dot }} /><span className="truncate">{category.display_name}</span></label>)}</PopoverContent></Popover><button onClick={() => openDraft(initialDraft(timezone))} className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs text-white"><Plus size={14} className="mr-1 inline" />新建</button></div>
       </header>
       <div className="flex items-center gap-1 overflow-x-auto border-b bg-[var(--surface-canvas)] px-3 py-1.5 [scrollbar-width:thin]">
         {primaryCalendarCategories.map((category) => {

@@ -39,7 +39,7 @@ describe("interaction performance guardrails", () => {
     expect(calendar).toContain("firstDay={1}");
     expect(calendar).toContain("slotLabelFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
     expect(calendar).toContain("eventTimeFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
-    expect(calendar).toContain('slotDuration="00:30:00"');
+    expect(calendar).toContain('slotDuration="01:00:00"');
     expect(calendar).toContain('snapDuration="00:15:00"');
     expect(calendar).toContain("durationMinutes <= 30");
   });
