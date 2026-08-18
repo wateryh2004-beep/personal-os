@@ -38,6 +38,8 @@ describe("interaction performance guardrails", () => {
     expect(calendar).toContain('from "@fullcalendar/core/locales/zh-cn"');
     expect(calendar).toContain("locale={zhCnLocale}");
     expect(calendar).toContain("firstDay={1}");
+    expect(calendar).toContain("now={nowFn}");
+    expect(calendar).toContain("wallNowAsUtcDate");
     expect(calendar).toContain("slotLabelFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
     expect(calendar).toContain("eventTimeFormat={{ hour: \"2-digit\", minute: \"2-digit\", hour12: false, meridiem: false }}");
     expect(calendar).toContain('slotDuration="00:30:00"');

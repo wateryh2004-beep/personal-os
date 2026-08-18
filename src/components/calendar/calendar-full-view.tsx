@@ -8,7 +8,7 @@ import interactionPlugin, { type EventResizeDoneArg } from "@fullcalendar/intera
 import zhCnLocale from "@fullcalendar/core/locales/zh-cn";
 import type { EventDropArg } from "@fullcalendar/core";
 import type { CalendarEventRecord } from "@/features/calendar/types";
-import { allDayDateToFullCalendarDate, fullCalendarDateToInstant, instantToDate, instantToFullCalendarDate } from "@/features/calendar/timezone";
+import { allDayDateToFullCalendarDate, fullCalendarDateToInstant, instantToDate, instantToFullCalendarDate, wallNowAsUtcDate } from "@/features/calendar/timezone";
 import { resolveCalendarEventVisual } from "@/features/calendar/categories/visual";
 import type { CalendarCategory } from "@/features/calendar/categories/types";
 
@@ -29,6 +29,11 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
 }) {
   const calendarRef = useRef<FullCalendar>(null);
   const visualInitialDate = useMemo(() => instantToFullCalendarDate(initialDate.toISOString(), timezone), [initialDate, timezone]);
+
+  // FullCalendar re-reads `now` on its own timer, so the red line tracks the
+  // wall clock (not real UTC, which would sit 8 hours off under UTC-coercion)
+  // and steps every 10 minutes instead of drifting by seconds.
+  const nowFn = useCallback(() => wallNowAsUtcDate(timezone), [timezone]);
 
   // One stable FullCalendar instance; all date equality is UTC-field based
   // because the component intentionally uses UTC-coerced wall-time Dates.
@@ -96,5 +101,5 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     return <div className="h-full overflow-hidden px-1.5 py-0.5 text-xs leading-4"><p className="line-clamp-2 font-medium">{info.event.title}</p><p className="text-[10px] opacity-70">{info.timeText}</p>{durationMinutes >= 60 && location ? <p className="line-clamp-1 text-[10px] opacity-60">{location}</p> : null}</div>;
   }, []);
 
-  return <div className="calendar-canvas relative min-h-0 flex-1 overflow-hidden"><FullCalendar ref={calendarRef} plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]} initialView={initialView} initialDate={visualInitialDate} timeZone="UTC" locale={zhCnLocale} firstDay={1} headerToolbar={false} height="100%" allDaySlot selectable editable slotDuration="00:30:00" snapDuration="00:15:00" slotLabelInterval="01:00" slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} scrollTime="09:00:00" scrollTimeReset={false} slotMinTime="08:00:00" slotMaxTime="23:00:00" nowIndicator datesSet={(info) => onRangeChange({ start: info.start, end: info.end })} events={calendarEvents} eventClick={(info) => onOpen(info.event.extendedProps.event as CalendarEventRecord)} eventDrop={persistMove} eventResize={persistMove} select={(info) => onCreate({ startsAt: fullCalendarDateToInstant(info.start, timezone), endsAt: fullCalendarDateToInstant(info.end, timezone), isAllDay: info.allDay })} eventContent={eventContent} />{loadingRange ? <span className="pointer-events-none absolute right-3 top-3 rounded bg-white/90 px-2 py-1 text-[11px] text-[var(--text-tertiary)] shadow">更新日程…</span> : null}</div>;
+  return <div className="calendar-canvas relative min-h-0 flex-1 overflow-hidden"><FullCalendar ref={calendarRef} plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]} initialView={initialView} initialDate={visualInitialDate} timeZone="UTC" now={nowFn} locale={zhCnLocale} firstDay={1} headerToolbar={false} height="100%" allDaySlot selectable editable slotDuration="00:30:00" snapDuration="00:15:00" slotLabelInterval="01:00" slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false, meridiem: false }} scrollTime="09:00:00" scrollTimeReset={false} slotMinTime="08:00:00" slotMaxTime="23:00:00" nowIndicator datesSet={(info) => onRangeChange({ start: info.start, end: info.end })} events={calendarEvents} eventClick={(info) => onOpen(info.event.extendedProps.event as CalendarEventRecord)} eventDrop={persistMove} eventResize={persistMove} select={(info) => onCreate({ startsAt: fullCalendarDateToInstant(info.start, timezone), endsAt: fullCalendarDateToInstant(info.end, timezone), isAllDay: info.allDay })} eventContent={eventContent} />{loadingRange ? <span className="pointer-events-none absolute right-3 top-3 rounded bg-white/90 px-2 py-1 text-[11px] text-[var(--text-tertiary)] shadow">更新日程…</span> : null}</div>;
 }

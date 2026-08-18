@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateTimeInputValue, formatWallDate, fullCalendarDateToInstant, instantToDate, instantToFullCalendarDate, shiftCalendarCursor, wallTimeToIso, weekRangeInTimeZone } from "@/features/calendar/timezone";
+import { dateTimeInputValue, formatWallDate, fullCalendarDateToInstant, instantToDate, instantToFullCalendarDate, shiftCalendarCursor, wallNowAsUtcDate, wallTimeToIso, weekRangeInTimeZone } from "@/features/calendar/timezone";
 
 describe("calendar timezone conversion", () => {
   it("stores Beijing wall time as the correct instant", () => {
@@ -90,5 +90,34 @@ describe("week range title", () => {
     ["2026-01-05", "1月5日"],
   ])("formats %s as %s without padding", (date, expected) => {
     expect(formatWallDate(date as "2026-08-31")).toBe(expected);
+  });
+});
+
+describe("wall now for the FullCalendar now line", () => {
+  // Source of truth for both tests is the real Shanghai wall clock read from a
+  // fresh Date; wallNowAsUtcDate must encode exactly those fields into UTC.
+  const wallParts = () =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(new Date());
+  const wallField = (type: Intl.DateTimeFormatPartTypes) => Number(wallParts().find((p) => p.type === type)?.value);
+
+  it("projects the wall clock onto the UTC-coercion timeline", () => {
+    const now = wallNowAsUtcDate("Asia/Shanghai", 10);
+    // The returned Date is UTC-coerced wall time: its UTC fields equal the
+    // Shanghai wall clock, with the minute snapped to a whole 10-minute mark.
+    expect(now.getUTCFullYear()).toBe(wallField("year"));
+    expect(now.getUTCMonth() + 1).toBe(wallField("month"));
+    expect(now.getUTCDate()).toBe(wallField("day"));
+    expect(now.getUTCHours()).toBe(wallField("hour"));
+    expect(now.getUTCMinutes()).toBe(Math.floor(wallField("minute") / 10) * 10);
+    expect(now.getUTCSeconds()).toBe(0);
+  });
+
+  it("snaps minutes down to the configured step rather than rounding", () => {
+    const now = wallNowAsUtcDate("Asia/Shanghai", 15);
+    expect(now.getUTCMinutes()).toBe(Math.floor(wallField("minute") / 15) * 15);
+    expect(now.getUTCMinutes() % 15).toBe(0);
   });
 });

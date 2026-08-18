@@ -107,6 +107,19 @@ export function formatWallDate(date: CalendarDate): string {
   return `${Number(month)}月${Number(day)}日`;
 }
 
+/**
+ * The current wall-clock moment, projected onto the UTC-coercion timeline and
+ * snapped down to a whole multiple of `snapMinutes`. FullCalendar re-reads its
+ * `now` option periodically, so passing this keeps the red "now" line on the
+ * correct wall-clock slot and steps it every `snapMinutes` instead of drifting
+ * by real UTC seconds (which would otherwise land 8 hours off in UTC-coercion).
+ */
+export function wallNowAsUtcDate(timezone: string, snapMinutes = 10): Date {
+  const parts = partsForInstant(new Date().toISOString(), timezone);
+  const minute = Math.floor(parts.minute / snapMinutes) * snapMinutes;
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, minute, 0));
+}
+
 /** Moves a calendar cursor in the profile timezone, never in device-local time. */
 export function shiftCalendarCursor(value: Date, timezone: string, amount: number) {
   const wall = instantToWallTime(value.toISOString(), timezone);
