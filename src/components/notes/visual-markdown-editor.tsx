@@ -11,7 +11,11 @@ import { startCompletion } from "@codemirror/autocomplete";
 import { GFM } from "@lezer/markdown";
 import { X } from "lucide-react";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
-import { parseMarkdownOutline, type MarkdownOutlineItem } from "@/features/notes/editor/markdown-outline";
+import {
+  activeHeadingIndexAtLine,
+  parseMarkdownOutline,
+  type MarkdownOutlineItem,
+} from "@/features/notes/editor/markdown-outline";
 import { markdownEditorKeymap } from "@/features/notes/editor/markdown-keymap";
 import { markdownEditorTheme } from "@/features/notes/editor/markdown-theme";
 import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
@@ -100,6 +104,10 @@ export function VisualMarkdownEditor({
   // 只在面板打开时才解析标题，不打开就不付解析成本。
   const [outlineOpen, setOutlineOpen] = useState(false);
   const outlinePanelRef = useRef<HTMLDivElement>(null);
+  const outlineListRef = useRef<HTMLUListElement>(null);
+  const outlineHeadingsRef = useRef<MarkdownOutlineItem[]>([]);
+  const activeOutlineIndexRef = useRef(-1);
+  const statusBarRef = useRef<HTMLDivElement>(null);
   const outlineItems = useMemo(
     () => (outlineOpen ? parseMarkdownOutline(markdown) : []),
     [markdown, outlineOpen],
@@ -146,6 +154,62 @@ export function VisualMarkdownEditor({
     });
     currentView.focus();
   }, []);
+
+  // 底部状态栏：字数/行数、光标行列。直接写 DOM，避免光标高频移动触发 React 重渲染。
+  const syncStatusCount = useCallback((currentView: EditorView) => {
+    const slot = statusBarRef.current?.querySelector<HTMLElement>('[data-status="count"]');
+    if (!slot) return;
+    const doc = currentView.state.doc;
+    const chars = doc.toString().replace(/\s+/g, "").length;
+    slot.textContent = `${chars.toLocaleString("zh-CN")} 字 · ${doc.lines} 行`;
+  }, []);
+
+  const syncStatusCursor = useCallback((currentView: EditorView) => {
+    const slot = statusBarRef.current?.querySelector<HTMLElement>('[data-status="cursor"]');
+    if (!slot) return;
+    const doc = currentView.state.doc;
+    const head = currentView.state.selection.main.head;
+    const line = doc.lineAt(head);
+    slot.textContent = `第 ${line.number} 行 第 ${head - line.from + 1} 列`;
+  }, []);
+
+  // 目录跟随：以视口顶部行为准，高亮当前所在章节，并把目录滚动到该项可见。
+  const syncOutlineHighlight = useCallback((currentView: EditorView) => {
+    const listEl = outlineListRef.current;
+    if (!listEl) return;
+    const headings = outlineHeadingsRef.current;
+    if (!headings.length) return;
+    const doc = currentView.state.doc;
+    const topLine = doc.lineAt(currentView.lineBlockAtHeight(0).from).number;
+    const activeIndex = activeHeadingIndexAtLine(
+      headings.map((heading) => doc.lineAt(heading.from).number),
+      topLine,
+    );
+    if (activeIndex === activeOutlineIndexRef.current) return;
+    activeOutlineIndexRef.current = activeIndex;
+    for (const button of listEl.querySelectorAll<HTMLButtonElement>("[data-outline-index]")) {
+      const isActive = Number(button.dataset.outlineIndex) === activeIndex;
+      button.classList.toggle("is-active", isActive);
+      if (isActive) button.scrollIntoView({ block: "nearest" });
+    }
+  }, []);
+
+  // 打开目录时用编辑器当前文档初始化标题索引并高亮当前章节。
+  useEffect(() => {
+    if (!outlineOpen) return;
+    const currentView = editorRef.current?.view;
+    if (!currentView) return;
+    outlineHeadingsRef.current = parseMarkdownOutline(currentView.state.doc.toString());
+    activeOutlineIndexRef.current = -1;
+    syncOutlineHighlight(currentView);
+  }, [outlineOpen, syncOutlineHighlight]);
+
+  // 编辑器就绪后同步一次状态栏（onCreateEditor 触发时状态栏 DOM 可能尚未挂载）。
+  useEffect(() => {
+    if (!view) return;
+    syncStatusCount(view);
+    syncStatusCursor(view);
+  }, [syncStatusCount, syncStatusCursor, view]);
 
   useEffect(() => { changeRef.current = onChange; }, [onChange]);
   useEffect(() => { selectionRef.current = onSelectionChange; }, [onSelectionChange]);
@@ -526,7 +590,16 @@ export function VisualMarkdownEditor({
             reportSelection(update.view);
           if (update.docChanged) {
             setStateVersion((version) => version + 1);
+            syncStatusCount(update.view);
+            if (outlineOpen)
+              outlineHeadingsRef.current = parseMarkdownOutline(update.view.state.doc.toString());
           }
+          if (update.selectionSet) syncStatusCursor(update.view);
+          if (
+            outlineOpen &&
+            (update.viewportChanged || update.geometryChanged || update.docChanged || update.selectionSet)
+          )
+            syncOutlineHighlight(update.view);
           if (update.selectionSet || update.docChanged) {
             centerMobileCursor(update.view);
           }
@@ -538,6 +611,10 @@ export function VisualMarkdownEditor({
           changeRef.current(value);
         }}
       />
+      <div ref={statusBarRef} className="life-markdown-statusbar">
+        <span data-status="count">0 字 · 0 行</span>
+        <span data-status="cursor">第 1 行 第 1 列</span>
+      </div>
       {outlineOpen ? (
         <div
           ref={outlinePanelRef}
@@ -563,15 +640,16 @@ export function VisualMarkdownEditor({
                 开头就会出现在目录里。
               </p>
             ) : (
-              <ul className="space-y-0.5">
+              <ul ref={outlineListRef} className="space-y-0.5">
                 {outlineItems.map((item) => (
                   <li key={`${item.index}-${item.text}`}>
                     <button
                       type="button"
+                      data-outline-index={item.index}
                       onClick={() => jumpToOutlineHeading(item)}
                       title={item.text}
                       style={{ paddingLeft: `${(item.level - 1) * 12 + 8}px` }}
-                      className="block w-full truncate rounded-[var(--radius-sm)] py-1.5 pr-2 text-left text-[13px] leading-5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
+                      className="note-outline-item block w-full truncate rounded-[var(--radius-sm)] py-1.5 pr-2 text-left text-[13px] leading-5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
                     >
                       {item.text}
                     </button>

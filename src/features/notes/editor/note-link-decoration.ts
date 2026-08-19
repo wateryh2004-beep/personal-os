@@ -89,10 +89,17 @@ function previewTooltip(view: EditorView, position: number): Tooltip | null {
         const title = document.createElement("strong");
         title.textContent = preview.title;
         const meta = document.createElement("span");
-        meta.textContent = preview.folderName || "笔记";
+        meta.textContent = `${preview.folderName || "笔记"} · 点击打开`;
         const excerpt = document.createElement("p");
         excerpt.textContent = preview.excerpt || "这篇笔记暂无正文。";
         dom.append(title, meta, excerpt);
+        // 预览卡片可点击：在新标签页打开目标笔记，不用先点进编辑器再找链接。
+        dom.classList.add("cm-note-link-preview-openable");
+        dom.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          window.open(`/notes/${link.noteId}`, "_blank", "noopener,noreferrer");
+        });
       });
       return { dom };
     },

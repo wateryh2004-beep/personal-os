@@ -81,6 +81,8 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .life-codemirror { min-height:0; flex:1; overflow:hidden; }
 .life-codemirror .cm-editor { height:100%; min-height:0; }
 .life-codemirror .cm-scroller { -webkit-tap-highlight-color:transparent; }
+.life-markdown-statusbar { flex-shrink:0; display:flex; align-items:center; justify-content:space-between; min-height:26px; padding:0 14px; border-top:1px solid var(--border-subtle); background:color-mix(in srgb,#fff 94%,var(--surface-sidebar)); color:var(--text-tertiary); font-size:11px; font-variant-numeric:tabular-nums; user-select:none; }
+.note-outline-item.is-active { background:var(--accent-soft); color:var(--accent); font-weight:560; }
 .notes-editor-loading { min-height:20rem; padding:1.5rem; background:var(--surface-canvas); }
 .notes-editor-loading::before { content:""; display:block; height:1rem; width:36%; border-radius:var(--radius-sm); background:var(--surface-hover); box-shadow:0 2.5rem 0 var(--surface-hover),0 5rem 0 var(--surface-hover),0 7.5rem 0 var(--surface-hover); animation:notes-editor-pulse 1.2s var(--ease-standard) infinite alternate; }
 @keyframes notes-editor-pulse { to { opacity:.55; } }

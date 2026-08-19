@@ -64,3 +64,17 @@ export function parseMarkdownOutline(markdown: string): MarkdownOutlineItem[] {
   });
   return items;
 }
+
+/**
+ * 给定各标题所在的行号（升序）与视口顶部行号，返回"当前正在阅读"的标题：
+ * 即最后一个起始行不高于视口顶部的标题；视口还没滚到任何标题时返回 -1。
+ * 目录面板用它高亮当前章节。
+ */
+export function activeHeadingIndexAtLine(headingLines: number[], topLine: number): number {
+  let index = -1;
+  for (let i = 0; i < headingLines.length; i += 1) {
+    if (headingLines[i] <= topLine) index = i;
+    else break;
+  }
+  return index;
+}

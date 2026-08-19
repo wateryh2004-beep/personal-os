@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseMarkdownOutline } from "@/features/notes/editor/markdown-outline";
+import {
+  activeHeadingIndexAtLine,
+  parseMarkdownOutline,
+} from "@/features/notes/editor/markdown-outline";
 
 describe("parseMarkdownOutline", () => {
   it("解析 ATX 标题的层级、文字与顺序", () => {
@@ -44,5 +47,27 @@ describe("parseMarkdownOutline", () => {
   it("空内容返回空目录", () => {
     expect(parseMarkdownOutline("")).toEqual([]);
     expect(parseMarkdownOutline("只有一段正文，没有标题")).toEqual([]);
+  });
+});
+
+describe("activeHeadingIndexAtLine", () => {
+  it("视口在第一个标题之前时没有当前章节", () => {
+    expect(activeHeadingIndexAtLine([5, 20, 40], 3)).toBe(-1);
+  });
+
+  it("视口正好在标题行上时高亮该标题", () => {
+    expect(activeHeadingIndexAtLine([5, 20, 40], 5)).toBe(0);
+  });
+
+  it("视口滚到两个标题之间时高亮前一个", () => {
+    expect(activeHeadingIndexAtLine([5, 20, 40], 30)).toBe(1);
+  });
+
+  it("视口滚过最后一个标题时高亮最后一个", () => {
+    expect(activeHeadingIndexAtLine([5, 20, 40], 99)).toBe(2);
+  });
+
+  it("空目录始终返回 -1", () => {
+    expect(activeHeadingIndexAtLine([], 10)).toBe(-1);
   });
 });

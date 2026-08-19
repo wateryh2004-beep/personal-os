@@ -412,6 +412,10 @@ const editorTheme = EditorView.theme({
     fontFamily: "var(--font-sans)",
     fontSize: "12px",
     lineHeight: "1.55",
+    cursor: "pointer",
+  },
+  ".cm-note-link-preview:hover": {
+    backgroundColor: "var(--surface-hover)",
   },
   ".cm-note-link-preview strong": { color: "var(--text-primary)", fontSize: "13px" },
   ".cm-note-link-preview span": { color: "var(--text-tertiary)" },
