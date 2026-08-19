@@ -9,7 +9,9 @@ import { languages } from "@codemirror/language-data";
 import { EditorView } from "@codemirror/view";
 import { startCompletion } from "@codemirror/autocomplete";
 import { GFM } from "@lezer/markdown";
+import { X } from "lucide-react";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
+import { parseMarkdownOutline, type MarkdownOutlineItem } from "@/features/notes/editor/markdown-outline";
 import { markdownEditorKeymap } from "@/features/notes/editor/markdown-keymap";
 import { markdownEditorTheme } from "@/features/notes/editor/markdown-theme";
 import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
@@ -94,6 +96,56 @@ export function VisualMarkdownEditor({
   // Toolbar commands only need a fresh version after document changes. Cursor
   // and viewport updates stay inside CodeMirror instead of rerendering React.
   const [stateVersion, setStateVersion] = useState(0);
+  // 目录浮层：默认不占任何空间（避免"附着在旁边"），点工具栏目录按钮才出现。
+  // 只在面板打开时才解析标题，不打开就不付解析成本。
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const outlinePanelRef = useRef<HTMLDivElement>(null);
+  const outlineItems = useMemo(
+    () => (outlineOpen ? parseMarkdownOutline(markdown) : []),
+    [markdown, outlineOpen],
+  );
+
+  // 点面板外部或按 Esc 关闭目录；点工具栏本身（含目录按钮）不触发外部关闭，
+  // 关闭/打开交给按钮的 toggle 处理，避免开关行为错乱。
+  useEffect(() => {
+    if (!outlineOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (outlinePanelRef.current?.contains(target)) return;
+      if ((target as Element).closest?.(".life-markdown-toolbar")) return;
+      setOutlineOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOutlineOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [outlineOpen]);
+
+  // 跳转目录项：用编辑器当前的 doc 重新定位（body state 可能滞后于刚输入的内容），
+  // 命中后把光标放到标题行并滚动到视口中央，activeLine 高亮会自然标出目标位置。
+  const jumpToOutlineHeading = useCallback((item: MarkdownOutlineItem) => {
+    const currentView = editorRef.current?.view;
+    if (!currentView) return;
+    const fresh = parseMarkdownOutline(currentView.state.doc.toString());
+    const target = fresh.find(
+      (heading) =>
+        heading.level === item.level &&
+        heading.text === item.text &&
+        heading.index === item.index,
+    );
+    if (!target) return;
+    currentView.dispatch({
+      selection: { anchor: target.from },
+      effects: EditorView.scrollIntoView(target.from, { y: "center" }),
+    });
+    currentView.focus();
+  }, []);
 
   useEffect(() => { changeRef.current = onChange; }, [onChange]);
   useEffect(() => { selectionRef.current = onSelectionChange; }, [onSelectionChange]);
@@ -423,7 +475,7 @@ export function VisualMarkdownEditor({
   };
 
   return (
-    <div className="life-markdown-editor">
+    <div className="life-markdown-editor relative">
       <MarkdownToolbar
         view={view}
         stateVersion={stateVersion}
@@ -433,6 +485,8 @@ export function VisualMarkdownEditor({
         }}
         onInsertTable={insertTable}
         onOpenAi={onOpenAi}
+        outlineOpen={outlineOpen}
+        onToggleOutline={() => setOutlineOpen((open) => !open)}
       />
       <CodeMirror
         ref={editorRef}
@@ -484,6 +538,50 @@ export function VisualMarkdownEditor({
           changeRef.current(value);
         }}
       />
+      {outlineOpen ? (
+        <div
+          ref={outlinePanelRef}
+          role="navigation"
+          aria-label="笔记目录"
+          className="absolute right-2 top-[52px] z-30 flex max-h-[min(360px,60vh)] w-60 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-elevated)] shadow-[0_8px_24px_rgba(24,24,27,0.12)]"
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-[var(--border-subtle)] py-1.5 pl-3 pr-1.5">
+            <span className="text-xs font-medium text-[var(--text-secondary)]">目录</span>
+            <button
+              type="button"
+              onClick={() => setOutlineOpen(false)}
+              aria-label="关闭目录"
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
+            >
+              <X aria-hidden="true" className="size-3.5" />
+            </button>
+          </div>
+          <div className="overflow-y-auto overscroll-contain p-1.5">
+            {outlineItems.length === 0 ? (
+              <p className="px-2 py-3 text-xs leading-5 text-[var(--text-tertiary)]">
+                笔记里还没有标题。用 <span className="font-mono"># 章节名</span>{" "}
+                开头就会出现在目录里。
+              </p>
+            ) : (
+              <ul className="space-y-0.5">
+                {outlineItems.map((item) => (
+                  <li key={`${item.index}-${item.text}`}>
+                    <button
+                      type="button"
+                      onClick={() => jumpToOutlineHeading(item)}
+                      title={item.text}
+                      style={{ paddingLeft: `${(item.level - 1) * 12 + 8}px` }}
+                      className="block w-full truncate rounded-[var(--radius-sm)] py-1.5 pr-2 text-left text-[13px] leading-5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
+                    >
+                      {item.text}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

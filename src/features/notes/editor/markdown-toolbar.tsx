@@ -14,6 +14,7 @@ import {
   List,
   ListOrdered,
   ListTodo,
+  ListTree,
   Quote,
   Redo2,
   Sparkles,
@@ -111,12 +112,16 @@ export function MarkdownToolbar({
   onPickImage,
   onInsertTable,
   onOpenAi,
+  outlineOpen,
+  onToggleOutline,
 }: {
   view: EditorView | null;
   stateVersion: number;
   onPickImage: (file: File) => void;
   onInsertTable: () => void;
   onOpenAi?: () => void;
+  outlineOpen?: boolean;
+  onToggleOutline?: () => void;
 }) {
   void stateVersion;
   const fileRef = useRef<HTMLInputElement>(null);
@@ -179,6 +184,7 @@ export function MarkdownToolbar({
         <ToolbarButton label="插入表格" disabled={!view} onClick={() => { onInsertTable(); view?.focus(); }}><Table2 aria-hidden="true" className="size-4" /></ToolbarButton>
       </div>
       <span className="min-w-3 flex-1" />
+      <ToolbarButton label="目录" active={outlineOpen} disabled={!view || !onToggleOutline} onClick={() => { onToggleOutline?.(); }}><ListTree aria-hidden="true" className="size-4" /></ToolbarButton>
       <ToolbarButton label={onOpenAi ? "AI" : "AI 生成内容已排除"} disabled={!view || !onOpenAi} onClick={() => { onOpenAi?.(); view?.focus(); }}><Sparkles aria-hidden="true" className="size-4" /></ToolbarButton>
       <input
         ref={fileRef}
