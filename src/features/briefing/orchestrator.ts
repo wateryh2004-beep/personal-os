@@ -17,6 +17,7 @@ import type {
   BriefingGenerationResult,
   FeedCandidate,
 } from "./types";
+import { recordStatusSafely } from "@/features/system-status/service";
 
 export function publicFeedError(error: unknown) { const code = error instanceof Error ? error.message : "unknown"; if (["invalid_url","invalid_feed_url","blocked_host"].includes(code)) return "订阅地址不安全或不可访问。"; if (code === "response_too_large") return "订阅响应超过 2MB 上限。"; if (["unsafe_xml","invalid_feed","unsupported_feed","not_xml"].includes(code)) return "该地址没有返回受支持的 RSS/Atom 内容。"; if (code.startsWith("http_")) return `订阅源返回 HTTP ${code.slice(5)}。`; return "订阅源暂时无法读取，请稍后重试。"; }
 export async function refreshFeedForOwner(supabase:SupabaseClient,userId:string,feedId:string,{ignoreCooldown=false}:{ignoreCooldown?:boolean}={}){const {data:feed,error:feedError}=await supabase.from("feeds").select("*").eq("id",feedId).eq("user_id",userId).is("archived_at",null).maybeSingle();if(feedError||!feed)throw new Error("找不到订阅或无权访问。");if(!ignoreCooldown&&feed.last_fetched_at&&Date.now()-new Date(feed.last_fetched_at).getTime()<60_000)throw new Error("刚刚已经抓取过，请一分钟后再试。");try{const response=await safeFetchFeed(feed.feed_url,{etag:feed.etag,lastModified:feed.last_modified});const now=new Date().toISOString();if(response.status===304){await supabase.from("feeds").update({last_fetched_at:now,last_successful_fetch_at:now,last_http_status:304,consecutive_error_count:0,last_error_code:null}).eq("id",feedId);return;}const parsed=parseFeedXml(response.body);const limit=feed.last_successful_fetch_at?30:60;for(const source of parsed.items.slice(0,limit)){const canonicalUrl=canonicalizeArticleUrl(source.url);const normalized=normalizeTitle(source.title);if(!normalized)continue;const contentHash=source.contentText?digest(source.contentText):null;const key=identityKey({externalId:source.externalId,canonicalUrl,title:source.title,publishedAt:source.publishedAt});const {data:existing}=await supabase.from("feed_items").select("id").eq("feed_id",feedId).eq("identity_key",key).maybeSingle();let itemId:string;const record={external_id:source.externalId,url:source.url,canonical_url:canonicalUrl,title:source.title,normalized_title:normalized,author:source.author,published_at:source.publishedAt,updated_at_source:source.updatedAt,excerpt:source.excerpt,content_text:source.contentText,content_hash:contentHash,last_seen_at:now,fetched_at:now};if(existing){itemId=existing.id;const {error}=await supabase.from("feed_items").update(record).eq("id",itemId);if(error)throw error;}else{const {data:inserted,error}=await supabase.from("feed_items").insert({...record,user_id:userId,feed_id:feedId,identity_key:key}).select("id").single();if(error||!inserted)throw error??new Error("ingest_failed");itemId=inserted.id;}const {data:member}=await supabase.from("feed_item_cluster_members").select("cluster_id").eq("feed_item_id",itemId).maybeSingle();if(member)continue;const fingerprint=canonicalUrl?`url:${digest(canonicalUrl)}`:contentHash?`content:${contentHash}`:`title:${digest(`${normalized}|${source.publishedAt?.slice(0,10)??"undated"}`)}`;const method=canonicalUrl?"canonical_url":contentHash?"content_hash":"normalized_title";let {data:cluster}=await supabase.from("feed_item_clusters").select("id").eq("fingerprint",fingerprint).is("archived_at",null).maybeSingle();if(!cluster){const result=await supabase.from("feed_item_clusters").insert({user_id:userId,fingerprint,representative_item_id:itemId,canonical_url:canonicalUrl,normalized_title:normalized,earliest_published_at:source.publishedAt,latest_published_at:source.publishedAt}).select("id").single();if(result.error||!result.data)throw result.error??new Error("cluster_failed");cluster=result.data;}const {error:memberError}=await supabase.from("feed_item_cluster_members").insert({user_id:userId,cluster_id:cluster.id,feed_item_id:itemId,match_method:method});if(memberError)throw memberError;const {count}=await supabase.from("feed_item_cluster_members").select("feed_item_id",{count:"exact",head:true}).eq("cluster_id",cluster.id);await supabase.from("feed_item_clusters").update({source_count:count??1,latest_published_at:source.publishedAt}).eq("id",cluster.id);}const {error}=await supabase.from("feeds").update({title:feed.title||parsed.title,site_url:parsed.siteUrl,description:parsed.description,feed_type:parsed.type,etag:response.etag,last_modified:response.lastModified,last_fetched_at:now,last_successful_fetch_at:now,last_http_status:200,consecutive_error_count:0,last_error_code:null,status:feed.verification_status==="verified"?"active":"paused"}).eq("id",feedId);if(error)throw error;}catch(error){const count=Number(feed.consecutive_error_count??0)+1;await supabase.from("feeds").update({last_fetched_at:new Date().toISOString(),last_error_at:new Date().toISOString(),last_error_code:error instanceof Error?error.message.slice(0,80):"unknown",consecutive_error_count:count,status:count>=5?"error":feed.status}).eq("id",feedId);throw new Error(publicFeedError(error));}}
@@ -105,6 +106,12 @@ export async function refreshBriefingFeedsForOwner(
     feedsFailed += results.filter((result) => result.status === "rejected").length;
   }
 
+  const finishedAt = now.toISOString();
+  await recordStatusSafely(userId, "briefing", feedsFailed ? {
+    state: "failed", lastAttemptAt: finishedAt, errorCode: "feed_refresh_partial_failure", errorSummary: `${feedsFailed} 个订阅源暂不可用。`, retryAfter: new Date(now.getTime() + 30_000).toISOString(), nextStep: "在 Briefing 页面检查失败信源后重试。",
+  } : {
+    state: "fresh", lastSuccessAt: finishedAt, lastAttemptAt: finishedAt, nextStep: "RSS 缓存已刷新，可生成 Briefing。",
+  }, { type: feedsFailed ? "retry_scheduled" : "succeeded", operationKey: `briefing-refresh-${finishedAt}`, errorCode: feedsFailed ? "feed_refresh_partial_failure" : undefined, errorSummary: feedsFailed ? `${feedsFailed} 个订阅源暂不可用。` : undefined, retryAfter: feedsFailed ? new Date(now.getTime() + 30_000).toISOString() : null });
   return {
     activeFeedCount: feeds?.length ?? 0,
     feedsDue: dueFeeds.length,
@@ -255,7 +262,9 @@ export async function generateBriefingForOwner(
       if (error) throw new Error("无法保存今日 Briefing。");
     }
 
-    await markBriefingRunCompleted(supabase, userId, briefing.id, selected.length, now.toISOString());
+    const completedAt = now.toISOString();
+    await markBriefingRunCompleted(supabase, userId, briefing.id, selected.length, completedAt);
+    await recordStatusSafely(userId, "briefing", { state: "fresh", lastSuccessAt: completedAt, lastAttemptAt: completedAt, nextStep: "今日 Briefing 已完成，可在页面查看来源与结论。" }, { type: "succeeded", operationKey: `briefing-generate-${briefing.id}` });
 
     return {
       briefingId: briefing.id,
@@ -270,6 +279,10 @@ export async function generateBriefingForOwner(
     };
   } catch (error) {
     await markBriefingRunFailed(supabase, userId, briefing.id);
+    const attemptedAt = new Date().toISOString();
+    const code = error instanceof Error ? error.message : "briefing_generation_failed";
+    const retryAt = new Date(Date.now() + 30_000).toISOString();
+    await recordStatusSafely(userId, "briefing", { state: "failed", lastAttemptAt: attemptedAt, errorCode: code, errorSummary: code, retryAfter: retryAt, nextStep: "在 Briefing 页面重新生成；不会保留不完整结果。" }, { type: "retry_scheduled", operationKey: `briefing-generate-${briefing.id}`, errorCode: code, errorSummary: code, retryAfter: retryAt });
     throw error;
   }
 }

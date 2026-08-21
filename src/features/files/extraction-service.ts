@@ -6,6 +6,7 @@ import {
   initialExtractionStatus,
   safeExtractionError,
 } from "./text-extraction";
+import { recordStatusSafely } from "@/features/system-status/service";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -37,6 +38,7 @@ export async function extractDocumentForOwner(input: {
       extracted_text: null,
       extracted_character_count: 0,
     }).eq("id", document.id).eq("user_id", input.userId);
+    await recordStatusSafely(input.userId, "files", { state: "fresh", lastSuccessAt: new Date().toISOString(), lastAttemptAt: new Date().toISOString(), nextStep: "文件已保存；此类型无需文本解析。" }, { type: "succeeded", operationKey: `file-extract-${document.id}-${initial}` });
     return { status: initial, characterCount: 0 } as const;
   }
 
@@ -81,6 +83,7 @@ export async function extractDocumentForOwner(input: {
       actor_type: "system",
       after_data: { character_count: result.characterCount },
     });
+    await recordStatusSafely(input.userId, "files", { state: "fresh", lastSuccessAt: now, lastAttemptAt: now, nextStep: "文件对象和全文索引均可用。" }, { type: "succeeded", operationKey: `file-extract-${document.id}-${now}` });
     return { status: "completed", characterCount: result.characterCount } as const;
   } catch (extractionError) {
     const code = safeExtractionError(extractionError);
@@ -91,6 +94,8 @@ export async function extractDocumentForOwner(input: {
       extracted_character_count: 0,
       text_extracted_at: null,
     }).eq("id", document.id).eq("user_id", input.userId);
+    const attemptedAt = new Date().toISOString();
+    await recordStatusSafely(input.userId, "files", { state: "failed", lastAttemptAt: attemptedAt, errorCode: code, errorSummary: code, retryAfter: new Date(Date.now() + 30_000).toISOString(), nextStep: "在 Files 页面重新解析，或检查文件对象是否仍可访问。" }, { type: "retry_scheduled", operationKey: `file-extract-${document.id}`, errorCode: code, errorSummary: code, retryAfter: new Date(Date.now() + 30_000).toISOString() });
     return { status: code === "file_too_large" || code === "r2_object_too_large" ? "too_large" : "failed", characterCount: 0, errorCode: code } as const;
   }
 }

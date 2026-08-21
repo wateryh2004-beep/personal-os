@@ -7,6 +7,7 @@ import { calendarEventForGraph, type GraphCalendarCreatePayload } from "./event-
 import { managedCalendarCategories, type OutlookCategoryColor } from "@/features/calendar/classification/taxonomy";
 import { wallTimeToInstant } from "@/features/calendar/timezone";
 import { calendarSyncWindow } from "@/features/calendar/sync-policy";
+import { recordStatusSafely } from "@/features/system-status/service";
 
 const MICROSOFT_CLIENT_ID = "084a3e9f-a9f4-43f7-89f9-d229cf97853e";
 const MICROSOFT_TENANT = "consumers";
@@ -479,11 +480,14 @@ export async function syncMicrosoftCalendar(
         if (archiveError) throw new MicrosoftGraphError("calendar_cache_failed");
       }
     }
-    await admin.from("calendar_connections").update({ last_seen_at: new Date().toISOString(), last_sync_at: new Date().toISOString(), last_error_code: null, calendar_delta_link: null, calendar_sync_window_start: start, calendar_sync_window_end: end }).eq("id", connectionId).eq("user_id", userId);
+    const succeededAt = new Date().toISOString();
+    await admin.from("calendar_connections").update({ last_seen_at: succeededAt, last_sync_at: succeededAt, last_error_code: null, calendar_delta_link: null, calendar_sync_window_start: start, calendar_sync_window_end: end }).eq("id", connectionId).eq("user_id", userId);
+    await recordStatusSafely(userId, "calendar", { state: "fresh", lastSuccessAt: succeededAt, lastAttemptAt: succeededAt, nextStep: "日程缓存已与 Outlook 对齐。" }, { type: "succeeded", operationKey: `calendar-sync-${succeededAt}` });
     return records.length;
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "calendar_sync_failed";
     await markConnectionError(connectionId, code);
+    await recordStatusSafely(userId, "calendar", { state: "failed", lastAttemptAt: new Date().toISOString(), errorCode: code, errorSummary: code, nextStep: "检查 Outlook 连接后重试同步。" }, { type: "failed", operationKey: `calendar-sync-${connectionId}`, errorCode: code, errorSummary: code });
     throw new MicrosoftGraphError(code);
   }
 }
@@ -632,11 +636,14 @@ export async function syncMicrosoftTodo(connectionId: string, userId: string) {
       }
       taskCount += tasks.length;
     }
-    await admin.from("calendar_connections").update({ last_seen_at: new Date().toISOString(), last_error_code: null }).eq("id", connectionId).eq("user_id", userId);
+    const succeededAt = new Date().toISOString();
+    await admin.from("calendar_connections").update({ last_seen_at: succeededAt, last_error_code: null }).eq("id", connectionId).eq("user_id", userId);
+    await recordStatusSafely(userId, "tasks", { state: "fresh", lastSuccessAt: succeededAt, lastAttemptAt: succeededAt, nextStep: "任务缓存已与 Microsoft To Do 对齐。" }, { type: "succeeded", operationKey: `todo-sync-${succeededAt}` });
     return { listCount: lists.length, taskCount };
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "todo_sync_failed";
     await markConnectionError(connectionId, code);
+    await recordStatusSafely(userId, "tasks", { state: "failed", lastAttemptAt: new Date().toISOString(), errorCode: code, errorSummary: code, nextStep: "检查 Microsoft To Do 连接后重试同步。" }, { type: "failed", operationKey: `todo-sync-${connectionId}`, errorCode: code, errorSummary: code });
     throw new MicrosoftGraphError(code);
   }
 }

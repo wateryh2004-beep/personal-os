@@ -2,13 +2,16 @@ import { DeepSeekSettingsForm } from "@/components/settings/deepseek-settings-fo
 import { AiPromptSettings } from "@/components/settings/ai-prompt-settings";
 import { PageHeader } from "@/components/shared/page-header";
 import { getAiSettings, getNoteAiPromptSettings } from "@/features/ai/queries";
+import { getSystemHealth } from "@/features/system-status/queries";
+import { SystemHealth } from "@/components/settings/system-health";
 import Link from "next/link";
 import { shortcuts } from "@/features/shortcuts/registry";
 
 export default async function Settings() {
-  const [ai, promptSettings] = await Promise.all([
+  const [ai, promptSettings, systemHealth] = await Promise.all([
     getAiSettings(),
     getNoteAiPromptSettings(),
+    getSystemHealth(),
   ]);
   return (
     <>
@@ -22,6 +25,7 @@ export default async function Settings() {
           prompts={promptSettings.prompts}
           available={promptSettings.available}
         />
+        <SystemHealth rows={systemHealth} />
         <section className="border-t pt-5">
           <h2 className="font-medium">快捷键</h2>
           <p className="mt-1 text-[var(--text-secondary)]">常用操作保持一致；编辑文本时不会抢占输入快捷键。</p>

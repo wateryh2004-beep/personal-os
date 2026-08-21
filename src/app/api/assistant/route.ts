@@ -19,6 +19,7 @@ import {
   acquireCalendarRequestLock,
   releaseCalendarRequestLock,
 } from "@/lib/ai/calendar-request-lock";
+import { recordStatusSafely } from "@/features/system-status/service";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const noStore = { "Cache-Control": "private, no-store, max-age=0" };
@@ -157,6 +158,12 @@ export async function POST(request: Request) {
                 : "completed",
             errorCode: streamFailure?.code ?? null,
           });
+          const finishedAt = new Date().toISOString();
+          if (streamFailure) {
+            await recordStatusSafely(owner.userId, "ai", { state: "failed", lastAttemptAt: finishedAt, errorCode: streamFailure.code, errorSummary: streamFailure.message, retryAfter: new Date(Date.now() + 30_000).toISOString(), nextStep: "重试请求；不会将未完成回答写入笔记或外部系统。" }, { type: "retry_scheduled", operationKey: `agent-run-${runId}`, errorCode: streamFailure.code, errorSummary: streamFailure.message, retryAfter: new Date(Date.now() + 30_000).toISOString() });
+          } else {
+            await recordStatusSafely(owner.userId, "ai", { state: "fresh", lastSuccessAt: finishedAt, lastAttemptAt: finishedAt, nextStep: "AI 调用按请求执行，敏感内容遵循现有访问边界。" }, { type: "succeeded", operationKey: `agent-run-${runId}` });
+          }
         }
         if (lockId) await releaseCalendarRequestLock(owner.supabase, lockId);
       },
@@ -177,6 +184,10 @@ export async function POST(request: Request) {
         status: "failed",
         errorCode: normalizeAssistantError(error).code,
       }).catch(() => undefined);
+    if (runUserId) {
+      const normalized = normalizeAssistantError(error);
+      await recordStatusSafely(runUserId, "ai", { state: "failed", lastAttemptAt: new Date().toISOString(), errorCode: normalized.code, errorSummary: normalized.message, retryAfter: new Date(Date.now() + 30_000).toISOString(), nextStep: "检查 AI 配置或网络后重试。" }, { type: "retry_scheduled", operationKey: runId ? `agent-run-${runId}` : undefined, errorCode: normalized.code, errorSummary: normalized.message, retryAfter: new Date(Date.now() + 30_000).toISOString() });
+    }
     return Response.json(
       { error: normalizeAssistantError(error).message },
       { status: 503, headers: noStore },

@@ -94,6 +94,10 @@ Calendar 确认队列保护。AI 没有直接的 Graph 写入工具、没有访�
 
 导出是明确的领域能力：Server Action 创建 `export_jobs`；后台/受控执行器生成含 `manifest.json`、每个业务表 JSON/CSV、Notes 的 `.md`、版本记录及 Storage 文件清单的 ZIP，写至私有 bucket。下载通过经验证的短时签名 URL 或受鉴权的 Route Handler；文件到期删除，作业记录保留审计痕迹。首版不要求跨库实时复制。
 
+## 统一系统状态
+
+`system_domain_statuses` 与追加式 `system_status_events` 提供跨领域的运行状态读模型。它们只保存领域、权威源、缓存角色、同步状态、时间、错误码和短脱敏摘要；不保存笔记正文、文件内容、token、密钥或 provider 原始响应。两表启用 RLS，authenticated 只读，server-only worker 写入；具体领域契约、保留与故障恢复见 [系统状态层](./system-status.md)。
+
 ## Career Module Phase 1
 
 Career 使用独立、可迁移的标准关系表：`career_profiles`、`career_directions`、`experiences`、`experience_facts`、`experience_fact_versions`、`experience_outputs`、`experience_bullets`、`bullet_fact_links`、`skills`、`experience_skills`、`certifications`。通用 `profiles.display_name` 不复制到 Career Profile。`documents` 和 `entity_links` 位于 Core 层，供现有和未来模块复用；多态链接由受控枚举限制实体类型，并在 Server Action 中校验双方所有权。
