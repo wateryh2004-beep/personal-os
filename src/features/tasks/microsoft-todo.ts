@@ -39,6 +39,7 @@ export async function syncAndBackupMicrosoftTodoAction() {
 }
 
 const completeSchema = z.object({ taskId: z.string().uuid() });
+const deferSchema = z.object({ taskId: z.string().uuid(), dueAt: z.string().datetime({ offset: true }) });
 const deleteSchema = z.object({ taskId: z.string().uuid() });
 const updateSchema = z.object({
   taskId: z.string().uuid(),
@@ -93,6 +94,19 @@ export async function completeMicrosoftTodoTaskAction(formData: FormData) {
   const connection = await activeConnection(supabase);
   await microsoftTodoRepository.complete(connection.id, userId, parsed.data.taskId);
   await audit(supabase, userId, "complete", parsed.data.taskId, { provider: "microsoft_todo" });
+  revalidatePath("/tasks");
+  revalidatePath("/today");
+}
+
+/** User-triggered defer; the provider-backed task remains the sole authority. */
+export async function deferMicrosoftTodoTaskAction(formData: FormData) {
+  const parsed = deferSchema.safeParse({ taskId: formData.get("task_id"), dueAt: formData.get("due_at") });
+  if (!parsed.success) fail();
+  const { supabase, userId } = await requireOwner();
+  const connection = await activeConnection(supabase);
+  const { data: before } = await supabase.from("microsoft_todo_tasks").select("due_at,title").eq("id", parsed.data.taskId).is("archived_at", null).maybeSingle();
+  await microsoftTodoRepository.update(connection.id, userId, parsed.data.taskId, { dueAt: parsed.data.dueAt });
+  await audit(supabase, userId, "defer", parsed.data.taskId, { provider: "microsoft_todo", before, due_at: parsed.data.dueAt });
   revalidatePath("/tasks");
   revalidatePath("/today");
 }

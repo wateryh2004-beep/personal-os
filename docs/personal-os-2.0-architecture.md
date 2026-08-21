@@ -520,9 +520,16 @@ Now 是 Personal OS 2.0 的第一产品入口。
 * Project；
   -用户计划；
 
-给出：
+给出一个有限的“今日承诺面”（默认 3–5 项，可手动展开但不形成无限流）。每一项都是确定性读模型从已存在的权威实体导出的下一步，而非新的 Task 或 Calendar 数据源：
 
-> Next Best Action。
+* 进行中或 45 分钟内开始的 Outlook 日程；
+* 已逾期、今天到期的 Microsoft To Do 任务；
+* 7 天内的 Career milestone；
+* 待处理 Inbox 数量。
+
+每项必须同时展示“为什么现在”、截止/开始等时间约束与来源标签；无可验证依据时显示“暂无足够依据”，不能由 AI 补造优先级。排序先由 `features/today/utils.ts` 的确定性规则完成，AI 如接入只能解释或在展示层辅助，不能成为事实来源。
+
+写入仍经现有边界：任务完成/延后写回 Microsoft To Do 并审计；“转任务”“安排日程”“暂存”只打开带预填内容的显式创建确认面板，Calendar 继续走 Outlook 的确认队列，Inbox 继续保留原始捕捉。Today 本身不保存第二套承诺表；读模型、RLS 和审计沿用来源实体的 `user_id`、Server Action 与 `audit_logs`。
 
 ---
 

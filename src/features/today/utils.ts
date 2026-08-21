@@ -2,6 +2,7 @@ import type {
   NowAttentionItem,
   NowCalendarEvent,
   NowCareerMilestone,
+  NowCommitment,
   NowNextAction,
   NowTask,
 } from "./types";
@@ -81,6 +82,88 @@ export function selectNextAction({ now, timeZone, events, tasks, milestones, inb
 }
 
 export function formatRelativeDuration(milliseconds: number) { const minutes = Math.max(0, Math.round(milliseconds / 60_000)); return minutes < 60 ? `${minutes} 分钟` : `${Math.floor(minutes / 60)} 小时${minutes % 60 ? ` ${minutes % 60} 分钟` : ""}`; }
+
+function localDateTime(value: string, timeZone: string) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone,
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(value));
+}
+
+/**
+ * The Today commitment read model is deliberately deterministic: every card
+ * comes from a persisted task, calendar event, career milestone, or Inbox
+ * count. AI can later explain or refine this list, but cannot invent one.
+ */
+export function buildNowCommitments({
+  now,
+  timeZone,
+  events,
+  tasks,
+  milestones,
+  inboxCount,
+  limit = 5,
+}: {
+  now: Date;
+  timeZone: string;
+  events: NowCalendarEvent[];
+  tasks: ReturnType<typeof groupNowTasks>;
+  milestones: NowCareerMilestone[];
+  inboxCount: number;
+  limit?: number;
+}): NowCommitment[] {
+  const candidates: Array<NowCommitment & { rank: number; at: string }> = [];
+  const timed = events.filter((event) => !event.is_all_day).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+  const ongoing = timed.find((event) => new Date(event.starts_at) <= now && now < new Date(event.ends_at));
+  const soon = timed.find((event) => new Date(event.starts_at) > now && new Date(event.starts_at).getTime() - now.getTime() <= 45 * 60_000);
+  for (const [event, rank, whyNow] of [[ongoing, 0, "日程正在进行"], [soon, 1, "日程即将开始"]] as const) {
+    if (!event) continue;
+    candidates.push({
+      id: `event-${event.id}`,
+      kind: "event",
+      title: event.subject || "未命名日程",
+      whyNow,
+      constraint: ongoing === event ? `至 ${localDateTime(event.ends_at, timeZone)} 结束` : `${localDateTime(event.starts_at, timeZone)} 开始`,
+      href: "/calendar",
+      source: { domain: "calendar", entityId: event.id, label: "Outlook Calendar" },
+      rank,
+      at: event.starts_at,
+    });
+  }
+  const taskCandidates = [
+    ...tasks.overdue.map((task) => ({ task, rank: task.importance === "high" ? 2 : 3, whyNow: "任务已逾期", constraint: `原截止：${localDateTime(task.due_at!, timeZone)}` })),
+    ...tasks.today.map((task) => ({ task, rank: task.importance === "high" ? 4 : 5, whyNow: task.importance === "high" ? "今天到期且标为高优先级" : "任务今天到期", constraint: `截止：${localDateTime(task.due_at!, timeZone)}` })),
+  ];
+  for (const { task, rank, whyNow, constraint } of taskCandidates) {
+    candidates.push({ id: `task-${task.id}`, kind: "task", title: task.title || "未命名任务", whyNow, constraint, href: "/tasks", source: { domain: "tasks", entityId: task.id, label: "Microsoft To Do" }, task, rank, at: task.due_at! });
+  }
+  const today = getDateKeyInTimeZone(now, timeZone)!;
+  for (const milestone of selectOpenCareerMilestones(milestones, today, 7)) {
+    const days = daysUntilCareerMilestone(milestone.target_date, today);
+    candidates.push({ id: `milestone-${milestone.id}`, kind: "milestone", title: milestone.title, whyNow: days === 0 ? "职业节点计划在今天" : "职业节点临近", constraint: days === 0 ? "目标日：今天" : `目标日：${milestone.target_date}（还有 ${days} 天）`, href: "/career/roadmap", source: { domain: "career", entityId: milestone.id, label: "Career Roadmap" }, rank: 6, at: milestone.target_date });
+  }
+  if (inboxCount > 0) candidates.push({ id: "inbox", kind: "inbox", title: `整理 ${inboxCount} 条 Inbox`, whyNow: "Inbox 中仍有未处理的捕捉", constraint: `${inboxCount} 条待决定去向`, href: "/inbox", source: { domain: "inbox", entityId: null, label: "Inbox" }, rank: 7, at: "9999" });
+
+  const seen = new Set<string>();
+  return candidates
+    .sort((a, b) => a.rank - b.rank || a.at.localeCompare(b.at) || a.title.localeCompare(b.title, "zh-CN"))
+    .filter((item) => !seen.has(item.id) && (seen.add(item.id), true))
+    .slice(0, Math.max(0, limit))
+    .map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      title: item.title,
+      whyNow: item.whyNow,
+      constraint: item.constraint,
+      href: item.href,
+      source: item.source,
+      ...(item.task ? { task: item.task } : {}),
+    }));
+}
 
 export function formatTodayDate(now: Date, timeZone: string) {
   return new Intl.DateTimeFormat("zh-CN", {

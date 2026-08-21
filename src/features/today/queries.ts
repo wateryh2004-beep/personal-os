@@ -3,6 +3,7 @@ import { requireOwner } from "@/lib/auth/require-owner";
 import { withPerfSpan } from "@/lib/performance/server-perf";
 import {
   eventIsToday,
+  buildNowCommitments,
   getDateKeyInTimeZone,
   groupNowTasks,
   runTodaySideEffectSafely,
@@ -210,6 +211,7 @@ export async function getTodayWorkspace(
     career: { upcomingMilestones: milestones },
     briefing: { entries: briefingEntries, date: displayedBriefing?.briefing_date ?? null },
     inboxCount,
+    commitments: buildNowCommitments({ now, timeZone: timezone, events, tasks, milestones, inboxCount, limit: 8 }),
     nextAction: selectNextAction({
       now,
       timeZone: timezone,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildTodayFocusStack,
+  buildNowCommitments,
   buildTodaySchedule,
   eventIsToday,
   getDateKeyInTimeZone,
@@ -58,6 +59,23 @@ describe("Now model", () => {
     expect(selectNextAction({ now, timeZone, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [{ id: "past", track_id: "t", career_direction_id: null, title: "历史", starts_on: null, target_date: "2026-07-15", status: "planned", importance: "high" }], inboxCount: 2 })).toMatchObject({ kind: "inbox" });
     expect(selectNextAction({ now, timeZone, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [], inboxCount: 2 })).toMatchObject({ kind: "inbox" });
     expect(selectNextAction({ now, timeZone, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [], inboxCount: 0 })).toMatchObject({ kind: "none" });
+  });
+  it("builds an evidence-backed, deterministic and bounded commitment surface", () => {
+    const commitments = buildNowCommitments({
+      now,
+      timeZone,
+      events: [{ id: "soon", subject: "面试", starts_at: "2026-08-08T02:20:00Z", ends_at: "2026-08-08T03:00:00Z", is_all_day: false, location_name: null }],
+      tasks: groupNowTasks([task("overdue", "2026-08-06T10:00:00Z", "high"), task("today", "2026-08-08T10:00:00Z")], now, timeZone),
+      milestones: [{ id: "m", track_id: "t", career_direction_id: null, title: "投递节点", starts_on: null, target_date: "2026-08-10", status: "planned", importance: "normal" }],
+      inboxCount: 3,
+      limit: 5,
+    });
+    expect(commitments.map((item) => item.id)).toEqual(["event-soon", "task-overdue", "task-today", "milestone-m", "inbox"]);
+    expect(commitments[1]).toMatchObject({ whyNow: "任务已逾期", source: { domain: "tasks", entityId: "overdue", label: "Microsoft To Do" } });
+    expect(commitments).toHaveLength(5);
+  });
+  it("does not fabricate commitments when no persisted evidence exists", () => {
+    expect(buildNowCommitments({ now, timeZone, events: [], tasks: groupNowTasks([], now, timeZone), milestones: [], inboxCount: 0 })).toEqual([]);
   });
   it("builds a bounded, priority-ordered proactive attention budget", () => {
     const attention = buildProactiveInsights({ now, timeZone, tasks: [task("overdue", "2026-08-06T10:00:00Z", "high")], events: [{ id: "event", subject: "面试", starts_at: "2026-08-08T02:20:00Z", ends_at: "2026-08-08T03:00:00Z", is_all_day: false, location_name: null }], milestones: [{ id: "m", track_id: "t", career_direction_id: null, title: "节点", starts_on: null, target_date: "2026-08-10", status: "planned", importance: "normal" }] });

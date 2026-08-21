@@ -54,6 +54,23 @@ export type NowNextAction =
     }
   | { kind: "inbox"; count: number; reason: string; href: "/inbox" }
   | { kind: "none"; reason: string };
+export type NowCommitment = {
+  /** A stable read-model key, never a new source-of-truth entity. */
+  id: string;
+  kind: "task" | "event" | "milestone" | "inbox";
+  title: string;
+  /** Human-readable, evidence-derived explanation. */
+  whyNow: string;
+  /** A deadline, start time, or backlog constraint. */
+  constraint: string;
+  href: string;
+  source: {
+    domain: "tasks" | "calendar" | "career" | "inbox";
+    entityId: string | null;
+    label: string;
+  };
+  task?: NowTask;
+};
 export type NowUpcomingItem = {
   id: string;
   kind: "event" | "task" | "milestone";
@@ -97,6 +114,8 @@ export type NowWorkspace = {
     date: string | null;
   };
   inboxCount: number;
+  /** Deterministic, bounded daily recommendations. This is a read model only. */
+  commitments: NowCommitment[];
   nextAction: NowNextAction;
   todayBrief: TodayBriefItem[];
   attention: NowAttentionItem[];

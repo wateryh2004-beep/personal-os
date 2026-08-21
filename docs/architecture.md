@@ -17,7 +17,11 @@ OAuth Device Code 取得的 refresh credential 先在服务端 AES-256-GCM 加�
 RLS 保护的 `calendar_connections` 密文字段。`calendar_events` 是 Outlook 的近期
 只读缓存；`calendar_operations` 先以 `pending_confirmation` 保存，明确确认后才由
 受保护的 Server Action 执行并回写成功或失败结果。此模式由 Vercel 请求驱动，不要求
- Mac 常开，也不使用 Microsoft Client Secret 或 Redirect URL。
+Mac 常开，也不使用 Microsoft Client Secret 或 Redirect URL。
+
+### Today commitment read model
+
+`/today` 的“今日承诺”不是持久化任务表：它在 owner-scoped 查询中读取 `microsoft_todo_tasks`（Microsoft To Do 权威）、`calendar_events`（Outlook 的近期缓存）、`career_milestones` 与 `inbox_items`，用确定性排序生成最多 8 个候选项，界面默认显示 5 项。卡片只引用来源实体 ID 和来源标签；完成、延后及创建操作全部回到各自既有 Server Action，并写入 `audit_logs`。因此不需要额外 migration 或放宽 RLS，也不会把 Today 变成第二个任务/日程权威源。
 
 ### Calendar AI（DeepSeek）
 
