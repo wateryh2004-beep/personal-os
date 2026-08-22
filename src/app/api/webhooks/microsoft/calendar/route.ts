@@ -25,7 +25,11 @@ export async function POST(request: NextRequest) {
     if (!connection?.calendar_webhook_state_ciphertext) continue;
     let expected = ""; try { expected = decryptMicrosoftRefreshToken(connection.calendar_webhook_state_ciphertext); } catch { continue; }
     if (expected !== notification.clientState) continue;
-    await admin.from("calendar_connections").update({ calendar_webhook_last_received_at: new Date().toISOString() }).eq("id", connection.id);
+    const lifecycleFailure = notification.lifecycleEvent === "subscriptionRemoved" || notification.lifecycleEvent === "reauthorizationRequired";
+    await admin.from("calendar_connections").update({
+      calendar_webhook_last_received_at: new Date().toISOString(),
+      ...(lifecycleFailure ? { calendar_subscription_id: null, calendar_subscription_expires_at: null, last_error_code: notification.lifecycleEvent === "reauthorizationRequired" ? "calendar_reauthorization_required" : "calendar_subscription_removed" } : {}),
+    }).eq("id", connection.id);
     // Notification payloads are deliberately discarded. They only wake a
     // server-side delta pull after a short debounce window.
     await enqueueCalendarSync(connection.id, connection.user_id, notification.lifecycleEvent ? "recovery" : "webhook", 0);

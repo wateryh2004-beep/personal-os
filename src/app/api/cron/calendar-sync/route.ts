@@ -15,7 +15,10 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient(); const started = new Date();
   const { data: cronRun } = await admin.from("calendar_sync_cron_runs").insert({ trigger_source: "external_scheduler", started_at: started.toISOString() }).select("id").maybeSingle();
   const { data: connections, error } = await admin.from("calendar_connections").select("id,user_id").eq("status", "enabled").is("archived_at", null);
-  if (error) return NextResponse.json({ error: "connection_lookup_failed" }, { status: 500 });
+  if (error) {
+    if (cronRun) await admin.from("calendar_sync_cron_runs").update({ completed_at: new Date().toISOString(), failed_count: 1, duration_ms: Date.now() - started.getTime(), error_code: "connection_lookup_failed" }).eq("id", cronRun.id);
+    return NextResponse.json({ error: "connection_lookup_failed" }, { status: 500, headers: { "Cache-Control": "private, no-store" } });
+  }
   const queueStartedAt = Date.now();
   const queued = await drainCalendarSyncQueue().catch(() => ({ processed: 0, failed: 1 }));
   const queueDurationMs = Date.now() - queueStartedAt;

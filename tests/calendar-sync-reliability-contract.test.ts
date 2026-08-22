@@ -26,6 +26,18 @@ describe("reliable Outlook calendar sync", () => {
     expect(webhook).toContain("expected !== notification.clientState");
     expect(webhook).toContain("enqueueCalendarSync");
     expect(webhook).toContain("after(() => drainCalendarSyncQueue");
+    expect(webhook).toContain("subscriptionRemoved");
+    expect(webhook).toContain("reauthorizationRequired");
+    expect(webhook).toContain("calendar_subscription_id: null");
+  });
+
+  it("uses one durable run lock for near and deep synchronization", () => {
+    const nearSync = read("src/lib/services/calendar-near-sync.ts");
+    const deepSync = read("src/lib/services/microsoft-sync-backup.ts");
+    expect(nearSync).toContain("startCalendarSyncRun");
+    expect(deepSync).toContain("calendar_sync_in_progress");
+    expect(deepSync).toContain("startCalendarSyncRun(userId, connectionId, trigger, \"full_reconcile\")");
+    expect(nearSync).toContain("available_at: new Date(Date.now() + 20_000)");
   });
 
   it("never treats connection last_seen_at as calendar freshness", () => {

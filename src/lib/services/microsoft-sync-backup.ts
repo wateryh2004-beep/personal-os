@@ -3,6 +3,7 @@ import "server-only";
 import { MicrosoftGraphError, syncMicrosoftCalendar, syncMicrosoftTodo, syncOutlookMasterCategories } from "@/lib/adapters/microsoft-graph/calendar";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { classifyUnlabeledCalendarEvents } from "@/features/calendar/classification/backfill";
+import { completeCalendarSyncRun, startCalendarSyncRun } from "@/lib/services/calendar-near-sync";
 
 export type MicrosoftSyncTrigger = "manual" | "scheduled";
 
@@ -21,6 +22,9 @@ function stageErrorCode(error: unknown) {
  * caller can surface it without aborting the sync.
  */
 export async function syncAndBackupMicrosoftWorkspace(connectionId: string, userId: string, trigger: MicrosoftSyncTrigger) {
+  const run = await startCalendarSyncRun(userId, connectionId, trigger, "full_reconcile");
+  if (!run) return { backupId: null, calendarEventCount: 0, calendarCategoryCount: 0, calendarCategoryStatus: "reauthorization_required" as const, todoListCount: 0, todoTaskCount: 0, degraded: ["calendar_sync_in_progress"], skipped: true };
+  try {
   // Sync always performs a full, authoritative Graph read: it never touches
   // Outlook event times; it only rebuilds the local mirror through the
   // corrected Graph DateTimeTimeZone parser and the non-delta calendarView
@@ -99,5 +103,10 @@ export async function syncAndBackupMicrosoftWorkspace(connectionId: string, user
     degraded.push(`backup:${stageErrorCode(error)}`);
   }
 
+  await completeCalendarSyncRun(run.id, { status: "succeeded", eventCount: calendarEventCount, changedCount: calendarEventCount, nextScheduledAt: new Date(Date.now() + 172800000).toISOString(), started: run.started });
   return { backupId, calendarEventCount, calendarCategoryCount: categories.count, calendarCategoryStatus: categories.status, todoListCount: todo.listCount, todoTaskCount: todo.taskCount, degraded };
+  } catch (error) {
+    await completeCalendarSyncRun(run.id, { status: "failed", errorCode: stageErrorCode(error), started: run.started });
+    throw error;
+  }
 }

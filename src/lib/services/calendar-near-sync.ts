@@ -30,7 +30,7 @@ async function settingsFor(userId: string): Promise<Settings> {
   return data ? { nearHistoryDays: data.near_history_days, nearForwardDays: data.near_forward_days, hourlyIntervalSeconds: data.hourly_interval_seconds, fullReconcileIntervalSeconds: data.full_reconcile_interval_seconds } : defaults;
 }
 
-async function startRun(userId: string, connectionId: string, trigger: CalendarSyncTrigger, mode: CalendarSyncMode) {
+export async function startCalendarSyncRun(userId: string, connectionId: string, trigger: CalendarSyncTrigger, mode: CalendarSyncMode) {
   const admin = createAdminClient(); const started = new Date();
   const { data, error } = await admin.from("calendar_sync_runs").insert({ user_id: userId, connection_id: connectionId, trigger_source: trigger, sync_mode: mode, status: "running", started_at: started.toISOString() }).select("id").maybeSingle();
   if (error?.code === "23505") return null;
@@ -39,7 +39,7 @@ async function startRun(userId: string, connectionId: string, trigger: CalendarS
   return { id: data.id, started };
 }
 
-async function completeRun(id: string, input: { status: "succeeded" | "failed" | "skipped"; eventCount?: number; changedCount?: number; deletedCount?: number; errorCode?: string; nextScheduledAt?: string | null; started: Date }) {
+export async function completeCalendarSyncRun(id: string, input: { status: "succeeded" | "failed" | "skipped"; eventCount?: number; changedCount?: number; deletedCount?: number; errorCode?: string; nextScheduledAt?: string | null; started: Date }) {
   const admin = createAdminClient();
   await admin.from("calendar_sync_runs").update({ status: input.status, event_count: input.eventCount ?? 0, changed_count: input.changedCount ?? 0, deleted_count: input.deletedCount ?? 0, error_code: input.errorCode ?? null, completed_at: new Date().toISOString(), duration_ms: Date.now() - input.started.getTime(), next_scheduled_at: input.nextScheduledAt ?? null }).eq("id", id);
 }
@@ -75,7 +75,7 @@ export async function syncNearCalendar(connectionId: string, userId: string, tri
   const { data: connection, error } = await admin.from("calendar_connections").select("calendar_near_delta_link,calendar_near_window_start,calendar_near_window_end").eq("id", connectionId).eq("user_id", userId).eq("status", "enabled").maybeSingle();
   if (error || !connection) throw new MicrosoftGraphError("calendar_not_connected");
   const stored = usableStoredWindow(connection, now, settings); const mode: CalendarSyncMode = stored ? "near_delta" : "near_full";
-  const run = await startRun(userId, connectionId, trigger, mode); if (!run) return { skipped: true, mode };
+  const run = await startCalendarSyncRun(userId, connectionId, trigger, mode); if (!run) return { skipped: true, mode };
   try {
     const accessToken = await accessTokenForConnection(connectionId, userId);
     const window = stored ?? nearCalendarWindow(now, settings);
@@ -100,12 +100,12 @@ export async function syncNearCalendar(connectionId: string, userId: string, tri
     }
     const succeededAt = new Date().toISOString(); const next = new Date(Date.now() + settings.hourlyIntervalSeconds * 1000).toISOString();
     await admin.from("calendar_connections").update({ calendar_near_delta_link: delta.deltaLink, calendar_near_window_start: window.start, calendar_near_window_end: window.end, calendar_last_delta_sync_at: succeededAt, last_sync_at: succeededAt, last_error_code: null }).eq("id", connectionId).eq("user_id", userId);
-    await completeRun(run.id, { status: "succeeded", eventCount: records.length, changedCount: records.length, deletedCount: deletedIds.length, nextScheduledAt: next, started: run.started });
+    await completeCalendarSyncRun(run.id, { status: "succeeded", eventCount: records.length, changedCount: records.length, deletedCount: deletedIds.length, nextScheduledAt: next, started: run.started });
     await recordStatusSafely(userId, "calendar", { state: "fresh", lastSuccessAt: succeededAt, lastAttemptAt: succeededAt, nextStep: "近期待办窗口已与 Outlook 对齐。" }, { type: "succeeded", operationKey: `calendar-near-${run.id}` });
     return { skipped: false, mode, eventCount: records.length, deletedCount: deletedIds.length };
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "calendar_near_sync_failed";
-    await completeRun(run.id, { status: "failed", errorCode: code, started: run.started });
+    await completeCalendarSyncRun(run.id, { status: "failed", errorCode: code, started: run.started });
     if (mode === "near_delta" && ["calendar_delta_incomplete", "graph_request_failed"].includes(code)) {
       // A delta cursor is an optimization, never a source of truth. Clear it
       // and immediately rebuild only the bounded working window.
@@ -129,6 +129,13 @@ export async function drainCalendarSyncQueue(limit = 20) {
   const results = await Promise.allSettled((data ?? []).map(async (job) => {
     try {
       const result = await syncNearCalendar(job.connection_id, job.user_id, job.reason as CalendarSyncTrigger);
+      if (result.skipped) {
+        // Another worker already holds the connection-level run lock. Do not
+        // discard this notification: the active delta may have started before
+        // it arrived, so leave a small durable retry behind it.
+        await admin.from("calendar_sync_queue").update({ available_at: new Date(Date.now() + 20_000).toISOString() }).eq("connection_id", job.connection_id);
+        return result;
+      }
       await admin.from("calendar_sync_queue").delete().eq("connection_id", job.connection_id);
       return result;
     } catch (error) {
