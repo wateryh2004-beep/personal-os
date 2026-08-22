@@ -9,6 +9,7 @@ import { MentionTextarea } from "@/components/links/entity-mention-textarea";
 import { getManagedCalendarCategory } from "@/features/calendar/classification/taxonomy";
 
 const initialCalendarCreateState: CalendarCreateState = { status: "idle", message: "" };
+const control = "h-9 min-w-0 rounded-[var(--radius-md)] border-0 bg-[var(--surface-control)] px-2.5 text-sm text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]";
 
 export function CalendarCreateForm({ timezone, categoriesEnabled = true, initialStart, initialEnd, initialAllDay = false, onCreated }: { timezone: string; categoriesEnabled?: boolean; initialStart?: string; initialEnd?: string; initialAllDay?: boolean; onCreated?: () => Promise<void> | void }) {
   const startInputRef = useRef<HTMLInputElement>(null);
@@ -24,16 +25,19 @@ export function CalendarCreateForm({ timezone, categoriesEnabled = true, initial
     if (!categoriesEnabled || categoryMode !== "__auto" || !subject.trim()) return null;
     return classifyCalendarEvent({ subject, locationName: location });
   }, [categoriesEnabled, categoryMode, subject, location]);
+
   useEffect(() => {
     if (state.status !== "success" || createdHandledRef.current) return;
     createdHandledRef.current = true;
     void onCreated?.();
   }, [onCreated, state.status]);
+
   const defaultStart = initialStart ? dateTimeInputValue(initialStart, timezone) : "";
   const defaultEnd = initialEnd ? dateTimeInputValue(initialEnd, timezone) : "";
   const defaultStartDate = initialStart ? instantToDate(initialStart, timezone) : "";
   const defaultEndDate = initialEnd ? instantToDate(initialEnd, timezone) : defaultStartDate ? shiftCalendarDate(defaultStartDate, 1) : "";
   const allDayEndDate = initialAllDay ? defaultEndDate : defaultStartDate ? shiftCalendarDate(defaultStartDate, 1) : "";
+
   const keepEndAfterStart = () => {
     const start = startInputRef.current?.value;
     const endInput = endInputRef.current;
@@ -47,30 +51,61 @@ export function CalendarCreateForm({ timezone, categoriesEnabled = true, initial
     next.setUTCMinutes(next.getUTCMinutes() + 60);
     endInput.value = next.toISOString().slice(0, 16);
   };
-  return <form action={formAction} onSubmit={(event) => {
-    const form = event.currentTarget;
-    const startsAt = form.elements.namedItem("starts_at");
-    const endsAt = form.elements.namedItem("ends_at");
-    if (!(startsAt instanceof HTMLInputElement) || !(endsAt instanceof HTMLInputElement) || !startInputRef.current?.value || !endInputRef.current?.value) return;
-    startsAt.value = wallTimeToIso(allDay ? `${startInputRef.current.value}T00:00` : startInputRef.current.value, timezone);
-    endsAt.value = wallTimeToIso(allDay ? `${endInputRef.current.value}T00:00` : endInputRef.current.value, timezone);
-  }} className="grid gap-4">
-    <label className="grid gap-1 text-xs text-zinc-600">标题<input name="subject" autoFocus required maxLength={500} placeholder="日程标题" value={subject} onChange={(event) => setSubject(event.target.value)} className="h-10 w-full rounded-md border bg-white px-3 text-sm outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]" /></label>
-    <label className="flex items-center gap-2 text-sm text-zinc-700"><input type="checkbox" name="is_all_day" checked={allDay} onChange={(event) => setAllDay(event.target.checked)} /> 全天</label>
-    <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-xs text-zinc-600">{allDay ? "开始日期" : "开始"}<input key={`start-${allDay}`} ref={startInputRef} type={allDay ? "date" : "datetime-local"} required onChange={keepEndAfterStart} defaultValue={allDay ? defaultStartDate : defaultStart} className="h-10 min-w-0 rounded-md border bg-white px-3 text-sm" /></label><label className="grid gap-1 text-xs text-zinc-600">{allDay ? "结束日期（不含）" : "结束"}<input key={`end-${allDay}`} ref={endInputRef} type={allDay ? "date" : "datetime-local"} required defaultValue={allDay ? allDayEndDate : defaultEnd} className="h-10 min-w-0 rounded-md border bg-white px-3 text-sm" /></label></div>
-    <input type="hidden" name="starts_at" /><input type="hidden" name="ends_at" />
-    <div className="grid gap-3 sm:grid-cols-2"><input name="location_name" maxLength={500} placeholder="地点（可选）" value={location} onChange={(event) => setLocation(event.target.value)} className="h-10 w-full rounded-md border bg-white px-3 text-sm" /><CalendarCategoryPicker enabled={categoriesEnabled} onModeChange={setCategoryMode} /></div>
-    {autoClassification ? (() => {
-      const primary = getManagedCalendarCategory(autoClassification.primaryCategoryKey);
-      const contexts = autoClassification.contextCategoryKeys.map((key) => getManagedCalendarCategory(key)?.shortName).filter(Boolean) as string[];
-      if (!autoClassification.needsConfirmation) {
-        const parts = [primary?.shortName, ...contexts].filter(Boolean) as string[];
-        return <p className="-mt-1 flex items-center gap-1.5 text-xs text-[var(--text-secondary)]"><span className="size-1.5 shrink-0 rounded-full bg-[var(--accent)]" />自动判断：{parts.join(" · ") || "其他"}（置信度 {Math.round(autoClassification.confidence * 100)}%）</p>;
-      }
-      return <p className="-mt-1 flex items-center gap-1.5 text-xs text-[var(--text-secondary)]"><span className="size-1.5 shrink-0 rounded-full bg-[var(--text-tertiary)]" />自动判断：暂不归类（低置信度，创建后可到分类设置整理）</p>;
-    })() : null}
-    <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm text-zinc-600">更多选项</summary><div className="mt-3 grid gap-3"><label className="grid gap-1 text-xs text-zinc-600">说明（可选）<MentionTextarea value={description} onChange={setDescription} name="description" maxLength={10000} rows={3} placeholder="议程、链接或准备事项；输入 @ 引用笔记/任务/日程/文件" className="w-full resize-y rounded-md border bg-white px-3 py-2 text-sm leading-5" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-xs text-zinc-600">显示为<select name="show_as" defaultValue="busy" className="h-9 rounded-md border bg-white px-2 text-sm"><option value="busy">忙碌</option><option value="free">空闲</option><option value="tentative">暂定</option><option value="workingElsewhere">在其他地点工作</option><option value="oof">外出</option></select></label><label className="grid gap-1 text-xs text-zinc-600">重要性<select name="importance" defaultValue="normal" className="h-9 rounded-md border bg-white px-2 text-sm"><option value="low">低</option><option value="normal">普通</option><option value="high">高</option></select></label></div></div></details>
-    <p className="text-xs text-zinc-500">时间按 {timezone} 保存；确认创建后同步至 Outlook。</p>
-    <div><button disabled={pending} className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm text-white disabled:opacity-60">{pending ? "正在创建…" : "创建日程"}</button>{state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}>{state.message}</p> : null}</div>
-  </form>;
+
+  return (
+    <form action={formAction} onSubmit={(event) => {
+      const form = event.currentTarget;
+      const startsAt = form.elements.namedItem("starts_at");
+      const endsAt = form.elements.namedItem("ends_at");
+      if (!(startsAt instanceof HTMLInputElement) || !(endsAt instanceof HTMLInputElement) || !startInputRef.current?.value || !endInputRef.current?.value) return;
+      startsAt.value = wallTimeToIso(allDay ? `${startInputRef.current.value}T00:00` : startInputRef.current.value, timezone);
+      endsAt.value = wallTimeToIso(allDay ? `${endInputRef.current.value}T00:00` : endInputRef.current.value, timezone);
+    }} className="calendar-event-form grid gap-0">
+      <div className="border-b border-[var(--border-subtle)] pb-4">
+        <input name="subject" autoFocus required maxLength={500} placeholder="日程标题" value={subject} onChange={(event) => setSubject(event.target.value)} className="w-full border-0 bg-transparent px-0 text-[19px] font-semibold tracking-[-0.025em] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" />
+        <input name="location_name" maxLength={500} placeholder="添加地点" value={location} onChange={(event) => setLocation(event.target.value)} className="mt-2 w-full border-0 bg-transparent px-0 text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-tertiary)]" />
+      </div>
+
+      <section className="border-b border-[var(--border-subtle)] py-4">
+        <label className="flex items-center justify-between gap-4 text-sm text-[var(--text-primary)]"><span>全天</span><input type="checkbox" name="is_all_day" checked={allDay} onChange={(event) => setAllDay(event.target.checked)} className="size-4 accent-[var(--accent)]" /></label>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">{allDay ? "开始日期" : "开始"}<input key={`start-${allDay}`} ref={startInputRef} type={allDay ? "date" : "datetime-local"} required onChange={keepEndAfterStart} defaultValue={allDay ? defaultStartDate : defaultStart} className={control} /></label>
+          <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">{allDay ? "结束日期（不含）" : "结束"}<input key={`end-${allDay}`} ref={endInputRef} type={allDay ? "date" : "datetime-local"} required defaultValue={allDay ? allDayEndDate : defaultEnd} className={control} /></label>
+        </div>
+        <input type="hidden" name="starts_at" /><input type="hidden" name="ends_at" />
+      </section>
+
+      <section className="border-b border-[var(--border-subtle)] py-4">
+        <CalendarCategoryPicker enabled={categoriesEnabled} onModeChange={setCategoryMode} />
+        {autoClassification ? (() => {
+          const primary = getManagedCalendarCategory(autoClassification.primaryCategoryKey);
+          const contexts = autoClassification.contextCategoryKeys.map((key) => getManagedCalendarCategory(key)?.shortName).filter(Boolean) as string[];
+          if (!autoClassification.needsConfirmation) {
+            const parts = [primary?.shortName, ...contexts].filter(Boolean) as string[];
+            return <p className="mt-2 flex items-center gap-1.5 text-[10.5px] text-[var(--text-tertiary)]"><span className="size-1.5 shrink-0 rounded-full bg-[var(--accent)]" />自动判断：{parts.join(" · ") || "其他"} · {Math.round(autoClassification.confidence * 100)}%</p>;
+          }
+          return <p className="mt-2 flex items-center gap-1.5 text-[10.5px] text-[var(--text-tertiary)]"><span className="size-1.5 shrink-0 rounded-full bg-[var(--text-tertiary)]" />低置信度，暂不自动归类</p>;
+        })() : null}
+      </section>
+
+      <details className="border-b border-[var(--border-subtle)] py-4">
+        <summary className="cursor-pointer list-none text-[12px] font-medium text-[var(--text-secondary)]">更多选项</summary>
+        <div className="mt-3 grid gap-3">
+          <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">说明<MentionTextarea value={description} onChange={setDescription} name="description" maxLength={10000} rows={4} placeholder="议程、链接或准备事项；输入 @ 引用笔记/任务/日程/文件" className="min-h-24 w-full resize-y rounded-[var(--radius-md)] border-0 bg-[var(--surface-control)] px-3 py-2.5 text-sm leading-6 outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]" /></label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">显示为<select name="show_as" defaultValue="busy" className={control}><option value="busy">忙碌</option><option value="free">空闲</option><option value="tentative">暂定</option><option value="workingElsewhere">在其他地点工作</option><option value="oof">外出</option></select></label>
+            <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">重要性<select name="importance" defaultValue="normal" className={control}><option value="low">低</option><option value="normal">普通</option><option value="high">高</option></select></label>
+          </div>
+        </div>
+      </details>
+
+      <div className="pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[10px] text-[var(--text-tertiary)]">按 {timezone} 保存并同步至 Outlook</p>
+          <button disabled={pending} className="rounded-[8px] bg-[var(--accent)] px-3.5 py-2 text-[12px] font-medium text-white transition-opacity ui-transition hover:opacity-90 disabled:opacity-60">{pending ? "正在创建…" : "创建日程"}</button>
+        </div>
+        {state.status !== "idle" ? <p role="status" className={`mt-2 text-[11px] ${state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}>{state.message}</p> : null}
+      </div>
+    </form>
+  );
 }
