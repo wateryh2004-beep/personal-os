@@ -16,13 +16,17 @@ export async function GET(request: NextRequest) {
   const { data: cronRun } = await admin.from("calendar_sync_cron_runs").insert({ trigger_source: "external_scheduler", started_at: started.toISOString() }).select("id").maybeSingle();
   const { data: connections, error } = await admin.from("calendar_connections").select("id,user_id").eq("status", "enabled").is("archived_at", null);
   if (error) return NextResponse.json({ error: "connection_lookup_failed" }, { status: 500 });
+  const queueStartedAt = Date.now();
   const queued = await drainCalendarSyncQueue().catch(() => ({ processed: 0, failed: 1 }));
+  const queueDurationMs = Date.now() - queueStartedAt;
+  const deltaStartedAt = Date.now();
   const results = await Promise.allSettled((connections ?? []).map(async (connection) => {
     const result = await syncNearCalendar(connection.id, connection.user_id, "external_scheduler");
     if (env.appUrl) await ensureCalendarWebhookSubscription(connection.id, connection.user_id, `${env.appUrl}/api/webhooks/microsoft/calendar`);
     return result;
   }));
+  const deltaDurationMs = Date.now() - deltaStartedAt;
   const failed = queued.failed + results.filter((result) => result.status === "rejected").length;
-  if (cronRun) await admin.from("calendar_sync_cron_runs").update({ completed_at: new Date().toISOString(), connection_count: (connections ?? []).length, succeeded_count: Math.max(0, results.length - failed), failed_count: failed, duration_ms: Date.now() - started.getTime(), next_scheduled_at: new Date(Date.now() + 3600000).toISOString(), error_code: failed ? "partial_failure" : null }).eq("id", cronRun.id);
+  if (cronRun) await admin.from("calendar_sync_cron_runs").update({ completed_at: new Date().toISOString(), connection_count: (connections ?? []).length, succeeded_count: Math.max(0, results.length - failed), failed_count: failed, duration_ms: Date.now() - started.getTime(), stage_durations_ms: { queue: queueDurationMs, near_delta: deltaDurationMs }, next_scheduled_at: new Date(Date.now() + 3600000).toISOString(), error_code: failed ? "partial_failure" : null }).eq("id", cronRun.id);
   return NextResponse.json({ processed: results.length, queuedProcessed: queued.processed, failed }, { status: failed ? 207 : 200, headers: { "Cache-Control": "private, no-store" } });
 }

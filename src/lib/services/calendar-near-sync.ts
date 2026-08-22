@@ -126,6 +126,21 @@ export async function enqueueCalendarSync(connectionId: string, userId: string, 
 export async function drainCalendarSyncQueue(limit = 20) {
   const admin = createAdminClient(); const { data, error } = await admin.from("calendar_sync_queue").select("connection_id,user_id,reason").lte("available_at", new Date().toISOString()).order("available_at").limit(limit);
   if (error) throw new MicrosoftGraphError("calendar_sync_queue_unavailable");
-  const results = await Promise.allSettled((data ?? []).map(async (job) => { await admin.from("calendar_sync_queue").delete().eq("connection_id", job.connection_id); return syncNearCalendar(job.connection_id, job.user_id, job.reason as CalendarSyncTrigger); }));
+  const results = await Promise.allSettled((data ?? []).map(async (job) => {
+    try {
+      const result = await syncNearCalendar(job.connection_id, job.user_id, job.reason as CalendarSyncTrigger);
+      await admin.from("calendar_sync_queue").delete().eq("connection_id", job.connection_id);
+      return result;
+    } catch (error) {
+      const code = error instanceof MicrosoftGraphError ? error.code : "calendar_near_sync_failed";
+      // Keep the job durable and back off instead of losing an Outlook change
+      // after one transient Graph or network failure.
+      const { data: current } = await admin.from("calendar_sync_queue").select("attempt_count").eq("connection_id", job.connection_id).maybeSingle();
+      const attempt = Math.min(30, Number(current?.attempt_count ?? 0) + 1);
+      const delaySeconds = Math.min(3600, 30 * 2 ** Math.min(7, attempt - 1));
+      await admin.from("calendar_sync_queue").update({ attempt_count: attempt, last_error_code: code, available_at: new Date(Date.now() + delaySeconds * 1000).toISOString() }).eq("connection_id", job.connection_id);
+      throw error;
+    }
+  }));
   return { processed: results.length, failed: results.filter((item) => item.status === "rejected").length };
 }

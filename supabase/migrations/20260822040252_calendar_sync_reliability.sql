@@ -50,6 +50,7 @@ create table public.calendar_sync_queue (
   requested_at timestamptz not null default now(),
   available_at timestamptz not null default now(),
   attempt_count integer not null default 0 check (attempt_count between 0 and 30),
+  last_error_code text check (last_error_code is null or char_length(last_error_code) <= 120),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -71,6 +72,7 @@ create table public.calendar_sync_cron_runs (
   failed_count integer not null default 0 check (failed_count >= 0),
   duration_ms integer,
   error_code text check (error_code is null or char_length(error_code) <= 120),
+  stage_durations_ms jsonb not null default '{}'::jsonb check (jsonb_typeof(stage_durations_ms) = 'object'),
   next_scheduled_at timestamptz,
   created_at timestamptz not null default now(),
   archived_at timestamptz
