@@ -29,4 +29,25 @@ describe("workspace resource cache", () => {
     await expect(reconciliation).resolves.toEqual({ version: 2 });
     expect(resource.get().data).toEqual({ version: 2 });
   });
+
+  it("lets the RSC route own speculative prefetch without a duplicate API read", async () => {
+    const fetcher = vi.fn().mockResolvedValue({ version: 2 });
+    const resource = createWorkspaceResource(
+      "test:route-owned",
+      fetcher,
+      60_000,
+      { prefetchStrategy: "route-owned" },
+    );
+
+    await expect(resource.prefetch()).resolves.toBeUndefined();
+    expect(fetcher).not.toHaveBeenCalled();
+
+    resource.set({ version: 1 });
+    await expect(resource.prefetch()).resolves.toEqual({ version: 1 });
+    expect(fetcher).not.toHaveBeenCalled();
+
+    resource.invalidate();
+    await expect(resource.revalidate()).resolves.toEqual({ version: 2 });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
 });
