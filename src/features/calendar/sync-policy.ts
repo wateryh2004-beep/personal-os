@@ -6,9 +6,21 @@
  */
 export const CALENDAR_HISTORY_DAYS = 730;
 export const CALENDAR_FORWARD_DAYS = 180;
+/** Near-term working set: webhook and hourly delta sync only this window. */
+export const CALENDAR_NEAR_HISTORY_DAYS = 14;
+export const CALENDAR_NEAR_FORWARD_DAYS = 60;
+export const CALENDAR_NEAR_SYNC_INTERVAL_SECONDS = 3600;
+export const CALENDAR_FULL_RECONCILE_INTERVAL_SECONDS = 172800;
 
 export function calendarSyncWindow(now: number) {
   const start = new Date(now - CALENDAR_HISTORY_DAYS * 86_400_000).toISOString();
   const end = new Date(now + CALENDAR_FORWARD_DAYS * 86_400_000).toISOString();
   return { start, end };
+}
+
+export function calendarNearSyncWindow(now: number) {
+  return {
+    start: new Date(now - CALENDAR_NEAR_HISTORY_DAYS * 86_400_000).toISOString(),
+    end: new Date(now + CALENDAR_NEAR_FORWARD_DAYS * 86_400_000).toISOString(),
+  };
 }

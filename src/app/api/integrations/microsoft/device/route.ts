@@ -8,8 +8,10 @@ import {
   MicrosoftGraphError,
   startMicrosoftDeviceAuthorization,
   microsoftScopeVersionForGrantedScopes,
+  ensureCalendarWebhookSubscription,
 } from "@/lib/adapters/microsoft-graph/calendar";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { env } from "@/lib/env";
 
 export const runtime = "nodejs";
 
@@ -86,6 +88,12 @@ export async function PATCH(request: NextRequest) {
       last_error_code: null,
     }, { onConflict: "user_id" }).select("id").single();
     if (connectionError || !connection) return clearDeviceCookie(failure(500, "connection_save_failed"));
+    // Webhook setup is best-effort: a missing public APP_URL must not prevent
+    // a user from connecting Outlook, because hourly/manual pull remains safe.
+    if (env.appUrl) {
+      try { await ensureCalendarWebhookSubscription(connection.id, userId, `${env.appUrl}/api/webhooks/microsoft/calendar`); }
+      catch (error) { await admin.from("calendar_connections").update({ last_error_code: error instanceof MicrosoftGraphError ? error.code : "calendar_subscription_failed" }).eq("id", connection.id); }
+    }
     await admin.from("audit_logs").insert({ user_id: userId, action: "connect", entity_type: "calendar_connection", entity_id: connection.id, after_data: { provider: "microsoft_graph_public_client", oauth_scope_version: grantedScopeVersion }, actor_type: "user" });
     return clearDeviceCookie(NextResponse.json({ status: "connected" }, { headers: { "Cache-Control": "private, no-store, max-age=0" } }));
   } catch (error) {

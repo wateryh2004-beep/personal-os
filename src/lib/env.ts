@@ -5,6 +5,7 @@ export const env = {
   ownerUserId: process.env.OWNER_USER_ID,
   supabaseSecretKey: process.env.SUPABASE_SECRET_KEY,
   cronSecret: process.env.CRON_SECRET,
+  appUrl: process.env.APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined),
 };
 
 export const isSupabaseConfigured = Boolean(

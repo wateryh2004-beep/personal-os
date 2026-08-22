@@ -28,7 +28,7 @@ export function requiresCategoryReauthorization(scopeVersion: number | null | un
 export type GraphDateTimeTimeZone = { dateTime?: string; timeZone?: string };
 type GraphBody = { content?: string | null; contentType?: "text" | "html" | string | null };
 
-type GraphEvent = {
+export type GraphEvent = {
   id: string;
   iCalUId?: string;
   type?: "singleInstance" | "occurrence" | "exception" | "seriesMaster";
@@ -221,6 +221,27 @@ export async function graph(accessToken: string, path: string, init?: RequestIni
     }
     return payload;
   }
+}
+
+/** Creates or renews the short-lived Graph subscription that wakes the
+ * debounced near-window worker. The client state is encrypted at rest. */
+export async function ensureCalendarWebhookSubscription(connectionId: string, userId: string, notificationUrl: string) {
+  const admin = createAdminClient();
+  const { data: connection, error } = await admin.from("calendar_connections")
+    .select("calendar_subscription_id,calendar_subscription_expires_at,calendar_webhook_state_ciphertext")
+    .eq("id", connectionId).eq("user_id", userId).maybeSingle();
+  if (error || !connection) throw new MicrosoftGraphError("calendar_not_connected");
+  const accessToken = await accessTokenForConnection(connectionId, userId);
+  const state = connection.calendar_webhook_state_ciphertext ? decryptMicrosoftRefreshToken(connection.calendar_webhook_state_ciphertext) : crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
+  const expirationDateTime = new Date(Date.now() + 6 * 86_400_000).toISOString();
+  const canRenew = connection.calendar_subscription_id && connection.calendar_subscription_expires_at && Date.parse(connection.calendar_subscription_expires_at) > Date.now();
+  const subscription = canRenew
+    ? await graph(accessToken, `/subscriptions/${encodeURIComponent(connection.calendar_subscription_id!)}`, { method: "PATCH", body: JSON.stringify({ expirationDateTime }) }) as { id?: string; expirationDateTime?: string }
+    : await graph(accessToken, "/subscriptions", { method: "POST", body: JSON.stringify({ changeType: "created,updated,deleted", notificationUrl, resource: "/me/events", expirationDateTime, clientState: state, lifecycleNotificationUrl: notificationUrl }) }) as { id?: string; expirationDateTime?: string };
+  if (!subscription.id || !subscription.expirationDateTime) throw new MicrosoftGraphError("calendar_subscription_invalid");
+  const { error: updateError } = await admin.from("calendar_connections").update({ calendar_subscription_id: subscription.id, calendar_subscription_expires_at: subscription.expirationDateTime, calendar_webhook_state_ciphertext: encryptMicrosoftRefreshToken(state), last_error_code: null }).eq("id", connectionId).eq("user_id", userId);
+  if (updateError) throw new MicrosoftGraphError("calendar_subscription_save_failed");
+  return { id: subscription.id, expiresAt: subscription.expirationDateTime };
 }
 
 const graphResponseTimeZones: Record<string, string> = {

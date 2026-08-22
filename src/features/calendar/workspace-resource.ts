@@ -9,6 +9,7 @@ export type CalendarWorkspaceData = {
   categories: CalendarCategory[];
   timezone: string;
   unavailable: boolean;
+  sync: { state: "fresh" | "stale" | "failed"; lastSyncAt: string | null; nextHourlyAt: string | null; nextFullAt: string | null; subscriptionExpiresAt: string | null; webhookLastReceivedAt: string | null; errorCode: string | null } | null;
 };
 
 async function readCalendarWorkspace(): Promise<CalendarWorkspaceData> {

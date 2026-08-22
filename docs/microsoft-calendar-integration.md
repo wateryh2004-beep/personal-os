@@ -79,3 +79,6 @@ Redirect URL。公共 client ID 不是秘密；它只在 server-only adapter 内
 - 第一版尚不提供从快照直接恢复写回 Microsoft 的按钮；数据仍可通过 Supabase 导出/迁移。
 - 此模式依赖上游公共 client 持续可用。若 Microsoft 或上游策略改变，应注册自己的
   Entra App 并迁移 client ID。
+# Microsoft Calendar integration
+
+运行策略、调度限制、webhook 验证与故障恢复见 [Calendar 同步运行手册](./calendar-sync-operations.md)。
