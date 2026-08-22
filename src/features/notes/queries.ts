@@ -234,19 +234,24 @@ const noteIdSchema = z.string().uuid();
 export async function getNote(id: string) {
   if (!noteIdSchema.safeParse(id).success) return null;
   const { supabase } = await requireOwner();
-  const noteResult = await supabase.from("notes").select("*").eq("id", id).maybeSingle();
-  if (noteResult.error || !noteResult.data) return null;
-  const note = noteResult.data;
-  // These reads do not depend on one another. Keeping them sequential made a
-  // document open pay a full network round-trip for versions and another for
-  // link relations after the note body had already arrived.
+
+  // All three reads are keyed only by noteId. Starting them together removes a
+  // full Vercel ↔ Supabase round-trip from the document-open critical path.
+  const notePromise = supabase.from("notes").select("*").eq("id", id).maybeSingle();
   const versionsPromise = supabase
     .from("note_versions")
     .select("id,version_number,title,body_markdown,reason,created_at")
     .eq("note_id", id)
     .order("version_number", { ascending: false });
   const relationsPromise = getNoteLinkRelations(supabase, id);
-  const [versionsResult, relations] = await Promise.all([versionsPromise, relationsPromise]);
+  const [noteResult, versionsResult, relations] = await Promise.all([
+    notePromise,
+    versionsPromise,
+    relationsPromise,
+  ]);
+
+  if (noteResult.error || !noteResult.data) return null;
+  const note = noteResult.data;
   const versions = isNotesWorkspaceSchemaMissing(versionsResult.error)
     ? await supabase
       .from("note_versions")

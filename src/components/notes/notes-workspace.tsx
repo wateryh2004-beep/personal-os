@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FilePlus2, LoaderCircle, MoreHorizontal, Pin, Search, Sparkles } from "lucide-react";
+import { FilePlus2, LoaderCircle, MoreHorizontal, Pin, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,6 +22,7 @@ import {
 } from "@/features/notes/actions";
 import type { NoteListItem } from "@/features/notes/types";
 import { formatNoteTimestamp } from "@/features/notes/utils";
+import { filterNotesByMetadata, mergeNoteSearchResults, noteFolderPath } from "@/features/notes/local-search";
 import { useWorkspaceScrollRestoration } from "@/components/shared/use-workspace-scroll-restoration";
 import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
 
@@ -29,16 +30,7 @@ type Folder = { id: string; name: string; parent_id: string | null };
 type WorkspaceState = "ready" | "base" | "unavailable";
 
 function folderPath(note: NoteListItem, folders: Folder[]) {
-  const byId = new Map(folders.map((folder) => [folder.id, folder]));
-  const names: string[] = [];
-  let current = note.folder_id ? byId.get(note.folder_id) : undefined;
-  const seen = new Set<string>();
-  while (current && !seen.has(current.id)) {
-    names.unshift(current.name);
-    seen.add(current.id);
-    current = current.parent_id ? byId.get(current.parent_id) : undefined;
-  }
-  return names.length ? names.join(" / ") : "根目录";
+  return noteFolderPath(note.folder_id, folders);
 }
 
 function AskNotesButton({ onClick }: { onClick: () => void }) {
@@ -194,8 +186,18 @@ export function NotesWorkspace({
     return [...byId.values()];
   }, [additional, notes]);
 
+  const localSearchResults = useMemo(() => {
+    if (!normalizedQuery) return [];
+    const candidates = activeFolderId ? allNotes.filter((note) => note.folder_id === activeFolderId) : allNotes;
+    return filterNotesByMetadata(candidates, folders, normalizedQuery, 30);
+  }, [activeFolderId, allNotes, folders, normalizedQuery]);
+  const combinedSearchResults = useMemo(
+    () => mergeNoteSearchResults(localSearchResults, results ?? [], 50),
+    [localSearchResults, results],
+  );
+
   const visible = useMemo(() => {
-    if (normalizedQuery) return results ?? [];
+    if (normalizedQuery) return combinedSearchResults;
     if (selectedFolder) return allNotes.filter((note) => note.folder_id === selectedFolder.id);
     if (initialView === "favorites") return allNotes.filter((note) => note.pinned_at);
     if (initialView === "recent") {
@@ -204,20 +206,23 @@ export function NotesWorkspace({
         .slice(0, 50);
     }
     return allNotes;
-  }, [allNotes, initialView, normalizedQuery, results, selectedFolder]);
+  }, [allNotes, combinedSearchResults, initialView, normalizedQuery, selectedFolder]);
 
   const title = selectedFolder?.name ?? (initialView === "favorites" ? "收藏" : initialView === "recent" ? "最近编辑" : "全部笔记");
 
   useEffect(() => {
     if (!normalizedQuery) {
       requestRef.current?.abort();
+      setResults(null);
+      setSearchState("idle");
       return;
     }
     const controller = new AbortController();
     requestRef.current?.abort();
     requestRef.current = controller;
+    setResults(null);
+    setSearchState("loading");
     const timer = window.setTimeout(async () => {
-      setSearchState("loading");
       try {
         const search = new URLSearchParams({ q: normalizedQuery, limit: "30" });
         if (activeFolderId) search.set("folderId", activeFolderId);
@@ -230,25 +235,28 @@ export function NotesWorkspace({
         }
       } catch {
         if (!controller.signal.aborted) {
-          setResults([]);
+          setResults(null);
           setSearchState("error");
         }
       }
-    }, 180);
+    }, 160);
     return () => {
       controller.abort();
       window.clearTimeout(timer);
     };
   }, [activeFolderId, normalizedQuery]);
 
+  const syncSearchUrl = (nextQuery: string, nextScope: "context" | "all") => {
+    const url = new URL(window.location.href);
+    if (nextQuery.trim()) url.searchParams.set("q", nextQuery);
+    else url.searchParams.delete("q");
+    if (nextScope === "all") url.searchParams.set("scope", "all");
+    else url.searchParams.delete("scope");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  };
   const updateQuery = (value: string) => {
     setQuery(value);
-    const next = new URLSearchParams(params.toString());
-    if (value.trim()) next.set("q", value);
-    else next.delete("q");
-    if (scope === "all") next.set("scope", "all");
-    else next.delete("scope");
-    router.replace(`/notes?${next.toString()}`, { scroll: false });
+    syncSearchUrl(value, scope);
   };
 
   const mutate = (action: (form: FormData) => Promise<void>, form: FormData) =>
@@ -270,6 +278,13 @@ export function NotesWorkspace({
       setLoadingMore(false);
     }
   };
+
+  const newNoteForm = (className?: string) => (
+    <form action={createNoteInFolder} className={className}>
+      <input type="hidden" name="folder_id" value={selectedFolder?.id ?? ""} />
+      <Button type="submit" size="sm"><FilePlus2 />新建笔记</Button>
+    </form>
+  );
 
   return (
     <main
@@ -293,14 +308,17 @@ export function NotesWorkspace({
           </p>
         ) : null}
 
-        <header className="flex flex-wrap items-end gap-3">
+        <header className="flex flex-wrap items-end gap-2">
           <div className="mr-auto min-w-0">
             <h1 className="truncate text-[28px] font-semibold leading-tight tracking-[-0.04em] text-[var(--text-primary)]">
               {title}
             </h1>
-            <p className="mt-1 text-[11px] tabular-nums text-[var(--text-tertiary)]">{visible.length} 篇笔记</p>
+            <p className="mt-1 text-[11px] tabular-nums text-[var(--text-tertiary)]">
+              {normalizedQuery ? `${visible.length} 个搜索结果` : `${visible.length} 篇笔记`}
+            </p>
           </div>
           <AskNotesButton onClick={() => router.push("/notes/ask")} />
+          {newNoteForm("hidden md:block")}
         </header>
 
         <div className="mt-6 flex items-center gap-2">
@@ -311,9 +329,18 @@ export function NotesWorkspace({
               autoComplete="off"
               value={query}
               onChange={(event) => updateQuery(event.target.value)}
-              placeholder={selectedFolder && scope === "context" ? `在「${selectedFolder.name}」中搜索…` : "搜索笔记…"}
-              className="h-9 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] pl-8 pr-3 text-[13px] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_16%,transparent)]"
+              onKeyDown={(event) => { if (event.key === "Escape" && query) updateQuery(""); }}
+              placeholder={selectedFolder && scope === "context" ? `在「${selectedFolder.name}」中搜索…` : "搜索标题、正文或文件夹…"}
+              className="h-9 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] pl-8 pr-16 text-[13px] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_16%,transparent)]"
             />
+            <span className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+              {searchState === "loading" ? <LoaderCircle className="size-3.5 animate-spin text-[var(--text-tertiary)]" aria-label="正在补充全文搜索结果" /> : null}
+              {query ? (
+                <button type="button" onClick={() => updateQuery("")} className="inline-flex size-7 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" aria-label="清空搜索">
+                  <X className="size-3.5" aria-hidden="true" />
+                </button>
+              ) : null}
+            </span>
           </label>
           {selectedFolder ? (
             <button
@@ -321,10 +348,7 @@ export function NotesWorkspace({
               onClick={() => {
                 const next = scope === "context" ? "all" : "context";
                 setScope(next);
-                const q = new URLSearchParams(params.toString());
-                if (next === "all") q.set("scope", "all");
-                else q.delete("scope");
-                router.replace(`/notes?${q}`, { scroll: false });
+                syncSearchUrl(query, next);
               }}
               className="h-9 shrink-0 rounded-[var(--radius-md)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
             >
@@ -332,15 +356,17 @@ export function NotesWorkspace({
             </button>
           ) : null}
         </div>
+        {normalizedQuery ? (
+          <p role={searchState === "error" ? "status" : undefined} className="mt-1.5 min-h-4 text-[10.5px] text-[var(--text-tertiary)]">
+            {searchState === "error"
+              ? "全文搜索暂时不可用，当前仍显示已加载内容中的标题和文件夹匹配。"
+              : searchState === "loading"
+                ? "已先显示本地匹配，正在补充正文全文结果…"
+                : "标题匹配优先，正文命中随后补充。"}
+          </p>
+        ) : null}
 
-        {searchState === "loading" ? (
-          <div role="status" className="flex items-center justify-center gap-2 py-24 text-[12px] text-[var(--text-secondary)]">
-            <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-            正在搜索…
-          </div>
-        ) : searchState === "error" ? (
-          <div role="alert" className="py-24 text-center text-[12px] text-[var(--danger)]">搜索暂时不可用。</div>
-        ) : visible.length ? (
+        {visible.length ? (
           <section className="mt-5 border-t border-[var(--border-subtle)]">
             {visible.map((note) => (
               <NoteRow
@@ -391,13 +417,16 @@ export function NotesWorkspace({
             ) : null}
           </section>
         ) : (
-          <div className="py-24 text-center">
+          <div className="py-20 text-center">
             <p className="text-[14px] font-medium text-[var(--text-primary)]">
               {normalizedQuery ? "没有找到匹配的笔记" : "这里还没有笔记"}
             </p>
             <p className="mx-auto mt-1.5 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
-              {normalizedQuery ? "尝试不同的关键词，或切换搜索范围。" : "从左侧导航或右下角新建一篇笔记。"}
+              {normalizedQuery ? "换一个关键词，或切换搜索范围。" : "新建一篇笔记，直接开始写。"}
             </p>
+            <div className="mt-4 flex justify-center">
+              {normalizedQuery ? <Button variant="outline" size="sm" onClick={() => updateQuery("")}>清空搜索</Button> : newNoteForm()}
+            </div>
           </div>
         )}
       </div>
@@ -411,7 +440,7 @@ export function NotesWorkspace({
               mutate(moveNote, form);
               setMoving(null);
             }}
-            className="w-full max-w-sm rounded-[14px] border border-[var(--border-subtle)] bg-white p-4 shadow-[0_18px_48px_rgba(0,0,0,.12)]"
+            className="w-full max-w-sm rounded-[14px] border border-[var(--border-subtle)] bg-white p-4 shadow-[var(--shadow-dialog)]"
           >
             <input type="hidden" name="note_id" value={moving.id} />
             <FolderPicker folders={folders} initialFolderId={moving.folder_id} idPrefix={`move-${moving.id}`} label="移动到" />

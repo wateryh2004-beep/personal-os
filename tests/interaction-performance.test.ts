@@ -146,8 +146,10 @@ describe("interaction performance guardrails", () => {
     expect(proxy).toContain("requestHeaders.delete(verifiedOwnerIdHeader)");
     expect(auth).toContain("requestHeaders.get(verifiedOwnerIdHeader)");
     expect(auth).toContain("supabase.auth.getClaims()");
+    expect(noteQueries).toContain("const notePromise = supabase.from");
+    expect(noteQueries).toContain("const versionsPromise = supabase");
     expect(noteQueries).toContain("const relationsPromise = getNoteLinkRelations");
-    expect(noteQueries).toContain("await Promise.all([versionsPromise, relationsPromise])");
+    expect(noteQueries).toContain("const [noteResult, versionsResult, relations] = await Promise.all");
     expect(notePage).toContain("const dataPromise = getNote(noteId)");
     expect(notePage).toContain("const foldersPromise = getActiveNoteFolders()");
     expect(notePage).toContain("const aiPromise = getAiSettings()");
