@@ -13,8 +13,9 @@ export function CalendarWorkspaceLoader({ initialWorkspace, initialCreateOpen = 
   const snapshot = useSyncExternalStore(calendarWorkspaceResource.subscribe, calendarWorkspaceResource.get, calendarWorkspaceResource.get);
   useWorkspaceResourceLifecycle(calendarWorkspaceResource);
   useEffect(() => {
-    if (!calendarWorkspaceResource.get().data) calendarWorkspaceResource.set(initialWorkspace);
-    perfMark("workspace-visible", { workspace: "calendar", cached: Boolean(calendarWorkspaceResource.get().data) });
+    const hadCachedData = calendarWorkspaceResource.get().data !== undefined;
+    calendarWorkspaceResource.set(initialWorkspace);
+    perfMark("workspace-visible", { workspace: "calendar", cached: hadCachedData, source: "rsc" });
     void calendarWorkspaceResource.revalidate().then(() => perfMeasure("workspace-data-ready", "navigation-click", { workspace: "calendar" })).catch(() => {});
   }, [initialWorkspace]);
   const data = snapshot.data ?? initialWorkspace;
