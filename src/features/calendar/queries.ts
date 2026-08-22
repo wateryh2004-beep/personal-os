@@ -1,38 +1,22 @@
 import { requireOwner } from "@/lib/auth/require-owner";
 import { withPerfSpan } from "@/lib/performance/server-perf";
+import type { CalendarWorkspaceData } from "./workspace-resource";
 
 type Owner = Awaited<ReturnType<typeof requireOwner>>;
 
-type CalendarConnectionRow = {
-  id: string;
+type CalendarConnectionRow = NonNullable<CalendarWorkspaceData["connection"]> & {
   label: string | null;
   status: string;
   last_sync_at: string | null;
-  last_error_code: string | null;
   oauth_connected_at: string | null;
   granted_scopes: string[] | null;
-  oauth_scope_version: number | null;
   calendar_last_delta_sync_at: string | null;
   calendar_last_full_reconcile_at: string | null;
   calendar_subscription_expires_at: string | null;
   calendar_webhook_last_received_at: string | null;
 };
 
-type CalendarCategoryRow = {
-  id: string;
-  provider_category_id: string | null;
-  display_name: string;
-  color: string | null;
-  managed_key: string | null;
-  category_kind: string | null;
-  ai_description: string | null;
-  keywords: string[] | null;
-  display_order: number | null;
-  is_ai_managed: boolean | null;
-  ai_enabled: boolean | null;
-  last_synced_at: string | null;
-};
-
+type CalendarCategoryRow = CalendarWorkspaceData["categories"][number];
 type CalendarRunningSyncRow = { id: string; started_at: string };
 
 type CalendarWorkspaceReadModel = {
@@ -54,7 +38,7 @@ function buildCalendarWorkspace(
   timezone: string | null | undefined,
   runningSync: CalendarRunningSyncRow | null | undefined,
   unavailable = false,
-) {
+): CalendarWorkspaceData {
   const normalizedConnection = connection ?? null;
   const sync = normalizedConnection ? (() => {
     const lastSyncAt = normalizedConnection.calendar_last_delta_sync_at ?? normalizedConnection.last_sync_at;
@@ -75,9 +59,12 @@ function buildCalendarWorkspace(
     };
   })() : null;
   return {
-    connection: normalizedConnection,
+    connection: normalizedConnection ? {
+      id: normalizedConnection.id,
+      last_error_code: normalizedConnection.last_error_code,
+      oauth_scope_version: normalizedConnection.oauth_scope_version,
+    } : null,
     sync,
-    events: [],
     categories,
     timezone: timezone || "Asia/Shanghai",
     unavailable,
