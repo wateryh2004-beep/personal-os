@@ -14,10 +14,10 @@ export function NotesWorkspaceLoader({ initialWorkspace, folderId, initialView, 
   const snapshot = useSyncExternalStore(notesWorkspaceResource.subscribe, notesWorkspaceResource.get, notesWorkspaceResource.get);
   useWorkspaceResourceLifecycle(notesWorkspaceResource);
   useEffect(() => {
-    if (!notesWorkspaceResource.get().data) notesWorkspaceResource.set(initialWorkspace);
-    perfMark("workspace-visible", { workspace: "notes", cached: Boolean(notesWorkspaceResource.get().data) });
+    const hadCachedData = notesWorkspaceResource.get().data !== undefined;
+    notesWorkspaceResource.set(initialWorkspace);
+    perfMark("workspace-visible", { workspace: "notes", cached: hadCachedData, source: "rsc" });
     void notesWorkspaceResource.revalidate().then(() => perfMeasure("workspace-data-ready", "navigation-click", { workspace: "notes" })).catch(() => {});
-  // The resource owns request sharing and stale decisions.
   }, [initialWorkspace]);
   const data = snapshot.data ?? initialWorkspace;
   if (!data) return <NotesShell />;
