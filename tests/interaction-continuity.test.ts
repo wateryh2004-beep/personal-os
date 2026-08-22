@@ -21,11 +21,12 @@ describe("interaction continuity contracts", () => {
   });
 
   it("uses a global quick-create layer rather than route-query navigation", () => {
-    const palette = source("src/components/search/global-command-palette.tsx");
-    const layer = source("src/components/shared/global-create-layer.tsx");
+    const palette = source("src/components/search/global-command-palette-impl.tsx");
+    const layer = source("src/components/shared/global-create-layer-impl.tsx");
     expect(palette).not.toContain('/tasks?create=1');
     expect(palette).not.toContain('/calendar?create=1');
     expect(palette).toContain("personal-os:create-open");
+    expect(layer).toContain('window.addEventListener("personal-os:create-open"');
     expect(layer).toContain("createMicrosoftTodoTaskAction");
     expect(layer).toContain("createCalendarEvent");
     expect(layer).toContain("captureInboxItem");
@@ -56,7 +57,7 @@ describe("interaction continuity contracts", () => {
   });
 
   it("routes Notes context actions to the full-screen notes chat workspace", () => {
-    const palette = source("src/components/search/global-command-palette.tsx");
+    const palette = source("src/components/search/global-command-palette-impl.tsx");
     const workspace = source("src/components/notes/notes-workspace.tsx");
     const chat = source("src/components/assistant/notes-library-chat.tsx");
     expect(palette).toContain('go("/notes/ask")');
