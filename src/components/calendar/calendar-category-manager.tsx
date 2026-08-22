@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { backfillCalendarCategoriesAction, initializeCalendarCategoriesAction, updateCalendarCategoryAiAction, updateCalendarCategoryColorAction, updateCalendarEvent, type CalendarBackfillState, type CalendarCreateState } from "@/features/calendar/actions";
 import type { CalendarCategory } from "@/features/calendar/categories/types";
-import { outlookCategoryPalette } from "@/features/calendar/categories/visual";
+import { outlookCategoryDot, outlookCategoryPalette } from "@/features/calendar/categories/visual";
 import { MicrosoftDeviceConnect } from "@/components/calendar/microsoft-device-connect";
 import { classifyCalendarEvent } from "@/features/calendar/classification/classifier";
 import { getManagedCalendarCategory, primaryCalendarCategories } from "@/features/calendar/classification/taxonomy";
@@ -16,7 +16,7 @@ const control = "h-8 rounded-[7px] border-0 bg-[var(--surface-control)] px-2 tex
 function CategoryRow({ category }: { category: CalendarCategory }) {
   const [state, action, pending] = useActionState(updateCalendarCategoryColorAction, initial);
   const [aiState, aiAction, aiPending] = useActionState(updateCalendarCategoryAiAction, initial);
-  const dot = outlookCategoryPalette[category.color]?.hex ?? "#8e8e93";
+  const dot = outlookCategoryDot(category.color);
   return (
     <div className="border-b border-[var(--border-subtle)] py-3 last:border-0">
       <form action={action} className="grid grid-cols-[minmax(0,1fr)_118px] items-center gap-3">
@@ -34,6 +34,7 @@ function CategoryRow({ category }: { category: CalendarCategory }) {
         <details className="ml-4 mt-2">
           <summary className="cursor-pointer list-none text-[10.5px] text-[var(--text-tertiary)]">AI 分类规则</summary>
           <form action={aiAction} className="mt-2 grid gap-2.5 border-l border-[var(--border-subtle)] pl-3">
+            <input type="hidden" name="category_id" value={category.id}/>
             <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)]"><input type="checkbox" name="ai_enabled" defaultChecked={category.ai_enabled} className="size-3.5 accent-[var(--accent)]"/>允许 AI 建议此分类</label>
             <label className="grid gap-1 text-[10px] text-[var(--text-tertiary)]">说明<input name="ai_description" maxLength={500} defaultValue={category.ai_description ?? ""} className={control}/></label>
             <label className="grid gap-1 text-[10px] text-[var(--text-tertiary)]">关键词（逗号分隔）<input name="keywords" maxLength={1500} defaultValue={category.keywords.join("，")} className={control}/></label>
