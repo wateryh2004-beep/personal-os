@@ -22,6 +22,11 @@ const rlsOptimization = source("supabase/migrations/20260811104219_optimize_rls_
 const auth = source("src/lib/auth/require-owner.ts");
 const proxy = source("src/lib/supabase/proxy.ts");
 const noteQueries = source("src/features/notes/queries.ts");
+const notePage = source("src/app/(app)/notes/[noteId]/page.tsx");
+const todayPage = source("src/app/(app)/today/page.tsx");
+const tasksPage = source("src/app/(app)/tasks/page.tsx");
+const notesPage = source("src/app/(app)/notes/page.tsx");
+const calendarPage = source("src/app/(app)/calendar/page.tsx");
 
 describe("interaction performance guardrails", () => {
   it("keeps the calendar instance stable and gives the workspace one cache owner", () => {
@@ -140,5 +145,15 @@ describe("interaction performance guardrails", () => {
     expect(auth).toContain("supabase.auth.getClaims()");
     expect(noteQueries).toContain("const relationsPromise = getNoteLinkRelations");
     expect(noteQueries).toContain("await Promise.all([versionsPromise, relationsPromise])");
+    expect(notePage).toContain("const dataPromise = getNote(noteId)");
+    expect(notePage).toContain("const foldersPromise = getActiveNoteFolders()");
+    expect(notePage).toContain("const aiPromise = getAiSettings()");
+  });
+
+  it("starts private workspace reads in the Server Component navigation path", () => {
+    expect(todayPage).toContain("await getTodayWorkspace()");
+    expect(tasksPage).toContain("const workspacePromise = getMicrosoftTodoWorkspace()");
+    expect(notesPage).toContain("const workspacePromise = getNotesWorkspace()");
+    expect(calendarPage).toContain("const workspacePromise = getCalendarWorkspace()");
   });
 });

@@ -16,7 +16,7 @@ export async function getCalendarWorkspace(owner?: Owner) {
     const nextHourlyAt = lastSyncAt ? new Date(Date.parse(lastSyncAt) + 3600_000).toISOString() : null;
     const nextFullAt = connection.data.calendar_last_full_reconcile_at ? new Date(Date.parse(connection.data.calendar_last_full_reconcile_at) + 172800_000).toISOString() : null;
     const ageMs = lastSyncAt ? Date.now() - Date.parse(lastSyncAt) : Number.POSITIVE_INFINITY;
-    const state = runningSync.data ? "syncing" : connection.data.last_error_code ? "failed" : ageMs <= 3600_000 ? "fresh" : "stale";
+    const state: "fresh" | "syncing" | "stale" | "failed" = runningSync.data ? "syncing" : connection.data.last_error_code ? "failed" : ageMs <= 3600_000 ? "fresh" : "stale";
     const subscriptionExpiring = Boolean(connection.data.calendar_subscription_expires_at && Date.parse(connection.data.calendar_subscription_expires_at) - Date.now() < 24 * 3600_000);
     return { state, lastSyncAt, nextHourlyAt, nextFullAt, subscriptionExpiresAt: connection.data.calendar_subscription_expires_at, webhookLastReceivedAt: connection.data.calendar_webhook_last_received_at, errorCode: connection.data.last_error_code, subscriptionExpiring };
   })() : null;

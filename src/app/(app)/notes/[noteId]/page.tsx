@@ -25,12 +25,18 @@ function noteStats(markdown: string, relationCount: number) {
 
 export default async function NotePage({ params }: { params: Promise<{ noteId: string }> }) {
   const { noteId } = await params;
-  const data = await getNote(noteId);
-  if (!data) notFound();
-  const [folders, ai] = await Promise.all([
-    getActiveNoteFolders(),
-    getAiSettings(),
+  // The document, folder tree, and AI settings are independent reads. Start
+  // all of them together so opening a note does not add two more round-trips
+  // after the body has loaded.
+  const dataPromise = getNote(noteId);
+  const foldersPromise = getActiveNoteFolders();
+  const aiPromise = getAiSettings();
+  const [data, folders, ai] = await Promise.all([
+    dataPromise,
+    foldersPromise,
+    aiPromise,
   ]);
+  if (!data) notFound();
   const stats = noteStats(data.note.body_markdown, data.links.length + data.backlinks.length);
   const inspector = <div className="space-y-5 pb-3 text-sm">
     {data.state === "base" ? <p className="rounded-[var(--radius-md)] border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">当前为兼容模式；链接和完整版本功能待 migration 应用后启用。</p> : null}
