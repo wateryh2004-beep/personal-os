@@ -1,10 +1,10 @@
 "use client";
 
-import { Inspector, InspectorButton } from "@/components/shared/inspector";
+import { Inspector } from "@/components/shared/inspector";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
 import { publishNotesNavigatorTitle } from "@/features/notes/navigator-title-sync";
 import { useRouter } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, PanelRight } from "lucide-react";
 
 export function NoteDocumentShell({ noteId, editor, inspector }: { noteId: string; editor: React.ReactNode; inspector: React.ReactNode }) {
   const noteInspector = useWorkspacePanel(`note-inspector:${noteId}`);
@@ -32,9 +32,15 @@ export function NoteDocumentShell({ noteId, editor, inspector }: { noteId: strin
             <ChevronLeft className="size-[18px]" aria-hidden="true" />
           </button>
           <span className="hidden md:block" />
-          <div className="pointer-events-auto">
-            <InspectorButton open={noteInspector.isOpen} onClick={noteInspector.toggle} />
-          </div>
+          <button
+            type="button"
+            onClick={noteInspector.toggle}
+            aria-pressed={noteInspector.isOpen}
+            aria-label={noteInspector.isOpen ? "关闭笔记详情" : "打开笔记详情"}
+            className="pointer-events-auto inline-flex size-8 items-center justify-center rounded-full text-[var(--text-tertiary)] transition-[background-color,color] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+          >
+            <PanelRight className="size-4" aria-hidden="true" />
+          </button>
         </div>
         <div className="min-h-0 flex-1">{editor}</div>
       </div>
