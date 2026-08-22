@@ -22,6 +22,7 @@ describe("core UI consistency polish", () => {
     const popover = read("src/components/ui/popover.tsx");
     const tooltip = read("src/components/ui/tooltip.tsx");
     const panel = read("src/components/shared/side-panel-shell.tsx");
+    const feedback = read("src/components/shared/action-feedback.tsx");
 
     expect(dialog).toContain("shadow-[var(--shadow-dialog)]");
     expect(dialog).toContain("max-sm:bottom-0");
@@ -29,6 +30,7 @@ describe("core UI consistency polish", () => {
     expect(tooltip).toContain("delayDuration = 420");
     expect(panel).toContain("border-[var(--separator)]");
     expect(panel).toContain("shadow-[var(--shadow-panel)]");
+    expect(feedback).toContain("shadow-[var(--shadow-popover)]");
   });
 
   it("uses one loading rhythm across core workspaces", () => {
@@ -46,14 +48,17 @@ describe("core UI consistency polish", () => {
     expect(polish).toContain(".notes-editor-loading::before");
   });
 
-  it("keeps mobile spacing aligned for the core workspaces", () => {
+  it("keeps mobile spacing and shared typography aligned", () => {
     const polish = read("src/app/ui-polish.css");
     const now = read("src/components/today/now-workspace.tsx");
+    const header = read("src/components/shared/page-header.tsx");
 
     expect(polish).toContain('--page-inline-mobile: 16px');
     expect(polish).toContain('nav[aria-label="任务视图"]');
     expect(polish).toContain('article a[href^="/notes/"]');
     expect(polish).toContain("var(--tab-bar-height)");
     expect(now).toContain('className="now-workspace');
+    expect(header).toContain('text-[28px]');
+    expect(header).toContain('text-[13px]');
   });
 });
