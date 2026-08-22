@@ -28,7 +28,7 @@ export default async function Settings() {
           available={promptSettings.available}
         />
         <AiGovernanceSettings settings={governance} />
-        <SystemHealth rows={systemHealth} />
+        <SystemHealth rows={systemHealth.rows} controlPlane={systemHealth.controlPlane} />
         <section className="border-t pt-5">
           <h2 className="font-medium">快捷键</h2>
           <p className="mt-1 text-[var(--text-secondary)]">常用操作保持一致；编辑文本时不会抢占输入快捷键。</p>

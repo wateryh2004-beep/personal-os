@@ -72,7 +72,7 @@ Files 的对象正文存于私有 Cloudflare R2 bucket `life-of-hang-files-prod`
 Outlook Calendar 与 Microsoft To Do 是日程和任务的权威执行层。Personal OS 不建立平行
 数据源；当前只读缓存与不可变备份快照保存在你的 Supabase 私有数据库中。`/calendar` 的“对齐”会同步两者并
 生成一份本地云端快照。Vercel 每日会在云端低频执行同样的任务，不需要 Mac 常开。
-在 Vercel Production 设置一个随机、server-only 的 `CRON_SECRET` 后才会启用计划任务。
+在 Vercel Production 设置一个随机、server-only 的 `CRON_SECRET` 后才会启用计划任务。还应设置稳定的 `APP_URL`（生产域名），用于 Microsoft Graph Webhook 回调；不要使用会变化的 Preview URL。Vercel Hobby 仅支持每天执行、最多两个 Cron，不能承载 hourly delta；要实现小时同步，需要 Vercel Pro 或外部调度器以 `Authorization: Bearer $CRON_SECRET` 调用 `/api/cron/calendar-sync`。Settings → 系统状态会以最近真实运行记录显示这条链路是否已经生效。
 `OWNER_USER_ID` 固定为唯一所有者的 Supabase Auth UUID，供不带浏览器会话的窄后台任务解析 owner；Cron 不接受请求参数中的用户 ID，也不会扫描 Auth 用户猜测 owner。
 
 ## RSS-first Briefing

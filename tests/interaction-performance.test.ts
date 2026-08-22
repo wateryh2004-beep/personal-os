@@ -27,6 +27,8 @@ const todayPage = source("src/app/(app)/today/page.tsx");
 const tasksPage = source("src/app/(app)/tasks/page.tsx");
 const notesPage = source("src/app/(app)/notes/page.tsx");
 const calendarPage = source("src/app/(app)/calendar/page.tsx");
+const systemHealth = source("src/components/settings/system-health.tsx");
+const controlPlane = source("src/features/system-status/control-plane.ts");
 
 describe("interaction performance guardrails", () => {
   it("keeps the calendar instance stable and gives the workspace one cache owner", () => {
@@ -155,5 +157,13 @@ describe("interaction performance guardrails", () => {
     expect(tasksPage).toContain("const workspacePromise = getMicrosoftTodoWorkspace()");
     expect(notesPage).toContain("const workspacePromise = getNotesWorkspace()");
     expect(calendarPage).toContain("const workspacePromise = getCalendarWorkspace()");
+  });
+
+  it("makes deployment and calendar scheduler evidence visible to the owner", () => {
+    expect(systemHealth).toContain("运行版本");
+    expect(systemHealth).toContain("小时 delta");
+    expect(systemHealth).toContain("Webhook");
+    expect(controlPlane).toContain("calendar_sync_cron_runs");
+    expect(controlPlane).toContain("VERCEL_GIT_COMMIT_SHA");
   });
 });
