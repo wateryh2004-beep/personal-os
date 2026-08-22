@@ -7,7 +7,7 @@ import { useEffect } from "react";
  *
  * Private data intentionally stays in memory only: it is neither persisted to
  * localStorage nor placed in a shared HTTP/CDN cache. A single in-flight read
- * is shared by navigation, intent prefetch, and the workspace consumer.
+ * is shared by the active workspace consumer and explicit revalidation.
  */
 export type WorkspaceCacheEntry<T> = {
   data?: T;
@@ -18,6 +18,7 @@ export type WorkspaceCacheEntry<T> = {
 };
 
 type Listener = () => void;
+type WorkspacePrefetchStrategy = "network" | "route-owned";
 
 export type WorkspaceResource<T> = {
   key: string;
@@ -26,7 +27,7 @@ export type WorkspaceResource<T> = {
   set: (data: T) => void;
   mutate: (updater: (current: T | undefined) => T | undefined) => void;
   invalidate: () => void;
-  prefetch: () => Promise<T>;
+  prefetch: () => Promise<T | undefined>;
   revalidate: (options?: { force?: boolean }) => Promise<T>;
 };
 
@@ -36,6 +37,7 @@ export function createWorkspaceResource<T>(
   key: string,
   fetcher: () => Promise<T>,
   staleMs: number,
+  options: { prefetchStrategy?: WorkspacePrefetchStrategy } = {},
 ): WorkspaceResource<T> {
   let entry: WorkspaceCacheEntry<T> = {};
   const listeners = new Set<Listener>();
@@ -75,7 +77,11 @@ export function createWorkspaceResource<T>(
     set: (data) => { entry = { data, fetchedAt: Date.now(), staleAt: Date.now() + staleMs }; notify(); },
     mutate: (updater) => { entry = { ...entry, data: updater(entry.data) }; notify(); },
     invalidate: () => { entry = { ...entry, staleAt: 0 }; notify(); },
-    prefetch: () => revalidate(),
+    // Route-owned workspaces are already fetched by Next.js RSC prefetch. A
+    // second API prefetch only duplicates Vercel ↔ Supabase work.
+    prefetch: options.prefetchStrategy === "route-owned"
+      ? async () => entry.data
+      : () => revalidate(),
     revalidate,
   };
   resources.add({ clear: () => { entry = {}; notify(); } });
