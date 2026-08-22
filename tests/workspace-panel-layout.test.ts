@@ -12,7 +12,9 @@ describe("workspace panel layout contract", () => {
     expect(sidecar).toContain("SidePanelShell");
     expect(sidecar).toContain('variant="assistant"');
     expect(sidePanelShell).toContain("fixed bottom-0 right-0 top-[var(--toolbar-height)]");
-    expect(sidePanelShell).toContain("w-[min(420px,calc(100vw-8px))]");
+    expect(sidePanelShell).toContain('variant === "assistant" ? 420 : 352');
+    expect(sidePanelShell).toContain("md:w-[min(var(--panel-width),calc(100vw-8px))]");
+    expect(sidePanelShell).toContain("personal-os:panel-width");
     expect(sidePanelShell).not.toContain("lg:static");
     expect(sidePanelShell).not.toContain("lg:shrink-0");
   });
