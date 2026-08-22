@@ -1,5 +1,6 @@
 import { requireOwner } from "@/lib/auth/require-owner";
 import { noteAiPromptDefinitions } from "@/features/notes/ai-prompts";
+import { getAiGovernance } from "./governance";
 
 export async function getAiSettings() {
   const { supabase, userId } = await requireOwner();
@@ -29,4 +30,9 @@ export async function getNoteAiPromptSettings() {
       customized: overrides.has(definition.key),
     })),
   };
+}
+
+export async function getAiGovernanceSettings() {
+  const { userId } = await requireOwner();
+  return getAiGovernance(userId);
 }

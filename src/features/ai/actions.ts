@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { sealSecret } from "@/lib/crypto/sealed-secret";
 import { deepSeekKeyMaterial } from "@/lib/ai/deepseek";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   isNoteAiPromptKey,
   noteAiDefaultPrompt,
@@ -22,6 +23,34 @@ const promptOverrideSchema = z.object({
 });
 
 const promptKeySchema = z.string().trim().refine(isNoteAiPromptKey);
+const governanceSchema = z.object({
+  semanticRetrievalOptIn: z.boolean(), longTermMemoryOptIn: z.boolean(),
+  maxContextCharsPerRequest: z.coerce.number().int().min(1000).max(64000),
+  maxOutputTokensPerRequest: z.coerce.number().int().min(128).max(8000),
+  dailyCallLimit: z.coerce.number().int().min(1).max(10000), monthlyCallLimit: z.coerce.number().int().min(1).max(100000),
+  dailyCostLimitUsd: z.coerce.number().min(0).max(1000), monthlyCostLimitUsd: z.coerce.number().min(0).max(10000),
+});
+const feedbackSchema = z.object({ auditId: z.string().uuid(), feedback: z.enum(["up", "down"]), reason: z.string().trim().max(500).optional(), sourceCorrection: z.string().trim().max(500).optional() });
+
+export async function saveAiGovernance(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const parsed = governanceSchema.safeParse({ semanticRetrievalOptIn: formData.get("semantic_retrieval_opt_in") === "on", longTermMemoryOptIn: formData.get("long_term_memory_opt_in") === "on", maxContextCharsPerRequest: formData.get("max_context_chars_per_request"), maxOutputTokensPerRequest: formData.get("max_output_tokens_per_request"), dailyCallLimit: formData.get("daily_call_limit"), monthlyCallLimit: formData.get("monthly_call_limit"), dailyCostLimitUsd: formData.get("daily_cost_limit_usd"), monthlyCostLimitUsd: formData.get("monthly_cost_limit_usd") });
+  if (!parsed.success) throw new Error("AI 边界设置无效。");
+  const { error } = await supabase.from("ai_governance_settings").upsert({ user_id: userId, semantic_retrieval_opt_in: parsed.data.semanticRetrievalOptIn, long_term_memory_opt_in: parsed.data.longTermMemoryOptIn, max_context_chars_per_request: parsed.data.maxContextCharsPerRequest, max_output_tokens_per_request: parsed.data.maxOutputTokensPerRequest, daily_call_limit: parsed.data.dailyCallLimit, monthly_call_limit: parsed.data.monthlyCallLimit, daily_cost_limit_usd: parsed.data.dailyCostLimitUsd, monthly_cost_limit_usd: parsed.data.monthlyCostLimitUsd }, { onConflict: "user_id" });
+  if (error) throw new Error("无法保存 AI 边界设置，请确认最新 migration 已应用。");
+  await supabase.from("audit_logs").insert({ user_id: userId, action: "configure", entity_type: "ai_governance", actor_type: "user", after_data: { semantic_retrieval_opt_in: parsed.data.semanticRetrievalOptIn, long_term_memory_opt_in: parsed.data.longTermMemoryOptIn, max_context_chars_per_request: parsed.data.maxContextCharsPerRequest, max_output_tokens_per_request: parsed.data.maxOutputTokensPerRequest, daily_call_limit: parsed.data.dailyCallLimit, monthly_call_limit: parsed.data.monthlyCallLimit } });
+  revalidatePath("/settings");
+}
+
+export async function submitAiFeedback(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const parsed = feedbackSchema.safeParse({ auditId: formData.get("audit_id"), feedback: formData.get("feedback"), reason: formData.get("reason") || undefined, sourceCorrection: formData.get("source_correction") || undefined });
+  if (!parsed.success) throw new Error("反馈内容无效。");
+  const { data } = await supabase.from("ai_request_audits").select("id").eq("id", parsed.data.auditId).eq("user_id", userId).maybeSingle();
+  if (!data) throw new Error("找不到该 AI 调用记录。");
+  const { error } = await createAdminClient().from("ai_request_audits").update({ feedback: parsed.data.feedback, feedback_reason: parsed.data.reason ?? null, source_correction: parsed.data.sourceCorrection ?? null }).eq("id", data.id).eq("user_id", userId);
+  if (error) throw new Error("无法保存反馈。");
+}
 
 export async function saveDeepSeekKey(formData: FormData) {
   const { supabase, userId } = await requireOwner();

@@ -19,24 +19,14 @@ export function buildFallbackContextPlan(
     surface: request.surface === "global" ? "global" : request.surface,
     hasCurrentDocument: Boolean(request.currentSurface),
   });
-  // 助手对话（笔记库 surface 映射为 notes，以及全局助手 global，均无当前编辑文档）：
-  // Hang Yu 希望 AI 想了解多少就了解多少，因此强制开启最近笔记 + 复盘，扩大时间窗
-  // 与条数，不再依赖认知路由恰好命中某个 recipe。
-  const openConversation =
-    (request.surface === "notes" || request.surface === "global") &&
-    !request.currentSurface;
   const analytical = route.complexity === "analytical";
-  // 兜底语义：openConversation 只在该路由自己没带 recent_notes 时（如默认的
-  // factual_lookup）才强制全量开放；路由已正确命中（如 retrospective_thinking）
-  // 时保留它自己的时间窗。
-  const forceWideWindow = openConversation && !route.capabilities.includes("recent_notes");
-  const recentNotes =
-    route.capabilities.includes("recent_notes") || openConversation;
+  // Default to the current surface and direct entities. Historical material is
+  // eligible only when the deterministic route explicitly requests it.
+  const recentNotes = route.capabilities.includes("recent_notes");
   const workingMemory =
     route.capabilities.includes("working_memory") || analytical;
   const timeContext = route.capabilities.includes("time_context");
-  const recentHistory =
-    route.capabilities.includes("reviews") || recentNotes || openConversation;
+  const recentHistory = route.capabilities.includes("reviews");
   const domains: SearchDomain[] = route.recipe === "career_strategy"
     ? ["career", "notes", "reviews", "tasks", "calendar", "files"]
     : route.preferredDomains.filter((domain): domain is SearchDomain =>
@@ -56,20 +46,20 @@ export function buildFallbackContextPlan(
     includeRecentHistory: recentHistory,
     recentNotes: {
       enabled: recentNotes,
-      days: forceWideWindow
-        ? Math.max(route.timeWindow.days, 90)
-        : route.timeWindow.days,
-      expandedDays: forceWideWindow
-        ? Math.max(route.timeWindow.expandedDays, 365)
-        : route.timeWindow.expandedDays,
+      days: route.timeWindow.days,
+      expandedDays: route.timeWindow.expandedDays,
       minimumNotes: route.timeWindow.minimumRecentNotes,
-      limit: analytical ? 24 : forceWideWindow ? 50 : 12,
+      limit: analytical ? 16 : 8,
       includeDailyNotes: true,
     },
     retrievalOrder: route.capabilities,
-    useSemantic: route.capabilities.includes("semantic_search"),
+    // Semantic retrieval requires a separate explicit user opt-in.
+    useSemantic: false,
     queryConcepts: route.queryConcepts,
     expandGraph: Boolean(request.currentEntity) || route.capabilities.includes("graph"),
+    expansionReason: recentNotes || recentHistory || shouldSearch || route.capabilities.includes("graph")
+      ? `认知路由 ${route.recipe} 明确要求跨实体检索。`
+      : null,
     searchQueries: shouldSearch
       ? route.queryConcepts.slice(0, 4).map((query) => ({ query, domains, reason: "认知路由提取的主题" }))
       : [],

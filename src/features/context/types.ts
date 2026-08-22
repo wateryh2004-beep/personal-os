@@ -55,6 +55,8 @@ export type ContextPlan = {
     reason: string;
   }>;
   expandGraph: boolean;
+  /** Why this request is allowed to leave the current surface/direct entity. */
+  expansionReason: string | null;
 };
 export type ContextOrigin =
   | "surface"

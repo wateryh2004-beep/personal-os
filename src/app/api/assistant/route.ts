@@ -20,6 +20,7 @@ import {
   releaseCalendarRequestLock,
 } from "@/lib/ai/calendar-request-lock";
 import { recordStatusSafely } from "@/features/system-status/service";
+import { completeAiRequest } from "@/features/ai/governance";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const noStore = { "Cache-Control": "private, no-store, max-age=0" };
@@ -122,6 +123,7 @@ export async function POST(request: Request) {
         return streamFailure.message;
       },
       onEnd: async ({ responseMessage, isAborted }) => {
+        await completeAiRequest(runtime.auditId, streamFailure ? "failed" : isAborted ? "cancelled" : "completed", streamFailure?.code ?? null);
         if (runId) {
           await persistAgentMessage({
             supabase: owner.supabase,

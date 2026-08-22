@@ -1,17 +1,19 @@
 import { DeepSeekSettingsForm } from "@/components/settings/deepseek-settings-form";
 import { AiPromptSettings } from "@/components/settings/ai-prompt-settings";
 import { PageHeader } from "@/components/shared/page-header";
-import { getAiSettings, getNoteAiPromptSettings } from "@/features/ai/queries";
+import { getAiGovernanceSettings, getAiSettings, getNoteAiPromptSettings } from "@/features/ai/queries";
+import { AiGovernanceSettings } from "@/components/settings/ai-governance-settings";
 import { getSystemHealth } from "@/features/system-status/queries";
 import { SystemHealth } from "@/components/settings/system-health";
 import Link from "next/link";
 import { shortcuts } from "@/features/shortcuts/registry";
 
 export default async function Settings() {
-  const [ai, promptSettings, systemHealth] = await Promise.all([
+  const [ai, promptSettings, systemHealth, governance] = await Promise.all([
     getAiSettings(),
     getNoteAiPromptSettings(),
     getSystemHealth(),
+    getAiGovernanceSettings(),
   ]);
   return (
     <>
@@ -25,6 +27,7 @@ export default async function Settings() {
           prompts={promptSettings.prompts}
           available={promptSettings.available}
         />
+        <AiGovernanceSettings settings={governance} />
         <SystemHealth rows={systemHealth} />
         <section className="border-t pt-5">
           <h2 className="font-medium">快捷键</h2>

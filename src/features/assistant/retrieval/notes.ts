@@ -24,9 +24,9 @@ export async function excludeAiGeneratedNotes<T extends NoteRecord>(
   notes: T[],
 ) {
   if (!notes.length) return notes;
-  const { data, error } = await supabase.from("notes").select("id,content_origin").in("id", notes.map((note) => note.id));
+  const { data, error } = await supabase.from("notes").select("id,content_origin,ai_visibility").in("id", notes.map((note) => note.id));
   if (error) return notes;
-  const humanIds = new Set((data ?? []).filter((note) => !isAiGeneratedNote(note.content_origin)).map((note) => note.id));
+  const humanIds = new Set((data ?? []).filter((note) => !isAiGeneratedNote(note.content_origin) && note.ai_visibility === "normal").map((note) => note.id));
   return notes.filter((note) => humanIds.has(note.id));
 }
 
@@ -37,10 +37,10 @@ export async function excludeAiGeneratedNoteResults<T extends NoteSearchResult>(
 ) {
   const noteIds = [...new Set(results.filter((item) => item.entityType === "note").map((item) => item.entityId))];
   if (!noteIds.length) return results;
-  const { data, error } = await supabase.from("notes").select("id,content_origin").in("id", noteIds);
+  const { data, error } = await supabase.from("notes").select("id,content_origin,ai_visibility").in("id", noteIds);
   // Keep search functional during a rolling deployment before the migration is applied.
   if (error) return results;
-  const humanIds = new Set((data ?? []).filter((note) => !isAiGeneratedNote(note.content_origin)).map((note) => note.id));
+  const humanIds = new Set((data ?? []).filter((note) => !isAiGeneratedNote(note.content_origin) && note.ai_visibility === "normal").map((note) => note.id));
   return results.filter((item) => item.entityType !== "note" || humanIds.has(item.entityId));
 }
 

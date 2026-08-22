@@ -9,6 +9,7 @@ import { excludeAiGeneratedNoteResults, listRecentNotes, type RetrievedNote } fr
 import { classifyTopicTrends, findRecurringTopics, recurrenceScoreForDocument } from "@/features/assistant/retrieval/topics";
 import { getSemanticRetriever } from "@/features/assistant/retrieval/semantic";
 import { buildFallbackContextPlan } from "./planner";
+import { getAiGovernance } from "@/features/ai/governance";
 import { rankContextCandidates } from "./ranking";
 import type {
   ContextCandidate,
@@ -72,7 +73,12 @@ export async function buildPersonalContext(
     .maybeSingle();
   const timezone = profile?.timezone || "Asia/Shanghai";
   const today = getDateKeyInTimeZone(now, timezone);
-  const plan = buildFallbackContextPlan(request);
+  const governance = await getAiGovernance(userId);
+  const fallbackPlan = buildFallbackContextPlan(request);
+  const plan = {
+    ...fallbackPlan,
+    useSemantic: governance.semanticRetrievalOptIn && fallbackPlan.retrievalOrder.includes("semantic_search"),
+  };
   const surface = request.currentSurface
     ? [
         candidate({
@@ -254,7 +260,8 @@ export async function buildPersonalContext(
         );
       })().catch(() => []),
     );
-  if (plan.includeWorkingMemory)
+  // Long-term Memory is not background context until the owner opts in.
+  if (plan.includeWorkingMemory && governance.longTermMemoryOptIn)
     tasks.push(
       getMemoriesForContext(now)
         .then((memory) => [
@@ -500,7 +507,7 @@ export async function buildPersonalContext(
   let used = 0;
   const selected = ranked
     .filter((item) => {
-      if (used + item.content.length > limits.total || used >= limits.items)
+      if (used + item.content.length > Math.min(limits.total, governance.maxContextCharsPerRequest) || used >= limits.items)
         return false;
       used += item.content.length;
       return true;
