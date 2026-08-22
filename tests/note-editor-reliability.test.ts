@@ -57,7 +57,7 @@ describe("Notes editor reliability", () => {
     expect(workspace).not.toContain("lastOpenedNoteSessionKey");
     expect(workspace).not.toContain("router.replace(href)");
     expect(notePage).not.toContain("restoreRecentNote");
-    expect(noteLayout).toContain("NotesWorkspaceShell");
+    expect(noteLayout).toContain("NotesLiveWorkspaceShell");
   });
 
   it("keeps one persistent file navigator around index, trash, and document routes", () => {
