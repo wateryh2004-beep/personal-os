@@ -19,6 +19,9 @@ const markdownTheme = source("src/features/notes/editor/markdown-theme.ts");
 const calendarTools = source("src/features/assistant/tools/calendar.ts");
 const assistantExecutor = source("src/features/assistant/executor.ts");
 const rlsOptimization = source("supabase/migrations/20260811104219_optimize_rls_auth_initplan.sql");
+const auth = source("src/lib/auth/require-owner.ts");
+const proxy = source("src/lib/supabase/proxy.ts");
+const noteQueries = source("src/features/notes/queries.ts");
 
 describe("interaction performance guardrails", () => {
   it("keeps the calendar instance stable and gives the workspace one cache owner", () => {
@@ -128,5 +131,14 @@ describe("interaction performance guardrails", () => {
     expect(rlsOptimization).toContain("user_id = (select auth.uid())");
     expect(rlsOptimization).toContain("created_by = (select auth.uid())");
     expect(rlsOptimization).not.toContain("to anon");
+  });
+
+  it("reuses proxy-verified identity and avoids a document detail query waterfall", () => {
+    expect(proxy).toContain("verifiedOwnerIdHeader");
+    expect(proxy).toContain("requestHeaders.delete(verifiedOwnerIdHeader)");
+    expect(auth).toContain("requestHeaders.get(verifiedOwnerIdHeader)");
+    expect(auth).toContain("supabase.auth.getClaims()");
+    expect(noteQueries).toContain("const relationsPromise = getNoteLinkRelations");
+    expect(noteQueries).toContain("await Promise.all([versionsPromise, relationsPromise])");
   });
 });

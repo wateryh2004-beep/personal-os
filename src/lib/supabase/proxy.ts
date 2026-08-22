@@ -3,6 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isOwnerEmail } from "@/lib/auth/owner";
 import { env, isSupabaseConfigured } from "@/lib/env";
 
+/** Request-only identity bridge. These headers are always removed from the
+ * browser-supplied request, then set again only after this proxy validates the
+ * Supabase JWT. They never become response headers or client-visible state. */
+export const verifiedOwnerIdHeader = "x-personal-os-verified-owner-id";
+export const verifiedOwnerEmailHeader = "x-personal-os-verified-owner-email";
+
 // The manifest is fetched by Chrome's installability check outside the signed-in
 // application flow. It must remain readable without a session so the browser
 // receives JSON rather than a login redirect.
@@ -59,13 +65,18 @@ function loginRedirect(request: NextRequest, error?: "configuration" | "not-auth
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const privateAppPath = isPrivateAppPath(pathname);
+  // Do not let a client forge the fast-path identity consumed by Server
+  // Components and API handlers later in this same proxied request.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete(verifiedOwnerIdHeader);
+  requestHeaders.delete(verifiedOwnerEmailHeader);
 
   if (!isSupabaseConfigured) {
     if (privateAppPath) return loginRedirect(request, "configuration");
-    return NextResponse.next({ request });
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  let response = NextResponse.next({ request });
+  let response = NextResponse.next({ request: { headers: requestHeaders } });
   const supabase = createServerClient(env.supabaseUrl!, env.supabasePublishableKey!, {
     cookies: {
       getAll: () => request.cookies.getAll(),
@@ -84,6 +95,15 @@ export async function updateSession(request: NextRequest) {
     const redirectResponse = loginRedirect(request, data?.claims.sub ? "not-authorized" : undefined);
     copySessionCookies(response, redirectResponse);
     return clearSupabaseCookies(request, redirectResponse);
+  }
+
+  if (isOwner && data?.claims.sub && email) {
+    // Preserve any refreshed auth cookies generated above while passing the
+    // verified identity to the downstream route. This removes duplicate
+    // remote getClaims() calls without weakening the authorization boundary.
+    requestHeaders.set(verifiedOwnerIdHeader, data.claims.sub);
+    requestHeaders.set(verifiedOwnerEmailHeader, email);
+    response = copySessionCookies(response, NextResponse.next({ request: { headers: requestHeaders } }));
   }
 
   if (isPublicPath(pathname) && data?.claims.sub) {

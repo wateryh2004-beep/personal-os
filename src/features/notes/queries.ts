@@ -237,11 +237,16 @@ export async function getNote(id: string) {
   const noteResult = await supabase.from("notes").select("*").eq("id", id).maybeSingle();
   if (noteResult.error || !noteResult.data) return null;
   const note = noteResult.data;
-  const versionsResult = await supabase
+  // These reads do not depend on one another. Keeping them sequential made a
+  // document open pay a full network round-trip for versions and another for
+  // link relations after the note body had already arrived.
+  const versionsPromise = supabase
     .from("note_versions")
     .select("id,version_number,title,body_markdown,reason,created_at")
     .eq("note_id", id)
     .order("version_number", { ascending: false });
+  const relationsPromise = getNoteLinkRelations(supabase, id);
+  const [versionsResult, relations] = await Promise.all([versionsPromise, relationsPromise]);
   const versions = isNotesWorkspaceSchemaMissing(versionsResult.error)
     ? await supabase
       .from("note_versions")
@@ -249,7 +254,6 @@ export async function getNote(id: string) {
       .eq("note_id", id)
       .order("version_number", { ascending: false })
     : versionsResult;
-  const relations = await getNoteLinkRelations(supabase, id);
   const linksUnavailable = relations.unavailable;
   return {
     note: { ...note, revision: note.revision ?? 0, last_saved_at: note.last_saved_at ?? null },
