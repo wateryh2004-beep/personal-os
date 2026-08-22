@@ -1,5 +1,9 @@
 import { requireOwner } from "@/lib/auth/require-owner";
 import { withPerfSpan } from "@/lib/performance/server-perf";
+import {
+  createWorkspaceLatencyProfiler,
+  type WorkspaceLatencyProfiler,
+} from "@/lib/performance/workspace-latency";
 import type { TodoImportance, TodoList, TodoStatus, TodoTask } from "./types";
 
 type Owner = Awaited<ReturnType<typeof requireOwner>>;
@@ -91,19 +95,39 @@ async function getMicrosoftTodoWorkspaceLegacy(owner: Owner) {
   );
 }
 
-export async function getMicrosoftTodoWorkspace(owner?: Owner) {
-  const resolvedOwner = owner ?? await withPerfSpan("tasks.workspace.auth", () => requireOwner());
-  const { supabase } = resolvedOwner;
+export async function getMicrosoftTodoWorkspace(
+  owner?: Owner,
+  profiler?: WorkspaceLatencyProfiler,
+) {
+  const latency = profiler ?? createWorkspaceLatencyProfiler("tasks", "rsc");
+  const ownsProfiler = !profiler;
+  let status = 500;
 
-  // The normal cold-start path is one HTTPS/PostgREST request. Keep the legacy
-  // fan-out as a deploy-order and transient-RPC fallback so a read-model schema
-  // problem cannot make the Tasks workspace unavailable.
-  const compact = await withPerfSpan("tasks.workspace.read-model", () =>
-    supabase.rpc("get_tasks_workspace_read_model"),
-  );
-  if (!compact.error && isTasksWorkspaceReadModel(compact.data)) {
-    return normalizeWorkspace(compact.data.connection, compact.data.lists, compact.data.tasks);
+  try {
+    const resolvedOwner = owner ?? await latency.time("auth", () => requireOwner());
+    const { supabase } = resolvedOwner;
+
+    // The normal cold-start path is one HTTPS/PostgREST request. Keep the legacy
+    // fan-out as a deploy-order and transient-RPC fallback so a read-model schema
+    // problem cannot make the Tasks workspace unavailable.
+    const compact = await latency.time("supabase", () =>
+      supabase.rpc("get_tasks_workspace_read_model"),
+    );
+    if (!compact.error && isTasksWorkspaceReadModel(compact.data)) {
+      const workspace = latency.timeSync("assemble", () =>
+        normalizeWorkspace(compact.data.connection, compact.data.lists, compact.data.tasks),
+      );
+      status = 200;
+      return workspace;
+    }
+
+    latency.noteFallback();
+    const workspace = await latency.time("fallback", () =>
+      getMicrosoftTodoWorkspaceLegacy(resolvedOwner),
+    );
+    status = 200;
+    return workspace;
+  } finally {
+    if (ownsProfiler) latency.finish(status);
   }
-
-  return getMicrosoftTodoWorkspaceLegacy(resolvedOwner);
 }
