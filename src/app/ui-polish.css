@@ -1,0 +1,96 @@
+:root {
+  --separator: rgba(60, 60, 67, 0.12);
+  --separator-strong: rgba(60, 60, 67, 0.18);
+  --shadow-popover: 0 8px 24px rgba(24, 24, 27, 0.08), 0 1px 3px rgba(24, 24, 27, 0.04);
+  --shadow-dialog: 0 22px 64px rgba(24, 24, 27, 0.14), 0 2px 8px rgba(24, 24, 27, 0.05);
+  --shadow-panel: -10px 0 36px rgba(24, 24, 27, 0.06), -1px 0 0 rgba(60, 60, 67, 0.08);
+  --page-inline: 24px;
+  --page-inline-mobile: 16px;
+  --type-micro: 10.5px;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.workspace-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(60, 60, 67, 0.18) transparent;
+}
+
+.workspace-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.workspace-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.workspace-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(60, 60, 67, 0.18);
+  background-clip: padding-box;
+}
+
+.workspace-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(60, 60, 67, 0.26);
+  background-clip: padding-box;
+}
+
+.ui-skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-control);
+}
+
+.ui-skeleton-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.62), transparent);
+  animation: ui-skeleton-shimmer 1.45s ease-in-out infinite;
+}
+
+@keyframes ui-skeleton-shimmer {
+  to { transform: translateX(100%); }
+}
+
+/* Core workspaces share the same mobile page rhythm. */
+.now-workspace {
+  padding-bottom: max(3rem, calc(var(--tab-bar-height) + 1.5rem));
+}
+
+@media (max-width: 767px) {
+  .now-workspace {
+    padding: 1.75rem var(--page-inline-mobile) max(2.5rem, calc(var(--tab-bar-height) + 1.25rem));
+  }
+
+  section:has(nav[aria-label="任务视图"]) > div > header {
+    padding-inline: var(--page-inline-mobile) !important;
+    padding-top: 1.125rem !important;
+  }
+
+  section:has(nav[aria-label="任务视图"]) main.workspace-scroll {
+    padding-inline: var(--page-inline-mobile) !important;
+  }
+
+  main.workspace-scroll:has(article a[href^="/notes/"]) {
+    padding-left: 1.125rem !important;
+    padding-right: 1.125rem !important;
+    padding-bottom: max(2rem, calc(var(--tab-bar-height) + 1rem)) !important;
+  }
+
+  [data-slot="dialog-content"] {
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton-shimmer::after {
+    animation: none;
+    display: none;
+  }
+}
