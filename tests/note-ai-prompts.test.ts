@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cleanTitle,
+  generatedTitleQualityIssues,
   isRewriteOperation,
   noteAiCitationOperations,
   noteAiCitationRule,
@@ -14,16 +15,20 @@ import {
 describe("note AI prompt registry", () => {
   it("grounds summaries and actions in the submitted note", () => {
     expect(noteAiInstruction("summarizeNote")).toContain("仅依据当前笔记");
-    expect(noteAiInstruction("extractActions")).toContain("不制造任务");
+    expect(noteAiInstruction("extractActions")).toContain("不得因为原文出现了问题");
+    expect(noteAiInstruction("extractActions")).toContain("不得");
     expect(noteAiInstruction("deepThinkNote")).toContain("关键判断");
     expect(personalKnowledgeSystemPrompt).toContain("不得虚构");
     expect(personalKnowledgeSystemPrompt).toContain("Hang Yu");
     expect(personalKnowledgeSystemPrompt).toContain("AI 文案");
   });
 
-  it("marks only transforms as rewrites", () => {
+  it("marks only direct replacements as rewrites", () => {
     expect(isRewriteOperation("polishNote")).toBe(true);
+    expect(isRewriteOperation("translateNote")).toBe(true);
     expect(isRewriteOperation("summarizeNote")).toBe(false);
+    // 大纲是衍生内容，只能插入/复制，不应直接覆盖整篇原文。
+    expect(isRewriteOperation("outlineNote")).toBe(false);
   });
 
   it("keeps a natural language question within the ask operation", () => {
@@ -62,31 +67,40 @@ describe("note AI prompt registry", () => {
     expect(noteAiOperations).toContain("extractKeyInsights");
     expect(noteAiOperations).toContain("translateNote");
     expect(noteAiOperations).toContain("outlineNote");
-    expect(noteAiInstruction("extractKeyInsights")).toContain("提炼");
+    expect(noteAiInstruction("extractKeyInsights")).toContain("值得回看的判断");
+    expect(noteAiInstruction("extractKeyInsights")).toContain("不把普通观点加工成口号");
     expect(noteAiInstruction("translateNote")).toContain("翻译成英文");
-    expect(noteAiInstruction("outlineNote")).toContain("大纲");
+    expect(noteAiInstruction("outlineNote")).toContain("不替代原文");
     expect(isRewriteOperation("translateNote")).toBe(true);
-    expect(isRewriteOperation("outlineNote")).toBe(true);
     expect(isRewriteOperation("extractKeyInsights")).toBe(false);
   });
 
-  it("pushes for diverse title shapes and quality instead of banning punctuation", () => {
+  it("anchors titles in note-specific content and rejects template-like comma titles", () => {
     const prompt = noteAiInstruction("generateTitle");
-    // 单步生成：模型在心中列多角度候选、自选最优，不再走独立评审。
-    // 追求的是句式多样与质量，而不是一刀切禁逗号。
-    expect(prompt).toContain("5 个角度各异的候选");
-    expect(prompt).toContain("句式多样性");
-    expect(prompt).toContain("对仗式");
-    expect(prompt).toContain("记忆点");
-    expect(prompt).toContain("个人气味");
-    expect(prompt).toContain("只输出最终选中的标题本身");
-    expect(prompt).not.toContain("绝对禁止出现任何逗号");
-    expect(prompt).not.toContain("JSON 字符串数组");
+    expect(prompt).toContain("内容锚点");
+    expect(prompt).toContain("单一语义单元");
+    expect(prompt).toContain("禁止「A，B」式标题");
+    expect(prompt).toContain("公众号标题");
+    expect(prompt).toContain("只输出最终标题本身");
+    // 不再把机械句式放进正向示例里给模型模仿。
+    expect(prompt).not.toContain("选择，还是行动");
   });
 
-  it("cleans the final title before it lands in the title field", () => {
+  it("cleans title wrappers without silently repairing bad semantics", () => {
     expect(cleanTitle("「辞职去旅行」")).toBe("辞职去旅行");
     expect(cleanTitle("3、我的 AI 焦虑")).toBe("我的 AI 焦虑");
+    expect(cleanTitle("## 标题：为什么我不想考公")).toBe("为什么我不想考公");
     expect(cleanTitle("  标题  ")).toBe("标题");
+    // cleanTitle 不删除坏标点；质量层负责拒绝并触发重试。
+    expect(cleanTitle("选择，还是行动")).toBe("选择，还是行动");
+  });
+
+  it("reports deterministic title quality failures", () => {
+    expect(generatedTitleQualityIssues("选择，还是行动")).toContain(
+      "不要使用逗号、顿号或分号拆成并列半句",
+    );
+    expect(generatedTitleQualityIssues("关于时间的思考")).toContain("标题过于通用");
+    expect(generatedTitleQualityIssues("为什么我不想考公")).toEqual([]);
+    expect(generatedTitleQualityIssues("华夏基金这段实习值不值得继续")).toEqual([]);
   });
 });
