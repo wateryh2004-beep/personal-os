@@ -22,4 +22,5 @@ export const notesWorkspaceResource = createWorkspaceResource(
   "notes:workspace-data",
   readNotesWorkspace,
   45_000,
+  { prefetchStrategy: "route-owned" },
 );
