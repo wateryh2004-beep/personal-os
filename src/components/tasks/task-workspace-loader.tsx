@@ -15,11 +15,12 @@ export function TaskWorkspaceLoader({ initialWorkspace, initialCreateOpen = fals
   const snapshot = useSyncExternalStore(tasksWorkspaceResource.subscribe, tasksWorkspaceResource.get, tasksWorkspaceResource.get);
   useWorkspaceResourceLifecycle(tasksWorkspaceResource);
   useEffect(() => {
-    if (!tasksWorkspaceResource.get().data) tasksWorkspaceResource.set(initialWorkspace);
-    perfMark("workspace-visible", { workspace: "tasks", cached: Boolean(tasksWorkspaceResource.get().data) });
+    const hadCachedData = tasksWorkspaceResource.get().data !== undefined;
+    // The RSC route payload is the authoritative navigation snapshot. Replacing
+    // stale tab memory here avoids a second API fetch after route prefetch.
+    tasksWorkspaceResource.set(initialWorkspace);
+    perfMark("workspace-visible", { workspace: "tasks", cached: hadCachedData, source: "rsc" });
     void tasksWorkspaceResource.revalidate().then(() => perfMeasure("workspace-data-ready", "navigation-click", { workspace: "tasks" })).catch(() => {});
-  // The resource owns deduplication; the server snapshot changes only on a
-  // new route payload, when it is safe to seed again if needed.
   }, [initialWorkspace]);
 
   const data = snapshot.data ?? initialWorkspace;
