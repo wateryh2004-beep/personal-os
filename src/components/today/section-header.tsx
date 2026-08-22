@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 export function TodaySectionHeader({
   children,
@@ -11,15 +11,17 @@ export function TodaySectionHeader({
   label?: string;
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <h2 className="text-sm font-semibold">{children}</h2>
+    <div className="flex items-center justify-between gap-4">
+      <h2 className="text-[15px] font-semibold tracking-[-0.015em] text-[var(--text-primary)]">
+        {children}
+      </h2>
       {href ? (
         <Link
           href={href}
-          className="inline-flex items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--accent)]"
+          className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-[var(--text-tertiary)] transition-colors ui-transition hover:text-[var(--accent)]"
         >
           {label}
-          <ArrowRight className="size-3.5" aria-hidden="true" />
+          <ChevronRight className="size-3.5" aria-hidden="true" />
         </Link>
       ) : null}
     </div>
