@@ -58,6 +58,17 @@ html {
   to { transform: translateX(100%); }
 }
 
+/* Notes keeps its existing placeholder geometry but shares the same loading rhythm. */
+.notes-editor-loading::before {
+  background: var(--surface-control) !important;
+  box-shadow: 0 2.5rem 0 var(--surface-control), 0 5rem 0 var(--surface-control), 0 7.5rem 0 var(--surface-control) !important;
+  animation: ui-loading-breathe 1.45s ease-in-out infinite alternate !important;
+}
+
+@keyframes ui-loading-breathe {
+  to { opacity: 0.5; }
+}
+
 /* Core workspaces share the same mobile page rhythm. */
 .now-workspace {
   padding-bottom: max(3rem, calc(var(--tab-bar-height) + 1.5rem));
@@ -92,5 +103,9 @@ html {
   .ui-skeleton-shimmer::after {
     animation: none;
     display: none;
+  }
+
+  .notes-editor-loading::before {
+    animation: none !important;
   }
 }
