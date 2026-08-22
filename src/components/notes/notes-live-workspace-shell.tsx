@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   NotesWorkspaceShell,
   type NotesNavigatorFolder,
@@ -21,23 +21,31 @@ export function NotesLiveWorkspaceShell({
   notes: NotesNavigatorNote[];
   children: React.ReactNode;
 }) {
-  const [liveNotes, setLiveNotes] = useState(notes);
-
-  useEffect(() => {
-    setLiveNotes(notes);
-  }, [notes]);
+  const [titleOverrides, setTitleOverrides] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const handleTitleChange = (event: Event) => {
       if (!(event instanceof CustomEvent)) return;
       const detail = event.detail as NotesNavigatorTitleDetail | undefined;
       if (!detail?.noteId || typeof detail.title !== "string") return;
-      setLiveNotes((current) => patchNavigatorNoteTitle(current, detail.noteId, detail.title));
+      setTitleOverrides((current) =>
+        current[detail.noteId] === detail.title
+          ? current
+          : { ...current, [detail.noteId]: detail.title },
+      );
     };
 
     window.addEventListener(notesNavigatorTitleEvent, handleTitleChange);
     return () => window.removeEventListener(notesNavigatorTitleEvent, handleTitleChange);
   }, []);
+
+  const liveNotes = useMemo(() => {
+    let current = notes;
+    for (const [noteId, title] of Object.entries(titleOverrides)) {
+      current = patchNavigatorNoteTitle(current, noteId, title);
+    }
+    return current;
+  }, [notes, titleOverrides]);
 
   return (
     <NotesWorkspaceShell folders={folders} notes={liveNotes}>
