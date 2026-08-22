@@ -6,42 +6,33 @@ import { CompleteTaskControl } from "./complete-task-control";
 import { TodaySectionHeader } from "./section-header";
 
 export function TodayFocusStack({ workspace }: { workspace: NowWorkspace }) {
-  const stack = buildTodayFocusStack(
-    workspace.tasks,
-    workspace.attention,
-    workspace.nextAction,
-  );
+  const stack = buildTodayFocusStack(workspace.tasks, workspace.attention, workspace.nextAction);
   const isEmpty = !stack.tasks.length && !stack.attention.length;
 
   return (
-    <section
-      aria-labelledby="today-focus-heading"
-      className="rounded-lg border bg-[var(--surface-canvas)]"
-    >
-      <div className="border-b px-5 py-3.5">
-        <TodaySectionHeader href="/tasks" label="打开 Tasks">
-          <span id="today-focus-heading">任务与关注</span>
-        </TodaySectionHeader>
-      </div>
-      <div className="px-5 py-4">
+    <section aria-labelledby="today-focus-heading">
+      <TodaySectionHeader href="/tasks" label="Tasks">
+        <span id="today-focus-heading">任务与关注</span>
+      </TodaySectionHeader>
+
+      <div className="mt-3 border-t border-[var(--separator)] pt-2">
         {workspace.availability.tasks === "unavailable" ? (
-          <p className="pb-3 text-sm text-[var(--text-secondary)]">
+          <p className="pb-2 pt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
             Tasks 暂不可用，其他关注事项仍显示在下方。
           </p>
         ) : null}
+
         {stack.tasks.length ? (
-          <ul className="divide-y">
+          <ul className="divide-y divide-[var(--separator)]">
             {stack.tasks.map(({ task, label }) => (
-              <li key={task.id} className="flex items-center gap-2.5">
+              <li key={task.id} className="flex min-h-11 items-center gap-1.5">
                 <CompleteTaskControl taskId={task.id} title={task.title} compact />
-                <Link href="/tasks" className="min-w-0 flex-1 py-2.5 hover:text-[var(--accent)]">
-                  <span className="block truncate text-sm font-medium">
+                <Link href="/tasks" className="min-w-0 flex-1 py-2 group">
+                  <span className="block truncate text-[13px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                     {task.title || "未命名任务"}
                   </span>
                 </Link>
-                <span
-                  className={`shrink-0 text-[11px] ${label === "已逾期" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}
-                >
+                <span className={`shrink-0 text-[10px] tabular-nums ${label === "已逾期" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>
                   {label}
                   {task.importance === "high" ? " · 高" : ""}
                 </span>
@@ -49,22 +40,19 @@ export function TodayFocusStack({ workspace }: { workspace: NowWorkspace }) {
             ))}
           </ul>
         ) : null}
+
         {stack.attention.length ? (
-          <ul className={stack.tasks.length ? "border-t" : ""}>
+          <ul className={stack.tasks.length ? "border-t border-[var(--separator)] pt-1" : ""}>
             {stack.attention.map((item) => (
               <li key={item.id}>
-                <Link
-                  href={item.href}
-                  className="flex gap-2.5 rounded-[var(--radius-sm)] py-2.5 hover:bg-[var(--surface-hover)]"
-                >
-                  <CircleAlert
-                    className="mt-0.5 size-4 shrink-0 text-[var(--warning)]"
-                    aria-hidden="true"
-                  />
+                <Link href={item.href} className="group flex gap-2.5 py-2.5">
+                  <CircleAlert className="mt-0.5 size-3.5 shrink-0 text-[var(--warning)]" aria-hidden="true" />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">{item.title}</span>
+                    <span className="block truncate text-[12px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
+                      {item.title}
+                    </span>
                     {item.description ? (
-                      <span className="mt-0.5 block truncate text-xs text-[var(--text-secondary)]">
+                      <span className="mt-0.5 block truncate text-[11px] leading-5 text-[var(--text-secondary)]">
                         {item.description}
                       </span>
                     ) : null}
@@ -74,8 +62,9 @@ export function TodayFocusStack({ workspace }: { workspace: NowWorkspace }) {
             ))}
           </ul>
         ) : null}
+
         {isEmpty && workspace.availability.tasks === "ready" ? (
-          <p className="py-6 text-sm text-[var(--text-secondary)]">
+          <p className="py-5 text-[12px] leading-5 text-[var(--text-secondary)]">
             今天没有到期任务，也没有需要立刻处理的提醒。
           </p>
         ) : null}

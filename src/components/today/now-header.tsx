@@ -5,25 +5,26 @@ import { QuickCapture } from "./quick-capture";
 
 export function NowHeader({ workspace }: { workspace: NowWorkspace }) {
   return (
-    <header className="pb-6">
-      <div className="flex items-end justify-between gap-4">
+    <header>
+      <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-[var(--accent)]">
+          <p className="text-[12px] font-medium tracking-[-0.01em] text-[var(--text-tertiary)]">
             {formatTodayDate(new Date(), workspace.timezone)}
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+          <h1 className="mt-2 text-[32px] font-semibold leading-none tracking-[-0.035em] text-[var(--text-primary)] sm:text-[36px]">
             现在
           </h1>
-          <p className="mt-1.5 text-sm text-[var(--text-secondary)]">
+          <p className="mt-3 text-[13px] leading-5 text-[var(--text-secondary)]">
             {workspace.summary.todayEventCount} 项日程 · {workspace.summary.todayTaskCount} 项今日待办
-            {workspace.summary.attentionCount
-              ? ` · ${workspace.summary.attentionCount} 项关注`
-              : ""}
+            {workspace.summary.attentionCount ? ` · ${workspace.summary.attentionCount} 项需关注` : ""}
           </p>
         </div>
-        <NowClock timezone={workspace.timezone} />
+        <div className="pt-0.5 text-[var(--text-secondary)]">
+          <NowClock timezone={workspace.timezone} />
+        </div>
       </div>
-      <div className="mt-5">
+
+      <div className="mt-7 max-w-[680px]">
         <QuickCapture />
       </div>
     </header>
