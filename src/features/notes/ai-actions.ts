@@ -18,6 +18,7 @@ import {
   noteAiSystemPrompt,
   noteAiUserMessage,
   cleanTitle,
+  generatedTitleQualityIssues,
   type NoteAiPromptKey,
 } from "./ai-prompts";
 import { protectNoteStructures } from "./ai-protect";
@@ -89,7 +90,6 @@ function parseHistory(
     return undefined;
   }
 }
-
 
 export async function generateNoteAiSuggestion(
   formData: FormData,
@@ -211,17 +211,48 @@ export async function generateNoteAiSuggestion(
     };
     let result: Awaited<ReturnType<typeof runAssistant>>;
     if (parsed.data.operation === "generateTitle") {
-      // 单步生成标题：提示词让 Pro 先在心中列出 5 个角度各异的候选、互相比较，
-      // 最终只输出最贴切的一个（语法层禁止逗号/顿号，避免「A，B」对仗套路）。
-      // 输出可能残留引号/序号，落笔前用 cleanTitle 净化。
-      result = await runAssistant({
-        ...baseRequest,
-        mode: "transform" as const,
-        model: "deepseek-v4-pro" as const,
-        usePersonalContext: parsed.data.usePersonalContext === true,
-        instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction("generateTitle", parsed.data.instruction, promptOverrides)}`,
-      });
-      result.text = cleanTitle(result.text);
+      // 标题会自动落笔，不能只依赖模型“自觉”。先按标题 prompt 生成，再做程序化质量
+      // 检查；若命中机械并列标点、多行或过长等问题，携带明确失败原因自动重试一次。
+      // 标题只应概括当前笔记，不需要 Personal Context，避免旧记忆或无标题检索污染结果。
+      const baseTitleInstruction = `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction("generateTitle", parsed.data.instruction, promptOverrides)}`;
+      const generateTitle = (repairInstruction = "") =>
+        runAssistant({
+          ...baseRequest,
+          mode: "transform" as const,
+          model: "deepseek-v4-pro" as const,
+          usePersonalContext: false,
+          instruction: `${baseTitleInstruction}${repairInstruction}`,
+        });
+
+      result = await generateTitle();
+      let title = cleanTitle(result.text);
+      let issues = generatedTitleQualityIssues(title);
+      if (issues.length) {
+        const previousTitle = title.slice(0, 120) || "（空）";
+        result = await generateTitle(
+          `\n\n上一版标题「${previousTitle}」未通过自动检查：${issues.join("；")}。请换一个内容锚点重新生成，不要只改标点，也不要重复上一版的句式。`,
+        );
+        title = cleanTitle(result.text);
+        issues = generatedTitleQualityIssues(title);
+      }
+      if (issues.length) {
+        await updateAgentRun({
+          supabase: owner.supabase,
+          userId: owner.userId,
+          runId,
+          status: "failed",
+          model: result.modelId,
+        });
+        return {
+          status: "error",
+          message: `连续两次标题都未通过质量检查（${issues.join("；")}），已保留原标题。请重新生成。`,
+          suggestion: "",
+          operation: parsed.data.operation,
+          scope: parsed.data.scope,
+          runId,
+        };
+      }
+      result.text = title;
     } else {
       result = await runAssistant({
         ...baseRequest,
@@ -254,11 +285,9 @@ export async function generateNoteAiSuggestion(
     // 结构保护还原：模型输出里可能残留占位符，映射回真实的链接/双链/图片/代码块。
     if (shouldProtect) response.suggestion = restore(response.suggestion).trim();
     // 改写护栏：改写类输出远短于原文时提示可能丢失内容（软提醒，不阻断确认）。
-    // 大纲本身就是对全文的压缩，"短于原文"是预期，跳过该护栏避免误报。
-    const warning =
-      shouldProtect && parsed.data.operation !== "outlineNote"
-        ? evaluateRewriteGuardrail(parsed.data.content.length, response.suggestion.length)
-        : null;
+    const warning = shouldProtect
+      ? evaluateRewriteGuardrail(parsed.data.content.length, response.suggestion.length)
+      : null;
     // 截断护栏：finishReason="length" 表示输出撞到 token 上限被硬截断，
     // 比"远短于原文"更直接地说明末尾内容可能没处理完。优先展示截断提示。
     if (result.finishReason === "length") {
