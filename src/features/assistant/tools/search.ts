@@ -28,7 +28,7 @@ export const searchTools: AssistantToolModule = {
                 .select("id,title,content,updated_at")
                 .or(`title.ilike.%${query.replaceAll("%", "\\%")}%,content.ilike.%${query.replaceAll("%", "\\%")}%`)
                 .eq("status", "active")
-                .neq("ai_visibility", "never")
+                .eq("ai_visibility", "normal")
                 .is("archived_at", null)
                 .limit(limit)
             : Promise.resolve({ data: [], error: null }),

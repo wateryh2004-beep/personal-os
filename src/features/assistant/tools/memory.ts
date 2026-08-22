@@ -23,8 +23,8 @@ export const memoryTools: AssistantToolModule = {
       execute: async ({ query, limit }) => {
         const escaped = query.replaceAll("%", "\\%").replaceAll("_", "\\_");
         const [memories, decisions] = await Promise.all([
-          context.supabase.from("personal_memories").select("id,memory_type,title,content,valid_until,review_at,confirmed_at,updated_at").or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`).eq("status", "active").neq("ai_visibility", "never").is("archived_at", null).limit(limit),
-          context.supabase.from("decisions").select("id,title,decision_text,rationale_markdown,status,decided_at,review_at,updated_at").or(`title.ilike.%${escaped}%,decision_text.ilike.%${escaped}%`).in("status", ["active", "superseded", "reversed"]).neq("ai_visibility", "never").is("archived_at", null).limit(limit),
+          context.supabase.from("personal_memories").select("id,memory_type,title,content,valid_until,review_at,confirmed_at,updated_at").or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`).eq("status", "active").eq("ai_visibility", "normal").is("archived_at", null).limit(limit),
+          context.supabase.from("decisions").select("id,title,decision_text,rationale_markdown,status,decided_at,review_at,updated_at").or(`title.ilike.%${escaped}%,decision_text.ilike.%${escaped}%`).in("status", ["active", "superseded", "reversed"]).eq("ai_visibility", "normal").is("archived_at", null).limit(limit),
         ]);
         const results = [
           ...(memories.data ?? []).map((item) => ({ ...item, kind: item.memory_type, href: "/memory" })),
@@ -35,13 +35,13 @@ export const memoryTools: AssistantToolModule = {
       },
     }),
     getRelevantMemories: tool({
-      description: "读取当前有效 Memory 和最新 Decision，用于校正历史笔记；不返回 ai_visibility=never 的记录。",
+      description: "读取当前有效且 AI 可使用的 Memory 和最新 Decision；不返回敏感或永不使用的记录。",
       inputSchema: z.object({ includeProfile: z.boolean().default(true), includeWorking: z.boolean().default(true), includeDecisions: z.boolean().default(true), limit: z.number().int().min(1).max(30).default(12) }),
       execute: async ({ includeProfile, includeWorking, includeDecisions, limit }) => {
         const memoryTypes = [includeProfile ? "profile" : null, includeWorking ? "working" : null].filter((value): value is string => Boolean(value));
         const [memories, decisions] = await Promise.all([
-          memoryTypes.length ? context.supabase.from("personal_memories").select("id,memory_type,title,content,valid_from,valid_until,review_at,confirmed_at,updated_at").in("memory_type", memoryTypes).eq("status", "active").neq("ai_visibility", "never").is("archived_at", null).order("confirmed_at", { ascending: false }).limit(limit) : Promise.resolve({ data: [], error: null }),
-          includeDecisions ? context.supabase.from("decisions").select("id,title,decision_text,rationale_markdown,status,importance,decided_at,review_at,updated_at").eq("status", "active").neq("ai_visibility", "never").is("archived_at", null).order("decided_at", { ascending: false }).limit(limit) : Promise.resolve({ data: [], error: null }),
+          memoryTypes.length ? context.supabase.from("personal_memories").select("id,memory_type,title,content,valid_from,valid_until,review_at,confirmed_at,updated_at").in("memory_type", memoryTypes).eq("status", "active").eq("ai_visibility", "normal").is("archived_at", null).order("confirmed_at", { ascending: false }).limit(limit) : Promise.resolve({ data: [], error: null }),
+          includeDecisions ? context.supabase.from("decisions").select("id,title,decision_text,rationale_markdown,status,importance,decided_at,review_at,updated_at").eq("status", "active").eq("ai_visibility", "normal").is("archived_at", null).order("decided_at", { ascending: false }).limit(limit) : Promise.resolve({ data: [], error: null }),
         ]);
         await recordAgentStep({ ...context, stepType: "tool", toolName: "getRelevantMemories", title: "已检查当前 Memory", summary: `${(memories.data ?? []).length} 条 Memory，${(decisions.data ?? []).length} 条当前决定`, output: { memoryCount: (memories.data ?? []).length, decisionCount: (decisions.data ?? []).length }, status: memories.error || decisions.error ? "failed" : "succeeded" });
         return { profileAndWorking: memories.data ?? [], currentDecisions: decisions.data ?? [], href: "/memory", unavailable: Boolean(memories.error || decisions.error) };

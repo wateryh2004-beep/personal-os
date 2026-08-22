@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildFallbackContextPlan } from "@/features/context/planner";
-import { summarizeContextSources } from "@/features/ai/governance";
+import { defaultAiGovernance, estimateAiCostUsd, summarizeContextSources } from "@/features/ai/governance";
 
 describe("AI governance boundaries", () => {
   it("does not widen a general conversation to historical notes by default", () => {
@@ -22,5 +22,9 @@ describe("AI governance boundaries", () => {
     const summary = summarizeContextSources({ version: "personal-context/v1", sources: [{ id: "S1", domain: "notes", title: "私密笔记", content: "绝不应出现在摘要中", timestamp: "2026-08-22T00:00:00.000Z", reasons: ["当前主题"], href: "/notes/a", entityType: "note", entityId: "a", origins: ["search"] }], generatedAt: "2026-08-22T00:00:00.000Z", timezone: "Asia/Shanghai", request: { surface: "notes", intent: "knowledge" }, plan: {} as never, diagnostics: {} as never });
     expect(summary).toMatchObject({ modules: ["notes"], entitiesByModule: { notes: 1 }, sourceCount: 1 });
     expect(JSON.stringify(summary)).not.toContain("绝不应出现在摘要中");
+  });
+
+  it("estimates usage from aggregate tokens without saving model input or output", () => {
+    expect(estimateAiCostUsd(defaultAiGovernance, 1_000_000, 1_000_000)).toBe(2.5);
   });
 });

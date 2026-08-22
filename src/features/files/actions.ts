@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { folderSchema, moveFileSchema, renameFileSchema } from "./schemas";
 
@@ -12,6 +13,18 @@ async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabas
 async function ownFolder(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], id: string) {
   const { data, error } = await supabase.from("file_folders").select("id").eq("id", id).is("archived_at", null).maybeSingle();
   if (error || !data) fail();
+}
+const fileAiVisibilitySchema = z.object({ documentId: z.string().uuid(), aiVisibility: z.enum(["normal", "sensitive", "never"]) });
+
+/** Owner-only boundary: sensitive files never enter an AI tool result or context. */
+export async function setFileAiVisibility(formData: FormData) {
+  const parsed = fileAiVisibilitySchema.safeParse({ documentId: formData.get("document_id"), aiVisibility: formData.get("ai_visibility") });
+  if (!parsed.success) fail();
+  const { supabase, userId } = await requireOwner();
+  const { data, error } = await supabase.from("documents").update({ ai_visibility: parsed.data.aiVisibility }).eq("id", parsed.data.documentId).eq("storage_provider", "cloudflare_r2").select("id").maybeSingle();
+  if (error || !data) throw new Error("无法更新文件的 AI 可见性，请确认最新 migration 已应用。");
+  await audit(supabase, userId, "set_ai_visibility", data.id, { ai_visibility: parsed.data.aiVisibility });
+  revalidatePath("/files");
 }
 
 export async function createFileFolder(formData: FormData) {

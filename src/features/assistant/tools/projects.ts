@@ -30,7 +30,7 @@ export const projectTools: AssistantToolModule = {
       execute: async ({ projectId }) => {
         const [project, notes, tasks] = await Promise.all([
           context.supabase.from("projects").select("id,name,description,status,start_date,due_date,completed_at,updated_at").eq("id", projectId).is("archived_at", null).maybeSingle(),
-          context.supabase.from("notes").select("id,title,updated_at").eq("project_id", projectId).eq("status", "active").is("deleted_at", null).limit(10),
+          context.supabase.from("notes").select("id,title,updated_at").eq("project_id", projectId).eq("status", "active").eq("ai_visibility", "normal").is("deleted_at", null).limit(10),
           context.supabase.from("tasks").select("id,title,status,due_at,priority,updated_at").eq("project_id", projectId).is("archived_at", null).limit(20),
         ]);
         const unavailable = Boolean(project.error || notes.error || tasks.error);

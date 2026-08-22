@@ -25,7 +25,8 @@ export async function excludeAiGeneratedNotes<T extends NoteRecord>(
 ) {
   if (!notes.length) return notes;
   const { data, error } = await supabase.from("notes").select("id,content_origin,ai_visibility").in("id", notes.map((note) => note.id));
-  if (error) return notes;
+  // Missing privacy metadata must never silently widen the model context.
+  if (error) return [];
   const humanIds = new Set((data ?? []).filter((note) => !isAiGeneratedNote(note.content_origin) && note.ai_visibility === "normal").map((note) => note.id));
   return notes.filter((note) => humanIds.has(note.id));
 }
@@ -36,12 +37,19 @@ export async function excludeAiGeneratedNoteResults<T extends NoteSearchResult>(
   results: T[],
 ) {
   const noteIds = [...new Set(results.filter((item) => item.entityType === "note").map((item) => item.entityId))];
-  if (!noteIds.length) return results;
-  const { data, error } = await supabase.from("notes").select("id,content_origin,ai_visibility").in("id", noteIds);
-  // Keep search functional during a rolling deployment before the migration is applied.
-  if (error) return results;
-  const humanIds = new Set((data ?? []).filter((note) => !isAiGeneratedNote(note.content_origin) && note.ai_visibility === "normal").map((note) => note.id));
-  return results.filter((item) => item.entityType !== "note" || humanIds.has(item.entityId));
+  const documentIds = [...new Set(results.filter((item) => item.entityType === "document").map((item) => item.entityId))];
+  if (!noteIds.length && !documentIds.length) return results;
+  const [noteResult, documentResult] = await Promise.all([
+    noteIds.length ? supabase.from("notes").select("id,content_origin,ai_visibility").in("id", noteIds) : Promise.resolve({ data: [], error: null }),
+    documentIds.length ? supabase.from("documents").select("id,ai_visibility").in("id", documentIds) : Promise.resolve({ data: [], error: null }),
+  ]);
+  // Fail closed while the privacy migration is unavailable rather than sending
+  // a potentially sensitive Note or File to a model.
+  if (noteResult.error || documentResult.error)
+    return results.filter((item) => item.entityType !== "note" && item.entityType !== "document");
+  const humanIds = new Set((noteResult.data ?? []).filter((note) => !isAiGeneratedNote(note.content_origin) && note.ai_visibility === "normal").map((note) => note.id));
+  const visibleDocumentIds = new Set((documentResult.data ?? []).filter((document) => document.ai_visibility === "normal").map((document) => document.id));
+  return results.filter((item) => (item.entityType !== "note" || humanIds.has(item.entityId)) && (item.entityType !== "document" || visibleDocumentIds.has(item.entityId)));
 }
 
 const dailyTitle = /^(?:日记|今日日记|Daily Note)\s*[·・:\-]?\s*\d{4}[-/]\d{1,2}[-/]\d{1,2}/i;

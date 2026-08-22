@@ -29,14 +29,16 @@ const governanceSchema = z.object({
   maxOutputTokensPerRequest: z.coerce.number().int().min(128).max(8000),
   dailyCallLimit: z.coerce.number().int().min(1).max(10000), monthlyCallLimit: z.coerce.number().int().min(1).max(100000),
   dailyCostLimitUsd: z.coerce.number().min(0).max(1000), monthlyCostLimitUsd: z.coerce.number().min(0).max(10000),
+  estimatedInputCostPerMillionUsd: z.coerce.number().min(0).max(1000), estimatedOutputCostPerMillionUsd: z.coerce.number().min(0).max(1000),
 });
 const feedbackSchema = z.object({ auditId: z.string().uuid(), feedback: z.enum(["up", "down"]), reason: z.string().trim().max(500).optional(), sourceCorrection: z.string().trim().max(500).optional() });
+const blockSourceSchema = z.object({ sourceId: z.string().uuid(), domain: z.enum(["notes", "files"]) });
 
 export async function saveAiGovernance(formData: FormData) {
   const { supabase, userId } = await requireOwner();
-  const parsed = governanceSchema.safeParse({ semanticRetrievalOptIn: formData.get("semantic_retrieval_opt_in") === "on", longTermMemoryOptIn: formData.get("long_term_memory_opt_in") === "on", maxContextCharsPerRequest: formData.get("max_context_chars_per_request"), maxOutputTokensPerRequest: formData.get("max_output_tokens_per_request"), dailyCallLimit: formData.get("daily_call_limit"), monthlyCallLimit: formData.get("monthly_call_limit"), dailyCostLimitUsd: formData.get("daily_cost_limit_usd"), monthlyCostLimitUsd: formData.get("monthly_cost_limit_usd") });
+  const parsed = governanceSchema.safeParse({ semanticRetrievalOptIn: formData.get("semantic_retrieval_opt_in") === "on", longTermMemoryOptIn: formData.get("long_term_memory_opt_in") === "on", maxContextCharsPerRequest: formData.get("max_context_chars_per_request"), maxOutputTokensPerRequest: formData.get("max_output_tokens_per_request"), dailyCallLimit: formData.get("daily_call_limit"), monthlyCallLimit: formData.get("monthly_call_limit"), dailyCostLimitUsd: formData.get("daily_cost_limit_usd"), monthlyCostLimitUsd: formData.get("monthly_cost_limit_usd"), estimatedInputCostPerMillionUsd: formData.get("estimated_input_cost_per_million_usd"), estimatedOutputCostPerMillionUsd: formData.get("estimated_output_cost_per_million_usd") });
   if (!parsed.success) throw new Error("AI 边界设置无效。");
-  const { error } = await supabase.from("ai_governance_settings").upsert({ user_id: userId, semantic_retrieval_opt_in: parsed.data.semanticRetrievalOptIn, long_term_memory_opt_in: parsed.data.longTermMemoryOptIn, max_context_chars_per_request: parsed.data.maxContextCharsPerRequest, max_output_tokens_per_request: parsed.data.maxOutputTokensPerRequest, daily_call_limit: parsed.data.dailyCallLimit, monthly_call_limit: parsed.data.monthlyCallLimit, daily_cost_limit_usd: parsed.data.dailyCostLimitUsd, monthly_cost_limit_usd: parsed.data.monthlyCostLimitUsd }, { onConflict: "user_id" });
+  const { error } = await supabase.from("ai_governance_settings").upsert({ user_id: userId, semantic_retrieval_opt_in: parsed.data.semanticRetrievalOptIn, long_term_memory_opt_in: parsed.data.longTermMemoryOptIn, max_context_chars_per_request: parsed.data.maxContextCharsPerRequest, max_output_tokens_per_request: parsed.data.maxOutputTokensPerRequest, daily_call_limit: parsed.data.dailyCallLimit, monthly_call_limit: parsed.data.monthlyCallLimit, daily_cost_limit_usd: parsed.data.dailyCostLimitUsd, monthly_cost_limit_usd: parsed.data.monthlyCostLimitUsd, estimated_input_cost_per_million_usd: parsed.data.estimatedInputCostPerMillionUsd, estimated_output_cost_per_million_usd: parsed.data.estimatedOutputCostPerMillionUsd }, { onConflict: "user_id" });
   if (error) throw new Error("无法保存 AI 边界设置，请确认最新 migration 已应用。");
   await supabase.from("audit_logs").insert({ user_id: userId, action: "configure", entity_type: "ai_governance", actor_type: "user", after_data: { semantic_retrieval_opt_in: parsed.data.semanticRetrievalOptIn, long_term_memory_opt_in: parsed.data.longTermMemoryOptIn, max_context_chars_per_request: parsed.data.maxContextCharsPerRequest, max_output_tokens_per_request: parsed.data.maxOutputTokensPerRequest, daily_call_limit: parsed.data.dailyCallLimit, monthly_call_limit: parsed.data.monthlyCallLimit } });
   revalidatePath("/settings");
@@ -50,6 +52,18 @@ export async function submitAiFeedback(formData: FormData) {
   if (!data) throw new Error("找不到该 AI 调用记录。");
   const { error } = await createAdminClient().from("ai_request_audits").update({ feedback: parsed.data.feedback, feedback_reason: parsed.data.reason ?? null, source_correction: parsed.data.sourceCorrection ?? null }).eq("id", data.id).eq("user_id", userId);
   if (error) throw new Error("无法保存反馈。");
+}
+
+/** Turns a source used in this answer into an explicit never-send boundary. */
+export async function blockAiSource(formData: FormData) {
+  const parsed = blockSourceSchema.safeParse({ sourceId: formData.get("source_id"), domain: formData.get("domain") });
+  if (!parsed.success) throw new Error("来源信息无效。");
+  const { supabase, userId } = await requireOwner();
+  const table = parsed.data.domain === "notes" ? "notes" : "documents";
+  const { data, error } = await supabase.from(table).update({ ai_visibility: "never" }).eq("id", parsed.data.sourceId).select("id").maybeSingle();
+  if (error || !data) throw new Error("无法禁止该来源供 AI 使用，请确认最新 migration 已应用。");
+  await supabase.from("audit_logs").insert({ user_id: userId, action: "block_ai_source", entity_type: parsed.data.domain === "notes" ? "note" : "document", entity_id: data.id, actor_type: "user", after_data: { ai_visibility: "never", source: "assistant_sources" } });
+  revalidatePath(parsed.data.domain === "notes" ? `/notes/${data.id}` : "/files");
 }
 
 export async function saveDeepSeekKey(formData: FormData) {

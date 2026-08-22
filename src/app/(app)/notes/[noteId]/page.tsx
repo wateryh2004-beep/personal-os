@@ -6,7 +6,7 @@ import { EntityBacklinks } from "@/components/links/entity-backlinks";
 import { FolderPicker } from "@/components/notes/folder-picker";
 import { getActiveNoteFolders, getNote } from "@/features/notes/queries";
 import { getAiSettings } from "@/features/ai/queries";
-import { archiveNote, createNoteVersion, moveNote, restoreNoteVersion, toggleNotePinned, trashNote } from "@/features/notes/actions";
+import { archiveNote, createNoteVersion, moveNote, restoreNoteVersion, setNoteAiVisibility, toggleNotePinned, trashNote } from "@/features/notes/actions";
 import { formatNoteTimestamp } from "@/features/notes/utils";
 import { Archive, Download, FileClock, FolderInput, History, Link2, Pin, PinOff, Trash2 } from "lucide-react";
 
@@ -56,6 +56,12 @@ export default async function NotePage({ params }: { params: Promise<{ noteId: s
         <FolderPicker folders={folders} initialFolderId={data.note.folder_id ?? null} idPrefix={`detail-${data.note.id}`} />
         <button className="justify-self-start rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90">更新位置</button>
       </form>
+    </section>
+
+    <section className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-canvas)] p-4">
+      <h2 className="font-medium text-[var(--text-primary)]">AI 隐私</h2>
+      <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">敏感和“永不使用”笔记不会作为第三方模型的背景上下文。选择后立即生效。</p>
+      <form action={setNoteAiVisibility} className="mt-3 flex flex-wrap items-center gap-2"><input type="hidden" name="note_id" value={data.note.id}/><select name="ai_visibility" defaultValue={data.note.ai_visibility ?? "normal"} className="rounded border border-[var(--border)] bg-[var(--surface-canvas)] px-2 py-1.5 text-xs"><option value="normal">AI 可正常使用</option><option value="sensitive">敏感：默认不发送</option><option value="never">永不发送给 AI</option></select><button className="rounded-[var(--radius-md)] border border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--surface-hover)]">保存</button></form>
     </section>
 
     <section className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-canvas)] p-4">

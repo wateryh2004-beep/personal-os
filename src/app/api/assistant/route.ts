@@ -20,7 +20,7 @@ import {
   releaseCalendarRequestLock,
 } from "@/lib/ai/calendar-request-lock";
 import { recordStatusSafely } from "@/features/system-status/service";
-import { completeAiRequest } from "@/features/ai/governance";
+import { completeAiRequestWithUsage } from "@/features/ai/governance";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const noStore = { "Cache-Control": "private, no-store, max-age=0" };
@@ -107,6 +107,7 @@ export async function POST(request: Request) {
         : null,
     });
     let streamFailure: ReturnType<typeof normalizeAssistantError> | null = null;
+    const usage = { inputTokens: 0, outputTokens: 0 };
     const response = await createAgentUIStreamResponse({
       agent: runtime.agent,
       uiMessages: parsed.data.messages,
@@ -118,12 +119,16 @@ export async function POST(request: Request) {
         chunkMs: 12_000,
         toolMs: 8_000,
       },
+      onStepEnd: ({ usage: stepUsage }) => {
+        usage.inputTokens += stepUsage.inputTokens ?? 0;
+        usage.outputTokens += stepUsage.outputTokens ?? 0;
+      },
       onError: (error) => {
         streamFailure = normalizeAssistantError(error);
         return streamFailure.message;
       },
       onEnd: async ({ responseMessage, isAborted }) => {
-        await completeAiRequest(runtime.auditId, streamFailure ? "failed" : isAborted ? "cancelled" : "completed", streamFailure?.code ?? null);
+        await completeAiRequestWithUsage(runtime.auditId, streamFailure ? "failed" : isAborted ? "cancelled" : "completed", usage, streamFailure?.code ?? null, runtime.governance);
         if (runId) {
           await persistAgentMessage({
             supabase: owner.supabase,

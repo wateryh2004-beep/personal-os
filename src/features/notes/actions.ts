@@ -34,6 +34,7 @@ const moveFolderSchema = z.object({ folderId: z.string().uuid(), parentId: z.str
 const renameNoteSchema = z.object({ noteId: z.string().uuid(), title: z.string().trim().min(1).max(240) });
 const renameFolderSchema = z.object({ folderId: z.string().uuid(), name: z.string().trim().min(1).max(120) });
 const noteContentOriginSchema = z.object({ noteId: z.string().uuid(), contentOrigin: z.enum(noteContentOrigins) });
+const noteAiVisibilitySchema = z.object({ noteId: z.string().uuid(), aiVisibility: z.enum(["normal", "sensitive", "never"]) });
 const folderIdSchema = z.string().uuid();
 
 /** Labels a note's provenance without changing its Markdown or revision. */
@@ -55,6 +56,18 @@ export async function setNoteContentOrigin(input: unknown) {
   revalidatePath("/notes");
   revalidatePath(`/notes/${note.id}`);
   return { contentOrigin: note.content_origin };
+}
+
+/** Owner-only privacy boundary. Sensitive and never-visible Notes are not sent as AI background context. */
+export async function setNoteAiVisibility(formData: FormData) {
+  const parsed = noteAiVisibilitySchema.safeParse({ noteId: formData.get("note_id"), aiVisibility: formData.get("ai_visibility") });
+  if (!parsed.success) fail();
+  const { supabase, userId } = await requireOwner();
+  const { data, error } = await supabase.from("notes").update({ ai_visibility: parsed.data.aiVisibility }).eq("id", parsed.data.noteId).eq("user_id", userId).select("id").maybeSingle();
+  if (error || !data) throw new Error("无法更新笔记的 AI 可见性，请确认最新 migration 已应用。");
+  await audit(supabase, userId, "set_ai_visibility", "note", data.id, { ai_visibility: parsed.data.aiVisibility });
+  revalidatePath(`/notes/${data.id}`);
+  revalidatePath("/notes");
 }
 
 async function ownedFolderId(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], value: string | null | undefined) {

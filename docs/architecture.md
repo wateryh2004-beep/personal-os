@@ -32,6 +32,10 @@ owner session 校验后创建一次性的 ToolLoopAgent：它只能查询本用�
 Calendar 确认队列保护。AI 没有直接的 Graph 写入工具、没有访问 Notes/Files，也不保存
 对话正文。
 
+### AI governance
+
+通用 Assistant 通过 Context Planner 先读取当前页面和直接关联实体；历史检索只能由可见的确定性规则扩大。`ai_governance_settings` 保存 opt-in 与预算，`ai_request_audits` 只保存脱敏来源摘要、聚合用量和状态。Notes、Files、Memory、Decisions 的 `ai_visibility` 只有 `normal` 可进入模型上下文；来源面板展示实际来源，并能立即禁止再次使用。完整运行与保留规则见 [AI 数据边界与运行手册](./ai-governance.md)。
+
 当前官方依据：Next.js App Router 页面和布局默认是 Server Components，Server Actions 用于变更；Supabase 的 Next.js SSR 指南要求 server/browser 两类客户端以及 Proxy 刷新 cookie；shadcn 的 Next.js CLI 支持选择 Radix。见 [Next.js App Router](https://nextjs.org/docs/app)、[Next.js Server Components](https://nextjs.org/docs/app/getting-started/server-and-client-components)、[Supabase SSR](https://supabase.com/docs/guides/auth/server-side/nextjs) 和 [shadcn Next.js](https://ui.shadcn.com/docs/installation/next)。
 
 ## 建议目录

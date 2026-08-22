@@ -2,7 +2,7 @@ import { requireOwner } from "@/lib/auth/require-owner";
 import { isR2Configured } from "@/lib/adapters/cloudflare-r2";
 
 export type FileFolder = { id: string; name: string; parent_id: string | null };
-export type FileRecord = { id: string; title: string; original_filename: string; mime_type: string; file_size: number; folder_id: string | null; uploaded_at: string; created_at: string; archived_at: string | null; text_extraction_status: "not_requested" | "pending" | "processing" | "completed" | "unsupported" | "too_large" | "failed"; extracted_character_count: number };
+export type FileRecord = { id: string; title: string; original_filename: string; mime_type: string; file_size: number; folder_id: string | null; uploaded_at: string; created_at: string; archived_at: string | null; ai_visibility: "normal" | "sensitive" | "never"; text_extraction_status: "not_requested" | "pending" | "processing" | "completed" | "unsupported" | "too_large" | "failed"; extracted_character_count: number };
 
 export async function getFilesWorkspace() {
   const { supabase } = await requireOwner();
@@ -13,8 +13,8 @@ export async function getFilesWorkspace() {
   // 所以这里并行查关联 ID，再在客户端过滤。
   const [folders, files, archivedFiles, noteLinks] = await Promise.all([
     supabase.from("file_folders").select("id,name,parent_id").is("archived_at", null).order("position").order("name"),
-    supabase.from("documents").select("id,title,original_filename,mime_type,file_size,folder_id,uploaded_at,created_at,archived_at,text_extraction_status,extracted_character_count").eq("storage_provider", "cloudflare_r2").eq("storage_state", "available").is("archived_at", null).order("uploaded_at", { ascending: false }),
-    supabase.from("documents").select("id,title,original_filename,mime_type,file_size,folder_id,uploaded_at,created_at,archived_at,text_extraction_status,extracted_character_count").eq("storage_provider", "cloudflare_r2").not("archived_at", "is", null).order("archived_at", { ascending: false }).limit(50),
+    supabase.from("documents").select("id,title,original_filename,mime_type,file_size,folder_id,uploaded_at,created_at,archived_at,ai_visibility,text_extraction_status,extracted_character_count").eq("storage_provider", "cloudflare_r2").eq("storage_state", "available").is("archived_at", null).order("uploaded_at", { ascending: false }),
+    supabase.from("documents").select("id,title,original_filename,mime_type,file_size,folder_id,uploaded_at,created_at,archived_at,ai_visibility,text_extraction_status,extracted_character_count").eq("storage_provider", "cloudflare_r2").not("archived_at", "is", null).order("archived_at", { ascending: false }).limit(50),
     supabase.from("entity_links").select("target_id").eq("source_type", "note").eq("target_type", "document").eq("relationship_type", "attachment").is("archived_at", null),
   ]);
   const noteLinkedIds = new Set((noteLinks.data ?? []).map((link) => link.target_id));

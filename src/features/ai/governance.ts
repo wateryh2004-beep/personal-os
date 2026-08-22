@@ -12,6 +12,8 @@ export type AiGovernance = {
   monthlyCallLimit: number;
   dailyCostLimitUsd: number;
   monthlyCostLimitUsd: number;
+  estimatedInputCostPerMillionUsd: number;
+  estimatedOutputCostPerMillionUsd: number;
 };
 
 export const defaultAiGovernance: AiGovernance = {
@@ -23,6 +25,8 @@ export const defaultAiGovernance: AiGovernance = {
   monthlyCallLimit: 600,
   dailyCostLimitUsd: 2,
   monthlyCostLimitUsd: 20,
+  estimatedInputCostPerMillionUsd: 0.5,
+  estimatedOutputCostPerMillionUsd: 2,
 };
 
 export type SafeSourceSummary = {
@@ -50,7 +54,7 @@ export function summarizeContextSources(pack: PersonalContextPack | null): SafeS
 export async function getAiGovernance(userId: string): Promise<AiGovernance> {
   const admin = createAdminClient();
   const { data } = await admin.from("ai_governance_settings")
-    .select("semantic_retrieval_opt_in,long_term_memory_opt_in,max_context_chars_per_request,max_output_tokens_per_request,daily_call_limit,monthly_call_limit,daily_cost_limit_usd,monthly_cost_limit_usd")
+    .select("semantic_retrieval_opt_in,long_term_memory_opt_in,max_context_chars_per_request,max_output_tokens_per_request,daily_call_limit,monthly_call_limit,daily_cost_limit_usd,monthly_cost_limit_usd,estimated_input_cost_per_million_usd,estimated_output_cost_per_million_usd")
     .eq("user_id", userId).maybeSingle();
   if (!data) return defaultAiGovernance;
   return {
@@ -62,6 +66,8 @@ export async function getAiGovernance(userId: string): Promise<AiGovernance> {
     monthlyCallLimit: data.monthly_call_limit,
     dailyCostLimitUsd: Number(data.daily_cost_limit_usd),
     monthlyCostLimitUsd: Number(data.monthly_cost_limit_usd),
+    estimatedInputCostPerMillionUsd: Number(data.estimated_input_cost_per_million_usd),
+    estimatedOutputCostPerMillionUsd: Number(data.estimated_output_cost_per_million_usd),
   };
 }
 
@@ -114,6 +120,14 @@ export async function auditAiRequest(input: {
 }
 
 export async function completeAiRequest(auditId: string, status: "completed" | "failed" | "cancelled", errorCode?: string | null) {
+  await completeAiRequestWithUsage(auditId, status, {}, errorCode);
+}
+
+export function estimateAiCostUsd(governance: AiGovernance, inputTokens?: number, outputTokens?: number) {
+  return ((inputTokens ?? 0) * governance.estimatedInputCostPerMillionUsd + (outputTokens ?? 0) * governance.estimatedOutputCostPerMillionUsd) / 1_000_000;
+}
+
+export async function completeAiRequestWithUsage(auditId: string, status: "completed" | "failed" | "cancelled", usage: { inputTokens?: number; outputTokens?: number }, errorCode?: string | null, governance = defaultAiGovernance) {
   const admin = createAdminClient();
-  await admin.from("ai_request_audits").update({ status, error_code: errorCode ?? null, completed_at: new Date().toISOString() }).eq("id", auditId);
+  await admin.from("ai_request_audits").update({ status, error_code: errorCode ?? null, input_tokens: usage.inputTokens ?? null, output_tokens: usage.outputTokens ?? null, estimated_cost_usd: estimateAiCostUsd(governance, usage.inputTokens, usage.outputTokens), completed_at: new Date().toISOString() }).eq("id", auditId);
 }
