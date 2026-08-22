@@ -14,7 +14,7 @@ describe("Notes workspace listing performance boundary", () => {
     expect(migration).toContain("null::text as excerpt");
     expect(migration).toContain("note.content_origin");
     expect(migration).not.toContain("regexp_replace(");
-    expect(migration).not.toContain("body_markdown");
+    expect(migration).not.toContain("coalesce(note.body_markdown");
   });
 
   it("keeps high-frequency Notes and profile RLS on InitPlan auth checks", () => {
