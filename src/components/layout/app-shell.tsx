@@ -9,7 +9,7 @@ import {
   Plus, Search, Settings, ShoppingBag, SquareKanban, Star, Plane,
   Sparkles,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -30,12 +30,16 @@ import { perfMark, perfMeasure } from "@/lib/perf";
 import { GlobalCreateLayer } from "@/components/shared/global-create-layer";
 import { matchesShortcut } from "@/features/shortcuts/registry";
 import { ActionFeedbackProvider } from "@/components/shared/action-feedback";
+import {
+  backgroundWorkspacePrefetchTargets,
+  shouldBackgroundWarmData,
+  shouldSkipBackgroundPrefetch,
+  type WorkspacePrefetchHref,
+} from "@/lib/workspace-prefetch-policy";
 
 const sidebarStorageKey = "personal-os:shell:v2";
 const recentStorageKey = "personal-os:recent:v1";
 
-// The assistant pulls in the AI SDK, Markdown rendering and realtime code.  It
-// must not become a cost of simply opening a private workspace page.
 const GlobalAgent = dynamic(
   () => import("@/components/assistant/global-agent").then((module) => module.GlobalAgent),
   { ssr: false },
@@ -77,8 +81,30 @@ function contextualCreateKind(pathname: string) {
   return undefined;
 }
 
+type PrefetchableWorkspaceResource = {
+  get: () => { data?: unknown };
+  prefetch: () => Promise<unknown>;
+};
+
+function networkInformation() {
+  return (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+}
+
 function shouldAvoidBackgroundPrefetch() {
-  return (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+  return shouldSkipBackgroundPrefetch(networkInformation());
+}
+
+function workspaceResourceForHref(href: WorkspacePrefetchHref): PrefetchableWorkspaceResource {
+  if (href === "/tasks") return tasksWorkspaceResource;
+  if (href === "/notes") return notesWorkspaceResource;
+  if (href === "/calendar") return calendarWorkspaceResource;
+  return todayWorkspaceResource;
+}
+
+function prefetchWorkspaceData(href: WorkspacePrefetchHref, coldOnly: boolean) {
+  const resource = workspaceResourceForHref(href);
+  if (coldOnly && !shouldBackgroundWarmData(resource.get().data)) return;
+  void resource.prefetch().catch(() => {});
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -93,6 +119,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandSection, setCommandSection] = useState<CommandCenterSection>("search");
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const backgroundPrefetched = useRef(new Set<WorkspacePrefetchHref>());
   const { isOpen: globalAgentOpen, open: openGlobalAgent, close: closeGlobalAgent } = useWorkspacePanel("global-agent");
 
   useEffect(() => { const timer = window.setTimeout(() => { try { setCollapsed(JSON.parse(localStorage.getItem(sidebarStorageKey) || "false") === true); } catch { /* Keep the usable default. */ } }, 0); return () => window.clearTimeout(timer); }, []);
@@ -100,7 +127,6 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     if (!pendingHref || pathname !== pendingHref) return;
     perfMark("route-commit", { href: pathname });
     perfMeasure("route-commit", "navigation-click", { href: pathname });
-    // Retain the long-lived diagnostic name for existing local dashboards.
     perfMeasure("navigation-ready", "navigation-click", { href: pathname });
   }, [pathname, pendingHref]);
   useEffect(() => {
@@ -126,17 +152,30 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     } catch { /* Recents are an enhancement, never a navigation dependency. */ }
   }, [pathname]);
   useEffect(() => {
-    // Keep the frequent personal workflow warm without prefetching every
-    // private surface at once. AppShell itself stays persistent on navigation.
-    const prefetch = () => ["/today", "/calendar", "/tasks", "/notes"].filter((href) => href !== pathname).forEach((href) => {
-      router.prefetch(href);
-      if (!shouldAvoidBackgroundPrefetch() && href === "/tasks") void tasksWorkspaceResource.prefetch().catch(() => {});
-      if (!shouldAvoidBackgroundPrefetch() && href === "/notes") void notesWorkspaceResource.prefetch().catch(() => {});
-      if (!shouldAvoidBackgroundPrefetch() && href === "/calendar") void calendarWorkspaceResource.prefetch().catch(() => {});
-      if (!shouldAvoidBackgroundPrefetch() && href === "/today") void todayWorkspaceResource.prefetch().catch(() => {});
-    });
-    const idle = window.setTimeout(prefetch, 800);
-    return () => window.clearTimeout(idle);
+    if (document.visibilityState !== "visible" || shouldAvoidBackgroundPrefetch()) return;
+    const targets = backgroundWorkspacePrefetchTargets(pathname).filter((href) => !backgroundPrefetched.current.has(href));
+    if (!targets.length) return;
+
+    let cancelled = false;
+    const prefetch = () => {
+      if (cancelled || document.visibilityState !== "visible" || shouldAvoidBackgroundPrefetch()) return;
+      targets.forEach((href) => {
+        backgroundPrefetched.current.add(href);
+        router.prefetch(href);
+        prefetchWorkspaceData(href, true);
+      });
+    };
+
+    const idleWindow = window as unknown as {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(prefetch, { timeout: 1_800 });
+      return () => { cancelled = true; idleWindow.cancelIdleCallback?.(handle); };
+    }
+    const timer = window.setTimeout(prefetch, 1_200);
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [pathname, router]);
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -158,10 +197,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const navigate = useCallback((href: string) => { if (href === pathname) return; setPendingHref(href); perfMark("navigation-click", { href }); }, [pathname]);
   const prefetchWorkspace = useCallback((href: string) => {
     router.prefetch(href);
-    if (!shouldAvoidBackgroundPrefetch() && href === "/tasks") void tasksWorkspaceResource.prefetch().catch(() => {});
-    if (!shouldAvoidBackgroundPrefetch() && href === "/notes") void notesWorkspaceResource.prefetch().catch(() => {});
-    if (!shouldAvoidBackgroundPrefetch() && href === "/calendar") void calendarWorkspaceResource.prefetch().catch(() => {});
-    if (!shouldAvoidBackgroundPrefetch() && href === "/today") void todayWorkspaceResource.prefetch().catch(() => {});
+    if (shouldAvoidBackgroundPrefetch()) return;
+    if (href === "/tasks" || href === "/notes" || href === "/calendar" || href === "/today") prefetchWorkspaceData(href, false);
   }, [router]);
   const visiblePendingHref = pendingHref === pathname ? null : pendingHref;
   const createKind = contextualCreateKind(pathname);
