@@ -2,6 +2,10 @@ import { after } from "next/server";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { withPerfSpan } from "@/lib/performance/server-perf";
 import {
+  createWorkspaceLatencyProfiler,
+  type WorkspaceLatencyProfiler,
+} from "@/lib/performance/workspace-latency";
+import {
   eventIsToday,
   buildNowCommitments,
   getDateKeyInTimeZone,
@@ -247,8 +251,9 @@ async function getTodayWorkspaceSourcesLegacy(
 async function getTodayWorkspaceSources(
   now: Date,
   owner: Owner,
+  profiler: WorkspaceLatencyProfiler,
 ): Promise<TodayWorkspaceSources> {
-  const compact = await withPerfSpan("today.workspace.read-model", () =>
+  const compact = await profiler.time("supabase", () =>
     owner.supabase.rpc("get_today_workspace_read_model", {
       p_now: now.toISOString(),
     }),
@@ -269,121 +274,135 @@ async function getTodayWorkspaceSources(
     };
   }
 
-  return getTodayWorkspaceSourcesLegacy(now, owner);
+  profiler.noteFallback();
+  return profiler.time("fallback", () => getTodayWorkspaceSourcesLegacy(now, owner));
 }
 
 export async function getTodayWorkspace(
   now = new Date(),
   owner?: Owner,
+  profiler?: WorkspaceLatencyProfiler,
 ): Promise<NowWorkspace> {
-  const resolvedOwner = owner ?? await withPerfSpan("today.workspace.auth", () => requireOwner());
-  const { supabase, userId } = resolvedOwner;
-  const sources = await getTodayWorkspaceSources(now, resolvedOwner);
-  const {
-    timezone,
-    events,
-    connection,
-    inboxCount,
-    dueDecisions,
-    briefingDate,
-    briefingEntries,
-    availability,
-  } = sources;
-  const today = getDateKeyInTimeZone(now, timezone)!;
-  const tasks = groupNowTasks(sources.tasks, now, timezone);
-  const todayEvents = events.filter((event) =>
-    eventIsToday(event, now, timezone),
-  );
-  const milestones = selectOpenCareerMilestones(sources.milestones, today, 30);
-  const attention = buildProactiveInsights({
-    now,
-    timeZone: timezone,
-    tasks: [...tasks.overdue, ...tasks.today, ...tasks.upcoming],
-    events,
-    milestones,
-    weeklyReviewCompleted: sources.weeklyReviewCompleted,
-    dueDecisions,
-  });
-  const todayBrief = buildTodayBrief({
-    now,
-    timezone,
-    overdueTasks: tasks.overdue,
-    todayTasks: tasks.today,
-    todayEvents,
-    milestones,
-    inboxCount,
-  });
-  after(() =>
-    runTodaySideEffectSafely(() =>
-      reconcileProactiveInsights(supabase, userId, attention, now),
-    ),
-  );
+  const latency = profiler ?? createWorkspaceLatencyProfiler("today", "rsc");
+  const ownsProfiler = !profiler;
+  let status = 500;
 
-  return {
-    timezone,
-    calendar: {
-      today: todayEvents,
-      upcoming: events.filter(
-        (event) =>
-          !todayEvents.some((todayEvent) => todayEvent.id === event.id),
-      ),
-      connection,
-    },
-    tasks,
-    career: { upcomingMilestones: milestones },
-    briefing: { entries: briefingEntries, date: briefingDate },
-    inboxCount,
-    commitments: buildNowCommitments({ now, timeZone: timezone, events, tasks, milestones, inboxCount, limit: 8 }),
-    nextAction: selectNextAction({
-      now,
-      timeZone: timezone,
-      events,
-      tasks,
-      milestones,
-      inboxCount,
-    }),
-    todayBrief,
-    attention,
-    upcoming: [
-      ...events
-        .filter(
-          (event) => getDateKeyInTimeZone(event.starts_at, timezone)! > today,
-        )
-        .map((event) => ({
-          id: `event-${event.id}`,
-          kind: "event" as const,
-          title: event.subject || "未命名日程",
-          at: event.starts_at,
-          href: "/calendar",
-          detail: event.location_name ?? undefined,
-        })),
-      ...tasks.upcoming.map((task) => ({
-        id: `task-${task.id}`,
-        kind: "task" as const,
-        title: task.title || "未命名任务",
-        at: task.due_at!,
-        href: "/tasks",
-      })),
-      ...milestones
-        .filter((item) => {
-          const days = daysUntilCareerMilestone(item.target_date, today);
-          return days > 0 && days <= 7;
-        })
-        .map((item) => ({
-          id: `milestone-${item.id}`,
-          kind: "milestone" as const,
-          title: item.title,
-          at: `${item.target_date}T00:00:00`,
-          href: "/career/roadmap",
-        })),
-    ]
-      .sort((a, b) => a.at.localeCompare(b.at))
-      .slice(0, 7),
-    availability,
-    summary: {
-      todayEventCount: todayEvents.length,
-      todayTaskCount: tasks.today.length,
-      attentionCount: attention.length,
-    },
-  };
+  try {
+    const resolvedOwner = owner ?? await latency.time("auth", () => requireOwner());
+    const { supabase, userId } = resolvedOwner;
+    const sources = await getTodayWorkspaceSources(now, resolvedOwner, latency);
+    const workspace = latency.timeSync("assemble", () => {
+      const {
+        timezone,
+        events,
+        connection,
+        inboxCount,
+        dueDecisions,
+        briefingDate,
+        briefingEntries,
+        availability,
+      } = sources;
+      const today = getDateKeyInTimeZone(now, timezone)!;
+      const tasks = groupNowTasks(sources.tasks, now, timezone);
+      const todayEvents = events.filter((event) =>
+        eventIsToday(event, now, timezone),
+      );
+      const milestones = selectOpenCareerMilestones(sources.milestones, today, 30);
+      const attention = buildProactiveInsights({
+        now,
+        timeZone: timezone,
+        tasks: [...tasks.overdue, ...tasks.today, ...tasks.upcoming],
+        events,
+        milestones,
+        weeklyReviewCompleted: sources.weeklyReviewCompleted,
+        dueDecisions,
+      });
+      const todayBrief = buildTodayBrief({
+        now,
+        timezone,
+        overdueTasks: tasks.overdue,
+        todayTasks: tasks.today,
+        todayEvents,
+        milestones,
+        inboxCount,
+      });
+      after(() =>
+        runTodaySideEffectSafely(() =>
+          reconcileProactiveInsights(supabase, userId, attention, now),
+        ),
+      );
+
+      return {
+        timezone,
+        calendar: {
+          today: todayEvents,
+          upcoming: events.filter(
+            (event) =>
+              !todayEvents.some((todayEvent) => todayEvent.id === event.id),
+          ),
+          connection,
+        },
+        tasks,
+        career: { upcomingMilestones: milestones },
+        briefing: { entries: briefingEntries, date: briefingDate },
+        inboxCount,
+        commitments: buildNowCommitments({ now, timeZone: timezone, events, tasks, milestones, inboxCount, limit: 8 }),
+        nextAction: selectNextAction({
+          now,
+          timeZone: timezone,
+          events,
+          tasks,
+          milestones,
+          inboxCount,
+        }),
+        todayBrief,
+        attention,
+        upcoming: [
+          ...events
+            .filter(
+              (event) => getDateKeyInTimeZone(event.starts_at, timezone)! > today,
+            )
+            .map((event) => ({
+              id: `event-${event.id}`,
+              kind: "event" as const,
+              title: event.subject || "未命名日程",
+              at: event.starts_at,
+              href: "/calendar",
+              detail: event.location_name ?? undefined,
+            })),
+          ...tasks.upcoming.map((task) => ({
+            id: `task-${task.id}`,
+            kind: "task" as const,
+            title: task.title || "未命名任务",
+            at: task.due_at!,
+            href: "/tasks",
+          })),
+          ...milestones
+            .filter((item) => {
+              const days = daysUntilCareerMilestone(item.target_date, today);
+              return days > 0 && days <= 7;
+            })
+            .map((item) => ({
+              id: `milestone-${item.id}`,
+              kind: "milestone" as const,
+              title: item.title,
+              at: `${item.target_date}T00:00:00`,
+              href: "/career/roadmap",
+            })),
+        ]
+          .sort((a, b) => a.at.localeCompare(b.at))
+          .slice(0, 7),
+        availability,
+        summary: {
+          todayEventCount: todayEvents.length,
+          todayTaskCount: tasks.today.length,
+          attentionCount: attention.length,
+        },
+      } satisfies NowWorkspace;
+    });
+    status = 200;
+    return workspace;
+  } finally {
+    if (ownsProfiler) latency.finish(status);
+  }
 }

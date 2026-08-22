@@ -1,5 +1,9 @@
 import { requireOwner } from "@/lib/auth/require-owner";
 import { withPerfSpan } from "@/lib/performance/server-perf";
+import {
+  createWorkspaceLatencyProfiler,
+  type WorkspaceLatencyProfiler,
+} from "@/lib/performance/workspace-latency";
 import type { CalendarWorkspaceData } from "./workspace-resource";
 
 type Owner = Awaited<ReturnType<typeof requireOwner>>;
@@ -88,21 +92,39 @@ async function getCalendarWorkspaceLegacy(owner: Owner) {
   );
 }
 
-export async function getCalendarWorkspace(owner?: Owner) {
-  const resolvedOwner = owner ?? await withPerfSpan("calendar.workspace.auth", () => requireOwner());
-  const { supabase } = resolvedOwner;
+export async function getCalendarWorkspace(
+  owner?: Owner,
+  profiler?: WorkspaceLatencyProfiler,
+) {
+  const latency = profiler ?? createWorkspaceLatencyProfiler("calendar", "rsc");
+  const ownsProfiler = !profiler;
+  let status = 500;
 
-  const compact = await withPerfSpan("calendar.workspace.read-model", () =>
-    supabase.rpc("get_calendar_workspace_read_model"),
-  );
-  if (!compact.error && isCalendarWorkspaceReadModel(compact.data)) {
-    return buildCalendarWorkspace(
-      compact.data.connection,
-      compact.data.categories,
-      compact.data.timezone,
-      compact.data.running_sync,
+  try {
+    const resolvedOwner = owner ?? await latency.time("auth", () => requireOwner());
+    const { supabase } = resolvedOwner;
+
+    const compact = await latency.time("supabase", () =>
+      supabase.rpc("get_calendar_workspace_read_model"),
     );
-  }
+    if (!compact.error && isCalendarWorkspaceReadModel(compact.data)) {
+      const workspace = latency.timeSync("assemble", () => buildCalendarWorkspace(
+        compact.data.connection,
+        compact.data.categories,
+        compact.data.timezone,
+        compact.data.running_sync,
+      ));
+      status = 200;
+      return workspace;
+    }
 
-  return getCalendarWorkspaceLegacy(resolvedOwner);
+    latency.noteFallback();
+    const workspace = await latency.time("fallback", () =>
+      getCalendarWorkspaceLegacy(resolvedOwner),
+    );
+    status = 200;
+    return workspace;
+  } finally {
+    if (ownsProfiler) latency.finish(status);
+  }
 }

@@ -13,10 +13,9 @@ export function TodayWorkspaceLoader({ initialWorkspace }: { initialWorkspace: N
   const snapshot = useSyncExternalStore(todayWorkspaceResource.subscribe, todayWorkspaceResource.get, todayWorkspaceResource.get);
   useWorkspaceResourceLifecycle(todayWorkspaceResource);
   useEffect(() => {
-    // Server Components begin this read during route navigation. Seed it into
-    // the tab cache after hydration, unless an intent prefetch already won.
-    if (!todayWorkspaceResource.get().data) todayWorkspaceResource.set(initialWorkspace);
-    perfMark("workspace-visible", { workspace: "today", cached: Boolean(todayWorkspaceResource.get().data) });
+    const hadCachedData = todayWorkspaceResource.get().data !== undefined;
+    todayWorkspaceResource.set(initialWorkspace);
+    perfMark("workspace-visible", { workspace: "today", cached: hadCachedData, source: "rsc" });
     void todayWorkspaceResource.revalidate().then(() => perfMeasure("workspace-data-ready", "navigation-click", { workspace: "today" })).catch(() => {});
   }, [initialWorkspace]);
   const data = snapshot.data ?? initialWorkspace;

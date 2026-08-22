@@ -10,4 +10,9 @@ async function readTodayWorkspace(): Promise<NowWorkspace> {
   return body;
 }
 
-export const todayWorkspaceResource = createWorkspaceResource("today:workspace-data", readTodayWorkspace, 20_000);
+export const todayWorkspaceResource = createWorkspaceResource(
+  "today:workspace-data",
+  readTodayWorkspace,
+  20_000,
+  { prefetchStrategy: "route-owned" },
+);

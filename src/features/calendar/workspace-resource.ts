@@ -19,7 +19,12 @@ async function readCalendarWorkspace(): Promise<CalendarWorkspaceData> {
   return body;
 }
 
-export const calendarWorkspaceResource = createWorkspaceResource("calendar:workspace-data", readCalendarWorkspace, 5 * 60_000);
+export const calendarWorkspaceResource = createWorkspaceResource(
+  "calendar:workspace-data",
+  readCalendarWorkspace,
+  5 * 60_000,
+  { prefetchStrategy: "route-owned" },
+);
 
 type CalendarRangeData = { events: CalendarEventRecord[]; truncated: boolean };
 const rangeResources = new Map<string, ReturnType<typeof createWorkspaceResource<CalendarRangeData>>>();

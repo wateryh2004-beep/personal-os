@@ -22,4 +22,5 @@ export const tasksWorkspaceResource = createWorkspaceResource(
   "tasks:workspace-data",
   readTasksWorkspace,
   45_000,
+  { prefetchStrategy: "route-owned" },
 );

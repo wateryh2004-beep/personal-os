@@ -62,7 +62,31 @@ function loginRedirect(request: NextRequest, error?: "configuration" | "not-auth
   return NextResponse.redirect(url);
 }
 
+function attachPrivateProxyTiming(
+  response: NextResponse,
+  startedAt: number,
+  authMs?: number,
+) {
+  const totalMs = performance.now() - startedAt;
+  const timing = [
+    authMs === undefined ? null : `proxy_auth;dur=${authMs.toFixed(1)}`,
+    `proxy_total;dur=${totalMs.toFixed(1)}`,
+  ].filter(Boolean).join(", ");
+  response.headers.set("Server-Timing", timing);
+  if (process.env.VERCEL_ENV || process.env.PERF_DEBUG === "true") {
+    console.info(JSON.stringify({
+      type: "proxy_latency",
+      status: response.status,
+      authMs: authMs === undefined ? undefined : Math.round(authMs),
+      totalMs: Math.round(totalMs),
+      region: process.env.VERCEL_REGION ?? null,
+    }));
+  }
+  return response;
+}
+
 export async function updateSession(request: NextRequest) {
+  const proxyStartedAt = performance.now();
   const pathname = request.nextUrl.pathname;
   const privateAppPath = isPrivateAppPath(pathname);
   // Do not let a client forge the fast-path identity consumed by Server
@@ -72,7 +96,7 @@ export async function updateSession(request: NextRequest) {
   requestHeaders.delete(verifiedOwnerEmailHeader);
 
   if (!isSupabaseConfigured) {
-    if (privateAppPath) return loginRedirect(request, "configuration");
+    if (privateAppPath) return attachPrivateProxyTiming(loginRedirect(request, "configuration"), proxyStartedAt);
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -87,14 +111,17 @@ export async function updateSession(request: NextRequest) {
       },
     },
   });
+  const authStartedAt = performance.now();
   const { data, error } = await supabase.auth.getClaims();
+  const authMs = performance.now() - authStartedAt;
   const email = data?.claims.email as string | undefined;
   const isOwner = !error && Boolean(data?.claims.sub) && isOwnerEmail(email);
 
   if (privateAppPath && !isOwner) {
     const redirectResponse = loginRedirect(request, data?.claims.sub ? "not-authorized" : undefined);
     copySessionCookies(response, redirectResponse);
-    return clearSupabaseCookies(request, redirectResponse);
+    const cleared = clearSupabaseCookies(request, redirectResponse);
+    return attachPrivateProxyTiming(cleared, proxyStartedAt, authMs);
   }
 
   if (isOwner && data?.claims.sub && email) {
@@ -125,5 +152,7 @@ export async function updateSession(request: NextRequest) {
   if (privateAppPath || isPublicPath(pathname)) {
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
   }
-  return response;
+  return privateAppPath
+    ? attachPrivateProxyTiming(response, proxyStartedAt, authMs)
+    : response;
 }
