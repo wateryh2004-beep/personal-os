@@ -8,7 +8,8 @@ describe("Today commitment interaction contract", () => {
   it("keeps the surface bounded, evidence-only, and usable on narrow screens", () => {
     expect(source).toContain("const DEFAULT_VISIBLE = 5");
     expect(source).toContain("暂无足够依据推荐下一步");
-    expect(source).toContain("sm:flex-row");
+    expect(source).toContain("sm:grid-cols-[minmax(0,1fr)_auto]");
+    expect(source).toContain("sm:items-center");
   });
 
   it("keeps all landing actions behind existing task, calendar, or Inbox boundaries", () => {

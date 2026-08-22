@@ -7,7 +7,7 @@ import { TodaySecondary } from "./today-secondary";
 
 export function NowWorkspaceView({ workspace }: { workspace: NowWorkspace }) {
   return (
-    <div className="mx-auto w-full max-w-[1080px] px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
+    <div className="now-workspace mx-auto w-full max-w-[1080px] px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
       <NowHeader workspace={workspace} />
 
       <div className="mt-10 sm:mt-12">

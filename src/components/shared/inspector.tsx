@@ -14,5 +14,16 @@ export function Inspector({ open, title = "详情", onClose, children, className
 }
 
 export function InspectorButton({ open, onClick }: { open: boolean; onClick: () => void }) {
-  return <button type="button" onClick={onClick} aria-pressed={open} className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]" aria-label={open ? "关闭详情" : "打开详情"}><PanelRightClose className="size-4" aria-hidden="true" /><span className="hidden sm:inline">详情</span></button>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={open}
+      className="inline-flex h-[30px] items-center gap-1.5 rounded-[7px] px-2 text-[13px] font-medium text-[var(--text-secondary)] transition-[background-color,color] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+      aria-label={open ? "关闭详情" : "打开详情"}
+    >
+      <PanelRightClose className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
+      <span className="hidden sm:inline">详情</span>
+    </button>
+  );
 }
