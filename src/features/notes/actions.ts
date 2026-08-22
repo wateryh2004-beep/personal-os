@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { contentHash } from "./utils";
@@ -16,7 +17,63 @@ function fail(): never { throw new Error("操作未能完成，请检查输入�
 function missingWorkspaceColumn(error: unknown) { return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "PGRST204"); }
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, entityType: string, id: string, data: Record<string, unknown>) { const { error } = await supabase.from("audit_logs").insert({ user_id: userId, action, entity_type: entityType, entity_id: id, actor_type: "user", after_data: data }); if (error) fail(); }
 export async function createNote() { const { supabase, userId } = await requireOwner(); const title = "无标题笔记"; const body = ""; const hash = contentHash(body); let result = await supabase.from("notes").insert({ user_id: userId, title, body_markdown: body, status: "active", revision: 1, content_hash: hash, word_count: 0, character_count: 0, last_saved_at: new Date().toISOString() }).select("id").single(); if (result.error && missingWorkspaceColumn(result.error)) result = await supabase.from("notes").insert({ user_id: userId, title, body_markdown: body, status: "active" }).select("id").single(); if (result.error) fail(); const version = await supabase.from("note_versions").insert({ user_id: userId, note_id: result.data.id, title, body_markdown: body, version_number: 1, created_by: userId, content_hash: hash, revision: 1, reason: "initial" }); if (version.error && missingWorkspaceColumn(version.error)) { const fallback = await supabase.from("note_versions").insert({ user_id: userId, note_id: result.data.id, title, body_markdown: body, version_number: 1, created_by: userId }); if (fallback.error) fail(); } else if (version.error) fail(); await audit(supabase, userId, "create", "note", result.data.id, { revision: 1 }); const now = new Date().toISOString(); await recordStatusSafely(userId, "notes", { state: "fresh", lastSuccessAt: now, lastAttemptAt: now, nextStep: "Notes 直接以 Supabase 为权威。" }, { type: "succeeded", operationKey: `note-create-${result.data.id}` }); redirect(`/notes/${result.data.id}`); }
-export async function saveNote(input: unknown) { const { supabase, userId } = await requireOwner(); const parsed = noteSchema.safeParse(input); if (!parsed.success || !parsed.data.noteId) fail(); const value = parsed.data; const previous = await supabase.from("notes").select("body_markdown").eq("id", value.noteId).eq("revision", value.expectedRevision).maybeSingle(); const hash = contentHash(value.bodyMarkdown); const words = value.bodyMarkdown.trim() ? value.bodyMarkdown.trim().split(/\s+/).length : 0; const now = new Date().toISOString(); const { data, error } = await supabase.from("notes").update({ title: value.title || "无标题笔记", body_markdown: value.bodyMarkdown, content_hash: hash, word_count: words, character_count: value.bodyMarkdown.length, last_saved_at: now, revision: value.expectedRevision + 1 }).eq("id", value.noteId).eq("revision", value.expectedRevision).select("id,revision").maybeSingle(); if (error && missingWorkspaceColumn(error)) { const fallback = await supabase.from("notes").update({ title: value.title || "无标题笔记", body_markdown: value.bodyMarkdown }).eq("id", value.noteId).select("id").maybeSingle(); if (fallback.error || !fallback.data) fail(); await recordStatusSafely(userId, "notes", { state: "fresh", lastSuccessAt: now, lastAttemptAt: now, nextStep: "Notes 直接以 Supabase 为权威。" }, { type: "succeeded", operationKey: `note-save-${value.noteId}-${value.expectedRevision}` }); return { status: "saved" as const, revision: value.expectedRevision, lastSavedAt: now }; } if (error) fail(); if (!data) { await recordStatusSafely(userId, "notes", { state: "conflict", lastAttemptAt: now, conflictSummary: "此笔记已在另一处更新，尚未覆盖权威版本。", nextStep: "刷新笔记并比较版本后再保存。" }, { type: "conflict_detected", operationKey: `note-save-${value.noteId}-${value.expectedRevision}` }); return { status: "conflict" as const }; } await recordStatusSafely(userId, "notes", { state: "fresh", lastSuccessAt: now, lastAttemptAt: now, nextStep: "Notes 直接以 Supabase 为权威。" }, { type: "succeeded", operationKey: `note-save-${value.noteId}-${data.revision}` }); if (previous.error || noteRelationSignature(previous.data?.body_markdown ?? "") !== noteRelationSignature(value.bodyMarkdown)) { const linkSync = await syncInternalNoteLinks(supabase, userId, value.noteId!, value.bodyMarkdown); if (!linkSync.ok) console.error(JSON.stringify({ level: "warn", action: "sync_note_links", noteId: value.noteId, code: linkSync.code })); const entityLinkSync = await syncEntityReferenceLinks(supabase, userId, "note", value.noteId!, value.bodyMarkdown); if (!entityLinkSync.ok) console.error(JSON.stringify({ level: "warn", action: "sync_entity_reference_links", noteId: value.noteId, code: entityLinkSync.code })); }
+export async function saveNote(input: unknown) {
+  const { supabase, userId } = await requireOwner();
+  const parsed = noteSchema.safeParse(input);
+  if (!parsed.success || !parsed.data.noteId) fail();
+  const value = parsed.data;
+  const hash = contentHash(value.bodyMarkdown);
+  const words = value.bodyMarkdown.trim() ? value.bodyMarkdown.trim().split(/\s+/).length : 0;
+  const now = new Date().toISOString();
+
+  // The previous body is needed only for derived link reconciliation. Start it
+  // concurrently with the authoritative update instead of adding a read RTT in
+  // front of every autosave.
+  const previousPromise = supabase
+    .from("notes")
+    .select("body_markdown")
+    .eq("id", value.noteId)
+    .eq("revision", value.expectedRevision)
+    .maybeSingle();
+  const { data, error } = await supabase
+    .from("notes")
+    .update({ title: value.title || "无标题笔记", body_markdown: value.bodyMarkdown, content_hash: hash, word_count: words, character_count: value.bodyMarkdown.length, last_saved_at: now, revision: value.expectedRevision + 1 })
+    .eq("id", value.noteId)
+    .eq("revision", value.expectedRevision)
+    .select("id,revision")
+    .maybeSingle();
+
+  if (error && missingWorkspaceColumn(error)) {
+    const fallback = await supabase.from("notes").update({ title: value.title || "无标题笔记", body_markdown: value.bodyMarkdown }).eq("id", value.noteId).select("id").maybeSingle();
+    if (fallback.error || !fallback.data) fail();
+    after(async () => {
+      await recordStatusSafely(userId, "notes", { state: "fresh", lastSuccessAt: now, lastAttemptAt: now, nextStep: "Notes 直接以 Supabase 为权威。" }, { type: "succeeded", operationKey: `note-save-${value.noteId}-${value.expectedRevision}` });
+    });
+    return { status: "saved" as const, revision: value.expectedRevision, lastSavedAt: now };
+  }
+  if (error) fail();
+  if (!data) {
+    after(async () => {
+      await recordStatusSafely(userId, "notes", { state: "conflict", lastAttemptAt: now, conflictSummary: "此笔记已在另一处更新，尚未覆盖权威版本。", nextStep: "刷新笔记并比较版本后再保存。" }, { type: "conflict_detected", operationKey: `note-save-${value.noteId}-${value.expectedRevision}` });
+    });
+    return { status: "conflict" as const };
+  }
+
+  // Everything below is derived bookkeeping. The user already has a canonical
+  // revision at this point, so do not hold the autosave acknowledgement open.
+  after(async () => {
+    await recordStatusSafely(userId, "notes", { state: "fresh", lastSuccessAt: now, lastAttemptAt: now, nextStep: "Notes 直接以 Supabase 为权威。" }, { type: "succeeded", operationKey: `note-save-${value.noteId}-${data.revision}` });
+    const previous = await previousPromise;
+    if (previous.error || noteRelationSignature(previous.data?.body_markdown ?? "") !== noteRelationSignature(value.bodyMarkdown)) {
+      const [linkSync, entityLinkSync] = await Promise.all([
+        syncInternalNoteLinks(supabase, userId, value.noteId!, value.bodyMarkdown),
+        syncEntityReferenceLinks(supabase, userId, "note", value.noteId!, value.bodyMarkdown),
+      ]);
+      if (!linkSync.ok) console.error(JSON.stringify({ level: "warn", action: "sync_note_links", noteId: value.noteId, code: linkSync.code }));
+      if (!entityLinkSync.ok) console.error(JSON.stringify({ level: "warn", action: "sync_entity_reference_links", noteId: value.noteId, code: entityLinkSync.code }));
+    }
+  });
+
   // Autosave returns its canonical revision to the mounted editor. Invalidating
   // the Notes routes here caused every typing pause to refetch the RSC tree.
   return { status: "saved" as const, revision: data.revision, lastSavedAt: now };

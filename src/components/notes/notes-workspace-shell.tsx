@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { ChevronDown, ChevronRight, FilePlus2, FileText, Folder, FolderPlus, Menu, MoreHorizontal, Sparkles, Star, Trash2, Clock3 } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock3, FilePlus2, FileText, Folder, FolderPlus, Menu, MoreHorizontal, Search, Sparkles, Star, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -11,6 +11,7 @@ import { createFolder, createNoteInFolder, moveFolder, moveNote, renameFolder } 
 import { openDailyNote } from "@/features/notes/actions";
 import { notesDragAutoScrollDelta } from "@/features/notes/drag-auto-scroll";
 import { canMoveFolderTo, expandedFolderPath, visibleExpandedFolders } from "@/features/notes/folder-tree";
+import { filterNotesByMetadata, noteFolderPath } from "@/features/notes/local-search";
 
 export type NotesNavigatorFolder = { id: string; name: string; parent_id: string | null };
 export type NotesNavigatorNote = { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null };
@@ -27,6 +28,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   const [folderName, setFolderName] = useState("");
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [navigatorQuery, setNavigatorQuery] = useState("");
   const [optimisticMove, setOptimisticMove] = useState<{ item: DraggedNavigatorItem; targetId: string | null } | null>(null);
   const [dragging, setDragging] = useState<DraggedNavigatorItem | null>(null);
   const [dropTarget, setDropTarget] = useState<string | "root" | null>(null);
@@ -69,6 +71,11 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   const navigatorNotes = useMemo(() => optimisticMove?.item.kind === "note"
     ? notes.map((note) => note.id === optimisticMove.item.id ? { ...note, folder_id: optimisticMove.targetId } : note)
     : notes, [notes, optimisticMove]);
+  const navigatorMatches = useMemo(
+    () => filterNotesByMetadata(navigatorNotes, navigatorFolders, navigatorQuery, 60),
+    [navigatorFolders, navigatorNotes, navigatorQuery],
+  );
+  const searchActive = Boolean(navigatorQuery.trim());
 
   const children = useMemo(() => {
     const map = new Map<string | null, NotesNavigatorFolder[]>();
@@ -177,10 +184,50 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
     })}
     {parentId === null ? <>{(notesByFolder.get(null) ?? []).map((note) => <Link key={note.id} draggable onDragStart={(event) => beginDrag(event, { kind: "note", id: note.id, title: note.title || "无标题笔记", parentId: note.folder_id })} onDragEnd={clearDrag} onClick={onNavigate} href={`/notes/${note.id}`} className={`flex h-8 cursor-grab items-center gap-1.5 truncate rounded-[var(--radius-md)] px-3 text-sm transition-[background-color,color] ui-transition active:cursor-grabbing ${dragging?.kind === "note" && dragging.id === note.id ? "opacity-45" : ""} ${activeNoteId === note.id ? "bg-[var(--surface-selected)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><FileText className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{note.title || "无标题笔记"}</span>{note.content_origin === "ai_generated" ? <Sparkles className="size-3 shrink-0 text-[var(--ai-accent)]" aria-label="AI 生成" /> : null}</Link>)}{createFolderRow(null, 0)}</> : null}
   </>;
+
   return <div className="flex h-full min-h-0 flex-col bg-[var(--surface-sidebar)] px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
-    <div className="mb-4 flex items-center justify-between px-1"><span className="text-sm font-semibold">Notes</span><form action={createNoteInFolder}><input type="hidden" name="folder_id" value={selectedFolderId ?? ""} /><Button size="icon-xs" aria-label="新建笔记"><FilePlus2 /></Button></form></div>
-    <nav className="space-y-0.5" aria-label="笔记视图"><Link onClick={onNavigate} href="/notes" className={`flex h-8 items-center gap-2 rounded px-2 text-sm ${pathname === "/notes" && !selectedFolderId ? "bg-[var(--surface-selected)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><FileText className="size-3.5" />全部笔记</Link><form action={openDailyNote}><button className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">今日日记</button></form><Link onClick={onNavigate} href="/notes?view=favorites" className="flex h-8 items-center gap-2 rounded px-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Star className="size-3.5" />收藏</Link><Link onClick={onNavigate} href="/notes?view=recent" className="flex h-8 items-center gap-2 rounded px-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Clock3 className="size-3.5" />最近编辑</Link></nav>
-    <div className="mt-6 flex min-h-0 flex-1 flex-col"><div className="mb-2 flex items-center justify-between px-2"><span className="text-[11px] font-medium text-[var(--text-tertiary)]">文件</span><button type="button" onClick={() => { setCreatingIn(null); setFolderName(""); }} className="rounded p-1 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]" aria-label="新建根文件夹"><FolderPlus className="size-3.5" /></button></div><div ref={treeScrollRef} onDragOver={(event) => { if (!dragging) return; updateDragAutoScroll(event.clientY); if (event.target !== event.currentTarget || !canDropOn(null)) return; event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget("root"); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) { stopDragAutoScroll(); if (dropTarget === "root") setDropTarget(null); } }} onDrop={(event) => { if (event.target !== event.currentTarget) return; event.preventDefault(); moveDraggedTo(null, "根目录"); }} className={`workspace-scroll min-h-0 flex-1 overflow-y-auto rounded-[var(--radius-sm)] ${dropTarget === "root" ? "bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-inset ring-[var(--accent)]" : ""}`}>{renderBranch(null)}</div></div>
+    <div className="flex items-center justify-between px-1"><span className="text-sm font-semibold">Notes</span><form action={createNoteInFolder}><input type="hidden" name="folder_id" value={selectedFolderId ?? ""} /><Button size="icon-xs" aria-label="新建笔记"><FilePlus2 /></Button></form></div>
+    <label className="relative mt-3 block">
+      <span className="sr-only">切换笔记</span>
+      <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]" aria-hidden="true" />
+      <input
+        value={navigatorQuery}
+        onChange={(event) => setNavigatorQuery(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Escape") setNavigatorQuery(""); }}
+        autoComplete="off"
+        placeholder="切换笔记…"
+        className="h-8 w-full rounded-[9px] border border-transparent bg-[var(--surface-control)] pl-8 pr-8 text-[12px] outline-none placeholder:text-[var(--text-tertiary)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+      />
+      {navigatorQuery ? <button type="button" onClick={() => setNavigatorQuery("")} className="absolute right-1 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" aria-label="清空切换搜索"><X className="size-3" aria-hidden="true" /></button> : null}
+    </label>
+    <nav className="mt-3 space-y-0.5" aria-label="笔记视图"><Link onClick={onNavigate} href="/notes" className={`flex h-8 items-center gap-2 rounded px-2 text-sm ${pathname === "/notes" && !selectedFolderId ? "bg-[var(--surface-selected)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><FileText className="size-3.5" />全部笔记</Link><form action={openDailyNote}><button className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">今日日记</button></form><Link onClick={onNavigate} href="/notes?view=favorites" className="flex h-8 items-center gap-2 rounded px-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Star className="size-3.5" />收藏</Link><Link onClick={onNavigate} href="/notes?view=recent" className="flex h-8 items-center gap-2 rounded px-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Clock3 className="size-3.5" />最近编辑</Link></nav>
+    <div className="mt-5 flex min-h-0 flex-1 flex-col">
+      <div className="mb-2 flex items-center justify-between px-2">
+        <span className="text-[11px] font-medium text-[var(--text-tertiary)]">{searchActive ? `匹配 · ${navigatorMatches.length}` : "文件"}</span>
+        {!searchActive ? <button type="button" onClick={() => { setCreatingIn(null); setFolderName(""); }} className="rounded p-1 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]" aria-label="新建根文件夹"><FolderPlus className="size-3.5" /></button> : null}
+      </div>
+      {searchActive ? (
+        <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto">
+          {navigatorMatches.length ? navigatorMatches.map((note) => (
+            <Link
+              key={note.id}
+              href={`/notes/${note.id}`}
+              onClick={() => { setNavigatorQuery(""); onNavigate?.(); }}
+              className={`group flex min-h-10 items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 transition-colors ui-transition ${activeNoteId === note.id ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
+            >
+              <FileText className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[12px] font-medium">{note.title || "无标题笔记"}</span>
+                <span className="mt-0.5 block truncate text-[10px] text-[var(--text-tertiary)]">{noteFolderPath(note.folder_id, navigatorFolders)}</span>
+              </span>
+              {note.content_origin === "ai_generated" ? <Sparkles className="size-3 shrink-0 text-[var(--ai-accent)]" aria-label="AI 生成" /> : null}
+            </Link>
+          )) : <p className="px-2 py-5 text-center text-[11px] leading-5 text-[var(--text-tertiary)]">没有匹配的笔记。<br />按 Esc 回到文件树。</p>}
+        </div>
+      ) : (
+        <div ref={treeScrollRef} onDragOver={(event) => { if (!dragging) return; updateDragAutoScroll(event.clientY); if (event.target !== event.currentTarget || !canDropOn(null)) return; event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget("root"); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) { stopDragAutoScroll(); if (dropTarget === "root") setDropTarget(null); } }} onDrop={(event) => { if (event.target !== event.currentTarget) return; event.preventDefault(); moveDraggedTo(null, "根目录"); }} className={`workspace-scroll min-h-0 flex-1 overflow-y-auto rounded-[var(--radius-sm)] ${dropTarget === "root" ? "bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-inset ring-[var(--accent)]" : ""}`}>{renderBranch(null)}</div>
+      )}
+    </div>
     <Link onClick={onNavigate} href="/notes/trash" className="mt-4 flex h-8 items-center gap-2 rounded px-2 text-sm text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]"><Trash2 className="size-3.5" />回收站</Link>
     <p aria-live="polite" className="sr-only">{notice}</p>
   </div>;
@@ -228,7 +275,7 @@ export function NotesWorkspaceShell({ folders, notes, children }: { folders: Not
     try { localStorage.removeItem("personal-os:notes-navigator-width:v1"); } catch { /* no-op */ }
   };
   return <section className="flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
-    <aside style={{ width: navigatorWidth }} className="relative hidden h-full shrink-0 border-r md:block"><NotesNavigator folders={folders} notes={notes} /><button type="button" onPointerDown={resizeNavigator} onDoubleClick={resetNavigator} className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none" aria-label="调整笔记导航宽度，双击恢复默认" /></aside>
+    <aside style={{ width: navigatorWidth }} className="relative hidden h-full shrink-0 border-r border-[var(--separator)] md:block"><NotesNavigator folders={folders} notes={notes} /><button type="button" onPointerDown={resizeNavigator} onDoubleClick={resetNavigator} className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none" aria-label="调整笔记导航宽度，双击恢复默认" /></aside>
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" showCloseButton className="w-[min(86vw,320px)] p-0"><SheetTitle className="sr-only">Notes 文件</SheetTitle><NotesNavigator folders={folders} notes={notes} onNavigate={() => setMobileOpen(false)} /></SheetContent></Sheet>
     <div className="relative min-w-0 flex-1">{isEditorRoute ? null : <button type="button" onClick={() => setMobileOpen(true)} className="absolute left-3 top-3 z-10 flex h-8 items-center gap-1.5 rounded-full bg-[var(--surface-canvas)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-sm md:hidden" aria-label="打开笔记文件"><Menu className="size-4" />文件夹</button>}{children}</div>
   </section>;
