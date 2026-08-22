@@ -27,12 +27,89 @@ import type {
 } from "./types";
 
 type Owner = Awaited<ReturnType<typeof requireOwner>>;
+type TodayAvailability = ReturnType<typeof todayAvailabilityForError>;
 
-export async function getTodayWorkspace(
-  now = new Date(),
-  owner?: Owner,
-): Promise<NowWorkspace> {
-  const { supabase, userId } = owner ?? await withPerfSpan("today.workspace.auth", () => requireOwner());
+type TodayCalendarConnection = {
+  status: string;
+  last_sync_at: string | null;
+  last_error_code: string | null;
+};
+
+type TodayDueDecision = {
+  id: string;
+  title: string;
+  review_at: string;
+};
+
+type TodayBriefingEntry = {
+  id: string;
+  title: string;
+  url: string | null;
+  section: string;
+  reason: string | null;
+};
+
+type TodayWorkspaceReadModel = {
+  timezone: string;
+  tasks: NowTask[];
+  events: NowCalendarEvent[];
+  connection: TodayCalendarConnection | null;
+  milestones: NowCareerMilestone[];
+  inbox_count: number;
+  weekly_review_completed: boolean;
+  due_decisions: TodayDueDecision[];
+  briefing_date: string | null;
+  briefing_entries: TodayBriefingEntry[];
+};
+
+type TodayWorkspaceSources = {
+  timezone: string;
+  tasks: NowTask[];
+  events: NowCalendarEvent[];
+  connection: TodayCalendarConnection | null;
+  milestones: NowCareerMilestone[];
+  inboxCount: number;
+  weeklyReviewCompleted: boolean;
+  dueDecisions: TodayDueDecision[];
+  briefingDate: string | null;
+  briefingEntries: TodayBriefingEntry[];
+  availability: {
+    calendar: TodayAvailability;
+    tasks: TodayAvailability;
+    career: TodayAvailability;
+    inbox: TodayAvailability;
+    briefing: TodayAvailability;
+  };
+};
+
+function isTodayWorkspaceReadModel(value: unknown): value is TodayWorkspaceReadModel {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<TodayWorkspaceReadModel>;
+  return typeof candidate.timezone === "string"
+    && Array.isArray(candidate.tasks)
+    && Array.isArray(candidate.events)
+    && Array.isArray(candidate.milestones)
+    && Array.isArray(candidate.due_decisions)
+    && Array.isArray(candidate.briefing_entries)
+    && typeof candidate.inbox_count === "number"
+    && typeof candidate.weekly_review_completed === "boolean";
+}
+
+function readyTodayAvailability(): TodayWorkspaceSources["availability"] {
+  return {
+    calendar: todayAvailabilityForError(null),
+    tasks: todayAvailabilityForError(null),
+    career: todayAvailabilityForError(null),
+    inbox: todayAvailabilityForError(null),
+    briefing: todayAvailabilityForError(null),
+  };
+}
+
+async function getTodayWorkspaceSourcesLegacy(
+  now: Date,
+  owner: Owner,
+): Promise<TodayWorkspaceSources> {
+  const { supabase, userId } = owner;
   const { data: profile } = await withPerfSpan("today.workspace.profile", () => supabase
     .from("profiles")
     .select("timezone")
@@ -110,60 +187,8 @@ export async function getTodayWorkspace(
       .order("generated_at", { ascending: false, nullsFirst: false })
       .limit(20)),
   ]);
-  const tasks = groupNowTasks(
-    tasksResult.error ? [] : ((tasksResult.data ?? []) as NowTask[]),
-    now,
-    timezone,
-  );
-  const events = eventsResult.error
-    ? []
-    : ((eventsResult.data ?? []) as NowCalendarEvent[]);
-  const todayEvents = events.filter((event) =>
-    eventIsToday(event, now, timezone),
-  );
-  const queriedMilestones = milestonesResult.error
-    ? []
-    : ((milestonesResult.data ?? []) as NowCareerMilestone[]);
-  const milestones = selectOpenCareerMilestones(queriedMilestones, today, 30);
-  const inboxCount = inboxResult.error ? 0 : (inboxResult.count ?? 0);
-  const connection = connectionResult.error ? null : connectionResult.data;
-  const attention = buildProactiveInsights({
-    now,
-    timeZone: timezone,
-    tasks: [...tasks.overdue, ...tasks.today, ...tasks.upcoming],
-    events,
-    milestones,
-    weeklyReviewCompleted: Boolean(weeklyReviewResult.data),
-    dueDecisions: dueDecisionsResult.error
-      ? []
-      : (dueDecisionsResult.data as Array<{
-          id: string;
-          title: string;
-          review_at: string;
-        }>),
-  });
-  const todayBrief = buildTodayBrief({
-    now,
-    timezone,
-    overdueTasks: tasks.overdue,
-    todayTasks: tasks.today,
-    todayEvents,
-    milestones,
-    inboxCount,
-  });
-  after(() =>
-    runTodaySideEffectSafely(() =>
-      reconcileProactiveInsights(supabase, userId, attention, now),
-    ),
-  );
 
-  let briefingEntries: Array<{
-    id: string;
-    title: string;
-    url: string | null;
-    section: string;
-    reason: string | null;
-  }> = [];
+  let briefingEntries: TodayBriefingEntry[] = [];
   let briefingError = briefingResult.error;
   const completedBriefings = briefingResult.data ?? [];
   const displayedBriefing =
@@ -197,6 +222,103 @@ export async function getTodayWorkspace(
         : [];
     });
   }
+
+  return {
+    timezone,
+    tasks: tasksResult.error ? [] : ((tasksResult.data ?? []) as NowTask[]),
+    events: eventsResult.error ? [] : ((eventsResult.data ?? []) as NowCalendarEvent[]),
+    connection: connectionResult.error ? null : (connectionResult.data as TodayCalendarConnection | null),
+    milestones: milestonesResult.error ? [] : ((milestonesResult.data ?? []) as NowCareerMilestone[]),
+    inboxCount: inboxResult.error ? 0 : (inboxResult.count ?? 0),
+    weeklyReviewCompleted: Boolean(weeklyReviewResult.data),
+    dueDecisions: dueDecisionsResult.error ? [] : (dueDecisionsResult.data as TodayDueDecision[]),
+    briefingDate: displayedBriefing?.briefing_date ?? null,
+    briefingEntries,
+    availability: {
+      calendar: todayAvailabilityForError(eventsResult.error),
+      tasks: todayAvailabilityForError(tasksResult.error),
+      career: todayAvailabilityForError(milestonesResult.error),
+      inbox: todayAvailabilityForError(inboxResult.error),
+      briefing: todayAvailabilityForError(briefingError),
+    },
+  };
+}
+
+async function getTodayWorkspaceSources(
+  now: Date,
+  owner: Owner,
+): Promise<TodayWorkspaceSources> {
+  const compact = await withPerfSpan("today.workspace.read-model", () =>
+    owner.supabase.rpc("get_today_workspace_read_model", {
+      p_now: now.toISOString(),
+    }),
+  );
+  if (!compact.error && isTodayWorkspaceReadModel(compact.data)) {
+    return {
+      timezone: compact.data.timezone || "Asia/Shanghai",
+      tasks: compact.data.tasks,
+      events: compact.data.events,
+      connection: compact.data.connection,
+      milestones: compact.data.milestones,
+      inboxCount: compact.data.inbox_count,
+      weeklyReviewCompleted: compact.data.weekly_review_completed,
+      dueDecisions: compact.data.due_decisions,
+      briefingDate: compact.data.briefing_date,
+      briefingEntries: compact.data.briefing_entries,
+      availability: readyTodayAvailability(),
+    };
+  }
+
+  return getTodayWorkspaceSourcesLegacy(now, owner);
+}
+
+export async function getTodayWorkspace(
+  now = new Date(),
+  owner?: Owner,
+): Promise<NowWorkspace> {
+  const resolvedOwner = owner ?? await withPerfSpan("today.workspace.auth", () => requireOwner());
+  const { supabase, userId } = resolvedOwner;
+  const sources = await getTodayWorkspaceSources(now, resolvedOwner);
+  const {
+    timezone,
+    events,
+    connection,
+    inboxCount,
+    dueDecisions,
+    briefingDate,
+    briefingEntries,
+    availability,
+  } = sources;
+  const today = getDateKeyInTimeZone(now, timezone)!;
+  const tasks = groupNowTasks(sources.tasks, now, timezone);
+  const todayEvents = events.filter((event) =>
+    eventIsToday(event, now, timezone),
+  );
+  const milestones = selectOpenCareerMilestones(sources.milestones, today, 30);
+  const attention = buildProactiveInsights({
+    now,
+    timeZone: timezone,
+    tasks: [...tasks.overdue, ...tasks.today, ...tasks.upcoming],
+    events,
+    milestones,
+    weeklyReviewCompleted: sources.weeklyReviewCompleted,
+    dueDecisions,
+  });
+  const todayBrief = buildTodayBrief({
+    now,
+    timezone,
+    overdueTasks: tasks.overdue,
+    todayTasks: tasks.today,
+    todayEvents,
+    milestones,
+    inboxCount,
+  });
+  after(() =>
+    runTodaySideEffectSafely(() =>
+      reconcileProactiveInsights(supabase, userId, attention, now),
+    ),
+  );
+
   return {
     timezone,
     calendar: {
@@ -209,7 +331,7 @@ export async function getTodayWorkspace(
     },
     tasks,
     career: { upcomingMilestones: milestones },
-    briefing: { entries: briefingEntries, date: displayedBriefing?.briefing_date ?? null },
+    briefing: { entries: briefingEntries, date: briefingDate },
     inboxCount,
     commitments: buildNowCommitments({ now, timeZone: timezone, events, tasks, milestones, inboxCount, limit: 8 }),
     nextAction: selectNextAction({
@@ -257,13 +379,7 @@ export async function getTodayWorkspace(
     ]
       .sort((a, b) => a.at.localeCompare(b.at))
       .slice(0, 7),
-    availability: {
-      calendar: todayAvailabilityForError(eventsResult.error),
-      tasks: todayAvailabilityForError(tasksResult.error),
-      career: todayAvailabilityForError(milestonesResult.error),
-      inbox: todayAvailabilityForError(inboxResult.error),
-      briefing: todayAvailabilityForError(briefingError),
-    },
+    availability,
     summary: {
       todayEventCount: todayEvents.length,
       todayTaskCount: tasks.today.length,
