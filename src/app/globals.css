@@ -44,11 +44,8 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .calendar-canvas .fc-col-header-cell { background:#fbfbfc; }
 .calendar-canvas .fc-col-header-cell-cushion { padding:9px 4px; color:var(--text-secondary); font-weight:500; text-decoration:none; }
 .calendar-canvas .fc-day-today { background:color-mix(in srgb,var(--accent-soft) 42%,transparent)!important; }
-/* 今天列在日/周视图的表头数字用 accent 强调，月视图数字做 accent 圆底白字，
-   让「今天」在所有视图里一眼可辨。 */
 .calendar-canvas .fc-day-today .fc-col-header-cell-cushion { color:var(--accent); font-weight:600; }
 .calendar-canvas .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { display:inline-block; min-width:23px; margin-top:2px; margin-right:6px; padding:2px 6px; text-align:center; background:var(--accent); color:#fff; border-radius:9999px; }
-/* 半小时一格：slot 高度按半格计，1 小时约 60px，短日程也有标题空间。 */
 .calendar-canvas .fc-timegrid-slot { height:1.85em; border-color:rgba(60,60,67,.10); }
 .calendar-canvas .fc-timegrid-slot-minor { border-top-style:dotted; border-top-color:rgba(60,60,67,.07); }
 .calendar-canvas .fc-timegrid-slot-label-cushion { color:var(--text-tertiary); font-size:11px; padding-right:10px; }
@@ -56,13 +53,9 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .calendar-canvas .fc-timegrid-now-indicator-arrow { border-color:var(--danger); color:var(--danger); }
 .calendar-canvas .fc-event { border-width:1px 1px 1px 3px; border-radius:6px; box-shadow:none; cursor:pointer; }
 .calendar-canvas .fc-timegrid-event { margin:1px 2px; }
-/* FullCalendar writes overlap widths as inline left/right percentages after every
-   layout. Keep every timed event readable across reflows, navigation and drag. */
 .calendar-canvas .fc .fc-timegrid-event-harness { left:0!important; right:0!important; margin-left:0!important; margin-right:2px!important; }
 .calendar-canvas .fc-daygrid-day-frame { min-height:112px; }
 .calendar-canvas .fc-daygrid-event { border-radius:6px; margin:2px 3px; min-height:22px; transition:box-shadow var(--motion-fast) var(--ease-standard),filter var(--motion-fast) var(--ease-standard); }
-/* all-day 条压缩到半小时格高：全天事件横向并排（通常 1–3 个），不再遮挡时间格。
-   超窄时省略号截断；窄条内的 daygrid frame 也归零，避免把区域撑高。 */
 .calendar-canvas .fc-timegrid .fc-daygrid-day-frame { min-height:0!important; }
 .calendar-canvas .fc-timegrid .fc-daygrid-day-events { min-height:0!important; margin:0!important; display:flex; flex-wrap:wrap; align-items:flex-start; }
 .calendar-canvas .fc-timegrid .fc-daygrid-day-events > .fc-daygrid-event-harness { flex:1 1 0%; min-width:0; margin-right:2px; }
@@ -89,9 +82,118 @@ button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; 
 .notes-editor-loading::before { content:""; display:block; height:1rem; width:36%; border-radius:var(--radius-sm); background:var(--surface-hover); box-shadow:0 2.5rem 0 var(--surface-hover),0 5rem 0 var(--surface-hover),0 7.5rem 0 var(--surface-hover); animation:notes-editor-pulse 1.2s var(--ease-standard) infinite alternate; }
 @keyframes notes-editor-pulse { to { opacity:.55; } }
 .notes-editor-surface:fullscreen { box-sizing:border-box; height:var(--app-viewport-height); overflow:hidden; background:var(--background); padding:1.25rem 1.5rem; }
+
+/* Notes: library, editor and inspector share one quiet native-like language. */
+div:has(> nav[aria-label="笔记视图"]) {
+  background:#f7f7f8!important;
+  padding:14px 10px 10px!important;
+}
+div:has(> nav[aria-label="笔记视图"]) > div:first-child { margin-bottom:14px!important; padding:0 4px!important; }
+div:has(> nav[aria-label="笔记视图"]) > div:first-child > span { font-size:13px!important; font-weight:600!important; letter-spacing:-.015em; }
+div:has(> nav[aria-label="笔记视图"]) nav { gap:1px; }
+div:has(> nav[aria-label="笔记视图"]) nav a,
+div:has(> nav[aria-label="笔记视图"]) nav button { min-height:32px; border-radius:7px!important; font-size:13px!important; }
+div:has(> nav[aria-label="笔记视图"]) [class*="bg-[var(--surface-selected)]"] { color:var(--text-primary)!important; }
+div:has(> nav[aria-label="笔记视图"]) [class*="bg-[var(--surface-selected)]"] svg { color:var(--accent)!important; }
+div:has(> nav[aria-label="笔记视图"]) > div:nth-of-type(2) { margin-top:22px!important; }
+div:has(> nav[aria-label="笔记视图"]) .workspace-scroll a { font-size:12.5px!important; }
+div:has(> nav[aria-label="笔记视图"]) .workspace-scroll > div > div { min-height:31px; }
+
+main.workspace-scroll:has(article a[href^="/notes/"]) { padding-top:34px!important; background:var(--surface-canvas); }
+main.workspace-scroll:has(article a[href^="/notes/"]) > div { max-width:760px!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) header { border-bottom:0!important; padding-bottom:12px!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) header h1 { font-size:28px!important; font-weight:650!important; letter-spacing:-.035em!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) header h1 span { font-size:12px!important; color:var(--text-tertiary)!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) label input { height:34px!important; border-color:transparent!important; background:var(--surface-control)!important; font-size:13px!important; box-shadow:none!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) label input:focus { background:var(--surface-canvas)!important; box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 18%,transparent)!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) article { border-color:var(--separator,rgba(60,60,67,.12))!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) article > div { max-width:none!important; border-radius:0!important; padding:13px 44px 13px 2px!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) article > div:hover,
+main.workspace-scroll:has(article a[href^="/notes/"]) article > div:focus-within { background:transparent!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) article a[href^="/notes/"] { font-size:14px!important; font-weight:560!important; letter-spacing:-.01em; }
+main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5px!important; margin-top:5px!important; }
+
+.notes-document-shell { background:#fff; }
+.notes-document-shell .notes-editor-surface > div > div:first-child {
+  min-height:52px!important;
+  border-bottom:0!important;
+  padding-left:24px!important;
+  padding-right:48px!important;
+  gap:2px!important;
+  background:#fff;
+}
+.notes-document-shell .notes-editor-surface input[aria-label="笔记标题"] {
+  font-size:23px!important;
+  font-weight:650!important;
+  line-height:1.2!important;
+  letter-spacing:-.035em!important;
+  color:var(--text-primary)!important;
+}
+.notes-document-shell .notes-editor-surface input[aria-label="笔记标题"]:focus-visible { outline:none!important; }
+.notes-document-shell .notes-editor-surface [data-slot="button"] { width:28px!important; height:28px!important; min-width:28px!important; padding:0!important; border-radius:7px!important; color:var(--text-tertiary); }
+.notes-document-shell .notes-editor-surface [data-slot="button"]:hover { color:var(--text-primary); }
+.notes-document-shell .notes-editor-surface [data-slot="button"] span { display:none!important; }
+.notes-document-shell .notes-editor-surface > div > div:first-child > span[aria-live] { font-size:10px!important; }
+.notes-document-shell .life-markdown-toolbar {
+  min-height:36px;
+  padding:2px max(18px,env(safe-area-inset-right)) 2px max(18px,env(safe-area-inset-left));
+  border-top:1px solid var(--separator,rgba(60,60,67,.12));
+  border-bottom:1px solid var(--separator,rgba(60,60,67,.12));
+  background:#fff;
+}
+.notes-document-shell .life-markdown-toolbar button { width:28px!important; height:28px!important; min-width:28px!important; min-height:28px!important; border-radius:6px!important; }
+.notes-document-shell .life-markdown-toolbar select { height:28px!important; min-height:28px!important; font-size:11px!important; }
+.notes-document-shell .life-markdown-toolbar [aria-hidden="true"].h-5 { height:16px!important; }
+.notes-document-shell .life-codemirror .cm-editor { font-size:16px!important; }
+.notes-document-shell .life-codemirror .cm-scroller { line-height:1.82!important; scrollbar-gutter:auto!important; }
+.notes-document-shell .life-codemirror .cm-content { max-width:720px!important; padding:32px 42px 96px!important; }
+.notes-document-shell .life-codemirror .cm-editor.cm-focused .cm-scroller { box-shadow:none!important; }
+.notes-document-shell .life-codemirror .cm-activeLine { background:transparent!important; }
+.notes-document-shell .life-codemirror .cm-selectionBackground,
+.notes-document-shell .life-codemirror .cm-editor.cm-focused .cm-selectionBackground { background:rgba(0,113,227,.12)!important; }
+.notes-document-shell .life-codemirror .cm-note-quote { border-left-color:rgba(60,60,67,.28)!important; background:transparent!important; padding-left:14px!important; }
+.notes-document-shell .life-codemirror .cm-note-code-block { background:#f6f6f7!important; border-radius:4px; }
+.notes-document-shell .life-markdown-statusbar {
+  min-height:22px;
+  padding:0 18px;
+  border-top:0;
+  background:#fff;
+  font-size:10px;
+  opacity:.82;
+}
+.notes-document-shell .note-outline-item.is-active { background:var(--surface-selected)!important; color:var(--text-primary)!important; }
+
+.notes-inspector { border-left-color:var(--border-subtle)!important; box-shadow:-8px 0 28px rgba(0,0,0,.035)!important; }
+.notes-inspector > header { height:44px!important; background:#fff!important; }
+.notes-inspector .workspace-scroll { padding:4px 16px 24px!important; }
+.notes-inspector .workspace-scroll > div { font-size:13px!important; }
+.notes-inspector .workspace-scroll > div > section {
+  overflow:visible!important;
+  margin-top:0!important;
+  border:0!important;
+  border-bottom:1px solid var(--border-subtle)!important;
+  border-radius:0!important;
+  background:transparent!important;
+  padding:16px 0!important;
+  box-shadow:none!important;
+}
+.notes-inspector .workspace-scroll > div > section > div:first-child { background:transparent!important; }
+.notes-inspector .workspace-scroll > div > section h2,
+.notes-inspector .workspace-scroll > div > section h3 { font-size:13px!important; font-weight:600!important; letter-spacing:-.01em!important; }
+.notes-inspector .workspace-scroll > div > section p { color:var(--text-secondary); }
+
 @media (max-width:767px) {
   .workspace-scroll { scrollbar-gutter:auto; }
   .life-markdown-toolbar { min-height:44px; padding-left:max(8px,env(safe-area-inset-left)); padding-right:max(8px,env(safe-area-inset-right)); }
   .life-markdown-toolbar button,.life-markdown-toolbar select { min-width:36px; min-height:36px; }
   .notes-editor-surface:fullscreen { padding:0; }
+  .notes-document-shell .notes-editor-surface > div > div:first-child { min-height:48px!important; padding-left:46px!important; padding-right:44px!important; }
+  .notes-document-shell .notes-editor-surface input[aria-label="笔记标题"] { font-size:19px!important; }
+  .notes-document-shell .notes-editor-surface button[aria-label="复制笔记全文"],
+  .notes-document-shell .notes-editor-surface button[aria-label="导出笔记 PDF"] { display:none!important; }
+  .notes-document-shell .life-markdown-toolbar { min-height:38px; padding:2px 8px; }
+  .notes-document-shell .life-markdown-toolbar button,.notes-document-shell .life-markdown-toolbar select { min-width:30px!important; min-height:30px!important; }
+  .notes-document-shell .life-codemirror .cm-content { padding:26px 22px 84px!important; }
+  .notes-document-shell .life-markdown-statusbar [data-status="cursor"] { display:none; }
+  main.workspace-scroll:has(article a[href^="/notes/"]) { padding-top:58px!important; }
 }
