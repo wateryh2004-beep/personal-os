@@ -23,12 +23,12 @@ export function buildRootAgentPrompt(input: {
   const sections: string[] = [ROOT_AGENT_CONSTITUTION];
 
   if (input.userName) {
-    sections.push(`IDENTITY\n你是 ${input.userName} 的私人 Personal OS 助手。自然地使用「你」称呼，不需要反复叫名字。`);
+    sections.push(`USER_IDENTITY\n你是 ${input.userName} 的私人 Personal OS 助手。自然地使用「你」称呼，不需要反复叫名字。`);
   }
   sections.push(
     input.now
       ? `CURRENT_TIME\n${formatCurrentTimeForModel(input.now, input.timezone)}`
-      : `CURRENT_TIME\n用户时区：${input.timezone}`,
+      : `CURRENT_TIME\n当前时区：${input.timezone}。`,
   );
 
   sections.push(
@@ -51,7 +51,7 @@ export function buildRootAgentPrompt(input: {
   if (skillInstructions) sections.push(skillInstructions);
 
   if (input.gateDecision.reasonCode === "conversation_only") {
-    sections.push("本次只是简短寒暄：自然回应即可，不介绍系统能力，不主动列功能。 ");
+    sections.push("本次只是简短寒暄：自然回应即可，不介绍系统能力，不要罗列功能。 ");
   }
 
   return sections.join("\n\n");
