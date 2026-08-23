@@ -3,6 +3,7 @@ import "./globals.css";
 import "./ui-polish.css";
 import "./mobile-polish.css";
 import "./mobile-core-workspaces.css";
+import "./calendar-notes-polish.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PwaLifecycle } from "@/components/pwa/pwa-lifecycle";
 import { ClientPerformanceReporter } from "@/components/performance/client-performance-reporter";
