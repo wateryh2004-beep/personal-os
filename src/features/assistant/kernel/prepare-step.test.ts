@@ -34,6 +34,19 @@ describe("initialToolNames", () => {
     expect(names).not.toContain("proposeMemory");
   });
 
+  it("keeps proposal coverage for every linked action module", () => {
+    const names = initialToolNames(
+      decision({ mode: "action", likelyModules: ["tasks", "notes"], reasonCode: "mutation" }),
+    );
+    expect(names).toContain("searchTodoTasks");
+    expect(names).toContain("proposeTodoUpdate");
+    expect(names).toContain("searchNotes");
+    expect(names).toContain("proposeNoteUpdate");
+    expect(names).toContain("proposeNoteMove");
+    expect(names).not.toContain("proposeTodoTask");
+    expect(names).not.toContain("searchTools");
+  });
+
   it("adds compact cross-module search for multi-module analysis", () => {
     const names = initialToolNames(
       decision({ mode: "cross_module", complexity: "deep", likelyModules: ["memory", "notes"] }),
