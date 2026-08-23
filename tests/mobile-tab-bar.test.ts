@@ -12,17 +12,18 @@ describe("mobile tab bar contract", () => {
     expect(tabBar).toContain("var(--safe-area-bottom)");
   });
 
-  it("links the five core modules plus a More button", () => {
+  it("links four primary modules plus a More button", () => {
     expect(tabBar).toContain('href: "/today"');
     expect(tabBar).toContain('href: "/calendar"');
     expect(tabBar).toContain('href: "/tasks"');
     expect(tabBar).toContain('href: "/notes"');
-    expect(tabBar).toContain('href: "/inbox"');
+    expect(tabBar).not.toContain('href: "/inbox"');
     expect(tabBar).toContain("onOpenMore");
   });
 
   it("is mounted in the shell wired to the existing drawer", () => {
     expect(appShell).toContain("<MobileTabBar onOpenMore={() => setMobileOpen(true)} />");
+    expect(appShell).toContain('{ name: "Inbox", href: "/inbox"');
   });
 
   it("reserves tab-bar height on mobile in the design tokens", () => {
