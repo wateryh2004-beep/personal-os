@@ -21,6 +21,12 @@ export function buildRootAgentPrompt(input: {
 }) {
   const activeSkills = getSkills(input.sessionState.activeSkills);
   const sections: string[] = [ROOT_AGENT_CONSTITUTION];
+  const workspace = input.currentPath || input.gateDecision.likelyModules[0] || "global";
+  const toolSummary = input.availableToolNames
+    ? input.availableToolNames.join(",") || "none"
+    : input.gateDecision.needsTools
+      ? "request-scoped"
+      : "none";
 
   if (input.userName) {
     sections.push(`USER_IDENTITY\n你是 ${input.userName} 的私人 Personal OS 助手。自然地使用「你」称呼，不需要反复叫名字。`);
@@ -32,7 +38,7 @@ export function buildRootAgentPrompt(input: {
   );
 
   sections.push(
-    `REQUEST_CONTEXT\nworkspace=${input.currentPath || "unknown"}; mode=${input.gateDecision.mode}; modules=${input.gateDecision.likelyModules.join(",") || "none"}; personal_data=${input.gateDecision.needsPersonalData}; tools=${input.availableToolNames?.join(",") || "none"}`,
+    `REQUEST_CONTEXT\nworkspace=${workspace}; mode=${input.gateDecision.mode}; modules=${input.gateDecision.likelyModules.join(",") || "none"}; personal_data=${input.gateDecision.needsPersonalData}; tools=${toolSummary}`,
   );
 
   if (
