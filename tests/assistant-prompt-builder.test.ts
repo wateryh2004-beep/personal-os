@@ -37,7 +37,7 @@ const selfProfileGate: ContextGateDecision = {
 };
 
 describe("Root agent prompt builder", () => {
-  it("注入用户身份，寒暄时不注入 Manifest 与技能清单", () => {
+  it("注入用户身份，寒暄时不注入全量能力目录", () => {
     const prompt = buildRootAgentPrompt({
       timezone: "Asia/Shanghai",
       userName: "余航",
@@ -71,16 +71,22 @@ describe("Root agent prompt builder", () => {
     expect(withoutNow).not.toContain("现在（用户时区 Asia/Shanghai）");
   });
 
-  it("需要个人数据时注入 Manifest 与技能清单", () => {
+  it("个人分析只注入本次请求范围，而不是完整 Manifest 与技能目录", () => {
     const prompt = buildRootAgentPrompt({
       timezone: "Asia/Shanghai",
       userName: "余航",
       sessionState,
       gateDecision: selfProfileGate,
+      currentPath: "/today",
+      availableToolNames: ["searchMemory", "searchNotes", "searchPersonalOs"],
     });
     expect(prompt).toContain("USER_IDENTITY");
-    expect(prompt).toContain("PERSONAL_OS_MANIFEST");
-    expect(prompt).toContain("AVAILABLE_SKILLS");
-    expect(prompt).toContain("REQUEST_GATE\nmode=cross_module");
+    expect(prompt).toContain("REQUEST_CONTEXT");
+    expect(prompt).toContain("workspace=/today");
+    expect(prompt).toContain("mode=cross_module");
+    expect(prompt).toContain("modules=memory,notes,reviews");
+    expect(prompt).toContain("tools=searchMemory,searchNotes,searchPersonalOs");
+    expect(prompt).not.toContain("PERSONAL_OS_MANIFEST");
+    expect(prompt).not.toContain("AVAILABLE_SKILLS");
   });
 });
