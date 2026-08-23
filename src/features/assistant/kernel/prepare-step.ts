@@ -1,5 +1,53 @@
-import type { ContextGateDecision, AgentSessionState, PersonalOsModuleId } from "./types";
+import type { AssistantToolGroup } from "../types";
 import { assistantToolRegistry } from "../tools/registry";
-const groupByModule: Record<PersonalOsModuleId,string[]> = { notes:["notes_read","notes_proposal","search"],career:["career_read","career_proposal"],memory:["memory_read","memory_proposal","context_read"],calendar:["calendar_read","calendar_proposal"],tasks:["todo_read","todo_proposal"],reviews:["reviews_read"],files:["files_read","search"],briefing:["briefing_read"],projects:["projects_read","projects_proposal"],inbox:["inbox_read","inbox_proposal"],shopping:["shopping_read","shopping_proposal"],travel:["travel_read","travel_proposal"] };
-export function initialToolNames(decision:ContextGateDecision) { const groups=new Set(["meta",...decision.likelyModules.flatMap((module)=>groupByModule[module])]); return assistantToolRegistry.filter((item)=>groups.has(item.group)&&item.risk!=="execute").map((item)=>item.name).slice(0,12); }
-export function createPrepareStep(input:{decision:ContextGateDecision;sessionState:AgentSessionState;initialToolNames:string[]}) { return async () => { const names=[...new Set(["searchSkills","searchTools",...input.initialToolNames,...input.sessionState.discoveredToolNames])].slice(0,12); return { activeTools:names }; }; }
+import type { ContextGateDecision, PersonalOsModuleId } from "./types";
+
+type ModuleToolGroups = { read: AssistantToolGroup[]; proposal: AssistantToolGroup[] };
+
+const toolGroupsByModule: Record<PersonalOsModuleId, ModuleToolGroups> = {
+  notes: { read: ["notes_read"], proposal: ["notes_proposal"] },
+  career: { read: ["career_read"], proposal: ["career_proposal"] },
+  memory: { read: ["memory_read"], proposal: ["memory_proposal"] },
+  calendar: { read: ["calendar_read"], proposal: ["calendar_proposal"] },
+  tasks: { read: ["todo_read"], proposal: ["todo_proposal"] },
+  reviews: { read: ["reviews_read"], proposal: [] },
+  files: { read: ["files_read"], proposal: [] },
+  briefing: { read: ["briefing_read"], proposal: [] },
+  projects: { read: ["projects_read"], proposal: ["projects_proposal"] },
+  inbox: { read: ["inbox_read"], proposal: ["inbox_proposal"] },
+  shopping: { read: ["shopping_read"], proposal: ["shopping_proposal"] },
+  travel: { read: ["travel_read"], proposal: ["travel_proposal"] },
+};
+
+/**
+ * Select the provider-visible tools before creating ToolLoopAgent.
+ *
+ * This is intentionally stricter than prepareStep.activeTools: providers receive
+ * the schema for every tool passed to the agent at construction time, so hiding
+ * an unrelated tool later cannot protect a request from a malformed schema.
+ */
+export function initialToolNames(decision: ContextGateDecision) {
+  if (!decision.needsTools) return [];
+
+  const groups = new Set<AssistantToolGroup>();
+  for (const moduleId of decision.likelyModules) {
+    const moduleGroups = toolGroupsByModule[moduleId];
+    moduleGroups.read.forEach((group) => groups.add(group));
+    if (decision.mode === "action") moduleGroups.proposal.forEach((group) => groups.add(group));
+  }
+
+  // Cross-module retrieval benefits from one compact search tool. Single-module
+  // requests should use that module's purpose-built readers instead.
+  if (decision.mode === "cross_module" || decision.likelyModules.length > 1) groups.add("search");
+
+  return assistantToolRegistry
+    .filter((definition) => groups.has(definition.group) && definition.risk !== "execute")
+    .map((definition) => definition.name)
+    .slice(0, 12);
+}
+
+/** Keep every agent step on the exact capability set selected at request start. */
+export function createPrepareStep(input: { initialToolNames: string[] }) {
+  const activeTools = [...new Set(input.initialToolNames)];
+  return async () => ({ activeTools });
+}
