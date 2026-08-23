@@ -3,10 +3,8 @@ import { tool } from "ai";
 import { z } from "zod";
 import { normalizeMemoryKey } from "@/features/memory/types";
 import { recordAgentStep, storeAgentAction } from "../persistence";
-import {
-  memoryCreateProposalSchema,
-  memoryUpdateProposalSchema,
-} from "./schemas";
+import { memoryUpdateProposalSchema } from "./schemas";
+import { memoryCreateToolInputSchema, parseMemoryCreateToolInput } from "./provider-schemas";
 import type { AssistantToolModule } from "./types";
 
 export const memoryTools: AssistantToolModule = {
@@ -49,8 +47,13 @@ export const memoryTools: AssistantToolModule = {
     }),
     proposeMemory: tool({
       description: "冻结一条 Profile、Working Memory 或 Decision 提案。不会直接保存；reason 用于向用户解释证据与用途。",
-      inputSchema: memoryCreateProposalSchema,
-      execute: async (proposal) => {
+      inputSchema: memoryCreateToolInputSchema,
+      execute: async (input) => {
+        const parsed = parseMemoryCreateToolInput(input);
+        if (!parsed.success) {
+          return { proposal: null, actionId: null, error: "Memory 提案参数不完整或不符合该类型约束。" };
+        }
+        const proposal = parsed.data;
         if (proposal.type !== "decision") {
           const key = normalizeMemoryKey(proposal.type, proposal.title);
           const { data } = await context.supabase
@@ -61,8 +64,7 @@ export const memoryTools: AssistantToolModule = {
             .eq("status", "active")
             .is("archived_at", null)
             .maybeSingle();
-          if (data)
-            return { proposal: null, actionId: null, error: "已有同名当前 Memory，请改用更新提案。" };
+          if (data) return { proposal: null, actionId: null, error: "已有同名当前 Memory，请改用更新提案。" };
         }
         return {
           proposal,
@@ -95,8 +97,7 @@ export const memoryTools: AssistantToolModule = {
           .eq("status", "active")
           .is("archived_at", null)
           .maybeSingle();
-        if (!data)
-          return { proposal: null, actionId: null, error: "Memory 已变化或不存在，请重新读取。" };
+        if (!data) return { proposal: null, actionId: null, error: "Memory 已变化或不存在，请重新读取。" };
         return {
           proposal,
           actionId: await storeAgentAction({
