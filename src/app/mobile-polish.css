@@ -13,6 +13,7 @@
   }
 
   header.sticky.top-0 [aria-label="打开导航"],
+  header.sticky.top-0 [aria-label="询问 Personal OS"],
   header.sticky.top-0 [aria-label="快速新建"] {
     width: 44px;
     height: 44px;
@@ -20,16 +21,11 @@
     min-height: 44px;
   }
 
-  /* Search remains a first-class action; Ask moves out of the crowded phone header. */
   header.sticky.top-0 > button[class*="max-w-lg"] {
     height: 44px;
     border-radius: 11px;
     padding-left: 0.75rem;
     padding-right: 0.75rem;
-  }
-
-  header.sticky.top-0 [aria-label="询问 Personal OS"] {
-    display: none;
   }
 
   .mobile-tab-bar {
