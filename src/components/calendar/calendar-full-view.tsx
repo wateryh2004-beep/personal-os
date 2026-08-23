@@ -119,7 +119,12 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
         height="100%"
         allDaySlot
         selectable
+        selectMirror
         editable
+        dayMaxEvents={4}
+        longPressDelay={450}
+        selectLongPressDelay={450}
+        eventLongPressDelay={450}
         slotDuration="00:30:00"
         snapDuration="00:15:00"
         slotLabelInterval="01:00"
