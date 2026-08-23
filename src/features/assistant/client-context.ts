@@ -9,7 +9,14 @@ export type AssistantLiveContext = {
   content?: string | null;
 };
 
+let activeContext: AssistantLiveContext | null = null;
+
 export function publishAssistantContext(context: AssistantLiveContext) {
+  activeContext = context.entity ? context : null;
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent<AssistantLiveContext>(assistantContextEvent, { detail: context }));
+}
+
+export function getAssistantContext() {
+  return activeContext;
 }
