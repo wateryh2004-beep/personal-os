@@ -212,18 +212,14 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
       invalidateCalendarCache();
       return;
     }
-    const selectedId = selected?.id;
     const refreshed = await refetchActiveRange();
     if (!refreshed) {
       setCalendarError("Outlook 已更新日程，但本地日历仍在对账；请稍后同步 Outlook。");
-    } else if (selectedId) {
-      const reconciliation = reconcileCalendarMutationRange(refreshed, selectedId);
-      if (reconciliation.kind === "updated") setSelected(reconciliation.event);
-      else {
-        setSelected(null);
-        inspector.close();
-      }
+      invalidateCalendarCache();
+      return;
     }
+    setSelected(null);
+    inspector.close();
     invalidateCalendarCache();
   };
 
