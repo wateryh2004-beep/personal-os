@@ -6,9 +6,17 @@ import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer"
 
-function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+function Sheet({ open: controlledOpen, defaultOpen, onOpenChange, ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false)
+  const open = controlledOpen ?? internalOpen
+  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+  }, [controlledOpen, onOpenChange])
+  useMobileBackLayer(open, () => handleOpenChange(false), "sheet")
+  return <SheetPrimitive.Root data-slot="sheet" open={open} onOpenChange={handleOpenChange} {...props} />
 }
 
 function SheetTrigger({ ...props }: React.ComponentProps<typeof SheetPrimitive.Trigger>) {
@@ -41,6 +49,7 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  onOpenAutoFocus,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
@@ -56,6 +65,10 @@ function SheetContent({
           "fixed z-50 flex flex-col gap-4 border-[var(--separator)] bg-[color-mix(in_srgb,var(--surface-elevated)_98%,transparent)] bg-clip-padding text-[13px] text-popover-foreground shadow-[var(--shadow-dialog)] backdrop-blur-xl ui-panel-transition data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:rounded-t-[16px] data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-[min(88vw,360px)] data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-[min(88vw,360px)] data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:rounded-b-[16px] data-[side=top]:border-b data-open:animate-in data-open:fade-in-0 data-[side=bottom]:data-open:slide-in-from-bottom-2 data-[side=left]:data-open:slide-in-from-left-2 data-[side=right]:data-open:slide-in-from-right-2 data-[side=top]:data-open:slide-in-from-top-2 data-closed:animate-out data-closed:fade-out-0 data-[side=bottom]:data-closed:slide-out-to-bottom-2 data-[side=left]:data-closed:slide-out-to-left-2 data-[side=right]:data-closed:slide-out-to-right-2 data-[side=top]:data-closed:slide-out-to-top-2",
           className,
         )}
+        onOpenAutoFocus={(event) => {
+          onOpenAutoFocus?.(event)
+          if (!event.defaultPrevented && window.matchMedia("(max-width: 767px)").matches) event.preventDefault()
+        }}
         {...props}
       >
         {children}

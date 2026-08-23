@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
 
 type SidePanelShellProps = {
   open: boolean;
@@ -39,6 +40,8 @@ export function SidePanelShell({
   const previousFocus = useRef<HTMLElement | null>(null);
   const asideRef = useRef<HTMLElement | null>(null);
 
+  useMobileBackLayer(open, onClose, `side-panel:${variant}`);
+
   useEffect(() => {
     if (!open) return;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -52,9 +55,12 @@ export function SidePanelShell({
         }
       } catch { /* Persistence is an enhancement. */ }
     }, 0);
-    const timer = window.setTimeout(() => asideRef.current?.querySelector<HTMLElement>("input:not([type=hidden]), textarea, button")?.focus(), 0);
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    const timer = isMobile
+      ? undefined
+      : window.setTimeout(() => asideRef.current?.querySelector<HTMLElement>("input:not([type=hidden]), textarea, button")?.focus(), 0);
     return () => {
-      window.clearTimeout(timer);
+      if (timer !== undefined) window.clearTimeout(timer);
       window.clearTimeout(restore);
       previousFocus.current?.focus({ preventScroll: true });
     };

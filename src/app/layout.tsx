@@ -4,6 +4,8 @@ import "./ui-polish.css";
 import "./mobile-polish.css";
 import "./mobile-core-workspaces.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { PwaLifecycle } from "@/components/pwa/pwa-lifecycle";
+import { ClientPerformanceReporter } from "@/components/performance/client-performance-reporter";
 
 export const metadata: Metadata = {
   title: "Personal OS",
@@ -24,10 +26,15 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const appVersion = process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
   return (
     <html lang="zh-CN">
       <body>
-        <TooltipProvider>{children}</TooltipProvider>
+        <TooltipProvider>
+          {children}
+          <PwaLifecycle currentVersion={appVersion} />
+          <ClientPerformanceReporter />
+        </TooltipProvider>
       </body>
     </html>
   );

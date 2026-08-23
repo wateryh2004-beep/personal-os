@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,4 +26,21 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
+      - run: E2E_MOBILE_HARNESS=1 npm run build
+      - name: Install mobile E2E browser
+        run: |
+          npm install --global playwright@1.62.1
+          playwright install --with-deps chromium
+      - name: Run 360–430px mobile E2E
+        env:
+          E2E_MOBILE_HARNESS: "1"
+        run: |
+          npm run start -- -p 3000 > /tmp/personal-os-e2e.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/__e2e/mobile-native > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/__e2e/mobile-native > /dev/null
+          NODE_PATH="$(npm root -g)" node scripts/mobile-native-e2e.cjs
