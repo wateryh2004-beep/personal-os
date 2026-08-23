@@ -12,6 +12,7 @@ const initialCalendarCreateState: CalendarCreateState = { status: "idle", messag
 const control = "h-9 min-w-0 rounded-[var(--radius-md)] border-0 bg-[var(--surface-control)] px-2.5 text-sm text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]";
 
 export function CalendarCreateForm({ timezone, categoriesEnabled = true, initialStart, initialEnd, initialAllDay = false, onCreated }: { timezone: string; categoriesEnabled?: boolean; initialStart?: string; initialEnd?: string; initialAllDay?: boolean; onCreated?: () => Promise<void> | void }) {
+  const subjectInputRef = useRef<HTMLInputElement>(null);
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
   const createdHandledRef = useRef(false);
@@ -25,6 +26,12 @@ export function CalendarCreateForm({ timezone, categoriesEnabled = true, initial
     if (!categoriesEnabled || categoryMode !== "__auto" || !subject.trim()) return null;
     return classifyCalendarEvent({ subject, locationName: location });
   }, [categoriesEnabled, categoryMode, subject, location]);
+
+  useEffect(() => {
+    if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+      subjectInputRef.current?.focus({ preventScroll: true });
+    }
+  }, []);
 
   useEffect(() => {
     if (state.status !== "success" || createdHandledRef.current) return;
@@ -62,7 +69,7 @@ export function CalendarCreateForm({ timezone, categoriesEnabled = true, initial
       endsAt.value = wallTimeToIso(allDay ? `${endInputRef.current.value}T00:00` : endInputRef.current.value, timezone);
     }} className="calendar-event-form grid gap-0">
       <div className="border-b border-[var(--border-subtle)] pb-4">
-        <input name="subject" autoFocus required maxLength={500} placeholder="日程标题" value={subject} onChange={(event) => setSubject(event.target.value)} className="w-full border-0 bg-transparent px-0 text-[19px] font-semibold tracking-[-0.025em] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" />
+        <input ref={subjectInputRef} name="subject" required maxLength={500} placeholder="日程标题" value={subject} onChange={(event) => setSubject(event.target.value)} className="w-full border-0 bg-transparent px-0 text-[19px] font-semibold tracking-[-0.025em] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" />
         <input name="location_name" maxLength={500} placeholder="添加地点" value={location} onChange={(event) => setLocation(event.target.value)} className="mt-2 w-full border-0 bg-transparent px-0 text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-tertiary)]" />
       </div>
 
