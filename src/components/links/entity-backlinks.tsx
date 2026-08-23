@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { EntityBacklink } from "@/features/links/queries";
+import { publishAssistantContext } from "@/features/assistant/client-context";
 
 /**
  * 跨实体“被引用”面板:拉取 entity_links 的 reference 入链并渲染为可跳转列表。
@@ -10,6 +11,13 @@ import type { EntityBacklink } from "@/features/links/queries";
  */
 export function EntityBacklinks({ type, id }: { type: string; id: string }) {
   const [result, setResult] = useState<{ backlinks: EntityBacklink[]; unavailable: boolean } | null>(null);
+
+  useEffect(() => {
+    if (type !== "calendar_event" && type !== "todo_task") return;
+    const surface = type === "calendar_event" ? "calendar" : "tasks";
+    publishAssistantContext({ surface, entity: { type, id } });
+    return () => publishAssistantContext({ surface, entity: null });
+  }, [id, type]);
 
   useEffect(() => {
     let cancelled = false;
