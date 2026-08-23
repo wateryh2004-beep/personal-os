@@ -17,6 +17,7 @@ export function CalendarEventEditForm({ event, timezone, calendarCategories, cat
   const [editing, setEditing] = useState(false);
   const [allDay, setAllDay] = useState(event.is_all_day);
   const [description, setDescription] = useState(event.body_text ?? "");
+  const subjectInputRef = useRef<HTMLInputElement>(null);
   const startRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLInputElement>(null);
   const updateHandledRef = useRef(false);
@@ -24,6 +25,11 @@ export function CalendarEventEditForm({ event, timezone, calendarCategories, cat
   const [state, action, pending] = useActionState(updateCalendarEvent, initial);
   const [deleteState, deleteAction, deleting] = useActionState(deleteCalendarEvent, initial);
   const visual = resolveCalendarEventVisual(event.categories, calendarCategories);
+
+  useEffect(() => {
+    if (!editing || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    subjectInputRef.current?.focus({ preventScroll: true });
+  }, [editing]);
 
   useEffect(() => {
     if (state.status !== "success" || updateHandledRef.current) return;
@@ -104,7 +110,7 @@ export function CalendarEventEditForm({ event, timezone, calendarCategories, cat
       <input type="hidden" name="provider_event_id" value={event.provider_event_id}/><input type="hidden" name="original_subject" value={event.subject}/><input type="hidden" name="original_starts_at" value={event.starts_at}/><input type="hidden" name="original_ends_at" value={event.ends_at}/><input type="hidden" name="starts_at"/><input type="hidden" name="ends_at"/><input type="hidden" name="preserve_categories" value={categoriesEnabled ? "false" : "true"}/><input type="hidden" name="is_all_day_present" value="true"/>
 
       <section className="border-b border-[var(--border-subtle)] pb-4">
-        <input name="subject" autoFocus required maxLength={500} defaultValue={event.subject} className="w-full border-0 bg-transparent px-0 text-[19px] font-semibold tracking-[-0.025em] text-[var(--text-primary)] outline-none" />
+        <input ref={subjectInputRef} name="subject" required maxLength={500} defaultValue={event.subject} className="w-full border-0 bg-transparent px-0 text-[19px] font-semibold tracking-[-0.025em] text-[var(--text-primary)] outline-none" />
         <input name="location_name" maxLength={500} defaultValue={event.location_name ?? ""} placeholder="添加地点" className="mt-2 w-full border-0 bg-transparent px-0 text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-tertiary)]" />
       </section>
 

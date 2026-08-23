@@ -3,6 +3,8 @@
 import { Inspector } from "@/components/shared/inspector";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
 import { publishNotesNavigatorTitle } from "@/features/notes/navigator-title-sync";
+import { lastNotesListSessionKey, notesListHref } from "@/features/notes/navigation";
+import { loadWorkspaceSession } from "@/lib/workspace-session";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, PanelRight } from "lucide-react";
 
@@ -16,6 +18,11 @@ export function NoteDocumentShell({ noteId, editor, inspector }: { noteId: strin
     publishNotesNavigatorTitle(noteId, target.value);
   };
 
+  const returnToNotesList = () => {
+    const session = loadWorkspaceSession<{ href?: string }>(lastNotesListSessionKey);
+    router.replace(notesListHref(session));
+  };
+
   return (
     <section
       onInputCapture={handleEditorInput}
@@ -25,7 +32,7 @@ export function NoteDocumentShell({ noteId, editor, inspector }: { noteId: strin
         <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex h-11 items-center justify-between px-2">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={returnToNotesList}
             className="pointer-events-auto inline-flex size-8 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors ui-transition hover:bg-[var(--surface-hover)] md:hidden"
             aria-label="返回笔记列表"
           >

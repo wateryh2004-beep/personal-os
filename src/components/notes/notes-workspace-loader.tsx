@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { NotesWorkspace } from "@/components/notes/notes-workspace";
 import { notesWorkspaceResource, type NotesWorkspaceData } from "@/features/notes/workspace-resource";
+import { lastNotesListSessionKey, lastNotesListTtlMs } from "@/features/notes/navigation";
 import { perfMark, perfMeasure } from "@/lib/perf";
+import { saveWorkspaceSession } from "@/lib/workspace-session";
 import { useWorkspaceResourceLifecycle } from "@/lib/workspace-resource-cache";
 
 function NotesShell() {
@@ -11,8 +14,15 @@ function NotesShell() {
 }
 
 export function NotesWorkspaceLoader({ initialWorkspace, folderId, initialView, dailyError }: { initialWorkspace: NotesWorkspaceData; folderId?: string; initialView: "all" | "favorites" | "recent"; dailyError: boolean }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const listHref = useMemo(() => `${pathname}${search ? `?${search}` : ""}`, [pathname, search]);
   const snapshot = useSyncExternalStore(notesWorkspaceResource.subscribe, notesWorkspaceResource.get, notesWorkspaceResource.get);
   useWorkspaceResourceLifecycle(notesWorkspaceResource);
+  useEffect(() => {
+    saveWorkspaceSession(lastNotesListSessionKey, { href: listHref }, lastNotesListTtlMs);
+  }, [listHref]);
   useEffect(() => {
     const hadCachedData = notesWorkspaceResource.get().data !== undefined;
     notesWorkspaceResource.set(initialWorkspace);
