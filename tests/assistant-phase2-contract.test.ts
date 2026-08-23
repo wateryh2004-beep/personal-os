@@ -14,10 +14,13 @@ describe("Personal OS AI phase 2 contracts", () => {
 
   it("streams sources and true first-text timing without a read-only agent run", () => {
     const route = read("src/app/api/assistant/route.ts");
+    const governance = read("src/features/ai/governance.ts");
     expect(route).toContain("messageMetadata");
     expect(route).toContain('chunk.type === "text-delta"');
     expect(route).toContain("ttftMs");
-    expect(route).toContain("source_summary");
+    expect(route).toContain("completeAiRequestWithUsage");
+    expect(governance).toContain("source_summary");
+    expect(governance).toContain("telemetry");
   });
 
   it("connects selected Calendar and Tasks entities to the global agent", () => {
