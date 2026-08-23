@@ -1,0 +1,262 @@
+/* High-frequency Calendar + Notes polish.
+ * Keep behavior and information architecture intact; refine touch, focus,
+ * scrolling and visual feedback at the interaction layer.
+ */
+
+/* ---------- Calendar ---------- */
+section:has(.fc) > div > header {
+  box-shadow: 0 1px 0 rgba(60, 60, 67, 0.025);
+}
+
+section:has(.fc) .fc-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(60, 60, 67, 0.16) transparent;
+  overscroll-behavior: contain;
+}
+
+section:has(.fc) .fc-event,
+section:has(.fc) button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+section:has(.fc) .fc-timegrid-event,
+section:has(.fc) .fc-daygrid-event {
+  transform-origin: center;
+  will-change: transform;
+}
+
+section:has(.fc) .fc-timegrid-now-indicator-line {
+  overflow: visible;
+}
+
+section:has(.fc) .fc-timegrid-now-indicator-line::before {
+  position: absolute;
+  top: -3.5px;
+  left: -3.5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--surface-canvas);
+  content: "";
+}
+
+section:has(.fc) .fc-highlight {
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+section:has(.fc) .fc-more-link {
+  border-radius: 6px;
+  padding: 2px 5px;
+  transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+
+section:has(.fc) .fc-more-link:hover {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  section:has(.fc) .fc-daygrid-day:not(.fc-day-other):hover .fc-daygrid-day-frame {
+    background: color-mix(in srgb, var(--surface-hover) 34%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  section:has(.fc) .fc-timegrid-event,
+  section:has(.fc) .fc-daygrid-event {
+    transition: transform 120ms var(--ease-standard), filter var(--motion-fast) var(--ease-standard), opacity var(--motion-fast) var(--ease-standard);
+  }
+
+  section:has(.fc) .fc-timegrid-event:active,
+  section:has(.fc) .fc-daygrid-event:active {
+    transform: scale(0.985);
+  }
+}
+
+/* ---------- Notes navigator ---------- */
+section:has(nav[aria-label="笔记视图"]) > aside {
+  background: color-mix(in srgb, var(--surface-sidebar) 92%, var(--surface-canvas) 8%);
+}
+
+section:has(nav[aria-label="笔记视图"]) > aside > button[aria-label^="调整笔记导航宽度"]::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 28px;
+  border-radius: 999px;
+  background: transparent;
+  content: "";
+  transform: translate(-50%, -50%);
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+section:has(nav[aria-label="笔记视图"]) > aside > button[aria-label^="调整笔记导航宽度"]:hover::after,
+section:has(nav[aria-label="笔记视图"]) > aside > button[aria-label^="调整笔记导航宽度"]:focus-visible::after {
+  background: color-mix(in srgb, var(--accent) 28%, var(--separator));
+}
+
+section:has(nav[aria-label="笔记视图"]) nav a,
+section:has(nav[aria-label="笔记视图"]) nav button,
+section:has(nav[aria-label="笔记视图"]) .workspace-scroll a,
+section:has(nav[aria-label="笔记视图"]) .workspace-scroll button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  section:has(nav[aria-label="笔记视图"]) nav a,
+  section:has(nav[aria-label="笔记视图"]) nav button,
+  section:has(nav[aria-label="笔记视图"]) .workspace-scroll a {
+    transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+
+  section:has(nav[aria-label="笔记视图"]) nav a:active,
+  section:has(nav[aria-label="笔记视图"]) nav button:active,
+  section:has(nav[aria-label="笔记视图"]) .workspace-scroll a:active {
+    transform: scale(0.992);
+  }
+}
+
+/* ---------- Notes editor ---------- */
+.life-markdown-toolbar {
+  border-bottom: 1px solid color-mix(in srgb, var(--separator) 72%, transparent);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  scrollbar-width: none;
+}
+
+.life-markdown-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.life-codemirror .cm-editor.cm-focused .cm-scroller {
+  box-shadow: none !important;
+}
+
+.life-codemirror .cm-editor.cm-focused .cm-activeLine {
+  background-color: transparent !important;
+}
+
+.life-codemirror .cm-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(60, 60, 67, 0.14) transparent;
+}
+
+.life-codemirror .cm-content {
+  text-rendering: optimizeLegibility;
+}
+
+.life-markdown-statusbar {
+  min-height: 28px;
+  border-top: 1px solid color-mix(in srgb, var(--separator) 64%, transparent);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+}
+
+.note-outline-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.notes-document-shell button,
+.notes-editor-surface button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 767px) {
+  /* Calendar: slightly roomier time targets without making the day view feel bulky. */
+  section:has(.fc) .fc-timegrid-slot {
+    height: 2.4em;
+  }
+
+  section:has(.fc) .fc-timegrid-event,
+  section:has(.fc) .fc-timegrid-event .fc-event-main {
+    min-height: 27px;
+  }
+
+  section:has(.fc) .fc-daygrid-day-frame {
+    min-height: 76px;
+  }
+
+  section:has(.fc) > div > header > div:nth-child(2) {
+    scroll-padding-inline: 8px;
+    overscroll-behavior-x: contain;
+  }
+
+  /* Notes mobile navigator: the Sheet should behave like a touch UI, not a compressed desktop tree. */
+  [data-slot="sheet-content"]:has(nav[aria-label="笔记视图"]) {
+    width: min(88vw, 340px) !important;
+    max-width: 340px;
+    border-right-color: color-mix(in srgb, var(--separator) 78%, transparent);
+    background: rgba(247, 247, 249, 0.96);
+    backdrop-filter: saturate(180%) blur(22px);
+    -webkit-backdrop-filter: saturate(180%) blur(22px);
+  }
+
+  [data-slot="sheet-content"]:has(nav[aria-label="笔记视图"]) input {
+    min-height: 40px;
+  }
+
+  [data-slot="sheet-content"]:has(nav[aria-label="笔记视图"]) nav a,
+  [data-slot="sheet-content"]:has(nav[aria-label="笔记视图"]) nav button,
+  [data-slot="sheet-content"]:has(nav[aria-label="笔记视图"]) .workspace-scroll a {
+    min-height: 42px;
+  }
+
+  [data-slot="sheet-content"]:has(nav[aria-label="笔记视图"]) .workspace-scroll button {
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  [data-slot="sheet-content"]:has(nav[aria-label="笔记视图"]) .workspace-scroll {
+    overscroll-behavior-y: contain;
+    scroll-padding-block: 10px;
+  }
+
+  /* Notes editor: preserve native-feeling focus, touch targets and keyboard breathing room. */
+  .notes-document-shell > div > div.pointer-events-none button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .notes-editor-surface [data-slot="button"] {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .life-markdown-toolbar button,
+  .life-markdown-toolbar select {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .life-markdown-toolbar select {
+    min-width: 76px;
+  }
+
+  .life-codemirror .cm-scroller {
+    scroll-padding-bottom: max(30vh, 180px);
+  }
+
+  .note-outline-item {
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 390px) {
+  [data-slot="sheet-content"]:has(nav[aria-label="笔记视图"]) {
+    width: 90vw !important;
+  }
+
+  .life-markdown-toolbar {
+    gap: 2px;
+  }
+}
