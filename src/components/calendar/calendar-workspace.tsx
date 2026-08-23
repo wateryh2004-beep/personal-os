@@ -185,7 +185,10 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     form.set("subject", event.subject); form.set("description", event.body_text ?? ""); form.set("location_name", event.location_name ?? ""); form.set("starts_at", range.startsAt); form.set("ends_at", range.endsAt);
     form.set("is_all_day_present", "true"); if (range.isAllDay) form.set("is_all_day", "on"); form.set("importance", event.importance); form.set("show_as", event.show_as === "unknown" ? "busy" : event.show_as); form.set("classification_mode", "auto"); form.set("preserve_categories", "true");
     const result = await updateCalendarEvent({ status: "idle", message: "" }, form);
-    if (result.status !== "success") throw new Error(result.message);
+    if (result.status !== "success") {
+      setCalendarError(`未能移动日程：${result.message}`);
+      throw new Error(result.message);
+    }
     const refreshed = await refetchActiveRange();
     if (!refreshed) {
       setCalendarError("Outlook 已更新日程，但本地日历仍在对账；请稍后同步 Outlook。");
@@ -225,7 +228,10 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   };
 
   const reconcileCreatedEvent = async () => {
-    if (!(await refetchActiveRange())) setCalendarError("Outlook 已创建日程，但本地日历仍在对账；请稍后同步 Outlook。");
+    const refreshed = await refetchActiveRange();
+    if (!refreshed) setCalendarError("Outlook 已创建日程，但本地日历仍在对账；请稍后同步 Outlook。");
+    setDraft(null);
+    inspector.close();
   };
 
   const weekRange = view === "week" ? weekRangeInTimeZone(cursor.toISOString(), timezone) : null;
@@ -271,7 +277,8 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
               <Popover>
                 <PopoverTrigger asChild><button aria-label="更多日历操作" className="inline-flex size-8 items-center justify-center rounded-full text-[var(--text-tertiary)] transition-colors ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><MoreHorizontal size={17} /></button></PopoverTrigger>
                 <PopoverContent align="end" className="w-64 p-1.5">
-                  <div className="sm:hidden px-1 pb-1.5"><p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-tertiary)]">视图</p><div className="grid grid-cols-3 gap-1">{availableViews.map((item) => <button key={item} onClick={() => setView(item)} className={`rounded-[7px] px-2 py-1.5 text-xs ${view === item ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>{item === "day" ? "日" : item === "week" ? "周" : "月"}</button>)}</div></div>
+                  <div className="sm:hidden px-1 pb-1.5"><p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-tertiary)]">视图</p><div className="grid grid-cols-2 gap-1">{availableViews.map((item) => <button key={item} onClick={() => setView(item)} className={`rounded-[7px] px-2 py-1.5 text-xs ${view === item ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>{item === "day" ? "日" : item === "week" ? "周" : "月"}</button>)}</div></div>
+                  <button type="button" onClick={() => setCursor(new Date())} className="flex w-full items-center rounded-[7px] px-2 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)] sm:hidden">回到今天</button>
                   <button onClick={sync} disabled={syncing} className="flex w-full items-center gap-2 rounded-[7px] px-2 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"><RefreshCw size={14} className={syncing ? "animate-spin" : ""}/>{syncing ? "正在同步…" : "立即同步 Outlook"}</button>
                   <button type="button" onClick={() => setHideInternship((current) => !current)} className="flex w-full items-center gap-2 rounded-[7px] px-2 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"><EyeOff size={14}/>{hideInternship ? "显示实习日程" : "隐藏实习日程"}</button>
                   <div className="my-1 border-t border-[var(--border-subtle)]" />
