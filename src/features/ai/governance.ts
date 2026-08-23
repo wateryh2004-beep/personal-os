@@ -37,6 +37,14 @@ export type SafeSourceSummary = {
   sourceCount: number;
 };
 
+export type AiRequestTelemetry = {
+  setupMs?: number;
+  ttftMs?: number | null;
+  durationMs?: number;
+  duplicateReadCalls?: number;
+  streamSourceCount?: number;
+};
+
 export function summarizeContextSources(pack: PersonalContextPack | null): SafeSourceSummary {
   const sources = pack?.sources ?? [];
   const entitiesByModule: Record<string, number> = {};
@@ -127,7 +135,27 @@ export function estimateAiCostUsd(governance: AiGovernance, inputTokens?: number
   return ((inputTokens ?? 0) * governance.estimatedInputCostPerMillionUsd + (outputTokens ?? 0) * governance.estimatedOutputCostPerMillionUsd) / 1_000_000;
 }
 
-export async function completeAiRequestWithUsage(auditId: string, status: "completed" | "failed" | "cancelled", usage: { inputTokens?: number; outputTokens?: number }, errorCode?: string | null, governance = defaultAiGovernance) {
+export async function completeAiRequestWithUsage(
+  auditId: string,
+  status: "completed" | "failed" | "cancelled",
+  usage: { inputTokens?: number; outputTokens?: number },
+  errorCode?: string | null,
+  governance = defaultAiGovernance,
+  completion?: { sourceSummary?: SafeSourceSummary; telemetry?: AiRequestTelemetry },
+) {
   const admin = createAdminClient();
-  await admin.from("ai_request_audits").update({ status, error_code: errorCode ?? null, input_tokens: usage.inputTokens ?? null, output_tokens: usage.outputTokens ?? null, estimated_cost_usd: estimateAiCostUsd(governance, usage.inputTokens, usage.outputTokens), completed_at: new Date().toISOString() }).eq("id", auditId);
+  const patch: Record<string, unknown> = {
+    status,
+    error_code: errorCode ?? null,
+    input_tokens: usage.inputTokens ?? null,
+    output_tokens: usage.outputTokens ?? null,
+    estimated_cost_usd: estimateAiCostUsd(governance, usage.inputTokens, usage.outputTokens),
+    completed_at: new Date().toISOString(),
+  };
+  if (completion?.sourceSummary) {
+    patch.source_summary = completion.telemetry
+      ? { ...completion.sourceSummary, telemetry: completion.telemetry }
+      : completion.sourceSummary;
+  }
+  await admin.from("ai_request_audits").update(patch).eq("id", auditId);
 }
