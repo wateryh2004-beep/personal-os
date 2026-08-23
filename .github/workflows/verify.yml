@@ -39,8 +39,8 @@ jobs:
           SERVER_PID=$!
           trap 'kill $SERVER_PID' EXIT
           for attempt in {1..30}; do
-            if curl -fsS http://127.0.0.1:3000/__e2e/mobile-native > /dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:3000/mobile-native-e2e > /dev/null; then break; fi
             sleep 1
           done
-          curl -fsS http://127.0.0.1:3000/__e2e/mobile-native > /dev/null
+          curl -fsS http://127.0.0.1:3000/mobile-native-e2e > /dev/null
           NODE_PATH="$(npm root -g)" node scripts/mobile-native-e2e.cjs

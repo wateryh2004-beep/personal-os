@@ -24,7 +24,7 @@ async function backCloses(page, trigger, visibleTarget) {
         hasTouch: true,
       });
       const page = await context.newPage();
-      await page.goto(`${baseURL}/__e2e/mobile-native`, { waitUntil: "networkidle" });
+      await page.goto(`${baseURL}/mobile-native-e2e`, { waitUntil: "networkidle" });
       await page.getByTestId("mobile-native-harness").waitFor();
 
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -51,7 +51,7 @@ async function backCloses(page, trigger, visibleTarget) {
         assert.equal(controlled, true, "page should be controlled by service worker");
 
         await context.setOffline(true);
-        await page.goto(`${baseURL}/__e2e/offline-target`, { waitUntil: "domcontentloaded" });
+        await page.goto(`${baseURL}/mobile-native-e2e-offline-target`, { waitUntil: "domcontentloaded" });
         await page.getByText("Personal OS 当前离线").waitFor();
         await context.setOffline(false);
       }
