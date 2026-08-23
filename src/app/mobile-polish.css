@@ -1,0 +1,76 @@
+/* Mobile-first shell polish for the installed Chrome/PWA experience. */
+@media (max-width: 767px) {
+  :root {
+    --toolbar-height: calc(56px + env(safe-area-inset-top));
+    --tab-bar-height: calc(64px + env(safe-area-inset-bottom));
+  }
+
+  /* Keep the global chrome thumb-friendly without changing desktop density. */
+  header.sticky.top-0 {
+    gap: 0.375rem;
+    padding-left: max(0.5rem, env(safe-area-inset-left));
+    padding-right: max(0.5rem, env(safe-area-inset-right));
+  }
+
+  header.sticky.top-0 [aria-label="打开导航"],
+  header.sticky.top-0 [aria-label="询问 Personal OS"],
+  header.sticky.top-0 [aria-label="快速新建"] {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  header.sticky.top-0 > button[class*="max-w-lg"] {
+    height: 44px;
+    border-radius: 11px;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .mobile-tab-bar {
+    padding-left: max(0.375rem, env(safe-area-inset-left));
+    padding-right: max(0.375rem, env(safe-area-inset-right));
+  }
+
+  /* The drawer is a touch surface on phones, not a compressed desktop sidebar. */
+  [data-slot="sheet-content"][data-side="left"] {
+    width: min(88vw, 320px) !important;
+  }
+
+  [data-slot="sheet-content"][data-side="left"] nav[aria-label="主导航"] a,
+  [data-slot="sheet-content"][data-side="left"] nav[aria-label="主导航"] button {
+    min-height: 44px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  [data-slot="sheet-content"][data-side="left"] nav[aria-label="主导航"] svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  [data-slot="sheet-content"] [data-slot="sheet-close"] {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Prevent content from sitting underneath the persistent phone navigation. */
+  main:not(.workspace-scroll) {
+    scroll-padding-bottom: calc(var(--tab-bar-height) + 1rem);
+  }
+}
+
+/* Installed mode should feel like an app rather than a scrollable browser document. */
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+}
