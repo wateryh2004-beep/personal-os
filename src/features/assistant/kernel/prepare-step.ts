@@ -19,12 +19,15 @@ const toolGroupsByModule: Record<PersonalOsModuleId, ModuleToolGroups> = {
   travel: { read: ["travel_read"], proposal: ["travel_proposal"] },
 };
 
+const modelVisibleLegacyAliases = new Set(["proposeTodoTask"]);
+
 /**
  * Select the provider-visible tools before creating ToolLoopAgent.
  *
- * This is intentionally stricter than prepareStep.activeTools: providers receive
- * the schema for every tool passed to the agent at construction time, so hiding
- * an unrelated tool later cannot protect a request from a malformed schema.
+ * Providers receive the schema for every tool passed at construction time, so
+ * unrelated tools must be removed here rather than merely hidden per step.
+ * Action requests get a slightly larger budget so linked modules retain their
+ * proposal tools instead of being truncated by global registry order.
  */
 export function initialToolNames(decision: ContextGateDecision) {
   if (!decision.needsTools) return [];
@@ -36,14 +39,21 @@ export function initialToolNames(decision: ContextGateDecision) {
     if (decision.mode === "action") moduleGroups.proposal.forEach((group) => groups.add(group));
   }
 
-  // Cross-module retrieval benefits from one compact search tool. Single-module
-  // requests should use that module's purpose-built readers instead.
-  if (decision.mode === "cross_module" || decision.likelyModules.length > 1) groups.add("search");
+  // Deep cross-module synthesis benefits from compact global search. Operational
+  // requests should use their dedicated module readers instead of adding a meta
+  // retrieval layer that cannot discover new runtime tools anyway.
+  if (decision.mode === "cross_module") groups.add("search");
 
+  const maxTools = decision.mode === "action" ? 18 : 12;
   return assistantToolRegistry
-    .filter((definition) => groups.has(definition.group) && definition.risk !== "execute")
+    .filter(
+      (definition) =>
+        groups.has(definition.group) &&
+        definition.risk !== "execute" &&
+        !modelVisibleLegacyAliases.has(definition.name),
+    )
     .map((definition) => definition.name)
-    .slice(0, 12);
+    .slice(0, maxTools);
 }
 
 /** Keep every agent step on the exact capability set selected at request start. */
