@@ -61,4 +61,14 @@ describe("Assistant model routing", () => {
       }),
     ).toMatchObject({ deepseek: { thinking: { type: "enabled" } } });
   });
+
+  it("keeps title generation non-thinking after production audits showed reasoning dominated latency", () => {
+    expect(
+      selectReasoningProviderOptionsForRequest({
+        surface: "notes",
+        mode: "transform",
+        operation: "generateTitle",
+      }),
+    ).toEqual({ deepseek: { thinking: { type: "disabled" } } });
+  });
 });
