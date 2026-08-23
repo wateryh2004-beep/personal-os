@@ -10,7 +10,7 @@ const retrospective = /最近.{0,12}(?:想|思考|关注|反复)|这段时间|�
 const greeting = /^(?:你好|嗨|hello|hi|谢谢|感谢|好的|ok)[！!。.]?$/i;
 const selfProfile = /我(?:觉得|是)(?:个|一个)?什么(?:样)?(?:的)?人|我是谁|我的(?:性格|画像|类型|特点|标签|为人|兴趣|性格特点)|(?:概括|总结|描述|评价|分析|介绍)(?:一下)?我|你觉得我是一个|你(?:会)?怎么(?:看待|评价|认识)我|了解我|认识我/;
 const general = /^(?:什么是|解释(?:一下)?|为什么|如何理解|区别|翻译)/;
-const currentReference = /这个|这些|这里|当前|本页|这页|刚才|上面|它|它们/;
+const currentReference = /这个|这些|这里|当前|本页|这页|这篇|这条|这项|刚才|上面|它|它们/;
 
 const moduleForPath: Record<string, PersonalOsModuleId> = {
   notes: "notes",
@@ -44,7 +44,7 @@ export function decideContextGate(input: KernelRequestContext): ContextGateDecis
     const isAction = mutation.test(text);
     return {
       mode: isAction ? "action" : "targeted",
-      complexity: isAction ? "moderate" : "moderate",
+      complexity: "moderate",
       likelyModules: ["notes"],
       suggestedSkills: [],
       needsPersonalData: true,
@@ -110,8 +110,8 @@ export function decideContextGate(input: KernelRequestContext): ContextGateDecis
   if (/Briefing|简报|RSS/i.test(text)) modules.push("briefing");
   if (/我现在|我的情况|偏好|决定|方向/.test(text)) modules.push("memory");
 
-  // Pronouns such as “这个/这里” should resolve against the workspace the user
-  // is actually looking at. It is a fallback only; explicit nouns still win.
+  // Pronouns such as “这个/这篇/这条” resolve against the workspace the user
+  // is actually looking at. This is only a fallback; explicit nouns still win.
   if (!modules.length && pageModule && currentReference.test(text)) modules.push(pageModule);
 
   const isMutation = mutation.test(text) && !/(?:有什么|什么|哪些|我的)安排/.test(text);
