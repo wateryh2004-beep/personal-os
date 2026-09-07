@@ -12,18 +12,31 @@ describe("mobile tab bar contract", () => {
     expect(tabBar).toContain("var(--safe-area-bottom)");
   });
 
-  it("links four primary modules plus a More button", () => {
-    expect(tabBar).toContain('href: "/today"');
-    expect(tabBar).toContain('href: "/calendar"');
-    expect(tabBar).toContain('href: "/tasks"');
-    expect(tabBar).toContain('href: "/notes"');
-    expect(tabBar).not.toContain('href: "/inbox"');
+  it("renders primary tabs from the shared registry plus a More button", () => {
+    expect(tabBar).toContain("mobileTabNavigation.map");
+    expect(tabBar).not.toContain("const tabs");
     expect(tabBar).toContain("onOpenMore");
+    expect(tabBar).toContain("更多");
   });
 
-  it("is mounted in the shell wired to the existing drawer", () => {
-    expect(appShell).toContain("<MobileTabBar onOpenMore={() => setMobileOpen(true)} />");
-    expect(appShell).toContain('{ name: "Inbox", href: "/inbox"');
+  it("keeps Link auto-prefetch disabled and uses explicit pointer/touch intent", () => {
+    expect(tabBar).toContain("prefetch={false}");
+    expect(tabBar).toContain("onPointerEnter");
+    expect(tabBar).toContain("onPointerDown");
+    expect(tabBar).toContain("onTouchStart");
+    expect(tabBar).toContain("onIntent?.(href)");
+  });
+
+  it("receives shell-level pending feedback and opens the existing drawer", () => {
+    expect(tabBar).toContain("pendingHref");
+    expect(tabBar).toContain("aria-busy={pending || undefined}");
+    expect(appShell).toContain("<MobileTabBar onOpenMore={() => setMobileOpen(true)} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget} />");
+  });
+
+  it("surfaces recently visited non-tab modules in the mobile drawer", () => {
+    expect(appShell).toContain("getMobileRecentNavigation");
+    expect(appShell).toContain("mobileRecentNavigation");
+    expect(appShell).toContain("最近访问");
   });
 
   it("reserves tab-bar height on mobile in the design tokens", () => {

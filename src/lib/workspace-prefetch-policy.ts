@@ -1,23 +1,35 @@
 export type WorkspacePrefetchHref = "/today" | "/calendar" | "/tasks" | "/notes";
 
+const workspacePrefetchHrefs: readonly WorkspacePrefetchHref[] = [
+  "/today",
+  "/calendar",
+  "/tasks",
+  "/notes",
+];
+
 type NetworkInformationLike = {
   saveData?: boolean;
   effectiveType?: string;
 };
 
-/**
- * Background warming is deliberately narrow. Intent-driven hover/focus
- * prefetch remains broader and can refresh stale data immediately before a
- * navigation.
- */
-export function backgroundWorkspacePrefetchTargets(pathname: string): WorkspacePrefetchHref[] {
-  if (pathname === "/today") return ["/calendar", "/tasks"];
-  if (pathname === "/calendar") return ["/today", "/tasks"];
-  if (pathname === "/tasks") return ["/today", "/calendar"];
-  if (pathname === "/notes" || pathname.startsWith("/notes/")) return ["/today"];
-  return ["/today"];
+export function isWorkspacePrefetchHref(href: string): href is WorkspacePrefetchHref {
+  return workspacePrefetchHrefs.includes(href as WorkspacePrefetchHref);
 }
 
+/**
+ * Idle warming keeps the four primary workspaces ready while avoiding a
+ * redundant fetch for the workspace that is already visible.
+ */
+export function backgroundWorkspacePrefetchTargets(pathname: string): WorkspacePrefetchHref[] {
+  return workspacePrefetchHrefs.filter(
+    (href) => pathname !== href && !pathname.startsWith(`${href}/`),
+  );
+}
+
+/**
+ * All speculative work, including intent-driven route prefetch, yields to an
+ * explicit data-saver preference or a clearly constrained connection.
+ */
 export function shouldSkipBackgroundPrefetch(connection?: NetworkInformationLike | null) {
   return Boolean(
     connection?.saveData

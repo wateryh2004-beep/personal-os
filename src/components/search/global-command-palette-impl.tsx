@@ -2,29 +2,41 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, Settings, ShoppingBag, Sparkles, SquareKanban, Plane } from "lucide-react";
+import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, ShoppingBag, Sparkles, SquareKanban, Plane } from "lucide-react";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { createNote } from "@/features/notes/actions";
 import { useGlobalSearch } from "@/features/search/use-global-search";
+import {
+  commandPaletteNavigation,
+  parseRecentNavigation,
+  RECENT_NAVIGATION_STORAGE_KEY,
+  type RecentNavigationItem,
+} from "@/lib/navigation-registry";
 
 export type CommandCenterSection = "search" | "quick";
-const recentStorageKey = "personal-os:recent:v1";
-const navigation = [
-  ["Now", "/today"], ["Inbox", "/inbox"], ["Calendar", "/calendar"], ["Tasks", "/tasks"], ["Projects", "/projects"], ["Shopping", "/shopping"], ["Travel", "/travel"], ["Notes", "/notes"], ["Files", "/files"], ["Career", "/career"], ["Settings", "/settings"],
-] as const;
 const domainLabels: Record<string, string> = { notes: "Notes", career: "Career", files: "Files", tasks: "Tasks", calendar: "Calendar", reviews: "Reviews", projects: "Projects", shopping: "Shopping", travel: "Travel" };
+
+function pathnameFromHref(href: string) {
+  return href.split(/[?#]/, 1)[0] || "/";
+}
 
 export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search" }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection }) {
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
-  const [recents, setRecents] = useState<Array<{ href: string; label: string }>>([]);
+  const [recents, setRecents] = useState<RecentNavigationItem[]>([]);
   const [, startTransition] = useTransition();
   const search = useGlobalSearch({ query, enabled: open, debounceMs: 160 });
   const results = search.results;
   const loading = search.status === "loading";
-  useEffect(() => { if (!open) return; const timer = window.setTimeout(() => { setQuery(""); try { setRecents(JSON.parse(localStorage.getItem(recentStorageKey) || "[]")); } catch { setRecents([]); } }, 0); return () => window.clearTimeout(timer); }, [initialSection, open]);
-  const go = (href: string) => { onOpenChange(false); router.push(href); };
+  useEffect(() => { if (!open) return; const timer = window.setTimeout(() => { setQuery(""); try { setRecents(parseRecentNavigation(localStorage.getItem(RECENT_NAVIGATION_STORAGE_KEY))); } catch { setRecents([]); } }, 0); return () => window.clearTimeout(timer); }, [initialSection, open]);
+  const go = (href: string) => {
+    onOpenChange(false);
+    if (pathnameFromHref(href) !== pathname) {
+      window.dispatchEvent(new CustomEvent("personal-os:navigation-start", { detail: { href } }));
+    }
+    router.push(href);
+  };
   const newNote = () => { onOpenChange(false); startTransition(() => createNote()); };
   const openCreate = (kind?: string) => { onOpenChange(false); window.dispatchEvent(new CustomEvent("personal-os:create-open", { detail: kind ? { kind } : undefined })); };
   const askAgent = (value: string) => {
@@ -57,7 +69,10 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
           <CommandItem onSelect={() => openCreate("inbox")}><FolderUp aria-hidden="true" />记录到 Inbox</CommandItem>
         </CommandGroup> : null}
         {!query && recents.length ? <><CommandSeparator /><CommandGroup heading="Recent">{recents.slice(0, 6).map((item) => <CommandItem key={item.href} onSelect={() => go(item.href)}><FileText aria-hidden="true" /><span className="min-w-0 truncate">{item.label}</span><CommandShortcut>{item.href}</CommandShortcut></CommandItem>)}</CommandGroup></> : null}
-        {!query && !showQuick ? <><CommandSeparator /><CommandGroup heading="Navigation">{navigation.map(([label, href]) => <CommandItem key={href} onSelect={() => go(href)}>{href === "/settings" ? <Settings aria-hidden="true" /> : <LayoutDashboard aria-hidden="true" />}{label}<CommandShortcut>{href}</CommandShortcut></CommandItem>)}</CommandGroup></> : null}
+        {!query && !showQuick ? <><CommandSeparator /><CommandGroup heading="Navigation">{commandPaletteNavigation.map((item) => {
+          const Icon = item.icon;
+          return <CommandItem key={item.href} onSelect={() => go(item.href)}><Icon aria-hidden="true" />{item.name}<CommandShortcut>{item.href}</CommandShortcut></CommandItem>;
+        })}</CommandGroup></> : null}
         {query && !loading ? <CommandGroup heading="Ask"><CommandItem value={`ask ${query}`} onSelect={() => askAgent(query)}><Sparkles aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">Ask Personal OS</p><p className="mt-0.5 truncate text-xs text-[var(--text-tertiary)]">“{query}”</p></div><CommandShortcut>AI</CommandShortcut></CommandItem></CommandGroup> : null}
         {query && !loading ? groups.map(([label, items]) => <CommandGroup key={label} heading={label}>{(items ?? []).map((result) => <CommandItem key={result.id} value={`${result.domain} ${result.title} ${result.subtitle ?? ""} ${result.snippet ?? ""}`} onSelect={() => go(result.href)}><FileText aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{result.title}</p>{result.subtitle || result.snippet ? <p className="mt-0.5 line-clamp-2 text-xs text-[var(--text-tertiary)]">{result.subtitle ?? result.snippet}</p> : null}</div><CommandShortcut>{label}</CommandShortcut></CommandItem>)}</CommandGroup>) : null}
       </CommandList>
