@@ -191,8 +191,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     perfMark("route-commit", { href: pathname });
     perfMeasure("route-commit", "navigation-click", { href: pathname });
     perfMeasure("navigation-ready", "navigation-click", { href: pathname });
-    setShowNavigationProgress(false);
-    setPendingHref(null);
+    const timer = window.setTimeout(() => {
+      setShowNavigationProgress(false);
+      setPendingHref(null);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [pathname, pendingHref]);
 
   useEffect(() => {
@@ -239,18 +242,21 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   }, [openGlobalAgent]);
 
   useEffect(() => {
-    const label = navigationItemForPath(pathname)?.name ?? pathname;
-    const current = { href: pathname, label };
-    try {
-      const next = mergeRecentNavigation(
-        parseRecentNavigation(localStorage.getItem(RECENT_NAVIGATION_STORAGE_KEY)),
-        current,
-      );
-      localStorage.setItem(RECENT_NAVIGATION_STORAGE_KEY, JSON.stringify(next));
-      setRecentNavigation(next);
-    } catch {
-      setRecentNavigation((previous) => mergeRecentNavigation(previous, current));
-    }
+    const timer = window.setTimeout(() => {
+      const label = navigationItemForPath(pathname)?.name ?? pathname;
+      const current = { href: pathname, label };
+      try {
+        const next = mergeRecentNavigation(
+          parseRecentNavigation(localStorage.getItem(RECENT_NAVIGATION_STORAGE_KEY)),
+          current,
+        );
+        localStorage.setItem(RECENT_NAVIGATION_STORAGE_KEY, JSON.stringify(next));
+        setRecentNavigation(next);
+      } catch {
+        setRecentNavigation((previous) => mergeRecentNavigation(previous, current));
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [pathname]);
 
   useEffect(() => {
