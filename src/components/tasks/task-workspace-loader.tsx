@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { MicrosoftDeviceConnect } from "@/components/calendar/microsoft-device-connect";
 import { TaskWorkspace } from "@/components/tasks/task-workspace";
+import type { TaskDayBounds } from "@/features/tasks/task-view";
 import { perfMark, perfMeasure } from "@/lib/perf";
 import {
   tasksWorkspaceResource,
@@ -57,10 +58,12 @@ function WorkspaceMessage({ tone, title, children }: { tone: "danger" | "warning
 
 export function TaskWorkspaceLoader({
   initialWorkspace,
+  initialDayBounds,
   initialCreateOpen = false,
   initialTaskId,
 }: {
   initialWorkspace: TasksWorkspaceData;
+  initialDayBounds: TaskDayBounds;
   initialCreateOpen?: boolean;
   initialTaskId?: string;
 }) {
@@ -100,6 +103,7 @@ export function TaskWorkspaceLoader({
     <TaskWorkspace
       lists={data.lists}
       tasks={data.tasks}
+      initialDayBounds={initialDayBounds}
       initialCreateOpen={initialCreateOpen}
       initialTaskId={initialTaskId}
     />
