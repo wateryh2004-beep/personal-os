@@ -551,7 +551,8 @@ export function TaskWorkspace({
   const listScrollRef = useWorkspaceScrollRestoration("tasks:list");
 
   useEffect(() => {
-    setDayBounds(getLocalTaskDayBounds());
+    const reconcileDay = window.setTimeout(() => setDayBounds(getLocalTaskDayBounds()), 0);
+    return () => window.clearTimeout(reconcileDay);
   }, []);
 
   useEffect(() => {
