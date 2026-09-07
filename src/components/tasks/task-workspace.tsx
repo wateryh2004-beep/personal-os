@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import {
+  CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
   Circle,
+  Flag,
   MoreHorizontal,
   Plus,
   RefreshCw,
@@ -21,6 +24,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MicrosoftTodoCreateDialog } from "@/components/tasks/microsoft-todo-create-dialog";
@@ -33,6 +37,13 @@ import {
   syncMicrosoftTodoAction,
   updateMicrosoftTodoTaskAction,
 } from "@/features/tasks/microsoft-todo";
+import {
+  getLocalTaskDayBounds,
+  resolveQuickAddTarget,
+  selectTasksForView,
+  type TaskDayBounds,
+  type TaskView,
+} from "@/features/tasks/task-view";
 import type { TodoList, TodoTask, UpdateTaskPatch } from "@/features/tasks/types";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
 import { EntityBacklinks } from "@/components/links/entity-backlinks";
@@ -49,31 +60,35 @@ const TaskAssistant = dynamic(
   { ssr: false },
 );
 
-type View = "today" | "upcoming" | "all" | "completed";
-
-const labels: Record<View, string> = {
+const labels: Record<TaskView, string> = {
   today: "今天",
   upcoming: "即将到来",
   all: "全部",
   completed: "已完成",
 };
 
-const startOfDay = () =>
-  new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
-
 const listName = (lists: TodoList[], id: string) =>
   lists.find((list) => list.id === id)?.displayName || "任务";
+
+const quickDueAt = (dayOffset: number) => {
+  const due = new Date();
+  due.setDate(due.getDate() + dayOffset);
+  due.setHours(23, 59, 0, 0);
+  return due.toISOString();
+};
 
 function TaskRow({
   task,
   selected,
   onOpen,
   onToggle,
+  onUpdate,
 }: {
   task: TodoTask;
   selected: boolean;
   onOpen: () => void;
   onToggle: () => void;
+  onUpdate: (patch: UpdateTaskPatch) => void;
 }) {
   const completed = task.status === "completed";
   const dueLabel = task.dueAt ? formatDate(task.dueAt) : null;
@@ -103,7 +118,7 @@ function TaskRow({
           onToggle();
         }}
         aria-label={`${completed ? "恢复" : "完成"} ${task.title}`}
-        className={`mt-0.5 inline-flex size-6 items-center justify-center rounded-full transition-[background-color,color] ui-transition ${
+        className={`-m-2 mt-[-6px] inline-flex size-10 items-center justify-center rounded-full transition-[background-color,color] ui-transition sm:m-0 sm:mt-0.5 sm:size-6 ${
           completed
             ? "text-[var(--accent)] hover:bg-[var(--accent-soft)]"
             : "text-[var(--text-tertiary)] hover:bg-[var(--surface-control)] hover:text-[var(--accent)]"
@@ -143,28 +158,70 @@ function TaskRow({
         ) : null}
       </div>
 
-      <MoreHorizontal
-        className={`mt-0.5 size-4 text-[var(--text-tertiary)] transition-opacity ui-transition ${
-          selected ? "opacity-70" : "opacity-0 group-hover:opacity-55"
-        }`}
-        aria-hidden="true"
-      />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={`${task.title} 更多操作`}
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+            className={`-my-2 inline-flex size-10 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-tertiary)] transition-[background-color,color,opacity] ui-transition hover:bg-[var(--surface-control)] hover:text-[var(--text-secondary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)] md:my-0 md:size-8 md:focus:opacity-100 md:data-[state=open]:opacity-100 ${
+              selected ? "md:opacity-70" : "md:opacity-0 md:group-hover:opacity-60"
+            }`}
+          >
+            <MoreHorizontal className="size-4" aria-hidden="true" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-48">
+          <DropdownMenuItem onSelect={onToggle} className="min-h-11 sm:min-h-9">
+            {completed ? <RotateCcw /> : <Check />}
+            {completed ? "恢复任务" : "完成任务"}
+          </DropdownMenuItem>
+          {!completed ? (
+            <>
+              <DropdownMenuItem
+                onSelect={() => onUpdate({ dueAt: quickDueAt(0) })}
+                className="min-h-11 sm:min-h-9"
+              >
+                <CalendarDays />设为今天
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => onUpdate({ dueAt: quickDueAt(1) })}
+                className="min-h-11 sm:min-h-9"
+              >
+                <CalendarDays />设为明天
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() =>
+                  onUpdate({ importance: task.importance === "high" ? "normal" : "high" })
+                }
+                className="min-h-11 sm:min-h-9"
+              >
+                <Flag />
+                {task.importance === "high" ? "取消高优先级" : "设为高优先级"}
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </article>
   );
 }
 
 function QuickAdd({
   listId,
+  listLabel,
   onCreated,
 }: {
-  listId: string | undefined;
+  listId: string;
+  listLabel: string;
   onCreated: (task: TodoTask, temporaryId?: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
-
-  if (!listId) return null;
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -243,7 +300,7 @@ function QuickAdd({
             onKeyDown={(event) => {
               if (event.key === "Escape") setOpen(false);
             }}
-            className="h-8 min-w-0 flex-1 border-0 border-b border-[var(--border-strong)] bg-transparent px-0 text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
+            className="h-9 min-w-0 flex-1 border-0 border-b border-[var(--border-strong)] bg-transparent px-0 text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
           />
           <input type="hidden" name="todo_list_id" value={listId} />
           <input type="hidden" name="body_text" value="" />
@@ -257,12 +314,15 @@ function QuickAdd({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex h-8 items-center gap-2 text-[13px] font-medium text-[var(--accent)] transition-opacity ui-transition hover:opacity-75"
+          className="inline-flex min-h-11 items-center gap-2 text-[13px] font-medium text-[var(--accent)] transition-opacity ui-transition hover:opacity-75 sm:min-h-8"
         >
           <Plus className="size-4" aria-hidden="true" />
           新建任务
         </button>
       )}
+      <p className="pl-8 text-[10.5px] leading-4 text-[var(--text-tertiary)]">
+        添加到 {listLabel}
+      </p>
       {message ? (
         <p role="status" className="mt-1 pl-8 text-[11px] text-[var(--text-tertiary)]">
           {message}
@@ -471,27 +531,34 @@ function TaskInspector({
 export function TaskWorkspace({
   lists,
   tasks,
+  initialDayBounds,
   initialCreateOpen = false,
   initialTaskId,
 }: {
   lists: TodoList[];
   tasks: TodoTask[];
+  initialDayBounds: TaskDayBounds;
   initialCreateOpen?: boolean;
   initialTaskId?: string;
 }) {
   const [rows, setRows] = useState(tasks);
-  const [view, setView] = useState<View>(initialTaskId ? "all" : "today");
+  const [view, setView] = useState<TaskView>(initialTaskId ? "all" : "today");
   const [listId, setListId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialTaskId ?? null);
+  const [dayBounds, setDayBounds] = useState(initialDayBounds);
   const assistant = useWorkspacePanel("tasks-ai");
   const { show } = useActionFeedback();
   const listScrollRef = useWorkspaceScrollRestoration("tasks:list");
 
   useEffect(() => {
+    setDayBounds(getLocalTaskDayBounds());
+  }, []);
+
+  useEffect(() => {
     if (initialTaskId) return;
     const restore = window.setTimeout(() => {
       const session = loadWorkspaceSession<{
-        view?: View;
+        view?: TaskView;
         listId?: string | null;
         selectedId?: string | null;
       }>("tasks:workspace");
@@ -516,7 +583,8 @@ export function TaskWorkspace({
   }, [lists, rows]);
 
   const selected = rows.find((task) => task.id === selectedId) ?? null;
-  const defaultListId = lists.find((list) => list.isDefault)?.id ?? lists[0]?.id;
+  const quickAddTarget = useMemo(() => resolveQuickAddTarget(lists, listId), [listId, lists]);
+  const currentListLabel = listId ? listName(lists, listId) : "全部清单";
 
   useEffect(() => {
     const reconcileAgentMutation = (event: Event) => {
@@ -611,17 +679,8 @@ export function TaskWorkspace({
   };
 
   const visible = useMemo(
-    () =>
-      rows.filter((task) => {
-        if (!task.title || (listId && task.todoListId !== listId)) return false;
-        const due = task.dueAt ? new Date(task.dueAt).getTime() : null;
-        if (view === "completed") return task.status === "completed";
-        if (task.status === "completed") return false;
-        if (view === "today") return due !== null && due < startOfDay() + 86_400_000;
-        if (view === "upcoming") return due !== null && due >= startOfDay() + 86_400_000;
-        return true;
-      }),
-    [listId, rows, view],
+    () => selectTasksForView(rows, { view, listId, dayBounds }),
+    [dayBounds, listId, rows, view],
   );
 
   const onCreated = (task: TodoTask, temporaryId?: string) =>
@@ -632,6 +691,14 @@ export function TaskWorkspace({
           : current.filter((row) => row.id !== temporaryId)
         : [...current, task],
     );
+
+  const updateFromRow = (task: TodoTask, patch: UpdateTaskPatch) => {
+    void mutate(
+      task.id,
+      (row) => ({ ...row, ...patch }),
+      () => updateMicrosoftTodoTaskAction({ taskId: task.id, ...patch }),
+    ).catch(() => show({ message: "更新失败，任务已恢复原状态。", tone: "error" }));
+  };
 
   return (
     <section className="flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
@@ -651,7 +718,7 @@ export function TaskWorkspace({
                 className="mt-3 flex items-center gap-5 overflow-x-auto"
                 aria-label="任务视图"
               >
-                {(["today", "upcoming", "all", "completed"] as View[]).map((item) => (
+                {(["today", "upcoming", "all", "completed"] as TaskView[]).map((item) => (
                   <button
                     key={item}
                     type="button"
@@ -667,6 +734,42 @@ export function TaskWorkspace({
                   </button>
                 ))}
               </nav>
+
+              <div className="mt-3 xl:hidden">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`切换任务清单，当前：${currentListLabel}`}
+                      className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--surface-control)] px-3 text-[12px] font-medium text-[var(--text-secondary)] transition-colors ui-transition hover:text-[var(--text-primary)] sm:min-h-9"
+                    >
+                      <span className="text-[var(--text-tertiary)]">清单</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="truncate text-[var(--text-primary)]">{currentListLabel}</span>
+                      <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-56">
+                    <DropdownMenuItem
+                      onSelect={() => setListId(null)}
+                      className="min-h-11 sm:min-h-9"
+                    >
+                      <Check className={!listId ? "opacity-100" : "opacity-0"} />
+                      全部清单
+                    </DropdownMenuItem>
+                    {lists.map((list) => (
+                      <DropdownMenuItem
+                        key={list.id}
+                        onSelect={() => setListId(list.id)}
+                        className="min-h-11 sm:min-h-9"
+                      >
+                        <Check className={listId === list.id ? "opacity-100" : "opacity-0"} />
+                        {list.displayName}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
@@ -703,7 +806,13 @@ export function TaskWorkspace({
         <div className="grid min-h-0 flex-1 xl:grid-cols-[minmax(0,1fr)_220px]">
           <main ref={listScrollRef} className="workspace-scroll overflow-y-auto px-5 sm:px-7 lg:px-10">
             <div className="mx-auto max-w-[760px] pb-8">
-              <QuickAdd listId={defaultListId} onCreated={onCreated} />
+              {quickAddTarget ? (
+                <QuickAdd
+                  listId={quickAddTarget.id}
+                  listLabel={quickAddTarget.displayName}
+                  onCreated={onCreated}
+                />
+              ) : null}
               <div className="border-t border-[var(--border-subtle)]">
                 {visible.length ? (
                   visible.map((task) => (
@@ -713,6 +822,7 @@ export function TaskWorkspace({
                       selected={task.id === selectedId}
                       onOpen={() => setSelectedId(task.id)}
                       onToggle={() => void toggle(task)}
+                      onUpdate={(patch) => updateFromRow(task, patch)}
                     />
                   ))
                 ) : (
