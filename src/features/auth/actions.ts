@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { isOwnerEmail } from "@/lib/auth/owner";
+import { resolveRecoveryOrigin } from "@/lib/auth/recovery-origin";
 import { env, isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
@@ -26,20 +27,17 @@ export type LoginState = { error?: string; message?: string };
 export type PasswordRecoveryState = { error?: string; message?: string };
 export type UpdatePasswordState = { error?: string };
 
-function normalizeOrigin(value: string | undefined) {
-  return value?.trim().replace(/\/$/, "");
-}
-
 async function resolveAppOrigin() {
-  const configured = normalizeOrigin(env.appUrl);
-  if (configured) return configured;
-
   const requestHeaders = await headers();
-  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
-  if (!host) return undefined;
-
-  const proto = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
+  return resolveRecoveryOrigin({
+    configuredAppUrl: env.appUrl,
+    vercelEnv: process.env.VERCEL_ENV,
+    vercelProjectProductionUrl: process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    vercelUrl: process.env.VERCEL_URL,
+    forwardedHost: requestHeaders.get("x-forwarded-host"),
+    forwardedProto: requestHeaders.get("x-forwarded-proto"),
+    host: requestHeaders.get("host"),
+  });
 }
 
 export async function loginAction(_: LoginState, formData: FormData): Promise<LoginState> {
@@ -66,7 +64,7 @@ export async function requestPasswordResetAction(
   if (!isOwnerEmail(parsed.data.email)) return { message: genericMessage };
 
   const origin = await resolveAppOrigin();
-  if (!origin) return { error: "无法确定应用地址，请检查 APP_URL 配置。" };
+  if (!origin) return { error: "无法确定安全的生产应用地址，请检查 Vercel 域名配置。" };
 
   const supabase = await createClient();
   const redirectTo = `${origin}/api/auth/callback?next=${encodeURIComponent("/update-password")}`;
@@ -77,8 +75,9 @@ export async function requestPasswordResetAction(
       status: error.status,
       code: error.code,
       message: error.message,
+      redirectOrigin: origin,
     });
-    return { error: "暂时无法发送重置邮件。请确认 Supabase 项目处于运行状态后重试。" };
+    return { error: "暂时无法发送重置邮件。请确认 Supabase 项目和重定向地址配置后重试。" };
   }
 
   return { message: genericMessage };
