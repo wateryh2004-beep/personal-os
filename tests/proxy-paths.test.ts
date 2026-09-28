@@ -2,18 +2,22 @@ import { describe, expect, it } from "vitest";
 import { isAuthCallbackPath, isPrivateAppPath, isPublicPath, safeRedirectPath } from "@/lib/supabase/proxy";
 
 describe("application proxy paths", () => {
-  it("classifies every app route as private except the explicit login route", () => {
+  it("classifies every app route as private except explicit recovery/public routes", () => {
     expect(isPrivateAppPath("/")).toBe(true);
     expect(isPrivateAppPath("/today")).toBe(true);
     expect(isPrivateAppPath("/notes/00000000-0000-4000-8000-000000000001")).toBe(true);
     expect(isPrivateAppPath("/career/experiences/00000000-0000-4000-8000-000000000001")).toBe(true);
     expect(isPrivateAppPath("/calendar")).toBe(true);
+    expect(isPrivateAppPath("/update-password")).toBe(true);
     expect(isPrivateAppPath("/login")).toBe(false);
+    expect(isPrivateAppPath("/forgot-password")).toBe(false);
   });
 
   it("keeps only intended protocol paths public and leaves APIs to handler authentication", () => {
     expect(isPublicPath("/login")).toBe(true);
+    expect(isPublicPath("/forgot-password")).toBe(true);
     expect(isPublicPath("/manifest.webmanifest")).toBe(true);
+    expect(isPublicPath("/update-password")).toBe(false);
     expect(isPublicPath("/today")).toBe(false);
     expect(isPrivateAppPath("/api/exports/notes/note-id")).toBe(false);
     expect(isAuthCallbackPath("/api/auth/callback")).toBe(true);

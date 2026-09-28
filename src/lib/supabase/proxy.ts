@@ -10,9 +10,8 @@ export const verifiedOwnerIdHeader = "x-personal-os-verified-owner-id";
 export const verifiedOwnerEmailHeader = "x-personal-os-verified-owner-email";
 
 // The manifest is fetched by Chrome's installability check outside the signed-in
-// application flow. It must remain readable without a session so the browser
-// receives JSON rather than a login redirect.
-const publicPaths = new Set(["/login", "/manifest.webmanifest"]);
+// application flow. Password recovery must also be reachable without a session.
+const publicPaths = new Set(["/login", "/forgot-password", "/manifest.webmanifest"]);
 const authCallbackPaths = ["/api/auth/callback", "/api/integrations/microsoft/callback"];
 
 export function isPublicPath(pathname: string) {
