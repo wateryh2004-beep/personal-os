@@ -12,17 +12,17 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
   return (
     <>
       <PageHeader
-        title="Insights"
-        description="不做虚假的面试总分；只看反复出现的问题、能力覆盖、故事使用和真实改善轨迹。"
+        title="复盘"
+        description="不做虚假的面试总分，只看反复出现的问题、能力覆盖、经历使用和真实改善轨迹。"
       />
       <CareerNav current="/career/interview" />
       <InterviewNav current="/career/interview/insights" />
 
       <form className="mb-7 flex flex-wrap items-end gap-3 border-y py-4">
         <label className="grid min-w-64 gap-1 text-sm">
-          <span>Interview Context</span>
+          <span>目标岗位</span>
           <select name="context" defaultValue={context ?? ""} className="border bg-white px-3 py-2">
-            <option value="">全部场景</option>
+            <option value="">全部目标</option>
             {data.contexts.map((item: any) => <option key={item.id} value={item.id}>{item.title}</option>)}
           </select>
         </label>
@@ -30,15 +30,15 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
       </form>
 
       <section className="mb-10 grid gap-4 sm:grid-cols-3">
-        <Metric label="Practice Attempts" value={totalAttempts} />
-        <Metric label="Ready Preparations" value={ready} />
-        <Metric label="Active Preparations" value={data.preparations.length} />
+        <Metric label="练习次数" value={totalAttempts} />
+        <Metric label="已准备题目" value={ready} />
+        <Metric label="当前准备题目" value={data.preparations.length} />
       </section>
 
       <div className="grid gap-10 lg:grid-cols-2">
         <section>
-          <h2 className="text-lg font-medium">Current Weaknesses</h2>
-          <p className="mt-1 text-sm text-zinc-500">按近期所有 Attempt 的 issue tags 聚合。</p>
+          <h2 className="text-lg font-medium">反复出现的问题</h2>
+          <p className="mt-1 text-sm text-zinc-500">按近期练习中记录的问题标签聚合。</p>
           <div className="mt-4 divide-y border-y">
             {data.issueCounts.slice(0,12).map((item) => (
               <div key={item.tag} className="flex items-center justify-between py-3 text-sm">
@@ -51,8 +51,8 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
         </section>
 
         <section>
-          <h2 className="text-lg font-medium">Competency Coverage</h2>
-          <p className="mt-1 text-sm text-zinc-500">题目覆盖、Ready 数量与 Evidence 关联数量分开看。</p>
+          <h2 className="text-lg font-medium">能力覆盖</h2>
+          <p className="mt-1 text-sm text-zinc-500">分别看题目覆盖、已准备数量和真实经历关联数量。</p>
           <div className="mt-4 divide-y border-y">
             {data.competencyCoverage.slice(0,16).map((item) => (
               <div key={item.tag} className="grid grid-cols-[1fr_52px_52px_52px] gap-3 py-3 text-sm">
@@ -64,11 +64,11 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
             ))}
             {!data.competencyCoverage.length ? <p className="py-4 text-sm text-zinc-500">还没有 competency 数据。</p> : null}
           </div>
-          {data.competencyCoverage.length ? <div className="mt-2 grid grid-cols-[1fr_52px_52px_52px] gap-3 text-[10px] uppercase tracking-wide text-zinc-400"><span></span><span className="text-right">题目</span><span className="text-right">Ready</span><span className="text-right">Evidence</span></div> : null}
+          {data.competencyCoverage.length ? <div className="mt-2 grid grid-cols-[1fr_52px_52px_52px] gap-3 text-[10px] uppercase tracking-wide text-zinc-400"><span></span><span className="text-right">题目</span><span className="text-right">已准备</span><span className="text-right">经历</span></div> : null}
         </section>
 
         <section>
-          <h2 className="text-lg font-medium">Story Usage</h2>
+          <h2 className="text-lg font-medium">经历使用</h2>
           <p className="mt-1 text-sm text-zinc-500">检测是不是所有题都在讲同一个经历。</p>
           <div className="mt-4 divide-y border-y">
             {data.storyUsage.map((item: any) => (
@@ -82,14 +82,14 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
         </section>
 
         <section>
-          <h2 className="text-lg font-medium">Progress</h2>
-          <p className="mt-1 text-sm text-zinc-500">先用每次 Attempt 的 issue 数观察趋势，不伪造能力评分。</p>
+          <h2 className="text-lg font-medium">改善趋势</h2>
+          <p className="mt-1 text-sm text-zinc-500">先用每次练习暴露的问题数量观察趋势，不伪造能力评分。</p>
           <div className="mt-4 divide-y border-y">
             {data.monthlyTrend.map((item) => (
               <div key={item.month} className="grid grid-cols-[1fr_70px_90px] gap-3 py-3 text-sm">
                 <span>{item.month}</span>
                 <span className="text-right font-mono text-zinc-500">{item.attempts} 次</span>
-                <span className="text-right font-mono">{item.issuesPerAttempt.toFixed(2)} issue/次</span>
+                <span className="text-right font-mono">{item.issuesPerAttempt.toFixed(2)} 个问题/次</span>
               </div>
             ))}
             {!data.monthlyTrend.length ? <p className="py-4 text-sm text-zinc-500">完成几次 Practice 后，这里才有意义。</p> : null}
