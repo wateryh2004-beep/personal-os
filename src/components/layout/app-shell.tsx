@@ -82,7 +82,7 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent }: 
       const pending = pendingPathname ? navActive(pendingPathname, href) : false;
       const link = <Link
         href={href}
-        prefetch={false}
+        prefetch={href === "/career"}
         onClick={() => onNavigate?.(href)}
         onPointerEnter={() => onIntent?.(href)}
         onFocus={() => onIntent?.(href)}

@@ -60,6 +60,95 @@ export async function getExperience(id: string) {
   return { experience, facts: facts.data ?? [], versions: versions.data ?? [], outputs: outputs.data ?? [], bullets: bullets.data ?? [], documents: documents.data ?? [], links: links.data ?? [], audit: audit.data ?? [], directions: directions.data ?? [] };
 }
 
+
+export async function getCareerHome() {
+  const { supabase, userId } = await requireOwner();
+
+  const [
+    profile,
+    directions,
+    experiencesCount,
+    skillsCount,
+    resumesCount,
+    applications,
+    milestones,
+    interviewTargets,
+    interviewPreparations,
+  ] = await Promise.all([
+    supabase
+      .from("career_profiles")
+      .select("professional_headline,current_stage")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("career_directions")
+      .select("id,name,status")
+      .in("status", ["active", "exploring"])
+      .is("archived_at", null)
+      .order("priority", { ascending: false })
+      .limit(3),
+    supabase
+      .from("experiences")
+      .select("id", { count: "exact", head: true })
+      .is("archived_at", null),
+    supabase
+      .from("skills")
+      .select("id", { count: "exact", head: true })
+      .is("archived_at", null),
+    supabase
+      .from("resume_versions")
+      .select("id", { count: "exact", head: true })
+      .is("archived_at", null),
+    supabase
+      .from("career_applications")
+      .select("id,status")
+      .is("archived_at", null),
+    supabase
+      .from("career_milestones")
+      .select("id,title,target_date,status")
+      .is("archived_at", null)
+      .order("target_date")
+      .limit(5),
+    supabase
+      .from("interview_contexts")
+      .select("id,title,organization_snapshot,role_title_snapshot,status,next_interview_at")
+      .eq("status", "active")
+      .neq("context_type", "general")
+      .is("archived_at", null)
+      .order("priority", { ascending: false })
+      .order("next_interview_at", { ascending: true, nullsFirst: false })
+      .limit(3),
+    supabase
+      .from("interview_question_preparations")
+      .select("id,context_id,status,next_practice_at")
+      .not("context_id", "is", null)
+      .is("archived_at", null),
+  ]);
+
+  return {
+    profile: profile.data,
+    directions: directions.data ?? [],
+    experienceCount: experiencesCount.count ?? 0,
+    skillCount: skillsCount.count ?? 0,
+    resumeCount: resumesCount.count ?? 0,
+    applications: applications.data ?? [],
+    milestones: milestones.data ?? [],
+    interviewTargets: interviewTargets.data ?? [],
+    interviewPreparations: interviewPreparations.data ?? [],
+    unavailable: Boolean(
+      profile.error
+      || directions.error
+      || experiencesCount.error
+      || skillsCount.error
+      || resumesCount.error
+      || applications.error
+      || milestones.error
+      || interviewTargets.error
+      || interviewPreparations.error
+    ),
+  };
+}
+
 export async function getCareerPortfolio() {
   const base = await getCareerOverview(); const { supabase } = await requireOwner();
   const [skills, facts, outputs, approvedBullets, opportunities, applications, resumes, decisions, certifications, milestones, interviewTargets, interviewPreparations] = await Promise.all([
