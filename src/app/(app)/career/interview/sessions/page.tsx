@@ -20,7 +20,7 @@ export default async function InterviewSessionsPage() {
   return (
     <>
       <PageHeader title="面试记录" description="把一次连续问答作为完整面试保存；模拟面试和真实面试都保留追问与整场复盘。" />
-      <CareerNav current="/career/interview" />
+      <CareerNav current="/career/interview/sessions" />
       <InterviewNav current="/career/interview/sessions" />
 
       <div className="mb-8 flex justify-end">
