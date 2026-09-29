@@ -16,22 +16,18 @@ export default async function InterviewWorkspacePage({
     role: (context.role_title_snapshot as string | null) ?? null,
   }));
 
-  const answersByPreparation = new Map<string, any>();
+  const answersByPreparation = new Map<string, any[]>();
   for (const answer of data.answers as any[]) {
-    const existing = answersByPreparation.get(answer.preparation_id);
-    if (!existing) {
-      answersByPreparation.set(answer.preparation_id, answer);
-      continue;
-    }
-    const existingSeconds = existing.target_seconds == null ? -1 : Number(existing.target_seconds);
-    const candidateSeconds = answer.target_seconds == null ? -1 : Number(answer.target_seconds);
-    if (candidateSeconds < existingSeconds) answersByPreparation.set(answer.preparation_id, answer);
+    const list = answersByPreparation.get(answer.preparation_id) ?? [];
+    list.push(answer);
+    answersByPreparation.set(answer.preparation_id, list);
   }
 
   const items = (data.preparations as any[]).flatMap((prep: any) => {
     const relation = Array.isArray(prep.interview_questions) ? prep.interview_questions[0] : prep.interview_questions;
     if (!relation) return [];
-    const answer = answersByPreparation.get(prep.id);
+    const answerList = answersByPreparation.get(prep.id) ?? [];
+    const answer = answerList.find((candidate: any) => candidate.language === prep.target_language) ?? answerList[0];
     const thoughts = prep.working_thoughts_markdown
       || [prep.key_message, prep.answer_logic_markdown].filter(Boolean).join("\n\n");
 
