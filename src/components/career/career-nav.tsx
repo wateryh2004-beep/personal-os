@@ -7,6 +7,7 @@ const primary = [
   ["经历", "/career/experiences"],
   ["技能", "/career/skills"],
   ["简历", "/career/resumes"],
+  ["面试", "/career/interview"],
   ["Timeline", "/career/roadmap"],
 ] as const;
 
