@@ -57,6 +57,44 @@ async function getEvidenceCatalog(supabase: Awaited<ReturnType<typeof requireOwn
   );
 }
 
+
+export async function getInterviewWorkspaceData() {
+  const { supabase } = await requireOwner();
+
+  const [contextsResult, preparationsResult, answersResult] = await Promise.all([
+    supabase
+      .from("interview_contexts")
+      .select("id,title,organization_snapshot,role_title_snapshot,status,priority")
+      .eq("status", "active")
+      .neq("context_type", "general")
+      .is("archived_at", null)
+      .order("priority", { ascending: false })
+      .order("title"),
+    supabase
+      .from("interview_question_preparations")
+      .select("id,question_id,context_id,prompt_override,working_thoughts_markdown,key_message,answer_logic_markdown,target_language,position,updated_at,interview_questions!inner(id,canonical_prompt,short_title,parent_question_id,archived_at)")
+      .is("archived_at", null)
+      .is("interview_questions.archived_at", null)
+      .order("position")
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("interview_answer_versions")
+      .select("id,preparation_id,answer_mode,target_seconds,language,body_markdown,version_number,status,updated_at")
+      .eq("status", "current")
+      .eq("answer_mode", "spoken")
+      .is("archived_at", null)
+      .order("target_seconds", { ascending: true, nullsFirst: true })
+      .order("version_number", { ascending: false }),
+  ]);
+
+  return {
+    contexts: contextsResult.data ?? [],
+    preparations: preparationsResult.data ?? [],
+    answers: answersResult.data ?? [],
+    unavailable: Boolean(contextsResult.error || preparationsResult.error || answersResult.error),
+  };
+}
+
 export async function getInterviewQuestions(filters: InterviewQuestionFilters = {}) {
   const { supabase } = await requireOwner();
   const [questionsResult, preparationsResult, contextsResult] = await Promise.all([
