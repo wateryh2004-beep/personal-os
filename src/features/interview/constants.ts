@@ -83,7 +83,7 @@ export const statusLabels: Record<string, string> = {
   unprepared: "未准备",
   developing: "整理中",
   practicing: "练习中",
-  ready: "Ready",
+  ready: "已准备",
   needs_review: "需复盘",
   paused: "暂停",
 };
@@ -119,9 +119,9 @@ export const noteTypeLabels: Record<string, string> = {
 export const sessionFormatLabels: Record<string, string> = {
   recorded_video: "录制视频",
   one_to_one: "1v1",
-  panel: "Panel",
+  panel: "多人面试",
   group_interview: "群面",
-  group_case: "Group Case",
+  group_case: "群组案例",
   phone: "电话",
   mixed: "混合",
   other: "其他",
