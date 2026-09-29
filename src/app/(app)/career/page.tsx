@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
-import { getCareerPortfolio } from "@/features/career/queries";
+import { getCareerHome } from "@/features/career/queries";
 import { formatDateTime } from "@/features/interview/utils";
 
 export default async function CareerPage() {
-  const data = await getCareerPortfolio();
+  const data = await getCareerHome();
   const p = data.profile;
   const now = Date.now();
 
@@ -22,7 +22,7 @@ export default async function CareerPage() {
       />
       <CareerNav current="/career" />
 
-      {data.career2Unavailable ? (
+      {data.unavailable ? (
         <p className="mb-8 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
           部分职业数据暂时不可用。
         </p>
@@ -100,9 +100,9 @@ export default async function CareerPage() {
       <section className="mb-10">
         <h2 className="text-[15px] font-medium text-zinc-950">关键资产</h2>
         <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
-          <Asset href="/career/experiences" label="经历" value={data.experiences.length} />
-          <Asset href="/career/resumes" label="简历" value={data.resumes.length} />
-          <Asset href="/career/skills" label="能力" value={data.skills.length} />
+          <Asset href="/career/experiences" label="经历" value={data.experienceCount} />
+          <Asset href="/career/resumes" label="简历" value={data.resumeCount} />
+          <Asset href="/career/skills" label="能力" value={data.skillCount} />
           <Asset href="/career/applications" label="申请" value={activeApplications.length} />
         </div>
       </section>
