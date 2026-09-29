@@ -74,7 +74,12 @@ export async function createInterviewQuestion(formData: FormData) {
   const contextId = String(formData.get("context_id") || "") || null;
   const value = parse(interviewQuestionSchema, formObject(formData));
   if (value.parent_question_id) await own(supabase, "interview_questions", value.parent_question_id);
-  if (contextId) await own(supabase, "interview_contexts", contextId);
+  let targetLanguage = "zh";
+  if (contextId) {
+    const { data: contextRow, error: contextError } = await supabase.from("interview_contexts").select("id,default_language").eq("id", contextId).maybeSingle();
+    if (contextError || !contextRow) failed(contextError ?? new Error("找不到目标岗位。"));
+    targetLanguage = contextRow.default_language || "zh";
+  }
   const { data, error } = await supabase.from("interview_questions").insert({
     ...value,
     user_id: userId,
@@ -86,7 +91,7 @@ export async function createInterviewQuestion(formData: FormData) {
     context_id: contextId,
     status: "unprepared",
     importance: contextId ? "high" : "normal",
-    target_language: "zh",
+    target_language: targetLanguage,
   });
   if (prepError) failed(prepError);
   await audit(supabase, userId, "create", "interview_question", data.id, { category: value.category, source_type: value.source_type });
