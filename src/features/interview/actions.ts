@@ -129,7 +129,21 @@ export async function archiveInterviewQuestion(formData: FormData) {
 
 export async function createInterviewContext(formData: FormData) {
   const { supabase, userId } = await requireOwner();
-  const value = parse(interviewContextSchema, formObject(formData));
+  const raw = { ...formObject(formData) } as Record<string, unknown>;
+  const contextType = String(raw.context_type || "target");
+  const organization = String(raw.organization_snapshot || "").trim();
+  const role = String(raw.role_title_snapshot || "").trim();
+  if (!String(raw.title || "").trim() && contextType === "target") raw.title = [organization, role].filter(Boolean).join(" · ");
+  if (!raw.context_type) raw.context_type = contextType;
+  if (!raw.default_language) raw.default_language = "bilingual";
+  if (!raw.priority) raw.priority = "4";
+  if (!raw.status) raw.status = "active";
+  if (!raw.notes_markdown) raw.notes_markdown = "";
+  if (!raw.career_direction_id) raw.career_direction_id = "";
+  if (!raw.opportunity_id) raw.opportunity_id = "";
+  if (!raw.application_id) raw.application_id = "";
+  if (!raw.next_interview_at) raw.next_interview_at = "";
+  const value = parse(interviewContextSchema, raw);
   if (value.career_direction_id) await own(supabase, "career_directions", value.career_direction_id);
   if (value.opportunity_id) await own(supabase, "career_opportunities", value.opportunity_id);
   if (value.application_id) await own(supabase, "career_applications", value.application_id);
