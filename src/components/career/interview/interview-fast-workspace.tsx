@@ -68,7 +68,7 @@ export function InterviewFastWorkspace({
   const answerIdRef = useRef<string | null>(initialItem?.answerId ?? null);
   const dirtyRef = useRef(false);
   const timerRef = useRef<number | null>(null);
-  const saveSequenceRef = useRef(0);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const visibleItems = useMemo(
     () => items.filter((item) => (contextId ? item.contextId === contextId : item.contextId === null)),
@@ -82,39 +82,49 @@ export function InterviewFastWorkspace({
     }
   }, []);
 
-  const saveNow = useCallback(async () => {
+  const saveNow = useCallback(() => {
     clearTimer();
     const selected = selectedRef.current;
-    if (!selected || !dirtyRef.current) return;
+    if (!selected || !dirtyRef.current) return Promise.resolve();
 
     dirtyRef.current = false;
-    const sequence = ++saveSequenceRef.current;
-    setSaveState("saving");
+    const preparationId = selected.preparationId;
+    const questionId = selected.questionId;
+    const thoughtsSnapshot = thoughtsRef.current;
+    const answerSnapshot = answerRef.current;
 
-    const formData = new FormData();
-    formData.set("preparation_id", selected.preparationId);
-    formData.set("question_id", selected.questionId);
-    formData.set("answer_id", answerIdRef.current ?? "");
-    formData.set("thoughts", thoughtsRef.current);
-    formData.set("answer", answerRef.current);
+    if (selectedRef.current?.preparationId === preparationId) setSaveState("saving");
 
-    try {
-      const result = await saveInterviewWorkspace(formData);
-      if (sequence !== saveSequenceRef.current) return;
-      const draft = draftsRef.current.get(selected.preparationId);
-      if (draft) {
-        draft.answerId = result.answerId ?? null;
-        draftsRef.current.set(selected.preparationId, draft);
-      }
-      if (selectedRef.current?.preparationId === selected.preparationId) {
-        answerIdRef.current = result.answerId ?? null;
-        setSaveState("saved");
-      }
-    } catch {
-      if (sequence !== saveSequenceRef.current) return;
-      dirtyRef.current = true;
-      setSaveState("error");
-    }
+    const queued = saveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const draft = draftsRef.current.get(preparationId);
+        const formData = new FormData();
+        formData.set("preparation_id", preparationId);
+        formData.set("question_id", questionId);
+        formData.set("answer_id", draft?.answerId ?? "");
+        formData.set("thoughts", thoughtsSnapshot);
+        formData.set("answer", answerSnapshot);
+
+        const result = await saveInterviewWorkspace(formData);
+        if (draft) {
+          draft.answerId = result.answerId ?? null;
+          draftsRef.current.set(preparationId, draft);
+        }
+        if (selectedRef.current?.preparationId === preparationId && !dirtyRef.current) {
+          answerIdRef.current = result.answerId ?? null;
+          setSaveState("saved");
+        }
+      })
+      .catch(() => {
+        if (selectedRef.current?.preparationId === preparationId) {
+          dirtyRef.current = true;
+          setSaveState("error");
+        }
+      });
+
+    saveQueueRef.current = queued;
+    return queued;
   }, [clearTimer]);
 
   const scheduleSave = useCallback(() => {
