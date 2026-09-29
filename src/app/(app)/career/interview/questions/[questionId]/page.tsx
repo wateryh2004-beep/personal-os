@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CareerNav } from "@/components/career/career-nav";
-import { InterviewNav } from "@/components/career/interview/interview-nav";
 import {
   archiveInterviewAnswerVersion,
   archiveInterviewQuestion,
@@ -56,8 +54,6 @@ export default async function InterviewQuestionPage({
         <h1 className="mt-4 max-w-3xl text-2xl font-semibold leading-9 tracking-[-0.025em] text-zinc-950">{question.canonical_prompt}</h1>
       </header>
 
-      <CareerNav current="/career/interview" />
-      <InterviewNav current={`/career/interview/questions/${questionId}`} />
 
       <form className="mb-10 flex items-center gap-2">
         <select name="context" defaultValue={context ?? ""} className="max-w-sm px-3 py-2 text-sm text-zinc-600">
@@ -76,10 +72,7 @@ export default async function InterviewQuestionPage({
       ) : (
         <>
           <section className="mb-10">
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className="text-[15px] font-medium text-zinc-950">思路</h2>
-              <span className="text-xs text-zinc-300">自动保存历史结构不受影响</span>
-            </div>
+            <h2 className="text-[15px] font-medium text-zinc-950">思路</h2>
             <form action={updateInterviewPreparation} className="mt-3">
               <PreparationStateFields prep={prep} questionId={questionId} />
               <textarea
