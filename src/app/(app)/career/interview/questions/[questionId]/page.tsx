@@ -171,9 +171,9 @@ export default async function InterviewQuestionPage({
                   })}
                 </select></label>
                 <label className="grid gap-1 text-sm"><span>角色</span><select name="relationship_type" defaultValue="supporting_evidence" className="border bg-white px-3 py-2">{evidenceRelationships.map((value) => <option key={value} value={value}>{evidenceRelationshipLabels[value]}</option>)}</select></label>
-                <button className="self-end border px-3 py-2 text-sm">Link</button>
+                <button disabled={!data.evidenceCatalog.length} className="self-end border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40">Link</button>
               </form>
-              <p className="mt-2 text-xs text-zinc-400">Interview Lab 只保存关联关系，事实内容仍以 Career Capital 为权威。</p>
+              <p className="mt-2 text-xs text-zinc-400">{data.evidenceCatalog.length ? "Interview Lab 只保存关联关系，事实内容仍以 Career Capital 为权威。" : "Career Capital 里还没有可关联的经历、事实、成果、技能或材料。"}</p>
               <div className="mt-4 space-y-2">
                 {data.evidenceLinks.map((link: any) => <div key={link.id} className="flex items-start justify-between gap-3 border-l-2 border-zinc-200 pl-3 text-sm"><div><p className="font-medium">{link.evidence.label}</p><p className="mt-1 text-xs text-zinc-500">{evidenceTypeLabels[link.target_type as keyof typeof evidenceTypeLabels] ?? link.target_type} · {evidenceRelationshipLabels[link.relationship_type] ?? link.relationship_type}</p></div><form action={unlinkInterviewEvidence}><input type="hidden" name="link_id" value={link.id}/><input type="hidden" name="preparation_id" value={prep.id}/><button className="text-xs text-zinc-400 hover:text-zinc-800">移除</button></form></div>)}
                 {!data.evidenceLinks.length ? <p className="text-sm text-zinc-500">尚未关联证据。行为面、简历面和压力面建议至少关联一项真实 Career Evidence。</p> : null}
