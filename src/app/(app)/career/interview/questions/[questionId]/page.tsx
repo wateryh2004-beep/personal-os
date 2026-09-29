@@ -170,13 +170,14 @@ export default async function InterviewQuestionPage({
                 <h3 className="text-sm font-medium text-zinc-800">追问</h3>
                 <div className="mt-3 space-y-2">
                   {data.childQuestions.map((child: any) => (
-                    <Link key={child.id} href={`/career/interview/questions/${child.id}`} className="block text-sm leading-6 text-zinc-700 hover:text-zinc-950">
+                    <Link key={child.id} href={prep.context_id ? `/career/interview/questions/${child.id}?context=${prep.context_id}` : `/career/interview/questions/${child.id}`} className="block text-sm leading-6 text-zinc-700 hover:text-zinc-950">
                       {child.canonical_prompt}
                     </Link>
                   ))}
                 </div>
                 <form action={createInterviewQuestion} className="mt-4">
                   <textarea required name="canonical_prompt" rows={2} placeholder="新增追问" className="w-full max-w-xl px-3 py-2 text-sm" />
+                  <input type="hidden" name="context_id" value={prep.context_id ?? ""} />
                   <input type="hidden" name="short_title" value="" />
                   <input type="hidden" name="category" value={question.category} />
                   <input type="hidden" name="subcategory" value="" />
