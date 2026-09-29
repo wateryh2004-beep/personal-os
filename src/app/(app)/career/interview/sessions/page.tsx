@@ -29,7 +29,7 @@ export default async function InterviewSessionsPage() {
           <div className="mt-4 rounded-2xl bg-zinc-50 p-5">
             <form action={createInterviewSession} className="grid gap-4 md:grid-cols-3 lg:w-[760px]">
               <Field name="title" label="标题" required placeholder="太古 MT · 模拟面试 #1" />
-              <Select name="context_id" label="目标岗位" defaultValue="" options={[["","通用"], ...data.contexts.map((context: any) => [context.id, context.title])]} />
+              <Select name="context_id" label="目标岗位" defaultValue="" options={[["", "通用"] as [string, string], ...data.contexts.map((context: any) => [String(context.id), String(context.title)] as [string, string])]} />
               <Select name="session_kind" label="类型" defaultValue="mock" options={[["mock","模拟面试"],["real","真实面试"]]} />
               <Select name="session_format" label="形式" defaultValue="one_to_one" options={Object.entries(sessionFormatLabels)} />
               <Select name="facilitator" label="组织方式" defaultValue="self" options={[["self","自练"],["ai","AI 模拟"],["human","真人"],["mixed","混合"]]} />
