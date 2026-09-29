@@ -263,7 +263,7 @@ export async function saveInterviewWorkspace(formData: FormData) {
     .maybeSingle();
   if (currentError) failed(currentError);
 
-  if (current) {
+  if (current && answer.trim()) {
     const { error: updateError } = await supabase
       .from("interview_answer_versions")
       .update({
@@ -274,6 +274,12 @@ export async function saveInterviewWorkspace(formData: FormData) {
       })
       .eq("id", current.id);
     if (updateError) failed(updateError);
+  } else if (current && !answer.trim()) {
+    const { error: retireError } = await supabase
+      .from("interview_answer_versions")
+      .update({ status: "retired" })
+      .eq("id", current.id);
+    if (retireError) failed(retireError);
   } else if (answer.trim()) {
     const { data: latest, error: latestError } = await supabase
       .from("interview_answer_versions")
