@@ -6,9 +6,11 @@ import { createInterviewQuestion } from "@/features/interview/actions";
 import { getInterviewQuestions } from "@/features/interview/queries";
 import {
   categoryLabels,
+  competencyLabels,
   importanceLabels,
   interviewCategories,
   interviewSourceTypes,
+  sourceTypeLabels,
   statusLabels,
 } from "@/features/interview/constants";
 
@@ -59,7 +61,7 @@ export default async function InterviewQuestionLibraryPage({ searchParams }: { s
               <label className="grid gap-1.5 text-sm">
                 <span className="text-zinc-600">来源类型</span>
                 <select name="source_type" defaultValue="manual" className="rounded-lg bg-white px-3 py-2 ring-1 ring-inset ring-zinc-200">
-                  {interviewSourceTypes.map((source) => <option key={source} value={source}>{source}</option>)}
+                  {interviewSourceTypes.map((source) => <option key={source} value={source}>{sourceTypeLabels[source] ?? source}</option>)}
                 </select>
               </label>
               <Field name="source_name" label="来源名称" />
@@ -113,7 +115,7 @@ export default async function InterviewQuestionLibraryPage({ searchParams }: { s
                 <h2 className="mt-1 font-medium">{question.short_title || question.canonical_prompt}</h2>
                 {question.short_title ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{question.canonical_prompt}</p> : null}
                 {(question.competency_tags ?? []).length ? (
-                  <p className="mt-2 line-clamp-1 text-xs text-zinc-400">{(question.competency_tags ?? []).slice(0,6).join(" · ")}</p>
+                  <p className="mt-2 line-clamp-1 text-xs text-zinc-400">{(question.competency_tags ?? []).slice(0,6).map((tag: string) => competencyLabels[tag] ?? tag).join(" · ")}</p>
                 ) : null}
               </div>
               <div className="text-right text-xs text-zinc-400">
