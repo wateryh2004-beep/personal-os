@@ -231,68 +231,70 @@ export async function saveInterviewWorkspace(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const preparationId = String(formData.get("preparation_id") || "");
   const questionId = String(formData.get("question_id") || "");
+  const currentAnswerId = String(formData.get("answer_id") || "") || null;
   const thoughts = String(formData.get("thoughts") || "");
   const answer = String(formData.get("answer") || "");
 
-  await own(supabase, "interview_question_preparations", preparationId);
-  const { data: prep, error: prepError } = await supabase
-    .from("interview_question_preparations")
-    .select("id,question_id,target_language")
-    .eq("id", preparationId)
-    .maybeSingle();
-  if (prepError || !prep || prep.question_id !== questionId) failed(prepError ?? new Error("题目准备不存在。"));
-
-  const { error: thoughtError } = await supabase
+  const thoughtWrite = supabase
     .from("interview_question_preparations")
     .update({ working_thoughts_markdown: thoughts })
-    .eq("id", preparationId);
-  if (thoughtError) failed(thoughtError);
+    .eq("id", preparationId)
+    .eq("question_id", questionId)
+    .eq("user_id", userId)
+    .select("id,target_language")
+    .maybeSingle();
 
-  const language = prep.target_language || "zh";
-  const { data: current, error: currentError } = await supabase
+  if (currentAnswerId) {
+    const answerWrite = answer.trim()
+      ? supabase
+          .from("interview_answer_versions")
+          .update({
+            body_markdown: answer,
+            change_note: null,
+            source: "human",
+            confirmed_at: new Date().toISOString(),
+          })
+          .eq("id", currentAnswerId)
+          .eq("preparation_id", preparationId)
+          .eq("user_id", userId)
+          .select("id")
+          .maybeSingle()
+      : supabase
+          .from("interview_answer_versions")
+          .update({ status: "retired" })
+          .eq("id", currentAnswerId)
+          .eq("preparation_id", preparationId)
+          .eq("user_id", userId)
+          .select("id")
+          .maybeSingle();
+
+    const [prepResult, answerResult] = await Promise.all([thoughtWrite, answerWrite]);
+    if (prepResult.error || !prepResult.data || answerResult.error || !answerResult.data) {
+      failed(prepResult.error ?? answerResult.error ?? new Error("自动保存失败。"));
+    }
+    return { answerId: answer.trim() ? currentAnswerId : null };
+  }
+
+  const prepResult = await thoughtWrite;
+  if (prepResult.error || !prepResult.data) failed(prepResult.error ?? new Error("自动保存失败。"));
+  if (!answer.trim()) return { answerId: null };
+
+  const language = prepResult.data.target_language || "zh";
+  const { data: latest, error: latestError } = await supabase
     .from("interview_answer_versions")
-    .select("id,version_number")
+    .select("version_number")
     .eq("preparation_id", preparationId)
     .eq("answer_mode", "spoken")
     .eq("language", language)
-    .eq("status", "current")
     .is("target_seconds", null)
-    .is("archived_at", null)
     .order("version_number", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (currentError) failed(currentError);
+  if (latestError) failed(latestError);
 
-  if (current && answer.trim()) {
-    const { error: updateError } = await supabase
-      .from("interview_answer_versions")
-      .update({
-        body_markdown: answer,
-        change_note: null,
-        source: "human",
-        confirmed_at: new Date().toISOString(),
-      })
-      .eq("id", current.id);
-    if (updateError) failed(updateError);
-  } else if (current && !answer.trim()) {
-    const { error: retireError } = await supabase
-      .from("interview_answer_versions")
-      .update({ status: "retired" })
-      .eq("id", current.id);
-    if (retireError) failed(retireError);
-  } else if (answer.trim()) {
-    const { data: latest, error: latestError } = await supabase
-      .from("interview_answer_versions")
-      .select("version_number")
-      .eq("preparation_id", preparationId)
-      .eq("answer_mode", "spoken")
-      .eq("language", language)
-      .is("target_seconds", null)
-      .order("version_number", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (latestError) failed(latestError);
-    const { error: insertError } = await supabase.from("interview_answer_versions").insert({
+  const { data: inserted, error: insertError } = await supabase
+    .from("interview_answer_versions")
+    .insert({
       user_id: userId,
       preparation_id: preparationId,
       answer_mode: "spoken",
@@ -304,16 +306,12 @@ export async function saveInterviewWorkspace(formData: FormData) {
       source: "human",
       status: "current",
       confirmed_at: new Date().toISOString(),
-    });
-    if (insertError) failed(insertError);
-  }
+    })
+    .select("id")
+    .single();
+  if (insertError || !inserted) failed(insertError ?? new Error("自动保存失败。"));
 
-  await audit(supabase, userId, "save", "interview_workspace", preparationId, {
-    question_id: questionId,
-    has_answer: Boolean(answer.trim()),
-  });
-  revalidatePath(`/career/interview/questions/${questionId}`);
-  revalidatePath(`/career/interview/practice/${preparationId}`);
+  return { answerId: inserted.id };
 }
 
 export async function updateInterviewPreparation(formData: FormData) {
