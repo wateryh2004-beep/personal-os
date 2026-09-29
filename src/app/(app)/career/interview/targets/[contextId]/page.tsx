@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
 import { InterviewNav } from "@/components/career/interview/interview-nav";
-import { ensureInterviewPreparation } from "@/features/interview/actions";
+import { ensureInterviewPreparation, updateInterviewContext } from "@/features/interview/actions";
 import { getInterviewInsights, getInterviewQuestions } from "@/features/interview/queries";
 import { categoryLabels, importanceLabels, issueLabels, statusLabels } from "@/features/interview/constants";
 import { formatDateTime } from "@/features/interview/utils";
@@ -75,6 +75,59 @@ export default async function InterviewTargetPage({ params }: { params: Promise<
               <span>下一场面试：{formatDateTime(target.next_interview_at)}</span>
               <span>练习记录：{insights.attempts.length} 次</span>
             </div>
+            <details className="mt-5">
+              <summary className="cursor-pointer text-sm text-[#365F78]">编辑目标岗位</summary>
+              <form action={updateInterviewContext} className="mt-4 grid gap-4 rounded-2xl bg-white/70 p-4 sm:grid-cols-2">
+                <input type="hidden" name="context_id" value={target.id} />
+                <input type="hidden" name="context_type" value={target.context_type} />
+                <input type="hidden" name="career_direction_id" value={target.career_direction_id ?? ""} />
+                <input type="hidden" name="opportunity_id" value={target.opportunity_id ?? ""} />
+                <input type="hidden" name="application_id" value={target.application_id ?? ""} />
+                <label className="grid gap-1.5 text-sm">
+                  <span className="text-zinc-600">显示名称</span>
+                  <input name="title" required defaultValue={target.title} className={targetControlClass} />
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                  <span className="text-zinc-600">公司</span>
+                  <input name="organization_snapshot" required={target.context_type === "target"} defaultValue={target.organization_snapshot ?? ""} className={targetControlClass} />
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                  <span className="text-zinc-600">岗位</span>
+                  <input name="role_title_snapshot" required={target.context_type === "target"} defaultValue={target.role_title_snapshot ?? ""} className={targetControlClass} />
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                  <span className="text-zinc-600">默认语言</span>
+                  <select name="default_language" defaultValue={target.default_language} className={targetControlClass}>
+                    <option value="zh">中文</option>
+                    <option value="en">英文</option>
+                    <option value="bilingual">双语</option>
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                  <span className="text-zinc-600">优先级</span>
+                  <select name="priority" defaultValue={target.priority} className={targetControlClass}>
+                    {[1,2,3,4,5].map((value) => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                  <span className="text-zinc-600">状态</span>
+                  <select name="status" defaultValue={target.status} className={targetControlClass}>
+                    <option value="active">进行中</option>
+                    <option value="paused">暂停</option>
+                    <option value="closed">已结束</option>
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                  <span className="text-zinc-600">下一场面试</span>
+                  <input type="datetime-local" name="next_interview_at" defaultValue={toDatetimeLocal(target.next_interview_at)} className={targetControlClass} />
+                </label>
+                <label className="grid gap-1.5 text-sm sm:col-span-2">
+                  <span className="text-zinc-600">备注</span>
+                  <textarea name="notes_markdown" defaultValue={target.notes_markdown ?? ""} rows={4} className={targetControlClass} />
+                </label>
+                <button className="w-fit rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white sm:col-span-2">保存目标岗位</button>
+              </form>
+            </details>
           </div>
 
           <div className="lg:pl-4">
@@ -183,6 +236,15 @@ export default async function InterviewTargetPage({ params }: { params: Promise<
       </div>
     </>
   );
+}
+
+const targetControlClass = "rounded-lg bg-white px-3 py-2 ring-1 ring-inset ring-zinc-200 outline-none focus:ring-[#365F78]";
+
+function toDatetimeLocal(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0,16);
 }
 
 function QuestionRow({ row, contextId }: { row: any; contextId: string }) {
