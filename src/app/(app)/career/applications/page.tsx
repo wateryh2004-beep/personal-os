@@ -3,13 +3,115 @@ import { CareerNav } from "@/components/career/career-nav";
 import { createCareerApplication, transitionCareerApplication } from "@/features/career/actions";
 import { getApplications } from "@/features/career/queries";
 
-const stages = [["draft","草稿"],["preparing","准备中"],["submitted","已投递"],["interviewing","面试中"],["offer","Offer"],["rejected","未通过"],["withdrawn","已撤回"],["closed","已结束"]] as const;
+const stages = [
+  ["draft","草稿"],
+  ["preparing","准备中"],
+  ["submitted","已投递"],
+  ["interviewing","面试中"],
+  ["offer","Offer"],
+  ["rejected","未通过"],
+  ["withdrawn","已撤回"],
+  ["closed","已结束"],
+] as const;
+
+const stageLabel = Object.fromEntries(stages);
 
 export default async function ApplicationsPage() {
   const data = await getApplications();
-  return <><PageHeader title="Applications" description="每次阶段变化都留下历史；投递记录引用当时实际使用的简历版本。" /><CareerNav current="/career/applications" />
-    {data.unavailable ? <p className="mb-6 border-l-2 border-amber-600 bg-amber-50 px-3 py-3 text-sm text-amber-800">Application History migration 尚未应用。</p> : null}
-    <details className="mb-8 border-b pb-6"><summary className="cursor-pointer text-sm font-medium text-[#365F78]">+ 新建申请</summary><form action={createCareerApplication} className="mt-5 grid gap-4 md:grid-cols-3"><label className="grid gap-1 text-sm"><span>机会 *</span><select required name="opportunity_id" className="border bg-white px-3 py-2"><option value="">选择机会</option>{data.opportunities.map((item) => <option key={item.id} value={item.id}>{item.organization} · {item.role_title}</option>)}</select></label><label className="grid gap-1 text-sm"><span>简历版本</span><select name="resume_version_id" className="border bg-white px-3 py-2"><option value="">尚未确定</option>{data.resumes.map((item) => <option key={item.id} value={item.id}>{item.title}{item.status !== "approved" ? "（草稿）" : ""}</option>)}</select></label><label className="grid gap-1 text-sm"><span>初始阶段</span><select name="status" defaultValue="preparing" className="border bg-white px-3 py-2">{stages.slice(0,3).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="grid gap-1 text-sm"><span>投递时间</span><input name="applied_at" type="datetime-local" className="border bg-white px-3 py-2"/></label><label className="grid gap-1 text-sm md:col-span-3"><span>备注</span><textarea name="notes_markdown" className="min-h-20 border bg-white px-3 py-2"/></label><button disabled={!data.opportunities.length} className="w-fit bg-[#365F78] px-3 py-2 text-sm text-white disabled:opacity-40">创建申请</button></form></details>
-    <div className="grid gap-6 lg:grid-cols-2">{data.applications.map((application) => { const opportunity = Array.isArray(application.career_opportunities) ? application.career_opportunities[0] : application.career_opportunities; const resume = Array.isArray(application.resume_versions) ? application.resume_versions[0] : application.resume_versions; const history = data.events.filter((event) => event.application_id === application.id); return <article key={application.id} className="border-t pt-5"><div className="flex items-start justify-between gap-4"><div><h2 className="font-medium">{opportunity?.role_title || "未知岗位"}</h2><p className="mt-1 text-sm text-zinc-500">{opportunity?.organization || "未知组织"}</p></div><span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs">{stages.find(([value]) => value === application.status)?.[1] ?? application.status}</span></div><dl className="mt-4 grid gap-2 text-sm"><div className="flex justify-between gap-4"><dt className="text-zinc-500">投递简历</dt><dd className="text-right">{resume?.title || "尚未记录"}{resume && resume.status !== "approved" ? "（草稿）" : ""}</dd></div><div className="flex justify-between gap-4"><dt className="text-zinc-500">投递时间</dt><dd>{application.applied_at ? new Date(application.applied_at).toLocaleString("zh-CN") : "尚未投递"}</dd></div></dl><form action={transitionCareerApplication} className="mt-5 flex flex-wrap gap-2 border-t pt-4"><input type="hidden" name="application_id" value={application.id}/><input type="hidden" name="note" value=""/><select name="status" defaultValue={application.status} className="border bg-white px-2 py-1.5 text-sm">{stages.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select><button className="border px-3 py-1.5 text-sm">更新阶段</button></form><details className="mt-4"><summary className="cursor-pointer text-xs text-zinc-500">历史 · {history.length}</summary><ol className="mt-3 space-y-2 border-l pl-3">{history.map((event) => <li key={event.id} className="text-xs"><p>{event.from_status ? `${event.from_status} → ` : ""}{event.to_status}</p><time className="text-zinc-400">{new Date(event.occurred_at).toLocaleString("zh-CN")}</time></li>)}</ol></details></article>; })}</div>
-    {!data.applications.length ? <div className="py-20 text-center"><p className="font-medium">还没有申请记录</p><p className="mt-2 text-sm text-zinc-500">申请不是机会的状态字段；创建后才能追踪投递阶段和版本。</p></div> : null}</>;
+
+  return (
+    <>
+      <PageHeader title="申请" description="只保留真实投递和阶段变化。" />
+      <CareerNav current="/career/applications" />
+
+      {data.unavailable ? <p className="mb-6 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">申请历史数据暂时不可用。</p> : null}
+
+      <div className="mb-8 flex justify-end">
+        <details>
+          <summary className="cursor-pointer text-sm text-zinc-500 hover:text-zinc-900">+ 新建申请</summary>
+          <form action={createCareerApplication} className="mt-4 grid gap-4 rounded-2xl bg-white/70 p-5 md:grid-cols-3">
+            <label className="grid gap-1.5 text-sm">
+              <span className="text-zinc-500">机会</span>
+              <select required name="opportunity_id" className="px-3 py-2">
+                <option value="">选择机会</option>
+                {data.opportunities.map((item) => <option key={item.id} value={item.id}>{item.organization} · {item.role_title}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-sm">
+              <span className="text-zinc-500">简历版本</span>
+              <select name="resume_version_id" className="px-3 py-2">
+                <option value="">尚未确定</option>
+                {data.resumes.map((item) => <option key={item.id} value={item.id}>{item.title}{item.status !== "approved" ? "（草稿）" : ""}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-sm">
+              <span className="text-zinc-500">初始阶段</span>
+              <select name="status" defaultValue="preparing" className="px-3 py-2">
+                {stages.slice(0,3).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-sm">
+              <span className="text-zinc-500">投递时间</span>
+              <input name="applied_at" type="datetime-local" className="px-3 py-2"/>
+            </label>
+            <label className="grid gap-1.5 text-sm md:col-span-3">
+              <span className="text-zinc-500">备注</span>
+              <textarea name="notes_markdown" rows={3} className="px-3 py-2"/>
+            </label>
+            <button disabled={!data.opportunities.length} className="w-fit rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40">创建</button>
+          </form>
+        </details>
+      </div>
+
+      <div className="space-y-1">
+        {data.applications.map((application) => {
+          const opportunity = Array.isArray(application.career_opportunities) ? application.career_opportunities[0] : application.career_opportunities;
+          const resume = Array.isArray(application.resume_versions) ? application.resume_versions[0] : application.resume_versions;
+          const history = data.events.filter((event) => event.application_id === application.id);
+
+          return (
+            <article key={application.id} className="rounded-lg px-2 py-4 hover:bg-white/70">
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <div>
+                  <h2 className="text-sm font-medium text-zinc-900">{opportunity?.role_title || "未知岗位"}</h2>
+                  <p className="mt-1 text-sm text-zinc-500">{opportunity?.organization || "未知组织"}</p>
+                </div>
+                <p className="text-xs text-zinc-400">{stageLabel[application.status] ?? application.status}</p>
+              </div>
+
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-zinc-400">
+                {resume?.title ? <span>{resume.title}</span> : null}
+                {application.applied_at ? <span>{new Date(application.applied_at).toLocaleString("zh-CN")}</span> : null}
+              </div>
+
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">更新与历史</summary>
+                <form action={transitionCareerApplication} className="mt-4 flex flex-wrap items-center gap-2">
+                  <input type="hidden" name="application_id" value={application.id}/>
+                  <input type="hidden" name="note" value=""/>
+                  <select name="status" defaultValue={application.status} className="px-2 py-1.5 text-sm">
+                    {stages.map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                  <button className="text-sm text-[#365F78]">更新阶段</button>
+                </form>
+
+                {history.length ? (
+                  <ol className="mt-4 space-y-2">
+                    {history.map((event) => (
+                      <li key={event.id} className="text-xs text-zinc-500">
+                        <span>{event.from_status ? (stageLabel[event.from_status] ?? event.from_status) + " → " : ""}{stageLabel[event.to_status] ?? event.to_status}</span>
+                        <time className="ml-3 text-zinc-400">{new Date(event.occurred_at).toLocaleString("zh-CN")}</time>
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
+              </details>
+            </article>
+          );
+        })}
+      </div>
+
+      {!data.applications.length ? <div className="py-16 text-center text-sm text-zinc-400">还没有申请记录。</div> : null}
+    </>
+  );
 }
