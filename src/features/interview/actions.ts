@@ -306,7 +306,11 @@ const evidenceTables: Record<EvidenceType, string> = {
 
 export async function linkInterviewEvidence(formData: FormData) {
   const { supabase, userId } = await requireOwner();
-  const value = parse(interviewEvidenceSchema, formObject(formData));
+  const targetRef = String(formData.get("target_ref") || "");
+  const separator = targetRef.indexOf(":");
+  const targetType = separator > 0 ? targetRef.slice(0, separator) : String(formData.get("target_type") || "");
+  const targetId = separator > 0 ? targetRef.slice(separator + 1) : String(formData.get("target_id") || "");
+  const value = parse(interviewEvidenceSchema, { ...formObject(formData), target_type: targetType, target_id: targetId });
   await own(supabase, "interview_question_preparations", value.preparation_id);
   await own(supabase, evidenceTables[value.target_type], value.target_id);
   const { error } = await supabase.from("entity_links").upsert({
