@@ -119,7 +119,7 @@ export default async function InterviewTargetPage({ params }: { params: Promise<
           <Field name="organization_snapshot" label="公司" required={target.context_type === "target"} defaultValue={target.organization_snapshot} />
           <Field name="role_title_snapshot" label="岗位" required={target.context_type === "target"} defaultValue={target.role_title_snapshot} />
           <Select name="default_language" label="默认语言" defaultValue={target.default_language} options={[["zh","中文"],["en","英文"],["bilingual","双语"]]} />
-          <Select name="priority" label="优先级" defaultValue={String(target.priority)} options={[1,2,3,4,5].map((v) => [String(v), String(v)])} />
+          <Select name="priority" label="优先级" defaultValue={String(target.priority)} options={[1,2,3,4,5].map((v) => [String(v), String(v)] as [string,string])} />
           <Select name="status" label="状态" defaultValue={target.status} options={[["active","进行中"],["paused","暂停"],["closed","已结束"]]} />
           <Field name="next_interview_at" label="下一场面试" type="datetime-local" defaultValue={toDatetimeLocal(target.next_interview_at)} />
           <label className="grid gap-1.5 text-sm sm:col-span-2">
