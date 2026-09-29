@@ -6,6 +6,7 @@ import { InterviewNav } from "@/components/career/interview/interview-nav";
 import {
   addInterviewNote,
   archiveInterviewAnswerVersion,
+  createInterviewQuestion,
   archiveInterviewNote,
   archiveInterviewQuestion,
   createInterviewAnswerVersion,
@@ -163,17 +164,16 @@ export default async function InterviewQuestionPage({
               <SectionTitle title="Evidence" description="只引用 Career Capital，不在 Interview Lab 重写一遍经历。" />
               <form action={linkInterviewEvidence} className="mt-4 grid gap-3 sm:grid-cols-[1fr_180px_auto]">
                 <input type="hidden" name="preparation_id" value={prep.id} />
-                <label className="grid gap-1 text-sm"><span>Career Evidence</span><select name="target_id" className="min-w-0 border bg-white px-3 py-2">
+                <label className="grid gap-1 text-sm"><span>Career Evidence</span><select name="target_ref" className="min-w-0 border bg-white px-3 py-2">
                   {Object.entries(evidenceTypeLabels).map(([type,label]) => {
                     const items = data.evidenceCatalog.filter((item: any) => item.type === type);
-                    return items.length ? <optgroup key={type} label={label}>{items.map((item: any) => <option key={`${type}:${item.id}`} value={item.id} data-type={type}>{item.label}</option>)}</optgroup> : null;
+                    return items.length ? <optgroup key={type} label={label}>{items.map((item: any) => <option key={`${type}:${item.id}`} value={`${type}:${item.id}`}>{item.label}</option>)}</optgroup> : null;
                   })}
                 </select></label>
                 <label className="grid gap-1 text-sm"><span>角色</span><select name="relationship_type" defaultValue="supporting_evidence" className="border bg-white px-3 py-2">{evidenceRelationships.map((value) => <option key={value} value={value}>{evidenceRelationshipLabels[value]}</option>)}</select></label>
-                <EvidenceTypeHidden catalog={data.evidenceCatalog} />
                 <button className="self-end border px-3 py-2 text-sm">Link</button>
               </form>
-              <p className="mt-2 text-xs text-zinc-400">选择器提交时按第一个可见 Evidence 类型使用；更细的类型选择会在后续 UI 迭代中拆成双选择器。</p>
+              <p className="mt-2 text-xs text-zinc-400">Interview Lab 只保存关联关系，事实内容仍以 Career Capital 为权威。</p>
               <div className="mt-4 space-y-2">
                 {data.evidenceLinks.map((link: any) => <div key={link.id} className="flex items-start justify-between gap-3 border-l-2 border-zinc-200 pl-3 text-sm"><div><p className="font-medium">{link.evidence.label}</p><p className="mt-1 text-xs text-zinc-500">{evidenceTypeLabels[link.target_type as keyof typeof evidenceTypeLabels] ?? link.target_type} · {evidenceRelationshipLabels[link.relationship_type] ?? link.relationship_type}</p></div><form action={unlinkInterviewEvidence}><input type="hidden" name="link_id" value={link.id}/><input type="hidden" name="preparation_id" value={prep.id}/><button className="text-xs text-zinc-400 hover:text-zinc-800">移除</button></form></div>)}
                 {!data.evidenceLinks.length ? <p className="text-sm text-zinc-500">尚未关联证据。行为面、简历面和压力面建议至少关联一项真实 Career Evidence。</p> : null}
@@ -201,8 +201,28 @@ export default async function InterviewQuestionPage({
               <SectionTitle title="Follow-ups" description="把真实追问变成树，而不是散落成重复题。" />
               <div className="mt-4 space-y-2">
                 {data.childQuestions.map((child: any) => <Link key={child.id} href={`/career/interview/questions/${child.id}`} className="block border-l-2 border-zinc-200 pl-3 py-1 text-sm hover:border-[#365F78]"><span className="text-xs text-zinc-400">{child.follow_up_kind} · 难度 {child.difficulty}</span><p>{child.short_title || child.canonical_prompt}</p></Link>)}
-                {!data.childQuestions.length ? <p className="text-sm text-zinc-500">暂无结构化追问。可在下方题目编辑区把新问题挂为 Follow-up。</p> : null}
+                {!data.childQuestions.length ? <p className="text-sm text-zinc-500">暂无结构化追问。</p> : null}
               </div>
+              <details className="mt-5 border-t pt-4">
+                <summary className="cursor-pointer text-sm text-[#365F78]">+ 新建 Follow-up</summary>
+                <form action={createInterviewQuestion} className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <input type="hidden" name="parent_question_id" value={question.id}/>
+                  <input type="hidden" name="source_type" value="preparation"/>
+                  <input type="hidden" name="source_name" value="Personal OS"/>
+                  <input type="hidden" name="source_url" value=""/>
+                  <input type="hidden" name="source_observed_at" value=""/>
+                  <input type="hidden" name="source_detail" value="Interview Lab follow-up"/>
+                  <input type="hidden" name="competency_tags" value={joinTagInput(question.competency_tags)}/>
+                  <input type="hidden" name="prompt_variants" value=""/>
+                  <input type="hidden" name="subcategory" value={question.subcategory ?? ""}/>
+                  <label className="grid gap-1 text-sm sm:col-span-2"><span>追问 *</span><textarea required name="canonical_prompt" className="min-h-20 border bg-white px-3 py-2"/></label>
+                  <Field name="short_title" label="短标题"/>
+                  <label className="grid gap-1 text-sm"><span>追问类型</span><select name="follow_up_kind" defaultValue="deep_dive" className="border bg-white px-3 py-2">{interviewFollowUpKinds.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+                  <label className="grid gap-1 text-sm"><span>题型</span><select name="category" defaultValue={question.category} className="border bg-white px-3 py-2">{interviewCategories.map((value) => <option key={value} value={value}>{categoryLabels[value]}</option>)}</select></label>
+                  <label className="grid gap-1 text-sm"><span>难度</span><select name="difficulty" defaultValue={Math.min(5, Number(question.difficulty) + 1)} className="border bg-white px-3 py-2">{[1,2,3,4,5].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+                  <button className="w-fit border px-3 py-2 text-sm sm:col-span-2">创建追问</button>
+                </form>
+              </details>
             </section>
 
             <section>
@@ -229,8 +249,9 @@ export default async function InterviewQuestionPage({
                 <Field name="source_observed_at" label="来源日期" type="date" defaultValue={question.source_observed_at}/>
                 <Field name="source_detail" label="来源说明" defaultValue={question.source_detail}/>
                 <label className="grid gap-1 text-sm"><span>难度</span><select name="difficulty" defaultValue={question.difficulty} className="border bg-white px-3 py-2">{[1,2,3,4,5].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-                <label className="grid gap-1 text-sm"><span>Parent Question</span><select name="parent_question_id" defaultValue={question.parent_question_id ?? ""} className="border bg-white px-3 py-2"><option value="">不是追问</option>{data.preparations.length ? null : null}</select></label>
-                <label className="grid gap-1 text-sm"><span>Follow-up Kind</span><select name="follow_up_kind" defaultValue={question.follow_up_kind ?? ""} className="border bg-white px-3 py-2"><option value="">—</option>{interviewFollowUpKinds.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+                <input type="hidden" name="parent_question_id" value={question.parent_question_id ?? ""}/>
+                <input type="hidden" name="follow_up_kind" value={question.follow_up_kind ?? ""}/>
+                {question.parent_question_id ? <p className="text-sm text-zinc-500 sm:col-span-2">这是一个结构化追问；父子关系在此编辑中保持不变。</p> : null}
                 <button className="w-fit border px-3 py-2 text-sm">保存题目</button>
               </form>
               <form action={archiveInterviewQuestion} className="mt-5 border-t pt-4"><input type="hidden" name="question_id" value={question.id}/><button className="text-sm text-red-600">归档此问题</button></form>
@@ -299,7 +320,3 @@ function toDatetimeLocal(value?: string | null) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0,16);
 }
 
-function EvidenceTypeHidden({ catalog }: { catalog: Array<{ type: string; id: string }> }) {
-  const first = catalog[0];
-  return <input type="hidden" name="target_type" value={first?.type ?? "experience"} />;
-}
