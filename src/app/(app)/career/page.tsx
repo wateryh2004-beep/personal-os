@@ -152,7 +152,7 @@ export default async function CareerPage() {
               </div>
               <Link href="/career/resumes" className="text-sm text-[#365F78]">简历中心 →</Link>
             </div>
-            <div className="mt-4 divide-y border-y">
+            <div className="mt-4 space-y-1">
               {recentResumes.map((resume) => (
                 <div key={resume.id} className="flex items-center justify-between gap-4 rounded-xl px-3 py-3 hover:bg-zinc-50">
                   <div className="min-w-0">
