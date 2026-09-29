@@ -306,7 +306,8 @@ export async function saveInterviewWorkspace(formData: FormData) {
     question_id: questionId,
     has_answer: Boolean(answer.trim()),
   });
-  revalidateInterview(questionId, preparationId);
+  revalidatePath(`/career/interview/questions/${questionId}`);
+  revalidatePath(`/career/interview/practice/${preparationId}`);
 }
 
 export async function updateInterviewPreparation(formData: FormData) {
