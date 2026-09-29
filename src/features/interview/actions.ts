@@ -129,7 +129,7 @@ export async function createInterviewContext(formData: FormData) {
   if (error || !data) failed(error);
   await audit(supabase, userId, "create", "interview_context", data.id, { context_type: value.context_type, title: value.title });
   revalidateInterview();
-  redirect(`/career/interview/targets/${data.id}`);
+  redirect(value.context_type === "general" ? "/career/interview" : `/career/interview/targets/${data.id}`);
 }
 
 export async function archiveInterviewContext(formData: FormData) {
