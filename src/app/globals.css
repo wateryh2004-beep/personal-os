@@ -197,3 +197,23 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5
   .notes-document-shell .life-markdown-statusbar [data-status="cursor"] { display:none; }
   main.workspace-scroll:has(article a[href^="/notes/"]) { padding-top:58px!important; }
 }
+
+
+/* Career: keep dense data tools visually quiet until the user chooses to edit. */
+.career-surface input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.career-surface textarea,
+.career-surface select {
+  border-color:transparent!important;
+  border-radius:8px!important;
+  background:rgba(118,118,128,.065)!important;
+  box-shadow:none!important;
+}
+.career-surface input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):focus,
+.career-surface textarea:focus,
+.career-surface select:focus {
+  background:#fff!important;
+  box-shadow:0 0 0 2px rgba(0,113,227,.10)!important;
+}
+.career-surface summary { list-style:none; }
+.career-surface summary::-webkit-details-marker { display:none; }
+.career-surface h1,.career-surface h2,.career-surface h3 { text-wrap:balance; }
