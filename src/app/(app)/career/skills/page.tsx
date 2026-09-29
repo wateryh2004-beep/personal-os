@@ -3,6 +3,79 @@ import { Field, PrimaryButton, SelectField, TextField } from "@/components/caree
 import { PageHeader } from "@/components/shared/page-header";
 import { archiveSkill, createSkill, updateSkill } from "@/features/career/actions";
 import { getSkills } from "@/features/career/queries";
-const categories = ["technical", "analytical", "business", "communication", "language", "domain", "tool", "other"] as const;
-const proficiencies = ["learning", "basic", "working", "proficient", "advanced"] as const;
-export default async function SkillsPage() { const skills = await getSkills(); return <><PageHeader title="能力成长" description="记录真正需要建设的能力，并用经历和证据说明，而不是堆砌熟练度标签。" /><CareerNav current="/career/skills" /><form action={createSkill} className="mb-8 grid gap-4 border-b pb-8 md:grid-cols-3"><Field label="技能名称" name="name" required /><SelectField label="类别" name="category" values={categories} defaultValue="other" /><SelectField label="熟练度" name="proficiency" values={proficiencies} defaultValue="learning" /><Field label="最近使用" name="last_used_at" type="date" /><TextField label="证据说明" name="evidence_markdown" /><div><PrimaryButton>创建技能</PrimaryButton></div></form><div className="divide-y border-y">{skills.map((skill) => <article key={skill.id} className="grid gap-2 py-4 md:grid-cols-[1fr_auto]"><div><p className="font-medium">{skill.name}</p>{skill.evidence_markdown ? <p className="mt-1 text-sm text-zinc-500">{skill.evidence_markdown}</p> : null}<details className="mt-2"><summary className="cursor-pointer text-sm text-[#365F78]">编辑</summary><form action={updateSkill} className="mt-3 grid gap-4 border-t pt-4 md:grid-cols-3"><input type="hidden" name="skill_id" value={skill.id} /><Field label="技能名称" name="name" defaultValue={skill.name} required /><SelectField label="类别" name="category" values={categories} defaultValue={skill.category} /><SelectField label="熟练度" name="proficiency" values={proficiencies} defaultValue={skill.proficiency} /><Field label="最近使用" name="last_used_at" type="date" defaultValue={skill.last_used_at} /><TextField label="证据说明" name="evidence_markdown" defaultValue={skill.evidence_markdown} /><div><PrimaryButton>保存修改</PrimaryButton></div></form><form action={archiveSkill} className="mt-3 border-t pt-3"><input type="hidden" name="skill_id" value={skill.id} /><button className="text-sm text-zinc-500 hover:text-zinc-900">归档此技能</button></form></details></div><span className="font-mono text-xs text-zinc-500">{skill.category} · {skill.proficiency}</span></article>)}</div></>; }
+
+const categories = [
+  { value: "technical", label: "技术" },
+  { value: "analytical", label: "分析" },
+  { value: "business", label: "商业" },
+  { value: "communication", label: "沟通" },
+  { value: "language", label: "语言" },
+  { value: "domain", label: "领域" },
+  { value: "tool", label: "工具" },
+  { value: "other", label: "其他" },
+] as const;
+
+const proficiencies = [
+  { value: "learning", label: "学习中" },
+  { value: "basic", label: "基础" },
+  { value: "working", label: "可工作使用" },
+  { value: "proficient", label: "熟练" },
+  { value: "advanced", label: "高级" },
+] as const;
+
+const categoryLabel = Object.fromEntries(categories.map((item) => [item.value, item.label]));
+const proficiencyLabel = Object.fromEntries(proficiencies.map((item) => [item.value, item.label]));
+
+export default async function SkillsPage() {
+  const skills = await getSkills();
+
+  return (
+    <>
+      <PageHeader title="能力" description="只记录真正需要建设、并且能被经历证明的能力。" />
+      <CareerNav current="/career/skills" />
+
+      <div className="mb-8 flex justify-end">
+        <details>
+          <summary className="cursor-pointer text-sm text-zinc-500 hover:text-zinc-900">+ 新增能力</summary>
+          <form action={createSkill} className="mt-4 grid gap-4 rounded-2xl bg-white/70 p-5 md:grid-cols-3">
+            <Field label="能力名称" name="name" required />
+            <SelectField label="类别" name="category" values={categories} defaultValue="other" />
+            <SelectField label="熟练度" name="proficiency" values={proficiencies} defaultValue="learning" />
+            <Field label="最近使用" name="last_used_at" type="date" />
+            <TextField label="证据说明" name="evidence_markdown" />
+            <div><PrimaryButton>创建</PrimaryButton></div>
+          </form>
+        </details>
+      </div>
+
+      <div className="space-y-1">
+        {skills.map((skill) => (
+          <article key={skill.id} className="rounded-lg px-2 py-4 hover:bg-white/70">
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
+              <div>
+                <p className="text-sm font-medium text-zinc-900">{skill.name}</p>
+                {skill.evidence_markdown ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{skill.evidence_markdown}</p> : null}
+              </div>
+              <p className="text-xs text-zinc-400">{categoryLabel[skill.category] ?? skill.category} · {proficiencyLabel[skill.proficiency] ?? skill.proficiency}</p>
+            </div>
+
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">编辑</summary>
+              <form action={updateSkill} className="mt-4 grid gap-4 rounded-2xl bg-white/70 p-5 md:grid-cols-3">
+                <input type="hidden" name="skill_id" value={skill.id} />
+                <Field label="能力名称" name="name" defaultValue={skill.name} required />
+                <SelectField label="类别" name="category" values={categories} defaultValue={skill.category} />
+                <SelectField label="熟练度" name="proficiency" values={proficiencies} defaultValue={skill.proficiency} />
+                <Field label="最近使用" name="last_used_at" type="date" defaultValue={skill.last_used_at} />
+                <TextField label="证据说明" name="evidence_markdown" defaultValue={skill.evidence_markdown} />
+                <div><PrimaryButton>保存</PrimaryButton></div>
+              </form>
+              <form action={archiveSkill} className="mt-3 px-1"><input type="hidden" name="skill_id" value={skill.id} /><button className="text-xs text-zinc-400 hover:text-red-600">归档</button></form>
+            </details>
+          </article>
+        ))}
+        {!skills.length ? <p className="py-6 text-sm text-zinc-400">还没有能力记录。</p> : null}
+      </div>
+    </>
+  );
+}
