@@ -50,7 +50,7 @@ export default async function PracticeDetailPage({ params }: { params: Promise<{
               </select>
             </label>
             <div className="grid gap-4 sm:grid-cols-4">
-              <label className="grid gap-1 text-sm"><span>输入方式</span><select name="input_mode" defaultValue="text" className="border bg-white px-3 py-2"><option value="text">文字</option><option value="voice">Voice / 转写</option><option value="transcript_import">导入 transcript</option></select></label>
+              <label className="grid gap-1 text-sm"><span>输入方式</span><select name="input_mode" defaultValue="text" className="border bg-white px-3 py-2"><option value="text">文字</option><option value="voice">语音 / 转写</option><option value="transcript_import">导入转写稿</option></select></label>
               <label className="grid gap-1 text-sm"><span>语言</span><select name="language" defaultValue={prep.target_language} className="border bg-white px-3 py-2"><option value="zh">中文</option><option value="en">英文</option><option value="bilingual">双语</option></select></label>
               <label className="grid gap-1 text-sm"><span>时长（秒）</span><input type="number" min={1} max={7200} name="duration_seconds" className="border bg-white px-3 py-2"/></label>
               <label className="grid gap-1 text-sm"><span>练习前信心</span><select name="confidence_before" className="border bg-white px-3 py-2"><option value="">—</option>{[1,2,3,4,5].map((value) => <option key={value}>{value}</option>)}</select></label>
