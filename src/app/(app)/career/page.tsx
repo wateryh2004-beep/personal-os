@@ -27,13 +27,15 @@ export default async function CareerPage() {
   const currentExperiences = data.experiences.filter((item) => item.is_current);
   const upcomingMilestones = data.milestones.filter((item) => item.status !== "completed" && item.status !== "skipped").slice(0, 4);
   const recentResumes = data.resumes.slice(0, 3);
+  const activeInterviewTargets = data.interviewTargets.filter((item) => item.status === "active").slice(0, 4);
+  const now = Date.now();
 
   return (
     <>
       <PageHeader
         title="职业中心"
         description="只回答三个问题：现在要争取什么、接下来做什么、准备还缺什么。"
-        action={<Link href="/career/opportunities" className="bg-[#365F78] px-3 py-2 text-sm font-medium text-white">查看求职机会</Link>}
+        action={<Link href="/career/opportunities" className="rounded-lg bg-[#365F78] px-3 py-2 text-sm font-medium text-white">查看求职机会</Link>}
       />
       <CareerNav current="/career" />
 
@@ -43,7 +45,7 @@ export default async function CareerPage() {
         </p>
       ) : null}
 
-      <section className="mb-10 border-y py-6">
+      <section className="mb-10 rounded-2xl bg-zinc-50 p-6">
         <p className="text-xs font-medium text-zinc-400">当前目标</p>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-5">
           <div>
@@ -72,9 +74,9 @@ export default async function CareerPage() {
               </div>
               <Link href="/career/roadmap" className="text-sm text-[#365F78]">完整路线图 →</Link>
             </div>
-            <div className="mt-4 divide-y border-y">
+            <div className="mt-4 space-y-1">
               {upcomingMilestones.map((milestone) => (
-                <div key={milestone.id} className="grid gap-2 py-4 sm:grid-cols-[1fr_auto]">
+                <div key={milestone.id} className="grid gap-2 rounded-xl px-3 py-3 hover:bg-zinc-50 sm:grid-cols-[1fr_auto]">
                   <div>
                     <p className="font-medium">{milestone.title}</p>
                     <p className="mt-1 text-xs text-zinc-500">{milestoneStatus[milestone.status] ?? milestone.status}</p>
@@ -98,7 +100,7 @@ export default async function CareerPage() {
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {activeDirections.slice(0, 4).map((item) => (
-                <Link key={item.id} href="/career/directions" className="rounded-md border border-zinc-200 p-4 hover:border-[#365F78]/50">
+                <Link key={item.id} href="/career/directions" className="rounded-2xl bg-zinc-50 p-4 transition-colors hover:bg-zinc-100/80">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="font-medium">{item.name}</h3>
                     <span className="text-xs text-zinc-500">{directionStatus[item.status] ?? item.status}</span>
@@ -113,24 +115,32 @@ export default async function CareerPage() {
           <section>
             <div className="flex items-end justify-between gap-4">
               <div>
-                <h2 className="text-lg font-medium">面试准备</h2>
-                <p className="mt-1 text-sm text-zinc-500">进入题库、模拟练习和复盘，不在首页堆叠面试数据库指标。</p>
+                <h2 className="text-lg font-medium">当前目标岗位</h2>
+                <p className="mt-1 text-sm text-zinc-500">从具体岗位进入准备，而不是从题库或功能入口开始。</p>
               </div>
-              <Link href="/career/interview" className="text-sm text-[#365F78]">进入面试准备 →</Link>
+              <Link href="/career/interview" className="text-sm text-[#365F78]">管理目标岗位 →</Link>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <Link href="/career/interview" className="border-t pt-3">
-                <p className="font-medium">题库</p>
-                <p className="mt-1 text-sm text-zinc-500">理解问题、整理逻辑、绑定真实经历。</p>
-              </Link>
-              <Link href="/career/interview/practice" className="border-t pt-3">
-                <p className="font-medium">模拟练习</p>
-                <p className="mt-1 text-sm text-zinc-500">按到期时间和重要性练，而不是随机刷题。</p>
-              </Link>
-              <Link href="/career/interview/insights" className="border-t pt-3">
-                <p className="font-medium">复盘</p>
-                <p className="mt-1 text-sm text-zinc-500">看反复出现的问题和能力覆盖。</p>
-              </Link>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {activeInterviewTargets.map((target) => {
+                const preparations = data.interviewPreparations.filter((prep) => prep.context_id === target.id);
+                const ready = preparations.filter((prep) => prep.status === "ready").length;
+                const due = preparations.filter((prep) => prep.status !== "paused" && (!prep.next_practice_at || Date.parse(prep.next_practice_at) <= now)).length;
+                return (
+                  <Link key={target.id} href={`/career/interview/targets/${target.id}`} className="rounded-2xl bg-zinc-50 p-4 transition-colors hover:bg-zinc-100/80">
+                    <p className="text-xs text-zinc-400">{target.organization_snapshot || "目标岗位"}</p>
+                    <h3 className="mt-1 font-medium">{target.role_title_snapshot || target.title}</h3>
+                    <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
+                      <span>{preparations.length ? `${ready}/${preparations.length} 道已准备` : "尚未加入准备题目"}</span>
+                      <span className={due ? "font-medium text-amber-700" : ""}>{due ? `${due} 道待练` : "无到期练习"}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+              {!activeInterviewTargets.length ? (
+                <Link href="/career/interview" className="rounded-2xl bg-zinc-50 p-5 text-sm text-zinc-500">
+                  还没有目标岗位。先建立一个真实求职目标 →
+                </Link>
+              ) : null}
             </div>
           </section>
 
@@ -144,7 +154,7 @@ export default async function CareerPage() {
             </div>
             <div className="mt-4 divide-y border-y">
               {recentResumes.map((resume) => (
-                <div key={resume.id} className="flex items-center justify-between gap-4 py-3">
+                <div key={resume.id} className="flex items-center justify-between gap-4 rounded-xl px-3 py-3 hover:bg-zinc-50">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{resume.title}</p>
                     <p className="mt-1 text-xs text-zinc-400">更新于 {new Date(resume.updated_at).toLocaleDateString("zh-CN")}</p>
@@ -157,7 +167,7 @@ export default async function CareerPage() {
           </section>
         </main>
 
-        <aside className="space-y-8 lg:border-l lg:pl-7">
+        <aside className="space-y-8 lg:pl-3">
           <section>
             <h2 className="font-medium">当前状态</h2>
             <dl className="mt-4 space-y-3 text-sm">
