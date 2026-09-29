@@ -25,7 +25,7 @@ function isActive(current: string, href: string) {
 export function CareerNav({ current }: { current: string }) {
   const interviewSection = current.startsWith("/career/interview");
   return (
-    <nav aria-label="职业中心导航" className={`mt-6 flex items-center gap-6 overflow-x-auto text-[13px] ${interviewSection ? "mb-4" : "mb-10"}`}>
+    <nav aria-label="职业中心导航" className={`mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] ${interviewSection ? "mb-4" : "mb-10"}`}>
       {primary.map(([label, href]) => {
         const active = isActive(current, href);
         return (
