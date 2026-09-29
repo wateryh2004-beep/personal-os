@@ -56,8 +56,8 @@ export default async function InterviewWorkspacePage({
         </details>
       </div>
 
-      <div className="grid min-h-[680px] overflow-hidden rounded-2xl bg-white/45 md:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="min-h-0 border-b border-black/5 bg-black/[0.018] p-3 md:border-b-0 md:border-r">
+      <div className="grid min-h-[680px] gap-6 md:grid-cols-[290px_minmax(0,1fr)] md:gap-10">
+        <aside className="min-h-0 rounded-2xl bg-black/[0.025] p-3">
           <form action={createInterviewQuestion} className="mb-3">
             <textarea
               required
@@ -84,7 +84,7 @@ export default async function InterviewWorkspacePage({
             <button className="ml-2 text-[11px] text-zinc-400 hover:text-zinc-700">添加</button>
           </form>
 
-          <nav aria-label="面试题目" className="max-h-[600px] space-y-0.5 overflow-y-auto pr-1">
+          <nav aria-label="面试题目" className="max-h-[260px] space-y-0.5 overflow-y-auto pr-1 md:max-h-[600px]">
             {scoped.rows.map(({ question, preparation }: any) => {
               const active = question.id === selectedQuestionId;
               return (
@@ -101,7 +101,7 @@ export default async function InterviewWorkspacePage({
           </nav>
         </aside>
 
-        <main className="min-w-0 p-6 sm:p-8 md:p-10">
+        <main className="min-w-0 px-2 py-4 sm:px-3 md:px-0 md:py-5">
           {detail && prep ? (
             <InterviewWorkspaceEditor
               key={detail.question.id}
@@ -125,9 +125,6 @@ export default async function InterviewWorkspacePage({
         </main>
       </div>
 
-      <div className="mt-4 flex justify-end px-2 text-[11px] text-zinc-300 sm:px-3">
-        <Link href="/career/interview/questions" className="hover:text-zinc-500">题库管理</Link>
-      </div>
     </div>
   );
 }
