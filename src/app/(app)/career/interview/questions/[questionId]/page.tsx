@@ -64,7 +64,7 @@ export default async function InterviewQuestionPage({
       <PageHeader
         title={question.short_title || "面试题"}
         description={question.canonical_prompt}
-        eyebrow={<Link href="/career/interview" className="hover:text-zinc-700">面试准备 / 题库</Link>}
+        eyebrow={<Link href="/career/interview/questions" className="hover:text-zinc-700">面试准备 / 题库</Link>}
       />
       <CareerNav current="/career/interview" />
       <InterviewNav current={`/career/interview/questions/${questionId}`} />
