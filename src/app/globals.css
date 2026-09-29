@@ -217,3 +217,14 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5
 .career-surface summary { list-style:none; }
 .career-surface summary::-webkit-details-marker { display:none; }
 .career-surface h1,.career-surface h2,.career-surface h3 { text-wrap:balance; }
+
+.career-surface > header h1 {
+  font-size:24px!important;
+  line-height:1.12!important;
+  letter-spacing:-.03em!important;
+}
+.career-surface > header p {
+  max-width:42rem!important;
+  font-size:12.5px!important;
+  line-height:1.65!important;
+}
