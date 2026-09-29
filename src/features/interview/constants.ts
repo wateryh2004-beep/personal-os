@@ -127,6 +127,65 @@ export const sessionFormatLabels: Record<string, string> = {
   other: "其他",
 };
 
+
+export const competencyLabels: Record<string, string> = {
+  adaptability: "适应力",
+  career_judgment: "职业判断",
+  commercial_awareness: "商业敏感度",
+  commercial_judgment: "商业判断",
+  communication: "沟通表达",
+  curiosity: "好奇心",
+  customer_insight: "客户洞察",
+  execution: "执行力",
+  humility: "谦逊与开放",
+  influence_without_authority: "无职权影响力",
+  judgment: "判断力",
+  leadership: "领导力",
+  learning_agility: "学习敏捷度",
+  motivation: "求职动机",
+  ownership: "主人翁意识",
+  prioritization: "优先级管理",
+  problem_solving: "问题解决",
+  resilience: "韧性",
+  self_awareness: "自我认知",
+  stakeholder_management: "利益相关方管理",
+  structured_thinking: "结构化思考",
+};
+
+export const issueLabels: Record<string, string> = {
+  answer_not_direct: "回答不够直接",
+  background_too_long: "背景铺垫过长",
+  defensive: "防御性过强",
+  generic_company_fit: "公司匹配度表达空泛",
+  late_conclusion: "结论出现太晚",
+  late_result: "结果出现太晚",
+  no_prioritization: "缺少优先级",
+  story_overuse: "经历重复使用",
+  too_broad: "回答范围过宽",
+  weak_evidence: "证据不足",
+  weak_influence_mechanism: "影响机制不清",
+  weak_reflection: "反思不足",
+  weak_result: "结果不够有力",
+};
+
+export const sourceTypeLabels: Record<string, string> = {
+  manual: "手动录入",
+  reported_interview: "面经",
+  preparation: "准备过程中形成",
+  real_interview: "真实面试",
+  ai_suggested: "AI 建议",
+  imported: "导入",
+};
+
+export const followUpKindLabels: Record<string, string> = {
+  clarify: "澄清",
+  deep_dive: "深入追问",
+  challenge: "挑战",
+  counterfactual: "反事实",
+  pressure: "压力追问",
+  other: "其他",
+};
+
 export const evidenceTypes = [
   "experience",
   "experience_fact",
