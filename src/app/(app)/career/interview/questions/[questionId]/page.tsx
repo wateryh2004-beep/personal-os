@@ -21,6 +21,7 @@ import { getInterviewQuestionDetail } from "@/features/interview/queries";
 import {
   answerModeLabels,
   categoryLabels,
+  competencyLabels,
   evidenceRelationshipLabels,
   evidenceRelationships,
   evidenceTypeLabels,
@@ -32,6 +33,10 @@ import {
   interviewNoteTypes,
   interviewSourceTypes,
   interviewStatuses,
+  importanceLabels,
+  issueLabels,
+  followUpKindLabels,
+  sourceTypeLabels,
   joinTagInput,
   languageLabels,
   noteTypeLabels,
@@ -67,11 +72,11 @@ export default async function InterviewQuestionPage({
       <div className="mb-6 flex flex-wrap items-center gap-2 text-xs">
         <span className="rounded bg-[#365F78]/10 px-2 py-1 font-medium text-[#365F78]">{categoryLabels[question.category] ?? question.category}</span>
         <span className="text-zinc-500">难度 {question.difficulty}</span>
-        {(question.competency_tags ?? []).map((tag: string) => <span key={tag} className="rounded bg-zinc-100 px-2 py-1 text-zinc-600">{tag}</span>)}
+        {(question.competency_tags ?? []).map((tag: string) => <span key={tag} className="rounded bg-zinc-100 px-2 py-1 text-zinc-600">{competencyLabels[tag] ?? tag}</span>)}
         {question.source_name ? <span className="text-zinc-400">来源：{question.source_name}</span> : null}
       </div>
 
-      <section className="mb-7 border-y py-4">
+      <section className="mb-8 rounded-2xl bg-zinc-50 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <Link href={`/career/interview/questions/${questionId}`} className={`rounded px-3 py-1.5 text-sm ${!prep?.context_id ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600"}`}>通用</Link>
           {data.contexts.map((item: any) => {
@@ -138,7 +143,7 @@ export default async function InterviewQuestionPage({
               <form action={addInterviewNote} className="mt-5 grid gap-3 border-t pt-4">
                 <input type="hidden" name="preparation_id" value={prep.id} />
                 <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
-                  <label className="grid gap-1 text-sm"><span>记录类型</span><select name="note_type" defaultValue="thinking" className="border bg-white px-3 py-2">{interviewNoteTypes.map((type) => <option key={type} value={type}>{noteTypeLabels[type]}</option>)}</select></label>
+                  <label className="grid gap-1 text-sm"><span>记录类型</span><select name="note_type" defaultValue="thinking" className="rounded-lg bg-zinc-50 px-3 py-2 ring-1 ring-inset ring-zinc-200">{interviewNoteTypes.map((type) => <option key={type} value={type}>{noteTypeLabels[type]}</option>)}</select></label>
                   <TextArea name="body_markdown" label="新增一条思考 / 洞察 / 复盘" required rows={3} />
                 </div>
                 <button className="w-fit bg-zinc-900 px-3 py-2 text-sm text-white">加入时间线</button>
@@ -188,11 +193,11 @@ export default async function InterviewQuestionPage({
                 <label className="grid gap-1 text-sm"><span>目标秒数</span><input type="number" min={10} max={1800} name="target_seconds" defaultValue={60} className="border bg-white px-3 py-2"/></label>
                 <label className="grid gap-1 text-sm"><span>语言</span><select name="language" defaultValue={prep.target_language} className="border bg-white px-3 py-2">{interviewLanguages.map((lang) => <option key={lang} value={lang}>{languageLabels[lang]}</option>)}</select></label>
                 <label className="grid gap-1 text-sm"><span>版本说明</span><input name="change_note" className="border bg-white px-3 py-2"/></label>
-                <label className="grid gap-1 text-sm sm:col-span-4"><span>答案内容 *</span><textarea required name="body_markdown" className="min-h-40 border bg-white px-3 py-2"/></label>
+                <label className="grid gap-1 text-sm sm:col-span-4"><span>答案内容 *</span><textarea required name="body_markdown" className="min-h-40 rounded-lg bg-zinc-50 px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
                 <button className="w-fit bg-[#365F78] px-3 py-2 text-sm text-white sm:col-span-4">保存新版本</button>
               </form>
               <div className="mt-6 space-y-3">
-                {data.answers.map((answer: any) => <article key={answer.id} className={`border p-4 ${answer.status === "current" ? "border-[#365F78]/50 bg-[#365F78]/5" : ""}`}><div className="flex flex-wrap items-center justify-between gap-2"><div><span className="text-xs font-medium">{answerModeLabels[answer.answer_mode] ?? answer.answer_mode}{answer.target_seconds ? ` · ${answer.target_seconds}s` : ""} · {languageLabels[answer.language] ?? answer.language}</span><span className="ml-2 text-xs text-zinc-400">V{answer.version_number} · {answer.status}</span></div><div className="flex gap-2">{answer.status !== "current" ? <form action={promoteInterviewAnswerVersion}><input type="hidden" name="answer_id" value={answer.id}/><button className="text-xs text-[#365F78]">设为当前</button></form> : null}<form action={archiveInterviewAnswerVersion}><input type="hidden" name="answer_id" value={answer.id}/><input type="hidden" name="preparation_id" value={prep.id}/><button className="text-xs text-zinc-400">归档</button></form></div></div><p className="mt-3 whitespace-pre-wrap text-sm leading-6">{answer.body_markdown}</p>{answer.change_note ? <p className="mt-2 text-xs text-zinc-400">{answer.change_note}</p> : null}</article>)}
+                {data.answers.map((answer: any) => <article key={answer.id} className={`rounded-2xl p-4 ${answer.status === "current" ? "bg-[#365F78]/8" : "bg-zinc-50"}`}><div className="flex flex-wrap items-center justify-between gap-2"><div><span className="text-xs font-medium">{answerModeLabels[answer.answer_mode] ?? answer.answer_mode}{answer.target_seconds ? ` · ${answer.target_seconds}s` : ""} · {languageLabels[answer.language] ?? answer.language}</span><span className="ml-2 text-xs text-zinc-400">V{answer.version_number} · {answer.status}</span></div><div className="flex gap-2">{answer.status !== "current" ? <form action={promoteInterviewAnswerVersion}><input type="hidden" name="answer_id" value={answer.id}/><button className="text-xs text-[#365F78]">设为当前</button></form> : null}<form action={archiveInterviewAnswerVersion}><input type="hidden" name="answer_id" value={answer.id}/><input type="hidden" name="preparation_id" value={prep.id}/><button className="text-xs text-zinc-400">归档</button></form></div></div><p className="mt-3 whitespace-pre-wrap text-sm leading-6">{answer.body_markdown}</p>{answer.change_note ? <p className="mt-2 text-xs text-zinc-400">{answer.change_note}</p> : null}</article>)}
                 {!data.answers.length ? <p className="text-sm text-zinc-500">还没有答案版本。先写提纲或第一版口语答案。</p> : null}
               </div>
             </section>
@@ -200,10 +205,10 @@ export default async function InterviewQuestionPage({
             <section>
               <SectionTitle title="压力追问" description="把真实追问保留为结构关系，而不是散落成重复题。" />
               <div className="mt-4 space-y-2">
-                {data.childQuestions.map((child: any) => <Link key={child.id} href={`/career/interview/questions/${child.id}`} className="block border-l-2 border-zinc-200 pl-3 py-1 text-sm hover:border-[#365F78]"><span className="text-xs text-zinc-400">{child.follow_up_kind} · 难度 {child.difficulty}</span><p>{child.short_title || child.canonical_prompt}</p></Link>)}
+                {data.childQuestions.map((child: any) => <Link key={child.id} href={`/career/interview/questions/${child.id}`} className="block border-l-2 border-zinc-200 pl-3 py-1 text-sm hover:border-[#365F78]"><span className="text-xs text-zinc-400">{followUpKindLabels[child.follow_up_kind] ?? child.follow_up_kind} · 难度 {child.difficulty}</span><p>{child.short_title || child.canonical_prompt}</p></Link>)}
                 {!data.childQuestions.length ? <p className="text-sm text-zinc-500">暂无结构化追问。</p> : null}
               </div>
-              <details className="mt-5 border-t pt-4">
+              <details className="mt-5 pt-2">
                 <summary className="cursor-pointer text-sm text-[#365F78]">+ 新建追问</summary>
                 <form action={createInterviewQuestion} className="mt-4 grid gap-3 sm:grid-cols-2">
                   <input type="hidden" name="parent_question_id" value={question.id}/>
@@ -215,9 +220,9 @@ export default async function InterviewQuestionPage({
                   <input type="hidden" name="competency_tags" value={joinTagInput(question.competency_tags)}/>
                   <input type="hidden" name="prompt_variants" value=""/>
                   <input type="hidden" name="subcategory" value={question.subcategory ?? ""}/>
-                  <label className="grid gap-1 text-sm sm:col-span-2"><span>追问 *</span><textarea required name="canonical_prompt" className="min-h-20 border bg-white px-3 py-2"/></label>
+                  <label className="grid gap-1 text-sm sm:col-span-2"><span>追问 *</span><textarea required name="canonical_prompt" className="min-h-20 rounded-lg bg-zinc-50 px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
                   <Field name="short_title" label="短标题"/>
-                  <label className="grid gap-1 text-sm"><span>追问类型</span><select name="follow_up_kind" defaultValue="deep_dive" className="border bg-white px-3 py-2">{interviewFollowUpKinds.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+                  <label className="grid gap-1 text-sm"><span>追问类型</span><select name="follow_up_kind" defaultValue="deep_dive" className="border bg-white px-3 py-2">{interviewFollowUpKinds.map((value) => <option key={value} value={value}>{followUpKindLabels[value] ?? value}</option>)}</select></label>
                   <label className="grid gap-1 text-sm"><span>题型</span><select name="category" defaultValue={question.category} className="border bg-white px-3 py-2">{interviewCategories.map((value) => <option key={value} value={value}>{categoryLabels[value]}</option>)}</select></label>
                   <label className="grid gap-1 text-sm"><span>难度</span><select name="difficulty" defaultValue={Math.min(5, Number(question.difficulty) + 1)} className="border bg-white px-3 py-2">{[1,2,3,4,5].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
                   <button className="w-fit border px-3 py-2 text-sm sm:col-span-2">创建追问</button>
@@ -228,12 +233,12 @@ export default async function InterviewQuestionPage({
             <section>
               <SectionTitle title="练习记录" description="每次真实回答都保留，不覆盖历史。" />
               <div className="mt-4 space-y-3">
-                {data.attempts.map((attempt: any, index: number) => <article key={attempt.id} className="border-t pt-3"><div className="flex justify-between gap-3"><p className="text-sm font-medium">练习 #{data.attempts.length - index}</p><time className="text-xs text-zinc-400">{formatDateTime(attempt.practiced_at)}{attempt.duration_seconds ? ` · ${attempt.duration_seconds}s` : ""}</time></div>{attempt.response_transcript_markdown ? <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-zinc-600">{attempt.response_transcript_markdown}</p> : null}{attempt.self_review_markdown ? <p className="mt-2 text-xs text-zinc-500">自评： {attempt.self_review_markdown}</p> : null}<div className="mt-2 flex flex-wrap gap-1">{(attempt.issue_tags ?? []).map((tag: string) => <span key={tag} className="rounded bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">{tag}</span>)}</div></article>)}
+                {data.attempts.map((attempt: any, index: number) => <article key={attempt.id} className="border-t pt-3"><div className="flex justify-between gap-3"><p className="text-sm font-medium">练习 #{data.attempts.length - index}</p><time className="text-xs text-zinc-400">{formatDateTime(attempt.practiced_at)}{attempt.duration_seconds ? ` · ${attempt.duration_seconds}s` : ""}</time></div>{attempt.response_transcript_markdown ? <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-zinc-600">{attempt.response_transcript_markdown}</p> : null}{attempt.self_review_markdown ? <p className="mt-2 text-xs text-zinc-500">自评： {attempt.self_review_markdown}</p> : null}<div className="mt-2 flex flex-wrap gap-1">{(attempt.issue_tags ?? []).map((tag: string) => <span key={tag} className="rounded bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">{issueLabels[tag] ?? tag}</span>)}</div></article>)}
                 {!data.attempts.length ? <p className="text-sm text-zinc-500">还没练过。右侧可以直接开始练习。</p> : null}
               </div>
             </section>
 
-            <details className="border-t pt-5">
+            <details className="pt-4">
               <summary className="cursor-pointer text-sm text-zinc-500">编辑题目信息 / 归档</summary>
               <form action={updateInterviewQuestion} className="mt-5 grid gap-4 sm:grid-cols-2">
                 <input type="hidden" name="question_id" value={question.id}/>
@@ -243,7 +248,7 @@ export default async function InterviewQuestionPage({
                 <Field name="subcategory" label="二级分类" defaultValue={question.subcategory}/>
                 <Field name="competency_tags" label="能力标签" defaultValue={joinTagInput(question.competency_tags)}/>
                 <Field name="prompt_variants" label="变体问法" defaultValue={joinTagInput(question.prompt_variants)}/>
-                <label className="grid gap-1 text-sm"><span>来源</span><select name="source_type" defaultValue={question.source_type} className="border bg-white px-3 py-2">{interviewSourceTypes.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+                <label className="grid gap-1 text-sm"><span>来源</span><select name="source_type" defaultValue={question.source_type} className="border bg-white px-3 py-2">{interviewSourceTypes.map((value) => <option key={value} value={value}>{sourceTypeLabels[value] ?? value}</option>)}</select></label>
                 <Field name="source_name" label="来源名称" defaultValue={question.source_name}/>
                 <Field name="source_url" label="来源链接" defaultValue={question.source_url}/>
                 <Field name="source_observed_at" label="来源日期" type="date" defaultValue={question.source_observed_at}/>
@@ -259,14 +264,14 @@ export default async function InterviewQuestionPage({
           </main>
 
           <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
-            <section className="border p-4">
+            <section className="rounded-2xl bg-zinc-50 p-4">
               <p className="text-xs uppercase tracking-wide text-zinc-400">当前准备</p>
               <h2 className="mt-2 font-medium">{selectedContext?.title || "通用"}</h2>
               <form action={updateInterviewPreparation} className="mt-4 grid gap-3">
                 <input type="hidden" name="preparation_id" value={prep.id}/><input type="hidden" name="question_id" value={questionId}/>
                 <input type="hidden" name="prompt_override" value={prep.prompt_override ?? ""}/><input type="hidden" name="interviewer_intent_markdown" value={prep.interviewer_intent_markdown}/><input type="hidden" name="risk_markdown" value={prep.risk_markdown}/><input type="hidden" name="working_thoughts_markdown" value={prep.working_thoughts_markdown}/><input type="hidden" name="answer_logic_markdown" value={prep.answer_logic_markdown}/><input type="hidden" name="key_message" value={prep.key_message}/><input type="hidden" name="next_focus" value={prep.next_focus}/>
                 <label className="grid gap-1 text-sm"><span>状态</span><select name="status" defaultValue={prep.status} className="border bg-white px-3 py-2">{interviewStatuses.map((value) => <option key={value} value={value} disabled={value === "ready" && !data.readiness.readyEligible}>{statusLabels[value]}</option>)}</select></label>
-                <label className="grid gap-1 text-sm"><span>重要性</span><select name="importance" defaultValue={prep.importance} className="border bg-white px-3 py-2">{interviewImportance.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+                <label className="grid gap-1 text-sm"><span>重要性</span><select name="importance" defaultValue={prep.importance} className="border bg-white px-3 py-2">{interviewImportance.map((value) => <option key={value} value={value}>{importanceLabels[value] ?? value}</option>)}</select></label>
                 <label className="grid gap-1 text-sm"><span>目标语言</span><select name="target_language" defaultValue={prep.target_language} className="border bg-white px-3 py-2">{interviewLanguages.map((value) => <option key={value} value={value}>{languageLabels[value]}</option>)}</select></label>
                 <label className="grid gap-1 text-sm"><span>信心</span><select name="confidence" defaultValue={prep.confidence ?? ""} className="border bg-white px-3 py-2"><option value="">—</option>{[1,2,3,4,5].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
                 <Field name="next_practice_at" label="下次练习" type="datetime-local" defaultValue={toDatetimeLocal(prep.next_practice_at)}/>
@@ -274,7 +279,7 @@ export default async function InterviewQuestionPage({
               </form>
             </section>
 
-            <section className="border p-4">
+            <section className="rounded-2xl bg-zinc-50 p-4">
               <p className="text-sm font-medium">准备完成条件</p>
               <Checklist ok={data.readiness.required.keyMessage} label="核心信息"/>
               <Checklist ok={data.readiness.required.answerLogic} label="回答结构"/>
@@ -283,7 +288,7 @@ export default async function InterviewQuestionPage({
               <Checklist ok={data.readiness.evidence} label="关联真实经历（建议）" optional/>
             </section>
 
-            <section className="border p-4 text-sm">
+            <section className="rounded-2xl bg-zinc-50 p-4 text-sm">
               <p className="font-medium">下次重点</p>
               <p className="mt-2 whitespace-pre-wrap text-zinc-600">{prep.next_focus || "尚未设置。每次练习最好只指定一个改进目标。"}</p>
               <dl className="mt-4 space-y-2 text-xs text-zinc-500"><div className="flex justify-between"><dt>上次练习</dt><dd>{formatDateTime(prep.last_practiced_at)}</dd></div><div className="flex justify-between"><dt>下次练习</dt><dd>{formatDateTime(prep.next_practice_at)}</dd></div><div className="flex justify-between"><dt>当前答案</dt><dd>{data.currentAnswers?.length ?? 0}</dd></div><div className="flex justify-between"><dt>练习次数</dt><dd>{data.attempts.length}</dd></div></dl>
