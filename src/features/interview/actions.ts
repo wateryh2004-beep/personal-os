@@ -72,6 +72,7 @@ function revalidateInterview(questionId?: string, preparationId?: string, sessio
 export async function createInterviewQuestion(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const contextId = String(formData.get("context_id") || "") || null;
+  const returnToWorkspace = String(formData.get("return_to_workspace") || "") === "1";
   const value = parse(interviewQuestionSchema, formObject(formData));
   if (value.parent_question_id) await own(supabase, "interview_questions", value.parent_question_id);
   let targetLanguage = "zh";
@@ -97,6 +98,9 @@ export async function createInterviewQuestion(formData: FormData) {
   await audit(supabase, userId, "create", "interview_question", data.id, { category: value.category, source_type: value.source_type });
   revalidateInterview(data.id);
   if (contextId) revalidatePath(`/career/interview/targets/${contextId}`);
+  if (returnToWorkspace) {
+    redirect(contextId ? `/career/interview?context=${contextId}&question=${data.id}` : `/career/interview?question=${data.id}`);
+  }
   redirect(contextId ? `/career/interview/questions/${data.id}?context=${contextId}` : `/career/interview/questions/${data.id}`);
 }
 
@@ -129,7 +133,9 @@ export async function archiveInterviewQuestion(formData: FormData) {
 
 export async function createInterviewContext(formData: FormData) {
   const { supabase, userId } = await requireOwner();
+  const returnToWorkspace = String(formData.get("return_to_workspace") || "") === "1";
   const raw = { ...formObject(formData) } as Record<string, unknown>;
+  delete raw.return_to_workspace;
   const contextType = String(raw.context_type || "target");
   const organization = String(raw.organization_snapshot || "").trim();
   const role = String(raw.role_title_snapshot || "").trim();
@@ -151,6 +157,7 @@ export async function createInterviewContext(formData: FormData) {
   if (error || !data) failed(error);
   await audit(supabase, userId, "create", "interview_context", data.id, { context_type: value.context_type, title: value.title });
   revalidateInterview();
+  if (returnToWorkspace) redirect(`/career/interview?context=${data.id}`);
   redirect(value.context_type === "general" ? "/career/interview" : `/career/interview/targets/${data.id}`);
 }
 
@@ -218,6 +225,95 @@ export async function ensureInterviewPreparation(formData: FormData) {
   }
   revalidateInterview(questionId, preparationId);
   redirect(contextId ? `/career/interview/questions/${questionId}?context=${contextId}` : `/career/interview/questions/${questionId}`);
+}
+
+export async function saveInterviewWorkspace(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const preparationId = String(formData.get("preparation_id") || "");
+  const questionId = String(formData.get("question_id") || "");
+  const thoughts = String(formData.get("thoughts") || "");
+  const answer = String(formData.get("answer") || "");
+
+  await own(supabase, "interview_question_preparations", preparationId);
+  const { data: prep, error: prepError } = await supabase
+    .from("interview_question_preparations")
+    .select("id,question_id,target_language")
+    .eq("id", preparationId)
+    .maybeSingle();
+  if (prepError || !prep || prep.question_id !== questionId) failed(prepError ?? new Error("题目准备不存在。"));
+
+  const { error: thoughtError } = await supabase
+    .from("interview_question_preparations")
+    .update({ working_thoughts_markdown: thoughts })
+    .eq("id", preparationId);
+  if (thoughtError) failed(thoughtError);
+
+  const language = prep.target_language || "zh";
+  const { data: current, error: currentError } = await supabase
+    .from("interview_answer_versions")
+    .select("id,version_number")
+    .eq("preparation_id", preparationId)
+    .eq("answer_mode", "spoken")
+    .eq("language", language)
+    .eq("status", "current")
+    .is("target_seconds", null)
+    .is("archived_at", null)
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (currentError) failed(currentError);
+
+  if (current && answer.trim()) {
+    const { error: updateError } = await supabase
+      .from("interview_answer_versions")
+      .update({
+        body_markdown: answer,
+        change_note: null,
+        source: "human",
+        confirmed_at: new Date().toISOString(),
+      })
+      .eq("id", current.id);
+    if (updateError) failed(updateError);
+  } else if (current && !answer.trim()) {
+    const { error: retireError } = await supabase
+      .from("interview_answer_versions")
+      .update({ status: "retired" })
+      .eq("id", current.id);
+    if (retireError) failed(retireError);
+  } else if (answer.trim()) {
+    const { data: latest, error: latestError } = await supabase
+      .from("interview_answer_versions")
+      .select("version_number")
+      .eq("preparation_id", preparationId)
+      .eq("answer_mode", "spoken")
+      .eq("language", language)
+      .is("target_seconds", null)
+      .order("version_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestError) failed(latestError);
+    const { error: insertError } = await supabase.from("interview_answer_versions").insert({
+      user_id: userId,
+      preparation_id: preparationId,
+      answer_mode: "spoken",
+      target_seconds: null,
+      language,
+      body_markdown: answer,
+      change_note: null,
+      version_number: (latest?.version_number ?? 0) + 1,
+      source: "human",
+      status: "current",
+      confirmed_at: new Date().toISOString(),
+    });
+    if (insertError) failed(insertError);
+  }
+
+  await audit(supabase, userId, "save", "interview_workspace", preparationId, {
+    question_id: questionId,
+    has_answer: Boolean(answer.trim()),
+  });
+  revalidatePath(`/career/interview/questions/${questionId}`);
+  revalidatePath(`/career/interview/practice/${preparationId}`);
 }
 
 export async function updateInterviewPreparation(formData: FormData) {

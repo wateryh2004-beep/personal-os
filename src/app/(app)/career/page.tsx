@@ -41,7 +41,7 @@ export default async function CareerPage() {
             if (!due) return [];
             return [{
               key: `target-${target.id}`,
-              href: `/career/interview/targets/${target.id}`,
+              href: `/career/interview?context=${target.id}`,
               title: `${target.organization_snapshot || ""} ${target.role_title_snapshot || target.title}`.trim(),
               meta: `${due} 道题需要练习`,
             }];
@@ -77,7 +77,7 @@ export default async function CareerPage() {
             const ready = preparations.filter((prep) => prep.status === "ready").length;
             const due = preparations.filter((prep) => prep.status !== "paused" && (!prep.next_practice_at || Date.parse(prep.next_practice_at) <= now)).length;
             return (
-              <Link key={target.id} href={`/career/interview/targets/${target.id}`} className="group grid gap-1 rounded-lg px-2 py-3 hover:bg-white/70 sm:grid-cols-[1fr_auto] sm:items-center">
+              <Link key={target.id} href={`/career/interview?context=${target.id}`} className="group grid gap-1 rounded-lg px-2 py-3 hover:bg-white/70 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div className="min-w-0">
                   <p className="truncate text-[14px] font-medium text-zinc-900">{target.role_title_snapshot || target.title}</p>
                   <p className="mt-0.5 truncate text-xs text-zinc-400">{target.organization_snapshot || target.title}</p>
