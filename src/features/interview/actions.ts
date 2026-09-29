@@ -249,59 +249,57 @@ export async function saveInterviewWorkspace(formData: FormData) {
   if (thoughtError) failed(thoughtError);
 
   const language = prep.target_language || "zh";
-  if (answer.trim()) {
-    let currentQuery = supabase
+  const { data: current, error: currentError } = await supabase
+    .from("interview_answer_versions")
+    .select("id,version_number")
+    .eq("preparation_id", preparationId)
+    .eq("answer_mode", "spoken")
+    .eq("language", language)
+    .eq("status", "current")
+    .is("target_seconds", null)
+    .is("archived_at", null)
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (currentError) failed(currentError);
+
+  if (current) {
+    const { error: updateError } = await supabase
       .from("interview_answer_versions")
-      .select("id,version_number")
+      .update({
+        body_markdown: answer,
+        change_note: null,
+        source: "human",
+        confirmed_at: new Date().toISOString(),
+      })
+      .eq("id", current.id);
+    if (updateError) failed(updateError);
+  } else if (answer.trim()) {
+    const { data: latest, error: latestError } = await supabase
+      .from("interview_answer_versions")
+      .select("version_number")
       .eq("preparation_id", preparationId)
       .eq("answer_mode", "spoken")
       .eq("language", language)
-      .eq("status", "current")
       .is("target_seconds", null)
-      .is("archived_at", null)
       .order("version_number", { ascending: false })
-      .limit(1);
-    const { data: current, error: currentError } = await currentQuery.maybeSingle();
-    if (currentError) failed(currentError);
-
-    if (current) {
-      const { error: updateError } = await supabase
-        .from("interview_answer_versions")
-        .update({
-          body_markdown: answer,
-          change_note: null,
-          source: "human",
-          confirmed_at: new Date().toISOString(),
-        })
-        .eq("id", current.id);
-      if (updateError) failed(updateError);
-    } else {
-      const { data: latest, error: latestError } = await supabase
-        .from("interview_answer_versions")
-        .select("version_number")
-        .eq("preparation_id", preparationId)
-        .eq("answer_mode", "spoken")
-        .eq("language", language)
-        .is("target_seconds", null)
-        .order("version_number", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (latestError) failed(latestError);
-      const { error: insertError } = await supabase.from("interview_answer_versions").insert({
-        user_id: userId,
-        preparation_id: preparationId,
-        answer_mode: "spoken",
-        target_seconds: null,
-        language,
-        body_markdown: answer,
-        change_note: null,
-        version_number: (latest?.version_number ?? 0) + 1,
-        source: "human",
-        status: "current",
-        confirmed_at: new Date().toISOString(),
-      });
-      if (insertError) failed(insertError);
-    }
+      .limit(1)
+      .maybeSingle();
+    if (latestError) failed(latestError);
+    const { error: insertError } = await supabase.from("interview_answer_versions").insert({
+      user_id: userId,
+      preparation_id: preparationId,
+      answer_mode: "spoken",
+      target_seconds: null,
+      language,
+      body_markdown: answer,
+      change_note: null,
+      version_number: (latest?.version_number ?? 0) + 1,
+      source: "human",
+      status: "current",
+      confirmed_at: new Date().toISOString(),
+    });
+    if (insertError) failed(insertError);
   }
 
   await audit(supabase, userId, "save", "interview_workspace", preparationId, {
