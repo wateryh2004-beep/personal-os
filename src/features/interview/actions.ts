@@ -71,8 +71,10 @@ function revalidateInterview(questionId?: string, preparationId?: string, sessio
 
 export async function createInterviewQuestion(formData: FormData) {
   const { supabase, userId } = await requireOwner();
+  const contextId = String(formData.get("context_id") || "") || null;
   const value = parse(interviewQuestionSchema, formObject(formData));
   if (value.parent_question_id) await own(supabase, "interview_questions", value.parent_question_id);
+  if (contextId) await own(supabase, "interview_contexts", contextId);
   const { data, error } = await supabase.from("interview_questions").insert({
     ...value,
     user_id: userId,
@@ -81,15 +83,16 @@ export async function createInterviewQuestion(formData: FormData) {
   const { error: prepError } = await supabase.from("interview_question_preparations").insert({
     user_id: userId,
     question_id: data.id,
-    context_id: null,
+    context_id: contextId,
     status: "unprepared",
-    importance: "normal",
+    importance: contextId ? "high" : "normal",
     target_language: "zh",
   });
   if (prepError) failed(prepError);
   await audit(supabase, userId, "create", "interview_question", data.id, { category: value.category, source_type: value.source_type });
   revalidateInterview(data.id);
-  redirect(`/career/interview/questions/${data.id}`);
+  if (contextId) revalidatePath(`/career/interview/targets/${contextId}`);
+  redirect(contextId ? `/career/interview/questions/${data.id}?context=${contextId}` : `/career/interview/questions/${data.id}`);
 }
 
 export async function updateInterviewQuestion(formData: FormData) {
@@ -246,6 +249,7 @@ export async function archiveInterviewNote(formData: FormData) {
 
 export async function createInterviewAnswerVersion(formData: FormData) {
   const { supabase, userId } = await requireOwner();
+  const makeCurrent = String(formData.get("make_current") || "") === "1";
   const value = parse(interviewAnswerSchema, formObject(formData));
   await own(supabase, "interview_question_preparations", value.preparation_id);
   let query = supabase.from("interview_answer_versions").select("version_number")
@@ -264,7 +268,29 @@ export async function createInterviewAnswerVersion(formData: FormData) {
     status: "draft",
   }).select("id").single();
   if (error || !data) failed(error);
-  await audit(supabase, userId, "create", "interview_answer_version", data.id, { preparation_id: value.preparation_id, answer_mode: value.answer_mode, language: value.language, target_seconds: value.target_seconds });
+  if (makeCurrent) {
+    let currentQuery = supabase.from("interview_answer_versions").select("id")
+      .eq("preparation_id", value.preparation_id)
+      .eq("answer_mode", value.answer_mode)
+      .eq("language", value.language)
+      .eq("status", "current")
+      .is("archived_at", null)
+      .neq("id", data.id);
+    currentQuery = value.target_seconds == null ? currentQuery.is("target_seconds", null) : currentQuery.eq("target_seconds", value.target_seconds);
+    const { data: oldCurrents, error: currentError } = await currentQuery;
+    if (currentError) failed(currentError);
+    const oldIds = (oldCurrents ?? []).map((row) => row.id);
+    if (oldIds.length) {
+      const { error: retireError } = await supabase.from("interview_answer_versions").update({ status: "retired" }).in("id", oldIds);
+      if (retireError) failed(retireError);
+    }
+    const { error: promoteError } = await supabase.from("interview_answer_versions").update({ status: "current", confirmed_at: new Date().toISOString() }).eq("id", data.id);
+    if (promoteError) {
+      if (oldIds.length) await supabase.from("interview_answer_versions").update({ status: "current" }).in("id", oldIds);
+      failed(promoteError);
+    }
+  }
+  await audit(supabase, userId, "create", "interview_answer_version", data.id, { preparation_id: value.preparation_id, answer_mode: value.answer_mode, language: value.language, target_seconds: value.target_seconds, make_current: makeCurrent });
   revalidateInterview(undefined, value.preparation_id);
 }
 
