@@ -58,6 +58,10 @@ export function InterviewFastWorkspace({
   const [answer, setAnswer] = useState(initialItem?.answer ?? "");
   const [saveState, setSaveState] = useState<SaveState>("idle");
 
+  const draftsRef = useRef(new Map(items.map((item) => [
+    item.preparationId,
+    { thoughts: item.thoughts, answer: item.answer, answerId: item.answerId },
+  ])));
   const selectedRef = useRef<WorkspaceItem | null>(initialItem);
   const thoughtsRef = useRef(thoughts);
   const answerRef = useRef(answer);
@@ -97,6 +101,11 @@ export function InterviewFastWorkspace({
     try {
       const result = await saveInterviewWorkspace(formData);
       if (sequence !== saveSequenceRef.current) return;
+      const draft = draftsRef.current.get(selected.preparationId);
+      if (draft) {
+        draft.answerId = result.answerId ?? null;
+        draftsRef.current.set(selected.preparationId, draft);
+      }
       if (selectedRef.current?.preparationId === selected.preparationId) {
         answerIdRef.current = result.answerId ?? null;
         setSaveState("saved");
@@ -125,14 +134,17 @@ export function InterviewFastWorkspace({
     void saveNow();
 
     selectedRef.current = nextItem;
-    answerIdRef.current = nextItem?.answerId ?? null;
+    const draft = nextItem ? draftsRef.current.get(nextItem.preparationId) : null;
+    const nextThoughts = draft?.thoughts ?? nextItem?.thoughts ?? "";
+    const nextAnswer = draft?.answer ?? nextItem?.answer ?? "";
+    answerIdRef.current = draft?.answerId ?? nextItem?.answerId ?? null;
     dirtyRef.current = false;
     setContextId(nextContextId);
     setQuestionId(nextItem?.questionId ?? "");
-    setThoughts(nextItem?.thoughts ?? "");
-    setAnswer(nextItem?.answer ?? "");
-    thoughtsRef.current = nextItem?.thoughts ?? "";
-    answerRef.current = nextItem?.answer ?? "";
+    setThoughts(nextThoughts);
+    setAnswer(nextAnswer);
+    thoughtsRef.current = nextThoughts;
+    answerRef.current = nextAnswer;
     setSaveState("idle");
     replaceUrl(nextContextId, nextItem?.questionId ?? "");
   }, [replaceUrl, saveNow]);
@@ -249,6 +261,13 @@ export function InterviewFastWorkspace({
                     const value = event.target.value;
                     setThoughts(value);
                     thoughtsRef.current = value;
+                    if (selectedRef.current) {
+                      const draft = draftsRef.current.get(selectedRef.current.preparationId);
+                      if (draft) {
+                        draft.thoughts = value;
+                        draftsRef.current.set(selectedRef.current.preparationId, draft);
+                      }
+                    }
                     scheduleSave();
                   }}
                   onBlur={() => { void saveNow(); }}
@@ -266,6 +285,13 @@ export function InterviewFastWorkspace({
                     const value = event.target.value;
                     setAnswer(value);
                     answerRef.current = value;
+                    if (selectedRef.current) {
+                      const draft = draftsRef.current.get(selectedRef.current.preparationId);
+                      if (draft) {
+                        draft.answer = value;
+                        draftsRef.current.set(selectedRef.current.preparationId, draft);
+                      }
+                    }
                     scheduleSave();
                   }}
                   onBlur={() => { void saveNow(); }}
