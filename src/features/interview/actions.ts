@@ -178,7 +178,12 @@ export async function ensureInterviewPreparation(formData: FormData) {
   const questionId = String(formData.get("question_id") || "");
   const contextId = String(formData.get("context_id") || "") || null;
   await own(supabase, "interview_questions", questionId);
-  if (contextId) await own(supabase, "interview_contexts", contextId);
+  let targetLanguage = "zh";
+  if (contextId) {
+    const { data: contextRow, error: contextError } = await supabase.from("interview_contexts").select("id,default_language").eq("id", contextId).maybeSingle();
+    if (contextError || !contextRow) failed(contextError ?? new Error("找不到目标岗位。"));
+    targetLanguage = contextRow.default_language || "zh";
+  }
   let existingQuery = supabase.from("interview_question_preparations").select("id").eq("question_id", questionId).is("archived_at", null);
   existingQuery = contextId ? existingQuery.eq("context_id", contextId) : existingQuery.is("context_id", null);
   const { data: existing, error: lookupError } = await existingQuery.maybeSingle();
@@ -191,7 +196,7 @@ export async function ensureInterviewPreparation(formData: FormData) {
       context_id: contextId,
       status: "unprepared",
       importance: contextId ? "high" : "normal",
-      target_language: "zh",
+      target_language: targetLanguage,
     }).select("id").single();
     if (error || !data) failed(error);
     preparationId = data.id;
