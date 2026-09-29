@@ -208,8 +208,9 @@ export async function getInterviewSessionDetail(sessionId: string) {
   const [attempts, preparations] = await Promise.all([
     supabase.from("interview_practice_attempts").select("*").eq("session_id", sessionId).is("archived_at", null).order("sequence_no"),
     supabase.from("interview_question_preparations")
-      .select("id,status,importance,target_language,prompt_override,interview_questions(id,canonical_prompt,short_title,category),interview_contexts(id,title)")
+      .select("id,status,importance,target_language,prompt_override,context_id,interview_questions(id,canonical_prompt,short_title,category),interview_contexts(id,title)")
       .is("archived_at", null)
+      .or(session.context_id ? `context_id.eq.${session.context_id},context_id.is.null` : "context_id.is.null")
       .order("position"),
   ]);
   return { session, attempts: attempts.data ?? [], preparations: preparations.data ?? [] };
