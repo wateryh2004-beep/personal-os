@@ -759,7 +759,7 @@ create or replace function public.validate_interview_attempt_tree_cycle()
 returns trigger
 language plpgsql
 set search_path = public
-as $
+as $$
 begin
   if new.parent_attempt_id is null then
     return new;
@@ -787,7 +787,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 revoke all on function public.validate_interview_attempt_tree_cycle() from public, anon, authenticated;
 
