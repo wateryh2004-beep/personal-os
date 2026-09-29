@@ -60,6 +60,7 @@ async function own(
 function revalidateInterview(questionId?: string, preparationId?: string, sessionId?: string) {
   revalidatePath("/career");
   revalidatePath("/career/interview");
+  revalidatePath("/career/interview/questions");
   revalidatePath("/career/interview/practice");
   revalidatePath("/career/interview/sessions");
   revalidatePath("/career/interview/insights");
@@ -115,7 +116,7 @@ export async function archiveInterviewQuestion(formData: FormData) {
   if (error || prepError) failed(error ?? prepError);
   await audit(supabase, userId, "archive", "interview_question", questionId);
   revalidateInterview(questionId);
-  redirect("/career/interview");
+  redirect("/career/interview/questions");
 }
 
 export async function createInterviewContext(formData: FormData) {
@@ -128,6 +129,7 @@ export async function createInterviewContext(formData: FormData) {
   if (error || !data) failed(error);
   await audit(supabase, userId, "create", "interview_context", data.id, { context_type: value.context_type, title: value.title });
   revalidateInterview();
+  redirect(`/career/interview/targets/${data.id}`);
 }
 
 export async function archiveInterviewContext(formData: FormData) {
