@@ -28,33 +28,33 @@ export default async function InterviewQuestionsPage({ searchParams }: { searchP
   return (
     <>
       <PageHeader
-        title="Interview Lab"
-        description="不是标准答案仓库：围绕问题理解、个人思考、回答逻辑、证据和真实练习不断迭代。"
+        title="面试准备"
+        description="围绕目标岗位，把题目理解、回答逻辑、真实经历和练习记录放在同一条准备链路里。"
       />
       <CareerNav current="/career/interview" />
       <InterviewNav current="/career/interview" />
 
       {data.unavailable ? (
         <p className="mb-6 border-l-2 border-amber-600 bg-amber-50 px-3 py-3 text-sm text-amber-800">
-          Interview Lab 数据暂时不可用，请检查生产 migration。
+          面试准备数据暂时不可用，请检查数据库升级状态。
         </p>
       ) : null}
 
       <section className="mb-8 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Metric label="Questions" value={data.questions.length} />
+        <Metric label="题目" value={data.questions.length} />
         <Metric label="未准备" value={data.statusCounts.unprepared ?? 0} />
         <Metric label="整理中" value={data.statusCounts.developing ?? 0} />
         <Metric label="练习中" value={data.statusCounts.practicing ?? 0} />
-        <Metric label="Ready" value={data.statusCounts.ready ?? 0} />
+        <Metric label="已准备" value={data.statusCounts.ready ?? 0} />
         <Metric label="需复盘" value={data.statusCounts.needs_review ?? 0} />
       </section>
 
       <div className="mb-8 grid gap-7 lg:grid-cols-[1fr_.72fr]">
         <details className="border-t pt-4">
-          <summary className="cursor-pointer text-sm font-medium text-[#365F78]">+ 新建 Core Question</summary>
+          <summary className="cursor-pointer text-sm font-medium text-[#365F78]">+ 新建题目</summary>
           <form action={createInterviewQuestion} className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="grid gap-1 text-sm sm:col-span-2">
-              <span>Canonical Question *</span>
+              <span>标准问法 *</span>
               <textarea required name="canonical_prompt" className="min-h-24 border bg-white px-3 py-2" />
             </label>
             <Field name="short_title" label="短标题" />
@@ -90,14 +90,14 @@ export default async function InterviewQuestionsPage({ searchParams }: { searchP
         </details>
 
         <details className="border-t pt-4">
-          <summary className="cursor-pointer text-sm font-medium text-[#365F78]">+ 新建 Interview Context</summary>
+          <summary className="cursor-pointer text-sm font-medium text-[#365F78]">+ 新建目标岗位</summary>
           <form action={createInterviewContext} className="mt-5 grid gap-4 sm:grid-cols-2">
             <Field name="title" label="场景名称 *" required placeholder="Swire Management Trainee" />
             <label className="grid gap-1 text-sm">
               <span>类型</span>
               <select name="context_type" defaultValue="target" className="border bg-white px-3 py-2">
-                <option value="target">Target</option>
-                <option value="general">General</option>
+                <option value="target">目标岗位</option>
+                <option value="general">通用</option>
               </select>
             </label>
             <Field name="organization_snapshot" label="组织" placeholder="Swire" />
@@ -105,7 +105,7 @@ export default async function InterviewQuestionsPage({ searchParams }: { searchP
             <label className="grid gap-1 text-sm"><span>语言</span><select name="default_language" defaultValue="bilingual" className="border bg-white px-3 py-2"><option value="zh">中文</option><option value="en">英文</option><option value="bilingual">双语</option></select></label>
             <label className="grid gap-1 text-sm"><span>优先级</span><select name="priority" defaultValue="4" className="border bg-white px-3 py-2">{[1,2,3,4,5].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
             <Field name="next_interview_at" label="下一场面试" type="datetime-local" />
-            <label className="grid gap-1 text-sm"><span>状态</span><select name="status" defaultValue="active" className="border bg-white px-3 py-2"><option value="active">Active</option><option value="paused">Paused</option><option value="closed">Closed</option></select></label>
+            <label className="grid gap-1 text-sm"><span>状态</span><select name="status" defaultValue="active" className="border bg-white px-3 py-2"><option value="active">进行中</option><option value="paused">暂停</option><option value="closed">已结束</option></select></label>
             <label className="grid gap-1 text-sm sm:col-span-2"><span>整体备注</span><textarea name="notes_markdown" className="min-h-20 border bg-white px-3 py-2" /></label>
             <input type="hidden" name="career_direction_id" value="" />
             <input type="hidden" name="opportunity_id" value="" />
@@ -126,7 +126,7 @@ export default async function InterviewQuestionsPage({ searchParams }: { searchP
           {Object.entries(statusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
         </select>
         <select name="context" defaultValue={params.context ?? ""} className="border bg-white px-3 py-2 text-sm">
-          <option value="">General / 任意准备</option>
+          <option value="">全部目标 / 通用准备</option>
           {data.contexts.map((context: any) => <option key={context.id} value={context.id}>{context.title}</option>)}
         </select>
         <div className="flex gap-2">
@@ -150,7 +150,7 @@ export default async function InterviewQuestionsPage({ searchParams }: { searchP
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-medium text-[#365F78]">{categoryLabels[question.category] ?? question.category}</span>
                   <span className="text-xs text-zinc-400">难度 {question.difficulty}</span>
-                  {needsPractice ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">Needs Practice</span> : null}
+                  {needsPractice ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">需要练习</span> : null}
                 </div>
                 <h2 className="mt-1 font-medium">{question.short_title || question.canonical_prompt}</h2>
                 {question.short_title ? <p className="mt-1 line-clamp-2 text-sm text-zinc-500">{question.canonical_prompt}</p> : null}
@@ -166,7 +166,7 @@ export default async function InterviewQuestionsPage({ searchParams }: { searchP
         })}
       </div>
 
-      {!data.rows.length ? <div className="py-20 text-center"><p className="font-medium">没有匹配的问题</p><p className="mt-2 text-sm text-zinc-500">创建 Core Question，或放宽筛选条件。</p></div> : null}
+      {!data.rows.length ? <div className="py-20 text-center"><p className="font-medium">没有匹配的问题</p><p className="mt-2 text-sm text-zinc-500">新建题目，或放宽筛选条件。</p></div> : null}
     </>
   );
 }
