@@ -132,6 +132,24 @@ export async function createInterviewContext(formData: FormData) {
   redirect(value.context_type === "general" ? "/career/interview" : `/career/interview/targets/${data.id}`);
 }
 
+export async function updateInterviewContext(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const contextId = String(formData.get("context_id") || "");
+  await own(supabase, "interview_contexts", contextId);
+  const value = parse(interviewContextSchema, formObject(formData));
+  if (value.career_direction_id) await own(supabase, "career_directions", value.career_direction_id);
+  if (value.opportunity_id) await own(supabase, "career_opportunities", value.opportunity_id);
+  if (value.application_id) await own(supabase, "career_applications", value.application_id);
+  const { error } = await supabase.from("interview_contexts").update(value).eq("id", contextId);
+  if (error) failed(error);
+  await audit(supabase, userId, "update", "interview_context", contextId, {
+    status: value.status,
+    priority: value.priority,
+    next_interview_at: value.next_interview_at,
+  });
+  revalidateInterview();
+}
+
 export async function archiveInterviewContext(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const contextId = String(formData.get("context_id") || "");
