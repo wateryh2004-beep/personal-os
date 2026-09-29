@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CareerNav } from "@/components/career/career-nav";
-import { InterviewNav } from "@/components/career/interview/interview-nav";
 import { createPracticeAttempt } from "@/features/interview/actions";
 import { getPracticeDetail } from "@/features/interview/queries";
 import { formatDateTime } from "@/features/interview/utils";
@@ -25,8 +23,6 @@ export default async function PracticeDetailPage({ params }: { params: Promise<{
         {context?.title ? <p className="mt-2 text-xs text-zinc-400">{context.title}</p> : null}
       </header>
 
-      <CareerNav current="/career/interview" />
-      <InterviewNav current={`/career/interview/practice/${preparationId}`} />
 
       <form action={createPracticeAttempt} className="max-w-3xl">
         <input type="hidden" name="preparation_id" value={prep.id} />
