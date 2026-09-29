@@ -62,7 +62,7 @@ export async function getExperience(id: string) {
 
 export async function getCareerPortfolio() {
   const base = await getCareerOverview(); const { supabase } = await requireOwner();
-  const [skills, facts, outputs, approvedBullets, opportunities, applications, resumes, decisions, certifications, milestones] = await Promise.all([
+  const [skills, facts, outputs, approvedBullets, opportunities, applications, resumes, decisions, certifications, milestones, interviewTargets, interviewPreparations] = await Promise.all([
     supabase.from("skills").select("id,name,category,proficiency,evidence_markdown").is("archived_at", null).order("category").order("name"),
     supabase.from("experience_facts").select("id,experience_id,verification_status,source_document_id").is("archived_at", null),
     supabase.from("experience_outputs").select("id,experience_id,name,output_type,public_url").is("archived_at", null),
@@ -73,8 +73,10 @@ export async function getCareerPortfolio() {
     supabase.from("decisions").select("id,title,status,decided_at").eq("status", "active").order("decided_at", { ascending: false }).limit(3),
     supabase.from("certifications").select("id,name,issuer,status,expiry_date").is("archived_at", null).order("created_at", { ascending: false }).limit(6),
     supabase.from("career_milestones").select("id,title,target_date,status,importance").is("archived_at", null).order("target_date").limit(5),
+    supabase.from("interview_contexts").select("id,title,context_type,organization_snapshot,role_title_snapshot,status,priority,next_interview_at").is("archived_at", null).neq("context_type", "general").order("priority", { ascending: false }).order("next_interview_at", { ascending: true, nullsFirst: false }),
+    supabase.from("interview_question_preparations").select("id,context_id,status,next_practice_at").is("archived_at", null).not("context_id", "is", null),
   ]);
-  return { ...base, skills: skills.data ?? [], facts: facts.data ?? [], outputs: outputs.data ?? [], approvedBullets: approvedBullets.data ?? [], opportunities: opportunities.data ?? [], applications: applications.data ?? [], resumes: resumes.data ?? [], decisions: decisions.data ?? [], certifications: certifications.data ?? [], milestones: milestones.data ?? [], career2Unavailable: Boolean(opportunities.error || applications.error || resumes.error) };
+  return { ...base, skills: skills.data ?? [], facts: facts.data ?? [], outputs: outputs.data ?? [], approvedBullets: approvedBullets.data ?? [], opportunities: opportunities.data ?? [], applications: applications.data ?? [], resumes: resumes.data ?? [], decisions: decisions.data ?? [], certifications: certifications.data ?? [], milestones: milestones.data ?? [], interviewTargets: interviewTargets.data ?? [], interviewPreparations: interviewPreparations.data ?? [], career2Unavailable: Boolean(opportunities.error || applications.error || resumes.error) };
 }
 
 export async function getCareerCapital() {
