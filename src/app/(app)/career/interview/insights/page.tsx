@@ -62,7 +62,7 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
                 <span className="text-right font-mono text-zinc-500">{item.evidence}</span>
               </div>
             ))}
-            {!data.competencyCoverage.length ? <p className="py-4 text-sm text-zinc-500">还没有 competency 数据。</p> : null}
+            {!data.competencyCoverage.length ? <p className="py-4 text-sm text-zinc-500">还没有能力覆盖数据。</p> : null}
           </div>
           {data.competencyCoverage.length ? <div className="mt-2 grid grid-cols-[1fr_52px_52px_52px] gap-3 text-[10px] uppercase tracking-wide text-zinc-400"><span></span><span className="text-right">题目</span><span className="text-right">已准备</span><span className="text-right">经历</span></div> : null}
         </section>
@@ -77,7 +77,7 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
                 <span className="font-mono text-zinc-500">{item.count}</span>
               </div>
             ))}
-            {!data.storyUsage.length ? <p className="py-4 text-sm text-zinc-500">还没有 Experience Evidence 关联。</p> : null}
+            {!data.storyUsage.length ? <p className="py-4 text-sm text-zinc-500">还没有关联经历素材。</p> : null}
           </div>
         </section>
 
@@ -92,7 +92,7 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
                 <span className="text-right font-mono">{item.issuesPerAttempt.toFixed(2)} 个问题/次</span>
               </div>
             ))}
-            {!data.monthlyTrend.length ? <p className="py-4 text-sm text-zinc-500">完成几次 Practice 后，这里才有意义。</p> : null}
+            {!data.monthlyTrend.length ? <p className="py-4 text-sm text-zinc-500">完成几次练习后，这里才有意义。</p> : null}
           </div>
         </section>
       </div>
