@@ -148,6 +148,7 @@ export async function updateInterviewContext(formData: FormData) {
     next_interview_at: value.next_interview_at,
   });
   revalidateInterview();
+  revalidatePath(`/career/interview/targets/${contextId}`);
 }
 
 export async function archiveInterviewContext(formData: FormData) {
