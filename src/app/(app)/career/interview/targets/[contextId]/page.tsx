@@ -10,262 +10,159 @@ import { formatDateTime } from "@/features/interview/utils";
 
 export default async function InterviewTargetPage({ params }: { params: Promise<{ contextId: string }> }) {
   const { contextId } = await params;
-  const [data, insights] = await Promise.all([
-    getInterviewQuestions(),
-    getInterviewInsights(contextId),
-  ]);
-
+  const [data, insights] = await Promise.all([getInterviewQuestions(), getInterviewInsights(contextId)]);
   const target = data.contexts.find((context: any) => context.id === contextId);
   if (!target) notFound();
 
   const questionById = new Map(data.questions.map((question: any) => [question.id, question]));
   const preparations = data.preparations.filter((prep: any) => prep.context_id === contextId);
   const preparedQuestionIds = new Set(preparations.map((prep: any) => prep.question_id));
+
   const rows = preparations
     .map((preparation: any) => ({
       preparation,
       question: questionById.get(preparation.question_id) as any,
       needsPractice: preparation.status !== "paused" && (!preparation.next_practice_at || Date.parse(preparation.next_practice_at) <= Date.now()),
     }))
-    .filter((row: any) => row.question);
-
-  const importanceRank: Record<string, number> = { critical: 0, high: 1, normal: 2, low: 3 };
-  const statusRank: Record<string, number> = { needs_review: 0, practicing: 1, developing: 2, unprepared: 3, ready: 4, paused: 5 };
-  rows.sort((a: any, b: any) =>
-    Number(b.needsPractice) - Number(a.needsPractice) ||
-    (importanceRank[a.preparation.importance] ?? 9) - (importanceRank[b.preparation.importance] ?? 9) ||
-    (statusRank[a.preparation.status] ?? 9) - (statusRank[b.preparation.status] ?? 9)
-  );
+    .filter((row: any) => row.question)
+    .sort((a: any, b: any) => Number(b.needsPractice) - Number(a.needsPractice));
 
   const ready = preparations.filter((prep: any) => prep.status === "ready").length;
   const due = rows.filter((row: any) => row.needsPractice).length;
-  const inProgress = preparations.filter((prep: any) => ["developing", "practicing", "needs_review"].includes(prep.status)).length;
-  const progress = preparations.length ? Math.round((ready / preparations.length) * 100) : 0;
-  const unpreparedQuestions = data.questions
-    .filter((question: any) => !question.parent_question_id && !preparedQuestionIds.has(question.id))
-    .slice(0, 6);
+  const unpreparedQuestions = data.questions.filter((question: any) => !question.parent_question_id && !preparedQuestionIds.has(question.id)).slice(0, 6);
 
   const nextAction = due
-    ? `先练 ${due} 道已经到期的题`
-    : inProgress
-      ? `继续完成 ${inProgress} 道正在准备的题`
-      : preparations.length
-        ? "核心题目已准备，保持练习节奏"
-        : "先从题库加入第一批核心题目";
+    ? `先练 ${due} 道到期题`
+    : preparations.length
+      ? "继续完善尚未准备完成的题目"
+      : "先加入第一批核心题目";
 
   return (
     <>
       <PageHeader
         title={target.role_title_snapshot || target.title}
-        description={[target.organization_snapshot, target.title !== target.role_title_snapshot ? target.title : null].filter(Boolean).join(" · ")}
-        eyebrow={<Link href="/career/interview" className="hover:text-zinc-700">面试准备 / 目标岗位</Link>}
-        action={<Link href={`/career/interview/practice?context=${contextId}`} className="rounded-lg bg-[#365F78] px-4 py-2 text-sm font-medium text-white">开始练习</Link>}
+        description={target.organization_snapshot || target.title}
+        eyebrow={<Link href="/career/interview" className="hover:text-zinc-700">面试 / 岗位</Link>}
+        action={<Link href={`/career/interview/practice?context=${contextId}`} className="text-sm font-medium text-[#365F78]">开始练习 →</Link>}
       />
       <CareerNav current="/career/interview" />
       <InterviewNav current={`/career/interview/targets/${contextId}`} />
 
-      <section className="rounded-2xl bg-zinc-50 p-5 sm:p-6">
-        <div className="grid gap-6 lg:grid-cols-[1.4fr_.6fr]">
-          <div>
-            <p className="text-xs font-medium text-zinc-400">现在该做什么</p>
-            <h2 className="mt-2 text-xl font-medium tracking-tight">{nextAction}</h2>
-            {target.notes_markdown ? <p className="mt-3 max-w-2xl whitespace-pre-wrap text-sm leading-6 text-zinc-600">{target.notes_markdown}</p> : null}
-            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-zinc-500">
-              <span>状态：{target.status === "active" ? "进行中" : target.status === "paused" ? "暂停" : "已结束"}</span>
-              <span>下一场面试：{formatDateTime(target.next_interview_at)}</span>
-              <span>练习记录：{insights.attempts.length} 次</span>
-            </div>
-            <details className="mt-5">
-              <summary className="cursor-pointer text-sm text-[#365F78]">编辑目标岗位</summary>
-              <form action={updateInterviewContext} className="mt-4 grid gap-4 rounded-2xl bg-white/70 p-4 sm:grid-cols-2">
-                <input type="hidden" name="context_id" value={target.id} />
-                <input type="hidden" name="context_type" value={target.context_type} />
-                <input type="hidden" name="career_direction_id" value={target.career_direction_id ?? ""} />
-                <input type="hidden" name="opportunity_id" value={target.opportunity_id ?? ""} />
-                <input type="hidden" name="application_id" value={target.application_id ?? ""} />
-                <label className="grid gap-1.5 text-sm">
-                  <span className="text-zinc-600">显示名称</span>
-                  <input name="title" required defaultValue={target.title} className={targetControlClass} />
-                </label>
-                <label className="grid gap-1.5 text-sm">
-                  <span className="text-zinc-600">公司</span>
-                  <input name="organization_snapshot" required={target.context_type === "target"} defaultValue={target.organization_snapshot ?? ""} className={targetControlClass} />
-                </label>
-                <label className="grid gap-1.5 text-sm">
-                  <span className="text-zinc-600">岗位</span>
-                  <input name="role_title_snapshot" required={target.context_type === "target"} defaultValue={target.role_title_snapshot ?? ""} className={targetControlClass} />
-                </label>
-                <label className="grid gap-1.5 text-sm">
-                  <span className="text-zinc-600">默认语言</span>
-                  <select name="default_language" defaultValue={target.default_language} className={targetControlClass}>
-                    <option value="zh">中文</option>
-                    <option value="en">英文</option>
-                    <option value="bilingual">双语</option>
-                  </select>
-                </label>
-                <label className="grid gap-1.5 text-sm">
-                  <span className="text-zinc-600">优先级</span>
-                  <select name="priority" defaultValue={target.priority} className={targetControlClass}>
-                    {[1,2,3,4,5].map((value) => <option key={value} value={value}>{value}</option>)}
-                  </select>
-                </label>
-                <label className="grid gap-1.5 text-sm">
-                  <span className="text-zinc-600">状态</span>
-                  <select name="status" defaultValue={target.status} className={targetControlClass}>
-                    <option value="active">进行中</option>
-                    <option value="paused">暂停</option>
-                    <option value="closed">已结束</option>
-                  </select>
-                </label>
-                <label className="grid gap-1.5 text-sm">
-                  <span className="text-zinc-600">下一场面试</span>
-                  <input type="datetime-local" name="next_interview_at" defaultValue={toDatetimeLocal(target.next_interview_at)} className={targetControlClass} />
-                </label>
-                <label className="grid gap-1.5 text-sm sm:col-span-2">
-                  <span className="text-zinc-600">备注</span>
-                  <textarea name="notes_markdown" defaultValue={target.notes_markdown ?? ""} rows={4} className={targetControlClass} />
-                </label>
-                <button className="w-fit rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white sm:col-span-2">保存目标岗位</button>
-              </form>
-            </details>
-          </div>
+      <section className="mb-12">
+        <p className="text-xs text-zinc-400">现在</p>
+        <h2 className="mt-2 text-xl font-medium tracking-tight text-zinc-950">{nextAction}</h2>
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-zinc-400">
+          <span>{ready}/{preparations.length} 已准备</span>
+          {due ? <span className="text-amber-700">{due} 待练</span> : null}
+          {target.next_interview_at ? <span>下一场 {formatDateTime(target.next_interview_at)}</span> : null}
+          <span>{insights.attempts.length} 次练习</span>
+        </div>
+        {target.notes_markdown ? <p className="mt-4 max-w-2xl whitespace-pre-wrap text-sm leading-6 text-zinc-500">{target.notes_markdown}</p> : null}
+      </section>
 
-          <div className="lg:pl-4">
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-xs text-zinc-400">题目准备</p>
-                <p className="mt-1 text-3xl font-semibold tracking-tight">{ready}<span className="ml-1 text-base font-normal text-zinc-400">/ {preparations.length}</span></p>
-              </div>
-              <span className="text-sm text-zinc-500">{progress}%</span>
-            </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-200">
-              <div className="h-full rounded-full bg-[#365F78]" style={{ width: `${progress}%` }} />
-            </div>
-            <div className="mt-4 flex justify-between text-xs text-zinc-500">
-              <span>{due} 道待练</span>
-              <span>{inProgress} 道整理中</span>
-            </div>
-          </div>
+      <section className="mb-12">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-[15px] font-medium text-zinc-950">题目</h2>
+          <span className="text-xs text-zinc-400">{preparations.length} 道</span>
+        </div>
+
+        <div className="mt-4 space-y-1">
+          {rows.map((row: any) => <QuestionRow key={row.preparation.id} row={row} contextId={contextId} />)}
+          {!rows.length ? <p className="py-4 text-sm text-zinc-400">还没有加入准备题目。</p> : null}
         </div>
       </section>
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <main className="space-y-10">
-          <section>
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-medium">优先处理</h2>
-                <p className="mt-1 text-sm text-zinc-500">先处理到期、关键和未完成的题。</p>
-              </div>
-              <Link href={`/career/interview/practice?context=${contextId}`} className="text-sm text-[#365F78]">进入练习队列 →</Link>
-            </div>
-
-            <div className="mt-4 space-y-1">
-              {rows.filter((row: any) => row.preparation.status !== "ready" || row.needsPractice).slice(0, 6).map((row: any) => (
-                <QuestionRow key={row.preparation.id} row={row} contextId={contextId} />
-              ))}
-              {!rows.some((row: any) => row.preparation.status !== "ready" || row.needsPractice) ? (
-                <p className="rounded-xl bg-zinc-50 px-4 py-5 text-sm text-zinc-500">当前没有紧急准备项。</p>
-              ) : null}
-            </div>
-          </section>
-
-          <section>
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-medium">这个岗位的题目</h2>
-                <p className="mt-1 text-sm text-zinc-500">每道题都保留这个岗位自己的回答逻辑、答案和练习记录。</p>
-              </div>
-              <span className="text-sm text-zinc-400">{preparations.length} 道</span>
-            </div>
-            <div className="mt-4 space-y-1">
-              {rows.map((row: any) => <QuestionRow key={row.preparation.id} row={row} contextId={contextId} />)}
-              {!rows.length ? <p className="rounded-xl bg-zinc-50 px-4 py-5 text-sm text-zinc-500">还没有为这个岗位加入准备题目。</p> : null}
-            </div>
-          </section>
-
-          <section>
-            <div>
-              <h2 className="text-lg font-medium">从通用题库加入</h2>
-              <p className="mt-1 text-sm text-zinc-500">不用复制题目；加入后会生成这个岗位独立的准备内容。</p>
-            </div>
-            <div className="mt-4 space-y-1">
-              {unpreparedQuestions.map((question: any) => (
-                <div key={question.id} className="flex items-center justify-between gap-4 rounded-xl px-3 py-3 hover:bg-zinc-50">
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-[#365F78]">{categoryLabels[question.category] ?? question.category}</p>
-                    <p className="mt-1 truncate text-sm font-medium">{question.short_title || question.canonical_prompt}</p>
-                  </div>
-                  <form action={ensureInterviewPreparation}>
-                    <input type="hidden" name="question_id" value={question.id} />
-                    <input type="hidden" name="context_id" value={contextId} />
-                    <button className="shrink-0 rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-200">加入准备</button>
-                  </form>
+      <section className="mb-12">
+        <details>
+          <summary className="cursor-pointer text-sm text-zinc-500 hover:text-zinc-900">+ 从题库加入</summary>
+          <div className="mt-3 space-y-1">
+            {unpreparedQuestions.map((question: any) => (
+              <div key={question.id} className="flex items-center justify-between gap-4 rounded-lg px-2 py-3 hover:bg-white/70">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-zinc-800">{question.short_title || question.canonical_prompt}</p>
+                  <p className="mt-0.5 text-xs text-zinc-400">{categoryLabels[question.category] ?? question.category}</p>
                 </div>
-              ))}
-              {!unpreparedQuestions.length ? <p className="text-sm text-zinc-500">通用题库里的核心题已经全部加入。</p> : null}
-            </div>
-            <Link href="/career/interview/questions" className="mt-4 inline-block text-sm text-[#365F78]">浏览完整题库 →</Link>
-          </section>
-        </main>
+                <form action={ensureInterviewPreparation}>
+                  <input type="hidden" name="question_id" value={question.id} />
+                  <input type="hidden" name="context_id" value={contextId} />
+                  <button className="shrink-0 text-xs text-[#365F78]">加入</button>
+                </form>
+              </div>
+            ))}
+            {!unpreparedQuestions.length ? <p className="py-3 text-sm text-zinc-400">核心题已经全部加入。</p> : null}
+          </div>
+          <Link href="/career/interview/questions" className="mt-3 inline-block text-xs text-zinc-400 hover:text-zinc-700">完整题库 →</Link>
+        </details>
+      </section>
 
-        <aside className="space-y-8">
-          <section>
-            <h2 className="font-medium">近期暴露的问题</h2>
-            <div className="mt-3 space-y-2">
-              {insights.issueCounts.slice(0, 5).map((item) => (
-                <div key={item.tag} className="flex items-center justify-between gap-4 text-sm">
-                  <span className="text-zinc-600">{issueLabels[item.tag] ?? item.tag}</span>
-                  <span className="font-mono text-xs text-zinc-400">{item.count}</span>
-                </div>
-              ))}
-              {!insights.issueCounts.length ? <p className="text-sm text-zinc-500">完成练习后，这里会显示反复出现的问题。</p> : null}
-            </div>
-            <Link href={`/career/interview/insights?context=${contextId}`} className="mt-4 inline-block text-sm text-[#365F78]">查看完整复盘 →</Link>
-          </section>
+      {insights.issueCounts.length ? (
+        <section className="mb-12">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-[15px] font-medium text-zinc-950">近期问题</h2>
+            <Link href={`/career/interview/insights?context=${contextId}`} className="text-xs text-zinc-400 hover:text-zinc-700">复盘 →</Link>
+          </div>
+          <p className="mt-3 text-sm leading-7 text-zinc-500">
+            {insights.issueCounts.slice(0, 4).map((item) => `${issueLabels[item.tag] ?? item.tag} × ${item.count}`).join(" · ")}
+          </p>
+        </section>
+      ) : null}
 
-          <section>
-            <h2 className="font-medium">快速进入</h2>
-            <div className="mt-3 grid gap-2 text-sm">
-              <Link href={`/career/interview/practice?context=${contextId}`} className="text-[#365F78]">模拟练习 →</Link>
-              <Link href={`/career/interview/insights?context=${contextId}`} className="text-[#365F78]">岗位复盘 →</Link>
-              <Link href="/career/interview/sessions" className="text-[#365F78]">面试记录 →</Link>
-            </div>
-          </section>
-        </aside>
-      </div>
+      <details className="pt-2">
+        <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">岗位设置</summary>
+        <form action={updateInterviewContext} className="mt-4 grid gap-4 rounded-2xl bg-white/70 p-5 sm:grid-cols-2">
+          <input type="hidden" name="context_id" value={target.id} />
+          <input type="hidden" name="context_type" value={target.context_type} />
+          <input type="hidden" name="career_direction_id" value={target.career_direction_id ?? ""} />
+          <input type="hidden" name="opportunity_id" value={target.opportunity_id ?? ""} />
+          <input type="hidden" name="application_id" value={target.application_id ?? ""} />
+          <Field name="title" label="显示名称" required defaultValue={target.title} />
+          <Field name="organization_snapshot" label="公司" required={target.context_type === "target"} defaultValue={target.organization_snapshot} />
+          <Field name="role_title_snapshot" label="岗位" required={target.context_type === "target"} defaultValue={target.role_title_snapshot} />
+          <Select name="default_language" label="默认语言" defaultValue={target.default_language} options={[["zh","中文"],["en","英文"],["bilingual","双语"]]} />
+          <Select name="priority" label="优先级" defaultValue={String(target.priority)} options={[1,2,3,4,5].map((v) => [String(v), String(v)])} />
+          <Select name="status" label="状态" defaultValue={target.status} options={[["active","进行中"],["paused","暂停"],["closed","已结束"]]} />
+          <Field name="next_interview_at" label="下一场面试" type="datetime-local" defaultValue={toDatetimeLocal(target.next_interview_at)} />
+          <label className="grid gap-1.5 text-sm sm:col-span-2">
+            <span className="text-zinc-500">备注</span>
+            <textarea name="notes_markdown" defaultValue={target.notes_markdown ?? ""} rows={3} className={controlClass} />
+          </label>
+          <button className="w-fit rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white">保存</button>
+        </form>
+      </details>
     </>
   );
 }
 
-const targetControlClass = "rounded-lg bg-white px-3 py-2 ring-1 ring-inset ring-zinc-200 outline-none focus:ring-[#365F78]";
+function QuestionRow({ row, contextId }: { row: any; contextId: string }) {
+  const { question, preparation, needsPractice } = row;
+  return (
+    <Link href={`/career/interview/questions/${question.id}?context=${contextId}`} className="group grid gap-1 rounded-lg px-2 py-3 hover:bg-white/70 sm:grid-cols-[1fr_auto] sm:items-center">
+      <div className="min-w-0">
+        <p className="truncate text-sm text-zinc-800">{preparation.prompt_override || question.short_title || question.canonical_prompt}</p>
+        {preparation.next_focus ? <p className="mt-0.5 truncate text-xs text-zinc-400">{preparation.next_focus}</p> : null}
+      </div>
+      <div className="flex items-center gap-3 text-xs text-zinc-400">
+        {needsPractice ? <span className="text-amber-700">待练</span> : null}
+        <span>{statusLabels[preparation.status] ?? preparation.status}</span>
+        <span>{importanceLabels[preparation.importance] ?? preparation.importance}</span>
+      </div>
+    </Link>
+  );
+}
+
+const controlClass = "rounded-lg bg-white px-3 py-2 ring-1 ring-inset ring-zinc-200 outline-none focus:ring-zinc-400";
+
+function Field({ name, label, type = "text", defaultValue, required = false }: { name: string; label: string; type?: string; defaultValue?: string | number | null; required?: boolean }) {
+  return <label className="grid gap-1.5 text-sm"><span className="text-zinc-500">{label}</span><input name={name} type={type} defaultValue={defaultValue ?? ""} required={required} className={controlClass}/></label>;
+}
+
+function Select({ name, label, defaultValue, options }: { name: string; label: string; defaultValue: string; options: [string,string][] }) {
+  return <label className="grid gap-1.5 text-sm"><span className="text-zinc-500">{label}</span><select name={name} defaultValue={defaultValue} className={controlClass}>{options.map(([value,text]) => <option key={value} value={value}>{text}</option>)}</select></label>;
+}
 
 function toDatetimeLocal(value?: string | null) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0,16);
-}
-
-function QuestionRow({ row, contextId }: { row: any; contextId: string }) {
-  const { question, preparation, needsPractice } = row;
-  return (
-    <Link
-      href={`/career/interview/questions/${question.id}?context=${contextId}`}
-      className="grid gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-zinc-50 sm:grid-cols-[1fr_auto]"
-    >
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="font-medium text-[#365F78]">{categoryLabels[question.category] ?? question.category}</span>
-          {needsPractice ? <span className="text-amber-700">需要练习</span> : null}
-        </div>
-        <p className="mt-1 truncate text-sm font-medium">{preparation.prompt_override || question.short_title || question.canonical_prompt}</p>
-        {preparation.next_focus ? <p className="mt-1 line-clamp-1 text-xs text-zinc-500">下次重点：{preparation.next_focus}</p> : null}
-      </div>
-      <div className="text-right text-xs text-zinc-400">
-        <p className="font-medium text-zinc-600">{statusLabels[preparation.status] ?? preparation.status}</p>
-        <p className="mt-1">{importanceLabels[preparation.importance] ?? preparation.importance}</p>
-      </div>
-    </Link>
-  );
 }
