@@ -16,7 +16,7 @@ function active(current: string, href: string) {
 
 export function InterviewNav({ current }: { current: string }) {
   return (
-    <nav aria-label="面试准备导航" className="mb-9 flex gap-5 overflow-x-auto text-[13px]">
+    <nav aria-label="面试准备导航" className="mb-9 flex flex-wrap gap-x-5 gap-y-2 text-[13px]">
       {items.map(([label, href]) => {
         const isCurrent = active(current, href);
         return (
