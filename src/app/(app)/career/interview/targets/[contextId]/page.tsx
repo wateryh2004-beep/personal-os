@@ -5,7 +5,7 @@ import { CareerNav } from "@/components/career/career-nav";
 import { InterviewNav } from "@/components/career/interview/interview-nav";
 import { ensureInterviewPreparation } from "@/features/interview/actions";
 import { getInterviewInsights, getInterviewQuestions } from "@/features/interview/queries";
-import { categoryLabels, importanceLabels, statusLabels } from "@/features/interview/constants";
+import { categoryLabels, importanceLabels, issueLabels, statusLabels } from "@/features/interview/constants";
 import { formatDateTime } from "@/features/interview/utils";
 
 export default async function InterviewTargetPage({ params }: { params: Promise<{ contextId: string }> }) {
@@ -162,7 +162,7 @@ export default async function InterviewTargetPage({ params }: { params: Promise<
             <div className="mt-3 space-y-2">
               {insights.issueCounts.slice(0, 5).map((item) => (
                 <div key={item.tag} className="flex items-center justify-between gap-4 text-sm">
-                  <span className="text-zinc-600">{item.tag}</span>
+                  <span className="text-zinc-600">{issueLabels[item.tag] ?? item.tag}</span>
                   <span className="font-mono text-xs text-zinc-400">{item.count}</span>
                 </div>
               ))}
