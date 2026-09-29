@@ -40,8 +40,8 @@ export default async function InterviewHomePage() {
             <div className="mt-4 rounded-2xl bg-zinc-50 p-5">
               <form action={createInterviewContext} className="grid gap-4 sm:grid-cols-2 lg:w-[620px]">
                 <Field name="title" label="显示名称" required placeholder="太古集团 Management Trainee" />
-                <Field name="organization_snapshot" label="公司" placeholder="Swire" />
-                <Field name="role_title_snapshot" label="岗位" placeholder="Management Trainee" />
+                <Field name="organization_snapshot" label="公司" required placeholder="Swire" />
+                <Field name="role_title_snapshot" label="岗位" required placeholder="Management Trainee" />
                 <label className="grid gap-1.5 text-sm">
                   <span className="text-zinc-600">默认语言</span>
                   <select name="default_language" defaultValue="bilingual" className="rounded-lg bg-white px-3 py-2 ring-1 ring-inset ring-zinc-200">
