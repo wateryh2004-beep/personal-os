@@ -72,6 +72,7 @@ function revalidateInterview(questionId?: string, preparationId?: string, sessio
 export async function createInterviewQuestion(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const contextId = String(formData.get("context_id") || "") || null;
+  const returnToWorkspace = String(formData.get("return_to_workspace") || "") === "1";
   const value = parse(interviewQuestionSchema, formObject(formData));
   if (value.parent_question_id) await own(supabase, "interview_questions", value.parent_question_id);
   let targetLanguage = "zh";
@@ -97,6 +98,9 @@ export async function createInterviewQuestion(formData: FormData) {
   await audit(supabase, userId, "create", "interview_question", data.id, { category: value.category, source_type: value.source_type });
   revalidateInterview(data.id);
   if (contextId) revalidatePath(`/career/interview/targets/${contextId}`);
+  if (returnToWorkspace) {
+    redirect(contextId ? `/career/interview?context=${contextId}&question=${data.id}` : `/career/interview?question=${data.id}`);
+  }
   redirect(contextId ? `/career/interview/questions/${data.id}?context=${contextId}` : `/career/interview/questions/${data.id}`);
 }
 
@@ -129,7 +133,9 @@ export async function archiveInterviewQuestion(formData: FormData) {
 
 export async function createInterviewContext(formData: FormData) {
   const { supabase, userId } = await requireOwner();
+  const returnToWorkspace = String(formData.get("return_to_workspace") || "") === "1";
   const raw = { ...formObject(formData) } as Record<string, unknown>;
+  delete raw.return_to_workspace;
   const contextType = String(raw.context_type || "target");
   const organization = String(raw.organization_snapshot || "").trim();
   const role = String(raw.role_title_snapshot || "").trim();
@@ -151,6 +157,7 @@ export async function createInterviewContext(formData: FormData) {
   if (error || !data) failed(error);
   await audit(supabase, userId, "create", "interview_context", data.id, { context_type: value.context_type, title: value.title });
   revalidateInterview();
+  if (returnToWorkspace) redirect(`/career/interview?context=${data.id}`);
   redirect(value.context_type === "general" ? "/career/interview" : `/career/interview/targets/${data.id}`);
 }
 
