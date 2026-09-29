@@ -71,8 +71,15 @@ function revalidateInterview(questionId?: string, preparationId?: string, sessio
 
 export async function createInterviewQuestion(formData: FormData) {
   const { supabase, userId } = await requireOwner();
+  const contextId = String(formData.get("context_id") || "") || null;
   const value = parse(interviewQuestionSchema, formObject(formData));
   if (value.parent_question_id) await own(supabase, "interview_questions", value.parent_question_id);
+  let targetLanguage = "zh";
+  if (contextId) {
+    const { data: contextRow, error: contextError } = await supabase.from("interview_contexts").select("id,default_language").eq("id", contextId).maybeSingle();
+    if (contextError || !contextRow) failed(contextError ?? new Error("找不到目标岗位。"));
+    targetLanguage = contextRow.default_language || "zh";
+  }
   const { data, error } = await supabase.from("interview_questions").insert({
     ...value,
     user_id: userId,
@@ -81,15 +88,16 @@ export async function createInterviewQuestion(formData: FormData) {
   const { error: prepError } = await supabase.from("interview_question_preparations").insert({
     user_id: userId,
     question_id: data.id,
-    context_id: null,
+    context_id: contextId,
     status: "unprepared",
-    importance: "normal",
-    target_language: "zh",
+    importance: contextId ? "high" : "normal",
+    target_language: targetLanguage,
   });
   if (prepError) failed(prepError);
   await audit(supabase, userId, "create", "interview_question", data.id, { category: value.category, source_type: value.source_type });
   revalidateInterview(data.id);
-  redirect(`/career/interview/questions/${data.id}`);
+  if (contextId) revalidatePath(`/career/interview/targets/${contextId}`);
+  redirect(contextId ? `/career/interview/questions/${data.id}?context=${contextId}` : `/career/interview/questions/${data.id}`);
 }
 
 export async function updateInterviewQuestion(formData: FormData) {
@@ -121,7 +129,21 @@ export async function archiveInterviewQuestion(formData: FormData) {
 
 export async function createInterviewContext(formData: FormData) {
   const { supabase, userId } = await requireOwner();
-  const value = parse(interviewContextSchema, formObject(formData));
+  const raw = { ...formObject(formData) } as Record<string, unknown>;
+  const contextType = String(raw.context_type || "target");
+  const organization = String(raw.organization_snapshot || "").trim();
+  const role = String(raw.role_title_snapshot || "").trim();
+  if (!String(raw.title || "").trim() && contextType === "target") raw.title = [organization, role].filter(Boolean).join(" · ");
+  if (!raw.context_type) raw.context_type = contextType;
+  if (!raw.default_language) raw.default_language = "bilingual";
+  if (!raw.priority) raw.priority = "4";
+  if (!raw.status) raw.status = "active";
+  if (!raw.notes_markdown) raw.notes_markdown = "";
+  if (!raw.career_direction_id) raw.career_direction_id = "";
+  if (!raw.opportunity_id) raw.opportunity_id = "";
+  if (!raw.application_id) raw.application_id = "";
+  if (!raw.next_interview_at) raw.next_interview_at = "";
+  const value = parse(interviewContextSchema, raw);
   if (value.career_direction_id) await own(supabase, "career_directions", value.career_direction_id);
   if (value.opportunity_id) await own(supabase, "career_opportunities", value.opportunity_id);
   if (value.application_id) await own(supabase, "career_applications", value.application_id);
@@ -170,7 +192,12 @@ export async function ensureInterviewPreparation(formData: FormData) {
   const questionId = String(formData.get("question_id") || "");
   const contextId = String(formData.get("context_id") || "") || null;
   await own(supabase, "interview_questions", questionId);
-  if (contextId) await own(supabase, "interview_contexts", contextId);
+  let targetLanguage = "zh";
+  if (contextId) {
+    const { data: contextRow, error: contextError } = await supabase.from("interview_contexts").select("id,default_language").eq("id", contextId).maybeSingle();
+    if (contextError || !contextRow) failed(contextError ?? new Error("找不到目标岗位。"));
+    targetLanguage = contextRow.default_language || "zh";
+  }
   let existingQuery = supabase.from("interview_question_preparations").select("id").eq("question_id", questionId).is("archived_at", null);
   existingQuery = contextId ? existingQuery.eq("context_id", contextId) : existingQuery.is("context_id", null);
   const { data: existing, error: lookupError } = await existingQuery.maybeSingle();
@@ -183,7 +210,7 @@ export async function ensureInterviewPreparation(formData: FormData) {
       context_id: contextId,
       status: "unprepared",
       importance: contextId ? "high" : "normal",
-      target_language: "zh",
+      target_language: targetLanguage,
     }).select("id").single();
     if (error || !data) failed(error);
     preparationId = data.id;
@@ -246,6 +273,7 @@ export async function archiveInterviewNote(formData: FormData) {
 
 export async function createInterviewAnswerVersion(formData: FormData) {
   const { supabase, userId } = await requireOwner();
+  const makeCurrent = String(formData.get("make_current") || "") === "1";
   const value = parse(interviewAnswerSchema, formObject(formData));
   await own(supabase, "interview_question_preparations", value.preparation_id);
   let query = supabase.from("interview_answer_versions").select("version_number")
@@ -264,7 +292,29 @@ export async function createInterviewAnswerVersion(formData: FormData) {
     status: "draft",
   }).select("id").single();
   if (error || !data) failed(error);
-  await audit(supabase, userId, "create", "interview_answer_version", data.id, { preparation_id: value.preparation_id, answer_mode: value.answer_mode, language: value.language, target_seconds: value.target_seconds });
+  if (makeCurrent) {
+    let currentQuery = supabase.from("interview_answer_versions").select("id")
+      .eq("preparation_id", value.preparation_id)
+      .eq("answer_mode", value.answer_mode)
+      .eq("language", value.language)
+      .eq("status", "current")
+      .is("archived_at", null)
+      .neq("id", data.id);
+    currentQuery = value.target_seconds == null ? currentQuery.is("target_seconds", null) : currentQuery.eq("target_seconds", value.target_seconds);
+    const { data: oldCurrents, error: currentError } = await currentQuery;
+    if (currentError) failed(currentError);
+    const oldIds = (oldCurrents ?? []).map((row) => row.id);
+    if (oldIds.length) {
+      const { error: retireError } = await supabase.from("interview_answer_versions").update({ status: "retired" }).in("id", oldIds);
+      if (retireError) failed(retireError);
+    }
+    const { error: promoteError } = await supabase.from("interview_answer_versions").update({ status: "current", confirmed_at: new Date().toISOString() }).eq("id", data.id);
+    if (promoteError) {
+      if (oldIds.length) await supabase.from("interview_answer_versions").update({ status: "current" }).in("id", oldIds);
+      failed(promoteError);
+    }
+  }
+  await audit(supabase, userId, "create", "interview_answer_version", data.id, { preparation_id: value.preparation_id, answer_mode: value.answer_mode, language: value.language, target_seconds: value.target_seconds, make_current: makeCurrent });
   revalidateInterview(undefined, value.preparation_id);
 }
 
