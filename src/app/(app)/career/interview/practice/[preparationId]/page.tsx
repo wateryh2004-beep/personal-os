@@ -57,13 +57,16 @@ export default async function PracticeDetailPage({ params }: { params: Promise<{
             </div>
             <label className="grid gap-1 text-sm"><span>我实际说了什么</span><textarea name="response_transcript_markdown" className="min-h-48 rounded-lg bg-zinc-50 px-3 py-2 ring-1 ring-inset ring-zinc-200" placeholder="不要先写完美答案，尽量记录真实输出。" /></label>
             <label className="grid gap-1 text-sm"><span>自我复盘</span><textarea name="self_review_markdown" className="min-h-24 rounded-lg bg-zinc-50 px-3 py-2 ring-1 ring-inset ring-zinc-200" placeholder="哪里卡、哪里绕、哪一句最不可信？"/></label>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm"><span>问题标签（逗号分隔）</span><input name="issue_tags" placeholder="late_conclusion, weak_evidence" className="rounded-lg bg-zinc-50 px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
-              <label className="grid gap-1 text-sm"><span>做得好的地方（逗号分隔）</span><input name="strength_tags" className="rounded-lg bg-zinc-50 px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
-            </div>
+            <details className="rounded-xl bg-zinc-50 px-4 py-3">
+              <summary className="cursor-pointer text-sm text-zinc-500">可选：结构化标签</summary>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1 text-sm"><span>问题标签</span><input name="issue_tags" className="rounded-lg bg-white px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
+                <label className="grid gap-1 text-sm"><span>做得好的地方</span><input name="strength_tags" className="rounded-lg bg-white px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
+              </div>
+            </details>
             <label className="grid gap-1 text-sm"><span>下次重点 · 下一次只改一件事</span><input name="next_focus" defaultValue={prep.next_focus || ""} className="rounded-lg bg-zinc-50 px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
             <label className="grid gap-1 text-sm sm:max-w-48"><span>练习后信心</span><select name="confidence_after" className="rounded-lg bg-zinc-50 px-3 py-2 ring-1 ring-inset ring-zinc-200"><option value="">—</option>{[1,2,3,4,5].map((value) => <option key={value}>{value}</option>)}</select></label>
-            <button className="w-fit bg-[#365F78] px-4 py-2.5 text-sm font-medium text-white">保存练习记录</button>
+            <button className="w-fit rounded-lg bg-[#365F78] px-4 py-2.5 text-sm font-medium text-white">保存练习记录</button>
           </form>
         </main>
 
