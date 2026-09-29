@@ -3,68 +3,49 @@ import Link from "next/link";
 const primary = [
   ["概览", "/career"],
   ["机会", "/career/opportunities"],
-  ["面试准备", "/career/interview"],
-  ["经历素材", "/career/experiences"],
-  ["练习记录", "/career/interview/sessions"],
-  ["能力成长", "/career/skills"],
+  ["面试", "/career/interview"],
+  ["素材", "/career/experiences"],
+  ["成长", "/career/skills"],
 ] as const;
 
 const secondary = [
-  ["职业方向", "/career/directions"],
   ["简历", "/career/resumes"],
+  ["申请", "/career/applications"],
   ["路线图", "/career/roadmap"],
-  ["申请记录", "/career/applications"],
+  ["职业方向", "/career/directions"],
   ["证书", "/career/certifications"],
   ["职业资本", "/career/capital"],
-  ["材料", "/career/materials"],
-  ["搜索", "/career/search"],
-  ["档案设置", "/career/profile"],
 ] as const;
 
 function isActive(current: string, href: string) {
   if (href === "/career") return current === href;
-  if (href === "/career/interview" && current.startsWith("/career/interview/sessions")) return false;
   return current === href || current.startsWith(`${href}/`);
-}
-
-function TabLink({ href, label, current }: { href: string; label: string; current: string }) {
-  const active = isActive(current, href);
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={`shrink-0 border-b-2 px-1 py-2.5 transition-colors ${active ? "border-[#365F78] font-medium text-[#365F78]" : "border-transparent text-zinc-500 hover:text-zinc-900"}`}
-    >
-      {label}
-    </Link>
-  );
 }
 
 export function CareerNav({ current }: { current: string }) {
   return (
-    <nav aria-label="职业中心导航" className="mb-8 border-b text-sm">
-      <div className="flex gap-5 overflow-x-auto">
-        {primary.map(([label, href]) => <TabLink key={href} href={href} label={label} current={current} />)}
-      </div>
-      <details className="group py-2">
-        <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-zinc-400 hover:text-zinc-700">
-          <span className="transition-transform group-open:rotate-90">▸</span>
-          规划、简历与更多工具
-        </summary>
-        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 pb-1">
-          {secondary.map(([label, href]) => {
-            const active = isActive(current, href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={`px-1 py-1 ${active ? "font-medium text-[#365F78]" : "text-zinc-500 hover:text-zinc-900"}`}
-              >
-                {label}
-              </Link>
-            );
-          })}
+    <nav aria-label="职业中心导航" className="mb-10 flex items-center gap-6 overflow-x-auto text-[13px]">
+      {primary.map(([label, href]) => {
+        const active = isActive(current, href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={`shrink-0 pb-1 transition-colors ${active ? "font-medium text-zinc-950" : "text-zinc-400 hover:text-zinc-700"}`}
+          >
+            {label}
+          </Link>
+        );
+      })}
+      <details className="group relative shrink-0">
+        <summary className="cursor-pointer list-none pb-1 text-zinc-400 hover:text-zinc-700">更多</summary>
+        <div className="absolute left-0 top-7 z-20 min-w-36 rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-black/5">
+          {secondary.map(([label, href]) => (
+            <Link key={href} href={href} className="block rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950">
+              {label}
+            </Link>
+          ))}
         </div>
       </details>
     </nav>
