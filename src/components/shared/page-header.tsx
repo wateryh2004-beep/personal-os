@@ -19,7 +19,7 @@ export function PageHeader({ title, description, eyebrow, back, action, secondar
           {description ? <p className="mt-2 max-w-2xl text-[13px] leading-[1.6] text-[var(--text-secondary)]">{description}</p> : null}
         </div>
       </div>
-      {action || secondaryActions ? <div className="flex shrink-0 items-center gap-1.5">{secondaryActions}{action}</div> : null}
+      {action || secondaryActions ? <div className="flex shrink-0 items-center gap-1.5 pt-0.5">{secondaryActions}{action}</div> : null}
     </header>
   );
 }
