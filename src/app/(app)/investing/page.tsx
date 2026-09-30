@@ -1,1 +1,1 @@
-export default function Investing(){return <section><h1 className="text-2xl font-semibold">Investing</h1><p className="mt-3 text-sm text-zinc-500">尚未启用。不会在 Phase 1 提供行情或交易功能。</p></section>}
+export default function Investing(){return <section className="max-w-xl"><h1 className="text-[27px] font-semibold tracking-[-0.042em] text-[var(--text-primary)]">投资</h1><p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">此模块尚未启用；当前不会提供行情或交易功能。</p></section>}
