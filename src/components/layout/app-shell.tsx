@@ -94,8 +94,8 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent }: 
         className={cn(
           "pressable flex h-[36px] min-w-0 items-center gap-2.5 rounded-[11px] px-2.5 text-[13px] font-medium tracking-[-0.007em]",
           active || pending
-            ? "bg-[var(--material-thick)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,.055),inset_0_0_0_.5px_rgba(60,60,67,.05)] [&>svg]:text-[var(--accent)]"
-            : "text-[var(--text-secondary)] hover:bg-white/55 hover:text-[var(--text-primary)]",
+            ? "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]"
+            : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
           pending && "opacity-60",
           collapsed && "justify-center px-0",
         )}
@@ -341,13 +341,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       >
         {collapsed ? "H" : "Life of HANG"}
       </Link>
-      {collapsed ? null : <button type="button" onClick={toggleCollapsed} className="grid size-7 place-items-center rounded-[var(--radius-md)] text-[var(--text-tertiary)] transition-[background-color,color] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]" aria-label="折叠侧栏"><ChevronLeft className="size-3.5" strokeWidth={1.9} aria-hidden="true" /></button>}
+      {collapsed ? null : <button type="button" onClick={toggleCollapsed} className="pressable grid size-7 place-items-center rounded-[var(--radius-md)] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]" aria-label="折叠侧栏"><ChevronLeft className="size-3.5" strokeWidth={1.9} aria-hidden="true" /></button>}
     </div>
     <div className="min-h-0 flex-1 overflow-y-auto px-2.5 py-3">
       <Navigation pathname={pathname} collapsed={collapsed} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget} />
     </div>
     <div className="mx-2.5 space-y-px border-t border-[var(--border-subtle)] py-2.5">
-      {collapsed ? <Tooltip><TooltipTrigger asChild><button type="button" onClick={toggleCollapsed} className="flex h-[34px] w-full items-center justify-center rounded-[var(--radius-md)] text-[var(--text-tertiary)] transition-[background-color,color] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]" aria-label="展开侧栏"><ChevronRight className="size-4" strokeWidth={1.8} aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="right">展开侧栏</TooltipContent></Tooltip> : null}
+      {collapsed ? <Tooltip><TooltipTrigger asChild><button type="button" onClick={toggleCollapsed} className="pressable flex h-9 w-full items-center justify-center rounded-[var(--radius-md)] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]" aria-label="展开侧栏"><ChevronRight className="size-4" strokeWidth={1.8} aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="right">展开侧栏</TooltipContent></Tooltip> : null}
       <Link
         href="/settings"
         prefetch={false}
@@ -355,14 +355,14 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         onPointerEnter={() => prefetchNavigationTarget("/settings")}
         onFocus={() => prefetchNavigationTarget("/settings")}
         aria-current={pathname === "/settings" ? "page" : undefined}
-        className={cn("flex h-[34px] items-center gap-2.5 rounded-[var(--radius-md)] text-[13px] font-medium text-[var(--text-secondary)] transition-[background-color,color] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]", collapsed ? "justify-center" : "px-2.5")}
+        className={cn("pressable flex h-9 items-center gap-2.5 rounded-[11px] text-[13px] font-medium tracking-[-0.007em] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]", collapsed ? "justify-center" : "px-2.5")}
         aria-label={collapsed ? "Settings" : undefined}
       >
         <Settings className="size-4 text-[var(--text-tertiary)]" strokeWidth={1.8} aria-hidden="true" />
         {collapsed ? null : "Settings"}
       </Link>
       <form action={logoutAction} onSubmit={() => { clearWorkspaceSessions(); clearWorkspaceResources(); }}>
-        <button className={cn("flex h-[34px] w-full items-center gap-2.5 rounded-[var(--radius-md)] text-[13px] font-medium text-[var(--text-tertiary)] transition-[background-color,color] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]", collapsed ? "justify-center" : "px-2.5")} aria-label={collapsed ? "退出登录" : undefined}>
+        <button className={cn("pressable flex h-9 w-full items-center gap-2.5 rounded-[11px] text-[13px] font-medium tracking-[-0.007em] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]", collapsed ? "justify-center" : "px-2.5")} aria-label={collapsed ? "退出登录" : undefined}>
           <LogOut className="size-4" strokeWidth={1.8} aria-hidden="true" />
           {collapsed ? null : "退出登录"}
         </button>
@@ -371,7 +371,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   </aside>, [beginNavigation, collapsed, desktopWidth, pathname, prefetchNavigationTarget, visiblePendingHref]);
 
   return <div className="min-h-[var(--app-viewport-height)] bg-[var(--surface-app)]">
-    {showNavigationProgress ? <div data-navigation-progress aria-hidden="true" className="fixed inset-x-0 top-0 z-[70] h-[2px] bg-gradient-to-r from-transparent via-[var(--accent)] to-transparent shadow-[0_0_10px_rgba(0,113,227,.24)]" /> : null}
+    {showNavigationProgress ? <div data-navigation-progress aria-hidden="true" className="fixed inset-x-0 top-0 z-[70] h-px bg-[var(--accent)]" /> : null}
     {desktopSidebar}
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
       <SheetContent side="left" className="w-[min(84vw,282px)] gap-0 border-r border-white/55 bg-[var(--material-thick)] p-0 backdrop-blur-2xl backdrop-saturate-[180%]">
