@@ -158,22 +158,69 @@ export async function getInterviewQuestions(filters: InterviewQuestionFilters = 
 
 export async function getInterviewQuestionDetail(questionId: string, contextId?: string | null) {
   const { supabase } = await requireOwner();
-  const { data: question } = await supabase.from("interview_questions").select("*,interview_question_types(id,key,label)").eq("id", questionId).is("archived_at", null).maybeSingle();
+  const { data: question } = await supabase.from("interview_questions")
+    .select("*,interview_question_types(id,key,label)")
+    .eq("id", questionId)
+    .is("archived_at", null)
+    .maybeSingle();
   if (!question) return null;
 
-  const [contextsResult, preparationsResult, childrenResult] = await Promise.all([
+  const [contextsResult, preparationsResult, childrenResult, archetypeResult, variantsResult, archetypeStoryLinksResult, storiesResult] = await Promise.all([
     supabase.from("interview_contexts").select("*").is("archived_at", null).order("priority", { ascending: false }).order("title"),
     supabase.from("interview_question_preparations").select("*").eq("question_id", questionId).is("archived_at", null).order("created_at"),
-    supabase.from("interview_questions").select("id,canonical_prompt,short_title,follow_up_kind,difficulty").eq("parent_question_id", questionId).is("archived_at", null).order("created_at"),
+    supabase.from("interview_questions").select("id,canonical_prompt,short_title,follow_up_kind,difficulty,question_style,variant_kind").eq("parent_question_id", questionId).is("archived_at", null).order("created_at"),
+    supabase.from("interview_question_archetypes").select("*").eq("id", (question as any).archetype_id).is("archived_at", null).maybeSingle(),
+    supabase.from("interview_questions")
+      .select("id,canonical_prompt,short_title,question_style,variant_kind,parent_question_id,follow_up_kind,difficulty")
+      .eq("archetype_id", (question as any).archetype_id)
+      .is("archived_at", null)
+      .order("created_at"),
+    supabase.from("interview_archetype_stories")
+      .select("story_id,evidence_role,fit_note")
+      .eq("archetype_id", (question as any).archetype_id)
+      .is("archived_at", null),
+    supabase.from("interview_stories")
+      .select("id,title,one_line,status,experience_id")
+      .is("archived_at", null)
+      .order("updated_at", { ascending: false }),
   ]);
+
   const contexts = contextsResult.data ?? [];
   const preparations = preparationsResult.data ?? [];
   const selectedPreparation = contextId
     ? preparations.find((prep: any) => prep.context_id === contextId) ?? null
     : preparations.find((prep: any) => prep.context_id === null) ?? preparations[0] ?? null;
 
+  const storyById = new Map((storiesResult.data ?? []).map((story: any) => [story.id, story]));
+  const archetypeStories = (archetypeStoryLinksResult.data ?? [])
+    .map((link: any) => ({ ...link, story: storyById.get(link.story_id) }))
+    .filter((item: any) => item.story)
+    .sort((a: any, b: any) => {
+      const roleRank: Record<string, number> = { primary: 0, supporting: 1, counter: 2 };
+      return (roleRank[a.evidence_role] ?? 9) - (roleRank[b.evidence_role] ?? 9);
+    });
+  const variants = (variantsResult.data ?? []).filter((item: any) => item.id !== questionId);
+
   if (!selectedPreparation) {
-    return { question, contexts, preparations, selectedPreparation: null, notes: [], answers: [], attempts: [], childQuestions: childrenResult.data ?? [], evidenceLinks: [], evidenceCatalog: [], readiness: readinessChecklist({ currentAnswerCount: 0, attemptCount: 0, evidenceCount: 0 }) };
+    return {
+      question,
+      archetype: archetypeResult.data ?? null,
+      variants,
+      archetypeStories,
+      storyCatalog: storiesResult.data ?? [],
+      contexts,
+      preparations,
+      selectedPreparation: null,
+      notes: [],
+      answers: [],
+      currentAnswers: [],
+      attempts: [],
+      childQuestions: childrenResult.data ?? [],
+      evidenceLinks: [],
+      evidenceCatalog: [],
+      normalizedCompetencies: [],
+      readiness: readinessChecklist({ currentAnswerCount: 0, attemptCount: 0, evidenceCount: 0 }),
+    };
   }
 
   const [notesResult, answersResult, attemptsResult, linksResult, evidenceSemanticsResult, questionCompetenciesResult, competenciesResult, evidenceCatalog] = await Promise.all([
@@ -193,7 +240,11 @@ export async function getInterviewQuestionDetail(questionId: string, contextId?:
     ...link,
     evidenceRole: (evidenceSemantics.get(link.id) as any)?.evidence_role ?? null,
     evidenceNote: (evidenceSemantics.get(link.id) as any)?.note ?? "",
-    evidence: evidenceByKey.get(`${link.target_type}:${link.target_id}`) ?? { type: link.target_type, id: link.target_id, label: `${evidenceTypeLabels[link.target_type as EvidenceType] ?? link.target_type} · 已归档/不可见` },
+    evidence: evidenceByKey.get(`${link.target_type}:${link.target_id}`) ?? {
+      type: link.target_type,
+      id: link.target_id,
+      label: `${evidenceTypeLabels[link.target_type as EvidenceType] ?? link.target_type} · 已归档/不可见`,
+    },
   }));
   const competencyById = new Map((competenciesResult.data ?? []).map((item: any) => [item.id, item]));
   const normalizedCompetencies = (questionCompetenciesResult.data ?? [])
@@ -208,11 +259,15 @@ export async function getInterviewQuestionDetail(questionId: string, contextId?:
     answerLogic: selectedPreparation.answer_logic_markdown,
     currentAnswerCount: currentAnswers.length,
     attemptCount: attempts.length,
-    evidenceCount: evidenceLinks.length,
+    evidenceCount: evidenceLinks.length + archetypeStories.length,
   });
 
   return {
     question,
+    archetype: archetypeResult.data ?? null,
+    variants,
+    archetypeStories,
+    storyCatalog: storiesResult.data ?? [],
     contexts,
     preparations,
     selectedPreparation,
@@ -475,73 +530,168 @@ export async function getInterviewSessionDetail(sessionId: string) {
 
 export async function getInterviewInsights(contextId?: string | null) {
   const { supabase } = await requireOwner();
-  let prepQuery = supabase.from("interview_question_preparations").select("id,question_id,context_id,status,importance,last_practiced_at").is("archived_at", null);
+  let prepQuery = supabase.from("interview_question_preparations")
+    .select("id,question_id,context_id,status,importance,last_practiced_at")
+    .is("archived_at", null);
   if (contextId) prepQuery = prepQuery.eq("context_id", contextId);
-  const [prepsResult, questionsResult, competencyLinksResult, competenciesResult, attemptsResult, linksResult, experiencesResult, contextsResult] = await Promise.all([
+
+  const [prepsResult, questionsResult, competencyLinksResult, competenciesResult, attemptsResult, contextsResult, archetypeStoriesResult, storiesResult, storyCompetenciesResult] = await Promise.all([
     prepQuery,
-    supabase.from("interview_questions").select("id,question_type_id,question_style").is("archived_at", null),
+    supabase.from("interview_questions").select("id,archetype_id,question_type_id,question_style").is("archived_at", null),
     supabase.from("interview_question_competencies").select("question_id,competency_id,relevance,is_primary"),
     supabase.from("interview_competencies").select("id,key,label").is("archived_at", null),
-    supabase.from("interview_practice_attempts").select("id,preparation_id,issue_tags,strength_tags,practiced_at,duration_seconds").is("archived_at", null).order("practiced_at"),
-    supabase.from("entity_links").select("source_id,target_type,target_id,relationship_type").eq("source_type", "interview_preparation").is("archived_at", null),
-    supabase.from("experiences").select("id,organization,role").is("archived_at", null),
+    supabase.from("interview_practice_attempts").select("id,preparation_id,story_id,issue_tags,strength_tags,practiced_at,duration_seconds").is("archived_at", null).order("practiced_at"),
     supabase.from("interview_contexts").select("id,title,status").is("archived_at", null).order("priority", { ascending: false }),
+    supabase.from("interview_archetype_stories").select("archetype_id,story_id,evidence_role").is("archived_at", null),
+    supabase.from("interview_stories").select("id,title,status,experience_id").is("archived_at", null),
+    supabase.from("interview_story_competencies").select("story_id,competency_id,relevance,is_primary"),
   ]);
+
   const preparations = prepsResult.data ?? [];
   const prepIds = new Set(preparations.map((prep: any) => prep.id));
   const attempts = (attemptsResult.data ?? []).filter((attempt: any) => !attempt.preparation_id || prepIds.has(attempt.preparation_id));
   const questionById = new Map((questionsResult.data ?? []).map((question: any) => [question.id, question]));
-  const prepById = new Map(preparations.map((prep: any) => [prep.id, prep]));
-  const experienceById = new Map((experiencesResult.data ?? []).map((experience: any) => [experience.id, experience]));
   const competencyById = new Map((competenciesResult.data ?? []).map((item: any) => [item.id, item]));
-  const competencyIdsByQuestion = new Map<string, string[]>();
+  const storyById = new Map((storiesResult.data ?? []).map((story: any) => [story.id, story]));
+
+  const competencyIdsByQuestion = new Map<string, Set<string>>();
   for (const link of competencyLinksResult.data ?? []) {
     const row = link as any;
-    const list = competencyIdsByQuestion.get(row.question_id) ?? [];
-    list.push(row.competency_id);
-    competencyIdsByQuestion.set(row.question_id, list);
+    const set = competencyIdsByQuestion.get(row.question_id) ?? new Set<string>();
+    set.add(row.competency_id);
+    competencyIdsByQuestion.set(row.question_id, set);
   }
 
-  const competency = new Map<string, { total: number; ready: number; evidence: number }>();
+  const relevantArchetypes = new Set<string>();
+  for (const prep of preparations as any[]) {
+    const question = questionById.get(prep.question_id) as any;
+    if (question?.archetype_id) relevantArchetypes.add(question.archetype_id);
+  }
+
+  const relevantStoryIds = new Set<string>();
+  const plannedStoryUsage = new Map<string, number>();
+  for (const link of archetypeStoriesResult.data ?? []) {
+    const row = link as any;
+    if (!relevantArchetypes.has(row.archetype_id)) continue;
+    relevantStoryIds.add(row.story_id);
+    plannedStoryUsage.set(row.story_id, (plannedStoryUsage.get(row.story_id) ?? 0) + 1);
+  }
+
+  const competencyStoryIds = new Map<string, Set<string>>();
+  const strongCompetencyStoryIds = new Map<string, Set<string>>();
+  for (const link of storyCompetenciesResult.data ?? []) {
+    const row = link as any;
+    if (!relevantStoryIds.has(row.story_id)) continue;
+    const story = storyById.get(row.story_id) as any;
+    if (!story) continue;
+    const all = competencyStoryIds.get(row.competency_id) ?? new Set<string>();
+    all.add(row.story_id);
+    competencyStoryIds.set(row.competency_id, all);
+    if (story.status === "strong" || story.status === "usable") {
+      const strong = strongCompetencyStoryIds.get(row.competency_id) ?? new Set<string>();
+      strong.add(row.story_id);
+      strongCompetencyStoryIds.set(row.competency_id, strong);
+    }
+  }
+
+  const practiceCountByCompetency = new Map<string, number>();
+  const lastPracticeByCompetency = new Map<string, string>();
+  for (const attempt of attempts as any[]) {
+    if (!attempt.preparation_id) continue;
+    const prep = preparations.find((item: any) => item.id === attempt.preparation_id) as any;
+    if (!prep) continue;
+    for (const competencyId of competencyIdsByQuestion.get(prep.question_id) ?? []) {
+      practiceCountByCompetency.set(competencyId, (practiceCountByCompetency.get(competencyId) ?? 0) + 1);
+      const previous = lastPracticeByCompetency.get(competencyId);
+      if (!previous || Date.parse(attempt.practiced_at) > Date.parse(previous)) lastPracticeByCompetency.set(competencyId, attempt.practiced_at);
+    }
+  }
+
+  const competency = new Map<string, {
+    tag: string;
+    label: string;
+    total: number;
+    ready: number;
+    storyCount: number;
+    strongStoryCount: number;
+    practiceCount: number;
+    lastPracticedAt: string | null;
+  }>();
   for (const prep of preparations as any[]) {
     for (const competencyId of competencyIdsByQuestion.get(prep.question_id) ?? []) {
       const item = competencyById.get(competencyId) as any;
       if (!item) continue;
-      const row = competency.get(item.key) ?? { total: 0, ready: 0, evidence: 0 };
-      row.total += 1;
-      if (prep.status === "ready") row.ready += 1;
-      competency.set(item.key, row);
-    }
-  }
-  for (const link of linksResult.data ?? []) {
-    if (!prepIds.has((link as any).source_id)) continue;
-    const prep = prepById.get((link as any).source_id) as any;
-    if (!prep) continue;
-    for (const competencyId of competencyIdsByQuestion.get(prep.question_id) ?? []) {
-      const item = competencyById.get(competencyId) as any;
-      if (!item) continue;
-      const row = competency.get(item.key) ?? { total: 0, ready: 0, evidence: 0 };
-      row.evidence += 1;
-      competency.set(item.key, row);
+      const current = competency.get(competencyId) ?? {
+        tag: item.key,
+        label: item.label,
+        total: 0,
+        ready: 0,
+        storyCount: competencyStoryIds.get(competencyId)?.size ?? 0,
+        strongStoryCount: strongCompetencyStoryIds.get(competencyId)?.size ?? 0,
+        practiceCount: practiceCountByCompetency.get(competencyId) ?? 0,
+        lastPracticedAt: lastPracticeByCompetency.get(competencyId) ?? null,
+      };
+      current.total += 1;
+      if (prep.status === "ready") current.ready += 1;
+      competency.set(competencyId, current);
     }
   }
 
-  const storyUsage = new Map<string, number>();
-  for (const link of linksResult.data ?? []) {
-    if (!prepIds.has((link as any).source_id) || (link as any).target_type !== "experience") continue;
-    storyUsage.set((link as any).target_id, (storyUsage.get((link as any).target_id) ?? 0) + 1);
+  const competencyCoverage = [...competency.values()]
+    .map((item) => ({
+      ...item,
+      diagnosis: item.strongStoryCount === 0
+        ? "缺少可用故事"
+        : item.ready < item.total
+          ? "题目准备不足"
+          : item.practiceCount === 0
+            ? "尚未练习"
+            : null,
+    }))
+    .sort((a, b) =>
+      Number(a.strongStoryCount > 0) - Number(b.strongStoryCount > 0)
+      || a.practiceCount - b.practiceCount
+      || (a.ready / Math.max(a.total, 1)) - (b.ready / Math.max(b.total, 1))
+      || b.total - a.total
+    );
+
+  const actualStoryUsage = new Map<string, number>();
+  for (const attempt of attempts as any[]) {
+    if (attempt.story_id) actualStoryUsage.set(attempt.story_id, (actualStoryUsage.get(attempt.story_id) ?? 0) + 1);
   }
+  const storyUsageSource = actualStoryUsage.size ? actualStoryUsage : plannedStoryUsage;
+  const totalStoryUsage = [...storyUsageSource.values()].reduce((sum, value) => sum + value, 0);
+  const storyUsage = [...storyUsageSource.entries()]
+    .map(([id, count]) => ({
+      id,
+      count,
+      share: totalStoryUsage ? count / totalStoryUsage : 0,
+      story: storyById.get(id) ?? null,
+      source: actualStoryUsage.size ? "practice" : "plan",
+    }))
+    .sort((a, b) => b.count - a.count);
 
   return {
     contexts: contextsResult.data ?? [],
     attempts,
     preparations,
+    stories: storiesResult.data ?? [],
     issueCounts: countTags(attempts),
     monthlyTrend: buildMonthlyIssueTrend(attempts as any[]),
-    competencyCoverage: [...competency.entries()].map(([tag, value]) => ({ tag, ...value })).sort((a, b) => b.total - a.total || a.tag.localeCompare(b.tag)),
-    storyUsage: [...storyUsage.entries()]
-      .map(([id, count]) => ({ id, count, experience: experienceById.get(id) }))
-      .sort((a, b) => b.count - a.count),
-    unavailable: Boolean(prepsResult.error || questionsResult.error || competencyLinksResult.error || competenciesResult.error || attemptsResult.error || linksResult.error),
+    competencyCoverage,
+    priorityGaps: competencyCoverage.filter((item) => item.diagnosis).slice(0, 6),
+    storyUsage,
+    unavailable: Boolean(
+      prepsResult.error
+      || questionsResult.error
+      || competencyLinksResult.error
+      || competenciesResult.error
+      || attemptsResult.error
+      || contextsResult.error
+      || archetypeStoriesResult.error
+      || storiesResult.error
+      || storyCompetenciesResult.error
+    ),
   };
 }
+
