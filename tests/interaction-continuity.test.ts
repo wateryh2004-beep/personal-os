@@ -34,7 +34,7 @@ describe("interaction continuity contracts", () => {
 
   it("keeps reversible Inbox archive immediate and exposes Undo", () => {
     const inbox = source("src/components/inbox/inbox-workspace.tsx");
-    expect(inbox).toContain('message: "已归档 Inbox 项"');
+    expect(inbox).toContain('message: "已归档收集箱记录"');
     expect(inbox).toContain("restoreInboxItem(initialInboxCaptureState, form)");
     expect(inbox).not.toContain("确认归档？");
   });
