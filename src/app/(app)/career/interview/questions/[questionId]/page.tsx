@@ -7,8 +7,10 @@ import {
   createInterviewQuestion,
   ensureInterviewPreparation,
   linkInterviewEvidence,
+  linkStoryToArchetype,
   promoteInterviewAnswerVersion,
   unlinkInterviewEvidence,
+  unlinkStoryFromArchetype,
   updateInterviewPreparation,
   updateInterviewQuestion,
 } from "@/features/interview/actions";
@@ -22,6 +24,9 @@ import {
   joinTagInput,
   languageLabels,
   sourceTypeLabels,
+  storyEvidenceRoleLabels,
+  storyStatusLabels,
+  variantKindLabels,
 } from "@/features/interview/constants";
 import { formatDateTime } from "@/features/interview/utils";
 
@@ -57,6 +62,8 @@ export default async function InterviewQuestionPage({
         <Link href="/career/interview/questions" className="text-xs text-zinc-400 hover:text-zinc-700">← 题目</Link>
         <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
           <span>{questionTypeRelation?.label ?? "面试题"}</span>
+          {data.archetype?.title ? <span>· 母题：{data.archetype.title}</span> : null}
+          {question.variant_kind && question.variant_kind !== "canonical" ? <span>· {variantKindLabels[question.variant_kind] ?? question.variant_kind}</span> : null}
           {question.question_style === "stress" ? <span>· 压力风格</span> : null}
           {normalizedCompetencies.slice(0, 3).map((item: any) => <span key={item.competency_id}>· {item.competency.label}</span>)}
         </div>
@@ -135,6 +142,66 @@ export default async function InterviewQuestionPage({
                   </div>
                 </section>
               ) : null}
+
+              <section>
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="text-sm font-medium text-zinc-800">可用故事</h3>
+                  <Link href="/career/interview/stories" className="text-xs text-zinc-400 hover:text-zinc-700">故事库 →</Link>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {data.archetypeStories.map((item: any) => (
+                    <div key={item.story_id} className="flex items-start justify-between gap-4 rounded-lg py-1 text-sm">
+                      <Link href={`/career/interview/stories/${item.story.id}`} className="min-w-0">
+                        <p className="truncate text-zinc-700">{item.story.title}</p>
+                        <p className="mt-0.5 text-xs text-zinc-400">
+                          {storyEvidenceRoleLabels[item.evidence_role] ?? item.evidence_role}
+                          {" · "}
+                          {storyStatusLabels[item.story.status] ?? item.story.status}
+                          {item.fit_note ? ` · ${item.fit_note}` : ""}
+                        </p>
+                      </Link>
+                      <form action={unlinkStoryFromArchetype}>
+                        <input type="hidden" name="archetype_id" value={data.archetype?.id ?? ""} />
+                        <input type="hidden" name="story_id" value={item.story_id} />
+                        <button className="text-xs text-zinc-400 hover:text-zinc-700">移除</button>
+                      </form>
+                    </div>
+                  ))}
+                  {!data.archetypeStories.length ? <p className="text-xs text-zinc-400">这个母题还没有可调用的故事。</p> : null}
+                </div>
+                {data.archetype ? (
+                  <form action={linkStoryToArchetype} className="mt-4 flex flex-wrap items-end gap-2">
+                    <input type="hidden" name="archetype_id" value={data.archetype.id} />
+                    <select name="story_id" className="min-w-64 px-3 py-2 text-sm">
+                      {data.storyCatalog
+                        .filter((story: any) => !data.archetypeStories.some((item: any) => item.story_id === story.id))
+                        .map((story: any) => <option key={story.id} value={story.id}>{story.title}</option>)}
+                    </select>
+                    <select name="evidence_role" defaultValue="supporting" className="px-3 py-2 text-sm">
+                      {Object.entries(storyEvidenceRoleLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                    <input type="hidden" name="fit_note" value="" />
+                    <button className="text-xs text-[#365F78]">关联故事</button>
+                  </form>
+                ) : null}
+              </section>
+
+              <section>
+                <h3 className="text-sm font-medium text-zinc-800">同一母题的其他问法</h3>
+                <div className="mt-3 space-y-2">
+                  {data.variants.map((variant: any) => (
+                    <Link
+                      key={variant.id}
+                      href={prep.context_id ? `/career/interview/questions/${variant.id}?context=${prep.context_id}` : `/career/interview/questions/${variant.id}`}
+                      className="block rounded-lg py-1 text-sm leading-6 text-zinc-700 hover:text-zinc-950"
+                    >
+                      <span>{variant.canonical_prompt}</span>
+                      <span className="ml-2 text-xs text-zinc-400">{variantKindLabels[variant.variant_kind] ?? variant.variant_kind}</span>
+                    </Link>
+                  ))}
+                  {!data.variants.length ? <p className="text-xs text-zinc-400">目前只有这一种问法。</p> : null}
+                </div>
+              </section>
 
               <section>
                 <h3 className="text-sm font-medium text-zinc-800">经历</h3>
