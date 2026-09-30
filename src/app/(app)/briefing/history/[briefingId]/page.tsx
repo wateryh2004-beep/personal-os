@@ -11,11 +11,11 @@ export default async function BriefingHistoryRunPage({ params }: { params: Promi
   const entries = run.entries as Array<Record<string, unknown> & { id: string; judgment: BriefingJudgment | null }>;
   return (
     <main>
-      <header className="border-b border-[var(--separator)] pb-3.5">
-        <h2 className="text-[13.5px] font-semibold text-[var(--text-primary)]">{run.briefing.briefing_date} 的简报</h2>
+      <header className="border-b border-[var(--separator)] pb-3">
+        <h2 className="text-[13.25px] font-semibold text-[var(--text-primary)]">{run.briefing.briefing_date} 的简报</h2>
         <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">只读快照 · {run.briefing.selected_count} 条 · {run.briefing.status}</p>
       </header>
-      <div className="mt-4 divide-y divide-[var(--separator)]">
+      <div className="mt-3.5 divide-y divide-[var(--separator)]">
         {entries.map((entry) => {
           const rawItem = Array.isArray(entry.feed_items) ? entry.feed_items[0] : entry.feed_items;
           const item = (rawItem ?? {}) as { title?: string; url?: string | null; canonical_url?: string | null; feeds?: { title?: string } | Array<{ title?: string }> };
@@ -29,14 +29,14 @@ export default async function BriefingHistoryRunPage({ params }: { params: Promi
           const summary = typeof entry.summary === "string" && entry.summary ? entry.summary : null;
           const judgment = entry.judgment;
           return (
-            <article key={entry.id} className="py-4.5">
+            <article key={entry.id} className="py-4">
               <p className="text-[10.5px] text-[var(--text-tertiary)]">{feed?.title ?? "未知来源"}{topic ? ` · ${topic}` : ""}</p>
-              <h3 className="mt-1 text-[13.5px] font-medium text-[var(--text-primary)]">{item?.title ?? "未命名资讯"}</h3>
-              {summary ? <p className="mt-1.5 text-[12.5px] leading-5.5 text-[var(--text-secondary)]">{summary}</p> : null}
+              <h3 className="mt-1 text-[13.25px] font-medium text-[var(--text-primary)]">{item?.title ?? "未命名资讯"}</h3>
+              {summary ? <p className="mt-1 text-[12.25px] leading-5.5 text-[var(--text-secondary)]">{summary}</p> : null}
               {whyItMatters ? <p className="mt-1.5 text-[12.5px] leading-5.5 text-[var(--text-secondary)]"><span className="font-medium text-[var(--text-primary)]">为什么重要 · </span>{whyItMatters}</p> : null}
-              {keyQuestion ? <p className="mt-2 text-[12.5px] leading-5.5 text-[var(--text-primary)]">「{keyQuestion}」</p> : null}
-              {href ? <a href={href} target="_blank" rel="noreferrer" className="mt-2.5 inline-block text-[10.5px] font-medium text-[var(--accent)] underline underline-offset-2">阅读原文</a> : null}
-              <div className="mt-3 rounded-[9px] bg-[var(--surface-control)] px-3 py-2.5">
+              {keyQuestion ? <p className="mt-1.5 text-[12.25px] leading-5.5 text-[var(--text-primary)]">「{keyQuestion}」</p> : null}
+              {href ? <a href={href} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[10.5px] font-medium text-[var(--accent)] underline underline-offset-2">阅读原文</a> : null}
+              <div className="mt-2.5 rounded-[9px] bg-[var(--surface-control)] px-3 py-2.5">
                 {judgment ? (
                   <>
                     <p className="text-[10.5px] font-semibold text-[var(--text-secondary)]">我的判断</p>
