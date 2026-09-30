@@ -60,7 +60,7 @@ export function ReviewProposals({
           result.alreadyPending
             ? "已有待确认候选，请先逐条处理。"
             : result.created
-              ? `已生成 ${result.created} 条候选；Memory 与 Decision 尚未改变。`
+              ? `已生成 ${result.created} 条候选；记忆与决定尚未改变。`
               : "没有足够证据形成长期信息候选。",
         );
         router.refresh();
@@ -87,12 +87,12 @@ export function ReviewProposals({
   };
 
   return (
-    <section className="border-t border-zinc-200 pt-6">
+    <section className="border-t border-[var(--separator)] pt-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-zinc-900">长期信息候选</h2>
-          <p className="mt-1 text-sm leading-6 text-zinc-500">
-            只在你主动提炼后生成；逐条 Accept 才会写入 Memory 或更新 Decision。
+          <h2 className="text-[13.5px] font-semibold text-[var(--text-primary)]">长期信息候选</h2>
+          <p className="mt-1 text-[11.5px] leading-5 text-[var(--text-secondary)]">
+            只在你主动提炼后生成；逐条确认后才会写入记忆或更新决定。
           </p>
         </div>
         <Button variant="outline" onClick={generate} disabled={isGenerating || pending.length > 0}>
@@ -100,8 +100,8 @@ export function ReviewProposals({
           {isGenerating ? "正在提炼…" : "从本次复盘提炼长期信息"}
         </Button>
       </div>
-      {message ? <p className="mt-3 rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-600">{message}</p> : null}
-      <div className="mt-4 divide-y divide-zinc-200 border-y border-zinc-200">
+      {message ? <p className="mt-2.5 rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[11.5px] text-[var(--text-secondary)]">{message}</p> : null}
+      <div className="mt-3.5 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
         {proposals.length ? (
           proposals.map((proposal) => {
             const payload = payloadOf(proposal.payload);
@@ -109,30 +109,30 @@ export function ReviewProposals({
               ? payload.evidenceSourceIds.filter((id): id is string => typeof id === "string")
               : [];
             return (
-              <article key={proposal.id} className="py-4">
+              <article key={proposal.id} className="py-3.5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#365f78]">
+                    <p className="text-[10px] font-semibold tracking-[0.06em] text-[var(--accent)]">
                       {typeLabels[proposal.proposal_type] ?? proposal.proposal_type}
                     </p>
-                    <h3 className="mt-1 font-semibold text-zinc-900">
+                    <h3 className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">
                       {typeof payload.title === "string" ? payload.title : "未命名候选"}
                     </h3>
                   </div>
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-[10.5px] text-[var(--text-tertiary)]">
                     {proposal.status === "pending" ? "待确认" : proposal.status === "accepted" ? "已接受" : "已忽略"}
                   </span>
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-700">
+                <p className="mt-1.5 whitespace-pre-wrap text-[12px] leading-5.5 text-[var(--text-secondary)]">
                   {typeof payload.content === "string" ? payload.content : ""}
                 </p>
                 {typeof payload.rationale === "string" ? (
-                  <p className="mt-2 text-xs leading-5 text-zinc-500">为什么建议：{payload.rationale}</p>
+                  <p className="mt-1.5 text-[10.5px] leading-5 text-[var(--text-secondary)]">为什么建议：{payload.rationale}</p>
                 ) : null}
                 {evidenceIds.length ? (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {evidenceIds.map((id) => (
-                      <span key={id} className="rounded-md bg-zinc-100 px-2 py-1 text-[11px] text-zinc-500">
+                      <span key={id} className="rounded-[7px] bg-[var(--surface-control)] px-2 py-1 text-[10px] text-[var(--text-tertiary)]">
                         {sourceById.get(id)?.title ?? "来源已不可用"}
                       </span>
                     ))}
@@ -144,7 +144,7 @@ export function ReviewProposals({
                       size="sm"
                       onClick={() => resolve(proposal.id, "accept")}
                       disabled={isResolving}
-                      className="bg-[#365f78] hover:bg-[#294d63]"
+                      
                     >
                       {pendingId === proposal.id ? <LoaderCircle className="animate-spin" /> : <Check />}
                       Accept
@@ -155,7 +155,7 @@ export function ReviewProposals({
                       onClick={() => resolve(proposal.id, "dismiss")}
                       disabled={isResolving}
                     >
-                      <X /> Dismiss
+                      <X /> 忽略
                     </Button>
                   </div>
                 ) : null}
@@ -163,7 +163,7 @@ export function ReviewProposals({
             );
           })
         ) : (
-          <p className="py-6 text-sm text-zinc-500">尚未提炼长期信息。</p>
+          <p className="py-6 text-[11.5px] text-[var(--text-tertiary)]">尚未提炼长期信息。</p>
         )}
       </div>
     </section>
