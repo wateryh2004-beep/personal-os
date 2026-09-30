@@ -84,12 +84,12 @@ export function TodayCommitments({ commitments }: { commitments: NowCommitment[]
 
   return (
     <section aria-labelledby="today-commitments-heading" className="border-y border-[var(--separator)]">
-      <div className="flex min-h-12 flex-wrap items-end justify-between gap-2.5 py-3">
+      <div className="flex min-h-11 flex-wrap items-end justify-between gap-2 py-2.5">
         <div>
-          <h2 id="today-commitments-heading" className="text-[14px] font-semibold tracking-[-0.01em]">
+          <h2 id="today-commitments-heading" className="text-[13.5px] font-semibold tracking-[-0.01em]">
             今日承诺
           </h2>
-          <p className="mt-0.5 text-[10.5px] text-[var(--text-tertiary)]">
+          <p className="mt-[2px] text-[10px] text-[var(--text-tertiary)]">
             只保留有依据、值得现在处理的下一步
           </p>
         </div>
@@ -103,18 +103,18 @@ export function TodayCommitments({ commitments }: { commitments: NowCommitment[]
       {visible.length ? (
         <ul className="divide-y divide-[var(--separator)] border-t border-[var(--separator)]">
           {visible.map((item) => (
-            <li key={item.id} className="grid gap-2 py-[13px] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-5">
+            <li key={item.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-5">
               <div className="min-w-0">
                 <Link
                   href={item.href}
-                  className="block truncate text-[12.5px] font-medium text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)]"
+                  className="block truncate text-[12.5px] font-medium tracking-[-0.004em] text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)]"
                 >
                   {item.title}
                 </Link>
-                <p className="mt-1 line-clamp-2 text-[10.5px] leading-[1.55] text-[var(--text-secondary)]">
+                <p className="mt-0.5 line-clamp-2 text-[10.5px] leading-[1.55] text-[var(--text-secondary)]">
                   {item.whyNow} · {item.constraint}
                 </p>
-                <p className="mt-1 text-[9.5px] text-[var(--text-tertiary)]">{item.source.label}</p>
+                <p className="mt-0.5 text-[9.5px] text-[var(--text-tertiary)]">{item.source.label}</p>
               </div>
               <div className="-ml-1 shrink-0 sm:ml-0">
                 <CommitmentActions item={item} />
@@ -123,7 +123,7 @@ export function TodayCommitments({ commitments }: { commitments: NowCommitment[]
           ))}
         </ul>
       ) : (
-        <div className="flex items-center gap-2 border-t border-[var(--separator)] py-5 text-[12px] text-[var(--text-secondary)]">
+        <div className="flex items-center gap-2 border-t border-[var(--separator)] py-[18px] text-[11.5px] text-[var(--text-secondary)]">
           <Check className="size-4 text-[var(--success)]" aria-hidden="true" />
           暂无足够依据推荐下一步。先把新想法记到收集箱即可。
         </div>
