@@ -22,22 +22,22 @@ export function AiPromptSettings({
   available: boolean;
 }) {
   return (
-    <section className="border-t border-[var(--separator)] pt-4.5">
+    <section className="border-t border-[var(--separator)] pt-4">
       <div className="max-w-3xl">
         <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">AI 提示词</h2>
         <p className="mt-1 text-[11.5px] leading-5 text-[var(--text-secondary)]">
           在这里审查和调整 笔记 AI 的全部提示词。系统默认值随代码版本管理；只有你主动修改的内容会作为个人覆盖保存。
         </p>
         {!available ? (
-          <p role="status" className="mt-2.5 rounded-[9px] bg-amber-50 px-3 py-2 text-[10.5px] leading-5 text-amber-800">
+          <p role="status" className="mt-2 rounded-[9px] bg-amber-50 px-3 py-2 text-[10.5px] leading-5 text-amber-800">
             提示词设置尚未完成升级，目前继续使用系统默认值。
           </p>
         ) : null}
       </div>
-      <div className="mt-3.5 max-w-3xl divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
+      <div className="mt-3 max-w-3xl divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
         {prompts.map((prompt, index) => (
-          <details key={prompt.key} open={index === 0} className="group px-1 py-3">
-            <summary className="flex cursor-pointer list-none items-start justify-between gap-4 marker:hidden">
+          <details key={prompt.key} open={index === 0} className="group px-1 py-2.5">
+            <summary className="flex cursor-pointer list-none items-start justify-between gap-3.5 marker:hidden">
               <span>
                 <span className="block text-[12.5px] font-medium text-[var(--text-primary)]">{prompt.label}</span>
                 <span className="mt-0.5 block text-[10.5px] leading-5 text-[var(--text-secondary)]">{prompt.description}</span>
@@ -46,7 +46,7 @@ export function AiPromptSettings({
                 {prompt.customized ? "个人覆盖" : "系统默认"}
               </span>
             </summary>
-            <form action={saveAiPromptOverride} className="mt-2.5 grid gap-2.5">
+            <form action={saveAiPromptOverride} className="mt-2 grid gap-2">
               <input type="hidden" name="prompt_key" value={prompt.key} />
               <label className="grid gap-1.5 text-[10.5px] font-medium text-[var(--text-secondary)]">
                 Prompt
@@ -66,7 +66,7 @@ export function AiPromptSettings({
               </div>
             </form>
             {prompt.customized ? (
-              <form action={resetAiPromptOverride} className="mt-2">
+              <form action={resetAiPromptOverride} className="mt-1.5">
                 <input type="hidden" name="prompt_key" value={prompt.key} />
                 <Button type="submit" variant="ghost" size="sm" disabled={!available}>
                   <RotateCcw aria-hidden="true" />恢复系统默认
