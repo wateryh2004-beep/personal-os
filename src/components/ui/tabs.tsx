@@ -26,7 +26,7 @@ const tabsListVariants = cva(
   {
     variants: {
       variant: {
-        default: "rounded-[var(--radius-md)] bg-[var(--surface-control)] p-0.5",
+        default: "rounded-[12px] bg-[var(--surface-control)] p-[3px] shadow-[inset_0_1px_0_rgba(255,255,255,.35)]",
         line: "gap-4 bg-transparent",
       },
     },
@@ -54,8 +54,8 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex h-full flex-1 items-center justify-center gap-1.5 rounded-[7px] border border-transparent px-2.5 text-[13px] font-medium tracking-[-0.005em] whitespace-nowrap text-[var(--text-secondary)] transition-[background-color,border-color,color,opacity,box-shadow] ui-transition group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
-        "group-data-[variant=default]/tabs-list:data-active:bg-[var(--surface-canvas)] group-data-[variant=default]/tabs-list:data-active:text-[var(--text-primary)] group-data-[variant=default]/tabs-list:data-active:shadow-[0_1px_2px_rgba(24,24,27,0.07)]",
+        "relative inline-flex h-full flex-1 items-center justify-center gap-1.5 rounded-[9px] border border-transparent px-2.5 text-[13px] font-medium tracking-[-0.006em] whitespace-nowrap text-[var(--text-secondary)] transition-[background-color,border-color,color,opacity,box-shadow,transform] ui-transition active:scale-[.98] group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+        "group-data-[variant=default]/tabs-list:data-active:bg-[var(--material-thick)] group-data-[variant=default]/tabs-list:data-active:text-[var(--text-primary)] group-data-[variant=default]/tabs-list:data-active:shadow-[0_2px_8px_rgba(0,0,0,.08),0_0_0_.5px_rgba(0,0,0,.05)]",
         "group-data-[variant=line]/tabs-list:rounded-none group-data-[variant=line]/tabs-list:px-0 group-data-[variant=line]/tabs-list:data-active:text-[var(--text-primary)]",
         "after:absolute after:bg-[var(--accent)] after:opacity-0 after:transition-opacity after:duration-[var(--motion-fast)] after:ease-[var(--ease-standard)] group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:-bottom-px group-data-horizontal/tabs:after:h-px group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-px group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
         className,

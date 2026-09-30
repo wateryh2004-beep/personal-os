@@ -7,7 +7,7 @@ import { mobileTabNavigation } from "@/lib/navigation-registry";
 import { navActive } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
-const itemClass = "flex min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-[10px] text-[10.5px] font-medium tracking-[-0.01em] transition-[color,background-color,opacity,transform] ui-transition active:scale-[0.96]";
+const itemClass = "pressable flex min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-[12px] text-[10.5px] font-medium tracking-[-0.01em]";
 
 type MobileTabBarProps = {
   onOpenMore: () => void;
@@ -30,7 +30,7 @@ export function MobileTabBar({ onOpenMore, pendingHref, onNavigate, onIntent }: 
       && !mobileTabNavigation.some((tab) => navActive(pendingPathname, tab.href)),
   );
 
-  return <nav aria-label="底部导航" className="mobile-tab-bar fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--surface-canvas)_92%,transparent)] px-1.5 pt-1 backdrop-blur-xl md:hidden" style={{ height: "var(--tab-bar-height)", paddingBottom: "var(--safe-area-bottom)" }}>
+  return <nav aria-label="底部导航" className="mobile-tab-bar fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-white/50 bg-[var(--material-toolbar)] px-1.5 pt-1 backdrop-blur-2xl backdrop-saturate-[180%] shadow-[0_-8px_28px_rgba(0,0,0,.04)] md:hidden" style={{ height: "var(--tab-bar-height)", paddingBottom: "var(--safe-area-bottom)" }}>
     {mobileTabNavigation.map(({ mobileName, name, href, icon: Icon }) => {
       const active = navActive(pathname, href);
       const pending = pendingPathname ? navActive(pendingPathname, href) : false;
@@ -48,7 +48,7 @@ export function MobileTabBar({ onOpenMore, pendingHref, onNavigate, onIntent }: 
         className={cn(
           itemClass,
           active || pending
-            ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+            ? "bg-[color-mix(in_srgb,var(--accent-soft)_78%,transparent)] text-[var(--accent)] shadow-[inset_0_0_0_.5px_rgba(0,113,227,.05)]"
             : "text-[var(--text-tertiary)] active:bg-[var(--surface-hover)] active:opacity-70",
           pending && "opacity-60",
         )}

@@ -42,12 +42,12 @@ section:has(.fc) .fc-timegrid-now-indicator-line::before {
 }
 
 section:has(.fc) .fc-highlight {
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 section:has(.fc) .fc-more-link {
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 2px 5px;
   transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
 }
@@ -122,7 +122,7 @@ section:has(nav[aria-label="笔记视图"]) .workspace-scroll button {
 /* ---------- Notes editor ---------- */
 .life-markdown-toolbar {
   border-bottom: 1px solid color-mix(in srgb, var(--separator) 72%, transparent);
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--material-toolbar);
   backdrop-filter: saturate(180%) blur(16px);
   -webkit-backdrop-filter: saturate(180%) blur(16px);
   scrollbar-width: none;
@@ -152,7 +152,7 @@ section:has(nav[aria-label="笔记视图"]) .workspace-scroll button {
 .life-markdown-statusbar {
   min-height: 28px;
   border-top: 1px solid color-mix(in srgb, var(--separator) 64%, transparent);
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--material-toolbar);
   color: var(--text-tertiary);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
@@ -196,7 +196,7 @@ section:has(nav[aria-label="笔记视图"]) .workspace-scroll button {
     width: min(88vw, 340px) !important;
     max-width: 340px;
     border-right-color: color-mix(in srgb, var(--separator) 78%, transparent);
-    background: rgba(247, 247, 249, 0.96);
+    background: var(--material-thick);
     backdrop-filter: saturate(180%) blur(22px);
     -webkit-backdrop-filter: saturate(180%) blur(22px);
   }

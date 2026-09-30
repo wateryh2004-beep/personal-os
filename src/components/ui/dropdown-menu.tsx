@@ -33,7 +33,7 @@ function DropdownMenuContent({
         sideOffset={sideOffset}
         align={align}
         className={cn(
-          "z-50 max-h-(--radix-dropdown-menu-content-available-height) w-(--radix-dropdown-menu-trigger-width) min-w-36 origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-[10px] border border-[var(--separator)] bg-[color-mix(in_srgb,var(--surface-elevated)_97%,transparent)] p-1.5 text-[var(--text-primary)] shadow-[var(--shadow-popover)] backdrop-blur-xl ui-transition data-[side=bottom]:slide-in-from-top-0.5 data-[side=left]:slide-in-from-right-0.5 data-[side=right]:slide-in-from-left-0.5 data-[side=top]:slide-in-from-bottom-0.5 data-[state=closed]:overflow-hidden data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+          "z-50 max-h-(--radix-dropdown-menu-content-available-height) w-(--radix-dropdown-menu-trigger-width) min-w-36 origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-[12px] border border-[var(--separator)] bg-[var(--material-popover)] p-1.5 text-[var(--text-primary)] shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%] ui-panel-transition data-[side=bottom]:slide-in-from-top-0.5 data-[side=left]:slide-in-from-right-0.5 data-[side=right]:slide-in-from-left-0.5 data-[side=top]:slide-in-from-bottom-0.5 data-[state=closed]:overflow-hidden data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className,
         )}
         {...props}
@@ -169,7 +169,7 @@ function DropdownMenuSubContent({ className, ...props }: React.ComponentProps<ty
     <DropdownMenuPrimitive.SubContent
       data-slot="dropdown-menu-sub-content"
       className={cn(
-        "z-50 min-w-[112px] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-[10px] border border-[var(--separator)] bg-[color-mix(in_srgb,var(--surface-elevated)_97%,transparent)] p-1.5 text-[var(--text-primary)] shadow-[var(--shadow-popover)] backdrop-blur-xl ui-transition data-[side=bottom]:slide-in-from-top-0.5 data-[side=left]:slide-in-from-right-0.5 data-[side=right]:slide-in-from-left-0.5 data-[side=top]:slide-in-from-bottom-0.5 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "z-50 min-w-[112px] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-[12px] border border-[var(--separator)] bg-[var(--material-popover)] p-1.5 text-[var(--text-primary)] shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%] ui-panel-transition data-[side=bottom]:slide-in-from-top-0.5 data-[side=left]:slide-in-from-right-0.5 data-[side=right]:slide-in-from-left-0.5 data-[side=top]:slide-in-from-bottom-0.5 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className,
       )}
       {...props}

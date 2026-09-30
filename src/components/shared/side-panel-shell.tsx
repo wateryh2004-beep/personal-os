@@ -98,14 +98,14 @@ export function SidePanelShell({
     <button
       type="button"
       onClick={onClose}
-      className="fixed inset-x-0 bottom-0 top-[var(--toolbar-height)] z-30 bg-black/8 supports-backdrop-filter:backdrop-blur-[1px] md:hidden"
+      className="fixed inset-x-0 bottom-0 top-[var(--toolbar-height)] z-30 bg-black/12 supports-backdrop-filter:backdrop-blur-[3px] md:hidden"
       aria-label={`关闭${ariaLabel}遮罩`}
     />
     <aside
       ref={asideRef}
       style={{ "--panel-width": `${width}px` } as React.CSSProperties}
       className={cn(
-        "fixed bottom-0 right-0 top-[var(--toolbar-height)] z-40 flex h-[calc(var(--app-viewport-height)-var(--toolbar-height))] min-h-0 max-w-full flex-col overflow-hidden border-l border-[var(--separator)] bg-[color-mix(in_srgb,var(--surface-elevated)_98%,transparent)] text-popover-foreground shadow-[var(--shadow-panel)] backdrop-blur-xl ui-panel-transition animate-in fade-in-0 slide-in-from-right-2 md:w-[min(var(--panel-width),calc(100vw-8px))]",
+        "fixed bottom-0 right-0 top-[var(--toolbar-height)] z-40 flex h-[calc(var(--app-viewport-height)-var(--toolbar-height))] min-h-0 max-w-full flex-col overflow-hidden border-l border-white/55 bg-[var(--material-thick)] text-popover-foreground shadow-[var(--shadow-panel)] backdrop-blur-2xl backdrop-saturate-[180%] ui-panel-transition animate-in fade-in-0 slide-in-from-right-2 md:w-[min(var(--panel-width),calc(100vw-8px))]",
         variant === "assistant" ? "w-[min(420px,100vw)]" : "w-[min(352px,100vw)]",
         className,
       )}
@@ -119,7 +119,7 @@ export function SidePanelShell({
         aria-label="调整面板宽度，双击恢复默认"
       />
       <header className={cn(
-        "flex h-11 shrink-0 items-center justify-between border-b border-[var(--separator)] px-3.5",
+        "flex h-12 shrink-0 items-center justify-between border-b border-white/55 px-3.5",
         variant === "assistant" && "bg-[color-mix(in_srgb,var(--ai-accent-soft)_30%,var(--surface-canvas))]",
       )}>
         <div className="flex min-w-0 items-center gap-2">
@@ -134,7 +134,7 @@ export function SidePanelShell({
       <div className={cn("workspace-scroll min-h-0 flex-1 overflow-y-auto", variant === "assistant" ? "p-5" : "p-4")}>{children}</div>
       {footer ? (
         <footer className={cn(
-          "max-h-[45dvh] shrink-0 overflow-y-auto border-t border-[var(--separator)] bg-[var(--surface-elevated)]",
+          "max-h-[45dvh] shrink-0 overflow-y-auto border-t border-white/55 bg-[var(--material-regular)]",
           variant === "assistant" ? "p-4" : "p-3",
         )}>
           {footer}

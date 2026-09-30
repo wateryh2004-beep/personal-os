@@ -10,7 +10,7 @@
     max-width: none;
     max-height: calc(var(--app-viewport-height) - 16px);
     overflow-y: auto;
-    border-radius: 14px;
+    border-radius: var(--radius-2xl);
     padding: 16px;
     overscroll-behavior: contain;
   }

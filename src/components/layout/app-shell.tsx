@@ -13,7 +13,7 @@ import {
   Settings,
   Sparkles,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ViewTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -92,10 +92,10 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent }: 
         aria-busy={pending || undefined}
         aria-label={collapsed ? name : undefined}
         className={cn(
-          "flex h-[34px] min-w-0 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-[13px] font-medium tracking-[-0.005em] transition-[background-color,color,opacity] ui-transition",
+          "pressable flex h-[36px] min-w-0 items-center gap-2.5 rounded-[11px] px-2.5 text-[13px] font-medium tracking-[-0.007em]",
           active || pending
-            ? "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]"
-            : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
+            ? "bg-[var(--material-thick)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,.055),inset_0_0_0_.5px_rgba(60,60,67,.05)] [&>svg]:text-[var(--accent)]"
+            : "text-[var(--text-secondary)] hover:bg-white/55 hover:text-[var(--text-primary)]",
           pending && "opacity-60",
           collapsed && "justify-center px-0",
         )}
@@ -328,7 +328,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     [pathname, recentNavigation],
   );
 
-  const desktopSidebar = useMemo(() => <aside style={{ width: desktopWidth }} className="fixed inset-y-0 left-0 z-30 hidden shrink-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--surface-sidebar)] md:flex">
+  const desktopSidebar = useMemo(() => <aside style={{ width: desktopWidth }} className="fixed inset-y-0 left-0 z-30 hidden shrink-0 flex-col border-r border-white/55 bg-[var(--material-sidebar)] shadow-[8px_0_30px_rgba(0,0,0,.025)] backdrop-blur-2xl backdrop-saturate-[180%] md:flex">
     <div className={cn("flex h-12 items-center px-2.5", collapsed ? "justify-center" : "justify-between")}>
       <Link
         href="/today"
@@ -337,7 +337,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         onPointerEnter={() => prefetchNavigationTarget("/today")}
         onFocus={() => prefetchNavigationTarget("/today")}
         aria-label="Life of HANG，返回 Now"
-        className={cn("wordmark truncate text-[15px] text-[var(--text-primary)]", collapsed ? "text-base" : "px-1.5")}
+        className={cn("wordmark truncate text-[15.5px] text-[var(--text-primary)]", collapsed ? "text-base" : "px-1.5")}
       >
         {collapsed ? "H" : "Life of HANG"}
       </Link>
@@ -371,10 +371,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   </aside>, [beginNavigation, collapsed, desktopWidth, pathname, prefetchNavigationTarget, visiblePendingHref]);
 
   return <div className="min-h-[var(--app-viewport-height)] bg-[var(--surface-app)]">
-    {showNavigationProgress ? <div data-navigation-progress aria-hidden="true" className="fixed inset-x-0 top-0 z-[70] h-px bg-[var(--accent)]" /> : null}
+    {showNavigationProgress ? <div data-navigation-progress aria-hidden="true" className="fixed inset-x-0 top-0 z-[70] h-[2px] bg-gradient-to-r from-transparent via-[var(--accent)] to-transparent shadow-[0_0_10px_rgba(0,113,227,.24)]" /> : null}
     {desktopSidebar}
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-      <SheetContent side="left" className="w-[min(84vw,272px)] gap-0 border-r border-[var(--border-subtle)] bg-[var(--surface-sidebar)] p-0">
+      <SheetContent side="left" className="w-[min(84vw,282px)] gap-0 border-r border-white/55 bg-[var(--material-thick)] p-0 backdrop-blur-2xl backdrop-saturate-[180%]">
         <div className="flex min-h-12 items-center px-4 pt-[env(safe-area-inset-top)]"><SheetTitle className="wordmark text-[16px]">Life of HANG</SheetTitle></div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
           {mobileRecentNavigation.length ? <div className="mb-4">
@@ -416,14 +416,19 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         </Link>
       </SheetContent>
     </Sheet>
-    <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="min-w-0 md:ml-[var(--shell-width)]">
-      <header className="sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-2.5 border-b border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--surface-canvas)_88%,transparent)] px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl sm:px-4">
+    <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="min-h-[var(--app-viewport-height)] min-w-0 bg-[var(--surface-canvas)] md:ml-[var(--shell-width)]">
+      <header className="sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-2.5 border-b border-white/55 bg-[var(--material-toolbar)] px-3 pt-[env(safe-area-inset-top)] shadow-[0_8px_28px_rgba(0,0,0,.025)] backdrop-blur-2xl backdrop-saturate-[180%] sm:px-4">
         <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu aria-hidden="true" /></Button>
-        <button type="button" onClick={() => openCommand("search")} className="mx-auto flex h-8 w-full max-w-lg items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-control)] px-2.5 text-left text-[13px] text-[var(--text-tertiary)] transition-[background-color,color] ui-transition hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-secondary)]"><Search className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden font-sans text-[10px] font-medium text-[var(--text-tertiary)] sm:inline">⌘K</kbd></button>
+        <button type="button" onClick={() => openCommand("search")} className="pressable mx-auto flex h-8 w-full max-w-lg items-center gap-2 rounded-[11px] bg-[var(--surface-control)] px-2.5 text-left text-[13px] text-[var(--text-tertiary)] shadow-[inset_0_1px_0_rgba(255,255,255,.36)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-secondary)]"><Search className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden font-sans text-[10px] font-medium text-[var(--text-tertiary)] sm:inline">⌘K</kbd></button>
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={openGlobalAgent} aria-label="询问 Personal OS" className="gap-1.5"><Sparkles className="size-3.5" aria-hidden="true"/><span className="hidden sm:inline">Ask</span><kbd className="hidden font-sans text-[9px] font-medium text-[var(--text-tertiary)] lg:inline">⌘J</kbd></Button></TooltipTrigger><TooltipContent>Ask Personal OS</TooltipContent></Tooltip>
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" onClick={openContextualCreate} aria-label="快速新建"><Plus aria-hidden="true" /></Button></TooltipTrigger><TooltipContent>快速新建（⌘N）</TooltipContent></Tooltip>
       </header>
-      <div className="min-w-0"><main id="main-content" className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>{globalAgentOpen ? <GlobalAgent open onClose={closeGlobalAgent} /> : null}</div>
+      <div className="min-w-0">
+        <ViewTransition default="app-route">
+          <main id="main-content" className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>
+        </ViewTransition>
+        {globalAgentOpen ? <GlobalAgent open onClose={closeGlobalAgent} /> : null}
+      </div>
     </div>
     <MobileTabBar onOpenMore={() => setMobileOpen(true)} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget} />
     <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} initialSection={commandSection} />
