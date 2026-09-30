@@ -42,7 +42,7 @@ import {
 
 const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-markdown-editor").then((module) => module.VisualMarkdownEditor), {
   ssr: false,
-  loading: () => <div className="notes-editor-loading min-h-80 bg-[var(--surface-canvas)] p-6 text-sm text-[var(--text-tertiary)]">正在载入 Markdown 编辑器…</div>,
+  loading: () => <div aria-label="正在载入编辑器" className="notes-editor-loading min-h-80 bg-[var(--surface-canvas)]" />,
 });
 const NoteAiAssistant = dynamic(() => import("@/components/notes/note-ai-assistant").then((module) => module.NoteAiAssistant), { ssr: false });
 
@@ -390,6 +390,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const fullscreenActive = isFullscreen || isFallbackFullscreen;
   const statusLabel = state === "已保存" ? savedTimeLabel(lastSavedAt) : state;
   const saveHasError = state === "保存失败" || state === "版本冲突";
+  const saveNeedsAttention = state === "有未保存修改";
   const aiGenerated = isAiGeneratedNote(contentOrigin);
   const toggleContentOrigin = () => {
     const next = aiGenerated ? "human" : "ai_generated";
@@ -451,10 +452,10 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
       className={`notes-editor-surface flex h-full min-w-0 overflow-hidden bg-[var(--surface-canvas)] ${isFallbackFullscreen ? "fixed inset-0 z-[80] h-[var(--app-viewport-height)]" : ""}`}
     >
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex min-h-[var(--toolbar-height)] shrink-0 items-center gap-1 border-b border-[var(--separator)] pl-11 pr-11 sm:gap-1.5 sm:pl-5 sm:pr-12">
+        <div className="flex min-h-[var(--toolbar-height)] shrink-0 items-center gap-1 border-b border-white/55 bg-[var(--material-toolbar)] pl-11 pr-11 backdrop-blur-xl backdrop-saturate-[180%] sm:gap-1.5 sm:pl-5 sm:pr-12">
           {aiGenerated ? (
             <span
-              className="flex shrink-0 items-center gap-1 rounded-[var(--radius-sm)] bg-[var(--ai-accent-soft)] px-1.5 py-0.5 text-[10.5px] font-medium text-[var(--ai-accent)]"
+              className="flex shrink-0 items-center gap-1 rounded-[7px] bg-[var(--ai-accent-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--ai-accent)]"
               title="AI 生成内容：AI 读取背景时不会引用此笔记"
             >
               <Sparkles aria-hidden="true" className="size-3" />
@@ -473,12 +474,12 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
               publishNotesNavigatorTitle(note.id, nextTitle);
               dirty(nextTitle, body);
             }}
-            className={`min-w-16 flex-1 bg-transparent text-[15px] font-semibold tracking-[-0.015em] outline-none placeholder:text-[var(--text-tertiary)] sm:min-w-24 sm:text-lg ${aiGenerated ? "text-[var(--ai-accent)]" : ""}`}
+            className={`min-w-16 flex-1 bg-transparent text-[16px] font-semibold leading-none tracking-[-0.025em] outline-none placeholder:text-[var(--text-tertiary)] sm:min-w-24 sm:text-[17px] ${aiGenerated ? "text-[var(--ai-accent)]" : "text-[var(--text-primary)]"}`}
             placeholder="无标题笔记"
           />
           <span
             aria-live="polite"
-            className={`hidden shrink-0 text-[10.5px] min-[760px]:inline ${saveHasError ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}
+            className={`hidden shrink-0 text-[10px] tabular-nums min-[760px]:inline ${saveHasError ? "text-[var(--danger)]" : saveNeedsAttention ? "text-[var(--warning)]" : "text-[var(--text-tertiary)]"}`}
           >
             {statusLabel}
           </span>
@@ -487,7 +488,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
               type="button"
               onClick={handleAiUndoTitle}
               title={`恢复标题：${titleUndoStack[titleUndoStack.length - 1]}`}
-              className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--surface-hover)] px-1.5 py-1 text-[10.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-selected)] hover:text-[var(--text-primary)] sm:px-2"
+              className="pressable shrink-0 rounded-[7px] bg-[var(--surface-hover)] px-1.5 py-1 text-[10px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-selected)] hover:text-[var(--text-primary)] sm:px-2"
             >
               撤回<span className="hidden sm:inline">标题</span>
             </button>
@@ -559,7 +560,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
           <p
             role={saveHasError ? "alert" : "status"}
             aria-live="polite"
-            className={`border-b border-[var(--separator)] px-3 py-1.5 text-[11px] min-[760px]:hidden ${saveHasError ? "text-[var(--danger)]" : "text-[var(--text-secondary)]"}`}
+            className={`border-b border-[var(--separator)] px-3 py-[5px] text-[10.5px] leading-4 min-[760px]:hidden ${saveHasError ? "bg-red-50/65 text-[var(--danger)]" : saveNeedsAttention ? "bg-amber-50/55 text-[var(--warning)]" : "text-[var(--text-secondary)]"}`}
           >
             {state === "保存失败"
               ? "保存失败，本机恢复草稿已保留。请检查网络后点击保存。"
