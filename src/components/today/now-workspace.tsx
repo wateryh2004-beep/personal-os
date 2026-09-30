@@ -7,19 +7,19 @@ import { TodaySecondary } from "./today-secondary";
 
 export function NowWorkspaceView({ workspace }: { workspace: NowWorkspace }) {
   return (
-    <div className="now-workspace mx-auto w-full max-w-[1080px] px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
+    <div className="now-workspace mx-auto w-full max-w-[1080px] px-4 py-[30px] sm:px-6 sm:py-[38px] lg:px-8 lg:py-[46px]">
       <NowHeader workspace={workspace} />
 
-      <div className="mt-10 sm:mt-12">
+      <div className="mt-9 sm:mt-11">
         <TodayCommitments commitments={workspace.commitments} />
       </div>
 
-      <div className="mt-12 grid gap-12 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-16">
+      <div className="mt-11 grid gap-11 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-[60px]">
         <TodaySchedule workspace={workspace} />
         <TodayFocusStack workspace={workspace} />
       </div>
 
-      <div className="mt-16 border-t border-[var(--separator)] pt-12 sm:mt-20 sm:pt-14">
+      <div className="mt-[60px] border-t border-[var(--separator)] pt-11 sm:mt-[76px] sm:pt-[52px]">
         <TodaySecondary workspace={workspace} />
       </div>
     </div>
