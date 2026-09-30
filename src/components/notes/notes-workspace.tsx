@@ -77,7 +77,7 @@ function NoteRow({
 }) {
   return (
     <article className="group relative -mx-2 rounded-[10px] px-2 transition-[background-color] ui-transition after:absolute after:bottom-0 after:left-2 after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden hover:bg-[var(--surface-hover)]">
-      <div className="relative py-3.5 pr-11">
+      <div className="relative py-[13px] pr-10">
         <div className="flex min-w-0 items-center gap-2">
           {renaming ? (
             <input
@@ -89,13 +89,13 @@ function NoteRow({
                 if (event.key === "Enter") onRenameCommit();
                 if (event.key === "Escape") onRenameCancel();
               }}
-              className="h-7 min-w-0 flex-1 border-b border-[var(--accent)] bg-transparent px-0 text-[14px] font-medium outline-none"
+              className="h-7 min-w-0 flex-1 border-b border-[var(--accent)] bg-transparent px-0 text-[13.5px] font-medium tracking-[-0.008em] text-[var(--text-primary)] outline-none"
               aria-label="笔记标题"
             />
           ) : (
             <Link
               href={`/notes/${note.id}`}
-              className="truncate text-[14px] font-medium tracking-[-0.01em] text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)] after:absolute after:inset-0 after:content-['']"
+              className="truncate text-[13.5px] font-medium tracking-[-0.008em] text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)] after:absolute after:inset-0 after:content-['']"
             >
               {note.title || "无标题笔记"}
             </Link>
@@ -108,11 +108,11 @@ function NoteRow({
           ) : null}
         </div>
         {showExcerpt && note.excerpt ? (
-          <p className="mt-1.5 line-clamp-2 max-w-[66ch] text-[12px] leading-5 text-[var(--text-secondary)]">
+          <p className="mt-1 line-clamp-2 max-w-[66ch] text-[12px] leading-[1.55] text-[var(--text-secondary)]">
             {note.excerpt}
           </p>
         ) : null}
-        <p className="mt-1.5 truncate text-[10.5px] text-[var(--text-tertiary)]">
+        <p className="mt-1 truncate text-[10.5px] leading-4 text-[var(--text-tertiary)]">
           {folderPath(note, folders)} · {formatNoteTimestamp(note.updated_at, timezone)}
         </p>
       </div>
@@ -121,7 +121,7 @@ function NoteRow({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="absolute right-1 top-3 z-10 text-[var(--text-tertiary)] md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 focus-visible:opacity-100"
+            className="absolute right-1 top-[10px] z-10 text-[var(--text-tertiary)] md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 focus-visible:opacity-100"
             aria-label={`管理 ${note.title || "无标题笔记"}`}
           >
             <MoreHorizontal />
@@ -289,16 +289,16 @@ export function NotesWorkspace({
   return (
     <main
       ref={listScrollRef}
-      className="notes-library workspace-scroll h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pb-6 pt-14 sm:px-7 md:pt-8 lg:px-10"
+      className="notes-library workspace-scroll h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pb-6 pt-14 sm:px-7 md:pt-7 lg:px-10"
     >
-      <div className="mx-auto max-w-[760px]">
+      <div className="mx-auto max-w-[748px]">
         {state === "base" ? (
-          <p role="status" className="mb-5 border-l-2 border-amber-600 px-3 py-1.5 text-[12px] leading-5 text-amber-800">
+          <p role="status" className="mb-4 rounded-[9px] bg-amber-50 px-3 py-2 text-[11.5px] leading-5 text-amber-800">
             笔记基础功能正在使用兼容模式；文件夹与链接功能会在迁移启用后完整可用。
           </p>
         ) : null}
         {state === "unavailable" ? (
-          <p role="alert" className="mb-5 border-l-2 border-[var(--danger)] px-3 py-1.5 text-[12px] leading-5 text-[var(--danger)]">
+          <p role="alert" className="mb-4 rounded-[9px] bg-red-50 px-3 py-2 text-[11.5px] leading-5 text-[var(--danger)]">
             暂时无法读取笔记库。请检查 Supabase 环境变量、登录状态和数据库连接。
           </p>
         ) : null}
@@ -308,12 +308,12 @@ export function NotesWorkspace({
           </p>
         ) : null}
 
-        <header className="flex flex-wrap items-end gap-2">
+        <header className="flex min-h-11 flex-wrap items-end gap-2.5">
           <div className="mr-auto min-w-0">
-            <h1 className="truncate text-[28px] font-semibold leading-tight tracking-[-0.04em] text-[var(--text-primary)]">
+            <h1 className="truncate text-[27px] font-semibold leading-[1.08] tracking-[-0.042em] text-[var(--text-primary)]">
               {title}
             </h1>
-            <p className="mt-1 text-[11px] tabular-nums text-[var(--text-tertiary)]">
+            <p className="mt-0.5 text-[10.5px] leading-4 tabular-nums text-[var(--text-tertiary)]">
               {normalizedQuery ? `${visible.length} 个搜索结果` : `${visible.length} 篇笔记`}
             </p>
           </div>
@@ -321,7 +321,7 @@ export function NotesWorkspace({
           {newNoteForm("hidden md:block")}
         </header>
 
-        <div className="mt-6 flex items-center gap-2">
+        <div className="mt-5 flex items-center gap-2">
           <label className="relative min-w-0 flex-1">
             <span className="sr-only">搜索笔记</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]" aria-hidden="true" />
@@ -331,7 +331,7 @@ export function NotesWorkspace({
               onChange={(event) => updateQuery(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Escape" && query) updateQuery(""); }}
               placeholder={selectedFolder && scope === "context" ? `在「${selectedFolder.name}」中搜索…` : "搜索标题、正文或文件夹…"}
-              className="h-9 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] pl-8 pr-16 text-[13px] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_16%,transparent)]"
+              className="h-9 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] pl-8 pr-16 text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
             />
             <span className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
               {searchState === "loading" ? <LoaderCircle className="size-3.5 animate-spin text-[var(--text-tertiary)]" aria-label="正在补充全文搜索结果" /> : null}
@@ -350,14 +350,14 @@ export function NotesWorkspace({
                 setScope(next);
                 syncSearchUrl(query, next);
               }}
-              className="pressable h-9 shrink-0 rounded-[9px] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+              className="pressable h-9 shrink-0 rounded-[9px] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-control)] hover:text-[var(--text-primary)]"
             >
               {scope === "context" ? "当前文件夹" : "全部笔记"}
             </button>
           ) : null}
         </div>
         {normalizedQuery ? (
-          <p role={searchState === "error" ? "status" : undefined} className="mt-1.5 min-h-4 text-[10.5px] text-[var(--text-tertiary)]">
+          <p role={searchState === "error" ? "status" : undefined} className={`mt-1.5 min-h-4 text-[10.5px] leading-4 ${searchState === "error" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>
             {searchState === "error"
               ? "全文搜索暂时不可用，当前仍显示已加载内容中的标题和文件夹匹配。"
               : searchState === "loading"
@@ -367,7 +367,7 @@ export function NotesWorkspace({
         ) : null}
 
         {visible.length ? (
-          <section className="mt-5 border-t border-[var(--border-subtle)]">
+          <section className="mt-4.5">
             {visible.map((note) => (
               <NoteRow
                 key={note.id}
@@ -417,14 +417,14 @@ export function NotesWorkspace({
             ) : null}
           </section>
         ) : (
-          <div className="py-20 text-center">
-            <p className="text-[14px] font-medium text-[var(--text-primary)]">
+          <div className="py-16 text-center">
+            <p className="text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">
               {normalizedQuery ? "没有找到匹配的笔记" : "这里还没有笔记"}
             </p>
-            <p className="mx-auto mt-1.5 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
+            <p className="mx-auto mt-1 max-w-sm text-[11.5px] leading-5 text-[var(--text-secondary)]">
               {normalizedQuery ? "换一个关键词，或切换搜索范围。" : "新建一篇笔记，直接开始写。"}
             </p>
-            <div className="mt-4 flex justify-center">
+            <div className="mt-3.5 flex justify-center">
               {normalizedQuery ? <Button variant="outline" size="sm" onClick={() => updateQuery("")}>清空搜索</Button> : newNoteForm()}
             </div>
           </div>

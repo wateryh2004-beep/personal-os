@@ -10,7 +10,19 @@ import { saveWorkspaceSession } from "@/lib/workspace-session";
 import { useWorkspaceResourceLifecycle } from "@/lib/workspace-resource-cache";
 
 function NotesShell() {
-  return <main aria-busy="true" className="h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pt-14 pb-5 md:pt-5 sm:px-7 lg:px-10"><div className="mx-auto max-w-5xl"><div className="h-8 w-40 rounded bg-[var(--surface-hover)]" /><div className="mt-5 h-9 max-w-3xl rounded bg-[var(--surface-hover)]" /><div className="mt-5 divide-y border-y"><div className="h-20" /><div className="h-20 bg-[var(--surface-hover)]/60" /><div className="h-20" /></div></div></main>;
+  return (
+    <main aria-busy="true" className="h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pb-5 pt-14 sm:px-7 md:pt-[30px] lg:px-10">
+      <div className="mx-auto max-w-[748px]">
+        <div className="ui-skeleton-shimmer h-7 w-36 rounded-[8px]" />
+        <div className="ui-skeleton-shimmer mt-5 h-9 w-full rounded-[10px]" />
+        <div className="mt-4 space-y-px">
+          <div className="ui-skeleton-shimmer h-[58px] rounded-[10px]" />
+          <div className="ui-skeleton-shimmer h-[58px] rounded-[10px]" />
+          <div className="ui-skeleton-shimmer h-[58px] rounded-[10px]" />
+        </div>
+      </div>
+    </main>
+  );
 }
 
 export function NotesWorkspaceLoader({ initialWorkspace, folderId, initialView, dailyError }: { initialWorkspace: NotesWorkspaceData; folderId?: string; initialView: "all" | "favorites" | "recent"; dailyError: boolean }) {
