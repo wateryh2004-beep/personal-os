@@ -1,6 +1,6 @@
 import { requireOwner } from "@/lib/auth/require-owner";
 import { evidenceTypeLabels, type EvidenceType } from "./constants";
-import { buildMonthlyIssueTrend, countTags, readinessChecklist, sortPracticeQueue } from "./utils";
+import { buildMonthlyIssueTrend, countTags, rankSmartPracticeQueue, readinessChecklist } from "./utils";
 
 export type InterviewQuestionFilters = {
   q?: string;
@@ -228,21 +228,180 @@ export async function getInterviewQuestionDetail(questionId: string, contextId?:
   };
 }
 
+export async function getInterviewStories() {
+  const { supabase } = await requireOwner();
+  const [storiesResult, experiencesResult, competencyLinksResult, competenciesResult, archetypeLinksResult] = await Promise.all([
+    supabase.from("interview_stories").select("*").is("archived_at", null).order("status").order("updated_at", { ascending: false }),
+    supabase.from("experiences").select("id,organization,role").is("archived_at", null),
+    supabase.from("interview_story_competencies").select("story_id,competency_id,relevance,is_primary"),
+    supabase.from("interview_competencies").select("id,key,label").is("archived_at", null),
+    supabase.from("interview_archetype_stories").select("story_id,archetype_id,evidence_role").is("archived_at", null),
+  ]);
+  const experienceById = new Map((experiencesResult.data ?? []).map((item: any) => [item.id, item]));
+  const competencyById = new Map((competenciesResult.data ?? []).map((item: any) => [item.id, item]));
+  const competenciesByStory = new Map<string, any[]>();
+  for (const link of competencyLinksResult.data ?? []) {
+    const row = link as any;
+    const competency = competencyById.get(row.competency_id);
+    if (!competency) continue;
+    const list = competenciesByStory.get(row.story_id) ?? [];
+    list.push({ ...competency, relevance: row.relevance, isPrimary: row.is_primary });
+    competenciesByStory.set(row.story_id, list);
+  }
+  const archetypeCountByStory = new Map<string, number>();
+  for (const link of archetypeLinksResult.data ?? []) {
+    const row = link as any;
+    archetypeCountByStory.set(row.story_id, (archetypeCountByStory.get(row.story_id) ?? 0) + 1);
+  }
+  const stories = (storiesResult.data ?? []).map((story: any) => ({
+    ...story,
+    experience: experienceById.get(story.experience_id) ?? null,
+    competencies: (competenciesByStory.get(story.id) ?? []).sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || b.relevance - a.relevance),
+    archetypeCount: archetypeCountByStory.get(story.id) ?? 0,
+  }));
+  return {
+    stories,
+    experiences: experiencesResult.data ?? [],
+    unavailable: Boolean(storiesResult.error || experiencesResult.error || competencyLinksResult.error || competenciesResult.error || archetypeLinksResult.error),
+  };
+}
+
+export async function getInterviewStoryDetail(storyId: string) {
+  const { supabase } = await requireOwner();
+  const { data: story } = await supabase.from("interview_stories").select("*").eq("id", storyId).is("archived_at", null).maybeSingle();
+  if (!story) return null;
+  const [experiencesResult, competencyLinksResult, competenciesResult, archetypeLinksResult, archetypesResult] = await Promise.all([
+    supabase.from("experiences").select("id,organization,role").is("archived_at", null).order("start_date", { ascending: false, nullsFirst: false }),
+    supabase.from("interview_story_competencies").select("competency_id,relevance,is_primary").eq("story_id", storyId),
+    supabase.from("interview_competencies").select("id,key,label").is("archived_at", null),
+    supabase.from("interview_archetype_stories").select("archetype_id,evidence_role,fit_note").eq("story_id", storyId).is("archived_at", null),
+    supabase.from("interview_question_archetypes").select("id,title,status").is("archived_at", null),
+  ]);
+  const competencyById = new Map((competenciesResult.data ?? []).map((item: any) => [item.id, item]));
+  const archetypeById = new Map((archetypesResult.data ?? []).map((item: any) => [item.id, item]));
+  return {
+    story,
+    experiences: experiencesResult.data ?? [],
+    competencies: (competencyLinksResult.data ?? []).map((link: any) => ({ ...link, competency: competencyById.get(link.competency_id) })).filter((item: any) => item.competency),
+    archetypes: (archetypeLinksResult.data ?? []).map((link: any) => ({ ...link, archetype: archetypeById.get(link.archetype_id) })).filter((item: any) => item.archetype),
+  };
+}
+
 export async function getPracticeQueue(contextId?: string | null) {
   const { supabase } = await requireOwner();
-  let query = supabase.from("interview_question_preparations")
-    .select("*,interview_questions(id,canonical_prompt,short_title,category,competency_tags,difficulty),interview_contexts(id,title,organization_snapshot,role_title_snapshot)")
+  let prepQuery = supabase.from("interview_question_preparations")
+    .select("*,interview_questions!inner(id,canonical_prompt,short_title,archetype_id,variant_kind,question_style,difficulty),interview_contexts(id,title,organization_snapshot,role_title_snapshot,priority,next_interview_at)")
     .is("archived_at", null)
+    .is("interview_questions.archived_at", null)
     .neq("status", "paused");
-  if (contextId) query = query.eq("context_id", contextId);
-  const [prepsResult, contextsResult] = await Promise.all([
-    query,
-    supabase.from("interview_contexts").select("id,title,status,organization_snapshot,role_title_snapshot").is("archived_at", null).order("priority", { ascending: false }).order("title"),
+  if (contextId) prepQuery = prepQuery.eq("context_id", contextId);
+
+  const [prepsResult, contextsResult, attemptsResult, archetypeStoriesResult, storiesResult, questionCompetenciesResult, storyCompetenciesResult] = await Promise.all([
+    prepQuery,
+    supabase.from("interview_contexts").select("id,title,status,organization_snapshot,role_title_snapshot,priority,next_interview_at").is("archived_at", null).order("priority", { ascending: false }).order("title"),
+    supabase.from("interview_practice_attempts").select("id,preparation_id,practiced_at").is("archived_at", null).not("preparation_id", "is", null),
+    supabase.from("interview_archetype_stories").select("archetype_id,story_id,evidence_role").is("archived_at", null),
+    supabase.from("interview_stories").select("id,status").is("archived_at", null),
+    supabase.from("interview_question_competencies").select("question_id,competency_id"),
+    supabase.from("interview_story_competencies").select("story_id,competency_id"),
   ]);
+
+  const preparations = (prepsResult.data ?? []) as any[];
+  const attemptsByPrep = new Map<string, any[]>();
+  for (const attempt of attemptsResult.data ?? []) {
+    const row = attempt as any;
+    if (!row.preparation_id) continue;
+    const list = attemptsByPrep.get(row.preparation_id) ?? [];
+    list.push(row);
+    attemptsByPrep.set(row.preparation_id, list);
+  }
+
+  const storyById = new Map((storiesResult.data ?? []).map((story: any) => [story.id, story]));
+  const storyIdsByArchetype = new Map<string, string[]>();
+  for (const link of archetypeStoriesResult.data ?? []) {
+    const row = link as any;
+    const list = storyIdsByArchetype.get(row.archetype_id) ?? [];
+    list.push(row.story_id);
+    storyIdsByArchetype.set(row.archetype_id, list);
+  }
+
+  const competencyIdsByQuestion = new Map<string, Set<string>>();
+  for (const link of questionCompetenciesResult.data ?? []) {
+    const row = link as any;
+    const set = competencyIdsByQuestion.get(row.question_id) ?? new Set<string>();
+    set.add(row.competency_id);
+    competencyIdsByQuestion.set(row.question_id, set);
+  }
+
+  const competencyIdsByStory = new Map<string, Set<string>>();
+  for (const link of storyCompetenciesResult.data ?? []) {
+    const row = link as any;
+    const set = competencyIdsByStory.get(row.story_id) ?? new Set<string>();
+    set.add(row.competency_id);
+    competencyIdsByStory.set(row.story_id, set);
+  }
+
+  const variantRank: Record<string, number> = {
+    canonical: 0,
+    company_specific: 1,
+    observed: 2,
+    alternate: 3,
+    follow_up: 4,
+    pressure: 5,
+  };
+  const representativeByKey = new Map<string, any>();
+  for (const prep of preparations) {
+    const question = Array.isArray(prep.interview_questions) ? prep.interview_questions[0] : prep.interview_questions;
+    if (!question) continue;
+    const key = `${prep.context_id ?? "general"}:${question.archetype_id}`;
+    const current = representativeByKey.get(key);
+    const currentQuestion = current ? (Array.isArray(current.interview_questions) ? current.interview_questions[0] : current.interview_questions) : null;
+    if (!current || (variantRank[question.variant_kind] ?? 99) < (variantRank[currentQuestion?.variant_kind] ?? 99)) {
+      representativeByKey.set(key, prep);
+    }
+  }
+
+  const enriched = [...representativeByKey.values()].map((prep: any) => {
+    const question = Array.isArray(prep.interview_questions) ? prep.interview_questions[0] : prep.interview_questions;
+    const context = Array.isArray(prep.interview_contexts) ? prep.interview_contexts[0] : prep.interview_contexts;
+    const storyIds = storyIdsByArchetype.get(question.archetype_id) ?? [];
+    const usableStoryIds = storyIds.filter((id) => {
+      const status = (storyById.get(id) as any)?.status;
+      return status === "usable" || status === "strong";
+    });
+    const questionCompetencies = competencyIdsByQuestion.get(question.id) ?? new Set<string>();
+    const covered = new Set<string>();
+    for (const storyId of usableStoryIds) {
+      for (const competencyId of competencyIdsByStory.get(storyId) ?? []) {
+        if (questionCompetencies.has(competencyId)) covered.add(competencyId);
+      }
+    }
+    const attempts = attemptsByPrep.get(prep.id) ?? [];
+    return {
+      ...prep,
+      variant_kind: question.variant_kind,
+      story_count: storyIds.length,
+      usable_story_count: usableStoryIds.length,
+      competency_count: questionCompetencies.size,
+      covered_competency_count: covered.size,
+      attempt_count: attempts.length,
+      context_priority: context?.priority ?? 0,
+      next_interview_at: context?.next_interview_at ?? null,
+    };
+  });
+
   return {
-    queue: sortPracticeQueue((prepsResult.data ?? []) as any[]),
+    queue: rankSmartPracticeQueue(enriched),
     contexts: contextsResult.data ?? [],
-    unavailable: Boolean(prepsResult.error || contextsResult.error),
+    unavailable: Boolean(
+      prepsResult.error
+      || contextsResult.error
+      || attemptsResult.error
+      || archetypeStoriesResult.error
+      || storiesResult.error
+      || questionCompetenciesResult.error
+      || storyCompetenciesResult.error
+    ),
   };
 }
 
@@ -252,12 +411,36 @@ export async function getPracticeDetail(preparationId: string) {
     .select("*,interview_questions(*),interview_contexts(id,title,organization_snapshot,role_title_snapshot)")
     .eq("id", preparationId).is("archived_at", null).maybeSingle();
   if (!preparation) return null;
-  const [answers, attempts, links] = await Promise.all([
+  const question = Array.isArray((preparation as any).interview_questions)
+    ? (preparation as any).interview_questions[0]
+    : (preparation as any).interview_questions;
+
+  const [answers, attempts, links, archetypeLinks, stories] = await Promise.all([
     supabase.from("interview_answer_versions").select("*").eq("preparation_id", preparationId).eq("status", "current").is("archived_at", null).order("answer_mode").order("target_seconds", { ascending: true, nullsFirst: true }),
     supabase.from("interview_practice_attempts").select("*").eq("preparation_id", preparationId).is("archived_at", null).order("practiced_at", { ascending: false }).limit(8),
     supabase.from("entity_links").select("id").eq("source_type", "interview_preparation").eq("source_id", preparationId).is("archived_at", null),
+    supabase.from("interview_archetype_stories").select("story_id,evidence_role,fit_note").eq("archetype_id", question.archetype_id).is("archived_at", null),
+    supabase.from("interview_stories").select("id,title,one_line,status,experience_id").is("archived_at", null),
   ]);
-  return { preparation, answers: answers.data ?? [], attempts: attempts.data ?? [], evidenceCount: (links.data ?? []).length };
+
+  const storyById = new Map((stories.data ?? []).map((story: any) => [story.id, story]));
+  const linkedStories = (archetypeLinks.data ?? [])
+    .map((link: any) => ({ ...link, story: storyById.get(link.story_id) }))
+    .filter((item: any) => item.story)
+    .sort((a: any, b: any) => {
+      const roleRank: Record<string, number> = { primary: 0, supporting: 1, counter: 2 };
+      const statusRank: Record<string, number> = { strong: 0, usable: 1, needs_review: 2, draft: 3 };
+      return (roleRank[a.evidence_role] ?? 9) - (roleRank[b.evidence_role] ?? 9)
+        || (statusRank[a.story.status] ?? 9) - (statusRank[b.story.status] ?? 9);
+    });
+
+  return {
+    preparation,
+    answers: answers.data ?? [],
+    attempts: attempts.data ?? [],
+    evidenceCount: (links.data ?? []).length,
+    linkedStories,
+  };
 }
 
 export async function getInterviewSessions() {
