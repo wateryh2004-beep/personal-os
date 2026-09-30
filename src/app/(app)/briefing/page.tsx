@@ -41,7 +41,7 @@ export default async function BriefingPage() {
         </div>
         <GenerateBriefingControl hasBriefing={Boolean(data.briefing)} />
       </header>
-      {data.unavailable ? <p className="mt-4 rounded-[9px] bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">Briefing 数据暂时无法读取。</p> : null}
+      {data.unavailable ? <p className="mt-4 rounded-[9px] bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">简报数据暂时无法读取。</p> : null}
       <div id="briefing-results">
         {entries.length ? (
           <div className="mt-3.5 divide-y divide-[var(--border-subtle)]">
