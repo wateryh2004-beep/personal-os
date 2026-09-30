@@ -6,10 +6,11 @@ const tabBar = readFileSync("src/components/layout/mobile-tab-bar.tsx", "utf8");
 const commandPalette = readFileSync("src/components/search/global-command-palette-impl.tsx", "utf8");
 
 describe("navigation transition feedback", () => {
-  it("shows a restrained one-pixel progress indicator only after 180ms", () => {
+  it("shows restrained delayed navigation feedback and route transitions", () => {
     expect(appShell).toContain("window.setTimeout(() => setShowNavigationProgress(true), 180)");
     expect(appShell).toContain("data-navigation-progress");
-    expect(appShell).toContain("h-px");
+    expect(appShell).toContain("h-[2px]");
+    expect(appShell).toContain("ViewTransition");
   });
 
   it("shares one pending-navigation state across desktop and mobile navigation", () => {
