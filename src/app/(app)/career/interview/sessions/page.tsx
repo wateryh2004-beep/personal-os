@@ -4,7 +4,7 @@ import { CareerNav } from "@/components/career/career-nav";
 import { InterviewNav } from "@/components/career/interview/interview-nav";
 import { createInterviewSession } from "@/features/interview/actions";
 import { getInterviewSessions } from "@/features/interview/queries";
-import { languageLabels, sessionFormatLabels } from "@/features/interview/constants";
+import { languageLabels } from "@/features/interview/constants";
 import { formatDateTime } from "@/features/interview/utils";
 
 const sessionStatusLabels: Record<string, string> = {
@@ -16,6 +16,7 @@ const sessionStatusLabels: Record<string, string> = {
 
 export default async function InterviewSessionsPage() {
   const data = await getInterviewSessions();
+  const formatById = new Map((data.formats as any[]).map((format: any) => [format.id as string, format]));
 
   return (
     <>
@@ -31,7 +32,12 @@ export default async function InterviewSessionsPage() {
               <Field name="title" label="标题" required placeholder="太古 MT · 模拟面试 #1" />
               <Select name="context_id" label="目标岗位" defaultValue="" options={[["", "通用"] as [string, string], ...data.contexts.map((context: any) => [String(context.id), String(context.title)] as [string, string])]} />
               <Select name="session_kind" label="类型" defaultValue="mock" options={[["mock","模拟面试"],["real","真实面试"]]} />
-              <Select name="session_format" label="形式" defaultValue="one_to_one" options={Object.entries(sessionFormatLabels)} />
+              <Select
+                name="session_format"
+                label="形式"
+                defaultValue="one_to_one"
+                options={(data.formats as any[]).map((format: any) => [String(format.key), String(format.label)] as [string, string])}
+              />
               <Select name="facilitator" label="组织方式" defaultValue="self" options={[["self","自练"],["ai","AI 模拟"],["human","真人"],["mixed","混合"]]} />
               <Select name="language_mode" label="语言" defaultValue="bilingual" options={[["zh","中文"],["en","英文"],["bilingual","双语"]]} />
               <Field name="round_label" label="轮次" placeholder="一面" />
@@ -46,6 +52,7 @@ export default async function InterviewSessionsPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         {data.sessions.map((session: any) => {
           const context = Array.isArray(session.interview_contexts) ? session.interview_contexts[0] : session.interview_contexts;
+          const format = formatById.get(session.format_id) as any;
           return (
             <Link href={`/career/interview/sessions/${session.id}`} key={session.id} className="rounded-2xl bg-zinc-50 p-5 transition-colors hover:bg-zinc-100/80">
               <div className="flex items-start justify-between gap-4">
@@ -56,7 +63,7 @@ export default async function InterviewSessionsPage() {
                 <span className="text-xs text-zinc-400">{sessionStatusLabels[session.status] ?? session.status}</span>
               </div>
               <div className="mt-5 grid grid-cols-3 gap-3 text-xs text-zinc-500">
-                <div><p className="text-zinc-400">形式</p><p className="mt-1">{sessionFormatLabels[session.session_format] ?? session.session_format}</p></div>
+                <div><p className="text-zinc-400">形式</p><p className="mt-1">{format?.label ?? session.session_format}</p></div>
                 <div><p className="text-zinc-400">语言</p><p className="mt-1">{languageLabels[session.language_mode] ?? session.language_mode}</p></div>
                 <div><p className="text-zinc-400">题目</p><p className="mt-1">{data.counts[session.id] ?? 0}</p></div>
               </div>
