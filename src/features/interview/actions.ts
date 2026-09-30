@@ -16,7 +16,7 @@ import {
   interviewSessionSchema,
   formObject,
 } from "./schemas";
-import { type EvidenceType } from "./constants";
+import { questionTypeByLegacyCategory, type EvidenceType } from "./constants";
 
 function failed(error: unknown): never {
   void error;
@@ -57,6 +57,39 @@ async function own(
   if (error || !data) failed(error ?? new Error("找不到记录。"));
 }
 
+async function resolveQuestionTypeId(
+  supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"],
+  userId: string,
+  requestedKey: string,
+) {
+  const key = requestedKey || "behavioral";
+  const { data, error } = await supabase
+    .from("interview_question_types")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("key", key)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (error || !data) failed(error ?? new Error("找不到问题类型。"));
+  return data.id as string;
+}
+
+async function resolveInterviewFormatId(
+  supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"],
+  userId: string,
+  key: string,
+) {
+  const { data, error } = await supabase
+    .from("interview_formats")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("key", key)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (error || !data) failed(error ?? new Error("找不到面试形式。"));
+  return data.id as string;
+}
+
 function revalidateInterview(questionId?: string, preparationId?: string, sessionId?: string) {
   revalidatePath("/career");
   revalidatePath("/career/interview");
@@ -73,7 +106,14 @@ export async function createInterviewQuestion(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const contextId = String(formData.get("context_id") || "") || null;
   const returnToWorkspace = String(formData.get("return_to_workspace") || "") === "1";
-  const value = parse(interviewQuestionSchema, formObject(formData));
+  const raw = formObject(formData);
+  const value = parse(interviewQuestionSchema, raw);
+  const requestedTypeKey = String(formData.get("question_type_key") || "")
+    || questionTypeByLegacyCategory[value.category]
+    || (value.category === "stress" ? "behavioral" : value.category);
+  const questionStyle = String(formData.get("question_style") || "")
+    || (value.category === "stress" || value.follow_up_kind === "pressure" ? "stress" : "standard");
+  const questionTypeId = await resolveQuestionTypeId(supabase, userId, requestedTypeKey);
   if (value.parent_question_id) await own(supabase, "interview_questions", value.parent_question_id);
   let targetLanguage = "zh";
   if (contextId) {
@@ -84,6 +124,8 @@ export async function createInterviewQuestion(formData: FormData) {
   const { data, error } = await supabase.from("interview_questions").insert({
     ...value,
     user_id: userId,
+    question_type_id: questionTypeId,
+    question_style: questionStyle,
   }).select("id").single();
   if (error || !data) failed(error);
   const { error: prepError } = await supabase.from("interview_question_preparations").insert({
@@ -95,7 +137,11 @@ export async function createInterviewQuestion(formData: FormData) {
     target_language: targetLanguage,
   });
   if (prepError) failed(prepError);
-  await audit(supabase, userId, "create", "interview_question", data.id, { category: value.category, source_type: value.source_type });
+  await audit(supabase, userId, "create", "interview_question", data.id, {
+    question_type: requestedTypeKey,
+    question_style: questionStyle,
+    source_type: value.source_type,
+  });
   revalidateInterview(data.id);
   if (contextId) revalidatePath(`/career/interview/targets/${contextId}`);
   if (returnToWorkspace) {
@@ -109,10 +155,24 @@ export async function updateInterviewQuestion(formData: FormData) {
   const questionId = String(formData.get("question_id") || "");
   await own(supabase, "interview_questions", questionId);
   const value = parse(interviewQuestionSchema, formObject(formData));
+  const requestedTypeKey = String(formData.get("question_type_key") || "")
+    || questionTypeByLegacyCategory[value.category]
+    || (value.category === "stress" ? "behavioral" : value.category);
+  const questionStyle = String(formData.get("question_style") || "")
+    || (value.category === "stress" || value.follow_up_kind === "pressure" ? "stress" : "standard");
+  const questionTypeId = await resolveQuestionTypeId(supabase, userId, requestedTypeKey);
   if (value.parent_question_id) await own(supabase, "interview_questions", value.parent_question_id);
-  const { error } = await supabase.from("interview_questions").update(value).eq("id", questionId);
+  const { error } = await supabase.from("interview_questions").update({
+    ...value,
+    question_type_id: questionTypeId,
+    question_style: questionStyle,
+  }).eq("id", questionId);
   if (error) failed(error);
-  await audit(supabase, userId, "update", "interview_question", questionId, { category: value.category, difficulty: value.difficulty });
+  await audit(supabase, userId, "update", "interview_question", questionId, {
+    question_type: requestedTypeKey,
+    question_style: questionStyle,
+    difficulty: value.difficulty,
+  });
   revalidateInterview(questionId);
 }
 
@@ -555,9 +615,11 @@ export async function createInterviewSession(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const value = parse(interviewSessionSchema, formObject(formData));
   if (value.context_id) await own(supabase, "interview_contexts", value.context_id);
+  const formatId = await resolveInterviewFormatId(supabase, userId, value.session_format);
   const { data, error } = await supabase.from("interview_sessions").insert({
     ...value,
     user_id: userId,
+    format_id: formatId,
     status: "planned",
   }).select("id").single();
   if (error || !data) failed(error);
