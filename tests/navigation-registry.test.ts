@@ -18,7 +18,7 @@ describe("navigation registry", () => {
     expect(desktopNavigationGroups.flatMap((group) => group.items).map((item) => item.href)).toEqual([
       "/today", "/inbox", "/calendar", "/tasks", "/projects", "/reviews", "/notes", "/files", "/briefing", "/shopping", "/travel", "/career",
     ]);
-    expect(mobileTabNavigation.map((item) => item.href)).toEqual(["/today", "/calendar", "/tasks", "/notes"]);
+    expect(mobileTabNavigation.map((item) => item.href)).toEqual(["/today", "/calendar", "/tasks", "/career"]);
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/settings");
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/reviews");
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/briefing");
@@ -57,13 +57,14 @@ describe("navigation registry", () => {
   it("returns recent non-tab modules without duplicating a module", () => {
     const recents = [
       { href: "/career/roadmap", label: "Career" },
+      { href: "/notes/123", label: "Notes" },
       { href: "/projects", label: "Projects" },
       { href: "/today", label: "Now" },
       { href: "/career/experiences", label: "Career" },
       { href: "/reviews", label: "Reviews" },
     ];
     expect(getMobileRecentNavigation(recents, "/today")).toEqual([
-      { targetHref: "/career/roadmap", item: navigationItemForPath("/career/roadmap") },
+      { targetHref: "/notes/123", item: navigationItemForPath("/notes/123") },
       { targetHref: "/projects", item: navigationItemForPath("/projects") },
       { targetHref: "/reviews", item: navigationItemForPath("/reviews") },
     ]);
