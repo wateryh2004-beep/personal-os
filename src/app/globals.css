@@ -134,7 +134,7 @@ button,[role="button"],a { -webkit-user-select:none; user-select:none; }
 .calendar-canvas .fc { height:100%; color:var(--text-primary); font-size:13px; }
 .calendar-canvas .fc-theme-standard td,.calendar-canvas .fc-theme-standard th { border-color:var(--border-subtle); }
 .calendar-canvas .fc-scrollgrid { border-width:0; }
-.calendar-canvas .fc-col-header-cell { background:#fbfbfc; }
+.calendar-canvas .fc-col-header-cell { background:color-mix(in srgb,var(--surface-canvas) 88%,var(--surface-sidebar)); }
 .calendar-canvas .fc-col-header-cell-cushion { padding:9px 4px; color:var(--text-secondary); font-weight:500; text-decoration:none; }
 .calendar-canvas .fc-day-today { background:color-mix(in srgb,var(--accent-soft) 42%,transparent)!important; }
 .calendar-canvas .fc-day-today .fc-col-header-cell-cushion { color:var(--accent); font-weight:600; }
@@ -153,7 +153,7 @@ button,[role="button"],a { -webkit-user-select:none; user-select:none; }
 .calendar-canvas .fc-timegrid .fc-daygrid-day-events { min-height:0!important; margin:0!important; display:flex; flex-wrap:wrap; align-items:flex-start; }
 .calendar-canvas .fc-timegrid .fc-daygrid-day-events > .fc-daygrid-event-harness { flex:1 1 0%; min-width:0; margin-right:2px; }
 .calendar-canvas .fc-timegrid .fc-daygrid-day-events > .fc-daygrid-event-harness .fc-daygrid-event { display:block; width:100%!important; min-height:0!important; margin:1px 0!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.calendar-canvas .fc-event:hover { box-shadow:0 1px 4px rgba(0,0,0,.10); filter:saturate(1.03); }
+.calendar-canvas .fc-event:hover { box-shadow:0 2px 8px rgba(0,0,0,.075); filter:saturate(1.025); }
 .calendar-canvas .fc-day-other .fc-daygrid-day-number { color:color-mix(in srgb,var(--text-tertiary) 58%,transparent); }
 .calendar-canvas .fc-day-other { background:color-mix(in srgb,var(--surface-hover) 48%,transparent); }
 .calendar-canvas .fc-event-main { color:inherit!important; }
@@ -185,7 +185,7 @@ div:has(> nav[aria-label="笔记视图"]) > div:first-child { margin-bottom:14px
 div:has(> nav[aria-label="笔记视图"]) > div:first-child > span { font-size:13px!important; font-weight:600!important; letter-spacing:-.015em; }
 div:has(> nav[aria-label="笔记视图"]) nav { gap:1px; }
 div:has(> nav[aria-label="笔记视图"]) nav a,
-div:has(> nav[aria-label="笔记视图"]) nav button { min-height:32px; border-radius:7px!important; font-size:13px!important; }
+div:has(> nav[aria-label="笔记视图"]) nav button { min-height:32px; border-radius:var(--radius-sm)!important; font-size:13px!important; }
 div:has(> nav[aria-label="笔记视图"]) [class*="bg-[var(--surface-selected)]"] { color:var(--text-primary)!important; }
 div:has(> nav[aria-label="笔记视图"]) [class*="bg-[var(--surface-selected)]"] svg { color:var(--accent)!important; }
 div:has(> nav[aria-label="笔记视图"]) > div:nth-of-type(2) { margin-top:22px!important; }
@@ -223,7 +223,7 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5
   color:var(--text-primary)!important;
 }
 .notes-document-shell .notes-editor-surface input[aria-label="笔记标题"]:focus-visible { outline:none!important; }
-.notes-document-shell .notes-editor-surface [data-slot="button"] { width:28px!important; height:28px!important; min-width:28px!important; padding:0!important; border-radius:7px!important; color:var(--text-tertiary); }
+.notes-document-shell .notes-editor-surface [data-slot="button"] { width:28px!important; height:28px!important; min-width:28px!important; padding:0!important; border-radius:var(--radius-sm)!important; color:var(--text-tertiary); }
 .notes-document-shell .notes-editor-surface [data-slot="button"]:hover { color:var(--text-primary); }
 .notes-document-shell .notes-editor-surface [data-slot="button"] span { display:none!important; }
 .notes-document-shell .notes-editor-surface > div > div:first-child > span[aria-live] { font-size:10px!important; }
@@ -234,7 +234,7 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5
   border-bottom:1px solid var(--separator,rgba(60,60,67,.12));
   background:#fff;
 }
-.notes-document-shell .life-markdown-toolbar button { width:28px!important; height:28px!important; min-width:28px!important; min-height:28px!important; border-radius:6px!important; }
+.notes-document-shell .life-markdown-toolbar button { width:28px!important; height:28px!important; min-width:28px!important; min-height:28px!important; border-radius:var(--radius-xs)!important; }
 .notes-document-shell .life-markdown-toolbar select { height:28px!important; min-height:28px!important; font-size:11px!important; }
 .notes-document-shell .life-markdown-toolbar [aria-hidden="true"].h-5 { height:16px!important; }
 .notes-document-shell .life-codemirror .cm-editor { font-size:16px!important; }
