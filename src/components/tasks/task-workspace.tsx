@@ -107,7 +107,7 @@ function TaskRow({
       role="button"
       aria-label={`打开任务：${task.title}`}
       data-selected={selected || undefined}
-      className={`group relative -mx-2 grid cursor-pointer grid-cols-[26px_minmax(0,1fr)_auto] items-start gap-2.5 rounded-[10px] px-2 py-[13px] pr-2 transition-[background-color,box-shadow] ui-transition after:absolute after:bottom-0 after:left-[36px] after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)] ${
+      className={`group relative -mx-2 grid cursor-pointer grid-cols-[26px_minmax(0,1fr)_auto] items-start gap-2.5 rounded-[10px] px-2 py-3 pr-2 transition-[background-color,box-shadow] ui-transition after:absolute after:bottom-0 after:left-[36px] after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)] ${
         selected ? "bg-[var(--surface-selected)] after:opacity-0" : "hover:bg-[var(--surface-hover)]"
       }`}
     >
@@ -118,7 +118,7 @@ function TaskRow({
           onToggle();
         }}
         aria-label={`${completed ? "恢复" : "完成"} ${task.title}`}
-        className={`-m-2 mt-[-6px] inline-flex size-10 items-center justify-center rounded-full transition-[background-color,color] ui-transition sm:m-0 sm:mt-0.5 sm:size-6 ${
+        className={`-m-2 mt-[-5px] inline-flex size-10 items-center justify-center rounded-full transition-[background-color,color] ui-transition sm:m-0 sm:mt-0.5 sm:size-6 ${
           completed
             ? "text-[var(--accent)] hover:bg-[var(--accent-soft)]"
             : "text-[var(--text-tertiary)] hover:bg-[var(--surface-control)] hover:text-[var(--accent)]"
@@ -135,7 +135,7 @@ function TaskRow({
 
       <div className="min-w-0">
         <h2
-          className={`truncate text-[13.5px] font-medium tracking-[-0.008em] ${
+          className={`truncate text-[13.25px] font-medium tracking-[-0.007em] ${
             completed
               ? "text-[var(--text-tertiary)] line-through decoration-[color-mix(in_srgb,var(--text-tertiary)_55%,transparent)]"
               : "text-[var(--text-primary)]"
@@ -144,12 +144,12 @@ function TaskRow({
           {task.title}
         </h2>
         {task.bodyText ? (
-          <p className="mt-0.5 line-clamp-1 max-w-[68ch] text-[11.5px] leading-5 text-[var(--text-secondary)]">
+          <p className="mt-[2px] line-clamp-1 max-w-[68ch] text-[11.25px] leading-[1.55] text-[var(--text-secondary)]">
             {task.bodyText}
           </p>
         ) : null}
         {task.importance === "high" || dueLabel ? (
-          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] text-[var(--text-tertiary)]">
+          <div className="mt-[3px] flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[9.75px] text-[var(--text-tertiary)]">
             {task.importance === "high" ? (
               <span className="font-medium text-[var(--warning)]">高优先级</span>
             ) : null}
@@ -285,7 +285,7 @@ function QuickAdd({
   };
 
   return (
-    <div className="py-2.5">
+    <div className="py-2>
       {open ? (
         <form onSubmit={submit} className="flex items-center gap-2">
           <span className="inline-flex size-6 shrink-0 items-center justify-center text-[var(--accent)]">
@@ -320,11 +320,11 @@ function QuickAdd({
           新建任务
         </button>
       )}
-      <p className="pl-8 text-[10px] leading-4 text-[var(--text-tertiary)]">
+      <p className="pl-8 text-[9.75px] leading-4 text-[var(--text-tertiary)]">
         添加到 {listLabel}
       </p>
       {message ? (
-        <p role="status" className="mt-1 pl-8 text-[10.5px] text-[var(--text-tertiary)]">
+        <p role="status" className="mt-0.5 pl-8 text-[10px] text-[var(--text-tertiary)]">
           {message}
         </p>
       ) : null}
@@ -364,7 +364,7 @@ function TaskInspector({
   return (
     <Inspector open title="任务详情" onClose={onClose} className="tasks-inspector">
       <div className="space-y-0">
-        <div className="flex justify-end pb-1.5">
+        <div className="flex justify-end pb-1>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon-sm" aria-label="任务更多操作">
@@ -379,7 +379,7 @@ function TaskInspector({
           </DropdownMenu>
         </div>
 
-        <section className="border-b border-[var(--separator)] pb-4.5">
+        <section className="border-b border-[var(--separator)] pb-4>
           {editing === "title" ? (
             <input
               autoFocus
@@ -396,7 +396,7 @@ function TaskInspector({
                   setEditing(null);
                 }
               }}
-              className="w-full border-0 border-b border-[var(--accent)] bg-transparent px-0 pb-1 text-[18px] font-semibold tracking-[-0.025em] text-[var(--text-primary)] outline-none"
+              className="w-full border-0 border-b border-[var(--accent)] bg-transparent px-0 pb-1 text-[17px] font-semibold tracking-[-0.025em] text-[var(--text-primary)] outline-none"
             />
           ) : (
             <button
@@ -409,9 +409,9 @@ function TaskInspector({
           )}
         </section>
 
-        <section className="border-b border-[var(--separator)] py-4.5">
+        <section className="border-b border-[var(--separator)] py-4>
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[10.5px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">
+            <p className="text-[10px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">
               说明
             </p>
             {!editing && task.bodyText ? (
@@ -435,10 +435,10 @@ function TaskInspector({
               }}
               rows={5}
               placeholder="输入 @ 引用笔记、日程或文件"
-              className="mt-2.5 min-h-28 w-full resize-y rounded-[10px] border-0 bg-[var(--surface-control)] p-3 text-[12.5px] leading-5.5 outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]"
+              className="mt-2 min-h-28 w-full resize-y rounded-[10px] border-0 bg-[var(--surface-control)] p-3 text-[12.5px] leading-5.5 outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]"
             />
           ) : task.bodyText ? (
-            <div className="mt-1.5">
+            <div className="mt-1>
               <EntityMarkdown body={task.bodyText} className="text-[12.5px] leading-5.5 text-[var(--text-secondary)]" />
             </div>
           ) : (
@@ -453,11 +453,11 @@ function TaskInspector({
         </section>
 
         <dl className="divide-y divide-[var(--border-subtle)] border-b border-[var(--border-subtle)]">
-          <div className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-3 py-3">
+          <div className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-3 py-2.5">
             <dt className="text-[11.5px] text-[var(--text-tertiary)]">清单</dt>
             <dd className="text-[12.5px] text-[var(--text-primary)]">{list}</dd>
           </div>
-          <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-3 py-3.5">
+          <div className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-3 py-3">
             <dt className="text-[12px] text-[var(--text-tertiary)]">截止日期</dt>
             <dd>
               <input
@@ -472,7 +472,7 @@ function TaskInspector({
               />
             </dd>
           </div>
-          <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-3 py-3.5">
+          <div className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-3 py-3">
             <dt className="text-[12px] text-[var(--text-tertiary)]">优先级</dt>
             <dd>
               <select
@@ -490,12 +490,12 @@ function TaskInspector({
           </div>
         </dl>
 
-        <div className="pt-4.5">
+        <div className="pt-4>
           <EntityBacklinks type="todo_task" id={task.id} />
         </div>
 
         {message ? (
-          <p role="status" className="pt-3.5 text-[10.5px] text-[var(--text-tertiary)]">
+          <p role="status" className={`pt-3 text-[10.5px] ${message.includes("失败") ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>
             {message}
           </p>
         ) : null}
@@ -704,11 +704,11 @@ export function TaskWorkspace({
   return (
     <section className="flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="shrink-0 px-5 pb-2.5 pt-[18px] sm:px-7 lg:px-10">
-          <div className="mx-auto flex max-w-[980px] items-start justify-between gap-3.5">
+        <header className="shrink-0 px-5 pb-2 pt-4 sm:px-7 lg:px-10">
+          <div className="mx-auto flex max-w-[972px] items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-baseline gap-2.5">
-                <h1 className="text-[27px] font-semibold tracking-[-0.042em] text-[var(--text-primary)]">
+                <h1 className="text-[26px] font-semibold tracking-[-0.042em] text-[var(--text-primary)]">
                   任务
                 </h1>
                 <span className="text-[11px] tabular-nums text-[var(--text-tertiary)]">
@@ -716,7 +716,7 @@ export function TaskWorkspace({
                 </span>
               </div>
               <nav
-                className="mt-2.5 flex items-center gap-4.5 overflow-x-auto"
+                className="mt-2 flex items-center gap-4 overflow-x-auto"
                 aria-label="任务视图"
               >
                 {(["today", "upcoming", "all", "completed"] as TaskView[]).map((item) => (
@@ -725,7 +725,7 @@ export function TaskWorkspace({
                     type="button"
                     onClick={() => setView(item)}
                     aria-pressed={view === item}
-                    className={`relative shrink-0 pb-1.5 text-[11.5px] font-medium transition-colors ui-transition ${
+                    className={`relative shrink-0 pb-1.5 text-[11px] font-medium transition-colors ui-transition ${
                       view === item
                         ? "text-[var(--text-primary)] after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-[var(--accent)]"
                         : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
@@ -736,13 +736,13 @@ export function TaskWorkspace({
                 ))}
               </nav>
 
-              <div className="mt-2.5 xl:hidden">
+              <div className="mt-2 xl:hidden">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
                       aria-label={`切换任务清单，当前：${currentListLabel}`}
-                      className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-[9px] bg-[var(--surface-control)] px-3 text-[12px] font-medium text-[var(--text-secondary)] transition-colors ui-transition hover:text-[var(--text-primary)] sm:min-h-9"
+                      className="inline-flex min-h-10 max-w-full items-center gap-1.5 rounded-[9px] bg-[var(--surface-control)] px-3 text-[12px] font-medium text-[var(--text-secondary)] transition-colors ui-transition hover:text-[var(--text-primary)] sm:min-h-9"
                     >
                       <span className="text-[var(--text-tertiary)]">清单</span>
                       <span aria-hidden="true">·</span>
@@ -804,9 +804,9 @@ export function TaskWorkspace({
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 xl:grid-cols-[minmax(0,1fr)_216px]">
+        <div className="grid min-h-0 flex-1 xl:grid-cols-[minmax(0,1fr)_212px]">
           <main ref={listScrollRef} className="workspace-scroll overflow-y-auto px-5 sm:px-7 lg:px-10">
-            <div className="mx-auto max-w-[748px] pb-8">
+            <div className="mx-auto max-w-[744px] pb-8">
               {quickAddTarget ? (
                 <QuickAdd
                   listId={quickAddTarget.id}
@@ -827,13 +827,13 @@ export function TaskWorkspace({
                     />
                   ))
                 ) : (
-                  <div className="flex min-h-60 flex-col justify-center py-14 text-left">
+                  <div className="flex min-h-56 flex-col justify-center py-12 text-left">
                     <CheckCircle2
                       className="size-5 text-[var(--text-tertiary)]"
                       strokeWidth={1.5}
                       aria-hidden="true"
                     />
-                    <h2 className="mt-3.5 text-[14px] font-medium text-[var(--text-primary)]">
+                    <h2 className="mt-3 text-[13.5px] font-medium text-[var(--text-primary)]">
                       {view === "completed" ? "还没有已完成的任务" : "这里暂时没有任务"}
                     </h2>
                     <p className="mt-1 max-w-sm text-[12px] leading-5.5 text-[var(--text-secondary)]">
@@ -847,16 +847,16 @@ export function TaskWorkspace({
             </div>
           </main>
 
-          <aside className="hidden border-l border-[var(--separator)] px-3.5 py-4.5 xl:block">
+          <aside className="hidden border-l border-[var(--separator)] px-3 py-4 xl:block">
             <p className="px-2 text-[10px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">
               清单
             </p>
-            <div className="mt-1.5 space-y-px">
+            <div className="mt-1 space-y-px">
               <button
                 type="button"
                 onClick={() => setListId(null)}
                 aria-pressed={!listId}
-                className={`block h-8 w-full truncate rounded-[9px] px-2 text-left text-[12.5px] transition-colors ui-transition ${
+                className={`pressable block h-[30px] w-full truncate rounded-[8px] px-2 text-left text-[12px] transition-colors ui-transition ${
                   !listId
                     ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]"
                     : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
@@ -870,7 +870,7 @@ export function TaskWorkspace({
                   type="button"
                   onClick={() => setListId(list.id)}
                   aria-pressed={listId === list.id}
-                  className={`block h-8 w-full truncate rounded-[9px] px-2 text-left text-[12.5px] transition-colors ui-transition ${
+                  className={`pressable block h-[30px] w-full truncate rounded-[8px] px-2 text-left text-[12px] transition-colors ui-transition ${
                     listId === list.id
                       ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]"
                       : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
