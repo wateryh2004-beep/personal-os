@@ -30,9 +30,9 @@ describe("Tasks workspace interaction contracts", () => {
     const source = await readFile(workspacePath, "utf8");
 
     expect(source).toContain('const [listId, setListId] = useState<string | null>(null);');
-    expect(source).toContain('className="mt-3 xl:hidden"');
+    expect(source).toContain('className="mt-2.5 xl:hidden"');
     expect(source).toContain("onSelect={() => setListId(null)}");
     expect(source).toContain("onSelect={() => setListId(list.id)}");
-    expect(source).toContain('className="hidden border-l border-[var(--border-subtle)] px-4 py-5 xl:block"');
+    expect(source).toContain('className="hidden border-l border-[var(--separator)] px-3.5 py-4.5 xl:block"');
   });
 });
