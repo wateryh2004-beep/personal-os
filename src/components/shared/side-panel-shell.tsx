@@ -115,7 +115,7 @@ export function SidePanelShell({
         type="button"
         onPointerDown={resize}
         onDoubleClick={resetWidth}
-        className="absolute inset-y-0 left-0 z-10 hidden w-2 cursor-col-resize touch-none md:block md:hover:bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]"
+        className="group absolute inset-y-0 left-0 z-10 hidden w-2 cursor-col-resize touch-none md:block after:absolute after:inset-y-5 after:left-1/2 after:w-px after:-translate-x-1/2 after:rounded-full after:bg-transparent after:transition-colors after:duration-[var(--motion-fast)] hover:after:bg-[color-mix(in_srgb,var(--accent)_26%,var(--separator))] focus-visible:after:bg-[var(--accent)]"
         aria-label="调整面板宽度，双击恢复默认"
       />
       <header className={cn(
