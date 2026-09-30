@@ -84,8 +84,8 @@ section:has(nav[aria-label="笔记视图"]) > aside > button[aria-label^="调整
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 2px;
-  height: 28px;
+  width: 1px;
+  height: 24px;
   border-radius: 999px;
   background: transparent;
   content: "";
@@ -150,11 +150,11 @@ section:has(nav[aria-label="笔记视图"]) .workspace-scroll button {
 }
 
 .life-markdown-statusbar {
-  min-height: 28px;
+  min-height: 21px;
   border-top: 1px solid color-mix(in srgb, var(--separator) 64%, transparent);
   background: var(--material-toolbar);
   color: var(--text-tertiary);
-  font-size: 10px;
+  font-size: 9.5px;
   font-variant-numeric: tabular-nums;
   backdrop-filter: saturate(180%) blur(14px);
   -webkit-backdrop-filter: saturate(180%) blur(14px);
