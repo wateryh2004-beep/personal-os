@@ -61,7 +61,7 @@ export default async function SkillsPage() {
 
             <details className="mt-1.5">
               <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">编辑</summary>
-              <form action={updateSkill} className="mt-4 grid gap-4 rounded-2xl bg-white/70 p-5 md:grid-cols-3">
+              <form action={updateSkill} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
                 <input type="hidden" name="skill_id" value={skill.id} />
                 <Field label="能力名称" name="name" defaultValue={skill.name} required />
                 <SelectField label="类别" name="category" values={categories} defaultValue={skill.category} />
