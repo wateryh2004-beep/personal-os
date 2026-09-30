@@ -179,44 +179,43 @@ button,[role="button"],a { -webkit-user-select:none; user-select:none; }
 /* Notes: library, editor and inspector share one quiet native-like language. */
 div:has(> nav[aria-label="笔记视图"]) {
   background:var(--material-sidebar)!important;
-  padding:14px 10px 10px!important;
+  padding:10px 10px 8px!important;
 }
-div:has(> nav[aria-label="笔记视图"]) > div:first-child { margin-bottom:14px!important; padding:0 4px!important; }
-div:has(> nav[aria-label="笔记视图"]) > div:first-child > span { font-size:13px!important; font-weight:600!important; letter-spacing:-.015em; }
+div:has(> nav[aria-label="笔记视图"]) > div:first-child { margin-bottom:10px!important; padding:0 4px!important; }
+div:has(> nav[aria-label="笔记视图"]) > div:first-child > span { font-size:13.5px!important; font-weight:600!important; letter-spacing:-.018em; }
 div:has(> nav[aria-label="笔记视图"]) nav { gap:1px; }
 div:has(> nav[aria-label="笔记视图"]) nav a,
-div:has(> nav[aria-label="笔记视图"]) nav button { min-height:32px; border-radius:var(--radius-sm)!important; font-size:13px!important; }
+div:has(> nav[aria-label="笔记视图"]) nav button { min-height:30px; border-radius:8px!important; font-size:12.5px!important; }
 div:has(> nav[aria-label="笔记视图"]) [class*="bg-[var(--surface-selected)]"] { color:var(--text-primary)!important; }
 div:has(> nav[aria-label="笔记视图"]) [class*="bg-[var(--surface-selected)]"] svg { color:var(--accent)!important; }
-div:has(> nav[aria-label="笔记视图"]) > div:nth-of-type(2) { margin-top:22px!important; }
+div:has(> nav[aria-label="笔记视图"]) > div:nth-of-type(2) { margin-top:18px!important; }
 div:has(> nav[aria-label="笔记视图"]) .workspace-scroll a { font-size:12.5px!important; }
 div:has(> nav[aria-label="笔记视图"]) .workspace-scroll > div > div { min-height:31px; }
 
-main.workspace-scroll:has(article a[href^="/notes/"]) { padding-top:34px!important; background:var(--surface-canvas); }
-main.workspace-scroll:has(article a[href^="/notes/"]) > div { max-width:760px!important; }
-main.workspace-scroll:has(article a[href^="/notes/"]) header { border-bottom:0!important; padding-bottom:12px!important; }
-main.workspace-scroll:has(article a[href^="/notes/"]) header h1 { font-size:28px!important; font-weight:650!important; letter-spacing:-.035em!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) { padding-top:30px!important; background:var(--surface-canvas); }
+main.workspace-scroll:has(article a[href^="/notes/"]) > div { max-width:748px!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) header { border-bottom:0!important; padding-bottom:10px!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) header h1 { font-size:27px!important; line-height:1.08!important; font-weight:650!important; letter-spacing:-.042em!important; }
 main.workspace-scroll:has(article a[href^="/notes/"]) header h1 span { font-size:12px!important; color:var(--text-tertiary)!important; }
-main.workspace-scroll:has(article a[href^="/notes/"]) label input { height:34px!important; border-color:transparent!important; background:var(--surface-control)!important; font-size:13px!important; box-shadow:none!important; }
-main.workspace-scroll:has(article a[href^="/notes/"]) label input:focus { background:var(--surface-canvas)!important; box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 18%,transparent)!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) label input { height:36px!important; border-color:transparent!important; background:var(--surface-control)!important; font-size:13px!important; box-shadow:none!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) label input:focus { background:var(--surface-canvas)!important; box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 14%,transparent)!important; }
 main.workspace-scroll:has(article a[href^="/notes/"]) article { border-color:var(--separator,rgba(60,60,67,.12))!important; }
-main.workspace-scroll:has(article a[href^="/notes/"]) article > div { max-width:none!important; border-radius:0!important; padding:13px 44px 13px 2px!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) article > div { max-width:none!important; padding:13px 40px 13px 0!important; }
 main.workspace-scroll:has(article a[href^="/notes/"]) article > div:hover,
 main.workspace-scroll:has(article a[href^="/notes/"]) article > div:focus-within { background:transparent!important; }
-main.workspace-scroll:has(article a[href^="/notes/"]) article a[href^="/notes/"] { font-size:14px!important; font-weight:560!important; letter-spacing:-.01em; }
-main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5px!important; margin-top:5px!important; }
+main.workspace-scroll:has(article a[href^="/notes/"]) article a[href^="/notes/"] { font-size:13.5px!important; font-weight:560!important; letter-spacing:-.008em; }
 
 .notes-document-shell { background:#fff; }
 .notes-document-shell .notes-editor-surface > div > div:first-child {
-  min-height:52px!important;
+  min-height:50px!important;
   border-bottom:0!important;
-  padding-left:24px!important;
-  padding-right:48px!important;
+  padding-left:22px!important;
+  padding-right:46px!important;
   gap:2px!important;
   background:#fff;
 }
 .notes-document-shell .notes-editor-surface input[aria-label="笔记标题"] {
-  font-size:23px!important;
+  font-size:22px!important;
   font-weight:650!important;
   line-height:1.2!important;
   letter-spacing:-.035em!important;
@@ -228,20 +227,20 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5
 .notes-document-shell .notes-editor-surface [data-slot="button"] span { display:none!important; }
 .notes-document-shell .notes-editor-surface > div > div:first-child > span[aria-live] { font-size:10px!important; }
 .notes-document-shell .life-markdown-toolbar {
-  min-height:36px;
-  padding:2px max(18px,env(safe-area-inset-right)) 2px max(18px,env(safe-area-inset-left));
+  min-height:38px;
+  padding:3px max(16px,env(safe-area-inset-right)) 3px max(16px,env(safe-area-inset-left));
   border-top:1px solid var(--separator,rgba(60,60,67,.12));
   border-bottom:1px solid var(--separator,rgba(60,60,67,.12));
   background:var(--material-toolbar);
   backdrop-filter:saturate(180%) blur(16px);
   -webkit-backdrop-filter:saturate(180%) blur(16px);
 }
-.notes-document-shell .life-markdown-toolbar button { width:28px!important; height:28px!important; min-width:28px!important; min-height:28px!important; border-radius:var(--radius-xs)!important; }
-.notes-document-shell .life-markdown-toolbar select { height:28px!important; min-height:28px!important; font-size:11px!important; }
+.notes-document-shell .life-markdown-toolbar button { width:30px!important; height:30px!important; min-width:30px!important; min-height:30px!important; border-radius:7px!important; }
+.notes-document-shell .life-markdown-toolbar select { height:30px!important; min-height:30px!important; font-size:11.5px!important; }
 .notes-document-shell .life-markdown-toolbar [aria-hidden="true"].h-5 { height:16px!important; }
-.notes-document-shell .life-codemirror .cm-editor { font-size:16px!important; }
-.notes-document-shell .life-codemirror .cm-scroller { line-height:1.82!important; scrollbar-gutter:auto!important; }
-.notes-document-shell .life-codemirror .cm-content { max-width:720px!important; padding:32px 42px 96px!important; }
+.notes-document-shell .life-codemirror .cm-editor { font-size:15.75px!important; }
+.notes-document-shell .life-codemirror .cm-scroller { line-height:1.76!important; scrollbar-gutter:auto!important; }
+.notes-document-shell .life-codemirror .cm-content { max-width:720px!important; padding:30px 40px 92px!important; }
 .notes-document-shell .life-codemirror .cm-editor.cm-focused .cm-scroller { box-shadow:none!important; }
 .notes-document-shell .life-codemirror .cm-activeLine { background:transparent!important; }
 .notes-document-shell .life-codemirror .cm-selectionBackground,
@@ -249,20 +248,20 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5
 .notes-document-shell .life-codemirror .cm-note-quote { border-left-color:rgba(60,60,67,.28)!important; background:transparent!important; padding-left:14px!important; }
 .notes-document-shell .life-codemirror .cm-note-code-block { background:color-mix(in srgb,var(--surface-control) 72%,var(--surface-canvas))!important; border-radius:var(--radius-xs); }
 .notes-document-shell .life-markdown-statusbar {
-  min-height:22px;
-  padding:0 18px;
+  min-height:21px;
+  padding:0 16px;
   border-top:0;
   background:var(--material-toolbar);
   backdrop-filter:saturate(180%) blur(14px);
   -webkit-backdrop-filter:saturate(180%) blur(14px);
-  font-size:10px;
-  opacity:.82;
+  font-size:9.5px;
+  opacity:.78;
 }
 .notes-document-shell .note-outline-item.is-active { background:var(--surface-selected)!important; color:var(--text-primary)!important; }
 
 .notes-inspector { border-left-color:rgba(255,255,255,.55)!important; box-shadow:var(--shadow-panel)!important; }
 .notes-inspector > header { height:44px!important; background:var(--material-thick)!important; }
-.notes-inspector .workspace-scroll { padding:4px 16px 24px!important; }
+.notes-inspector .workspace-scroll { padding:2px 16px 22px!important; }
 .notes-inspector .workspace-scroll > div { font-size:13px!important; }
 .notes-inspector .workspace-scroll > div > section {
   overflow:visible!important;
@@ -271,7 +270,7 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5
   border-bottom:1px solid var(--border-subtle)!important;
   border-radius:0!important;
   background:transparent!important;
-  padding:16px 0!important;
+  padding:14px 0!important;
   box-shadow:none!important;
 }
 .notes-inspector .workspace-scroll > div > section > div:first-child { background:transparent!important; }
