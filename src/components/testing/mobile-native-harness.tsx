@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { SidePanelShell } from "@/components/shared/side-panel-shell";
+import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 
 export function MobileNativeHarness() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -11,7 +12,7 @@ export function MobileNativeHarness() {
   const [panelOpen, setPanelOpen] = useState(false);
 
   return (
-    <main data-testid="mobile-native-harness" className="min-h-[100dvh] w-full overflow-x-hidden bg-[var(--surface-app)] p-4">
+    <main data-testid="mobile-native-harness" className="min-h-[100dvh] w-full overflow-x-hidden bg-[var(--surface-app)] p-4 pb-[calc(var(--tab-bar-height)+1rem)]">
       <div className="mx-auto max-w-md space-y-5">
         <div>
           <h1 className="text-xl font-semibold">Mobile Native E2E</h1>
@@ -40,6 +41,8 @@ export function MobileNativeHarness() {
           <input data-testid="sheet-input" className="mx-4 h-11 rounded-lg bg-[var(--surface-control)] px-3" placeholder="Sheet input" />
         </SheetContent>
       </Sheet>
+
+      <MobileTabBar onOpenMore={() => {}} />
 
       <SidePanelShell open={panelOpen} onClose={() => setPanelOpen(false)} title="测试详情" ariaLabel="测试详情">
         <input data-testid="panel-input" className="h-11 w-full rounded-lg bg-[var(--surface-control)] px-3" placeholder="Panel input" />
