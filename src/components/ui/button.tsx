@@ -5,17 +5,17 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-transparent bg-clip-padding text-[13px] font-medium tracking-[-0.005em] whitespace-nowrap transition-[background-color,border-color,color,opacity,box-shadow] ui-transition outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:pointer-events-none disabled:opacity-45 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/15 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button pressable inline-flex shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-transparent bg-clip-padding text-[13px] font-medium tracking-[-0.008em] whitespace-nowrap outline-none select-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)] disabled:pointer-events-none disabled:opacity-45 disabled:transform-none aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/15 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80",
+        default: "bg-[var(--accent)] text-white shadow-[0_1px_2px_rgba(0,0,0,.08)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]",
         outline:
-          "border-[var(--border-strong)] bg-[var(--surface-canvas)] text-foreground hover:bg-[var(--surface-hover)] aria-expanded:bg-[var(--surface-hover)]",
+          "border-[var(--separator)] bg-[var(--material-thick)] text-foreground shadow-[var(--shadow-control)] hover:bg-white aria-expanded:bg-white",
         secondary:
-          "bg-[var(--surface-control)] text-secondary-foreground hover:bg-[var(--surface-control-hover)] aria-expanded:bg-[var(--surface-control-hover)]",
+          "bg-[var(--surface-control)] text-secondary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,.35)] hover:bg-[var(--surface-control-hover)] aria-expanded:bg-[var(--surface-control-hover)]",
         ghost:
-          "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-foreground aria-expanded:bg-[var(--surface-hover)] aria-expanded:text-foreground",
+          "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-foreground active:bg-[var(--surface-selected)] aria-expanded:bg-[var(--surface-selected)] aria-expanded:text-foreground",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/15 focus-visible:border-destructive/40 focus-visible:ring-destructive/15",
         link: "text-primary underline-offset-4 hover:underline",
