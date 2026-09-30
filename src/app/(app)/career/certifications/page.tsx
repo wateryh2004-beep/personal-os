@@ -26,10 +26,10 @@ export default async function CertificationsPage() {
       <PageHeader title="证书" description="记录真正有求职价值的考试与证书。" />
       <CareerNav current="/career/certifications" />
 
-      <div className="mb-8 flex justify-end">
+      <div className="mb-7 flex justify-end">
         <details>
-          <summary className="cursor-pointer text-sm text-zinc-500 hover:text-zinc-900">+ 新增证书</summary>
-          <form action={createCertification} className="mt-4 grid gap-4 rounded-2xl bg-white/70 p-5 md:grid-cols-3">
+          <summary className="pressable cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 新增证书</summary>
+          <form action={createCertification} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
             <Field label="名称" name="name" required />
             <Field label="发证机构" name="issuer" />
             <SelectField label="状态" name="status" values={statuses} defaultValue="planned" />
@@ -45,23 +45,23 @@ export default async function CertificationsPage() {
         </details>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-px">
         {certifications.map((item) => (
-          <article key={item.id} className="rounded-lg px-2 py-4 hover:bg-white/70">
-            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <article key={item.id} className="rounded-[10px] px-2.5 py-3.5 transition-colors ui-transition hover:bg-[var(--surface-hover)]">
+            <div className="grid gap-1.5 sm:grid-cols-[1fr_auto]">
               <div>
-                <h2 className="text-sm font-medium text-zinc-900">{item.name}</h2>
-                <p className="mt-1 text-sm text-zinc-500">{item.issuer || item.notes_markdown || "—"}</p>
+                <h2 className="text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{item.name}</h2>
+                <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">{item.issuer || item.notes_markdown || "—"}</p>
               </div>
-              <div className="text-right text-xs text-zinc-400">
+              <div className="text-right text-[11px] leading-5 text-[var(--text-tertiary)]">
                 <p>{statusLabel[item.status] ?? item.status}</p>
                 {item.expiry_date ? <p className="mt-1">到期 {item.expiry_date}</p> : null}
               </div>
             </div>
 
-            <details className="mt-2">
-              <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">编辑</summary>
-              <form action={updateCertification} className="mt-4 grid gap-4 rounded-2xl bg-white/70 p-5 md:grid-cols-3">
+            <details className="mt-1.5">
+              <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">编辑</summary>
+              <form action={updateCertification} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
                 <input type="hidden" name="certification_id" value={item.id} />
                 <Field label="名称" name="name" defaultValue={item.name} required />
                 <Field label="发证机构" name="issuer" defaultValue={item.issuer} />
@@ -75,11 +75,11 @@ export default async function CertificationsPage() {
                 <TextField label="说明" name="notes_markdown" defaultValue={item.notes_markdown} />
                 <div><PrimaryButton>保存</PrimaryButton></div>
               </form>
-              <form action={archiveCertification} className="mt-3 px-1"><input type="hidden" name="certification_id" value={item.id} /><button className="text-xs text-zinc-400 hover:text-red-600">归档</button></form>
+              <form action={archiveCertification} className="mt-2.5 px-1"><input type="hidden" name="certification_id" value={item.id} /><button className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档</button></form>
             </details>
           </article>
         ))}
-        {!certifications.length ? <p className="py-6 text-sm text-zinc-400">还没有证书记录。</p> : null}
+        {!certifications.length ? <p className="py-8 text-[13px] text-[var(--text-tertiary)]">还没有证书记录。</p> : null}
       </div>
     </>
   );
