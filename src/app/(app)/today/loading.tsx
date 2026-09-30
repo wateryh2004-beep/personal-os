@@ -1,60 +1,43 @@
 import { DashboardLayout } from "@/components/layout/page-layouts";
 
-function SkeletonLine({ className = "" }: { className?: string }) {
-  return <div className={`rounded-[var(--radius-sm)] bg-[var(--surface-hover)] ${className}`} />;
-}
-
-function SkeletonCard() {
-  return (
-    <section className="rounded-lg border bg-[var(--surface-canvas)]">
-      <div className="flex items-center justify-between border-b px-5 py-3.5">
-        <SkeletonLine className="h-4 w-24" />
-        <SkeletonLine className="h-3 w-16" />
-      </div>
-      <div className="space-y-3 px-5 py-4">
-        {[0, 1, 2, 3].map((row) => (
-          <div key={row} className="flex items-center gap-3">
-            <SkeletonLine className="h-3 w-12 shrink-0" />
-            <SkeletonLine className="h-8 flex-1" />
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`ui-skeleton-shimmer rounded-[8px] ${className}`} />;
 }
 
 export default function TodayLoading() {
   return (
-    <DashboardLayout className="p-0" aria-busy="true" aria-label="正在加载 Today">
-      <div className="mx-auto max-w-[var(--content-dashboard-width)] space-y-7 px-4 py-5 sm:px-6 sm:py-6">
-        <header className="pb-6">
-          <div className="flex items-end justify-between gap-4">
-            <div className="space-y-2.5">
-              <SkeletonLine className="h-4 w-32" />
-              <SkeletonLine className="h-7 w-20" />
-              <SkeletonLine className="h-4 w-64 max-w-full" />
-            </div>
-            <SkeletonLine className="h-4 w-14" />
-          </div>
-          <SkeletonLine className="mt-5 h-11 w-full" />
+    <DashboardLayout className="p-0" aria-busy="true" aria-label="正在加载今天">
+      <div className="mx-auto w-full max-w-[1080px] px-4 py-[30px] sm:px-6 sm:py-[38px] lg:px-8 lg:py-[46px]">
+        <header>
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="mt-[7px] h-8 w-24" />
+          <Skeleton className="mt-2.5 h-3 w-64 max-w-full" />
+          <Skeleton className="mt-6 h-10 w-full max-w-[680px] rounded-[11px]" />
         </header>
-        <section className="rounded-lg border-l-4 border-l-[var(--border-strong)] bg-[var(--accent-soft)] px-5 py-5">
-          <div className="flex items-center gap-3.5">
-            <SkeletonLine className="size-10 shrink-0 rounded-full" />
-            <div className="space-y-2">
-              <SkeletonLine className="h-3 w-12" />
-              <SkeletonLine className="h-6 w-2/5" />
-              <SkeletonLine className="h-4 w-3/5" />
-            </div>
+
+        <section className="mt-9 sm:mt-11">
+          <div className="flex min-h-6 items-center justify-between">
+            <Skeleton className="h-3.5 w-20" />
+            <Skeleton className="h-2.5 w-12" />
+          </div>
+          <div className="mt-3 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
+            {[0,1,2].map((row) => <div key={row} className="flex h-12 items-center gap-3"><Skeleton className="h-3 w-14" /><Skeleton className="h-3 flex-1" /></div>)}
           </div>
         </section>
-        <div className="grid gap-7 lg:grid-cols-[minmax(0,1.38fr)_minmax(320px,1fr)]">
-          <SkeletonCard />
-          <SkeletonCard />
+
+        <div className="mt-11 grid gap-11 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-[60px]">
+          {[0,1].map((block) => (
+            <section key={block}>
+              <Skeleton className="h-3.5 w-20" />
+              <div className="mt-2.5 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
+                {[0,1,2,3].map((row) => <div key={row} className="flex h-[46px] items-center gap-3"><Skeleton className="h-2.5 w-12" /><Skeleton className="h-3 flex-1" /></div>)}
+              </div>
+            </section>
+          ))}
         </div>
-        <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(320px,.72fr)]">
-          <SkeletonCard />
-          <SkeletonCard />
+
+        <div className="mt-[60px] grid gap-11 border-t border-[var(--separator)] pt-11 lg:grid-cols-[minmax(0,1.22fr)_minmax(300px,.78fr)] lg:gap-[60px]">
+          {[0,1].map((block) => <section key={block}><Skeleton className="h-3.5 w-20" /><Skeleton className="mt-3 h-24 w-full" /></section>)}
         </div>
       </div>
     </DashboardLayout>
