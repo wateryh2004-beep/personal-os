@@ -18,11 +18,11 @@ export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
 
   return (
     <section aria-labelledby="today-schedule-heading">
-      <TodaySectionHeader href="/calendar" label="Calendar">
+      <TodaySectionHeader href="/calendar" label="日历">
         <span id="today-schedule-heading">今日日程</span>
       </TodaySectionHeader>
 
-      <div className="mt-3 border-t border-[var(--separator)] pt-3">
+      <div className="mt-2.5 border-t border-[var(--separator)] pt-2.5">
         {workspace.availability.calendar === "unavailable" ? (
           <p className="py-5 text-[12px] text-[var(--text-secondary)]">
             Calendar 暂不可用。数据恢复后这里会自动显示日程。
@@ -40,27 +40,27 @@ export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
                   <Link
                     key={event.id}
                     href="/calendar"
-                    className="grid grid-cols-[54px_minmax(0,1fr)] gap-3 py-1.5 text-[12px] transition-colors ui-transition hover:text-[var(--accent)]"
+                    className="grid grid-cols-[52px_minmax(0,1fr)] gap-2.5 py-1.5 text-[11.5px] transition-colors ui-transition hover:text-[var(--accent)]"
                   >
-                    <span className="text-[11px] text-[var(--text-tertiary)]">全天</span>
+                    <span className="text-[10.5px] text-[var(--text-tertiary)]">全天</span>
                     <span className="truncate font-medium text-[var(--text-primary)]">{event.subject || "未命名日程"}</span>
                   </Link>
                 ))}
               </div>
             ) : null}
 
-            <ol className="relative ml-[60px] border-l border-[var(--separator-strong)] py-0.5">
+            <ol className="relative ml-[58px] border-l border-[var(--separator-strong)] py-0.5">
               {schedule.timed.map((event) => (
-                <li key={event.id} className="relative min-h-12 py-1.5">
-                  <span className="absolute -left-[65px] top-2.5 w-[50px] text-right text-[11px] tabular-nums text-[var(--text-tertiary)]">
+                <li key={event.id} className="relative min-h-[46px] py-1.5">
+                  <span className="absolute -left-[63px] top-2.5 w-[48px] text-right text-[10.5px] tabular-nums text-[var(--text-tertiary)]">
                     {formatTime(event.starts_at, workspace.timezone)}
                   </span>
-                  <span className="absolute -left-[3.5px] top-[15px] size-[6px] rounded-full bg-[var(--accent)] ring-[3px] ring-[var(--surface-canvas)]" />
-                  <Link href="/calendar" className="ml-4 block min-w-0 group">
-                    <span className="block truncate text-[13px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
+                  <span className="absolute -left-[3.5px] top-[14px] size-[6px] rounded-full bg-[var(--accent)] ring-[3px] ring-[var(--surface-canvas)]" />
+                  <Link href="/calendar" className="ml-3.5 block min-w-0 group">
+                    <span className="block truncate text-[12.5px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                       {event.subject || "未命名日程"}
                     </span>
-                    <span className="mt-0.5 block truncate text-[11px] text-[var(--text-secondary)]">
+                    <span className="mt-0.5 block truncate text-[10.5px] text-[var(--text-secondary)]">
                       至 {formatTime(event.ends_at, workspace.timezone)}
                       {event.location_name ? ` · ${event.location_name}` : ""}
                     </span>

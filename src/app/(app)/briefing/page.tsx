@@ -27,24 +27,24 @@ export default async function BriefingPage() {
   const runUsage = data.briefing?.ai_call_count ? `${data.briefing.ai_call_count} 次调用 · ${data.briefing.input_tokens} input · ${data.briefing.output_tokens} output tokens` : null;
   return (
     <main className="min-w-0">
-      <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
+      <header className="flex flex-col gap-3.5 border-b border-[var(--separator)] pb-4.5 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="font-medium">{isPrevious ? "上次 Briefing" : "今日 Briefing"}</h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          <h2 className="text-[14px] font-semibold tracking-[-0.008em] text-[var(--text-primary)]">{isPrevious ? "上次简报" : "今日简报"}</h2>
+          <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
             {data.briefing
               ? `${data.briefing.briefing_date} · ${data.briefing.candidate_count} 条候选 · ${data.briefing.selected_count} 条入选${data.briefing.generated_at ? ` · ${formatTime(data.briefing.generated_at, data.timezone)}` : ""}`
               : `${data.date} · 尚未生成`}
           </p>
-          {data.briefing ? <p className="mt-1 text-xs text-[var(--text-tertiary)]">{method}{isPrevious ? " · 今天尚未生成" : ""}</p> : null}
-          {runUsage ? <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)] opacity-70">{runUsage}</p> : null}
-          {data.todayGenerating ? <p className="mt-1 text-xs text-[var(--accent)]">正在生成今日 Briefing…{isPrevious ? " 当前继续展示上一版。" : ""}</p> : null}
+          {data.briefing ? <p className="mt-0.5 text-[10.5px] text-[var(--text-tertiary)]">{method}{isPrevious ? " · 今天尚未生成" : ""}</p> : null}
+          {runUsage ? <p className="mt-0.5 text-[10px] text-[var(--text-tertiary)] opacity-70">{runUsage}</p> : null}
+          {data.todayGenerating ? <p className="mt-1 text-[10.5px] font-medium text-[var(--accent)]">正在生成今日简报…{isPrevious ? " 当前继续展示上一版。" : ""}</p> : null}
         </div>
         <GenerateBriefingControl hasBriefing={Boolean(data.briefing)} />
       </header>
-      {data.unavailable ? <p className="mt-5 text-sm text-amber-700">Briefing 数据暂时无法读取。</p> : null}
+      {data.unavailable ? <p className="mt-4 rounded-[9px] bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">简报数据暂时无法读取。</p> : null}
       <div id="briefing-results">
         {entries.length ? (
-          <div className="mt-4 divide-y divide-[var(--border-subtle)]">
+          <div className="mt-3.5 divide-y divide-[var(--border-subtle)]">
             {entries.map((entry) => {
               const item = relation(entry.feed_items as { id?: string; title?: string; url?: string | null; canonical_url?: string | null; published_at?: string | null; feeds?: { title?: string; category?: string | null } | Array<{ title?: string; category?: string | null }> } | undefined);
               const feed = relation(item?.feeds);
@@ -58,22 +58,22 @@ export default async function BriefingPage() {
               const readingValue = (num(ai?.learning_value) ?? 0) + (num(ai?.decision_value) ?? 0);
               const worthDeepRead = readingValue >= 140;
               return (
-                <article key={entry.id} className="py-5">
-                  <p className="text-xs text-[var(--text-tertiary)]">
+                <article key={entry.id} className="py-4.5">
+                  <p className="text-[10.5px] leading-4 text-[var(--text-tertiary)]">
                     {feed?.title ?? "未知来源"}{feed?.category ? ` · ${feed.category}` : ""}{topicLabel ? ` · ${topicLabel}` : ""}{item?.published_at ? ` · ${formatTime(item.published_at, data.timezone)}` : ""}
                   </p>
                   {href ? (
-                    <a href={href} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-start gap-1 font-medium leading-6 text-[var(--text-primary)] hover:text-[var(--accent)]">
+                    <a href={href} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-start gap-1 text-[13.5px] font-medium leading-5.5 text-[var(--text-primary)] hover:text-[var(--accent)]">
                       {item?.title ?? "未命名资讯"}<ExternalLink className="mt-1 size-3.5 shrink-0" />
                     </a>
                   ) : (
                     <p className="mt-1.5 font-medium leading-6">{item?.title ?? "未命名资讯"}</p>
                   )}
-                  {whatHappened ? <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">{whatHappened}</p> : null}
+                  {whatHappened ? <p className="mt-1.5 max-w-2xl text-[12.5px] leading-5.5 text-[var(--text-secondary)]">{whatHappened}</p> : null}
                   {whyWorthReading ? <p className="mt-1.5 max-w-2xl text-xs leading-5 text-[var(--text-tertiary)]">为什么值得读 · {whyWorthReading}</p> : null}
-                  {whyItMatters ? <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]"><span className="font-medium text-[var(--text-primary)]">Why it matters · </span>{whyItMatters}</p> : null}
-                  {keyQuestion ? <p className="mt-3 max-w-2xl rounded-[var(--radius-md)] bg-[var(--surface-hover)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)]">「{keyQuestion}」</p> : null}
-                  <div className="mt-3 flex items-center gap-4">
+                  {whyItMatters ? <p className="mt-2 max-w-2xl text-[12.5px] leading-5.5 text-[var(--text-secondary)]"><span className="font-medium text-[var(--text-primary)]">为什么重要 · </span>{whyItMatters}</p> : null}
+                  {keyQuestion ? <p className="mt-2.5 max-w-2xl rounded-[9px] bg-[var(--surface-hover)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)]">「{keyQuestion}」</p> : null}
+                  <div className="mt-2.5 flex items-center gap-3.5">
                     {href ? (
                       <a href={href} target="_blank" rel="noreferrer" className={`inline-flex h-7 items-center rounded-[var(--radius-sm)] px-2 text-xs ${worthDeepRead ? "font-medium text-[var(--accent)] underline underline-offset-2" : "text-[var(--text-secondary)] underline"}`}>
                         {worthDeepRead ? "值得细读原文" : "阅读原文"}
@@ -86,9 +86,9 @@ export default async function BriefingPage() {
             })}
           </div>
         ) : (
-          <div className="py-16 text-center">
+          <div className="py-14 text-center">
             <Rss className="mx-auto size-5 text-[var(--accent)]" />
-            <p className="mt-3 font-medium">{data.briefing?.status === "completed" ? "本次筛选没有可展示条目" : "还没有可展示的 Briefing"}</p>
+            <p className="mt-3 font-medium">{data.briefing?.status === "completed" ? "本次筛选没有可展示条目" : "还没有可展示的简报"}</p>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">前往“信源”添加并审核 RSS / Atom 订阅后生成今日简报。</p>
           </div>
         )}

@@ -53,9 +53,9 @@ type ManualKind = "task" | "calendar" | "note" | "daily";
 const calendarInitial: CalendarCreateState = { status: "idle", message: "" };
 const todoInitial: TodoCreateState = { status: "idle", message: "" };
 const proposalCardClass =
-  "mt-3 rounded-[var(--radius-lg)] border border-[color-mix(in_srgb,var(--accent)_20%,var(--border))] bg-[var(--accent-soft)]/65 p-3.5 shadow-[0_1px_2px_rgba(24,24,27,0.025)]";
+  "mt-2.5 rounded-[11px] bg-[color-mix(in_srgb,var(--accent-soft)_62%,var(--surface-canvas))] p-3";
 const primaryActionClass =
-  "rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
+  "pressable h-8 rounded-[8px] bg-[var(--accent)] px-2.5 text-[11.5px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)] disabled:cursor-not-allowed disabled:opacity-60";
 
 function firstLine(text: string) {
   return text.split(/\n/)[0].trim();
@@ -106,8 +106,8 @@ function TaskProposal({
   const list = lists.find((item) => item.id === proposal.todoListId);
   if (!list)
     return (
-      <p className="mt-3 border-l-2 border-amber-600 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-        目标 To Do 清单尚未同步。请先刷新 Tasks。
+      <p className="mt-3 rounded-[9px] bg-amber-50 px-3 py-2 text-[11.5px] leading-5 text-amber-800">
+        目标 To Do 清单尚未同步。请先刷新任务。
       </p>
     );
   return (
@@ -115,13 +115,13 @@ function TaskProposal({
       action={action}
       className={proposalCardClass}
     >
-      <p className="text-sm font-semibold text-[var(--foreground)]">{proposal.title}</p>
+      <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">{proposal.title}</p>
       {proposal.bodyText ? (
-        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[var(--muted-foreground)]">
+        <p className="mt-1 whitespace-pre-wrap text-[11px] leading-5 text-[var(--text-secondary)]">
           {proposal.bodyText}
         </p>
       ) : null}
-      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+      <p className="mt-2 text-[10.5px] text-[var(--text-tertiary)]">
         任务 · {list.display_name}
         {proposal.dueAt
           ? ` · ${new Date(proposal.dueAt).toLocaleString("zh-CN")}`
@@ -142,7 +142,7 @@ function TaskProposal({
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
+          className={`mt-2 text-[10.5px] ${state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
         >
           {state.message}
         </p>
@@ -168,13 +168,13 @@ function CalendarProposal({
       action={action}
       className={proposalCardClass}
     >
-      <p className="text-sm font-semibold text-[var(--foreground)]">{proposal.subject}</p>
+      <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">{proposal.subject}</p>
       {proposal.description ? (
-        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[var(--muted-foreground)]">
+        <p className="mt-1 whitespace-pre-wrap text-[11px] leading-5 text-[var(--text-secondary)]">
           {proposal.description}
         </p>
       ) : null}
-      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+      <p className="mt-2 text-[10.5px] text-[var(--text-tertiary)]">
         日程 · {new Date(proposal.startsAt).toLocaleString("zh-CN")}
       </p>
       <input type="hidden" name="subject" value={proposal.subject} />
@@ -205,7 +205,7 @@ function CalendarProposal({
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
+          className={`mt-2 text-[10.5px] ${state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
         >
           {state.message}
         </p>
@@ -231,8 +231,8 @@ function NoteProposal({
       action={action}
       className={proposalCardClass}
     >
-      <p className="text-sm font-semibold text-[var(--foreground)]">{proposal.title}</p>
-      <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-[var(--muted-foreground)]">
+      <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">{proposal.title}</p>
+      <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-[11px] leading-5 text-[var(--text-secondary)]">
         {proposal.bodyMarkdown}
       </p>
       <input type="hidden" name="inbox_id" value={inboxId} />
@@ -247,7 +247,7 @@ function NoteProposal({
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
+          className={`mt-2 text-[10.5px] ${state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
         >
           {state.message}
         </p>
@@ -267,9 +267,9 @@ function DailyProposal({ inboxId }: { inboxId: string }) {
       action={action}
       className={proposalCardClass}
     >
-      <p className="text-sm font-semibold text-[var(--foreground)]">写入今日日记</p>
-      <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
-        确认后会追加到今天日记的“感受与想法”，并保留 Inbox 来源。
+      <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">写入今日日记</p>
+      <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
+        确认后会追加到今天日记的“感受与想法”，并保留收集箱来源。
       </p>
       <input type="hidden" name="inbox_id" value={inboxId} />
       <button
@@ -282,7 +282,7 @@ function DailyProposal({ inboxId }: { inboxId: string }) {
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
+          className={`mt-2 text-[10.5px] ${state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
         >
           {state.message}
           {state.destinationHref ? (
@@ -307,12 +307,12 @@ function DismissProposalControl({ inboxId }: { inboxId: string }) {
       <input type="hidden" name="inbox_id" value={inboxId} />
       <button
         disabled={pending}
-        className="text-xs text-zinc-500 underline-offset-2 hover:text-zinc-900 hover:underline disabled:opacity-50"
+        className="text-[10.5px] text-[var(--text-tertiary)] underline-offset-2 hover:text-[var(--text-primary)] hover:underline disabled:opacity-50"
       >
         {pending ? "处理中…" : "不是这个，放回收集盒"}
       </button>
       {state.status === "error" ? (
-        <span role="status" className="ml-2 text-xs text-red-700">
+        <span role="status" className="ml-2 text-[10.5px] text-[var(--danger)]">
           {state.message}
         </span>
       ) : null}
@@ -331,7 +331,7 @@ function ReclassifyControl({ inboxId }: { inboxId: string }) {
       <input type="hidden" name="inbox_id" value={inboxId} />
       <button
         disabled={pending}
-        className="inline-flex items-center gap-1 text-xs font-medium text-[#365f78] hover:underline disabled:opacity-50"
+        className="pressable inline-flex items-center gap-1 rounded-[7px] px-1 py-0.5 text-[10.5px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50"
       >
         <Sparkles size={13} />
         {pending ? "识别中…" : "智能整理"}
@@ -339,7 +339,7 @@ function ReclassifyControl({ inboxId }: { inboxId: string }) {
       {state.status !== "idle" ? (
         <span
           role="status"
-          className={`ml-2 text-xs ${state.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+          className={`ml-2 text-[10.5px] ${state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
         >
           {state.message}
         </span>
@@ -358,7 +358,7 @@ function ArchiveInboxControl({ inboxId }: { inboxId: string }) {
   useRefreshOnSuccess(state.status);
   useEffect(() => {
     if (state.status !== "success") return;
-    show({ message: "已归档 Inbox 项", tone: "success", undo: () => {
+    show({ message: "已归档收集箱记录", tone: "success", undo: () => {
       const form = new FormData(); form.set("inbox_id", inboxId);
       void restoreInboxItem(initialInboxCaptureState, form).then((result) => { if (result.status === "success") router.refresh(); else show({ message: result.message, tone: "error" }); }).catch(() => show({ message: "恢复失败，该项目仍在归档区。", tone: "error" }));
     } });
@@ -366,9 +366,9 @@ function ArchiveInboxControl({ inboxId }: { inboxId: string }) {
   return (
     <form action={action} className="shrink-0">
       <input type="hidden" name="inbox_id" value={inboxId} />
-      <button disabled={pending} aria-label="归档这条 Inbox" title="归档（可撤回）" className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-50"><Archive size={16} /></button>
+      <button disabled={pending} aria-label="归档这条记录" title="归档（可撤回）" className="pressable rounded-[8px] p-1.5 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"><Archive size={16} /></button>
       {state.status === "error" ? (
-        <p role="status" className="mt-1 max-w-44 text-right text-xs text-red-700">
+        <p role="status" className="mt-1 max-w-44 text-right text-[10.5px] text-[var(--danger)]">
           {state.message}
         </p>
       ) : null}
@@ -386,13 +386,13 @@ function RestoreInboxControl({ inboxId }: { inboxId: string }) {
       <input type="hidden" name="inbox_id" value={inboxId} />
       <button
         disabled={pending}
-        className="inline-flex items-center gap-1 text-xs font-medium text-[#365f78] disabled:opacity-50"
+        className="pressable inline-flex items-center gap-1 rounded-[7px] px-1 py-0.5 text-[10.5px] font-medium text-[var(--accent)] disabled:opacity-50"
       >
         <RotateCcw size={13} />
         {pending ? "恢复中…" : "恢复"}
       </button>
       {state.status === "error" ? (
-        <p role="status" className="mt-1 text-xs text-red-700">
+        <p role="status" className="mt-1 text-[10.5px] text-[var(--danger)]">
           {state.message}
         </p>
       ) : null}
@@ -417,7 +417,7 @@ function inputToIso(input: string) {
 }
 
 const inputClass =
-  "w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-2.5 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]";
+  "h-9 w-full rounded-[9px] border border-transparent bg-[var(--surface-control)] px-2.5 text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]";
 
 function ManualTaskForm({
   item,
@@ -479,7 +479,7 @@ function ManualTaskForm({
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
+          className={`text-[10.5px] ${state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
         >
           {state.message}
         </p>
@@ -545,7 +545,7 @@ function ManualCalendarForm({ item }: { item: InboxItem }) {
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
+          className={`text-[10.5px] ${state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
         >
           {state.message}
         </p>
@@ -588,7 +588,7 @@ function ManualNoteForm({ item }: { item: InboxItem }) {
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
+          className={`text-[10.5px] ${state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
         >
           {state.message}
           {state.destinationHref ? (
@@ -659,7 +659,7 @@ export function InboxWorkspace({
 
   return (
     <div>
-      <form action={captureAction} className="border-b border-[#e7e5e4] pb-6">
+      <form action={captureAction} className="border-b border-[var(--separator)] pb-5">
         <label htmlFor="inbox-capture" className="sr-only">
           记录想法
         </label>
@@ -671,24 +671,24 @@ export function InboxWorkspace({
           maxLength={10_000}
           rows={3}
           placeholder="想到什么，就先记下来…"
-          className="w-full resize-none border border-[#d8d6d0] bg-white px-3 py-3 text-sm outline-none transition focus:border-[#365f78]"
+          className="min-h-24 w-full resize-y rounded-[11px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 text-[13px] leading-5.5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
         />
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-zinc-500">
+        <div className="mt-2.5 flex items-center justify-between gap-3">
+          <p className="text-[10.5px] leading-5 text-[var(--text-tertiary)]">
             写入后自动识别：任务、日程、笔记或今日日记，点同意即可。
           </p>
           <button
             disabled={capturePending}
-            className="inline-flex items-center gap-2 bg-[#365f78] px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="pressable inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[var(--accent)] px-3 text-[12px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] disabled:opacity-50"
           >
             <Plus size={16} />
-            {capturePending ? "正在识别…" : "加入 Inbox"}
+            {capturePending ? "正在识别…" : "加入收集箱"}
           </button>
         </div>
         {captureState.status !== "idle" ? (
           <p
             role="status"
-            className={`mt-3 text-sm ${captureState.status === "success" ? "text-[#365f78]" : "text-red-700"}`}
+            className={`mt-2.5 text-[11px] ${captureState.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}
           >
             {captureState.message}
           </p>
@@ -696,23 +696,23 @@ export function InboxWorkspace({
       </form>
 
       {readyItems.length ? (
-        <section className="mt-6">
-          <h2 className="border-b border-[#e7e5e4] pb-3 font-semibold text-zinc-900">
+        <section className="mt-5">
+          <h2 className="border-b border-[var(--separator)] pb-2.5 text-[13px] font-semibold text-[var(--text-primary)]">
             已识别，待确认{" "}
-            <span className="ml-1 font-mono text-sm font-normal text-zinc-400">
+            <span className="ml-1 font-mono text-[10.5px] font-normal tabular-nums text-[var(--text-tertiary)]">
               {readyItems.length}
             </span>
           </h2>
-          <ul className="divide-y divide-[#eceae6]">
+          <ul className="divide-y divide-[var(--separator)]">
             {readyItems.map((item) => (
-              <li key={item.id} className="py-4">
+              <li key={item.id} className="py-3.5">
                 <div className="flex items-start justify-between gap-4">
-                  <p className="min-w-0 whitespace-pre-wrap text-sm leading-6 text-zinc-800">
+                  <p className="min-w-0 whitespace-pre-wrap text-[12.5px] leading-5.5 text-[var(--text-primary)]">
                     {item.content_markdown}
                   </p>
                   <ArchiveInboxControl inboxId={item.id} />
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-xs text-zinc-400">
+                <div className="mt-1 flex items-center gap-3 text-[10.5px] text-[var(--text-tertiary)]">
                   <span>
                     {new Date(item.created_at).toLocaleString("zh-CN", {
                       month: "numeric",
@@ -721,7 +721,7 @@ export function InboxWorkspace({
                       minute: "2-digit",
                     })}
                   </span>
-                  <span className="text-[#365f78]">AI 识别为 {proposalLabel(item.ai_proposal)}</span>
+                  <span className="text-[var(--accent)]">AI 识别为 {proposalLabel(item.ai_proposal)}</span>
                 </div>
                 {item.ai_proposal ? (
                   <ProposalCard
@@ -737,31 +737,31 @@ export function InboxWorkspace({
         </section>
       ) : null}
 
-      <section className="mt-6">
-        <h2 className="border-b border-[#e7e5e4] pb-3 font-semibold text-zinc-900">
+      <section className="mt-5">
+        <h2 className="border-b border-[var(--separator)] pb-2.5 text-[13px] font-semibold text-[var(--text-primary)]">
           收集盒{" "}
-          <span className="ml-1 font-mono text-sm font-normal text-zinc-400">
+          <span className="ml-1 font-mono text-[10.5px] font-normal tabular-nums text-[var(--text-tertiary)]">
             {collectionItems.length}
           </span>
         </h2>
         {!collectionItems.length ? (
-          <div className="py-14 text-center">
+          <div className="py-12 text-center">
             <InboxIcon />
-            <p className="mt-3 text-sm text-zinc-500">
+            <p className="mt-2.5 text-[11.5px] leading-5 text-[var(--text-secondary)]">
               这里放无法自动识别的记录，可手动选择去向。
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-[#eceae6]">
+          <ul className="divide-y divide-[var(--separator)]">
             {collectionItems.map((item) => (
-              <li key={item.id} className="py-4">
+              <li key={item.id} className="py-3.5">
                 <div className="flex items-start justify-between gap-4">
-                  <p className="min-w-0 whitespace-pre-wrap text-sm leading-6 text-zinc-800">
+                  <p className="min-w-0 whitespace-pre-wrap text-[12.5px] leading-5.5 text-[var(--text-primary)]">
                     {item.content_markdown}
                   </p>
                   <ArchiveInboxControl inboxId={item.id} />
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-xs text-zinc-400">
+                <div className="mt-1 flex items-center gap-3 text-[10.5px] text-[var(--text-tertiary)]">
                   <span>
                     {new Date(item.created_at).toLocaleString("zh-CN", {
                       month: "numeric",
@@ -771,39 +771,39 @@ export function InboxWorkspace({
                     })}
                   </span>
                   {item.ai_status === "failed" ? (
-                    <span className="text-zinc-500">
+                    <span className="text-[var(--text-secondary)]">
                       AI 未能识别{item.ai_error ? `：${item.ai_error}` : ""}
                     </span>
                   ) : null}
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
                   <ReclassifyControl inboxId={item.id} />
-                  <span className="text-zinc-300">|</span>
+                  <span className="text-[var(--separator)]">|</span>
                   <button
                     type="button"
                     onClick={() => toggleManual(item.id, "task")}
-                    className="text-xs text-zinc-600 hover:text-[#365f78] hover:underline"
+                    className="pressable rounded-[7px] px-1 py-0.5 text-[10.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
                   >
                     转任务
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleManual(item.id, "calendar")}
-                    className="text-xs text-zinc-600 hover:text-[#365f78] hover:underline"
+                    className="pressable rounded-[7px] px-1 py-0.5 text-[10.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
                   >
                     转日程
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleManual(item.id, "note")}
-                    className="text-xs text-zinc-600 hover:text-[#365f78] hover:underline"
+                    className="pressable rounded-[7px] px-1 py-0.5 text-[10.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
                   >
                     转笔记
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleManual(item.id, "daily")}
-                    className="text-xs text-zinc-600 hover:text-[#365f78] hover:underline"
+                    className="pressable rounded-[7px] px-1 py-0.5 text-[10.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
                   >
                     写今日日记
                   </button>
@@ -818,17 +818,17 @@ export function InboxWorkspace({
       </section>
 
       {processedItems.length ? (
-        <details className="mt-8 border-t border-[#e7e5e4] pt-4">
-          <summary className="cursor-pointer text-sm font-medium text-zinc-500 hover:text-zinc-900">
+        <details className="mt-7 border-t border-[var(--separator)] pt-3.5">
+          <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
             已整理 · {processedItems.length}
           </summary>
-          <ul className="mt-3 divide-y divide-[#eceae6]">
+          <ul className="mt-3 divide-y divide-[var(--separator)]">
             {processedItems.map((item) => (
               <li key={item.id} className="flex items-start gap-4 py-3">
-                <p className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-6 text-zinc-600">
+                <p className="min-w-0 flex-1 whitespace-pre-wrap text-[12px] leading-5.5 text-[var(--text-secondary)]">
                   {item.content_markdown}
                 </p>
-                <span className="flex items-center gap-2 text-xs text-[#365f78]">
+                <span className="flex items-center gap-2 text-xs text-[var(--accent)]">
                   已整理
                   {item.converted_note_id ? (
                     <Link
@@ -847,17 +847,17 @@ export function InboxWorkspace({
       ) : null}
 
       {archivedItems.length ? (
-        <details className="mt-8 border-t border-[#e7e5e4] pt-4">
-          <summary className="cursor-pointer text-sm font-medium text-zinc-500 hover:text-zinc-900">
+        <details className="mt-7 border-t border-[var(--separator)] pt-3.5">
+          <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
             已归档 · {archivedItems.length}
           </summary>
-          <p className="mt-2 text-xs text-zinc-400">
-            归档内容仍然保留，可随时恢复到 Inbox。
+          <p className="mt-2 text-xs text-[var(--text-tertiary)]">
+            归档内容仍然保留，可随时恢复到收集箱。
           </p>
-          <ul className="mt-3 divide-y divide-[#eceae6]">
+          <ul className="mt-3 divide-y divide-[var(--separator)]">
             {archivedItems.map((item) => (
               <li key={item.id} className="flex items-start gap-4 py-3">
-                <p className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-6 text-zinc-600">
+                <p className="min-w-0 flex-1 whitespace-pre-wrap text-[12px] leading-5.5 text-[var(--text-secondary)]">
                   {item.content_markdown}
                 </p>
                 <RestoreInboxControl inboxId={item.id} />
@@ -886,7 +886,7 @@ function proposalLabel(proposal: InboxProposal | null) {
 
 function InboxIcon() {
   return (
-    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-[#edf3f6] text-[#365f78]">
+    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
       <Archive size={19} />
     </div>
   );
