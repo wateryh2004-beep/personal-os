@@ -355,7 +355,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         onPointerEnter={() => prefetchNavigationTarget("/settings")}
         onFocus={() => prefetchNavigationTarget("/settings")}
         aria-current={pathname === "/settings" ? "page" : undefined}
-        className={cn("pressable flex h-9 items-center gap-2.5 rounded-[11px] text-[13px] font-medium tracking-[-0.007em] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]", collapsed ? "justify-center" : "px-2.5")}
+        className={cn(
+          "pressable flex h-9 items-center gap-2.5 rounded-[11px] text-[13px] font-medium tracking-[-0.007em]",
+          pathname === "/settings"
+            ? "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]"
+            : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
+          collapsed ? "justify-center" : "px-2.5",
+        )}
         aria-label={collapsed ? "Settings" : undefined}
       >
         <Settings className="size-4 text-[var(--text-tertiary)]" strokeWidth={1.8} aria-hidden="true" />
@@ -410,7 +416,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           onClick={() => { beginNavigation("/settings"); setMobileOpen(false); }}
           onPointerEnter={() => prefetchNavigationTarget("/settings")}
           onFocus={() => prefetchNavigationTarget("/settings")}
-          className="mx-3 mb-3 flex h-10 items-center gap-2.5 border-t border-[var(--border-subtle)] px-2 pt-2 text-[13px] font-medium text-[var(--text-secondary)]"
+          className={cn(
+          "mx-3 mb-3 flex h-10 items-center gap-2.5 border-t border-[var(--border-subtle)] px-2 pt-2 text-[13px] font-medium",
+          pathname === "/settings" ? "text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)]",
+        )}
         >
           <Settings className="size-4 text-[var(--text-tertiary)]" strokeWidth={1.8} aria-hidden="true" />Settings
         </Link>
