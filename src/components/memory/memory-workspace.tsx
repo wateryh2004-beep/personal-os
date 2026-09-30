@@ -101,7 +101,7 @@ export function MemoryWorkspace({
 
   return (
     <section>
-      <nav className="mb-5 flex items-center gap-5 border-b border-[var(--separator)]" aria-label="记忆类型">
+      <nav className="mb-4.5 flex items-center gap-4.5 border-b border-[var(--separator)]" aria-label="记忆类型">
         {(["profile", "working", "decisions"] as const).map((item) => (
           <button
             key={item}
@@ -113,7 +113,7 @@ export function MemoryWorkspace({
         ))}
       </nav>
 
-      <details className="mb-5 border-y border-[var(--separator)] py-3">
+      <details className="mb-4.5 border-y border-[var(--separator)] py-3">
         <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11.5px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">
           从 Codex 导入个人上下文
         </summary>
@@ -146,7 +146,7 @@ export function MemoryWorkspace({
         ) : null}
       </details>
 
-      <form action={tab === "decisions" ? createDecision : (form) => createMemory(tab, form)} className="grid max-w-3xl gap-2.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4">
+      <form action={tab === "decisions" ? createDecision : (form) => createMemory(tab, form)} className="grid max-w-3xl gap-2.5 rounded-[13px] border border-[var(--separator)] bg-[var(--material-regular)] p-4">
         <input name="title" required maxLength={tab === "decisions" ? 200 : 160} placeholder={tab === "decisions" ? "决定标题" : "标题"} className={control} />
         <textarea name={tab === "decisions" ? "decision_text" : "content"} required placeholder={tab === "decisions" ? "我决定……" : "只保存你确认的重要信息。"} className={textArea} />
         {tab === "decisions" ? (
@@ -168,20 +168,20 @@ export function MemoryWorkspace({
 
       {message ? <p role="status" className="mt-2.5 text-[11px] text-[var(--text-secondary)]">{message}</p> : null}
 
-      <div className="mt-5 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
+      <div className="mt-4.5 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
         {visible.length ? visible.map((item) => {
           const state = tab === "working" ? getWorkingMemoryState(item as never) : item.status;
           return (
-            <article key={String(item.id)} className="py-3.5">
+            <article key={String(item.id)} className="py-3">
               <div className="flex justify-between gap-4">
                 <h2 className="text-[13px] font-medium text-[var(--text-primary)]">{String(item.title)}</h2>
                 <span className="shrink-0 text-[10.5px] text-[var(--text-tertiary)]">{stateLabel[String(state)] ?? String(state)} · {visibilityLabel[String(item.ai_visibility)] ?? String(item.ai_visibility)}</span>
               </div>
-              <p className="mt-1.5 whitespace-pre-wrap text-[12px] leading-5.5 text-[var(--text-secondary)]">{String(item.content ?? item.decision_text)}</p>
+              <p className="mt-1 whitespace-pre-wrap text-[11.75px] leading-5.5 text-[var(--text-secondary)]">{String(item.content ?? item.decision_text)}</p>
               {item.created_via === "codex_import" ? <p className="mt-1.5 text-[10.5px] text-[var(--text-tertiary)]">来源：Codex{item.confidence !== undefined ? ` · 置信度 ${String(item.confidence)}%` : ""}</p> : null}
               {item.rationale_markdown ? <p className="mt-1.5 text-[11.5px] leading-5 text-[var(--text-secondary)]">理由：{String(item.rationale_markdown)}</p> : null}
               {item.status === "active" ? (
-                <details className="mt-2.5">
+                <details className="mt-2">
                   <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[10.5px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">{tab === "decisions" ? "反转此决定…" : "更正此记忆…"}</summary>
                   {tab === "decisions" ? (
                     <form action={(form) => reverseDecision(item, form)} className="mt-2.5 grid max-w-2xl gap-2 border-l-2 border-[var(--separator)] pl-3">
