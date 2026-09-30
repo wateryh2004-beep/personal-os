@@ -34,10 +34,10 @@ export default async function SkillsPage() {
       <PageHeader title="能力" description="只记录真正需要建设、并且能被经历证明的能力。" />
       <CareerNav current="/career/skills" />
 
-      <div className="mb-8 flex justify-end">
+      <div className="mb-7 flex justify-end">
         <details>
-          <summary className="cursor-pointer text-sm text-zinc-500 hover:text-zinc-900">+ 新增能力</summary>
-          <form action={createSkill} className="mt-4 grid gap-4 rounded-2xl bg-white/70 p-5 md:grid-cols-3">
+          <summary className="pressable cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 新增能力</summary>
+          <form action={createSkill} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] backdrop-blur-xl md:grid-cols-3">
             <Field label="能力名称" name="name" required />
             <SelectField label="类别" name="category" values={categories} defaultValue="other" />
             <SelectField label="熟练度" name="proficiency" values={proficiencies} defaultValue="learning" />
@@ -48,19 +48,19 @@ export default async function SkillsPage() {
         </details>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-px">
         {skills.map((skill) => (
-          <article key={skill.id} className="rounded-lg px-2 py-4 hover:bg-white/70">
-            <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
+          <article key={skill.id} className="rounded-[10px] px-2.5 py-3.5 transition-colors ui-transition hover:bg-[var(--surface-hover)]">
+            <div className="grid gap-1.5 sm:grid-cols-[1fr_auto] sm:items-start">
               <div>
-                <p className="text-sm font-medium text-zinc-900">{skill.name}</p>
-                {skill.evidence_markdown ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{skill.evidence_markdown}</p> : null}
+                <p className="text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{skill.name}</p>
+                {skill.evidence_markdown ? <p className="mt-1 line-clamp-2 text-[12.5px] leading-5.5 text-[var(--text-secondary)]">{skill.evidence_markdown}</p> : null}
               </div>
-              <p className="text-xs text-zinc-400">{categoryLabel[skill.category] ?? skill.category} · {proficiencyLabel[skill.proficiency] ?? skill.proficiency}</p>
+              <p className="text-[11px] text-[var(--text-tertiary)]">{categoryLabel[skill.category] ?? skill.category} · {proficiencyLabel[skill.proficiency] ?? skill.proficiency}</p>
             </div>
 
-            <details className="mt-2">
-              <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">编辑</summary>
+            <details className="mt-1.5">
+              <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">编辑</summary>
               <form action={updateSkill} className="mt-4 grid gap-4 rounded-2xl bg-white/70 p-5 md:grid-cols-3">
                 <input type="hidden" name="skill_id" value={skill.id} />
                 <Field label="能力名称" name="name" defaultValue={skill.name} required />
@@ -70,11 +70,11 @@ export default async function SkillsPage() {
                 <TextField label="证据说明" name="evidence_markdown" defaultValue={skill.evidence_markdown} />
                 <div><PrimaryButton>保存</PrimaryButton></div>
               </form>
-              <form action={archiveSkill} className="mt-3 px-1"><input type="hidden" name="skill_id" value={skill.id} /><button className="text-xs text-zinc-400 hover:text-red-600">归档</button></form>
+              <form action={archiveSkill} className="mt-2.5 px-1"><input type="hidden" name="skill_id" value={skill.id} /><button className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档</button></form>
             </details>
           </article>
         ))}
-        {!skills.length ? <p className="py-6 text-sm text-zinc-400">还没有能力记录。</p> : null}
+        {!skills.length ? <p className="py-8 text-[13px] text-[var(--text-tertiary)]">还没有能力记录。</p> : null}
       </div>
     </>
   );
