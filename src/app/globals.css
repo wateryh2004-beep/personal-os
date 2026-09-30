@@ -100,6 +100,7 @@ body {
 }
 .wordmark { font-family:var(--font-sans); font-kerning:normal; font-weight:650; letter-spacing:-.03em; }
 button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+input,textarea { caret-color:var(--accent); }
 button,[role="button"],a { -webkit-user-select:none; user-select:none; }
 :focus-visible { outline:2px solid color-mix(in srgb,var(--accent) 58%,transparent); outline-offset:2px; }
 ::selection { background:color-mix(in srgb,var(--accent) 14%,transparent); color:var(--text-primary); }
@@ -113,7 +114,7 @@ button,[role="button"],a { -webkit-user-select:none; user-select:none; }
 .ui-transition { transition-duration:var(--motion-fast); transition-timing-function:var(--ease-standard); }
 .ui-panel-transition { transition-duration:var(--motion-panel); transition-timing-function:var(--ease-emphasized); }
 .pressable { transition:transform var(--motion-instant) var(--ease-press),background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),box-shadow var(--motion-fast) var(--ease-standard),opacity var(--motion-fast) var(--ease-standard); }
-.pressable:active { transform:scale(.975); }
+.pressable:active { transform:scale(.985); }
 @media (hover:hover) {
   .hover-lift:hover { transform:translateY(-1px); }
 }
@@ -352,11 +353,7 @@ details > summary { transition:color var(--motion-fast) var(--ease-standard),opa
   transform-origin:var(--radix-popper-transform-origin,center);
 }
 [data-navigation-progress] {
-  animation:navigation-progress-glow 1.15s var(--ease-emphasized) infinite alternate;
-}
-@keyframes navigation-progress-glow {
-  from { opacity:.55; transform:scaleX(.72); }
-  to { opacity:1; transform:scaleX(1); }
+  opacity:.9;
 }
 @media (max-width:767px) {
   [data-slot="button"][data-size="default"],
