@@ -659,7 +659,7 @@ export function InboxWorkspace({
 
   return (
     <div>
-      <form action={captureAction} className="border-b border-[var(--separator)] pb-5">
+      <form action={captureAction} className="border-b border-[var(--separator)] pb-4.5">
         <label htmlFor="inbox-capture" className="sr-only">
           记录想法
         </label>
@@ -671,9 +671,9 @@ export function InboxWorkspace({
           maxLength={10_000}
           rows={3}
           placeholder="想到什么，就先记下来…"
-          className="min-h-24 w-full resize-y rounded-[11px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 text-[13px] leading-5.5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+          className="min-h-[92px] w-full resize-y rounded-[11px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 text-[13px] leading-5.5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
         />
-        <div className="mt-2.5 flex items-center justify-between gap-3">
+        <div className="mt-2 flex items-center justify-between gap-3">
           <p className="text-[10.5px] leading-5 text-[var(--text-tertiary)]">
             写入后自动识别：任务、日程、笔记或今日日记，点同意即可。
           </p>
@@ -696,8 +696,8 @@ export function InboxWorkspace({
       </form>
 
       {readyItems.length ? (
-        <section className="mt-5">
-          <h2 className="border-b border-[var(--separator)] pb-2.5 text-[13px] font-semibold text-[var(--text-primary)]">
+        <section className="mt-4.5">
+          <h2 className="border-b border-[var(--separator)] pb-2 text-[12.75px] font-semibold text-[var(--text-primary)]">
             已识别，待确认{" "}
             <span className="ml-1 font-mono text-[10.5px] font-normal tabular-nums text-[var(--text-tertiary)]">
               {readyItems.length}
@@ -705,7 +705,7 @@ export function InboxWorkspace({
           </h2>
           <ul className="divide-y divide-[var(--separator)]">
             {readyItems.map((item) => (
-              <li key={item.id} className="py-3.5">
+              <li key={item.id} className="py-3">
                 <div className="flex items-start justify-between gap-4">
                   <p className="min-w-0 whitespace-pre-wrap text-[12.5px] leading-5.5 text-[var(--text-primary)]">
                     {item.content_markdown}
@@ -754,7 +754,7 @@ export function InboxWorkspace({
         ) : (
           <ul className="divide-y divide-[var(--separator)]">
             {collectionItems.map((item) => (
-              <li key={item.id} className="py-3.5">
+              <li key={item.id} className="py-3">
                 <div className="flex items-start justify-between gap-4">
                   <p className="min-w-0 whitespace-pre-wrap text-[12.5px] leading-5.5 text-[var(--text-primary)]">
                     {item.content_markdown}
@@ -776,7 +776,7 @@ export function InboxWorkspace({
                     </span>
                   ) : null}
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
                   <ReclassifyControl inboxId={item.id} />
                   <span className="text-[var(--separator)]">|</span>
                   <button
@@ -818,11 +818,11 @@ export function InboxWorkspace({
       </section>
 
       {processedItems.length ? (
-        <details className="mt-7 border-t border-[var(--separator)] pt-3.5">
+        <details className="mt-6 border-t border-[var(--separator)] pt-3">
           <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
             已整理 · {processedItems.length}
           </summary>
-          <ul className="mt-3 divide-y divide-[var(--separator)]">
+          <ul className="mt-2.5 divide-y divide-[var(--separator)]">
             {processedItems.map((item) => (
               <li key={item.id} className="flex items-start gap-4 py-3">
                 <p className="min-w-0 flex-1 whitespace-pre-wrap text-[12px] leading-5.5 text-[var(--text-secondary)]">
