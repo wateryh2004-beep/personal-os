@@ -148,8 +148,8 @@ export function FilesWorkspace({ folders, files, archivedFiles = [], initialUplo
   };
 
   return (
-    <div className="grid h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 bg-[var(--surface-canvas)] md:min-h-[540px] md:grid-cols-[216px_minmax(0,1fr)]">
-      <aside className="border-b border-white/55 bg-[var(--material-sidebar)] p-3 md:border-b-0 md:border-r">
+    <div className="grid h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 bg-[var(--surface-canvas)] md:min-h-[540px] md:grid-cols-[212px_minmax(0,1fr)]">
+      <aside className="border-b border-white/55 bg-[var(--material-sidebar)] p-2.5 md:border-b-0 md:border-r">
         <div className="flex h-8 items-center justify-between px-1">
           <p className="text-[10.5px] font-semibold tracking-[.04em] text-[var(--text-tertiary)]">文件夹</p>
           <button type="button" onClick={() => setCreatingFolder((value) => !value)} aria-label="新建文件夹" className="pressable flex size-7 items-center justify-center rounded-[7px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"><FolderPlus size={15} /></button>
@@ -180,13 +180,13 @@ export function FilesWorkspace({ folders, files, archivedFiles = [], initialUplo
             </button>
           ))}
         </div>
-        <p className="mt-4 px-1 text-[10.5px] leading-5 text-[var(--text-tertiary)]">可在当前文件夹中新建子文件夹，或移动已有文件。</p>
+        <p className="mt-3.5 px-1 text-[10px] leading-5 text-[var(--text-tertiary)]">可在当前文件夹中新建子文件夹，或移动已有文件。</p>
       </aside>
 
-      <section className="min-w-0 px-4 py-4 sm:px-6 sm:py-5">
-        <div className="flex min-h-12 flex-wrap items-start justify-between gap-3 border-b border-[var(--separator)] pb-3.5">
+      <section className="min-w-0 px-4 py-3.5 sm:px-6 sm:py-4.5">
+        <div className="flex min-h-11 flex-wrap items-start justify-between gap-2.5 border-b border-[var(--separator)] pb-3">
           <div>
-            <h1 className="text-[27px] font-semibold leading-[1.08] tracking-[-0.042em] text-[var(--text-primary)]">{activeFolder?.name ?? "全部文件"}</h1>
+            <h1 className="text-[26px] font-semibold leading-[1.08] tracking-[-0.042em] text-[var(--text-primary)]">{activeFolder?.name ?? "全部文件"}</h1>
             <p className="mt-0.5 text-[10.5px] tabular-nums text-[var(--text-tertiary)]">{activeFolder ? `${visibleFiles.length} 个文件` : `${fileRows.length} 个文件`}</p>
           </div>
           <div>
@@ -209,11 +209,11 @@ export function FilesWorkspace({ folders, files, archivedFiles = [], initialUplo
         ) : (
           <ul className="divide-y divide-[var(--separator)]">
             {visibleFiles.map((file) => (
-              <li id={`file-${file.id}`} className={`flex min-h-[52px] items-center gap-2.5 px-2 py-2.5 transition-colors ui-transition ${file.id === highlightId ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]"}`} key={file.id}>
+              <li id={`file-${file.id}`} className={`flex min-h-[50px] items-center gap-2.5 px-2 py-2 transition-colors ui-transition ${file.id === highlightId ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]"}`} key={file.id}>
                 <File size={16} className="shrink-0 text-[var(--text-tertiary)]" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium text-[var(--text-primary)]">{file.title}</p>
-                  <p className="mt-0.5 font-mono text-[10px] leading-4 tabular-nums text-[var(--text-tertiary)]">
+                  <p className="truncate text-[12.75px] font-medium text-[var(--text-primary)]">{file.title}</p>
+                  <p className="mt-0.5 font-mono text-[9.75px] leading-4 tabular-nums text-[var(--text-tertiary)]">
                     {formatBytes(file.file_size)} · {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}
                     {file.text_extraction_status === "completed" ? ` · 已索引 ${file.extracted_character_count.toLocaleString("zh-CN")} 字` : file.text_extraction_status === "processing" || file.text_extraction_status === "pending" ? " · 正在建立全文索引" : file.text_extraction_status === "too_large" ? " · 文件过大，暂不解析" : file.text_extraction_status === "unsupported" ? " · 此类型暂不解析" : file.text_extraction_status === "failed" ? " · 文本解析失败" : ""}
                   </p>
