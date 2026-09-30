@@ -61,7 +61,7 @@ async function getEvidenceCatalog(supabase: Awaited<ReturnType<typeof requireOwn
 export async function getInterviewWorkspaceData() {
   const { supabase } = await requireOwner();
 
-  const [contextsResult, preparationsResult, answersResult] = await Promise.all([
+  const [contextsResult, preparationsResult, answersResult, typesResult, competencyLinksResult, competenciesResult] = await Promise.all([
     supabase
       .from("interview_contexts")
       .select("id,title,organization_snapshot,role_title_snapshot,status,priority")
@@ -72,7 +72,7 @@ export async function getInterviewWorkspaceData() {
       .order("title"),
     supabase
       .from("interview_question_preparations")
-      .select("id,question_id,context_id,prompt_override,working_thoughts_markdown,key_message,answer_logic_markdown,target_language,position,updated_at,interview_questions!inner(id,canonical_prompt,short_title,category,subcategory,competency_tags,parent_question_id,follow_up_kind,archived_at)")
+      .select("id,question_id,context_id,prompt_override,working_thoughts_markdown,key_message,answer_logic_markdown,target_language,position,updated_at,interview_questions!inner(id,canonical_prompt,short_title,question_type_id,question_style,subcategory,parent_question_id,follow_up_kind,archived_at)")
       .is("archived_at", null)
       .is("interview_questions.archived_at", null)
       .order("position")
@@ -85,13 +85,36 @@ export async function getInterviewWorkspaceData() {
       .is("archived_at", null)
       .order("target_seconds", { ascending: true, nullsFirst: true })
       .order("version_number", { ascending: false }),
+    supabase
+      .from("interview_question_types")
+      .select("id,key,label,position")
+      .is("archived_at", null)
+      .order("position"),
+    supabase
+      .from("interview_question_competencies")
+      .select("question_id,competency_id,relevance,is_primary"),
+    supabase
+      .from("interview_competencies")
+      .select("id,key,label,position")
+      .is("archived_at", null)
+      .order("position"),
   ]);
 
   return {
     contexts: contextsResult.data ?? [],
     preparations: preparationsResult.data ?? [],
     answers: answersResult.data ?? [],
-    unavailable: Boolean(contextsResult.error || preparationsResult.error || answersResult.error),
+    questionTypes: typesResult.data ?? [],
+    competencyLinks: competencyLinksResult.data ?? [],
+    competencies: competenciesResult.data ?? [],
+    unavailable: Boolean(
+      contextsResult.error
+      || preparationsResult.error
+      || answersResult.error
+      || typesResult.error
+      || competencyLinksResult.error
+      || competenciesResult.error
+    ),
   };
 }
 
@@ -227,16 +250,17 @@ export async function getPracticeDetail(preparationId: string) {
 
 export async function getInterviewSessions() {
   const { supabase } = await requireOwner();
-  const [sessions, contexts, attempts] = await Promise.all([
+  const [sessions, contexts, attempts, formats] = await Promise.all([
     supabase.from("interview_sessions").select("*,interview_contexts(id,title,organization_snapshot,role_title_snapshot)").is("archived_at", null).order("scheduled_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
     supabase.from("interview_contexts").select("id,title,organization_snapshot,role_title_snapshot,status").is("archived_at", null).order("priority", { ascending: false }).order("title"),
     supabase.from("interview_practice_attempts").select("id,session_id").not("session_id", "is", null).is("archived_at", null),
+    supabase.from("interview_formats").select("id,key,label,participant_mode,position").is("archived_at", null).order("position"),
   ]);
   const counts = (attempts.data ?? []).reduce<Record<string, number>>((acc, row: any) => {
     if (row.session_id) acc[row.session_id] = (acc[row.session_id] ?? 0) + 1;
     return acc;
   }, {});
-  return { sessions: sessions.data ?? [], contexts: contexts.data ?? [], counts, unavailable: Boolean(sessions.error || contexts.error) };
+  return { sessions: sessions.data ?? [], contexts: contexts.data ?? [], formats: formats.data ?? [], counts, unavailable: Boolean(sessions.error || contexts.error || formats.error) };
 }
 
 export async function getInterviewSessionDetail(sessionId: string) {
