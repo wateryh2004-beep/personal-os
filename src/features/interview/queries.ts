@@ -158,7 +158,7 @@ export async function getInterviewQuestions(filters: InterviewQuestionFilters = 
 
 export async function getInterviewQuestionDetail(questionId: string, contextId?: string | null) {
   const { supabase } = await requireOwner();
-  const { data: question } = await supabase.from("interview_questions").select("*").eq("id", questionId).is("archived_at", null).maybeSingle();
+  const { data: question } = await supabase.from("interview_questions").select("*,interview_question_types(id,key,label)").eq("id", questionId).is("archived_at", null).maybeSingle();
   if (!question) return null;
 
   const [contextsResult, preparationsResult, childrenResult] = await Promise.all([
@@ -176,19 +176,30 @@ export async function getInterviewQuestionDetail(questionId: string, contextId?:
     return { question, contexts, preparations, selectedPreparation: null, notes: [], answers: [], attempts: [], childQuestions: childrenResult.data ?? [], evidenceLinks: [], evidenceCatalog: [], readiness: readinessChecklist({ currentAnswerCount: 0, attemptCount: 0, evidenceCount: 0 }) };
   }
 
-  const [notesResult, answersResult, attemptsResult, linksResult, evidenceCatalog] = await Promise.all([
+  const [notesResult, answersResult, attemptsResult, linksResult, evidenceSemanticsResult, questionCompetenciesResult, competenciesResult, evidenceCatalog] = await Promise.all([
     supabase.from("interview_question_notes").select("*").eq("preparation_id", selectedPreparation.id).is("archived_at", null).order("pinned", { ascending: false }).order("occurred_at", { ascending: false }),
     supabase.from("interview_answer_versions").select("*").eq("preparation_id", selectedPreparation.id).is("archived_at", null).order("answer_mode").order("language").order("target_seconds", { ascending: true, nullsFirst: true }).order("version_number", { ascending: false }),
     supabase.from("interview_practice_attempts").select("*").eq("preparation_id", selectedPreparation.id).is("archived_at", null).order("practiced_at", { ascending: false }).limit(30),
     supabase.from("entity_links").select("*").eq("source_type", "interview_preparation").eq("source_id", selectedPreparation.id).is("archived_at", null).order("created_at"),
+    supabase.from("interview_evidence_links").select("entity_link_id,evidence_role,note").eq("preparation_id", selectedPreparation.id).is("archived_at", null),
+    supabase.from("interview_question_competencies").select("competency_id,relevance,is_primary").eq("question_id", questionId),
+    supabase.from("interview_competencies").select("id,key,label,position").is("archived_at", null),
     getEvidenceCatalog(supabase),
   ]);
 
   const evidenceByKey = new Map(evidenceCatalog.map((item) => [`${item.type}:${item.id}`, item]));
+  const evidenceSemantics = new Map((evidenceSemanticsResult.data ?? []).map((item: any) => [item.entity_link_id, item]));
   const evidenceLinks = (linksResult.data ?? []).map((link: any) => ({
     ...link,
+    evidenceRole: (evidenceSemantics.get(link.id) as any)?.evidence_role ?? null,
+    evidenceNote: (evidenceSemantics.get(link.id) as any)?.note ?? "",
     evidence: evidenceByKey.get(`${link.target_type}:${link.target_id}`) ?? { type: link.target_type, id: link.target_id, label: `${evidenceTypeLabels[link.target_type as EvidenceType] ?? link.target_type} · 已归档/不可见` },
   }));
+  const competencyById = new Map((competenciesResult.data ?? []).map((item: any) => [item.id, item]));
+  const normalizedCompetencies = (questionCompetenciesResult.data ?? [])
+    .map((link: any) => ({ ...link, competency: competencyById.get(link.competency_id) }))
+    .filter((item: any) => item.competency)
+    .sort((a: any, b: any) => Number(b.is_primary) - Number(a.is_primary) || b.relevance - a.relevance || a.competency.position - b.competency.position);
   const answers = answersResult.data ?? [];
   const attempts = attemptsResult.data ?? [];
   const currentAnswers = answers.filter((answer: any) => answer.status === "current");
@@ -212,6 +223,7 @@ export async function getInterviewQuestionDetail(questionId: string, contextId?:
     childQuestions: childrenResult.data ?? [],
     evidenceLinks,
     evidenceCatalog,
+    normalizedCompetencies,
     readiness,
   };
 }
@@ -282,9 +294,11 @@ export async function getInterviewInsights(contextId?: string | null) {
   const { supabase } = await requireOwner();
   let prepQuery = supabase.from("interview_question_preparations").select("id,question_id,context_id,status,importance,last_practiced_at").is("archived_at", null);
   if (contextId) prepQuery = prepQuery.eq("context_id", contextId);
-  const [prepsResult, questionsResult, attemptsResult, linksResult, experiencesResult, contextsResult] = await Promise.all([
+  const [prepsResult, questionsResult, competencyLinksResult, competenciesResult, attemptsResult, linksResult, experiencesResult, contextsResult] = await Promise.all([
     prepQuery,
-    supabase.from("interview_questions").select("id,category,competency_tags").is("archived_at", null),
+    supabase.from("interview_questions").select("id,question_type_id,question_style").is("archived_at", null),
+    supabase.from("interview_question_competencies").select("question_id,competency_id,relevance,is_primary"),
+    supabase.from("interview_competencies").select("id,key,label").is("archived_at", null),
     supabase.from("interview_practice_attempts").select("id,preparation_id,issue_tags,strength_tags,practiced_at,duration_seconds").is("archived_at", null).order("practiced_at"),
     supabase.from("entity_links").select("source_id,target_type,target_id,relationship_type").eq("source_type", "interview_preparation").is("archived_at", null),
     supabase.from("experiences").select("id,organization,role").is("archived_at", null),
@@ -296,26 +310,36 @@ export async function getInterviewInsights(contextId?: string | null) {
   const questionById = new Map((questionsResult.data ?? []).map((question: any) => [question.id, question]));
   const prepById = new Map(preparations.map((prep: any) => [prep.id, prep]));
   const experienceById = new Map((experiencesResult.data ?? []).map((experience: any) => [experience.id, experience]));
+  const competencyById = new Map((competenciesResult.data ?? []).map((item: any) => [item.id, item]));
+  const competencyIdsByQuestion = new Map<string, string[]>();
+  for (const link of competencyLinksResult.data ?? []) {
+    const row = link as any;
+    const list = competencyIdsByQuestion.get(row.question_id) ?? [];
+    list.push(row.competency_id);
+    competencyIdsByQuestion.set(row.question_id, list);
+  }
 
   const competency = new Map<string, { total: number; ready: number; evidence: number }>();
   for (const prep of preparations as any[]) {
-    const question = questionById.get(prep.question_id) as any;
-    for (const tag of question?.competency_tags ?? []) {
-      const row = competency.get(tag) ?? { total: 0, ready: 0, evidence: 0 };
+    for (const competencyId of competencyIdsByQuestion.get(prep.question_id) ?? []) {
+      const item = competencyById.get(competencyId) as any;
+      if (!item) continue;
+      const row = competency.get(item.key) ?? { total: 0, ready: 0, evidence: 0 };
       row.total += 1;
       if (prep.status === "ready") row.ready += 1;
-      competency.set(tag, row);
+      competency.set(item.key, row);
     }
   }
   for (const link of linksResult.data ?? []) {
     if (!prepIds.has((link as any).source_id)) continue;
     const prep = prepById.get((link as any).source_id) as any;
-    const question = questionById.get(prep?.question_id) as any;
-    if (!question) continue;
-    for (const tag of question.competency_tags ?? []) {
-      const row = competency.get(tag) ?? { total: 0, ready: 0, evidence: 0 };
+    if (!prep) continue;
+    for (const competencyId of competencyIdsByQuestion.get(prep.question_id) ?? []) {
+      const item = competencyById.get(competencyId) as any;
+      if (!item) continue;
+      const row = competency.get(item.key) ?? { total: 0, ready: 0, evidence: 0 };
       row.evidence += 1;
-      competency.set(tag, row);
+      competency.set(item.key, row);
     }
   }
 
@@ -335,6 +359,6 @@ export async function getInterviewInsights(contextId?: string | null) {
     storyUsage: [...storyUsage.entries()]
       .map(([id, count]) => ({ id, count, experience: experienceById.get(id) }))
       .sort((a, b) => b.count - a.count),
-    unavailable: Boolean(prepsResult.error || questionsResult.error || attemptsResult.error || linksResult.error),
+    unavailable: Boolean(prepsResult.error || questionsResult.error || competencyLinksResult.error || competenciesResult.error || attemptsResult.error || linksResult.error),
   };
 }
