@@ -285,7 +285,7 @@ function QuickAdd({
   };
 
   return (
-    <div className="py-2>
+    <div className="py-2">
       {open ? (
         <form onSubmit={submit} className="flex items-center gap-2">
           <span className="inline-flex size-6 shrink-0 items-center justify-center text-[var(--accent)]">
@@ -364,7 +364,7 @@ function TaskInspector({
   return (
     <Inspector open title="任务详情" onClose={onClose} className="tasks-inspector">
       <div className="space-y-0">
-        <div className="flex justify-end pb-1>
+        <div className="flex justify-end pb-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon-sm" aria-label="任务更多操作">
@@ -379,7 +379,7 @@ function TaskInspector({
           </DropdownMenu>
         </div>
 
-        <section className="border-b border-[var(--separator)] pb-4>
+        <section className="border-b border-[var(--separator)] pb-4">
           {editing === "title" ? (
             <input
               autoFocus
@@ -409,7 +409,7 @@ function TaskInspector({
           )}
         </section>
 
-        <section className="border-b border-[var(--separator)] py-4>
+        <section className="border-b border-[var(--separator)] py-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[10px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">
               说明
@@ -438,7 +438,7 @@ function TaskInspector({
               className="mt-2 min-h-28 w-full resize-y rounded-[10px] border-0 bg-[var(--surface-control)] p-3 text-[12.5px] leading-5.5 outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]"
             />
           ) : task.bodyText ? (
-            <div className="mt-1>
+            <div className="mt-1">
               <EntityMarkdown body={task.bodyText} className="text-[12.5px] leading-5.5 text-[var(--text-secondary)]" />
             </div>
           ) : (
@@ -490,7 +490,7 @@ function TaskInspector({
           </div>
         </dl>
 
-        <div className="pt-4>
+        <div className="pt-4">
           <EntityBacklinks type="todo_task" id={task.id} />
         </div>
 
