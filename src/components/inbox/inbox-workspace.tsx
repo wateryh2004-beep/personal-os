@@ -107,7 +107,7 @@ function TaskProposal({
   if (!list)
     return (
       <p className="mt-3 rounded-[9px] bg-amber-50 px-3 py-2 text-[11.5px] leading-5 text-amber-800">
-        目标 To Do 清单尚未同步。请先刷新 Tasks。
+        目标 To Do 清单尚未同步。请先刷新任务。
       </p>
     );
   return (
@@ -269,7 +269,7 @@ function DailyProposal({ inboxId }: { inboxId: string }) {
     >
       <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">写入今日日记</p>
       <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
-        确认后会追加到今天日记的“感受与想法”，并保留 Inbox 来源。
+        确认后会追加到今天日记的“感受与想法”，并保留收集箱来源。
       </p>
       <input type="hidden" name="inbox_id" value={inboxId} />
       <button
@@ -358,7 +358,7 @@ function ArchiveInboxControl({ inboxId }: { inboxId: string }) {
   useRefreshOnSuccess(state.status);
   useEffect(() => {
     if (state.status !== "success") return;
-    show({ message: "已归档 Inbox 项", tone: "success", undo: () => {
+    show({ message: "已归档收集箱记录", tone: "success", undo: () => {
       const form = new FormData(); form.set("inbox_id", inboxId);
       void restoreInboxItem(initialInboxCaptureState, form).then((result) => { if (result.status === "success") router.refresh(); else show({ message: result.message, tone: "error" }); }).catch(() => show({ message: "恢复失败，该项目仍在归档区。", tone: "error" }));
     } });
@@ -366,7 +366,7 @@ function ArchiveInboxControl({ inboxId }: { inboxId: string }) {
   return (
     <form action={action} className="shrink-0">
       <input type="hidden" name="inbox_id" value={inboxId} />
-      <button disabled={pending} aria-label="归档这条 Inbox" title="归档（可撤回）" className="pressable rounded-[8px] p-1.5 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"><Archive size={16} /></button>
+      <button disabled={pending} aria-label="归档这条记录" title="归档（可撤回）" className="pressable rounded-[8px] p-1.5 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"><Archive size={16} /></button>
       {state.status === "error" ? (
         <p role="status" className="mt-1 max-w-44 text-right text-[10.5px] text-[var(--danger)]">
           {state.message}
@@ -682,7 +682,7 @@ export function InboxWorkspace({
             className="pressable inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[var(--accent)] px-3 text-[12px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] disabled:opacity-50"
           >
             <Plus size={16} />
-            {capturePending ? "正在识别…" : "加入 Inbox"}
+            {capturePending ? "正在识别…" : "加入收集箱"}
           </button>
         </div>
         {captureState.status !== "idle" ? (
@@ -852,7 +852,7 @@ export function InboxWorkspace({
             已归档 · {archivedItems.length}
           </summary>
           <p className="mt-2 text-xs text-[var(--text-tertiary)]">
-            归档内容仍然保留，可随时恢复到 Inbox。
+            归档内容仍然保留，可随时恢复到收集箱。
           </p>
           <ul className="mt-3 divide-y divide-[var(--separator)]">
             {archivedItems.map((item) => (
