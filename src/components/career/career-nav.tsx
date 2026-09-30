@@ -24,6 +24,7 @@ function isActive(current: string, href: string) {
 
 export function CareerNav({ current }: { current: string }) {
   const interviewSection = current.startsWith("/career/interview");
+  const secondaryActive = secondary.some(([, href]) => isActive(current, href));
   return (
     <nav aria-label="职业中心导航" className={`mt-5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] leading-5 ${interviewSection ? "mb-3.5" : "mb-9"}`}>
       {primary.map(([label, href]) => {
@@ -40,13 +41,26 @@ export function CareerNav({ current }: { current: string }) {
         );
       })}
       <details className="group relative shrink-0">
-        <summary className="pressable inline-flex h-7 cursor-pointer list-none items-center rounded-[8px] px-1 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">更多</summary>
+        <summary
+          aria-current={secondaryActive ? "page" : undefined}
+          className={`pressable inline-flex h-7 cursor-pointer list-none items-center rounded-[8px] px-1 ${secondaryActive ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
+        >
+          更多
+        </summary>
         <div className="absolute left-0 top-[30px] z-20 min-w-36 rounded-[12px] border border-[var(--separator)] bg-[var(--material-popover)] p-1.5 shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%]">
-          {secondary.map(([label, href]) => (
-            <Link key={href} href={href} className="pressable block rounded-[8px] px-3 py-2 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--surface-selected)] hover:text-[var(--text-primary)]">
-              {label}
-            </Link>
-          ))}
+          {secondary.map(([label, href]) => {
+            const active = isActive(current, href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={`pressable block rounded-[8px] px-3 py-2 text-[13px] ${active ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-selected)] hover:text-[var(--text-primary)]"}`}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </div>
       </details>
     </nav>
