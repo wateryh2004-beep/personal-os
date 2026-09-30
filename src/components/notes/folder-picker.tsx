@@ -27,10 +27,10 @@ export function FolderPicker({ folders, initialFolderId, idPrefix, label = "移�
   const byId = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
 
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-1.5">
       <input type="hidden" name="folder_id" value={targetFolderId} />
-      <span className="text-xs text-zinc-500">{label}</span>
-      <select aria-label={label} value={targetFolderId} className="min-w-0 border bg-white px-2 py-1.5 text-sm text-zinc-800" onChange={(event) => setTargetFolderId(event.target.value)}>
+      <span className="text-[11px] font-medium text-[var(--text-secondary)]">{label}</span>
+      <select aria-label={label} value={targetFolderId} className="h-9 min-w-0 rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]" onChange={(event) => setTargetFolderId(event.target.value)}>
         <option value="">根目录</option>
         {folders.map((folder) => <option key={folder.id} value={folder.id}>{folderPath(folder, byId)}</option>)}
       </select>
