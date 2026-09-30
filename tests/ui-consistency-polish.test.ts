@@ -28,7 +28,8 @@ describe("core UI consistency polish", () => {
     expect(dialog).toContain("max-sm:bottom-0");
     expect(popover).toContain("shadow-[var(--shadow-popover)]");
     expect(tooltip).toContain("delayDuration = 320");
-    expect(panel).toContain("border-[var(--separator)]");
+    expect(panel).toContain("bg-[var(--material-thick)]");
+    expect(panel).toContain("border-white/55");
     expect(panel).toContain("shadow-[var(--shadow-panel)]");
     expect(feedback).toContain("shadow-[var(--shadow-popover)]");
   });
