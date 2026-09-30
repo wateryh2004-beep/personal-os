@@ -1,1 +1,9 @@
-export default function Photos(){return <section className="max-w-xl"><h1 className="text-[27px] font-semibold tracking-[-0.042em] text-[var(--text-primary)]">照片</h1><p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">此模块尚未启用。</p></section>}
+import { PageHeader } from "@/components/shared/page-header";
+
+export default function Photos() {
+  return (
+    <section className="max-w-xl">
+      <PageHeader title="照片" description="此模块尚未启用。" />
+    </section>
+  );
+}
