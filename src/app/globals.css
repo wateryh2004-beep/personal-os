@@ -363,3 +363,27 @@ details > summary { transition:color var(--motion-fast) var(--ease-standard),opa
   [data-slot="button"][data-size="lg"] { min-height:40px; }
   [data-slot="input"], [data-slot="select-trigger"] { min-height:38px; }
 }
+
+
+/* React 19.2 route transitions: deliberately subtle, content-first. */
+::view-transition-group(.app-route) {
+  animation-duration:var(--motion-base);
+  animation-timing-function:var(--ease-emphasized);
+}
+::view-transition-old(.app-route) {
+  animation:app-route-out var(--motion-fast) var(--ease-standard) both;
+}
+::view-transition-new(.app-route) {
+  animation:app-route-in var(--motion-base) var(--ease-emphasized) both;
+}
+@keyframes app-route-out {
+  to { opacity:.84; transform:translateY(-1px); }
+}
+@keyframes app-route-in {
+  from { opacity:.72; transform:translateY(3px); }
+  to { opacity:1; transform:translateY(0); }
+}
+@media (prefers-reduced-motion:reduce) {
+  ::view-transition-old(.app-route),
+  ::view-transition-new(.app-route) { animation:none!important; }
+}
