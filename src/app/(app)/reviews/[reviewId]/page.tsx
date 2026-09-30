@@ -73,13 +73,13 @@ export default async function ReviewDetailPage({
           <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">来源</h2>
           <div className="mt-2.5 divide-y divide-[var(--separator)]">
             {data.sources.length ? data.sources.map((source) => (
-              <Link key={source.id} href={source.href} className="block py-2 text-[12px] outline-none hover:text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[#365f78]/30">
+              <Link key={source.id} href={source.href} className="block py-2 text-[12px] outline-none hover:text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]">
                 <span className="line-clamp-2 font-medium">{source.title}</span>
                 <span className="mt-0.5 block text-[10px] text-[var(--text-tertiary)]">{source.source_type} · {source.source_role}</span>
               </Link>
             )) : <p className="py-3 text-[11.5px] text-[var(--text-secondary)]">这个旧版本没有来源快照。</p>}
           </div>
-          <h2 className="mt-6 text-[13px] font-semibold text-zinc-900">版本历史</h2>
+          <h2 className="mt-6 text-[13px] font-semibold text-[var(--text-primary)]">版本历史</h2>
           <div className="mt-2.5 space-y-1.5">
             {data.versions.map((version) => (
               <div key={version.id} className="text-[10.5px] tabular-nums text-[var(--text-tertiary)]">
