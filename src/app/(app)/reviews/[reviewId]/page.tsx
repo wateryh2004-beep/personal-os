@@ -25,15 +25,15 @@ export default async function ReviewDetailPage({
   const structured = data.review.structured_data;
   return (
     <section className="mx-auto max-w-4xl">
-      <Link href="/reviews" className="inline-flex items-center gap-1.5 text-[11.5px] text-[var(--text-tertiary)] hover:text-[var(--accent)]">
+      <Link href="/reviews" className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--accent)]">
         <ArrowLeft className="size-4" /> Reviews
       </Link>
-      <header className="mt-4.5 border-b border-[var(--separator)] pb-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <header className="mt-4 border-b border-[var(--separator)] pb-4.5">
+        <div className="flex flex-wrap items-start justify-between gap-3.5">
           <div>
             <p className="text-[10.5px] font-semibold tracking-[0.08em] text-[var(--accent)]">已完成复盘</p>
-            <h1 className="mt-1 text-[27px] font-semibold leading-[1.1] tracking-[-0.042em] text-[var(--text-primary)]">{data.review.title}</h1>
-            <p className="mt-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+            <h1 className="mt-1 text-[26px] font-semibold leading-[1.1] tracking-[-0.042em] text-[var(--text-primary)]">{data.review.title}</h1>
+            <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">
               {data.review.completed_at ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(data.review.completed_at)) : "未标记完成时间"}
             </p>
           </div>
@@ -41,22 +41,22 @@ export default async function ReviewDetailPage({
             继续修正
           </Link>
         </div>
-        <div className="mt-3.5 flex flex-wrap gap-3.5 text-[10.5px] text-[var(--text-tertiary)]">
+        <div className="mt-3 flex flex-wrap gap-3 text-[10.5px] text-[var(--text-tertiary)]">
           <span className="flex items-center gap-1.5"><Database className="size-3.5" /> 基于 {data.sources.length} 条 Personal OS 记录</span>
           <span className="flex items-center gap-1.5"><History className="size-3.5" /> {data.versions.length} 个版本</span>
           {data.review.generated_with_ai ? <span className="flex items-center gap-1.5"><Bot className="size-3.5" /> 使用过 AI 草稿</span> : null}
         </div>
       </header>
 
-      <div className="mt-6 grid gap-7 lg:grid-cols-[minmax(0,1fr)_272px]">
-        <main className="min-w-0 space-y-6">
+      <div className="mt-5.5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_272px]">
+        <main className="min-w-0 space-y-5.5">
           {sections.map(([key, title]) => {
             const values = structured[key];
             if (!Array.isArray(values) || !values.length) return null;
             return (
               <section key={key}>
                 <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">{title}</h2>
-                <ul className="mt-1.5 space-y-1.5 text-[12.5px] leading-5.5 text-[var(--text-secondary)]">
+                <ul className="mt-1 space-y-1.5 text-[12.5px] leading-5.5 text-[var(--text-secondary)]">
                   {values.map((value, index) => <li key={`${key}-${index}`} className="flex gap-2"><span className="text-[var(--separator)]">—</span><span>{value}</span></li>)}
                 </ul>
               </section>
@@ -69,7 +69,7 @@ export default async function ReviewDetailPage({
             </section>
           ) : null}
         </main>
-        <aside className="border-l border-[var(--separator)] pl-4.5">
+        <aside className="border-l border-[var(--separator)] pl-4">
           <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">来源</h2>
           <div className="mt-2.5 divide-y divide-[var(--separator)]">
             {data.sources.length ? data.sources.map((source) => (
@@ -79,7 +79,7 @@ export default async function ReviewDetailPage({
               </Link>
             )) : <p className="py-3 text-[11.5px] text-[var(--text-secondary)]">这个旧版本没有来源快照。</p>}
           </div>
-          <h2 className="mt-6 text-[13px] font-semibold text-[var(--text-primary)]">版本历史</h2>
+          <h2 className="mt-5 text-[13px] font-semibold text-[var(--text-primary)]">版本历史</h2>
           <div className="mt-2.5 space-y-1.5">
             {data.versions.map((version) => (
               <div key={version.id} className="text-[10.5px] tabular-nums text-[var(--text-tertiary)]">
@@ -90,7 +90,7 @@ export default async function ReviewDetailPage({
         </aside>
       </div>
 
-      <div className="mt-8">
+      <div className="mt-7">
         <ReviewProposals reviewId={reviewId} proposals={data.proposals} sources={data.sources} />
       </div>
     </section>
