@@ -38,6 +38,10 @@ export default async function InterviewQuestionPage({
   if (!data) notFound();
 
   const { question, selectedPreparation: prep } = data;
+  const questionTypeRelation = Array.isArray(question.interview_question_types)
+    ? question.interview_question_types[0]
+    : question.interview_question_types;
+  const normalizedCompetencies = data.normalizedCompetencies ?? [];
   const currentAnswers = data.currentAnswers ?? [];
   const primaryAnswer =
     currentAnswers.find((answer: any) => answer.answer_mode === "spoken" && answer.language === prep?.target_language) ??
@@ -51,7 +55,12 @@ export default async function InterviewQuestionPage({
     <>
       <header className="mb-2">
         <Link href="/career/interview/questions" className="text-xs text-zinc-400 hover:text-zinc-700">← 题目</Link>
-        <h1 className="mt-4 max-w-3xl text-2xl font-semibold leading-9 tracking-[-0.025em] text-zinc-950">{question.canonical_prompt}</h1>
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+          <span>{questionTypeRelation?.label ?? "面试题"}</span>
+          {question.question_style === "stress" ? <span>· 压力风格</span> : null}
+          {normalizedCompetencies.slice(0, 3).map((item: any) => <span key={item.competency_id}>· {item.competency.label}</span>)}
+        </div>
+        <h1 className="mt-2 max-w-3xl text-2xl font-semibold leading-9 tracking-[-0.025em] text-zinc-950">{question.canonical_prompt}</h1>
       </header>
 
 
@@ -173,6 +182,8 @@ export default async function InterviewQuestionPage({
                   <input type="hidden" name="context_id" value={prep.context_id ?? ""} />
                   <input type="hidden" name="short_title" value="" />
                   <input type="hidden" name="category" value={question.category} />
+                  <input type="hidden" name="question_type_key" value={questionTypeRelation?.key ?? "behavioral"} />
+                  <input type="hidden" name="question_style" value={question.question_style ?? "standard"} />
                   <input type="hidden" name="subcategory" value="" />
                   <input type="hidden" name="competency_tags" value={joinTagInput(question.competency_tags)} />
                   <input type="hidden" name="prompt_variants" value="" />
@@ -210,6 +221,8 @@ export default async function InterviewQuestionPage({
                   <textarea name="canonical_prompt" defaultValue={question.canonical_prompt} rows={3} required className="w-full px-3 py-2 text-sm" />
                   <input type="hidden" name="short_title" value={question.short_title ?? ""}/>
                   <input type="hidden" name="category" value={question.category}/>
+                  <input type="hidden" name="question_type_key" value={questionTypeRelation?.key ?? "behavioral"}/>
+                  <input type="hidden" name="question_style" value={question.question_style ?? "standard"}/>
                   <input type="hidden" name="subcategory" value={question.subcategory ?? ""}/>
                   <input type="hidden" name="competency_tags" value={joinTagInput(question.competency_tags)}/>
                   <input type="hidden" name="prompt_variants" value={joinTagInput(question.prompt_variants)}/>

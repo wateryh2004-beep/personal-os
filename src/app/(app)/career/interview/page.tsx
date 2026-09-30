@@ -16,6 +16,20 @@ export default async function InterviewWorkspacePage({
     role: (context.role_title_snapshot as string | null) ?? null,
   }));
 
+  const typeById = new Map((data.questionTypes as any[]).map((item: any) => [item.id as string, item]));
+  const competencyById = new Map((data.competencies as any[]).map((item: any) => [item.id as string, item]));
+  const competenciesByQuestion = new Map<string, any[]>();
+  for (const link of data.competencyLinks as any[]) {
+    const competency = competencyById.get(link.competency_id);
+    if (!competency) continue;
+    const list = competenciesByQuestion.get(link.question_id) ?? [];
+    list.push({ ...competency, relevance: link.relevance, isPrimary: link.is_primary });
+    competenciesByQuestion.set(link.question_id, list);
+  }
+  for (const list of competenciesByQuestion.values()) {
+    list.sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || b.relevance - a.relevance || a.position - b.position);
+  }
+
   const answersByPreparation = new Map<string, any[]>();
   for (const answer of data.answers as any[]) {
     const list = answersByPreparation.get(answer.preparation_id) ?? [];
@@ -36,9 +50,14 @@ export default async function InterviewWorkspacePage({
       questionId: prep.question_id as string,
       contextId: (prep.context_id as string | null) ?? null,
       prompt: (prep.prompt_override || relation.canonical_prompt) as string,
-      category: (relation.category as string | null) ?? "behavioral",
+      category: (typeById.get(relation.question_type_id)?.key as string | undefined) ?? "behavioral",
+      categoryLabel: (typeById.get(relation.question_type_id)?.label as string | undefined) ?? "行为",
+      style: (relation.question_style as string | null) ?? "standard",
       subcategory: (relation.subcategory as string | null) ?? null,
-      competencies: (relation.competency_tags as string[] | null) ?? [],
+      competencies: (competenciesByQuestion.get(prep.question_id) ?? []).map((item: any) => ({
+        key: item.key as string,
+        label: item.label as string,
+      })),
       thoughts: thoughts as string,
       answer: (answer?.body_markdown as string | undefined) ?? "",
       answerId: (answer?.id as string | undefined) ?? null,

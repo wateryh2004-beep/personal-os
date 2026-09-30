@@ -7,7 +7,10 @@ import {
   createInterviewQuestion,
   saveInterviewWorkspace,
 } from "@/features/interview/actions";
-import { categoryLabels } from "@/features/interview/constants";
+import {
+  legacyCategoryByQuestionType,
+  questionTypeLabels,
+} from "@/features/interview/constants";
 
 type Target = {
   id: string;
@@ -22,8 +25,10 @@ type WorkspaceItem = {
   contextId: string | null;
   prompt: string;
   category: string;
+  categoryLabel: string;
+  style: string;
   subcategory: string | null;
-  competencies: string[];
+  competencies: Array<{ key: string; label: string }>;
   thoughts: string;
   answer: string;
   answerId: string | null;
@@ -36,23 +41,19 @@ const CORE_CATEGORIES = [
   "behavioral",
   "motivation_fit",
   "knowledge",
-  "business_commercial",
+  "business_case",
   "situational",
 ] as const;
 
 const SPECIAL_CATEGORIES = ["stress"] as const;
-const CLOSING_CATEGORIES = ["interviewer_question"] as const;
+const CLOSING_CATEGORIES = ["candidate_question"] as const;
 const ALL_CATEGORIES = [...CORE_CATEGORIES, ...SPECIAL_CATEGORIES, ...CLOSING_CATEGORIES] as const;
 
 const categoryShortLabels: Record<string, string> = {
-  resume: "简历",
-  behavioral: "行为",
+  ...questionTypeLabels,
   motivation_fit: "动机",
   knowledge: "专业",
-  business_commercial: "商业 / Case",
-  situational: "情景",
   stress: "压力",
-  interviewer_question: "反问",
 };
 
 function workspaceUrl(contextId: string, questionId: string, category: string) {
@@ -116,12 +117,19 @@ export function InterviewFastWorkspace({
 
   const counts = useMemo(() => {
     const next: Record<string, number> = { all: contextItems.length };
-    for (const item of contextItems) next[item.category] = (next[item.category] ?? 0) + 1;
+    for (const item of contextItems) {
+      next[item.category] = (next[item.category] ?? 0) + 1;
+      if (item.style === "stress") next.stress = (next.stress ?? 0) + 1;
+    }
     return next;
   }, [contextItems]);
 
   const visibleItems = useMemo(
-    () => category === "all" ? contextItems : contextItems.filter((item) => item.category === category),
+    () => category === "all"
+      ? contextItems
+      : category === "stress"
+        ? contextItems.filter((item) => item.style === "stress")
+        : contextItems.filter((item) => item.category === category),
     [category, contextItems],
   );
 
@@ -217,7 +225,9 @@ export function InterviewFastWorkspace({
   const handleCategoryChange = (nextCategory: string) => {
     const nextVisible = nextCategory === "all"
       ? contextItems
-      : contextItems.filter((item) => item.category === nextCategory);
+      : nextCategory === "stress"
+        ? contextItems.filter((item) => item.style === "stress")
+        : contextItems.filter((item) => item.category === nextCategory);
     setCategory(nextCategory);
 
     const currentStillVisible = nextVisible.find((item) => item.questionId === questionId) ?? null;
@@ -237,7 +247,9 @@ export function InterviewFastWorkspace({
   }, [saveState]);
 
   const selected = selectedRef.current;
-  const newQuestionCategory = category === "all" ? "behavioral" : category;
+  const newQuestionType = category === "all" || category === "stress" ? "behavioral" : category;
+  const newQuestionCategory = legacyCategoryByQuestionType[newQuestionType] ?? "behavioral";
+  const newQuestionStyle = category === "stress" ? "stress" : "standard";
 
   return (
     <div className="interview-workspace -mx-2 sm:-mx-3">
@@ -333,11 +345,21 @@ export function InterviewFastWorkspace({
             <div className="mt-1 flex items-center justify-between gap-2 px-1">
               {category === "all" ? (
                 <select name="category" defaultValue="behavioral" aria-label="新问题类型" className="max-w-[160px] bg-transparent text-[11px] text-[var(--text-tertiary)] outline-none">
-                  {ALL_CATEGORIES.map((key) => <option key={key} value={key}>{categoryLabels[key]}</option>)}
+                  {[...CORE_CATEGORIES, ...CLOSING_CATEGORIES].map((key) => (
+                    <option key={key} value={legacyCategoryByQuestionType[key] ?? key}>{questionTypeLabels[key]}</option>
+                  ))}
+                </select>
+              ) : category === "stress" ? (
+                <select name="question_type_key" defaultValue="behavioral" aria-label="压力题的问题类型" className="max-w-[160px] bg-transparent text-[11px] text-[var(--text-tertiary)] outline-none">
+                  {[...CORE_CATEGORIES, ...CLOSING_CATEGORIES].map((key) => (
+                    <option key={key} value={key}>{questionTypeLabels[key]}</option>
+                  ))}
                 </select>
               ) : <input type="hidden" name="category" value={newQuestionCategory} />}
               <button className="pressable rounded-[7px] px-1.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]">添加</button>
             </div>
+            {category === "stress" ? <input type="hidden" name="category" value="behavioral" /> : null}
+            <input type="hidden" name="question_style" value={newQuestionStyle} />
             <input type="hidden" name="context_id" value={contextId} />
             <input type="hidden" name="return_to_workspace" value="1" />
             <input type="hidden" name="short_title" value="" />
@@ -355,7 +377,7 @@ export function InterviewFastWorkspace({
           </form>
 
           <div className="mb-1.5 flex items-center justify-between px-2">
-            <span className="text-[10.5px] font-medium text-[var(--text-tertiary)]">{category === "all" ? "全部问题" : categoryLabels[category] ?? "问题"}</span>
+            <span className="text-[10.5px] font-medium text-[var(--text-tertiary)]">{category === "all" ? "全部问题" : category === "stress" ? "压力风格" : questionTypeLabels[category] ?? "问题"}</span>
             <span className="text-[10.5px] tabular-nums text-[var(--text-tertiary)]">{visibleItems.length}</span>
           </div>
 
@@ -383,8 +405,9 @@ export function InterviewFastWorkspace({
               <div className="flex items-start justify-between gap-5">
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-[10.5px] text-[var(--text-tertiary)]">
-                    <span>{categoryLabels[selected.category] ?? selected.category}</span>
-                    {selected.competencies.slice(0, 2).map((tag) => <span key={tag}>· {tag}</span>)}
+                    <span>{selected.categoryLabel}</span>
+                    {selected.style === "stress" ? <span>· 压力</span> : null}
+                    {selected.competencies.slice(0, 2).map((competency) => <span key={competency.key}>· {competency.label}</span>)}
                   </div>
                   <h1 className="max-w-3xl text-[23px] font-semibold leading-[1.42] tracking-[-0.035em] text-[var(--text-primary)]">{selected.prompt}</h1>
                 </div>

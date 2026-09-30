@@ -9,6 +9,53 @@ export const interviewCategories = [
   "interviewer_question",
 ] as const;
 
+export const interviewQuestionTypeKeys = [
+  "resume",
+  "behavioral",
+  "motivation_fit",
+  "knowledge",
+  "business_case",
+  "situational",
+  "candidate_question",
+] as const;
+
+export const interviewQuestionStyles = ["standard", "stress"] as const;
+
+export const questionTypeLabels: Record<string, string> = {
+  resume: "简历",
+  behavioral: "行为",
+  motivation_fit: "动机 / Fit",
+  knowledge: "专业 / Knowledge",
+  business_case: "商业 / Case",
+  situational: "情景",
+  candidate_question: "反问",
+};
+
+export const questionStyleLabels: Record<string, string> = {
+  standard: "标准",
+  stress: "压力",
+};
+
+export const legacyCategoryByQuestionType: Record<string, string> = {
+  resume: "resume",
+  behavioral: "behavioral",
+  motivation_fit: "motivation_fit",
+  knowledge: "knowledge",
+  business_case: "business_commercial",
+  situational: "situational",
+  candidate_question: "interviewer_question",
+};
+
+export const questionTypeByLegacyCategory: Record<string, string> = {
+  resume: "resume",
+  behavioral: "behavioral",
+  motivation_fit: "motivation_fit",
+  knowledge: "knowledge",
+  business_commercial: "business_case",
+  situational: "situational",
+  interviewer_question: "candidate_question",
+};
+
 export const interviewStatuses = [
   "unprepared",
   "developing",
@@ -74,9 +121,11 @@ export const categoryLabels: Record<string, string> = {
   behavioral: "行为面",
   situational: "情景 / 能力",
   business_commercial: "商业 / Case",
+  business_case: "商业 / Case",
   knowledge: "专业 / Knowledge",
   stress: "压力面",
   interviewer_question: "反问",
+  candidate_question: "反问",
 };
 
 export const statusLabels: Record<string, string> = {
