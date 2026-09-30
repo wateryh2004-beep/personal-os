@@ -15,34 +15,34 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
       <CareerNav current="/career/interview" />
       <InterviewNav current="/career/interview/insights" />
 
-      <form className="mb-10 flex items-center gap-2">
-        <select name="context" defaultValue={context ?? ""} className="max-w-sm px-3 py-2 text-sm">
+      <form className="mb-8 flex items-center gap-2">
+        <select name="context" defaultValue={context ?? ""} className="h-9 max-w-sm rounded-[10px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]">
           <option value="">全部岗位</option>
           {data.contexts.map((item: any) => <option key={item.id} value={item.id}>{item.title}</option>)}
         </select>
-        <button className="text-xs text-zinc-400 hover:text-zinc-700">切换</button>
+        <button className="pressable rounded-[7px] px-1.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">切换</button>
       </form>
 
-      <div className="mb-12 flex flex-wrap gap-x-6 gap-y-2 text-xs text-zinc-400">
+      <div className="mb-10 flex flex-wrap gap-x-5 gap-y-1.5 text-[11px] tabular-nums text-[var(--text-tertiary)]">
         <span>{data.attempts.length} 次练习</span>
         <span>{ready}/{data.preparations.length} 道已准备</span>
       </div>
 
       <section className="mb-14">
-        <h2 className="text-[15px] font-medium text-zinc-950">反复出现的问题</h2>
-        <div className="mt-4 space-y-1">
+        <h2 className="text-[14px] font-semibold tracking-[-0.008em] text-[var(--text-primary)]">反复出现的问题</h2>
+        <div className="mt-3.5 space-y-px">
           {data.issueCounts.slice(0,10).map((item) => (
-            <div key={item.tag} className="flex items-center justify-between rounded-lg px-2 py-2.5 text-sm hover:bg-white/70">
-              <span className="text-zinc-700">{issueLabels[item.tag] ?? item.tag}</span>
-              <span className="font-mono text-xs text-zinc-400">{item.count}</span>
+            <div key={item.tag} className="flex min-h-10 items-center justify-between rounded-[9px] px-2.5 py-2 transition-colors ui-transition hover:bg-[var(--surface-hover)]">
+              <span className="text-[13px] text-[var(--text-primary)]">{issueLabels[item.tag] ?? item.tag}</span>
+              <span className="font-mono text-[11px] tabular-nums text-[var(--text-tertiary)]">{item.count}</span>
             </div>
           ))}
-          {!data.issueCounts.length ? <p className="py-3 text-sm text-zinc-400">还没有足够的练习数据。</p> : null}
+          {!data.issueCounts.length ? <p className="py-4 text-[13px] text-[var(--text-tertiary)]">还没有足够的练习数据。</p> : null}
         </div>
       </section>
 
       <section className="mb-14">
-        <h2 className="text-[15px] font-medium text-zinc-950">能力覆盖</h2>
+        <h2 className="text-[14px] font-semibold tracking-[-0.008em] text-[var(--text-primary)]">能力覆盖</h2>
         <div className="mt-4 space-y-1">
           {data.competencyCoverage.slice(0,12).map((item) => (
             <div key={item.tag} className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-lg px-2 py-2.5 text-sm hover:bg-white/70">
@@ -50,36 +50,36 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
               <span className="text-xs text-zinc-400">{item.ready}/{item.total} 已准备 · {item.evidence} 条经历</span>
             </div>
           ))}
-          {!data.competencyCoverage.length ? <p className="py-3 text-sm text-zinc-400">还没有能力覆盖数据。</p> : null}
+          {!data.competencyCoverage.length ? <p className="py-4 text-[13px] text-[var(--text-tertiary)]">还没有能力覆盖数据。</p> : null}
         </div>
       </section>
 
       <details>
-        <summary className="cursor-pointer text-sm text-zinc-400 hover:text-zinc-700">更多趋势</summary>
-        <div className="mt-5 grid gap-10 sm:grid-cols-2">
+        <summary className="pressable inline-flex cursor-pointer list-none rounded-[8px] px-1 py-0.5 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">更多趋势</summary>
+        <div className="mt-4.5 grid gap-8 sm:grid-cols-2">
           <section>
-            <h3 className="text-sm font-medium text-zinc-800">经历使用</h3>
+            <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">经历使用</h3>
             <div className="mt-3 space-y-2">
               {data.storyUsage.map((item: any) => (
                 <div key={item.id} className="flex items-center justify-between gap-4 text-sm">
-                  <span className="truncate text-zinc-600">{item.experience?.organization || "已归档经历"}</span>
-                  <span className="font-mono text-xs text-zinc-400">{item.count}</span>
+                  <span className="truncate text-[12.5px] text-[var(--text-secondary)]">{item.experience?.organization || "已归档经历"}</span>
+                  <span className="font-mono text-[11px] tabular-nums text-[var(--text-tertiary)]">{item.count}</span>
                 </div>
               ))}
-              {!data.storyUsage.length ? <p className="text-sm text-zinc-400">还没有关联经历。</p> : null}
+              {!data.storyUsage.length ? <p className="text-[12.5px] text-[var(--text-tertiary)]">还没有关联经历。</p> : null}
             </div>
           </section>
 
           <section>
-            <h3 className="text-sm font-medium text-zinc-800">改善趋势</h3>
+            <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">改善趋势</h3>
             <div className="mt-3 space-y-2">
               {data.monthlyTrend.map((item) => (
                 <div key={item.month} className="flex items-center justify-between gap-4 text-sm">
                   <span className="text-zinc-600">{item.month}</span>
-                  <span className="font-mono text-xs text-zinc-400">{item.attempts} 次 · {item.issuesPerAttempt.toFixed(2)} 问题/次</span>
+                  <span className="font-mono text-[11px] tabular-nums text-[var(--text-tertiary)]">{item.attempts} 次 · {item.issuesPerAttempt.toFixed(2)} 问题/次</span>
                 </div>
               ))}
-              {!data.monthlyTrend.length ? <p className="text-sm text-zinc-400">完成几次练习后再看趋势。</p> : null}
+              {!data.monthlyTrend.length ? <p className="text-[12.5px] text-[var(--text-tertiary)]">完成几次练习后再看趋势。</p> : null}
             </div>
           </section>
         </div>
