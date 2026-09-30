@@ -18,7 +18,7 @@ export function TodaySectionHeader({
       {href ? (
         <Link
           href={href}
-          className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-[var(--text-tertiary)] transition-colors ui-transition hover:text-[var(--accent)]"
+          className="pressable -mr-1 inline-flex shrink-0 items-center gap-0.5 rounded-[8px] px-1 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
         >
           {label}
           <ChevronRight className="size-3.5" aria-hidden="true" />

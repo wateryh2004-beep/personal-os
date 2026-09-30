@@ -55,7 +55,7 @@ export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
                   <span className="absolute -left-[65px] top-2.5 w-[50px] text-right text-[11px] tabular-nums text-[var(--text-tertiary)]">
                     {formatTime(event.starts_at, workspace.timezone)}
                   </span>
-                  <span className="absolute -left-[3.5px] top-[15px] size-[6px] rounded-full bg-[var(--accent)] ring-[3px] ring-[var(--surface-app)]" />
+                  <span className="absolute -left-[3.5px] top-[15px] size-[6px] rounded-full bg-[var(--accent)] ring-[3px] ring-[var(--surface-canvas)]" />
                   <Link href="/calendar" className="ml-4 block min-w-0 group">
                     <span className="block truncate text-[13px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                       {event.subject || "未命名日程"}

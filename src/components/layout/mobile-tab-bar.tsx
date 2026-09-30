@@ -48,7 +48,7 @@ export function MobileTabBar({ onOpenMore, pendingHref, onNavigate, onIntent }: 
         className={cn(
           itemClass,
           active || pending
-            ? "bg-[color-mix(in_srgb,var(--accent-soft)_78%,transparent)] text-[var(--accent)] shadow-[inset_0_0_0_.5px_rgba(0,113,227,.05)]"
+            ? "text-[var(--accent)]"
             : "text-[var(--text-tertiary)] active:bg-[var(--surface-hover)] active:opacity-70",
           pending && "opacity-60",
         )}
@@ -65,7 +65,7 @@ export function MobileTabBar({ onOpenMore, pendingHref, onNavigate, onIntent }: 
       className={cn(
         itemClass,
         moreActive || morePending
-          ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+          ? "text-[var(--accent)]"
           : "text-[var(--text-tertiary)] active:bg-[var(--surface-hover)] active:opacity-70",
         morePending && "opacity-60",
       )}

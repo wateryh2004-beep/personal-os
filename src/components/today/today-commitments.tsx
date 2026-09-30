@@ -14,7 +14,7 @@ function openCreate(kind: "task" | "calendar" | "inbox", title: string) {
 }
 
 const actionClass =
-  "inline-flex h-7 items-center gap-1 rounded-[var(--radius-sm)] px-1.5 text-[11px] font-medium text-[var(--text-tertiary)] transition-[background-color,color] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50";
+  "pressable inline-flex h-7 items-center gap-1 rounded-[8px] px-1.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50";
 
 function DeferTaskControl({ task }: { task: NonNullable<NowCommitment["task"]> }) {
   const [pending, startTransition] = useTransition();
@@ -134,7 +134,7 @@ export function TodayCommitments({ commitments }: { commitments: NowCommitment[]
           <button
             type="button"
             onClick={() => setExpanded((value) => !value)}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+            className="pressable inline-flex items-center gap-1 rounded-[8px] px-1 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
           >
             {expanded ? "收起" : `还有 ${commitments.length - DEFAULT_VISIBLE} 项`}
             <ChevronDown className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />

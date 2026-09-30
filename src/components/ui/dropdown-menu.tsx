@@ -6,7 +6,7 @@ import { CheckIcon, ChevronRightIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const itemClass = "relative flex min-h-[30px] cursor-default items-center gap-2 rounded-[7px] px-2 py-1.5 text-[13px] leading-4 outline-hidden select-none transition-colors ui-transition focus:bg-[var(--surface-selected)] focus:text-[var(--text-primary)] data-disabled:pointer-events-none data-disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5";
+const itemClass = "relative flex min-h-[30px] cursor-default items-center gap-2 rounded-[8px] px-2 py-1.5 text-[13px] leading-4 outline-hidden select-none transition-colors ui-transition focus:bg-[var(--surface-selected)] focus:text-[var(--text-primary)] data-disabled:pointer-events-none data-disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5";
 
 function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
   return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />

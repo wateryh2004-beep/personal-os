@@ -22,7 +22,7 @@ export function InterviewNav({ current }: { current: string }) {
             key={href}
             href={href}
             aria-current={isCurrent ? "page" : undefined}
-            className={`shrink-0 pb-1 transition-colors ${isCurrent ? "font-medium text-zinc-950" : "text-zinc-400 hover:text-zinc-700"}`}
+            className={`relative shrink-0 pb-1.5 transition-colors ui-transition after:absolute after:inset-x-0 after:-bottom-px after:h-px after:rounded-full after:transition-opacity after:duration-[var(--motion-fast)] ${isCurrent ? "font-medium text-[var(--text-primary)] after:bg-[var(--accent)] after:opacity-100" : "text-[var(--text-tertiary)] after:opacity-0 hover:text-[var(--text-primary)]"}`}
           >
             {label}
           </Link>

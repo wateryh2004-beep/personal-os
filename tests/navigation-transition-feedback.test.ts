@@ -9,7 +9,7 @@ describe("navigation transition feedback", () => {
   it("shows restrained delayed navigation feedback and route transitions", () => {
     expect(appShell).toContain("window.setTimeout(() => setShowNavigationProgress(true), 180)");
     expect(appShell).toContain("data-navigation-progress");
-    expect(appShell).toContain("h-[2px]");
+    expect(appShell).toContain("h-px");
     expect(appShell).toContain("ViewTransition");
   });
 

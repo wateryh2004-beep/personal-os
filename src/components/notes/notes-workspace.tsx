@@ -38,7 +38,7 @@ function AskNotesButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-md)] px-2 text-[12px] font-medium text-[var(--text-secondary)] transition-[background-color,color] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+      className="pressable inline-flex h-8 items-center gap-1.5 rounded-[9px] px-2 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
     >
       <Sparkles className="size-3.5 text-[var(--accent)]" aria-hidden="true" />
       问笔记库
@@ -76,7 +76,7 @@ function NoteRow({
   showExcerpt: boolean;
 }) {
   return (
-    <article className="group relative border-b border-[var(--border-subtle)] last:border-b-0">
+    <article className="group relative -mx-2 rounded-[10px] px-2 transition-[background-color] ui-transition after:absolute after:bottom-0 after:left-2 after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden hover:bg-[var(--surface-hover)]">
       <div className="relative py-3.5 pr-11">
         <div className="flex min-w-0 items-center gap-2">
           {renaming ? (
@@ -121,7 +121,7 @@ function NoteRow({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="absolute right-0 top-3 z-10 text-[var(--text-tertiary)] md:opacity-0 md:transition-opacity md:group-hover:opacity-100 focus-visible:opacity-100"
+            className="absolute right-1 top-3 z-10 text-[var(--text-tertiary)] md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 focus-visible:opacity-100"
             aria-label={`管理 ${note.title || "无标题笔记"}`}
           >
             <MoreHorizontal />
@@ -336,7 +336,7 @@ export function NotesWorkspace({
             <span className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
               {searchState === "loading" ? <LoaderCircle className="size-3.5 animate-spin text-[var(--text-tertiary)]" aria-label="正在补充全文搜索结果" /> : null}
               {query ? (
-                <button type="button" onClick={() => updateQuery("")} className="inline-flex size-7 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" aria-label="清空搜索">
+                <button type="button" onClick={() => updateQuery("")} className="pressable inline-flex size-7 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" aria-label="清空搜索">
                   <X className="size-3.5" aria-hidden="true" />
                 </button>
               ) : null}
@@ -350,7 +350,7 @@ export function NotesWorkspace({
                 setScope(next);
                 syncSearchUrl(query, next);
               }}
-              className="h-9 shrink-0 rounded-[var(--radius-md)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+              className="pressable h-9 shrink-0 rounded-[9px] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
             >
               {scope === "context" ? "当前文件夹" : "全部笔记"}
             </button>
@@ -440,7 +440,7 @@ export function NotesWorkspace({
               mutate(moveNote, form);
               setMoving(null);
             }}
-            className="w-full max-w-sm rounded-[14px] border border-[var(--border-subtle)] bg-white p-4 shadow-[var(--shadow-dialog)]"
+            className="w-full max-w-sm rounded-[18px] border border-[var(--separator)] bg-[var(--material-thick)] p-4 shadow-[var(--shadow-dialog)] backdrop-blur-2xl backdrop-saturate-[180%]"
           >
             <input type="hidden" name="note_id" value={moving.id} />
             <FolderPicker folders={folders} initialFolderId={moving.folder_id} idPrefix={`move-${moving.id}`} label="移动到" />
@@ -457,7 +457,7 @@ export function NotesWorkspace({
         <button
           type="submit"
           aria-label="新建笔记"
-          className="flex size-12 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_6px_18px_rgba(0,113,227,.22)] transition-transform active:scale-[0.96]"
+          className="pressable flex size-12 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_8px_22px_rgba(0,113,227,.18),0_1px_3px_rgba(0,0,0,.08)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]"
         >
           <FilePlus2 className="size-5" aria-hidden="true" />
         </button>

@@ -107,8 +107,8 @@ function TaskRow({
       role="button"
       aria-label={`打开任务：${task.title}`}
       data-selected={selected || undefined}
-      className={`group relative grid cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-start gap-2.5 border-b border-[var(--border-subtle)] py-3.5 pr-1 transition-colors ui-transition focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)] ${
-        selected ? "bg-[var(--surface-selected)]" : "hover:bg-[var(--surface-hover)]"
+      className={`group relative -mx-2 grid cursor-pointer grid-cols-[28px_minmax(0,1fr)_auto] items-start gap-2.5 rounded-[10px] px-2 py-3.5 pr-2 transition-[background-color,box-shadow] ui-transition after:absolute after:bottom-0 after:left-[38px] after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)] ${
+        selected ? "bg-[var(--surface-selected)] after:opacity-0" : "hover:bg-[var(--surface-hover)]"
       }`}
     >
       <button
@@ -166,7 +166,7 @@ function TaskRow({
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
-            className={`-my-2 inline-flex size-10 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-tertiary)] transition-[background-color,color,opacity] ui-transition hover:bg-[var(--surface-control)] hover:text-[var(--text-secondary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)] md:my-0 md:size-8 md:focus:opacity-100 md:data-[state=open]:opacity-100 ${
+            className={`pressable -my-2 inline-flex size-10 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-tertiary)] hover:bg-[var(--surface-control)] hover:text-[var(--text-secondary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)] md:my-0 md:size-8 md:focus:opacity-100 md:data-[state=open]:opacity-100 ${
               selected ? "md:opacity-70" : "md:opacity-0 md:group-hover:opacity-60"
             }`}
           >
@@ -300,7 +300,7 @@ function QuickAdd({
             onKeyDown={(event) => {
               if (event.key === "Escape") setOpen(false);
             }}
-            className="h-9 min-w-0 flex-1 border-0 border-b border-[var(--border-strong)] bg-transparent px-0 text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
+            className="h-9 min-w-0 flex-1 border-0 border-b border-transparent bg-transparent px-0 text-[14px] text-[var(--text-primary)] outline-none transition-[border-color] ui-transition placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]"
           />
           <input type="hidden" name="todo_list_id" value={listId} />
           <input type="hidden" name="body_text" value="" />
@@ -314,7 +314,7 @@ function QuickAdd({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex min-h-11 items-center gap-2 text-[13px] font-medium text-[var(--accent)] transition-opacity ui-transition hover:opacity-75 sm:min-h-8"
+          className="pressable inline-flex min-h-11 items-center gap-2 rounded-[9px] px-1 text-[13px] font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] sm:min-h-8"
         >
           <Plus className="size-4" aria-hidden="true" />
           新建任务

@@ -44,8 +44,8 @@
 
   --shadow-hairline:0 0 0 .5px rgba(0,0,0,.06);
   --shadow-control:0 1px 2px rgba(0,0,0,.04);
-  --shadow-popover:0 18px 50px rgba(0,0,0,.13),0 2px 10px rgba(0,0,0,.06),0 0 0 .5px rgba(0,0,0,.08);
-  --shadow-dialog:0 28px 80px rgba(0,0,0,.16),0 5px 22px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.08);
+  --shadow-popover:0 14px 38px rgba(0,0,0,.10),0 2px 8px rgba(0,0,0,.045),0 0 0 .5px rgba(0,0,0,.07);
+  --shadow-dialog:0 24px 68px rgba(0,0,0,.14),0 5px 18px rgba(0,0,0,.06),0 0 0 .5px rgba(0,0,0,.07);
 
   --sidebar-width:224px;
   --sidebar-collapsed-width:58px;
@@ -100,6 +100,7 @@ body {
 }
 .wordmark { font-family:var(--font-sans); font-kerning:normal; font-weight:650; letter-spacing:-.03em; }
 button,a,input,textarea,select { outline-offset:2px; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+input,textarea { caret-color:var(--accent); }
 button,[role="button"],a { -webkit-user-select:none; user-select:none; }
 :focus-visible { outline:2px solid color-mix(in srgb,var(--accent) 58%,transparent); outline-offset:2px; }
 ::selection { background:color-mix(in srgb,var(--accent) 14%,transparent); color:var(--text-primary); }
@@ -113,7 +114,7 @@ button,[role="button"],a { -webkit-user-select:none; user-select:none; }
 .ui-transition { transition-duration:var(--motion-fast); transition-timing-function:var(--ease-standard); }
 .ui-panel-transition { transition-duration:var(--motion-panel); transition-timing-function:var(--ease-emphasized); }
 .pressable { transition:transform var(--motion-instant) var(--ease-press),background-color var(--motion-fast) var(--ease-standard),color var(--motion-fast) var(--ease-standard),box-shadow var(--motion-fast) var(--ease-standard),opacity var(--motion-fast) var(--ease-standard); }
-.pressable:active { transform:scale(.975); }
+.pressable:active { transform:scale(.985); }
 @media (hover:hover) {
   .hover-lift:hover { transform:translateY(-1px); }
 }
@@ -133,7 +134,7 @@ button,[role="button"],a { -webkit-user-select:none; user-select:none; }
 .calendar-canvas .fc { height:100%; color:var(--text-primary); font-size:13px; }
 .calendar-canvas .fc-theme-standard td,.calendar-canvas .fc-theme-standard th { border-color:var(--border-subtle); }
 .calendar-canvas .fc-scrollgrid { border-width:0; }
-.calendar-canvas .fc-col-header-cell { background:#fbfbfc; }
+.calendar-canvas .fc-col-header-cell { background:color-mix(in srgb,var(--surface-canvas) 88%,var(--surface-sidebar)); }
 .calendar-canvas .fc-col-header-cell-cushion { padding:9px 4px; color:var(--text-secondary); font-weight:500; text-decoration:none; }
 .calendar-canvas .fc-day-today { background:color-mix(in srgb,var(--accent-soft) 42%,transparent)!important; }
 .calendar-canvas .fc-day-today .fc-col-header-cell-cushion { color:var(--accent); font-weight:600; }
@@ -152,7 +153,7 @@ button,[role="button"],a { -webkit-user-select:none; user-select:none; }
 .calendar-canvas .fc-timegrid .fc-daygrid-day-events { min-height:0!important; margin:0!important; display:flex; flex-wrap:wrap; align-items:flex-start; }
 .calendar-canvas .fc-timegrid .fc-daygrid-day-events > .fc-daygrid-event-harness { flex:1 1 0%; min-width:0; margin-right:2px; }
 .calendar-canvas .fc-timegrid .fc-daygrid-day-events > .fc-daygrid-event-harness .fc-daygrid-event { display:block; width:100%!important; min-height:0!important; margin:1px 0!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.calendar-canvas .fc-event:hover { box-shadow:0 1px 4px rgba(0,0,0,.10); filter:saturate(1.03); }
+.calendar-canvas .fc-event:hover { box-shadow:0 2px 8px rgba(0,0,0,.075); filter:saturate(1.025); }
 .calendar-canvas .fc-day-other .fc-daygrid-day-number { color:color-mix(in srgb,var(--text-tertiary) 58%,transparent); }
 .calendar-canvas .fc-day-other { background:color-mix(in srgb,var(--surface-hover) 48%,transparent); }
 .calendar-canvas .fc-event-main { color:inherit!important; }
@@ -177,14 +178,14 @@ button,[role="button"],a { -webkit-user-select:none; user-select:none; }
 
 /* Notes: library, editor and inspector share one quiet native-like language. */
 div:has(> nav[aria-label="笔记视图"]) {
-  background:#f7f7f8!important;
+  background:var(--material-sidebar)!important;
   padding:14px 10px 10px!important;
 }
 div:has(> nav[aria-label="笔记视图"]) > div:first-child { margin-bottom:14px!important; padding:0 4px!important; }
 div:has(> nav[aria-label="笔记视图"]) > div:first-child > span { font-size:13px!important; font-weight:600!important; letter-spacing:-.015em; }
 div:has(> nav[aria-label="笔记视图"]) nav { gap:1px; }
 div:has(> nav[aria-label="笔记视图"]) nav a,
-div:has(> nav[aria-label="笔记视图"]) nav button { min-height:32px; border-radius:7px!important; font-size:13px!important; }
+div:has(> nav[aria-label="笔记视图"]) nav button { min-height:32px; border-radius:var(--radius-sm)!important; font-size:13px!important; }
 div:has(> nav[aria-label="笔记视图"]) [class*="bg-[var(--surface-selected)]"] { color:var(--text-primary)!important; }
 div:has(> nav[aria-label="笔记视图"]) [class*="bg-[var(--surface-selected)]"] svg { color:var(--accent)!important; }
 div:has(> nav[aria-label="笔记视图"]) > div:nth-of-type(2) { margin-top:22px!important; }
@@ -222,7 +223,7 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5
   color:var(--text-primary)!important;
 }
 .notes-document-shell .notes-editor-surface input[aria-label="笔记标题"]:focus-visible { outline:none!important; }
-.notes-document-shell .notes-editor-surface [data-slot="button"] { width:28px!important; height:28px!important; min-width:28px!important; padding:0!important; border-radius:7px!important; color:var(--text-tertiary); }
+.notes-document-shell .notes-editor-surface [data-slot="button"] { width:28px!important; height:28px!important; min-width:28px!important; padding:0!important; border-radius:var(--radius-sm)!important; color:var(--text-tertiary); }
 .notes-document-shell .notes-editor-surface [data-slot="button"]:hover { color:var(--text-primary); }
 .notes-document-shell .notes-editor-surface [data-slot="button"] span { display:none!important; }
 .notes-document-shell .notes-editor-surface > div > div:first-child > span[aria-live] { font-size:10px!important; }
@@ -231,9 +232,11 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5
   padding:2px max(18px,env(safe-area-inset-right)) 2px max(18px,env(safe-area-inset-left));
   border-top:1px solid var(--separator,rgba(60,60,67,.12));
   border-bottom:1px solid var(--separator,rgba(60,60,67,.12));
-  background:#fff;
+  background:var(--material-toolbar);
+  backdrop-filter:saturate(180%) blur(16px);
+  -webkit-backdrop-filter:saturate(180%) blur(16px);
 }
-.notes-document-shell .life-markdown-toolbar button { width:28px!important; height:28px!important; min-width:28px!important; min-height:28px!important; border-radius:6px!important; }
+.notes-document-shell .life-markdown-toolbar button { width:28px!important; height:28px!important; min-width:28px!important; min-height:28px!important; border-radius:var(--radius-xs)!important; }
 .notes-document-shell .life-markdown-toolbar select { height:28px!important; min-height:28px!important; font-size:11px!important; }
 .notes-document-shell .life-markdown-toolbar [aria-hidden="true"].h-5 { height:16px!important; }
 .notes-document-shell .life-codemirror .cm-editor { font-size:16px!important; }
@@ -244,19 +247,21 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5
 .notes-document-shell .life-codemirror .cm-selectionBackground,
 .notes-document-shell .life-codemirror .cm-editor.cm-focused .cm-selectionBackground { background:rgba(0,113,227,.12)!important; }
 .notes-document-shell .life-codemirror .cm-note-quote { border-left-color:rgba(60,60,67,.28)!important; background:transparent!important; padding-left:14px!important; }
-.notes-document-shell .life-codemirror .cm-note-code-block { background:#f6f6f7!important; border-radius:4px; }
+.notes-document-shell .life-codemirror .cm-note-code-block { background:color-mix(in srgb,var(--surface-control) 72%,var(--surface-canvas))!important; border-radius:var(--radius-xs); }
 .notes-document-shell .life-markdown-statusbar {
   min-height:22px;
   padding:0 18px;
   border-top:0;
-  background:#fff;
+  background:var(--material-toolbar);
+  backdrop-filter:saturate(180%) blur(14px);
+  -webkit-backdrop-filter:saturate(180%) blur(14px);
   font-size:10px;
   opacity:.82;
 }
 .notes-document-shell .note-outline-item.is-active { background:var(--surface-selected)!important; color:var(--text-primary)!important; }
 
-.notes-inspector { border-left-color:var(--border-subtle)!important; box-shadow:-8px 0 28px rgba(0,0,0,.035)!important; }
-.notes-inspector > header { height:44px!important; background:#fff!important; }
+.notes-inspector { border-left-color:rgba(255,255,255,.55)!important; box-shadow:var(--shadow-panel)!important; }
+.notes-inspector > header { height:44px!important; background:var(--material-thick)!important; }
 .notes-inspector .workspace-scroll { padding:4px 16px 24px!important; }
 .notes-inspector .workspace-scroll > div { font-size:13px!important; }
 .notes-inspector .workspace-scroll > div > section {
@@ -352,11 +357,7 @@ details > summary { transition:color var(--motion-fast) var(--ease-standard),opa
   transform-origin:var(--radix-popper-transform-origin,center);
 }
 [data-navigation-progress] {
-  animation:navigation-progress-glow 1.15s var(--ease-emphasized) infinite alternate;
-}
-@keyframes navigation-progress-glow {
-  from { opacity:.55; transform:scaleX(.72); }
-  to { opacity:1; transform:scaleX(1); }
+  opacity:.9;
 }
 @media (max-width:767px) {
   [data-slot="button"][data-size="default"],

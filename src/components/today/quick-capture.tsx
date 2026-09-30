@@ -15,7 +15,7 @@ export function QuickCapture() {
       <label className="sr-only" htmlFor="now-quick-capture">
         快速记录到 Inbox
       </label>
-      <div className="flex items-center gap-2 rounded-[12px] bg-[var(--surface-selected)] px-2 py-1.5 ring-1 ring-transparent transition-[background-color,box-shadow] ui-transition focus-within:bg-[var(--surface-canvas)] focus-within:ring-[var(--separator-strong)]">
+      <div className="flex items-center gap-2 rounded-[12px] bg-[var(--surface-control)] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,.28)] ring-1 ring-transparent transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus-within:bg-[var(--surface-canvas)] focus-within:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]">
         <input
           id="now-quick-capture"
           name="content"
@@ -27,7 +27,7 @@ export function QuickCapture() {
         />
         <button
           disabled={pending}
-          className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white transition-[opacity,transform] ui-transition hover:opacity-90 active:scale-[0.96] disabled:opacity-40"
+          className="pressable flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_1px_2px_rgba(0,0,0,.07)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] disabled:opacity-40"
           aria-label="加入 Inbox"
         >
           <ArrowUp className="size-3.5" aria-hidden="true" />
