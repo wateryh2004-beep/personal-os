@@ -7,6 +7,7 @@ import {
   createInterviewQuestion,
   saveInterviewWorkspace,
 } from "@/features/interview/actions";
+import { categoryLabels } from "@/features/interview/constants";
 
 type Target = {
   id: string;
@@ -20,6 +21,9 @@ type WorkspaceItem = {
   questionId: string;
   contextId: string | null;
   prompt: string;
+  category: string;
+  subcategory: string | null;
+  competencies: string[];
   thoughts: string;
   answer: string;
   answerId: string | null;
@@ -27,12 +31,41 @@ type WorkspaceItem = {
 
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 
-function workspaceUrl(contextId: string, questionId: string) {
+const CORE_CATEGORIES = [
+  "resume",
+  "behavioral",
+  "motivation_fit",
+  "knowledge",
+  "business_commercial",
+  "situational",
+] as const;
+
+const SPECIAL_CATEGORIES = ["stress"] as const;
+const CLOSING_CATEGORIES = ["interviewer_question"] as const;
+const ALL_CATEGORIES = [...CORE_CATEGORIES, ...SPECIAL_CATEGORIES, ...CLOSING_CATEGORIES] as const;
+
+const categoryShortLabels: Record<string, string> = {
+  resume: "简历",
+  behavioral: "行为",
+  motivation_fit: "动机",
+  knowledge: "专业",
+  business_commercial: "商业 / Case",
+  situational: "情景",
+  stress: "压力",
+  interviewer_question: "反问",
+};
+
+function workspaceUrl(contextId: string, questionId: string, category: string) {
   const params = new URLSearchParams();
   if (contextId) params.set("context", contextId);
   if (questionId) params.set("question", questionId);
+  if (category !== "all") params.set("category", category);
   const query = params.toString();
   return query ? `/career/interview?${query}` : "/career/interview";
+}
+
+function isKnownCategory(category: string) {
+  return (ALL_CATEGORIES as readonly string[]).includes(category);
 }
 
 export function InterviewFastWorkspace({
@@ -40,20 +73,27 @@ export function InterviewFastWorkspace({
   items,
   initialContextId,
   initialQuestionId,
+  initialCategory,
 }: {
   targets: Target[];
   items: WorkspaceItem[];
   initialContextId: string;
   initialQuestionId: string;
+  initialCategory: string;
 }) {
   const initialItems = items.filter((item) => (initialContextId ? item.contextId === initialContextId : item.contextId === null));
   const initialItem =
     initialItems.find((item) => item.questionId === initialQuestionId)
     ?? initialItems[0]
     ?? null;
+  const resolvedInitialCategory =
+    initialCategory === "all" || isKnownCategory(initialCategory)
+      ? initialCategory
+      : initialItem?.category ?? "all";
 
   const [contextId, setContextId] = useState(initialContextId);
   const [questionId, setQuestionId] = useState(initialItem?.questionId ?? "");
+  const [category, setCategory] = useState(resolvedInitialCategory);
   const [thoughts, setThoughts] = useState(initialItem?.thoughts ?? "");
   const [answer, setAnswer] = useState(initialItem?.answer ?? "");
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -65,14 +105,24 @@ export function InterviewFastWorkspace({
   const selectedRef = useRef<WorkspaceItem | null>(initialItem);
   const thoughtsRef = useRef(thoughts);
   const answerRef = useRef(answer);
-  const answerIdRef = useRef<string | null>(initialItem?.answerId ?? null);
   const dirtyRef = useRef(false);
   const timerRef = useRef<number | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
-  const visibleItems = useMemo(
+  const contextItems = useMemo(
     () => items.filter((item) => (contextId ? item.contextId === contextId : item.contextId === null)),
     [contextId, items],
+  );
+
+  const counts = useMemo(() => {
+    const next: Record<string, number> = { all: contextItems.length };
+    for (const item of contextItems) next[item.category] = (next[item.category] ?? 0) + 1;
+    return next;
+  }, [contextItems]);
+
+  const visibleItems = useMemo(
+    () => category === "all" ? contextItems : contextItems.filter((item) => item.category === category),
+    [category, contextItems],
   );
 
   const clearTimer = useCallback(() => {
@@ -112,7 +162,6 @@ export function InterviewFastWorkspace({
           draftsRef.current.set(preparationId, draft);
         }
         if (selectedRef.current?.preparationId === preparationId && !dirtyRef.current) {
-          answerIdRef.current = result.answerId ?? null;
           setSaveState("saved");
         }
       })
@@ -136,18 +185,17 @@ export function InterviewFastWorkspace({
     }, 650);
   }, [clearTimer, saveNow]);
 
-  const replaceUrl = useCallback((nextContextId: string, nextQuestionId: string) => {
-    window.history.replaceState(null, "", workspaceUrl(nextContextId, nextQuestionId));
+  const replaceUrl = useCallback((nextContextId: string, nextQuestionId: string, nextCategory: string) => {
+    window.history.replaceState(null, "", workspaceUrl(nextContextId, nextQuestionId, nextCategory));
   }, []);
 
-  const switchItem = useCallback((nextContextId: string, nextItem: WorkspaceItem | null) => {
+  const switchItem = useCallback((nextContextId: string, nextItem: WorkspaceItem | null, nextCategory = category) => {
     void saveNow();
 
     selectedRef.current = nextItem;
     const draft = nextItem ? draftsRef.current.get(nextItem.preparationId) : null;
     const nextThoughts = draft?.thoughts ?? nextItem?.thoughts ?? "";
     const nextAnswer = draft?.answer ?? nextItem?.answer ?? "";
-    answerIdRef.current = draft?.answerId ?? nextItem?.answerId ?? null;
     dirtyRef.current = false;
     setContextId(nextContextId);
     setQuestionId(nextItem?.questionId ?? "");
@@ -156,12 +204,25 @@ export function InterviewFastWorkspace({
     thoughtsRef.current = nextThoughts;
     answerRef.current = nextAnswer;
     setSaveState("idle");
-    replaceUrl(nextContextId, nextItem?.questionId ?? "");
-  }, [replaceUrl, saveNow]);
+    replaceUrl(nextContextId, nextItem?.questionId ?? "", nextCategory);
+  }, [category, replaceUrl, saveNow]);
 
   const handleContextChange = (nextContextId: string) => {
     const nextItems = items.filter((item) => (nextContextId ? item.contextId === nextContextId : item.contextId === null));
-    switchItem(nextContextId, nextItems[0] ?? null);
+    const nextCategory = "all";
+    setCategory(nextCategory);
+    switchItem(nextContextId, nextItems[0] ?? null, nextCategory);
+  };
+
+  const handleCategoryChange = (nextCategory: string) => {
+    const nextVisible = nextCategory === "all"
+      ? contextItems
+      : contextItems.filter((item) => item.category === nextCategory);
+    setCategory(nextCategory);
+
+    const currentStillVisible = nextVisible.find((item) => item.questionId === questionId) ?? null;
+    const nextItem = currentStillVisible ?? nextVisible[0] ?? null;
+    switchItem(contextId, nextItem, nextCategory);
   };
 
   const handleQuestionChange = (nextQuestionId: string) => {
@@ -176,52 +237,110 @@ export function InterviewFastWorkspace({
   }, [saveState]);
 
   const selected = selectedRef.current;
+  const newQuestionCategory = category === "all" ? "behavioral" : category;
 
   return (
     <div className="interview-workspace -mx-2 sm:-mx-3">
-      <div className="mb-4 flex min-h-9 flex-wrap items-center justify-between gap-2.5 px-2 sm:px-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <Link href="/career" prefetch className="pressable rounded-[8px] px-1 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">← Career</Link>
-          <select
-            value={contextId}
-            onChange={(event) => handleContextChange(event.target.value)}
-            className="max-w-[300px] rounded-[9px] bg-[var(--surface-control)] px-2.5 py-1.5 text-[13px] font-medium tracking-[-0.006em] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
-          >
-            <option value="">通用题目</option>
-            {targets.map((target) => (
-              <option key={target.id} value={target.id}>
-                {target.organization ? target.organization + " · " : ""}{target.role || target.title}
-              </option>
-            ))}
-          </select>
+      <div className="px-2 sm:px-3">
+        <div className="flex min-h-9 flex-wrap items-center justify-between gap-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Link href="/career" prefetch className="pressable rounded-[8px] px-1 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">← Career</Link>
+            <select
+              aria-label="面试岗位"
+              value={contextId}
+              onChange={(event) => handleContextChange(event.target.value)}
+              className="max-w-[320px] rounded-[9px] bg-[var(--surface-control)] px-2.5 py-1.5 text-[13px] font-medium tracking-[-0.006em] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+            >
+              <option value="">通用面试</option>
+              {targets.map((target) => (
+                <option key={target.id} value={target.id}>
+                  {target.organization ? target.organization + " · " : ""}{target.role || target.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Link href="/career/interview/practice" className="pressable rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">练习</Link>
+            <Link href="/career/interview/insights" className="pressable rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">复盘</Link>
+            <details className="relative">
+              <summary className="pressable cursor-pointer list-none rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 岗位</summary>
+              <form action={createInterviewContext} className="absolute right-0 z-30 mt-2 grid w-[min(480px,88vw)] gap-3 rounded-[14px] border border-[var(--separator)] bg-[var(--material-popover)] p-4 shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%] sm:grid-cols-2">
+                <input name="organization_snapshot" required placeholder="公司" className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]" />
+                <input name="role_title_snapshot" required placeholder="岗位" className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]" />
+                <input type="hidden" name="context_type" value="target" />
+                <input type="hidden" name="return_to_workspace" value="1" />
+                <button className="pressable w-fit rounded-[9px] bg-[var(--accent)] px-3 py-2 text-[13px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]">创建</button>
+              </form>
+            </details>
+          </div>
         </div>
 
-        <details>
-          <summary className="pressable cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 岗位</summary>
-          <form action={createInterviewContext} className="mt-3 grid w-[min(480px,88vw)] gap-3 rounded-[14px] border border-[var(--separator)] bg-[var(--material-popover)] p-4 shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%] sm:grid-cols-2">
-            <input name="organization_snapshot" required placeholder="公司" className="rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[13px] outline-none focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]" />
-            <input name="role_title_snapshot" required placeholder="岗位" className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]" />
-            <input type="hidden" name="context_type" value="target" />
-            <input type="hidden" name="return_to_workspace" value="1" />
-            <button className="pressable w-fit rounded-[9px] bg-[var(--accent)] px-3 py-2 text-[13px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]">创建</button>
-          </form>
-        </details>
+        <div className="mt-5 border-b border-[var(--separator)] pb-3.5">
+          <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--text-tertiary)]">核心问题</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <CategoryButton label="全部" count={counts.all ?? 0} active={category === "all"} onClick={() => handleCategoryChange("all")} />
+            {CORE_CATEGORIES.map((key) => (
+              <CategoryButton
+                key={key}
+                label={categoryShortLabels[key]}
+                count={counts[key] ?? 0}
+                active={category === key}
+                onClick={() => handleCategoryChange(key)}
+              />
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px]">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[var(--text-tertiary)]">特殊场景</span>
+              {SPECIAL_CATEGORIES.map((key) => (
+                <CategoryTextButton
+                  key={key}
+                  label={categoryShortLabels[key]}
+                  count={counts[key] ?? 0}
+                  active={category === key}
+                  onClick={() => handleCategoryChange(key)}
+                />
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[var(--text-tertiary)]">收尾</span>
+              {CLOSING_CATEGORIES.map((key) => (
+                <CategoryTextButton
+                  key={key}
+                  label={categoryShortLabels[key]}
+                  count={counts[key] ?? 0}
+                  active={category === key}
+                  onClick={() => handleCategoryChange(key)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="grid min-h-[680px] gap-5 md:grid-cols-[286px_minmax(0,1fr)] md:gap-8">
+      <div className="mt-4 grid min-h-[680px] gap-5 md:grid-cols-[286px_minmax(0,1fr)] md:gap-8">
         <aside className="min-h-0 rounded-[16px] bg-[color-mix(in_srgb,var(--surface-control)_48%,transparent)] p-2.5 ring-1 ring-inset ring-black/[0.022]">
           <form action={createInterviewQuestion} className="mb-2.5">
             <textarea
               required
               name="canonical_prompt"
               rows={2}
-              placeholder="+ 新问题"
+              placeholder={category === "all" ? "+ 新问题" : `+ 新建${categoryShortLabels[category] ?? "面试"}题`}
               className="w-full resize-none rounded-[10px] bg-[var(--surface-canvas)] px-2.5 py-2 text-[13px] leading-5 text-[var(--text-primary)] shadow-[var(--shadow-control)] outline-none ring-1 ring-inset ring-black/[0.035] placeholder:text-[var(--text-tertiary)] focus:ring-[color-mix(in_srgb,var(--accent)_16%,transparent)]"
             />
+            <div className="mt-1 flex items-center justify-between gap-2 px-1">
+              {category === "all" ? (
+                <select name="category" defaultValue="behavioral" aria-label="新问题类型" className="max-w-[160px] bg-transparent text-[11px] text-[var(--text-tertiary)] outline-none">
+                  {ALL_CATEGORIES.map((key) => <option key={key} value={key}>{categoryLabels[key]}</option>)}
+                </select>
+              ) : <input type="hidden" name="category" value={newQuestionCategory} />}
+              <button className="pressable rounded-[7px] px-1.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]">添加</button>
+            </div>
             <input type="hidden" name="context_id" value={contextId} />
             <input type="hidden" name="return_to_workspace" value="1" />
             <input type="hidden" name="short_title" value="" />
-            <input type="hidden" name="category" value="behavioral" />
             <input type="hidden" name="subcategory" value="" />
             <input type="hidden" name="competency_tags" value="" />
             <input type="hidden" name="prompt_variants" value="" />
@@ -233,8 +352,12 @@ export function InterviewFastWorkspace({
             <input type="hidden" name="parent_question_id" value="" />
             <input type="hidden" name="follow_up_kind" value="" />
             <input type="hidden" name="difficulty" value="3" />
-            <button className="ml-2 mt-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--accent)]">添加</button>
           </form>
+
+          <div className="mb-1.5 flex items-center justify-between px-2">
+            <span className="text-[10.5px] font-medium text-[var(--text-tertiary)]">{category === "all" ? "全部问题" : categoryLabels[category] ?? "问题"}</span>
+            <span className="text-[10.5px] tabular-nums text-[var(--text-tertiary)]">{visibleItems.length}</span>
+          </div>
 
           <nav aria-label="面试题目" className="max-h-[260px] space-y-px overflow-y-auto pr-0.5 md:max-h-[600px]">
             {visibleItems.map((item) => {
@@ -250,7 +373,7 @@ export function InterviewFastWorkspace({
                 </button>
               );
             })}
-            {!visibleItems.length ? <p className="px-2 py-4 text-xs text-zinc-400">还没有题目。</p> : null}
+            {!visibleItems.length ? <p className="px-2 py-4 text-xs text-[var(--text-tertiary)]">这个分类还没有问题。</p> : null}
           </nav>
         </aside>
 
@@ -258,19 +381,28 @@ export function InterviewFastWorkspace({
           {selected ? (
             <div className="min-w-0">
               <div className="flex items-start justify-between gap-5">
-                <h1 className="max-w-3xl text-[23px] font-semibold leading-[1.42] tracking-[-0.035em] text-[var(--text-primary)]">{selected.prompt}</h1>
+                <div className="min-w-0">
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-[10.5px] text-[var(--text-tertiary)]">
+                    <span>{categoryLabels[selected.category] ?? selected.category}</span>
+                    {selected.competencies.slice(0, 2).map((tag) => <span key={tag}>· {tag}</span>)}
+                  </div>
+                  <h1 className="max-w-3xl text-[23px] font-semibold leading-[1.42] tracking-[-0.035em] text-[var(--text-primary)]">{selected.prompt}</h1>
+                </div>
                 <Link
                   href={`/career/interview/practice/${selected.preparationId}`}
                   prefetch={false}
                   onClick={() => { void saveNow(); }}
-                  className="mt-1 shrink-0 text-[11px] font-medium text-[var(--text-tertiary)] transition-colors ui-transition hover:text-[var(--accent)]"
+                  className="mt-1 shrink-0 rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] transition-colors ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
                 >
-                  练习 →
+                  开始练习 →
                 </Link>
               </div>
 
               <section className="mt-9">
-                <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">思路</h2>
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">思路</h2>
+                  <span className="text-[10.5px] text-[var(--text-tertiary)]">先想清楚，再组织表达</span>
+                </div>
                 <textarea
                   value={thoughts}
                   onChange={(event) => {
@@ -287,14 +419,17 @@ export function InterviewFastWorkspace({
                     scheduleSave();
                   }}
                   onBlur={() => { void saveNow(); }}
-                  rows={10}
-                  placeholder="把你的思路写下来。"
+                  rows={9}
+                  placeholder="这道题真正考什么？我要证明什么？用哪段经历或事实？"
                   className="mt-1.5 w-full resize-y bg-transparent px-0 py-2 text-[15px] leading-[1.75] text-[var(--text-secondary)] outline-none placeholder:text-[color-mix(in_srgb,var(--text-tertiary)_62%,transparent)]"
                 />
               </section>
 
               <section className="mt-7">
-                <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">答案</h2>
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">答案</h2>
+                  <span className="text-[10.5px] text-[var(--text-tertiary)]">写成你面试时真正会说的话</span>
+                </div>
                 <textarea
                   value={answer}
                   onChange={(event) => {
@@ -312,7 +447,7 @@ export function InterviewFastWorkspace({
                   }}
                   onBlur={() => { void saveNow(); }}
                   rows={13}
-                  placeholder="写出你真正会说的答案。"
+                  placeholder="直接回答，不写作文。"
                   className="mt-1.5 w-full resize-y bg-transparent px-0 py-2 text-[15px] leading-[1.75] text-[var(--text-primary)] outline-none placeholder:text-[color-mix(in_srgb,var(--text-tertiary)_62%,transparent)]"
                 />
               </section>
@@ -322,12 +457,59 @@ export function InterviewFastWorkspace({
               </div>
             </div>
           ) : (
-            <div className="grid min-h-[520px] place-items-center text-[13px] text-[var(--text-tertiary)]">
-              {contextId ? "从左侧添加或选择一道题。" : "选择通用题目，或创建一个岗位。"}
+            <div className="grid min-h-[520px] place-items-center px-8 text-center text-[13px] leading-6 text-[var(--text-tertiary)]">
+              {contextItems.length ? "这个分类还没有问题。你可以直接从左侧添加。" : contextId ? "这个岗位还没有面试题。" : "先添加通用题目，或选择一个目标岗位。"}
             </div>
           )}
         </main>
       </div>
     </div>
+  );
+}
+
+function CategoryButton({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`pressable inline-flex h-8 items-center gap-1.5 rounded-[9px] px-2.5 text-[12px] font-medium ${active ? "bg-[var(--text-primary)] text-white shadow-[var(--shadow-control)]" : "bg-[var(--surface-control)] text-[var(--text-secondary)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-primary)]"}`}
+    >
+      <span>{label}</span>
+      <span className={`text-[10px] tabular-nums ${active ? "text-white/60" : "text-[var(--text-tertiary)]"}`}>{count}</span>
+    </button>
+  );
+}
+
+function CategoryTextButton({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`pressable rounded-[7px] px-1.5 py-1 ${active ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
+    >
+      {label} <span className="tabular-nums text-[var(--text-tertiary)]">{count}</span>
+    </button>
   );
 }
