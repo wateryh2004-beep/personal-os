@@ -25,7 +25,7 @@ function Command({
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        "flex size-full flex-col overflow-hidden rounded-xl! bg-popover p-1 text-popover-foreground",
+        "flex size-full flex-col overflow-hidden rounded-[16px]! bg-transparent p-1 text-popover-foreground",
         className
       )}
       {...props}
@@ -54,7 +54,7 @@ function CommandDialog({
       </DialogHeader>
       <DialogContent
         className={cn(
-          "fixed inset-x-0 bottom-0 top-auto translate-x-0 translate-y-0 max-w-none overflow-hidden rounded-t-xl! rounded-b-none! p-0 pb-[env(safe-area-inset-bottom)] sm:top-1/3 sm:left-1/2 sm:bottom-auto sm:-translate-x-1/2 sm:translate-y-0 sm:max-w-2xl sm:rounded-xl! sm:pb-0",
+          "fixed inset-x-0 bottom-0 top-auto translate-x-0 translate-y-0 max-w-none overflow-hidden rounded-t-[22px]! rounded-b-none! p-0 pb-[env(safe-area-inset-bottom)] sm:top-[22%] sm:left-1/2 sm:bottom-auto sm:-translate-x-1/2 sm:translate-y-0 sm:max-w-2xl sm:rounded-[20px]! sm:pb-0",
           className
         )}
         showCloseButton={showCloseButton}
@@ -155,7 +155,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "group/command-item relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none in-data-[slot=dialog-content]:rounded-lg! data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-muted data-selected:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-foreground",
+        "group/command-item relative flex min-h-9 cursor-default items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-[13px] outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-[var(--surface-selected)] data-selected:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-foreground",
         className
       )}
       {...props}
