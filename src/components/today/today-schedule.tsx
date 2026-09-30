@@ -22,7 +22,7 @@ export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
         <span id="today-schedule-heading">今日日程</span>
       </TodaySectionHeader>
 
-      <div className="mt-2.5 border-t border-[var(--separator)] pt-2.5">
+      <div className="mt-2 border-t border-[var(--separator)] pt-2">
         {workspace.availability.calendar === "unavailable" ? (
           <p className="py-5 text-[12px] text-[var(--text-secondary)]">
             Calendar 暂不可用。数据恢复后这里会自动显示日程。
@@ -40,7 +40,7 @@ export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
                   <Link
                     key={event.id}
                     href="/calendar"
-                    className="grid grid-cols-[52px_minmax(0,1fr)] gap-2.5 py-1.5 text-[11.5px] transition-colors ui-transition hover:text-[var(--accent)]"
+                    className="grid grid-cols-[50px_minmax(0,1fr)] gap-2 py-1.5 text-[11.5px] transition-colors ui-transition hover:text-[var(--accent)]"
                   >
                     <span className="text-[10.5px] text-[var(--text-tertiary)]">全天</span>
                     <span className="truncate font-medium text-[var(--text-primary)]">{event.subject || "未命名日程"}</span>
@@ -49,14 +49,14 @@ export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
               </div>
             ) : null}
 
-            <ol className="relative ml-[58px] border-l border-[var(--separator-strong)] py-0.5">
+            <ol className="relative ml-[56px] border-l border-[var(--separator-strong)] py-0.5">
               {schedule.timed.map((event) => (
-                <li key={event.id} className="relative min-h-[46px] py-1.5">
-                  <span className="absolute -left-[63px] top-2.5 w-[48px] text-right text-[10.5px] tabular-nums text-[var(--text-tertiary)]">
+                <li key={event.id} className="relative min-h-[44px] py-1.5">
+                  <span className="absolute -left-[61px] top-2.5 w-[46px] text-right text-[10.5px] tabular-nums text-[var(--text-tertiary)]">
                     {formatTime(event.starts_at, workspace.timezone)}
                   </span>
-                  <span className="absolute -left-[3.5px] top-[14px] size-[6px] rounded-full bg-[var(--accent)] ring-[3px] ring-[var(--surface-canvas)]" />
-                  <Link href="/calendar" className="ml-3.5 block min-w-0 group">
+                  <span className="absolute -left-[3px] top-[13px] size-[5px] rounded-full bg-[var(--accent)] ring-[3px] ring-[var(--surface-canvas)]" />
+                  <Link href="/calendar" className="ml-3 block min-w-0 group">
                     <span className="block truncate text-[12.5px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                       {event.subject || "未命名日程"}
                     </span>
@@ -70,7 +70,7 @@ export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
             </ol>
 
             {schedule.hiddenCount ? (
-              <Link href="/calendar" className="mt-2 inline-flex text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--accent)]">
+              <Link href="/calendar" className="mt-1.5 inline-flex rounded-[7px] px-1 py-0.5 text-[10.5px] font-medium text-[var(--text-tertiary)] hover:text-[var(--accent)]">
                 还有 {schedule.hiddenCount} 项日程
               </Link>
             ) : null}
