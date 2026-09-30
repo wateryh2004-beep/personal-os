@@ -43,11 +43,11 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
 
       <section className="mb-14">
         <h2 className="text-[14px] font-semibold tracking-[-0.008em] text-[var(--text-primary)]">能力覆盖</h2>
-        <div className="mt-4 space-y-1">
+        <div className="mt-3.5 space-y-px">
           {data.competencyCoverage.slice(0,12).map((item) => (
-            <div key={item.tag} className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-lg px-2 py-2.5 text-sm hover:bg-white/70">
-              <span className="text-zinc-700">{competencyLabels[item.tag] ?? item.tag}</span>
-              <span className="text-xs text-zinc-400">{item.ready}/{item.total} 已准备 · {item.evidence} 条经历</span>
+            <div key={item.tag} className="grid min-h-10 grid-cols-[1fr_auto] items-center gap-4 rounded-[9px] px-2.5 py-2 transition-colors ui-transition hover:bg-[var(--surface-hover)]">
+              <span className="text-[13px] text-[var(--text-primary)]">{competencyLabels[item.tag] ?? item.tag}</span>
+              <span className="text-[11px] tabular-nums text-[var(--text-tertiary)]">{item.ready}/{item.total} 已准备 · {item.evidence} 条经历</span>
             </div>
           ))}
           {!data.competencyCoverage.length ? <p className="py-4 text-[13px] text-[var(--text-tertiary)]">还没有能力覆盖数据。</p> : null}
@@ -75,7 +75,7 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
             <div className="mt-3 space-y-2">
               {data.monthlyTrend.map((item) => (
                 <div key={item.month} className="flex items-center justify-between gap-4 text-sm">
-                  <span className="text-zinc-600">{item.month}</span>
+                  <span className="text-[12.5px] text-[var(--text-secondary)]">{item.month}</span>
                   <span className="font-mono text-[11px] tabular-nums text-[var(--text-tertiary)]">{item.attempts} 次 · {item.issuesPerAttempt.toFixed(2)} 问题/次</span>
                 </div>
               ))}
