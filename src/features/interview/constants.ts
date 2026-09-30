@@ -56,6 +56,41 @@ export const questionTypeByLegacyCategory: Record<string, string> = {
   interviewer_question: "candidate_question",
 };
 
+export const interviewVariantKinds = [
+  "canonical",
+  "alternate",
+  "company_specific",
+  "follow_up",
+  "pressure",
+  "observed",
+] as const;
+
+export const variantKindLabels: Record<string, string> = {
+  canonical: "标准问法",
+  alternate: "同义问法",
+  company_specific: "公司问法",
+  follow_up: "追问",
+  pressure: "压力问法",
+  observed: "真实问法",
+};
+
+export const interviewStoryStatuses = ["draft", "usable", "strong", "needs_review"] as const;
+
+export const storyStatusLabels: Record<string, string> = {
+  draft: "待完善",
+  usable: "可用",
+  strong: "强故事",
+  needs_review: "需复盘",
+};
+
+export const storyEvidenceRoles = ["primary", "supporting", "counter"] as const;
+
+export const storyEvidenceRoleLabels: Record<string, string> = {
+  primary: "首选故事",
+  supporting: "备选故事",
+  counter: "边界 / 反证",
+};
+
 export const interviewStatuses = [
   "unprepared",
   "developing",
@@ -96,6 +131,7 @@ export const competencyRegistry = [
   "resilience",
   "self_awareness",
   "stakeholder_management",
+  "teamwork",
   "structured_thinking",
 ] as const;
 
@@ -198,6 +234,7 @@ export const competencyLabels: Record<string, string> = {
   resilience: "韧性",
   self_awareness: "自我认知",
   stakeholder_management: "利益相关方管理",
+  teamwork: "团队协作",
   structured_thinking: "结构化思考",
 };
 

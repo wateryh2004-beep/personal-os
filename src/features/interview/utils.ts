@@ -41,6 +41,105 @@ export function sortPracticeQueue<T extends PracticeQueueItem>(items: readonly T
   });
 }
 
+export type SmartPracticeQueueItem = PracticeQueueItem & {
+  variant_kind?: string | null;
+  story_count?: number;
+  usable_story_count?: number;
+  competency_count?: number;
+  covered_competency_count?: number;
+  attempt_count?: number;
+  context_priority?: number | null;
+  next_interview_at?: string | null;
+};
+
+const smartStatusWeight: Record<string, number> = {
+  needs_review: 30,
+  unprepared: 22,
+  developing: 16,
+  practicing: 10,
+  ready: 0,
+  paused: -100,
+};
+
+const smartImportanceWeight: Record<string, number> = {
+  critical: 36,
+  high: 28,
+  normal: 18,
+  low: 8,
+};
+
+export function rankSmartPracticeQueue<T extends SmartPracticeQueueItem>(items: readonly T[], now = new Date()) {
+  const nowMs = now.getTime();
+  return items
+    .map((item) => {
+      let score = smartStatusWeight[item.status] ?? 0;
+      score += smartImportanceWeight[item.importance] ?? 0;
+      const reasons: string[] = [];
+      const attempts = item.attempt_count ?? 0;
+      const stories = item.story_count ?? 0;
+      const usableStories = item.usable_story_count ?? 0;
+      const competencyCount = item.competency_count ?? 0;
+      const coveredCompetencies = item.covered_competency_count ?? 0;
+
+      if (attempts === 0) {
+        score += 28;
+        reasons.push("还没练过");
+      } else if (item.last_practiced_at) {
+        const staleDays = Math.max(0, Math.floor((nowMs - Date.parse(item.last_practiced_at)) / 86_400_000));
+        if (staleDays >= 7) {
+          score += Math.min(18, 6 + Math.floor(staleDays / 3));
+          reasons.push(`距上次练习 ${staleDays} 天`);
+        }
+      }
+
+      if (!item.next_practice_at || Date.parse(item.next_practice_at) <= nowMs) {
+        score += 12;
+        if (attempts > 0 && reasons.length < 2) reasons.push("到期复习");
+      }
+
+      if (stories === 0) {
+        score += 24;
+        reasons.push("缺少可用故事");
+      } else if (usableStories === 0) {
+        score += 15;
+        reasons.push("故事还需完善");
+      }
+
+      const missingCompetencies = Math.max(0, competencyCount - coveredCompetencies);
+      if (missingCompetencies > 0) {
+        score += Math.min(21, missingCompetencies * 7);
+        reasons.push("能力证据不足");
+      }
+
+      if ((item.context_priority ?? 0) >= 4) {
+        score += 8;
+        reasons.push("目标岗位优先");
+      }
+
+      if (item.next_interview_at) {
+        const days = Math.ceil((Date.parse(item.next_interview_at) - nowMs) / 86_400_000);
+        if (days >= 0 && days <= 14) {
+          score += 26;
+          reasons.push(`面试还有 ${days} 天`);
+        } else if (days > 14 && days <= 30) {
+          score += 12;
+        }
+      }
+
+      if (item.variant_kind && ["alternate", "follow_up", "pressure"].includes(item.variant_kind)) score -= 50;
+
+      return {
+        ...item,
+        practice_priority_score: score,
+        practice_reasons: [...new Set(reasons)].slice(0, 2),
+      };
+    })
+    .sort((a, b) =>
+      b.practice_priority_score - a.practice_priority_score
+      || (a.last_practiced_at ? Date.parse(a.last_practiced_at) : 0) - (b.last_practiced_at ? Date.parse(b.last_practiced_at) : 0)
+    );
+}
+
 export function readinessChecklist({
   keyMessage,
   answerLogic,

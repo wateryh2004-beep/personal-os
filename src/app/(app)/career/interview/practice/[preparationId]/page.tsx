@@ -14,6 +14,7 @@ export default async function PracticeDetailPage({ params }: { params: Promise<{
   const context = Array.isArray(prep.interview_contexts) ? prep.interview_contexts[0] : prep.interview_contexts;
   const prompt = prep.prompt_override || question?.canonical_prompt || "未命名问题";
   const currentAnswer = data.answers[0] ?? null;
+  const primaryStory = data.linkedStories[0] ?? null;
 
   return (
     <>
@@ -36,6 +37,19 @@ export default async function PracticeDetailPage({ params }: { params: Promise<{
         <input type="hidden" name="next_focus" value="" />
         <input type="hidden" name="confidence_before" value="" />
         <input type="hidden" name="confidence_after" value="" />
+
+        {data.linkedStories.length ? (
+          <label className="mb-8 block">
+            <span className="text-[11px] font-medium text-zinc-400">这次调用的故事</span>
+            <select name="story_id" defaultValue={primaryStory?.story.id ?? ""} className="mt-2 h-9 w-full max-w-xl rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none">
+              <option value="">不指定故事</option>
+              {data.linkedStories.map((item: any) => (
+                <option key={item.story.id} value={item.story.id}>{item.story.title}{item.evidence_role === "primary" ? " · 首选" : ""}</option>
+              ))}
+            </select>
+            {primaryStory?.story.one_line ? <p className="mt-2 max-w-2xl text-[12px] leading-5 text-zinc-500">{primaryStory.story.one_line}</p> : null}
+          </label>
+        ) : <input type="hidden" name="story_id" value="" />}
 
         <label className="block">
           <span className="text-[15px] font-medium text-zinc-950">我的回答</span>
