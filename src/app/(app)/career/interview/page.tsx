@@ -4,7 +4,7 @@ import { getInterviewWorkspaceData } from "@/features/interview/queries";
 export default async function InterviewWorkspacePage({
   searchParams,
 }: {
-  searchParams: Promise<{ context?: string; question?: string }>;
+  searchParams: Promise<{ context?: string; question?: string; category?: string }>;
 }) {
   const params = await searchParams;
   const data = await getInterviewWorkspaceData();
@@ -36,6 +36,9 @@ export default async function InterviewWorkspacePage({
       questionId: prep.question_id as string,
       contextId: (prep.context_id as string | null) ?? null,
       prompt: (prep.prompt_override || relation.canonical_prompt) as string,
+      category: (relation.category as string | null) ?? "behavioral",
+      subcategory: (relation.subcategory as string | null) ?? null,
+      competencies: (relation.competency_tags as string[] | null) ?? [],
       thoughts: thoughts as string,
       answer: (answer?.body_markdown as string | undefined) ?? "",
       answerId: (answer?.id as string | undefined) ?? null,
@@ -60,6 +63,7 @@ export default async function InterviewWorkspacePage({
       items={items}
       initialContextId={initialContextId}
       initialQuestionId={initialQuestionId}
+      initialCategory={params.category ?? "all"}
     />
   );
 }
