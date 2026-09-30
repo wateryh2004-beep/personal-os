@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createInterviewContext,
   createInterviewQuestion,
@@ -169,6 +169,12 @@ export function InterviewFastWorkspace({
     switchItem(contextId, nextItem);
   };
 
+  useEffect(() => {
+    if (saveState !== "saved") return;
+    const timer = window.setTimeout(() => setSaveState("idle"), 1400);
+    return () => window.clearTimeout(timer);
+  }, [saveState]);
+
   const selected = selectedRef.current;
 
   return (
@@ -179,7 +185,7 @@ export function InterviewFastWorkspace({
           <select
             value={contextId}
             onChange={(event) => handleContextChange(event.target.value)}
-            className="max-w-[300px] px-2 py-1.5 text-sm font-medium text-zinc-800"
+            className="max-w-[300px] rounded-[9px] bg-[var(--surface-control)] px-2.5 py-1.5 text-[13px] font-medium tracking-[-0.006em] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
           >
             <option value="">通用题目</option>
             {targets.map((target) => (
@@ -192,25 +198,25 @@ export function InterviewFastWorkspace({
 
         <details>
           <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">+ 岗位</summary>
-          <form action={createInterviewContext} className="mt-3 grid w-[min(480px,88vw)] gap-3 rounded-xl bg-white p-4 shadow-lg ring-1 ring-black/5 sm:grid-cols-2">
-            <input name="organization_snapshot" required placeholder="公司" className="px-3 py-2 text-sm" />
+          <form action={createInterviewContext} className="mt-3 grid w-[min(480px,88vw)] gap-3 rounded-[14px] border border-[var(--separator)] bg-[var(--material-popover)] p-4 shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%] sm:grid-cols-2">
+            <input name="organization_snapshot" required placeholder="公司" className="rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[13px] outline-none focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]" />
             <input name="role_title_snapshot" required placeholder="岗位" className="px-3 py-2 text-sm" />
             <input type="hidden" name="context_type" value="target" />
             <input type="hidden" name="return_to_workspace" value="1" />
-            <button className="w-fit rounded-lg bg-zinc-900 px-3 py-2 text-sm text-white">创建</button>
+            <button className="pressable w-fit rounded-[9px] bg-[var(--accent)] px-3 py-2 text-[13px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]">创建</button>
           </form>
         </details>
       </div>
 
       <div className="grid min-h-[680px] gap-6 md:grid-cols-[290px_minmax(0,1fr)] md:gap-10">
-        <aside className="min-h-0 rounded-2xl bg-black/[0.025] p-3">
+        <aside className="min-h-0 rounded-[18px] bg-[color-mix(in_srgb,var(--surface-control)_52%,transparent)] p-3 ring-1 ring-inset ring-black/[0.025]">
           <form action={createInterviewQuestion} className="mb-3">
             <textarea
               required
               name="canonical_prompt"
               rows={2}
               placeholder="+ 新问题"
-              className="w-full resize-none bg-transparent px-2 py-2 text-sm leading-5 text-zinc-700 outline-none placeholder:text-zinc-300"
+              className="w-full resize-none rounded-[10px] bg-[var(--surface-canvas)] px-2.5 py-2 text-[13px] leading-5 text-[var(--text-primary)] shadow-[var(--shadow-control)] outline-none ring-1 ring-inset ring-black/[0.035] placeholder:text-[var(--text-tertiary)] focus:ring-[color-mix(in_srgb,var(--accent)_16%,transparent)]"
             />
             <input type="hidden" name="context_id" value={contextId} />
             <input type="hidden" name="return_to_workspace" value="1" />
@@ -227,7 +233,7 @@ export function InterviewFastWorkspace({
             <input type="hidden" name="parent_question_id" value="" />
             <input type="hidden" name="follow_up_kind" value="" />
             <input type="hidden" name="difficulty" value="3" />
-            <button className="ml-2 text-[11px] text-zinc-400 hover:text-zinc-700">添加</button>
+            <button className="ml-2 mt-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--accent)]">添加</button>
           </form>
 
           <nav aria-label="面试题目" className="max-h-[260px] space-y-0.5 overflow-y-auto pr-1 md:max-h-[600px]">
@@ -238,7 +244,7 @@ export function InterviewFastWorkspace({
                   type="button"
                   key={item.preparationId}
                   onClick={() => handleQuestionChange(item.questionId)}
-                  className={`block w-full rounded-lg px-2.5 py-2.5 text-left text-[13px] leading-5 transition-colors ${active ? "bg-white font-medium text-zinc-950 shadow-sm" : "text-zinc-600 hover:bg-white/70 hover:text-zinc-900"}`}
+                  className={`pressable block w-full rounded-[10px] px-2.5 py-2.5 text-left text-[13px] leading-5 ${active ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-white/55 hover:text-[var(--text-primary)]"}`}
                 >
                   <span className="line-clamp-2">{item.prompt}</span>
                 </button>
@@ -252,19 +258,19 @@ export function InterviewFastWorkspace({
           {selected ? (
             <div className="min-w-0">
               <div className="flex items-start justify-between gap-6">
-                <h1 className="max-w-3xl text-[24px] font-semibold leading-9 tracking-[-0.025em] text-zinc-950">{selected.prompt}</h1>
+                <h1 className="max-w-3xl text-[24px] font-semibold leading-[1.45] tracking-[-0.032em] text-[var(--text-primary)]">{selected.prompt}</h1>
                 <Link
                   href={`/career/interview/practice/${selected.preparationId}`}
                   prefetch={false}
                   onClick={() => { void saveNow(); }}
-                  className="mt-1 shrink-0 text-xs text-zinc-400 hover:text-zinc-700"
+                  className="mt-1 shrink-0 text-[11px] font-medium text-[var(--text-tertiary)] transition-colors ui-transition hover:text-[var(--accent)]"
                 >
                   练习 →
                 </Link>
               </div>
 
               <section className="mt-10">
-                <h2 className="text-xs font-medium text-zinc-400">思路</h2>
+                <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">思路</h2>
                 <textarea
                   value={thoughts}
                   onChange={(event) => {
@@ -283,12 +289,12 @@ export function InterviewFastWorkspace({
                   onBlur={() => { void saveNow(); }}
                   rows={10}
                   placeholder="把你的思路写下来。"
-                  className="mt-2 w-full resize-y bg-transparent px-0 py-2 text-[15px] leading-7 text-zinc-800 outline-none placeholder:text-zinc-300"
+                  className="mt-2 w-full resize-y bg-transparent px-0 py-2 text-[15px] leading-7 text-[var(--text-secondary)] outline-none placeholder:text-[color-mix(in_srgb,var(--text-tertiary)_62%,transparent)]"
                 />
               </section>
 
               <section className="mt-8">
-                <h2 className="text-xs font-medium text-zinc-400">答案</h2>
+                <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">答案</h2>
                 <textarea
                   value={answer}
                   onChange={(event) => {
@@ -307,11 +313,11 @@ export function InterviewFastWorkspace({
                   onBlur={() => { void saveNow(); }}
                   rows={13}
                   placeholder="写出你真正会说的答案。"
-                  className="mt-2 w-full resize-y bg-transparent px-0 py-2 text-[15px] leading-7 text-zinc-900 outline-none placeholder:text-zinc-300"
+                  className="mt-2 w-full resize-y bg-transparent px-0 py-2 text-[15px] leading-7 text-[var(--text-primary)] outline-none placeholder:text-[color-mix(in_srgb,var(--text-tertiary)_62%,transparent)]"
                 />
               </section>
 
-              <div className="mt-3 h-5 text-right text-[11px] text-zinc-300">
+              <div aria-live="polite" className="mt-3 h-5 text-right text-[10.5px] text-[var(--text-tertiary)] transition-opacity ui-transition">
                 {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "error" ? "保存失败" : ""}
               </div>
             </div>
