@@ -102,7 +102,7 @@ export function ReviewComposer({
         <main className="min-w-0">
           <ReviewEditor type={type} value={value} onChange={setValue} />
           <p className="mt-3.5 text-[10.5px] leading-5 text-[var(--text-tertiary)]">
-            保存后会创建新版本，并记录本次证据来源。AI 草稿不会自动进入 Memory 或改变决定。
+            保存后会创建新版本，并记录本次证据来源。AI 草稿不会自动进入记忆或改变决定。
           </p>
         </main>
         <ReviewEvidencePanel evidence={evidence} />
