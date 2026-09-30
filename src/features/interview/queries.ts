@@ -72,7 +72,7 @@ export async function getInterviewWorkspaceData() {
       .order("title"),
     supabase
       .from("interview_question_preparations")
-      .select("id,question_id,context_id,prompt_override,working_thoughts_markdown,key_message,answer_logic_markdown,target_language,position,updated_at,interview_questions!inner(id,canonical_prompt,short_title,parent_question_id,archived_at)")
+      .select("id,question_id,context_id,prompt_override,working_thoughts_markdown,key_message,answer_logic_markdown,target_language,position,updated_at,interview_questions!inner(id,canonical_prompt,short_title,category,subcategory,competency_tags,parent_question_id,follow_up_kind,archived_at)")
       .is("archived_at", null)
       .is("interview_questions.archived_at", null)
       .order("position")
