@@ -33,17 +33,17 @@ export function CareerNav({ current }: { current: string }) {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`shrink-0 pb-1 transition-colors ${active ? "font-medium text-zinc-950" : "text-zinc-400 hover:text-zinc-700"}`}
+            className={`relative shrink-0 pb-1.5 transition-colors ui-transition after:absolute after:inset-x-0 after:-bottom-px after:h-px after:rounded-full after:transition-opacity after:duration-[var(--motion-fast)] ${active ? "font-medium text-[var(--text-primary)] after:bg-[var(--accent)] after:opacity-100" : "text-[var(--text-tertiary)] after:opacity-0 hover:text-[var(--text-primary)]"}`}
           >
             {label}
           </Link>
         );
       })}
       <details className="group relative shrink-0">
-        <summary className="cursor-pointer list-none pb-1 text-zinc-400 hover:text-zinc-700">更多</summary>
-        <div className="absolute left-0 top-7 z-20 min-w-36 rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-black/5">
+        <summary className="pressable cursor-pointer list-none rounded-[8px] px-1 pb-1.5 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">更多</summary>
+        <div className="absolute left-0 top-8 z-20 min-w-36 rounded-[12px] border border-[var(--separator)] bg-[var(--material-popover)] p-1.5 shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%]">
           {secondary.map(([label, href]) => (
-            <Link key={href} href={href} className="block rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950">
+            <Link key={href} href={href} className="pressable block rounded-[8px] px-3 py-2 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--surface-selected)] hover:text-[var(--text-primary)]">
               {label}
             </Link>
           ))}
