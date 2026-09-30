@@ -240,20 +240,20 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     <section className="flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
       <div className="relative flex min-w-0 flex-1 flex-col">
         <header className="shrink-0 border-b border-white/55 bg-[var(--material-toolbar)] shadow-[0_1px_0_rgba(60,60,67,.035)] backdrop-blur-2xl backdrop-saturate-[180%]">
-          <div className="flex min-h-[50px] items-center justify-between gap-3 px-3 md:px-4">
+          <div className="flex min-h-[48px] items-center justify-between gap-2.5 px-3 md:px-4">
             <div className="flex min-w-0 items-center gap-1">
               <button className="pressable inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" onClick={() => changeCursor(-1)} aria-label="上一段日期"><ChevronLeft size={17} /></button>
               <button className="pressable inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" onClick={() => changeCursor(1)} aria-label="下一段日期"><ChevronRight size={17} /></button>
               <Popover>
                 <PopoverTrigger asChild>
-                  <button type="button" title={view === "month" ? "跳到月份" : "跳到日期"} className="pressable ml-1 flex min-w-0 max-w-[252px] items-center gap-1 rounded-[8px] px-1.5 py-1 text-left hover:bg-[var(--surface-hover)]">
-                    <span className="truncate text-[15.5px] font-semibold tracking-[-0.03em] text-[var(--text-primary)] md:text-[17.5px]">{title}</span>
+                  <button type="button" title={view === "month" ? "跳到月份" : "跳到日期"} className="pressable ml-1 flex min-w-0 max-w-[248px] items-center gap-1 rounded-[8px] px-1.5 py-1 text-left hover:bg-[var(--surface-hover)]">
+                    <span className="truncate text-[15px] font-semibold tracking-[-0.03em] text-[var(--text-primary)] md:text-[17px]">{title}</span>
                     <ChevronDown size={13} className="shrink-0 text-[var(--text-tertiary)]" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-auto p-3">
                   <label className="grid gap-1.5 text-[11px] text-[var(--text-secondary)]">{view === "month" ? "跳到月份" : "跳到日期"}
-                    <input type={view === "month" ? "month" : "date"} defaultValue={instantToWallTime(cursor.toISOString(), timezone).slice(0, view === "month" ? 7 : 10)} onChange={(event) => { const value = event.target.value; if (value) jumpToDate(view === "month" ? `${value}-01` : value); }} className="h-9 min-w-52 rounded-[var(--radius-md)] border-0 bg-[var(--surface-control)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]" />
+                    <input type={view === "month" ? "month" : "date"} defaultValue={instantToWallTime(cursor.toISOString(), timezone).slice(0, view === "month" ? 7 : 10)} onChange={(event) => { const value = event.target.value; if (value) jumpToDate(view === "month" ? `${value}-01` : value); }} className="h-9 min-w-52 rounded-[var(--radius-md)] border-0 bg-[var(--surface-control)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]" />
                   </label>
                 </PopoverContent>
               </Popover>
@@ -261,15 +261,15 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              <div className="hidden items-center gap-2.5 sm:flex">
+              <div className="hidden items-center gap-2 sm:flex">
                 {availableViews.map((item) => (
-                  <button key={item} onClick={() => setView(item)} aria-pressed={view === item} className={`pressable relative rounded-[7px] px-1.5 py-[7px] text-[11.5px] font-medium ${view === item ? "text-[var(--text-primary)] after:absolute after:inset-x-1 after:-bottom-[9px] after:h-px after:rounded-full after:bg-[var(--accent)]" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"}`}>
+                  <button key={item} onClick={() => setView(item)} aria-pressed={view === item} className={`pressable relative rounded-[7px] px-1.5 py-1.5 text-[11px] font-medium ${view === item ? "text-[var(--text-primary)] after:absolute after:inset-x-1 after:-bottom-[8px] after:h-px after:rounded-full after:bg-[var(--accent)]" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"}`}>
                     {item === "day" ? "日" : item === "week" ? "周" : "月"}
                   </button>
                 ))}
               </div>
-              <span title={`下次近期待办同步：${syncStatus?.nextHourlyAt ? new Date(syncStatus.nextHourlyAt).toLocaleString("zh-CN") : "未计划"}\n下次全量对账：${syncStatus?.nextFullAt ? new Date(syncStatus.nextFullAt).toLocaleString("zh-CN") : "未计划"}`} className="ml-1 hidden items-center gap-1.5 whitespace-nowrap px-1.5 text-[10.5px] text-[var(--text-tertiary)] lg:inline-flex"><span className={`size-1.5 rounded-full ${syncTone}`} />{syncStatus?.subscriptionExpiring ? "订阅即将到期" : syncLabel(syncStatus)}</span>
-              <button type="button" onClick={ai.toggle} aria-label="Calendar AI" className="pressable inline-flex size-8 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><Bot size={15} /></button>
+              <span title={`下次近期待办同步：${syncStatus?.nextHourlyAt ? new Date(syncStatus.nextHourlyAt).toLocaleString("zh-CN") : "未计划"}\n下次全量对账：${syncStatus?.nextFullAt ? new Date(syncStatus.nextFullAt).toLocaleString("zh-CN") : "未计划"}`} className="ml-1 hidden items-center gap-1.5 whitespace-nowrap px-1.5 text-[10px] text-[var(--text-tertiary)] lg:inline-flex"><span className={`size-1.5 rounded-full ${syncTone}`} />{syncStatus?.subscriptionExpiring ? "订阅即将到期" : syncLabel(syncStatus)}</span>
+              <button type="button" onClick={ai.toggle} aria-label="Calendar AI" className="pressable inline-flex size-[30px] items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><Bot size={15} /></button>
               <Popover>
                 <PopoverTrigger asChild><button aria-label="更多日历操作" className="pressable inline-flex size-8 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><MoreHorizontal size={17} /></button></PopoverTrigger>
                 <PopoverContent align="end" className="w-64 p-1.5">
@@ -281,30 +281,30 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
                   <p className="px-2 py-1.5 text-[10.5px] leading-5 text-[var(--text-tertiary)]">状态：{syncStatus?.state ?? "unavailable"}{syncStatus?.errorCode ? ` · ${syncStatus.errorCode}` : ""}<br/>最后成功：{syncStatus?.lastSyncAt ? new Date(syncStatus.lastSyncAt).toLocaleString("zh-CN") : "从未"}<br/>全量对账：{syncStatus?.nextFullAt ? new Date(syncStatus.nextFullAt).toLocaleString("zh-CN") : "等待调度"}</p>
                 </PopoverContent>
               </Popover>
-              <button onClick={() => openDraft(initialDraft(timezone))} className="pressable ml-1 inline-flex h-8 items-center gap-1 rounded-[9px] bg-[var(--accent)] px-2.5 text-[12px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,.06)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]"><Plus size={14} />新建</button>
+              <button onClick={() => openDraft(initialDraft(timezone))} className="pressable ml-1 inline-flex h-[30px] items-center gap-1 rounded-[8px] bg-[var(--accent)] px-2.5 text-[11.5px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,.06)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]"><Plus size={14} />新建</button>
             </div>
           </div>
 
-          <div className="flex min-h-[34px] items-center gap-0.5 overflow-x-auto border-t border-[rgba(60,60,67,.06)] px-3 py-1 [scrollbar-width:none] md:px-4">
+          <div className="flex min-h-[32px] items-center gap-px overflow-x-auto border-t border-[rgba(60,60,67,.06)] px-3 py-[3px] [scrollbar-width:none] md:px-4">
             {primaryCalendarCategories.map((category) => {
               const dot = outlookCategoryDot(category.color);
               const active = selectedCategories.has(category.displayName);
               return (
-                <button key={category.key} type="button" onClick={() => toggleCategory(category.displayName)} aria-pressed={active} className={`pressable flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[8px] px-2 py-[3px] text-[10.5px] ${active ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}>
-                  <span className="size-[6px] shrink-0 rounded-full" style={{ backgroundColor: dot }} />
+                <button key={category.key} type="button" onClick={() => toggleCategory(category.displayName)} aria-pressed={active} className={`pressable flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[7px] px-2 py-[3px] text-[10px] ${active ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}>
+                  <span className="size-[5px] shrink-0 rounded-full" style={{ backgroundColor: dot }} />
                   {category.shortName}
                 </button>
               );
             })}
-            <span className="mx-1 h-3 w-px shrink-0 bg-[var(--border-subtle)]" />
-            <button type="button" onClick={() => setHideInternship((current) => !current)} aria-pressed={hideInternship} className={`pressable hidden shrink-0 items-center gap-1 rounded-[9px] px-2 py-1 text-[11px] md:flex ${hideInternship ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><EyeOff size={12}/>{hideInternship ? "已隐藏实习" : "实习"}</button>
-            <button type="button" onClick={() => setSettingsOpen(true)} className="pressable flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[9px] px-2 py-1 text-[11px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><Settings2 size={12} />分类</button>
+            <span className="mx-1 h-3.5 w-px shrink-0 bg-[var(--border-subtle)]" />
+            <button type="button" onClick={() => setHideInternship((current) => !current)} aria-pressed={hideInternship} className={`pressable hidden shrink-0 items-center gap-1 rounded-[8px] px-2 py-[3px] text-[10.5px] md:flex ${hideInternship ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><EyeOff size={12}/>{hideInternship ? "已隐藏实习" : "实习"}</button>
+            <button type="button" onClick={() => setSettingsOpen(true)} className="pressable flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[8px] px-2 py-[3px] text-[10.5px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><Settings2 size={12} />分类</button>
           </div>
         </header>
 
         <CalendarFullView events={filtered} categories={categories} timezone={timezone} initialView={fullCalendarView(view)} initialDate={cursor} onOpen={openEvent} onCreate={openDraft} onMove={moveEvent} onRangeChange={onRangeChange} loadingRange={loadingRange} />
-        {rangeTruncated ? <p className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[rgba(255,249,235,.94)] px-2.5 py-1 text-[10px] text-[var(--warning)] shadow-sm backdrop-blur-md">当前范围仅显示前 1,000 条日程</p> : null}
-        {calendarError ? <p role="status" className="absolute left-3 top-[92px] z-10 max-w-md rounded-[8px] border border-[rgba(178,80,0,.16)] bg-[rgba(255,249,235,.96)] px-2.5 py-2 text-[10.5px] leading-5 text-[var(--warning)] shadow-sm backdrop-blur-md">{calendarError}</p> : null}
+        {rangeTruncated ? <p className="absolute bottom-2.5 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[rgba(255,249,235,.94)] px-2.5 py-1 text-[9.5px] text-[var(--warning)] shadow-sm backdrop-blur-md">当前范围仅显示前 1,000 条日程</p> : null}
+        {calendarError ? <p role="status" className="absolute left-3 top-[86px] z-10 max-w-md rounded-[9px] border border-[rgba(178,80,0,.14)] bg-[rgba(255,249,235,.96)] px-2.5 py-1.5 text-[10.5px] leading-5 text-[var(--warning)] shadow-sm backdrop-blur-md">{calendarError}</p> : null}
       </div>
 
       <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="calendar-inspector w-[min(380px,calc(100vw-8px))]">{selected ? <><CalendarEventEditForm key={selected.id} event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={reconcileInspectorMutation} /><EntityBacklinks type="calendar_event" id={selected.id} /></> : draft ? <CalendarCreateForm key={`${draft.startsAt}:${draft.endsAt}:${draft.isAllDay ? "all-day" : "timed"}`} timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={reconcileCreatedEvent} /> : null}</Inspector>
