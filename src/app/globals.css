@@ -143,11 +143,11 @@ button,[role="button"],a { -webkit-user-select:none; user-select:none; }
 .calendar-canvas .fc-timegrid-slot-label-cushion { color:var(--text-tertiary); font-size:11px; padding-right:10px; }
 .calendar-canvas .fc-timegrid-now-indicator-line { border-color:var(--danger); border-width:1px; }
 .calendar-canvas .fc-timegrid-now-indicator-arrow { border-color:var(--danger); color:var(--danger); }
-.calendar-canvas .fc-event { border-width:1px 1px 1px 3px; border-radius:6px; box-shadow:none; cursor:pointer; }
+.calendar-canvas .fc-event { border-width:1px 1px 1px 3px; border-radius:8px; box-shadow:none; cursor:pointer; }
 .calendar-canvas .fc-timegrid-event { margin:1px 2px; }
 .calendar-canvas .fc .fc-timegrid-event-harness { left:0!important; right:0!important; margin-left:0!important; margin-right:2px!important; }
 .calendar-canvas .fc-daygrid-day-frame { min-height:112px; }
-.calendar-canvas .fc-daygrid-event { border-radius:6px; margin:2px 3px; min-height:22px; transition:box-shadow var(--motion-fast) var(--ease-standard),filter var(--motion-fast) var(--ease-standard); }
+.calendar-canvas .fc-daygrid-event { border-radius:8px; margin:2px 3px; min-height:22px; transition:box-shadow var(--motion-fast) var(--ease-standard),filter var(--motion-fast) var(--ease-standard); }
 .calendar-canvas .fc-timegrid .fc-daygrid-day-frame { min-height:0!important; }
 .calendar-canvas .fc-timegrid .fc-daygrid-day-events { min-height:0!important; margin:0!important; display:flex; flex-wrap:wrap; align-items:flex-start; }
 .calendar-canvas .fc-timegrid .fc-daygrid-day-events > .fc-daygrid-event-harness { flex:1 1 0%; min-width:0; margin-right:2px; }
@@ -296,8 +296,8 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article p { font-size:10.5
 .career-surface textarea,
 .career-surface select {
   border-color:transparent!important;
-  border-radius:8px!important;
-  background:rgba(118,118,128,.065)!important;
+  border-radius:var(--radius-md)!important;
+  background:var(--surface-control)!important;
   box-shadow:none!important;
 }
 .career-surface input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):focus,
@@ -386,4 +386,30 @@ details > summary { transition:color var(--motion-fast) var(--ease-standard),opa
 @media (prefers-reduced-motion:reduce) {
   ::view-transition-old(.app-route),
   ::view-transition-new(.app-route) { animation:none!important; }
+}
+
+
+@media (prefers-reduced-transparency:reduce) {
+  :root {
+    --material-thin:#fff;
+    --material-regular:#fff;
+    --material-thick:#fff;
+    --material-sidebar:#f7f7f8;
+    --material-toolbar:#fff;
+    --material-popover:#fff;
+  }
+  .material-thin,.material-regular,.material-thick,
+  [data-slot="dialog-content"],[data-slot="sheet-content"],[data-slot="popover-content"],
+  [data-slot="select-content"],[data-slot="dropdown-menu-content"] {
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+  }
+}
+@media (prefers-contrast:more) {
+  :root {
+    --border-subtle:rgba(60,60,67,.20);
+    --separator:rgba(60,60,67,.20);
+    --text-secondary:#4f4f53;
+    --text-tertiary:#626267;
+  }
 }
