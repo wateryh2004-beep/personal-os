@@ -70,15 +70,15 @@ export function ReviewComposer({
 
   return (
     <section className="mx-auto max-w-[1080px]">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--separator)] pb-4.5">
+      <header className="flex flex-wrap items-start justify-between gap-3.5 border-b border-[var(--separator)] pb-4">
         <div>
           <p className="text-[10.5px] font-semibold tracking-[0.08em] text-[var(--accent)]">
             {type === "daily" ? "每日复盘" : "每周复盘"}
           </p>
-          <h1 className="mt-1 text-[27px] font-semibold leading-[1.08] tracking-[-0.042em] text-[var(--text-primary)]">
+          <h1 className="mt-1 text-[26px] font-semibold leading-[1.08] tracking-[-0.042em] text-[var(--text-primary)]">
             {type === "daily" ? "今日复盘" : "本周复盘"}
           </h1>
-          <p className="mt-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+          <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">
             {periodLabel} · {existingReviewId ? "已完成，可继续修正" : "尚未完成"}
           </p>
         </div>
@@ -98,10 +98,10 @@ export function ReviewComposer({
           {notice.text}
         </p>
       ) : null}
-      <div className="mt-6 grid gap-7 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="mt-5.5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_292px]">
         <main className="min-w-0">
           <ReviewEditor type={type} value={value} onChange={setValue} />
-          <p className="mt-3.5 text-[10.5px] leading-5 text-[var(--text-tertiary)]">
+          <p className="mt-3 text-[10px] leading-5 text-[var(--text-tertiary)]">
             保存后会创建新版本，并记录本次证据来源。AI 草稿不会自动进入记忆或改变决定。
           </p>
         </main>
