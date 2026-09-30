@@ -12,6 +12,8 @@ import {
   interviewNoteTypes,
   interviewSessionFormats,
   interviewSourceTypes,
+  interviewStoryStatuses,
+  storyEvidenceRoles,
   interviewStatuses,
   splitTagInput,
 } from "./constants";
@@ -120,6 +122,7 @@ export const interviewAnswerSchema = z.object({
 export const interviewAttemptSchema = z.object({
   preparation_id: z.string().uuid(),
   answer_version_id: optionalUuid,
+  story_id: optionalUuid,
   input_mode: z.enum(["text", "voice", "transcript_import"]),
   language: z.enum(interviewLanguages),
   prompt_snapshot: optionalText(10_000),
@@ -149,6 +152,7 @@ export const interviewSessionAttemptSchema = z.object({
   session_id: z.string().uuid(),
   preparation_id: optionalUuid,
   parent_attempt_id: optionalUuid,
+  story_id: optionalUuid,
   input_mode: z.enum(["text", "voice", "transcript_import"]),
   language: z.enum(interviewLanguages),
   prompt_snapshot: z.string().trim().min(1).max(10_000),
@@ -168,6 +172,25 @@ export const interviewSessionReviewSchema = z.object({
   strength_tags: tagField(32),
   issue_tags: tagField(32),
   next_focus: z.string().max(5_000).optional().default(""),
+});
+
+export const interviewStorySchema = z.object({
+  experience_id: optionalUuid,
+  title: z.string().trim().min(1).max(180),
+  one_line: z.string().max(800).optional().default(""),
+  situation_markdown: z.string().max(20_000).optional().default(""),
+  task_markdown: z.string().max(20_000).optional().default(""),
+  action_markdown: z.string().max(40_000).optional().default(""),
+  result_markdown: z.string().max(20_000).optional().default(""),
+  reflection_markdown: z.string().max(20_000).optional().default(""),
+  status: z.enum(interviewStoryStatuses),
+});
+
+export const interviewArchetypeStorySchema = z.object({
+  archetype_id: z.string().uuid(),
+  story_id: z.string().uuid(),
+  evidence_role: z.enum(storyEvidenceRoles),
+  fit_note: z.string().max(4_000).optional().default(""),
 });
 
 export const interviewEvidenceSchema = z.object({
