@@ -19,15 +19,15 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
       <PageHeader title="项目" description="聚合真正需要持续推进的长期工作。" action={<Button onClick={() => setOpen(true)}><Plus aria-hidden="true" />新建项目</Button>} />
 
       {projects.length ? (
-        <div className="mt-6 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
+        <div className="mt-5 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
           {projects.map((project) => (
-            <article key={project.id} className="group grid gap-1.5 px-2 py-3.5 transition-colors ui-transition hover:bg-[var(--surface-hover)] sm:grid-cols-[1fr_auto] sm:items-start">
+            <article key={project.id} className="group grid gap-1.5 px-2 py-3 transition-colors ui-transition hover:bg-[var(--surface-hover)] sm:grid-cols-[1fr_auto] sm:items-start">
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
-                  <h2 className="truncate text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{project.name}</h2>
-                  <span className="shrink-0 rounded-full bg-[var(--surface-control)] px-2 py-0.5 text-[10.5px] text-[var(--text-secondary)]">{statusLabel[project.status] ?? project.status}</span>
+                  <h2 className="truncate text-[13.25px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{project.name}</h2>
+                  <span className="shrink-0 rounded-full bg-[var(--surface-control)] px-2 py-0.5 text-[10px] text-[var(--text-secondary)]">{statusLabel[project.status] ?? project.status}</span>
                 </div>
-                <p className={`mt-1 line-clamp-2 text-[12px] leading-5 ${project.description ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]"}`}>{project.description || "尚未补充项目说明"}</p>
+                <p className={`mt-0.5 line-clamp-2 text-[11.75px] leading-5 ${project.description ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]"}`}>{project.description || "尚未补充项目说明"}</p>
               </div>
               <div className="text-right text-[10.5px] leading-5 text-[var(--text-tertiary)]">
                 <p>{project.due_date ? `截止 ${new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(project.due_date))}` : "持续推进"}</p>
@@ -37,11 +37,11 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
           ))}
         </div>
       ) : (
-        <div className="flex min-h-64 flex-col items-center justify-center text-center">
+        <div className="flex min-h-60 flex-col items-center justify-center text-center">
           <SquareKanban className="size-6 text-[var(--text-tertiary)]" aria-hidden="true" />
-          <h2 className="mt-3 text-[13.5px] font-medium text-[var(--text-primary)]">还没有进行中的项目</h2>
+          <h2 className="mt-2.5 text-[13.25px] font-medium text-[var(--text-primary)]">还没有进行中的项目</h2>
           <p className="mt-1 text-[11.5px] text-[var(--text-secondary)]">只在确实需要持续推进与聚合时创建项目。</p>
-          <Button size="sm" className="mt-3.5" onClick={() => setOpen(true)}>新建项目</Button>
+          <Button size="sm" className="mt-3" onClick={() => setOpen(true)}>新建项目</Button>
         </div>
       )}
 
