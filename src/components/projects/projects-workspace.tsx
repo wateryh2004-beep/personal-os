@@ -4,15 +4,58 @@ import { useState } from "react";
 import { Plus, SquareKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/shared/page-header";
 import { createProject } from "@/features/projects/actions";
 
 type Project = { id: string; name: string; description: string | null; status: string; due_date: string | null; updated_at: string };
+const statusLabel: Record<string,string> = { active:"进行中", completed:"已完成", paused:"已暂停" };
 
 export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { projects: Project[]; initialCreateOpen?: boolean }) {
   const [open, setOpen] = useState(initialCreateOpen);
-  return <div><PageHeader title="Projects" description="聚合正在推进的长期工作；任务执行仍以 Microsoft To Do 为准。" action={<Button onClick={() => setOpen(true)}><Plus aria-hidden="true" />新建项目</Button>} />
-    {projects.length ? <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{projects.map((project) => <article key={project.id} className="group flex min-h-35 flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-canvas)] p-4 transition-[border-color,box-shadow,transform] ui-transition hover:-translate-y-px hover:border-[color-mix(in_srgb,var(--accent)_24%,var(--border))] hover:shadow-[0_8px_20px_rgba(24,24,27,0.055)]"><div className="flex min-w-0 items-start justify-between gap-3"><h2 className="truncate text-sm font-semibold text-[var(--text-primary)]">{project.name}</h2><span className="shrink-0 rounded-full bg-[var(--surface-hover)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">{project.status === "completed" ? "已完成" : project.status === "paused" ? "已暂停" : "进行中"}</span></div>{project.description ? <p className="mt-2 line-clamp-2 text-sm leading-5 text-[var(--text-secondary)]">{project.description}</p> : <p className="mt-2 text-sm text-[var(--text-tertiary)]">尚未补充项目说明</p>}<div className="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border)] pt-3 text-[11px] text-[var(--text-tertiary)]"><span>{project.due_date ? `截止 ${new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(project.due_date))}` : "持续推进"}</span><span>更新于 {new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(new Date(project.updated_at))}</span></div></article>)}</div> : <div className="flex min-h-72 flex-col items-center justify-center text-center"><SquareKanban className="size-7 text-[var(--accent)]" aria-hidden="true" /><h2 className="mt-3 text-sm font-medium">还没有进行中的项目</h2><p className="mt-1 text-sm text-[var(--text-secondary)]">只在确实需要持续推进与聚合时创建项目。</p><Button className="mt-4" onClick={() => setOpen(true)}>新建项目</Button></div>}
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>新建项目</DialogTitle><DialogDescription>创建真实项目容器；具体行动继续进入 Tasks。</DialogDescription></DialogHeader><form action={createProject} className="grid gap-4"><label className="grid gap-1.5 text-sm">项目名称<input name="name" required maxLength={180} autoComplete="off" placeholder="例如：Personal OS 2.0…" className="h-9 rounded-[var(--radius-md)] border bg-white px-3" /></label><label className="grid gap-1.5 text-sm">说明（可选）<textarea name="description" maxLength={8000} rows={4} autoComplete="off" placeholder="目标、边界和完成标准…" className="rounded-[var(--radius-md)] border bg-white px-3 py-2" /></label><label className="grid gap-1.5 text-sm">截止日期（可选）<input name="due_date" type="date" className="h-9 rounded-[var(--radius-md)] border bg-white px-3" /></label><div className="flex justify-end"><Button>创建项目</Button></div></form></DialogContent></Dialog>
-  </div>;
+  return (
+    <div>
+      <PageHeader title="项目" description="聚合真正需要持续推进的长期工作。" action={<Button onClick={() => setOpen(true)}><Plus aria-hidden="true" />新建项目</Button>} />
+
+      {projects.length ? (
+        <div className="mt-6 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
+          {projects.map((project) => (
+            <article key={project.id} className="group grid gap-1.5 px-2 py-3.5 transition-colors ui-transition hover:bg-[var(--surface-hover)] sm:grid-cols-[1fr_auto] sm:items-start">
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h2 className="truncate text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{project.name}</h2>
+                  <span className="shrink-0 rounded-full bg-[var(--surface-control)] px-2 py-0.5 text-[10.5px] text-[var(--text-secondary)]">{statusLabel[project.status] ?? project.status}</span>
+                </div>
+                <p className={`mt-1 line-clamp-2 text-[12px] leading-5 ${project.description ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]"}`}>{project.description || "尚未补充项目说明"}</p>
+              </div>
+              <div className="text-right text-[10.5px] leading-5 text-[var(--text-tertiary)]">
+                <p>{project.due_date ? `截止 ${new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(project.due_date))}` : "持续推进"}</p>
+                <p>更新于 {new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(new Date(project.updated_at))}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="flex min-h-64 flex-col items-center justify-center text-center">
+          <SquareKanban className="size-6 text-[var(--text-tertiary)]" aria-hidden="true" />
+          <h2 className="mt-3 text-[13.5px] font-medium text-[var(--text-primary)]">还没有进行中的项目</h2>
+          <p className="mt-1 text-[11.5px] text-[var(--text-secondary)]">只在确实需要持续推进与聚合时创建项目。</p>
+          <Button size="sm" className="mt-3.5" onClick={() => setOpen(true)}>新建项目</Button>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>新建项目</DialogTitle><DialogDescription>建立项目容器；具体行动继续进入任务。</DialogDescription></DialogHeader>
+          <form action={createProject} className="grid gap-3">
+            <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-secondary)]">项目名称<Input name="name" required maxLength={180} autoComplete="off" placeholder="例如：Personal OS 2.0" /></label>
+            <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-secondary)]">说明（可选）<Textarea name="description" maxLength={8000} rows={4} autoComplete="off" placeholder="目标、边界和完成标准…" /></label>
+            <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-secondary)]">截止日期（可选）<Input name="due_date" type="date" /></label>
+            <div className="flex justify-end"><Button>创建项目</Button></div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
