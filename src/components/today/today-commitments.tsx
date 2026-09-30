@@ -130,7 +130,7 @@ export function TodayCommitments({ commitments }: { commitments: NowCommitment[]
       )}
 
       {commitments.length > DEFAULT_VISIBLE ? (
-        <div className="border-t border-[var(--separator)] py-2>
+        <div className="border-t border-[var(--separator)] py-2">
           <button
             type="button"
             onClick={() => setExpanded((value) => !value)}
