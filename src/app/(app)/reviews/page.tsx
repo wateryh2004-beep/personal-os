@@ -76,7 +76,7 @@ export default async function ReviewsPage() {
               );
             })
           ) : (
-            <p className="py-8 text-[12.5px] text-[var(--text-secondary)]">还没有复盘。Evidence 会帮助你从已经发生的记录开始。</p>
+            <p className="py-8 text-[12.5px] text-[var(--text-secondary)]">还没有复盘。证据会帮助你从已经发生的记录开始。</p>
           )}
         </div>
       </section>
