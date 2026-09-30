@@ -9,13 +9,13 @@ import type { NowWorkspace } from "@/features/today/types";
 
 function TodayShell() {
   return (
-    <div aria-busy="true" className="now-workspace mx-auto w-full max-w-[1080px] px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
+    <div aria-busy="true" className="now-workspace mx-auto w-full max-w-[1080px] px-4 py-[30px] sm:px-6 sm:py-[38px] lg:px-8 lg:py-[46px]">
       <div className="ui-skeleton-shimmer h-3 w-28 rounded-full" />
       <div className="ui-skeleton-shimmer mt-3 h-8 w-24 rounded-[7px]" />
       <div className="ui-skeleton-shimmer mt-4 h-3 w-56 max-w-[70%] rounded-full" />
       <div className="ui-skeleton-shimmer mt-7 h-9 w-full max-w-[680px] rounded-[var(--radius-md)]" />
 
-      <div className="mt-11 border-y border-[var(--separator)] py-5">
+      <div className="mt-9 border-y border-[var(--separator)] py-5">
         <div className="ui-skeleton-shimmer h-2.5 w-20 rounded-full" />
         <div className="mt-5 space-y-4">
           <div className="ui-skeleton-shimmer h-4 w-[min(440px,76%)] rounded-full" />
@@ -23,7 +23,7 @@ function TodayShell() {
         </div>
       </div>
 
-      <div className="mt-12 grid gap-12 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-16">
+      <div className="mt-11 grid gap-11 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-[60px]">
         {[0, 1].map((column) => (
           <div key={column}>
             <div className="ui-skeleton-shimmer h-3 w-24 rounded-full" />
