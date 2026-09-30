@@ -1,1 +1,1 @@
-export default function Photos(){return <section><h1 className="text-2xl font-semibold">Photos</h1><p className="mt-3 text-sm text-zinc-500">尚未启用。照片管理不属于当前 Phase 1。</p></section>}
+export default function Photos(){return <section className="max-w-xl"><h1 className="text-[27px] font-semibold tracking-[-0.042em] text-[var(--text-primary)]">照片</h1><p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">此模块尚未启用。</p></section>}
