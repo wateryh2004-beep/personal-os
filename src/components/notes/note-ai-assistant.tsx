@@ -465,7 +465,7 @@ export function NoteAiAssistant({
                   ) : null}
                   <button
                     onClick={() => apply("insert")}
-                    className={`min-h-10 rounded-md px-3 py-2 text-xs font-medium ${rewrite ? "border bg-white text-[var(--text-primary)]" : "bg-[#365F78] text-white sm:col-span-2"}`}
+                    className={`min-h-10 rounded-md px-3 py-2 text-xs font-medium ${rewrite ? "border bg-white text-[var(--text-primary)]" : "bg-[var(--accent)] text-white sm:col-span-2"}`}
                   >
                     确认并{insertLabel}
                   </button>
@@ -473,20 +473,20 @@ export function NoteAiAssistant({
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   <button
                     onClick={() => void navigator.clipboard?.writeText(result.suggestion)}
-                    className="inline-flex min-h-8 items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    className="pressable inline-flex min-h-8 items-center gap-1 rounded-[7px] px-1 text-[11.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                   >
                     <Copy className="size-3" aria-hidden="true" />
                     复制
                   </button>
                   <button
                     onClick={() => result.truncated ? continueResult() : request && run(request, resultSelection)}
-                    className="min-h-8 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    className="pressable min-h-8 rounded-[7px] px-1 text-[11.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                   >
                     {result.truncated ? "从截断处继续" : "重新生成"}
                   </button>
                   <button
                     onClick={discardResult}
-                    className="min-h-8 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                    className="pressable min-h-8 rounded-[7px] px-1 text-[11.5px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                   >
                     放弃
                   </button>
@@ -503,15 +503,15 @@ export function NoteAiAssistant({
                 </p>
                 <button
                   onClick={() => request && run(request, resultSelection)}
-                  className="min-h-8 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  className="pressable min-h-8 rounded-[7px] px-1 text-[11.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                 >
                   重新生成
                 </button>
               </div>
             ) : null}
-            <div className="flex items-center justify-between border-t pt-2">
+            <div className="flex items-center justify-between border-t border-[var(--separator)] pt-2">
               <span className="text-[10px] text-[var(--text-tertiary)]">模型</span>
-              <select aria-label="AI 模型" value={model} onChange={(event) => setModel(event.target.value as DeepSeekModelId)} className="h-7 bg-transparent text-xs text-[var(--text-tertiary)]"><option value="deepseek-v4-flash">DeepSeek V4 Flash</option><option value="deepseek-v4-pro">DeepSeek V4 Pro</option></select>
+              <select aria-label="AI 模型" value={model} onChange={(event) => setModel(event.target.value as DeepSeekModelId)} className="h-7 rounded-[7px] bg-transparent px-1.5 text-[10.5px] text-[var(--text-tertiary)] outline-none hover:bg-[var(--surface-hover)]"><option value="deepseek-v4-flash">DeepSeek V4 Flash</option><option value="deepseek-v4-pro">DeepSeek V4 Pro</option></select>
             </div>
           </div>
         }
@@ -522,17 +522,17 @@ export function NoteAiAssistant({
             </p>
           ) : null}
           {thread.length ? (
-            <div className="mb-5 space-y-4 border-b border-[var(--border-subtle)] pb-5">
+            <div className="mb-4.5 space-y-3.5 border-b border-[var(--separator)] pb-4.5">
               {thread.map((item) =>
                 item.role === "user" ? (
                   <div key={item.id} className="flex justify-end">
-                    <div className="max-w-[85%] whitespace-pre-wrap rounded-[var(--radius-md)] bg-[var(--accent-soft)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)]">
+                    <div className="max-w-[85%] whitespace-pre-wrap rounded-[10px] bg-[var(--accent-soft)] px-3 py-2 text-[12.5px] leading-5.5 text-[var(--text-primary)]">
                       {item.content}
                     </div>
                   </div>
                 ) : item.current && result.suggestion ? null : (
                   <div key={item.id} className="space-y-1">
-                    <div className="text-sm leading-6 text-[var(--text-primary)]">
+                    <div className="text-[12.5px] leading-5.5 text-[var(--text-primary)]">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         rehypePlugins={[rehypeSanitize]}
@@ -555,7 +555,7 @@ export function NoteAiAssistant({
             <p
               role="status"
               aria-live="polite"
-              className="mb-3 text-xs text-[var(--text-tertiary)]"
+              className="mb-3 text-[11px] text-[var(--text-tertiary)]"
             >
               正在{noteAiOperationLabel(request.operation)}（{request.content.length} 字）
             </p>
@@ -566,14 +566,14 @@ export function NoteAiAssistant({
                 key={operation}
                 disabled={pending || !bodyMarkdown.trim()}
                 onClick={() => runNote(operation)}
-                className="flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] border border-transparent bg-[var(--surface-hover)] px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition-[background-color,border-color,color] hover:border-[color-mix(in_srgb,var(--accent)_18%,transparent)] hover:bg-[var(--surface-selected)] hover:text-[var(--text-primary)] focus-visible:border-[var(--accent)] focus-visible:outline-none disabled:opacity-50"
+                className="pressable flex min-h-10 items-center gap-2 rounded-[10px] bg-[var(--surface-control)] px-3 py-2 text-left text-[12.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[color-mix(in_srgb,var(--accent)_22%,transparent)] disabled:opacity-50"
               >
                 {icon}
                 {label}
               </button>
             ))}
           </div>
-          <div className="mt-5 border-t pt-4">
+          <div className="mt-4.5 border-t border-[var(--separator)] pt-3.5">
             <label className="sr-only" htmlFor="note-ai-question">
               {customSelection ? "处理所选文字" : "继续讨论这篇笔记"}
             </label>
@@ -598,7 +598,7 @@ export function NoteAiAssistant({
                   }
                 }
               }}
-              className="min-h-24 w-full resize-none rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2.5 text-sm leading-6 text-[var(--text-primary)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--text-tertiary)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]"
+              className="min-h-24 w-full resize-none rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 text-[12.5px] leading-5.5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
             />
             <button
               disabled={
@@ -618,20 +618,20 @@ export function NoteAiAssistant({
                     }, customSelection)
                   : runNote("askNote")
               }
-              className="mt-2 min-h-10 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:opacity-50"
+              className="pressable mt-2 h-9 rounded-[9px] bg-[var(--accent)] px-3.5 text-[12.5px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:opacity-50"
             >
               {pending ? "正在生成…" : "发送"}
             </button>
             {customSelection ? (
               <button
                 onClick={() => setCustomSelection(null)}
-                className="ml-3 text-xs text-zinc-500 hover:text-zinc-800"
+                className="ml-3 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
               >
                 改为询问全文
               </button>
             ) : null}
             {!customSelection ? (
-              <label className="ml-4 inline-flex items-center gap-2 text-xs text-zinc-500">
+              <label className="ml-4 inline-flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
                 <input
                   type="checkbox"
                   checked={usePersonalContext}
@@ -644,7 +644,7 @@ export function NoteAiAssistant({
             ) : null}
           </div>
           {pending && request ? (
-            <div aria-hidden="true" className="mt-4 border-t pt-4">
+            <div aria-hidden="true" className="mt-4 border-t border-[var(--separator)] pt-3.5">
               <div className="h-3 w-28 animate-pulse rounded bg-[var(--surface-hover)]" />
               <div className="mt-3 space-y-2">
                 <div className="h-3 w-full animate-pulse rounded bg-[var(--surface-hover)]" />
@@ -654,16 +654,16 @@ export function NoteAiAssistant({
             </div>
           ) : null}
           {result.status !== "idle" ? (
-            <p role="status" className={`mt-4 text-sm ${statusColor}`}>
+            <p role="status" className={`mt-3.5 text-[12px] ${statusColor}`}>
               {result.message}
             </p>
           ) : null}
           {result.suggestion ? (
-            <div ref={resultRef} className="mt-4 border-t pt-4">
-              <div className="flex items-center justify-between gap-3 pb-3">
+            <div ref={resultRef} className="mt-4 border-t border-[var(--separator)] pt-3.5">
+              <div className="flex items-center justify-between gap-3 pb-2.5">
                 <div>
-                  <p className="text-sm font-medium text-[var(--text-primary)]">{discussion ? "讨论回复" : "AI 结果预览"}</p>
-                  <p className="mt-1 text-xs text-[var(--text-secondary)]">{discussion ? "这段回复已保存到本篇笔记的讨论历史，不会写入正文。" : "使用底部固定确认区决定是否写入笔记。"}</p>
+                  <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">{discussion ? "讨论回复" : "AI 结果预览"}</p>
+                  <p className="mt-0.5 text-[11px] leading-5 text-[var(--text-secondary)]">{discussion ? "这段回复已保存到本篇笔记的讨论历史，不会写入正文。" : "使用底部固定确认区决定是否写入笔记。"}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {diffSegments ? (
@@ -671,14 +671,14 @@ export function NoteAiAssistant({
                       <button
                         type="button"
                         onClick={() => setShowDiff(true)}
-                        className={`px-2 py-1 ${showDiff ? "bg-[#365F78] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}
+                        className={`px-2 py-1 ${showDiff ? "bg-[var(--accent)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}
                       >
                         对比
                       </button>
                       <button
                         type="button"
                         onClick={() => setShowDiff(false)}
-                        className={`px-2 py-1 ${!showDiff ? "bg-[#365F78] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}
+                        className={`px-2 py-1 ${!showDiff ? "bg-[var(--accent)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}
                       >
                         纯结果
                       </button>
@@ -688,7 +688,7 @@ export function NoteAiAssistant({
                 </div>
               </div>
               {diffSegments && showDiff ? (
-                <div className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">
+                <div className="whitespace-pre-wrap rounded-[9px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-3 font-sans text-[12.5px] leading-5.5 text-[var(--text-primary)]">
                   {diffSegments.map((segment, index) =>
                     segment.type === "equal" ? (
                       <span key={index}>{segment.text}</span>
@@ -704,21 +704,21 @@ export function NoteAiAssistant({
                   )}
                 </div>
               ) : (
-                <pre className="whitespace-pre-wrap rounded-md border bg-white p-3 font-sans text-sm leading-6 text-zinc-700">{result.suggestion}</pre>
+                <pre className="whitespace-pre-wrap rounded-[9px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-3 font-sans text-[12.5px] leading-5.5 text-[var(--text-primary)]">{result.suggestion}</pre>
               )}
               {result.warning ? (
-                <p role="status" className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <p role="status" className="mt-2.5 rounded-[9px] bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-800">
                   {result.warning}
                 </p>
               ) : null}
               {result.truncated ? (
-                <button onClick={continueResult} className="mt-3 min-h-9 rounded-[var(--radius-md)] border border-[var(--accent)] px-3 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">
+                <button onClick={continueResult} className="pressable mt-2.5 h-8 rounded-[8px] px-2.5 text-[11.5px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">
                   从截断处继续
                 </button>
               ) : null}
               {result.contextSources?.length ? (
-                <details className="mt-4 border-t pt-3 text-xs">
-                  <summary className="cursor-pointer text-zinc-500">
+                <details className="mt-3.5 border-t border-[var(--separator)] pt-3 text-[11px]">
+                  <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
                     本次提供给 AI 的上下文 · {result.contextSources.length} 项
                   </summary>
                   <ul className="mt-2 space-y-2">
@@ -728,16 +728,16 @@ export function NoteAiAssistant({
                         className="flex items-start justify-between gap-3"
                       >
                         <div>
-                          <p className="font-medium text-zinc-700">
+                          <p className="font-medium text-[var(--text-primary)]">
                             {source.domain} · {source.title}
                           </p>
-                          <p className="mt-0.5 text-zinc-500">
+                          <p className="mt-0.5 text-[var(--text-secondary)]">
                             {source.reasons.join("；")}
                           </p>
                         </div>
                         {source.href ? (
                           <a
-                            className="text-[#365F78] hover:underline"
+                            className="text-[var(--accent)] hover:underline"
                             href={source.href}
                           >
                             打开
