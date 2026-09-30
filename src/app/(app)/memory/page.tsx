@@ -6,7 +6,7 @@ export default async function MemoryPage() {
   return (
     <>
       <PageHeader
-        title="Memory"
+        title="记忆"
         description="只保存你确认过的长期事实、当前状态与重要决定。"
       />
       <MemoryWorkspace memories={data.memories} decisions={data.decisions} />
