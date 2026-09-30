@@ -60,7 +60,7 @@ export default async function DirectionsPage() {
                 <Read label="支持证据" value={item.supporting_evidence_markdown} />
                 <Read label="反对证据" value={item.opposing_evidence_markdown} />
               </div>
-              <form action={updateDirection} className="mt-6 grid gap-4 rounded-2xl bg-white/70 p-5 md:grid-cols-3">
+              <form action={updateDirection} className="mt-4.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
                 <input type="hidden" name="direction_id" value={item.id} />
                 <Field label="方向名称" name="name" defaultValue={item.name} required />
                 <SelectField label="状态" name="status" values={statuses} defaultValue={item.status} />
@@ -84,5 +84,5 @@ export default async function DirectionsPage() {
 }
 
 function Read({ label, value }: { label: string; value?: string | null }) {
-  return <div><p className="text-xs text-zinc-400">{label}</p><p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-5.5 text-[var(--text-secondary)]">{value || "—"}</p></div>;
+  return <div><p className="text-[11px] font-medium text-[var(--text-tertiary)]">{label}</p><p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-5.5 text-[var(--text-secondary)]">{value || "—"}</p></div>;
 }
