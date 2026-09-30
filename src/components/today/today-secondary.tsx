@@ -26,18 +26,18 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
   const hasContext = contextItems.length > 0 || workspace.briefing.entries.length > 0;
 
   return (
-    <div className="grid gap-11 lg:grid-cols-[minmax(0,1.22fr)_minmax(300px,.78fr)] lg:gap-[60px]">
+    <div className="grid gap-10 lg:grid-cols-[minmax(0,1.22fr)_minmax(296px,.78fr)] lg:gap-[56px]">
       <section aria-labelledby="today-context-heading">
         <TodaySectionHeader href="/briefing" label="简报">
           <span id="today-context-heading">背景与简报</span>
         </TodaySectionHeader>
-        <div className="mt-2.5 border-t border-[var(--separator)] pt-2.5">
+        <div className="mt-2 border-t border-[var(--separator)] pt-2.5">
           <TodayBrief items={contextItems} />
 
           {workspace.briefing.entries.length ? (
-            <div className={contextItems.length ? "mt-4 border-t border-[var(--separator)] pt-3" : ""}>
+            <div className={contextItems.length ? "mt-3.5 border-t border-[var(--separator)] pt-2.5" : ""}>
               {workspace.briefing.date ? (
-                <p className="mb-1.5 text-[9.5px] font-medium text-[var(--text-tertiary)]">
+                <p className="mb-1 text-[9.5px] font-medium text-[var(--text-tertiary)]">
                   {workspace.briefing.date.slice(5).replace("-", " 月 ")} 日 Briefing
                 </p>
               ) : null}
@@ -48,7 +48,7 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
                       href={entry.url || "/briefing"}
                       target={entry.url ? "_blank" : undefined}
                       rel={entry.url ? "noreferrer" : undefined}
-                      className="group block py-2"
+                      className="group block py-1.5"
                     >
                       <span className="block text-[11.5px] font-medium leading-5 text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                         {entry.title}
@@ -79,12 +79,12 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
         <TodaySectionHeader>
           <span id="today-future-heading">未来 7 天</span>
         </TodaySectionHeader>
-        <div className="mt-3 border-t border-[var(--separator)] pt-1">
+        <div className="mt-2.5 border-t border-[var(--separator)] pt-1">
           {workspace.upcoming.length ? (
             <ul className="divide-y divide-[var(--separator)]">
               {workspace.upcoming.map((item) => (
                 <li key={item.id}>
-                  <Link href={item.href} className="group grid grid-cols-[66px_minmax(0,1fr)] gap-2.5 py-2">
+                  <Link href={item.href} className="group grid grid-cols-[64px_minmax(0,1fr)] gap-2 py-1.5">
                     <span className="pt-0.5 text-[9.5px] tabular-nums text-[var(--text-tertiary)]">
                       {formatDate(item.at, workspace.timezone)}
                     </span>
