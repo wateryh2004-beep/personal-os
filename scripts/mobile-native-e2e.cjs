@@ -30,6 +30,11 @@ async function backCloses(page, trigger, visibleTarget) {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       assert.ok(overflow <= 1, `${width}px viewport has ${overflow}px horizontal overflow`);
 
+      const careerTab = page.getByRole("link", { name: /职业/ });
+      await careerTab.waitFor({ state: "visible" });
+      assert.equal(await careerTab.getAttribute("href"), "/career", `${width}px Career tab should link directly to /career`);
+      assert.equal(await page.getByRole("link", { name: /笔记/ }).count(), 0, `${width}px Notes should move under More instead of occupying a primary tab`);
+
       await backCloses(page, "open-dialog", "dialog-input");
       await backCloses(page, "open-sheet", "sheet-input");
       await backCloses(page, "open-panel", "panel-input");

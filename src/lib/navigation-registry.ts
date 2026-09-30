@@ -40,12 +40,12 @@ export const navigationRegistry: readonly NavigationRegistryItem[] = [
   { name: "Tasks", mobileName: "任务", href: "/tasks", icon: CheckSquare2, group: "plan", desktopMain: true, mobileTab: true, commandPalette: true, contextualCreate: { kind: "task" } },
   { name: "Projects", href: "/projects", icon: SquareKanban, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "project" } },
   { name: "Reviews", href: "/reviews", icon: Star, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true },
-  { name: "Notes", mobileName: "笔记", href: "/notes", icon: FileText, group: "knowledge", desktopMain: true, mobileTab: true, commandPalette: true, contextualCreate: { kind: "note", descendants: true } },
+  { name: "Notes", mobileName: "笔记", href: "/notes", icon: FileText, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "note", descendants: true } },
   { name: "Files", href: "/files", icon: FolderClosed, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true },
   { name: "Briefing", href: "/briefing", icon: Newspaper, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true },
   { name: "Shopping", href: "/shopping", icon: ShoppingBag, group: "life", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "shopping" } },
   { name: "Travel", href: "/travel", icon: Plane, group: "life", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "travel", descendants: true } },
-  { name: "Career", href: "/career", icon: BriefcaseBusiness, group: "career", desktopMain: true, mobileTab: false, commandPalette: true },
+  { name: "Career", mobileName: "职业", href: "/career", icon: BriefcaseBusiness, group: "career", desktopMain: true, mobileTab: true, commandPalette: true },
   { name: "Settings", href: "/settings", icon: Settings, group: "system", desktopMain: false, mobileTab: false, commandPalette: true },
 ];
 
