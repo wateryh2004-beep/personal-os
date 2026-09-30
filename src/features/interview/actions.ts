@@ -11,6 +11,8 @@ import {
   interviewNoteSchema,
   interviewPreparationSchema,
   interviewQuestionSchema,
+  interviewStorySchema,
+  interviewArchetypeStorySchema,
   interviewSessionAttemptSchema,
   interviewSessionReviewSchema,
   interviewSessionSchema,
@@ -97,6 +99,7 @@ function revalidateInterview(questionId?: string, preparationId?: string, sessio
   revalidatePath("/career/interview/practice");
   revalidatePath("/career/interview/sessions");
   revalidatePath("/career/interview/insights");
+  revalidatePath("/career/interview/stories");
   if (questionId) revalidatePath(`/career/interview/questions/${questionId}`);
   if (preparationId) revalidatePath(`/career/interview/practice/${preparationId}`);
   if (sessionId) revalidatePath(`/career/interview/sessions/${sessionId}`);
@@ -518,6 +521,88 @@ export async function archiveInterviewAnswerVersion(formData: FormData) {
   revalidateInterview(undefined, preparationId);
 }
 
+export async function createInterviewStory(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const value = parse(interviewStorySchema, formObject(formData));
+  if (value.experience_id) await own(supabase, "experiences", value.experience_id);
+  const { data, error } = await supabase.from("interview_stories").insert({
+    ...value,
+    user_id: userId,
+    last_refined_at: value.status === "draft" ? null : new Date().toISOString(),
+  }).select("id").single();
+  if (error || !data) failed(error);
+  await audit(supabase, userId, "create", "interview_story", data.id, {
+    experience_id: value.experience_id,
+    status: value.status,
+  });
+  revalidateInterview();
+  redirect(`/career/interview/stories/${data.id}`);
+}
+
+export async function updateInterviewStory(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const storyId = String(formData.get("story_id") || "");
+  await own(supabase, "interview_stories", storyId);
+  const value = parse(interviewStorySchema, formObject(formData));
+  if (value.experience_id) await own(supabase, "experiences", value.experience_id);
+  const { error } = await supabase.from("interview_stories").update({
+    ...value,
+    last_refined_at: new Date().toISOString(),
+  }).eq("id", storyId);
+  if (error) failed(error);
+  await audit(supabase, userId, "update", "interview_story", storyId, { status: value.status });
+  revalidatePath(`/career/interview/stories/${storyId}`);
+  revalidateInterview();
+}
+
+export async function archiveInterviewStory(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const storyId = String(formData.get("story_id") || "");
+  await own(supabase, "interview_stories", storyId);
+  const now = new Date().toISOString();
+  const [{ error }, { error: linksError }] = await Promise.all([
+    supabase.from("interview_stories").update({ archived_at: now, status: "needs_review" }).eq("id", storyId),
+    supabase.from("interview_archetype_stories").update({ archived_at: now }).eq("story_id", storyId).is("archived_at", null),
+  ]);
+  if (error || linksError) failed(error ?? linksError);
+  await audit(supabase, userId, "archive", "interview_story", storyId);
+  revalidateInterview();
+  redirect("/career/interview/stories");
+}
+
+export async function linkStoryToArchetype(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const value = parse(interviewArchetypeStorySchema, formObject(formData));
+  await own(supabase, "interview_question_archetypes", value.archetype_id);
+  await own(supabase, "interview_stories", value.story_id);
+  const { error } = await supabase.from("interview_archetype_stories").upsert({
+    ...value,
+    user_id: userId,
+    archived_at: null,
+  }, { onConflict: "archetype_id,story_id" });
+  if (error) failed(error);
+  await audit(supabase, userId, "link", "interview_archetype", value.archetype_id, {
+    story_id: value.story_id,
+    evidence_role: value.evidence_role,
+  });
+  revalidateInterview();
+}
+
+export async function unlinkStoryFromArchetype(formData: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const archetypeId = String(formData.get("archetype_id") || "");
+  const storyId = String(formData.get("story_id") || "");
+  await own(supabase, "interview_question_archetypes", archetypeId);
+  await own(supabase, "interview_stories", storyId);
+  const { error } = await supabase.from("interview_archetype_stories")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("archetype_id", archetypeId)
+    .eq("story_id", storyId);
+  if (error) failed(error);
+  await audit(supabase, userId, "unlink", "interview_archetype", archetypeId, { story_id: storyId });
+  revalidateInterview();
+}
+
 const evidenceTables: Record<EvidenceType, string> = {
   experience: "experiences",
   experience_fact: "experience_facts",
@@ -570,6 +655,7 @@ export async function createPracticeAttempt(formData: FormData) {
   const value = parse(interviewAttemptSchema, formObject(formData));
   await own(supabase, "interview_question_preparations", value.preparation_id);
   if (value.answer_version_id) await own(supabase, "interview_answer_versions", value.answer_version_id);
+  if (value.story_id) await own(supabase, "interview_stories", value.story_id);
   const { data: prep, error: prepError } = await supabase.from("interview_question_preparations")
     .select("id,question_id,status,prompt_override,interview_questions(canonical_prompt)")
     .eq("id", value.preparation_id).maybeSingle();
@@ -581,6 +667,7 @@ export async function createPracticeAttempt(formData: FormData) {
     user_id: userId,
     preparation_id: value.preparation_id,
     answer_version_id: value.answer_version_id,
+    story_id: value.story_id,
     session_id: null,
     parent_attempt_id: null,
     sequence_no: null,
@@ -644,6 +731,7 @@ export async function addSessionAttempt(formData: FormData) {
   await own(supabase, "interview_sessions", value.session_id);
   if (value.preparation_id) await own(supabase, "interview_question_preparations", value.preparation_id);
   if (value.parent_attempt_id) await own(supabase, "interview_practice_attempts", value.parent_attempt_id);
+  if (value.story_id) await own(supabase, "interview_stories", value.story_id);
   const [{ data: session, error: sessionError }, { data: sequenceRows, error: seqError }] = await Promise.all([
     supabase.from("interview_sessions").select("session_kind,status,started_at").eq("id", value.session_id).maybeSingle(),
     supabase.from("interview_practice_attempts").select("sequence_no").eq("session_id", value.session_id).is("archived_at", null).order("sequence_no", { ascending: false }).limit(1),
@@ -659,6 +747,7 @@ export async function addSessionAttempt(formData: FormData) {
     preparation_id: value.preparation_id,
     session_id: value.session_id,
     answer_version_id: null,
+    story_id: value.story_id,
     parent_attempt_id: value.parent_attempt_id,
     sequence_no: sequenceNo,
     attempt_kind: session.session_kind,
