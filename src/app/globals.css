@@ -285,10 +285,11 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article a[href^="/notes/"]
   .notes-editor-surface:fullscreen { padding:0; }
   .notes-document-shell .notes-editor-surface > div > div:first-child { min-height:48px!important; padding-left:46px!important; padding-right:44px!important; }
   .notes-document-shell .notes-editor-surface input[aria-label="笔记标题"] { font-size:19px!important; }
+  .notes-document-shell .notes-editor-surface [data-slot="button"] { width:40px!important; height:40px!important; min-width:40px!important; min-height:40px!important; }
   .notes-document-shell .notes-editor-surface button[aria-label="复制笔记全文"],
   .notes-document-shell .notes-editor-surface button[aria-label="导出笔记 PDF"] { display:none!important; }
   .notes-document-shell .life-markdown-toolbar { min-height:38px; padding:2px 8px; }
-  .notes-document-shell .life-markdown-toolbar button,.notes-document-shell .life-markdown-toolbar select { min-width:30px!important; min-height:30px!important; }
+  .notes-document-shell .life-markdown-toolbar button,.notes-document-shell .life-markdown-toolbar select { min-width:40px!important; min-height:40px!important; }
   .notes-document-shell .life-codemirror .cm-content { padding:26px 22px 84px!important; }
   .notes-document-shell .life-markdown-statusbar [data-status="cursor"] { display:none; }
   main.workspace-scroll:has(article a[href^="/notes/"]) { padding-top:58px!important; }
