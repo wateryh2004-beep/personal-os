@@ -416,7 +416,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         </Link>
       </SheetContent>
     </Sheet>
-    <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="min-w-0 md:ml-[var(--shell-width)]">
+    <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="min-h-[var(--app-viewport-height)] min-w-0 bg-[var(--surface-canvas)] md:ml-[var(--shell-width)]">
       <header className="sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-2.5 border-b border-white/55 bg-[var(--material-toolbar)] px-3 pt-[env(safe-area-inset-top)] shadow-[0_8px_28px_rgba(0,0,0,.025)] backdrop-blur-2xl backdrop-saturate-[180%] sm:px-4">
         <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu aria-hidden="true" /></Button>
         <button type="button" onClick={() => openCommand("search")} className="pressable mx-auto flex h-8 w-full max-w-lg items-center gap-2 rounded-[11px] bg-[var(--surface-control)] px-2.5 text-left text-[13px] text-[var(--text-tertiary)] shadow-[inset_0_1px_0_rgba(255,255,255,.36)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-secondary)]"><Search className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden font-sans text-[10px] font-medium text-[var(--text-tertiary)] sm:inline">⌘K</kbd></button>
