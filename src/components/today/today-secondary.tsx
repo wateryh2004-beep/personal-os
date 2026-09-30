@@ -26,18 +26,18 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
   const hasContext = contextItems.length > 0 || workspace.briefing.entries.length > 0;
 
   return (
-    <div className="grid gap-12 lg:grid-cols-[minmax(0,1.22fr)_minmax(300px,.78fr)] lg:gap-16">
+    <div className="grid gap-11 lg:grid-cols-[minmax(0,1.22fr)_minmax(300px,.78fr)] lg:gap-[60px]">
       <section aria-labelledby="today-context-heading">
-        <TodaySectionHeader href="/briefing" label="Briefing">
+        <TodaySectionHeader href="/briefing" label="简报">
           <span id="today-context-heading">背景与简报</span>
         </TodaySectionHeader>
-        <div className="mt-3 border-t border-[var(--separator)] pt-3">
+        <div className="mt-2.5 border-t border-[var(--separator)] pt-2.5">
           <TodayBrief items={contextItems} />
 
           {workspace.briefing.entries.length ? (
             <div className={contextItems.length ? "mt-4 border-t border-[var(--separator)] pt-3" : ""}>
               {workspace.briefing.date ? (
-                <p className="mb-1.5 text-[10px] font-medium text-[var(--text-tertiary)]">
+                <p className="mb-1.5 text-[9.5px] font-medium text-[var(--text-tertiary)]">
                   {workspace.briefing.date.slice(5).replace("-", " 月 ")} 日 Briefing
                 </p>
               ) : null}
@@ -48,13 +48,13 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
                       href={entry.url || "/briefing"}
                       target={entry.url ? "_blank" : undefined}
                       rel={entry.url ? "noreferrer" : undefined}
-                      className="group block py-2.5"
+                      className="group block py-2"
                     >
-                      <span className="block text-[12px] font-medium leading-5 text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
+                      <span className="block text-[11.5px] font-medium leading-5 text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                         {entry.title}
                       </span>
                       {entry.reason ? (
-                        <span className="mt-0.5 line-clamp-1 block text-[11px] leading-5 text-[var(--text-secondary)]">
+                        <span className="mt-0.5 line-clamp-1 block text-[10.5px] leading-5 text-[var(--text-secondary)]">
                           {entry.reason}
                         </span>
                       ) : null}
@@ -84,8 +84,8 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
             <ul className="divide-y divide-[var(--separator)]">
               {workspace.upcoming.map((item) => (
                 <li key={item.id}>
-                  <Link href={item.href} className="group grid grid-cols-[68px_minmax(0,1fr)] gap-3 py-2.5">
-                    <span className="pt-0.5 text-[10px] tabular-nums text-[var(--text-tertiary)]">
+                  <Link href={item.href} className="group grid grid-cols-[66px_minmax(0,1fr)] gap-2.5 py-2">
+                    <span className="pt-0.5 text-[9.5px] tabular-nums text-[var(--text-tertiary)]">
                       {formatDate(item.at, workspace.timezone)}
                     </span>
                     <span className="flex min-w-0 gap-2 text-[var(--text-tertiary)]">
