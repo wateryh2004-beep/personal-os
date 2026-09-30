@@ -27,7 +27,7 @@ describe("core UI consistency polish", () => {
     expect(dialog).toContain("shadow-[var(--shadow-dialog)]");
     expect(dialog).toContain("max-sm:bottom-0");
     expect(popover).toContain("shadow-[var(--shadow-popover)]");
-    expect(tooltip).toContain("delayDuration = 420");
+    expect(tooltip).toContain("delayDuration = 320");
     expect(panel).toContain("border-[var(--separator)]");
     expect(panel).toContain("shadow-[var(--shadow-panel)]");
     expect(feedback).toContain("shadow-[var(--shadow-popover)]");
@@ -58,7 +58,7 @@ describe("core UI consistency polish", () => {
     expect(polish).toContain('article a[href^="/notes/"]');
     expect(polish).toContain("var(--tab-bar-height)");
     expect(now).toContain('className="now-workspace');
-    expect(header).toContain('text-[28px]');
+    expect(header).toContain('text-[30px]');
     expect(header).toContain('text-[13px]');
   });
 });
