@@ -125,7 +125,7 @@ export function TodayCommitments({ commitments }: { commitments: NowCommitment[]
       ) : (
         <div className="flex items-center gap-2 border-t border-[var(--separator)] py-5 text-[12px] text-[var(--text-secondary)]">
           <Check className="size-4 text-[var(--success)]" aria-hidden="true" />
-          暂无足够依据推荐下一步。先把新想法记到 Inbox 即可。
+          暂无足够依据推荐下一步。先把新想法记到收集箱即可。
         </div>
       )}
 
