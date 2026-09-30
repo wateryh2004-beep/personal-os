@@ -15,21 +15,21 @@ function TasksShell() {
   return (
     <section
       aria-busy="true"
-      className="h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] overflow-hidden bg-[var(--surface-canvas)] px-5 pt-5 sm:px-7 lg:px-10"
+      className="h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] overflow-hidden bg-[var(--surface-canvas)] px-5 pt-[18px] sm:px-7 lg:px-10"
     >
       <div className="mx-auto max-w-[980px]">
-        <div className="ui-skeleton-shimmer h-8 w-24 rounded-[7px]" />
-        <div className="mt-4 flex gap-5">
+        <div className="ui-skeleton-shimmer h-7 w-20 rounded-[7px]" />
+        <div className="mt-2.5 flex gap-4.5">
           <div className="ui-skeleton-shimmer h-3 w-8 rounded-full" />
           <div className="ui-skeleton-shimmer h-3 w-16 rounded-full" />
           <div className="ui-skeleton-shimmer h-3 w-8 rounded-full" />
         </div>
       </div>
-      <div className="mx-auto mt-8 max-w-[760px]">
+      <div className="mx-auto mt-7 max-w-[748px]">
         <div className="ui-skeleton-shimmer h-3 w-24 rounded-full" />
-        <div className="mt-4 border-t border-[var(--separator)]">
+        <div className="mt-3.5 border-t border-[var(--separator)]">
           {[0, 1, 2, 3].map((item) => (
-            <div key={item} className="flex h-[66px] items-center gap-3 border-b border-[var(--separator)]">
+            <div key={item} className="flex h-[60px] items-center gap-3 border-b border-[var(--separator)]">
               <div className="ui-skeleton-shimmer size-[18px] rounded-full" />
               <div className="min-w-0 flex-1">
                 <div className="ui-skeleton-shimmer h-3.5 w-[min(320px,72%)] rounded-full" />
