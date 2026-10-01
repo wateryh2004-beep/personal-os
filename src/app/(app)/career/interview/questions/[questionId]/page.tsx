@@ -29,16 +29,17 @@ import {
   variantKindLabels,
 } from "@/features/interview/constants";
 import { formatDateTime } from "@/features/interview/utils";
+import { selectWorkspaceAnswer } from "@/features/interview/workspace-answers";
 
 export default async function InterviewQuestionPage({
   params,
   searchParams,
 }: {
   params: Promise<{ questionId: string }>;
-  searchParams: Promise<{ context?: string }>;
+  searchParams: Promise<{ context?: string; answer?: string }>;
 }) {
   const { questionId } = await params;
-  const { context } = await searchParams;
+  const { context, answer: requestedAnswerId } = await searchParams;
   const data = await getInterviewQuestionDetail(questionId, context ?? null);
   if (!data) notFound();
 
@@ -47,11 +48,10 @@ export default async function InterviewQuestionPage({
     ? question.interview_question_types[0]
     : question.interview_question_types;
   const normalizedCompetencies = data.normalizedCompetencies ?? [];
-  const currentAnswers = data.currentAnswers ?? [];
-  const primaryAnswer =
-    currentAnswers.find((answer: any) => answer.answer_mode === "spoken" && answer.language === prep?.target_language) ??
-    currentAnswers[0] ??
-    null;
+  const pinnedAnswer = requestedAnswerId
+    ? selectWorkspaceAnswer((data.answers ?? []).filter((answer) => answer.id === requestedAnswerId && answer.preparation_id === prep?.id), prep?.target_language ?? "zh")
+    : null;
+  const primaryAnswer = pinnedAnswer ?? selectWorkspaceAnswer(data.answers ?? [], prep?.target_language ?? "zh");
   const thoughtValue = prep
     ? prep.working_thoughts_markdown || [prep.key_message, prep.answer_logic_markdown].filter(Boolean).join("\n\n")
     : "";
@@ -103,12 +103,15 @@ export default async function InterviewQuestionPage({
           </section>
 
           <section className="mb-12">
-            <h2 className="text-[15px] font-medium text-zinc-950">答案</h2>
+            <h2 className="text-[15px] font-medium text-zinc-950">{primaryAnswer?.status === "draft" ? "参考答案 · 待确认" : "答案"}</h2>
+            {primaryAnswer?.status === "draft" ? <p className="mt-2 text-xs leading-5 text-zinc-500">可直接阅读。请核对个人事实；保存并确认后才会成为当前答案。</p> : null}
             <form action={createInterviewAnswerVersion} className="mt-3">
               <input type="hidden" name="preparation_id" value={prep.id} />
               <input type="hidden" name="answer_mode" value="spoken" />
-              <input type="hidden" name="target_seconds" value="" />
-              <input type="hidden" name="language" value={prep.target_language} />
+              <input type="hidden" name="target_seconds" value={primaryAnswer?.target_seconds ?? ""} />
+              <input type="hidden" name="language" value={primaryAnswer?.language ?? prep.target_language} />
+              <input type="hidden" name="based_on_answer_id" value={primaryAnswer?.id ?? ""} />
+              <input type="hidden" name="return_to_question" value="1" />
               <input type="hidden" name="change_note" value="" />
               <input type="hidden" name="make_current" value="1" />
               <textarea
@@ -120,11 +123,30 @@ export default async function InterviewQuestionPage({
                 className="w-full resize-y bg-transparent px-0 py-2 text-[15px] leading-7 text-zinc-900 outline-none placeholder:text-zinc-300"
               />
               <div className="mt-2 flex items-center gap-4">
-                <button className="text-xs text-zinc-400 hover:text-zinc-700">保存答案</button>
+                <button className="text-xs text-zinc-400 hover:text-zinc-700">保存并确认为当前答案</button>
                 <Link href={`/career/interview/practice/${prep.id}`} className="text-xs font-medium text-[#365F78]">练习这道题 →</Link>
               </div>
             </form>
           </section>
+
+          <details id="answer-versions" className="mb-10 scroll-mt-6" open={primaryAnswer?.status === "draft"}>
+            <summary className="cursor-pointer text-sm text-zinc-500">全部答案版本（{data.answers.length}）</summary>
+            <div className="mt-4 space-y-4">
+              {data.answers.map((answer: any) => (
+                <details key={answer.id} open={answer.id === primaryAnswer?.id} className="rounded-lg border border-zinc-200 p-3">
+                  <summary className="cursor-pointer text-xs leading-6 text-zinc-600">
+                    V{answer.version_number} · {languageLabels[answer.language] ?? answer.language} · {answer.status === "current" ? "当前答案" : answer.status === "draft" ? "参考答案 · 待确认" : "历史答案"}
+                    {answer.source === "ai_draft" || answer.source === "ai_edited" ? " · AI 起草" : ""}
+                  </summary>
+                  <div className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-zinc-800">{answer.body_markdown}</div>
+                  <div className="mt-3 flex flex-wrap gap-4 text-xs">
+                    {answer.status !== "current" ? <form action={promoteInterviewAnswerVersion}><input type="hidden" name="answer_id" value={answer.id}/><button className="min-h-11 text-[#365F78]">确认并设为当前答案</button></form> : null}
+                    <form action={archiveInterviewAnswerVersion}><input type="hidden" name="answer_id" value={answer.id}/><input type="hidden" name="preparation_id" value={prep.id}/><button className="min-h-11 text-zinc-500">归档</button></form>
+                  </div>
+                </details>
+              ))}
+            </div>
+          </details>
 
           <details className="mb-10">
             <summary className="cursor-pointer text-sm text-zinc-400 hover:text-zinc-700">更多</summary>
@@ -266,20 +288,6 @@ export default async function InterviewQuestionPage({
                 </form>
               </section>
 
-              <section>
-                <h3 className="text-sm font-medium text-zinc-800">历史答案</h3>
-                <div className="mt-3 space-y-2">
-                  {data.answers.map((answer: any) => (
-                    <div key={answer.id} className="flex items-center justify-between gap-4 text-xs text-zinc-500">
-                      <span>V{answer.version_number} · {languageLabels[answer.language] ?? answer.language} · {answer.status === "current" ? "当前" : "历史"}</span>
-                      <div className="flex gap-3">
-                        {answer.status !== "current" ? <form action={promoteInterviewAnswerVersion}><input type="hidden" name="answer_id" value={answer.id}/><button className="text-[#365F78]">设为当前</button></form> : null}
-                        <form action={archiveInterviewAnswerVersion}><input type="hidden" name="answer_id" value={answer.id}/><input type="hidden" name="preparation_id" value={prep.id}/><button>归档</button></form>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
 
               <details>
                 <summary className="cursor-pointer text-xs text-zinc-400">题目设置</summary>

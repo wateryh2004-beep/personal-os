@@ -87,6 +87,17 @@ async function backCloses(page, trigger, visibleTarget) {
       await questionDetail.waitFor({ state: "visible" });
       await questionDetail.getByRole("button", { name: "← 返回题目列表" }).tap();
       await questionList.waitFor({ state: "visible" });
+      await questionList.getByRole("button", { name: "E2E 面试问题 1", exact: true }).tap();
+      await questionDetail.waitFor({ state: "visible" });
+      assert.ok((await questionDetail.innerText()).includes("参考答案 · 待确认"));
+      assert.ok((await questionDetail.innerText()).includes("中英双语"));
+      const reference = questionDetail.getByLabel("答案", { exact: true });
+      assert.ok((await reference.inputValue()).includes("E2E English reference answer"));
+      assert.ok(await reference.evaluate((element) => element.scrollHeight - element.clientHeight) <= 2, `${width}px bilingual answer should grow to reveal all text`);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
+      await capture(page, `interview-reference-${width}`);
+      await questionDetail.getByRole("button", { name: "← 返回题目列表" }).tap();
+      await questionList.waitFor({ state: "visible" });
       await interview.getByLabel("面试岗位").selectOption("e2e-target");
       await questionList.getByRole("button", { name: "E2E 面试问题 2", exact: true }).tap();
       await questionDetail.waitFor({ state: "visible" });
