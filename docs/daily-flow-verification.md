@@ -9,11 +9,11 @@
 
 ## Database rollout
 
-`20261001080655_today_task_priorities.sql` is additive. It adds a narrowly scoped table plus an atomic SECURITY INVOKER RPC, preserves source tasks, archives removed selections, restricts both record and referenced-task ownership, and limits active positions to three. A compare-and-swap guard rejects a stale second device. Dates come from the authenticated owner's profile timezone.
+`20261001090017_today_task_priorities.sql` is additive. It adds a narrowly scoped table plus an atomic SECURITY INVOKER RPC, preserves source tasks, archives removed selections, restricts both record and referenced-task ownership, and limits active positions to three. A compare-and-swap guard rejects a stale second device. Dates come from the authenticated owner's profile timezone.
 
 Apply the reviewed migration before releasing the UI. If the migration is missing or a read fails, Today shows an unavailable-priorities message and still renders its existing workspaces. Reverting application code leaves the new table harmlessly in place; no destructive rollback is required.
 
-Validation: applied only to the isolated validation project before review. `supabase/tests/today_task_priorities.sql` exercises owner isolation, direct-RLS foreign references, anonymous denial, cap/duplicates, undated tasks, stale dates/windows, reorder/archive, and unchanged task state in a transaction that rolls back every fixture. Do not run its fixture setup against production.
+Validation: applied to the isolated validation project before review. Production applied the identical SQL on 2026-10-01 as migration version 20261001090017; the repository filename matches that canonical production history. Post-migration checks confirmed the expected grants, all three owner policies, SECURITY INVOKER, an empty priorities table, and unchanged full-row fingerprints for all 21 existing tasks. `supabase/tests/today_task_priorities.sql` exercises owner isolation, direct-RLS foreign references, anonymous denial, cap/duplicates, undated tasks, stale dates/windows, reorder/archive, and unchanged task state in a transaction that rolls back every fixture. Do not run its fixture setup against production.
 
 ## Verification and limits
 
