@@ -69,6 +69,31 @@ async function backCloses(page, trigger, visibleTarget) {
       assert.ok(fontSize >= 16, `${width}px dialog input font-size should avoid browser zoom`);
       await page.evaluate(() => history.back());
 
+      const interview = page.getByTestId("interview-harness");
+      const questionList = interview.getByTestId("interview-question-list");
+      const questionDetail = interview.getByTestId("interview-question-detail");
+      assert.equal(await interview.getByLabel("面试岗位").inputValue(), "");
+      assert.equal(await questionDetail.isVisible(), false);
+      await questionList.getByRole("button", { name: "E2E 面试问题 0", exact: true }).tap();
+      await questionDetail.waitFor({ state: "visible" });
+      assert.equal(await questionList.isVisible(), false);
+      assert.equal(await questionDetail.locator("textarea").first().inputValue(), "E2E 思路 0");
+      assert.equal(await questionDetail.locator("textarea").nth(1).inputValue(), "E2E 答案 0");
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
+      await capture(page, `interview-detail-${width}`);
+      await page.evaluate(() => history.back());
+      await questionList.waitFor({ state: "visible" });
+      await page.evaluate(() => history.forward());
+      await questionDetail.waitFor({ state: "visible" });
+      await questionDetail.getByRole("button", { name: "← 返回题目列表" }).tap();
+      await questionList.waitFor({ state: "visible" });
+      await interview.getByLabel("面试岗位").selectOption("e2e-target");
+      await questionList.getByRole("button", { name: "E2E 面试问题 2", exact: true }).tap();
+      await questionDetail.waitFor({ state: "visible" });
+      assert.equal(await questionDetail.locator("textarea").first().inputValue(), "E2E 思路 2");
+      await capture(page, `interview-target-${width}`);
+      await page.goto(`${baseURL}/mobile-native-e2e`, { waitUntil: "networkidle" });
+
       if (width === 390) {
         const active = await page.evaluate(async () => {
           if (!("serviceWorker" in navigator)) return false;
@@ -96,3 +121,4 @@ async function backCloses(page, trigger, visibleTarget) {
   console.error(error);
   process.exit(1);
 });
+

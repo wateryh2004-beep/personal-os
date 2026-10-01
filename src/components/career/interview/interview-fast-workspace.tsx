@@ -82,7 +82,11 @@ export function InterviewFastWorkspace({
   initialQuestionId: string;
   initialCategory: string;
 }) {
-  const initialItems = items.filter((item) => (initialContextId ? item.contextId === initialContextId : item.contextId === null));
+  const initialItems = items.filter((item) =>
+    (initialContextId ? item.contextId === initialContextId : item.contextId === null)
+    && (initialCategory === "all" || !isKnownCategory(initialCategory)
+      || (initialCategory === "stress" ? item.style === "stress" : item.category === initialCategory)),
+  );
   const initialItem =
     initialItems.find((item) => item.questionId === initialQuestionId)
     ?? initialItems[0]
@@ -92,6 +96,8 @@ export function InterviewFastWorkspace({
       ? initialCategory
       : initialItem?.category ?? "all";
 
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(Boolean(initialQuestionId && initialItem));
+  const detailRef = useRef<HTMLElement | null>(null);
   const [contextId, setContextId] = useState(initialContextId);
   const [questionId, setQuestionId] = useState(initialItem?.questionId ?? "");
   const [category, setCategory] = useState(resolvedInitialCategory);
@@ -197,7 +203,7 @@ export function InterviewFastWorkspace({
     window.history.replaceState(null, "", workspaceUrl(nextContextId, nextQuestionId, nextCategory));
   }, []);
 
-  const switchItem = useCallback((nextContextId: string, nextItem: WorkspaceItem | null, nextCategory = category) => {
+  const switchItem = useCallback((nextContextId: string, nextItem: WorkspaceItem | null, nextCategory = category, updateUrl = true) => {
     void saveNow();
 
     selectedRef.current = nextItem;
@@ -212,17 +218,20 @@ export function InterviewFastWorkspace({
     thoughtsRef.current = nextThoughts;
     answerRef.current = nextAnswer;
     setSaveState("idle");
-    replaceUrl(nextContextId, nextItem?.questionId ?? "", nextCategory);
+    if (updateUrl) replaceUrl(nextContextId, nextItem?.questionId ?? "", nextCategory);
   }, [category, replaceUrl, saveNow]);
 
   const handleContextChange = (nextContextId: string) => {
+    setMobileDetailOpen(false);
     const nextItems = items.filter((item) => (nextContextId ? item.contextId === nextContextId : item.contextId === null));
     const nextCategory = "all";
     setCategory(nextCategory);
-    switchItem(nextContextId, nextItems[0] ?? null, nextCategory);
+    switchItem(nextContextId, nextItems[0] ?? null, nextCategory, false);
+    replaceUrl(nextContextId, "", nextCategory);
   };
 
   const handleCategoryChange = (nextCategory: string) => {
+    setMobileDetailOpen(false);
     const nextVisible = nextCategory === "all"
       ? contextItems
       : nextCategory === "stress"
@@ -232,13 +241,58 @@ export function InterviewFastWorkspace({
 
     const currentStillVisible = nextVisible.find((item) => item.questionId === questionId) ?? null;
     const nextItem = currentStillVisible ?? nextVisible[0] ?? null;
-    switchItem(contextId, nextItem, nextCategory);
+    switchItem(contextId, nextItem, nextCategory, false);
+    replaceUrl(contextId, "", nextCategory);
   };
 
   const handleQuestionChange = (nextQuestionId: string) => {
     const nextItem = visibleItems.find((item) => item.questionId === nextQuestionId) ?? null;
-    switchItem(contextId, nextItem);
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    if (mobile) {
+      // The list is a real history entry so Android Back closes the detail.
+      replaceUrl(contextId, "", category);
+      window.history.pushState({ interviewDetail: true }, "", workspaceUrl(contextId, nextQuestionId, category));
+    }
+    switchItem(contextId, nextItem, category, !mobile);
+    setMobileDetailOpen(Boolean(nextItem));
   };
+
+  const closeMobileDetail = () => {
+    if (window.history.state?.interviewDetail) window.history.back();
+    else {
+      void saveNow();
+      setMobileDetailOpen(false);
+      replaceUrl(contextId, "", category);
+    }
+  };
+
+  useEffect(() => {
+    const restoreHistory = () => {
+      const params = new URLSearchParams(window.location.search);
+      const requestedContext = params.get("context") ?? "";
+      const nextContext = targets.some((target) => target.id === requestedContext) ? requestedContext : "";
+      const requestedCategory = params.get("category") ?? "all";
+      const nextCategory = isKnownCategory(requestedCategory) ? requestedCategory : "all";
+      const scoped = items.filter((item) =>
+        (nextContext ? item.contextId === nextContext : item.contextId === null)
+        && (nextCategory === "all" || (nextCategory === "stress" ? item.style === "stress" : item.category === nextCategory)),
+      );
+      const requestedQuestion = params.get("question");
+      const matched = scoped.find((item) => item.questionId === requestedQuestion);
+      setCategory(nextCategory);
+      switchItem(nextContext, matched ?? scoped[0] ?? null, nextCategory, false);
+      setMobileDetailOpen(Boolean(matched));
+    };
+    window.addEventListener("popstate", restoreHistory);
+    return () => window.removeEventListener("popstate", restoreHistory);
+  }, [items, targets, switchItem]);
+
+  useEffect(() => {
+    if (mobileDetailOpen && window.matchMedia("(max-width: 767px)").matches) {
+      detailRef.current?.scrollIntoView({ block: "start" });
+      detailRef.current?.focus({ preventScroll: true });
+    }
+  }, [mobileDetailOpen, questionId]);
 
   useEffect(() => {
     if (saveState !== "saved") return;
@@ -246,7 +300,7 @@ export function InterviewFastWorkspace({
     return () => window.clearTimeout(timer);
   }, [saveState]);
 
-  const selected = selectedRef.current;
+  const selected = contextItems.find((item) => item.questionId === questionId) ?? null;
   const newQuestionType = category === "all" || category === "stress" ? "behavioral" : category;
   const newQuestionCategory = legacyCategoryByQuestionType[newQuestionType] ?? "behavioral";
   const newQuestionStyle = category === "stress" ? "stress" : "standard";
@@ -255,13 +309,13 @@ export function InterviewFastWorkspace({
     <div className="interview-workspace -mx-2 sm:-mx-3">
       <div className="px-2 sm:px-3">
         <div className="flex min-h-9 flex-wrap items-center justify-between gap-2.5">
-          <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex min-w-0 max-w-full items-center gap-2.5">
             <Link href="/career" prefetch className="pressable rounded-[8px] px-1 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">← Career</Link>
             <select
               aria-label="面试岗位"
               value={contextId}
               onChange={(event) => handleContextChange(event.target.value)}
-              className="max-w-[320px] rounded-[9px] bg-[var(--surface-control)] px-2.5 py-1.5 text-[13px] font-medium tracking-[-0.006em] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+              className="min-w-0 max-w-[min(320px,65vw)] rounded-[9px] bg-[var(--surface-control)] px-2.5 py-1.5 text-[13px] font-medium tracking-[-0.006em] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
             >
               <option value="">通用面试</option>
               {targets.map((target) => (
@@ -288,7 +342,7 @@ export function InterviewFastWorkspace({
           </div>
         </div>
 
-        <div className="mt-5 border-b border-[var(--separator)] pb-3.5">
+        <div className={`${mobileDetailOpen ? "hidden md:block" : ""} mt-5 border-b border-[var(--separator)] pb-3.5`}>
           <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--text-tertiary)]">核心问题</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <CategoryButton label="全部" count={counts.all ?? 0} active={category === "all"} onClick={() => handleCategoryChange("all")} />
@@ -333,7 +387,7 @@ export function InterviewFastWorkspace({
       </div>
 
       <div className="mt-4 grid min-h-[680px] gap-5 md:grid-cols-[286px_minmax(0,1fr)] md:gap-8">
-        <aside className="min-h-0 rounded-[16px] bg-[color-mix(in_srgb,var(--surface-control)_48%,transparent)] p-2.5 ring-1 ring-inset ring-black/[0.022]">
+        <aside data-testid="interview-question-list" className={`${mobileDetailOpen ? "hidden md:block" : ""} min-h-0 rounded-[16px] bg-[color-mix(in_srgb,var(--surface-control)_48%,transparent)] p-2.5 ring-1 ring-inset ring-black/[0.022]`}>
           <form action={createInterviewQuestion} className="mb-2.5">
             <textarea
               required
@@ -381,7 +435,7 @@ export function InterviewFastWorkspace({
             <span className="text-[10.5px] tabular-nums text-[var(--text-tertiary)]">{visibleItems.length}</span>
           </div>
 
-          <nav aria-label="面试题目" className="max-h-[260px] space-y-px overflow-y-auto pr-0.5 md:max-h-[600px]">
+          <nav aria-label="面试题目" className="space-y-px pr-0.5 md:max-h-[600px] md:overflow-y-auto">
             {visibleItems.map((item) => {
               const active = item.questionId === questionId;
               return (
@@ -399,10 +453,11 @@ export function InterviewFastWorkspace({
           </nav>
         </aside>
 
-        <main className="min-w-0 px-2 py-3.5 sm:px-3 md:px-0 md:py-4.5">
+        <main ref={detailRef} tabIndex={-1} aria-label="面试题目详情" data-testid="interview-question-detail" className={`${mobileDetailOpen ? "block" : "hidden md:block"} min-w-0 scroll-mt-4 px-2 py-3.5 outline-none sm:px-3 md:px-0 md:py-4.5`}>
+          <button type="button" onClick={closeMobileDetail} className="mb-4 min-h-11 rounded-[9px] px-3 text-[13px] font-medium text-[var(--accent)] md:hidden">← 返回题目列表</button>
           {selected ? (
             <div className="min-w-0">
-              <div className="flex items-start justify-between gap-5">
+              <div className="flex flex-wrap items-start justify-between gap-3 md:flex-nowrap md:gap-5">
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-[10.5px] text-[var(--text-tertiary)]">
                     <span>{selected.categoryLabel}</span>
@@ -412,12 +467,12 @@ export function InterviewFastWorkspace({
                   <h1 className="max-w-3xl text-[23px] font-semibold leading-[1.42] tracking-[-0.035em] text-[var(--text-primary)]">{selected.prompt}</h1>
                 </div>
                 <Link
-                  href={`/career/interview/practice/${selected.preparationId}`}
+                  href={`/career/interview/questions/${selected.questionId}${contextId ? `?context=${contextId}` : ""}`}
                   prefetch={false}
                   onClick={() => { void saveNow(); }}
                   className="mt-1 shrink-0 rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] transition-colors ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
                 >
-                  开始练习 →
+                  完整题目与答案 →
                 </Link>
               </div>
 

@@ -66,7 +66,7 @@ export default async function InterviewWorkspacePage({
 
   const targetIds = new Set(targets.map((target) => target.id));
   const requestedContext = params.context && targetIds.has(params.context) ? params.context : "";
-  const initialContextId = requestedContext || targets[0]?.id || "";
+  const initialContextId = requestedContext;
 
   const scopedItems = items.filter((item) => (
     initialContextId ? item.contextId === initialContextId : item.contextId === null
@@ -74,7 +74,7 @@ export default async function InterviewWorkspacePage({
   const requestedQuestion = params.question && scopedItems.some((item) => item.questionId === params.question)
     ? params.question
     : "";
-  const initialQuestionId = requestedQuestion || scopedItems[0]?.questionId || "";
+  const initialQuestionId = requestedQuestion;
 
   return (
     <InterviewFastWorkspace
