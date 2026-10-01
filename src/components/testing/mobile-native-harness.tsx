@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { InterviewFastWorkspace } from "@/components/career/interview/interview-fast-workspace";
 import { TodayPriorities } from "@/components/today/today-priorities";
 import { PracticeReflectionFields } from "@/components/career/interview/practice-reflection-fields";
 import { ActionFeedbackProvider } from "@/components/shared/action-feedback";
@@ -34,6 +35,19 @@ export function MobileNativeHarness() {
         <form onSubmit={(event) => event.preventDefault()} aria-label="练习表单测试"><PracticeReflectionFields /></form>
       </div>
 
+      <section data-testid="interview-harness" className="mx-auto my-8 max-w-5xl">
+        <InterviewFastWorkspace
+          targets={[{ id: "e2e-target", title: "E2E Target", organization: "E2E Company", role: "MT" }]}
+          items={[null, null, "e2e-target"].map((contextId, index) => ({
+            preparationId: `e2e-prep-${index}`, questionId: `e2e-question-${index}`, contextId,
+            prompt: `E2E 面试问题 ${index}`, category: "resume", categoryLabel: "简历",
+            style: "standard", subcategory: null, competencies: [],
+            thoughts: `E2E 思路 ${index}`, answer: `E2E 答案 ${index}`, answerId: null,
+          }))}
+          initialContextId="" initialQuestionId="" initialCategory="all"
+        />
+      </section>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogTitle>测试 Dialog</DialogTitle>
@@ -61,3 +75,4 @@ export function MobileNativeHarness() {
     </main>
   );
 }
+
