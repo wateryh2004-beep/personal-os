@@ -1,3 +1,4 @@
+import { taskRecordHref, eventRecordHref, milestoneRecordHref } from "./record-links";
 import type {
   NowCalendarEvent,
   NowCareerMilestone,
@@ -45,7 +46,7 @@ export function buildTodayBrief(input: {
         id: nextEvent.id,
         domain: "calendar",
         title: nextEvent.subject || "未命名日程",
-        href: "/calendar",
+        href: eventRecordHref(nextEvent.id),
         updatedAt: nextEvent.starts_at,
       }],
       suggestedAction: {
@@ -66,7 +67,7 @@ export function buildTodayBrief(input: {
         id: overdue.id,
         domain: "tasks",
         title: overdue.title || "未命名任务",
-        href: "/tasks",
+        href: taskRecordHref(overdue.id),
         updatedAt: overdue.due_at,
       }],
       suggestedAction: {
@@ -85,7 +86,7 @@ export function buildTodayBrief(input: {
         id: task.id,
         domain: "tasks",
         title: task.title || "未命名任务",
-        href: "/tasks",
+        href: taskRecordHref(task.id),
         updatedAt: task.due_at,
       }],
       suggestedAction: {
@@ -120,7 +121,7 @@ export function buildTodayBrief(input: {
         id: milestone.id,
         domain: "career",
         title: milestone.title,
-        href: "/career/roadmap",
+        href: milestoneRecordHref(milestone.id),
         updatedAt: milestone.target_date,
       }],
       suggestedAction: {

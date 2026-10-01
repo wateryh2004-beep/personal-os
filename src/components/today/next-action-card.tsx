@@ -89,7 +89,7 @@ export function NextActionCard({
               <ArrowRight className="size-3.5" aria-hidden="true" />
             </Link>
             {next.kind === "task" ? (
-              <CompleteTaskControl taskId={next.task.id} title={next.task.title} />
+              <CompleteTaskControl key={next.task.id} taskId={next.task.id} title={next.task.title} />
             ) : null}
           </div>
         ) : null}

@@ -6,6 +6,7 @@ import {
   getMobileRecentNavigation,
   mergeRecentNavigation,
   mobileTabNavigation,
+  mobileMoreNavigationGroups,
   navigationItemForPath,
   navigationRegistry,
   parseRecentNavigation,
@@ -22,6 +23,15 @@ describe("navigation registry", () => {
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/settings");
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/reviews");
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/briefing");
+  });
+
+  it("keeps Notes prominent in mobile More without duplicating bottom tabs", () => {
+    expect(mobileMoreNavigationGroups[0].items.map((item) => item.href)).toEqual(["/notes"]);
+    const more = mobileMoreNavigationGroups.flatMap((group) => group.items).map((item) => item.href);
+    expect(new Set(more).size).toBe(more.length);
+    expect(more).not.toContain("/career");
+    expect(mobileTabNavigation.map((item) => item.href)).toContain("/career");
+    expect(new Set([...more, ...mobileTabNavigation.map((item) => item.href)])).toEqual(new Set(desktopNavigationGroups.flatMap((group) => group.items).map((item) => item.href)));
   });
 
   it("resolves descendants to their owning navigation module", () => {

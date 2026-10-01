@@ -652,7 +652,10 @@ export async function unlinkInterviewEvidence(formData: FormData) {
 
 export async function createPracticeAttempt(formData: FormData) {
   const { supabase, userId } = await requireOwner();
-  const value = parse(interviewAttemptSchema, formObject(formData));
+  const value = parse(interviewAttemptSchema, {
+    ...formObject(formData),
+    issue_tags: formData.getAll("issue_tags").join(","),
+  });
   await own(supabase, "interview_question_preparations", value.preparation_id);
   if (value.answer_version_id) await own(supabase, "interview_answer_versions", value.answer_version_id);
   if (value.story_id) await own(supabase, "interview_stories", value.story_id);
@@ -690,12 +693,14 @@ export async function createPracticeAttempt(formData: FormData) {
   if (error || !data) failed(error);
   const nextPractice = new Date(Date.now() + 3 * 86_400_000).toISOString();
   const prepUpdate: Record<string, unknown> = { next_practice_at: nextPractice };
-  if (value.next_focus) prepUpdate.next_focus = value.next_focus;
+  if (value.next_focus.trim()) prepUpdate.next_focus = value.next_focus;
   if (prep.status === "unprepared" || prep.status === "developing") prepUpdate.status = "practicing";
-  await supabase.from("interview_question_preparations").update(prepUpdate).eq("id", value.preparation_id);
+  const { error: scheduleError } = await supabase.from("interview_question_preparations").update(prepUpdate).eq("id", value.preparation_id);
   await audit(supabase, userId, "practice", "interview_attempt", data.id, { preparation_id: value.preparation_id });
   revalidateInterview(prep.question_id, value.preparation_id);
-  redirect(`/career/interview/practice/${value.preparation_id}`);
+  const receipt = new URLSearchParams({ saved: data.id });
+  if (scheduleError) receipt.set("review", "not_updated");
+  redirect(`/career/interview/practice/${value.preparation_id}?${receipt}`);
 }
 
 export async function createInterviewSession(formData: FormData) {

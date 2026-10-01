@@ -6,6 +6,7 @@ import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, Fol
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { createNote } from "@/features/notes/actions";
 import { useGlobalSearch } from "@/features/search/use-global-search";
+import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
 import {
   commandPaletteNavigation,
   parseRecentNavigation,
@@ -15,10 +16,6 @@ import {
 
 export type CommandCenterSection = "search" | "quick";
 const domainLabels: Record<string, string> = { notes: "Notes", career: "Career", files: "Files", tasks: "Tasks", calendar: "Calendar", reviews: "Reviews", projects: "Projects", shopping: "Shopping", travel: "Travel" };
-
-function pathnameFromHref(href: string) {
-  return href.split(/[?#]/, 1)[0] || "/";
-}
 
 export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search" }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection }) {
   const router = useRouter();
@@ -31,10 +28,9 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
   const loading = search.status === "loading";
   useEffect(() => { if (!open) return; const timer = window.setTimeout(() => { setQuery(""); try { setRecents(parseRecentNavigation(localStorage.getItem(RECENT_NAVIGATION_STORAGE_KEY))); } catch { setRecents([]); } }, 0); return () => window.clearTimeout(timer); }, [initialSection, open]);
   const go = (href: string) => {
+    releaseMobileBackLayerForNavigation("dialog");
     onOpenChange(false);
-    if (pathnameFromHref(href) !== pathname) {
-      window.dispatchEvent(new CustomEvent("personal-os:navigation-start", { detail: { href } }));
-    }
+    window.dispatchEvent(new CustomEvent("personal-os:navigation-start", { detail: { href } }));
     router.push(href);
   };
   const newNote = () => { onOpenChange(false); startTransition(() => createNote()); };

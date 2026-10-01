@@ -76,7 +76,8 @@ export function createWorkspaceResource<T>(
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
     set: (data) => { entry = { data, fetchedAt: Date.now(), staleAt: Date.now() + staleMs }; notify(); },
     mutate: (updater) => { entry = { ...entry, data: updater(entry.data) }; notify(); },
-    invalidate: () => { entry = { ...entry, staleAt: 0 }; notify(); },
+    // Detach a pre-mutation read; its response must not overwrite a newer write.
+    invalidate: () => { entry = { ...entry, staleAt: 0, promise: undefined }; notify(); },
     // Route-owned workspaces are already fetched by Next.js RSC prefetch. A
     // second API prefetch only duplicates Vercel ↔ Supabase work.
     prefetch: options.prefetchStrategy === "route-owned"

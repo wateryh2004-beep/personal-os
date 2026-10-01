@@ -1,3 +1,4 @@
+import { taskRecordHref } from "@/features/today/record-links";
 import Link from "next/link";
 import { CircleAlert } from "lucide-react";
 import type { NowWorkspace } from "@/features/today/types";
@@ -27,7 +28,7 @@ export function TodayFocusStack({ workspace }: { workspace: NowWorkspace }) {
             {stack.tasks.map(({ task, label }) => (
               <li key={task.id} className="flex min-h-[42px] items-center gap-1.5">
                 <CompleteTaskControl taskId={task.id} title={task.title} compact />
-                <Link href="/tasks" className="min-w-0 flex-1 py-2 group">
+                <Link href={taskRecordHref(task.id)} className="min-w-0 flex-1 py-2 group">
                   <span className="block truncate text-[12.5px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                     {task.title || "未命名任务"}
                   </span>

@@ -1,3 +1,4 @@
+import { eventRecordHref, milestoneRecordHref } from "@/features/today/record-links";
 import type {
   NowCalendarEvent,
   NowCareerMilestone,
@@ -59,7 +60,7 @@ export function buildProactiveInsights({
         kind: "calendar_upcoming",
         priority: "high",
         title: `${e.subject || "日程"} 将在 30 分钟内开始`,
-        href: "/calendar",
+        href: eventRecordHref(e.id),
         fingerprint: `calendar_upcoming:${e.id}:${e.starts_at}`,
       }),
     );
@@ -71,7 +72,7 @@ export function buildProactiveInsights({
         priority: m.importance === "high" ? "high" : "medium",
         title: `Career 节点临近：${m.title}`,
         description: `目标日期 ${m.target_date}`,
-        href: "/career/roadmap",
+        href: milestoneRecordHref(m.id),
         fingerprint: `career_milestone_approaching:${m.id}:${m.target_date}`,
       }),
     );

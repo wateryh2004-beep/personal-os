@@ -1,3 +1,4 @@
+import { TodayPriorities } from "./today-priorities";
 import type { NowWorkspace } from "@/features/today/types";
 import { NowHeader } from "./now-header";
 import { TodayCommitments } from "./today-commitments";
@@ -11,7 +12,8 @@ export function NowWorkspaceView({ workspace }: { workspace: NowWorkspace }) {
       <NowHeader workspace={workspace} />
 
       <div className="mt-9 sm:mt-11">
-        <TodayCommitments commitments={workspace.commitments} />
+        {workspace.focus ? <TodayPriorities key={workspace.focus.date} focus={workspace.focus} /> : null}
+        <div className="mt-8"><TodayCommitments commitments={workspace.commitments} timezone={workspace.timezone} /></div>
       </div>
 
       <div className="mt-11 grid gap-11 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-[60px]">

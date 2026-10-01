@@ -85,6 +85,21 @@ describe("Notes editor reliability", () => {
     expect(editor).not.toContain("<DropdownMenu>");
   });
 
+  it("shows actionable save failures at desktop and mobile sizes", () => {
+    expect(editor).toContain("重试保存");
+    expect(editor).toContain("复制当前草稿");
+    expect(editor).toContain('saveHasError ? "bg-red-50/65');
+    expect(editor).toContain("CopyNoteReference");
+  });
+
+  it("retains loaded notes and mutation inputs when a request fails", () => {
+    expect(workspace).toContain("重试加载更多");
+    expect(workspace).toContain("重试全文搜索");
+    expect(workspace).toContain("unstable_rethrow(error)");
+    expect(workspace).toContain('mutate(renameNote, form, "笔记标题已保存", () => setRenaming(null))');
+    expect(workspace).toContain('mutate(moveNote, form, "笔记位置已更新", () => setMoving(null))');
+  });
+
   it("does not report the authoritative note body as failed when derived link sync fails", () => {
     expect(actions).toContain('action: "sync_note_links"');
     expect(actions).not.toContain("if (insert.error) fail();");

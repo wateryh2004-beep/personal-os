@@ -1,3 +1,4 @@
+import { taskRecordHref, eventRecordHref, milestoneRecordHref } from "./record-links";
 import type {
   NowAttentionItem,
   NowCalendarEvent,
@@ -60,12 +61,12 @@ export function eventIsToday(event: NowCalendarEvent, now: Date, timeZone: strin
 export function selectNextAction({ now, timeZone, events, tasks, milestones, inboxCount }: { now: Date; timeZone: string; events: NowCalendarEvent[]; tasks: ReturnType<typeof groupNowTasks>; milestones: NowCareerMilestone[]; inboxCount: number }) {
   const timed = events.filter((event) => !event.is_all_day).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const ongoing = timed.find((event) => new Date(event.starts_at) <= now && now < new Date(event.ends_at));
-  if (ongoing) return { kind: "event" as const, event: ongoing, state: "ongoing" as const, reason: `正在进行，${new Intl.DateTimeFormat("zh-CN", { timeZone, hour: "2-digit", minute: "2-digit" }).format(new Date(ongoing.ends_at))}结束`, href: "/calendar" as const };
+  if (ongoing) return { kind: "event" as const, event: ongoing, state: "ongoing" as const, reason: `正在进行，${new Intl.DateTimeFormat("zh-CN", { timeZone, hour: "2-digit", minute: "2-digit" }).format(new Date(ongoing.ends_at))}结束`, href: eventRecordHref(ongoing.id) };
   const next = timed.find((event) => new Date(event.starts_at) > now);
-  if (next && new Date(next.starts_at).getTime() - now.getTime() <= 45 * 60_000) return { kind: "event" as const, event: next, state: "starting_soon" as const, reason: `将在 ${formatRelativeDuration(new Date(next.starts_at).getTime() - now.getTime())}后开始`, href: "/calendar" as const };
+  if (next && new Date(next.starts_at).getTime() - now.getTime() <= 45 * 60_000) return { kind: "event" as const, event: next, state: "starting_soon" as const, reason: `将在 ${formatRelativeDuration(new Date(next.starts_at).getTime() - now.getTime())}后开始`, href: eventRecordHref(next.id) };
   const task = tasks.overdue.find((item) => item.importance === "high") ?? tasks.overdue[0] ?? tasks.today.find((item) => item.importance === "high") ?? tasks.today[0] ?? tasks.upcoming.find((item) => item.importance === "high") ?? tasks.upcoming[0];
-  if (task) { const overdue = tasks.overdue.some((item) => item.id === task.id); return { kind: "task" as const, task, reason: overdue ? "已逾期" : task.importance === "high" ? "今天到期 · 高优先级" : "今天值得推进", href: "/tasks" as const }; }
-  if (next) return { kind: "event" as const, event: next, state: "upcoming" as const, reason: `距离下一项日程还有 ${formatRelativeDuration(new Date(next.starts_at).getTime() - now.getTime())}`, href: "/calendar" as const };
+  if (task) { const overdue = tasks.overdue.some((item) => item.id === task.id); return { kind: "task" as const, task, reason: overdue ? "已逾期" : task.importance === "high" ? "今天到期 · 高优先级" : "今天值得推进", href: taskRecordHref(task.id) }; }
+  if (next) return { kind: "event" as const, event: next, state: "upcoming" as const, reason: `距离下一项日程还有 ${formatRelativeDuration(new Date(next.starts_at).getTime() - now.getTime())}`, href: eventRecordHref(next.id) };
   const today = getDateKeyInTimeZone(now, timeZone)!;
   const milestone = selectOpenCareerMilestones(milestones, today, 7)[0];
   if (milestone) {
@@ -74,7 +75,7 @@ export function selectNextAction({ now, timeZone, events, tasks, milestones, inb
       kind: "career_milestone" as const,
       milestone,
       reason: days === 0 ? "这个职业节点计划在今天" : `距离职业节点还有 ${days} 天`,
-      href: "/career/roadmap" as const,
+      href: milestoneRecordHref(milestone.id),
     };
   }
   if (inboxCount) return { kind: "inbox" as const, count: inboxCount, reason: "Inbox 中有待整理的信息", href: "/inbox" as const };
@@ -128,7 +129,7 @@ export function buildNowCommitments({
       title: event.subject || "未命名日程",
       whyNow,
       constraint: ongoing === event ? `至 ${localDateTime(event.ends_at, timeZone)} 结束` : `${localDateTime(event.starts_at, timeZone)} 开始`,
-      href: "/calendar",
+      href: eventRecordHref(event.id),
       source: { domain: "calendar", entityId: event.id, label: "Outlook Calendar" },
       rank,
       at: event.starts_at,
@@ -139,12 +140,12 @@ export function buildNowCommitments({
     ...tasks.today.map((task) => ({ task, rank: task.importance === "high" ? 4 : 5, whyNow: task.importance === "high" ? "今天到期且标为高优先级" : "任务今天到期", constraint: `截止：${localDateTime(task.due_at!, timeZone)}` })),
   ];
   for (const { task, rank, whyNow, constraint } of taskCandidates) {
-    candidates.push({ id: `task-${task.id}`, kind: "task", title: task.title || "未命名任务", whyNow, constraint, href: "/tasks", source: { domain: "tasks", entityId: task.id, label: "Microsoft To Do" }, task, rank, at: task.due_at! });
+    candidates.push({ id: `task-${task.id}`, kind: "task", title: task.title || "未命名任务", whyNow, constraint, href: taskRecordHref(task.id), source: { domain: "tasks", entityId: task.id, label: "Microsoft To Do" }, task, rank, at: task.due_at! });
   }
   const today = getDateKeyInTimeZone(now, timeZone)!;
   for (const milestone of selectOpenCareerMilestones(milestones, today, 7)) {
     const days = daysUntilCareerMilestone(milestone.target_date, today);
-    candidates.push({ id: `milestone-${milestone.id}`, kind: "milestone", title: milestone.title, whyNow: days === 0 ? "职业节点计划在今天" : "职业节点临近", constraint: days === 0 ? "目标日：今天" : `目标日：${milestone.target_date}（还有 ${days} 天）`, href: "/career/roadmap", source: { domain: "career", entityId: milestone.id, label: "Career Roadmap" }, rank: 6, at: milestone.target_date });
+    candidates.push({ id: `milestone-${milestone.id}`, kind: "milestone", title: milestone.title, whyNow: days === 0 ? "职业节点计划在今天" : "职业节点临近", constraint: days === 0 ? "目标日：今天" : `目标日：${milestone.target_date}（还有 ${days} 天）`, href: milestoneRecordHref(milestone.id), source: { domain: "career", entityId: milestone.id, label: "Career Roadmap" }, rank: 6, at: milestone.target_date });
   }
   if (inboxCount > 0) candidates.push({ id: "inbox", kind: "inbox", title: `整理 ${inboxCount} 条 Inbox`, whyNow: "Inbox 中仍有未处理的捕捉", constraint: `${inboxCount} 条待决定去向`, href: "/inbox", source: { domain: "inbox", entityId: null, label: "Inbox" }, rank: 7, at: "9999" });
 

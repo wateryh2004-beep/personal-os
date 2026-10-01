@@ -1,3 +1,4 @@
+import { eventRecordHref } from "@/features/today/record-links";
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 import type { NowWorkspace } from "@/features/today/types";
@@ -39,7 +40,7 @@ export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
                 {schedule.allDay.map((event) => (
                   <Link
                     key={event.id}
-                    href="/calendar"
+                    href={eventRecordHref(event.id)}
                     className="grid grid-cols-[52px_minmax(0,1fr)] gap-2.5 py-1.5 text-[11.5px] transition-colors ui-transition hover:text-[var(--accent)]"
                   >
                     <span className="text-[10.5px] text-[var(--text-tertiary)]">全天</span>
@@ -56,7 +57,7 @@ export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
                     {formatTime(event.starts_at, workspace.timezone)}
                   </span>
                   <span className="absolute -left-[3.5px] top-[14px] size-[6px] rounded-full bg-[var(--accent)] ring-[3px] ring-[var(--surface-canvas)]" />
-                  <Link href="/calendar" className="ml-3.5 block min-w-0 group">
+                  <Link href={eventRecordHref(event.id)} className="ml-3.5 block min-w-0 group">
                     <span className="block truncate text-[12.5px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                       {event.subject || "未命名日程"}
                     </span>

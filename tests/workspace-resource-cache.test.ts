@@ -51,3 +51,24 @@ describe("workspace resource cache", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
+
+it("detaches pre-mutation reads so a late stale response cannot replace saved data", async () => {
+  let oldRead!: (value: { version: number }) => void;
+  let freshRead!: (value: { version: number }) => void;
+  const fetcher = vi.fn()
+    .mockImplementationOnce(() => new Promise((resolve) => { oldRead = resolve; }))
+    .mockImplementationOnce(() => new Promise((resolve) => { freshRead = resolve; }));
+  const resource = createWorkspaceResource<{ version: number }>("test:mutation-race", fetcher, 0);
+  resource.set({ version: 1 });
+  const beforeMutation = resource.revalidate();
+  resource.mutate(() => ({ version: 2 }));
+  resource.invalidate();
+  const afterMutation = resource.revalidate({ force: true });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  oldRead({ version: 1 });
+  await beforeMutation;
+  expect(resource.get().data).toEqual({ version: 2 });
+  freshRead({ version: 3 });
+  await afterMutation;
+  expect(resource.get().data).toEqual({ version: 3 });
+});
