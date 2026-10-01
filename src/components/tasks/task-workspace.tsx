@@ -52,6 +52,7 @@ import { EntityMarkdown } from "@/components/links/entity-markdown";
 import { MentionTextarea } from "@/components/links/entity-mention-textarea";
 import { useActionFeedback } from "@/components/shared/action-feedback";
 import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
+import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
 import { formatDate } from "@/lib/format";
 import { useWorkspaceScrollRestoration } from "@/components/shared/use-workspace-scroll-restoration";
 import { tasksWorkspaceResource } from "@/features/tasks/workspace-resource";
@@ -586,6 +587,8 @@ export function TaskWorkspace({
   const linkedTaskRef = useRef(initialTaskId);
   // undefined: route owns selection; string/null: a local replace is pending.
   const taskNavigationIntent = useRef<string | null | undefined>(undefined);
+  const supersededTaskTargets = useRef(new Set<string | null>());
+  const [taskNavigationVersion, setTaskNavigationVersion] = useState(0);
   const [retrying, setRetrying] = useState(false);
   const retryingRef = useRef(false);
   const [taskError, setTaskError] = useState<string | null>(null);
@@ -651,9 +654,12 @@ export function TaskWorkspace({
     linkedTaskRef.current = initialTaskId;
     const intent = taskNavigationIntent.current;
     if (intent !== undefined) {
-      // Delayed RSC responses must not reopen an inspector the user dismissed.
-      if (initialTaskId !== (intent ?? undefined)) return;
+      const incoming = initialTaskId ?? null;
+      // Ignore only known older local responses. A newer external navigation
+      // may cancel our replace, so its current-URL target must be allowed in.
+      if (incoming !== intent && (supersededTaskTargets.current.has(incoming) || new URL(window.location.href).searchParams.get("task") !== incoming)) return;
       taskNavigationIntent.current = undefined;
+      supersededTaskTargets.current.clear();
     }
     if (!initialTaskId) {
       // URL selection is external navigation state, including browser Back.
@@ -664,6 +670,42 @@ export function TaskWorkspace({
     setSelectedId(initialTaskId);
     setListId(null);
     setView(rowsRef.current.find((task) => task.id === initialTaskId)?.status === "completed" ? "completed" : "all");
+  }, [initialTaskId, taskNavigationVersion]);
+
+  useEffect(() => {
+    const acceptTarget = (target: string | null) => {
+      supersededTaskTargets.current.clear();
+      supersededTaskTargets.current.add(initialTaskId ?? null);
+      taskNavigationIntent.current = target;
+      setTaskNavigationVersion((current) => current + 1);
+    };
+    const acceptHistoryNavigation = () => {
+      const target = new URL(window.location.href).searchParams.get("task");
+      // Same-URL mobile overlay history is dismissal, not a new record request.
+      if (target !== (initialTaskId ?? null)) acceptTarget(target);
+    };
+    const acceptNavigationStart = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: unknown }>).detail?.href;
+      if (typeof href !== "string") return;
+      let url: URL;
+      try { url = new URL(href, window.location.origin); } catch { return; }
+      if (url.origin === window.location.origin && url.pathname === window.location.pathname) acceptTarget(url.searchParams.get("task"));
+    };
+    const acceptLinkNavigation = (event: MouseEvent) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!(link instanceof HTMLAnchorElement) || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
+      const url = new URL(link.href);
+      if (url.origin === window.location.origin && url.pathname === window.location.pathname) acceptTarget(url.searchParams.get("task"));
+    };
+    window.addEventListener("popstate", acceptHistoryNavigation);
+    window.addEventListener("personal-os:navigation-start", acceptNavigationStart);
+    document.addEventListener("click", acceptLinkNavigation);
+    return () => {
+      window.removeEventListener("popstate", acceptHistoryNavigation);
+      window.removeEventListener("personal-os:navigation-start", acceptNavigationStart);
+      document.removeEventListener("click", acceptLinkNavigation);
+    };
   }, [initialTaskId]);
 
   const closeTask = (id = selectedId) => {
@@ -674,8 +716,11 @@ export function TaskWorkspace({
     const url = new URL(window.location.href);
     const linkedId = url.searchParams.get("task");
     if (intent === undefined && linkedId !== id) return;
+    supersededTaskTargets.current.add(initialTaskId ?? null);
+    if (intent !== undefined) supersededTaskTargets.current.add(intent);
     taskNavigationIntent.current = null;
     url.searchParams.delete("task");
+    releaseMobileBackLayerForNavigation("side-panel:inspector");
     router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
   };
 
@@ -691,6 +736,8 @@ export function TaskWorkspace({
   const openTask = (task: TodoTask) => {
     setSelectedId(task.id);
     if ((initialTaskId && initialTaskId !== task.id) || taskNavigationIntent.current !== undefined) {
+      supersededTaskTargets.current.add(initialTaskId ?? null);
+      if (taskNavigationIntent.current !== undefined) supersededTaskTargets.current.add(taskNavigationIntent.current);
       taskNavigationIntent.current = task.id;
       const url = new URL(window.location.href);
       url.searchParams.set("task", task.id);

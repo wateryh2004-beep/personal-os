@@ -16,6 +16,7 @@ import {
 import { ViewTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { GlobalCommandPalette, type CommandCenterSection } from "@/components/search/global-command-palette";
 import { logoutAction } from "@/features/auth/actions";
@@ -166,6 +167,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const visiblePendingHref = pendingPathname === pathname ? null : pendingHref;
 
   const beginNavigation = useCallback((href: string) => {
+    if (new URL(href, window.location.href).href !== window.location.href) {
+      releaseMobileBackLayerForNavigation("sheet");
+    }
     if (pathnameFromHref(href) === pathname) return;
     setShowNavigationProgress(false);
     setPendingHref(href);

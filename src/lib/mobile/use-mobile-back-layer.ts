@@ -8,6 +8,16 @@ function isPhoneViewport() {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
 }
 
+/** A route-changing dismissal owns its navigation; cleanup must not also Back. */
+export function releaseMobileBackLayerForNavigation(layerName: string) {
+  const state = window.history.state as Record<string, unknown> | null;
+  const marker = state?.[historyMarkerKey];
+  if (typeof marker !== "string" || !marker.startsWith(`${layerName}:`)) return;
+  const nextState = { ...state };
+  delete nextState[historyMarkerKey];
+  window.history.replaceState(nextState, "", window.location.href);
+}
+
 /**
  * Makes Android/browser Back dismiss the top mobile overlay before leaving the route.
  * Each open layer owns one same-URL history entry, so nested overlays unwind in order.
@@ -16,7 +26,7 @@ export function useMobileBackLayer(open: boolean, onDismiss: () => void, layerNa
   const dismissRef = useRef(onDismiss);
   const activeRef = useRef(false);
   const markerRef = useRef<string | null>(null);
-  dismissRef.current = onDismiss;
+  useEffect(() => { dismissRef.current = onDismiss; }, [onDismiss]);
 
   useEffect(() => {
     if (!open || !isPhoneViewport()) return;
@@ -26,6 +36,7 @@ export function useMobileBackLayer(open: boolean, onDismiss: () => void, layerNa
       ? window.history.state
       : {};
 
+    const openedAtUrl = window.location.href;
     markerRef.current = marker;
     activeRef.current = true;
     window.history.pushState({ ...currentState, [historyMarkerKey]: marker }, "", window.location.href);
@@ -51,7 +62,17 @@ export function useMobileBackLayer(open: boolean, onDismiss: () => void, layerNa
       const currentMarker = state?.[historyMarkerKey];
       activeRef.current = false;
       markerRef.current = null;
-      if (currentMarker === marker) window.history.back();
+      if (currentMarker === marker) {
+        if (window.location.href === openedAtUrl) window.history.back();
+        else {
+          // A same-route record change may replace the overlay entry's URL.
+          // It no longer owns a same-URL Back step: retain the current route
+          // and Next's history state, removing only this layer's marker.
+          const nextState = { ...state };
+          delete nextState[historyMarkerKey];
+          window.history.replaceState(nextState, "", window.location.href);
+        }
+      }
     };
   }, [layerName, open]);
 }

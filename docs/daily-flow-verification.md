@@ -17,7 +17,7 @@ Validation: applied only to the isolated validation project before review. `supa
 
 ## Verification and limits
 
-Run `npm run typecheck`, `npm test`, `npm run build`, and `npm run lint`. Existing main has 165 lint errors and four warnings; this change reduces it to 161 errors and four warnings with no new findings. Changed TypeScript files pass lint.
+Run `npm run typecheck`, `npm test`, `npm run build`, and `npm run lint`. Baseline main f06fd39 has 165 lint errors and four warnings; this change reduces it to 160 errors and four warnings with no new findings. Changed TypeScript files pass lint.
 
 The GitHub verification workflow runs the existing 360/390/412/430px browser suite, extended with priority selection/cap/cancel, canonical links, and practice form controls. It uploads synthetic-data screenshots for visual review. The harness remains available only with `E2E_MOBILE_HARNESS=1` and makes no provider writes during the test.
 

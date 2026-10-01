@@ -16,6 +16,7 @@ import type { CalendarCategory } from "@/features/calendar/categories/types";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
 import { Inspector } from "@/components/shared/inspector";
 import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
+import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatWallDate, fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, wallTimeToIso, weekRangeInTimeZone } from "@/features/calendar/timezone";
 import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, reconcileCalendarMutationRange, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
@@ -67,6 +68,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   const [lookup, setLookup] = useState<{ id: string; error?: string } | null>(null);
   const linkedEventRequest = useRef<AbortController | null>(null);
   const calendarNavigationIntent = useRef<string | null | undefined>(undefined);
+  const supersededCalendarTargets = useRef(new Set<string | null>());
   const preserveDraftOnNavigation = useRef(false);
   const navigationRef = useRef({ initialEventId, initialCreateOpen });
   const eventStateRef = useRef(events);
@@ -115,12 +117,17 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   useEffect(() => {
     const intent = calendarNavigationIntent.current;
     if (intent !== undefined) {
-      if (initialEventId !== (intent ?? undefined) || initialCreateOpen) return;
+      const incoming = initialEventId ?? (initialCreateOpen ? "create" : null);
+      const url = new URL(window.location.href);
+      const currentTarget = url.searchParams.get("event") ?? (url.searchParams.get("create") === "1" ? "create" : null);
+      // A different external URL can supersede the local replace. Retire only
+      // the specific local targets whose responses are known to be older.
+      if (incoming !== intent && (supersededCalendarTargets.current.has(incoming) || currentTarget !== incoming)) return;
       calendarNavigationIntent.current = undefined;
-      if (preserveDraftOnNavigation.current) {
-        preserveDraftOnNavigation.current = false;
-        return;
-      }
+      supersededCalendarTargets.current.clear();
+      const keepDraft = preserveDraftOnNavigation.current && incoming === intent;
+      preserveDraftOnNavigation.current = false;
+      if (keepDraft) return;
     }
     const controller = new AbortController();
     linkedEventRequest.current?.abort();
@@ -168,6 +175,50 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     return () => { window.clearTimeout(start); controller.abort(); };
   }, [closeInspector, initialCreateOpen, initialEventId, lookupAttempt, openInspector, timezone]);
 
+  useEffect(() => {
+    const currentTarget = initialEventId ?? (initialCreateOpen ? "create" : null);
+    const targetFromUrl = (url: URL) => url.searchParams.get("event") ?? (url.searchParams.get("create") === "1" ? "create" : null);
+    const acceptTarget = (target: string | null) => {
+      supersededCalendarTargets.current.clear();
+      supersededCalendarTargets.current.add(currentTarget);
+      calendarNavigationIntent.current = target;
+      preserveDraftOnNavigation.current = false;
+      setLookupAttempt((current) => current + 1);
+    };
+    const acceptHistoryNavigation = () => {
+      const target = targetFromUrl(new URL(window.location.href));
+      if (target !== currentTarget) acceptTarget(target);
+    };
+    const acceptNavigationStart = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: unknown }>).detail?.href;
+      if (typeof href !== "string") return;
+      let url: URL;
+      try { url = new URL(href, window.location.origin); } catch { return; }
+      if (url.origin === window.location.origin && url.pathname === window.location.pathname) acceptTarget(targetFromUrl(url));
+    };
+    const acceptLinkNavigation = (event: MouseEvent) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!(link instanceof HTMLAnchorElement) || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
+      const url = new URL(link.href);
+      if (url.origin === window.location.origin && url.pathname === window.location.pathname) acceptTarget(targetFromUrl(url));
+    };
+    window.addEventListener("popstate", acceptHistoryNavigation);
+    window.addEventListener("personal-os:navigation-start", acceptNavigationStart);
+    document.addEventListener("click", acceptLinkNavigation);
+    return () => {
+      window.removeEventListener("popstate", acceptHistoryNavigation);
+      window.removeEventListener("personal-os:navigation-start", acceptNavigationStart);
+      document.removeEventListener("click", acceptLinkNavigation);
+    };
+  }, [initialCreateOpen, initialEventId]);
+
+  const beginCalendarNavigation = (target: string | null) => {
+    supersededCalendarTargets.current.add(initialEventId ?? (initialCreateOpen ? "create" : null));
+    if (calendarNavigationIntent.current !== undefined) supersededCalendarTargets.current.add(calendarNavigationIntent.current);
+    calendarNavigationIntent.current = target;
+  };
+
   const closeDetails = () => {
     linkedEventRequest.current?.abort();
     setLookup(null);
@@ -178,10 +229,11 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     closeInspector();
     preserveDraftOnNavigation.current = false;
     if (initialEventId || initialCreateOpen || calendarNavigationIntent.current !== undefined) {
-      calendarNavigationIntent.current = null;
+      beginCalendarNavigation(null);
       const url = new URL(window.location.href);
       url.searchParams.delete("event");
       url.searchParams.delete("create");
+      releaseMobileBackLayerForNavigation("side-panel:inspector");
       router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
     }
   };
@@ -244,7 +296,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     setLookup(null); setSelected(event); setDraft(null); openInspector();
     preserveDraftOnNavigation.current = false;
     if ((initialEventId && initialEventId !== event.id) || initialCreateOpen || calendarNavigationIntent.current !== undefined) {
-      calendarNavigationIntent.current = event.id;
+      beginCalendarNavigation(event.id);
       const url = new URL(window.location.href);
       url.searchParams.set("event", event.id);
       url.searchParams.delete("create");
@@ -256,7 +308,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     selectedRef.current = null; draftRef.current = range;
     setLookup(null); setSelected(null); setDraft(range); openInspector();
     if (initialEventId || initialCreateOpen || calendarNavigationIntent.current !== undefined) {
-      calendarNavigationIntent.current = null;
+      beginCalendarNavigation(null);
       preserveDraftOnNavigation.current = true;
       const url = new URL(window.location.href);
       url.searchParams.delete("event");
