@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { CalendarPlus, Check, CheckSquare2, ChevronDown, Inbox, TimerReset } from "lucide-react";
 import type { NowCommitment } from "@/features/today/types";
 import { CompleteTaskControl } from "./complete-task-control";
+import { shiftCalendarCursor } from "@/features/calendar/timezone";
+import { tasksWorkspaceResource } from "@/features/tasks/workspace-resource";
+import { todayWorkspaceResource } from "@/features/today/workspace-resource";
+import { useActionFeedback } from "@/components/shared/action-feedback";
 import { deferMicrosoftTodoTaskAction } from "@/features/tasks/microsoft-todo";
 
 const DEFAULT_VISIBLE = 5;
@@ -14,35 +18,52 @@ function openCreate(kind: "task" | "calendar" | "inbox", title: string) {
 }
 
 const actionClass =
-  "pressable inline-flex h-7 items-center gap-1 rounded-[8px] px-1.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50";
+  "pressable inline-flex min-h-11 sm:min-h-8 items-center gap-1 rounded-[8px] px-1.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50";
 
-function DeferTaskControl({ task }: { task: NonNullable<NowCommitment["task"]> }) {
+function DeferTaskControl({ task, timezone }: { task: NonNullable<NowCommitment["task"]>; timezone: string }) {
   const [pending, startTransition] = useTransition();
+  const [failed, setFailed] = useState(false);
+  const inFlight = useRef(false);
+  const { show } = useActionFeedback();
   return (
     <button
       type="button"
       disabled={pending}
-      onClick={() =>
+      onClick={() => {
+        if (inFlight.current) return;
+        inFlight.current = true;
         startTransition(async () => {
+          setFailed(false);
+          try {
           const form = new FormData();
           form.set("task_id", task.id);
-          form.set("due_at", new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+          const dueAt = shiftCalendarCursor(new Date(), timezone, 1).toISOString();
+          form.set("due_at", dueAt);
           await deferMicrosoftTodoTaskAction(form);
-        })
-      }
+          tasksWorkspaceResource.mutate((workspace) => workspace ? { ...workspace, tasks: workspace.tasks.map((row) => row.id === task.id ? { ...row, dueAt } : row) } : workspace);
+          tasksWorkspaceResource.invalidate();
+          show({ message: "已延后到明天", tone: "success" });
+          todayWorkspaceResource.invalidate();
+          void todayWorkspaceResource.revalidate({ force: true }).catch(() => {});
+          } catch {
+            setFailed(true);
+            show({ message: "未能确认延后结果，请刷新核对后重试。", tone: "error" });
+          } finally { inFlight.current = false; }
+        });
+      }}
       className={actionClass}
     >
       <TimerReset className="size-3.5" aria-hidden="true" />
-      {pending ? "延后中…" : "明天"}
+      {pending ? "延后中…" : failed ? "重试延后" : "明天"}
     </button>
   );
 }
 
-function CommitmentActions({ item }: { item: NowCommitment }) {
+function CommitmentActions({ item, timezone }: { item: NowCommitment; timezone: string }) {
   if (item.kind === "task" && item.task) {
     return (
       <div className="flex items-center gap-0.5">
-        <DeferTaskControl task={item.task} />
+        <DeferTaskControl task={item.task} timezone={timezone} />
         <CompleteTaskControl taskId={item.task.id} title={item.task.title} compact />
       </div>
     );
@@ -78,7 +99,7 @@ function CommitmentActions({ item }: { item: NowCommitment }) {
   );
 }
 
-export function TodayCommitments({ commitments }: { commitments: NowCommitment[] }) {
+export function TodayCommitments({ commitments, timezone }: { commitments: NowCommitment[]; timezone: string }) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? commitments : commitments.slice(0, DEFAULT_VISIBLE);
 
@@ -87,10 +108,10 @@ export function TodayCommitments({ commitments }: { commitments: NowCommitment[]
       <div className="flex min-h-12 flex-wrap items-end justify-between gap-2.5 py-3">
         <div>
           <h2 id="today-commitments-heading" className="text-[14px] font-semibold tracking-[-0.01em]">
-            今日承诺
+            到期与临近提醒
           </h2>
           <p className="mt-0.5 text-[10.5px] text-[var(--text-tertiary)]">
-            只保留有依据、值得现在处理的下一步
+            来自截止时间、日程和职业节点，不会自动加入今日重点
           </p>
         </div>
         {commitments.length ? (
@@ -117,7 +138,7 @@ export function TodayCommitments({ commitments }: { commitments: NowCommitment[]
                 <p className="mt-1 text-[9.5px] text-[var(--text-tertiary)]">{item.source.label}</p>
               </div>
               <div className="-ml-1 shrink-0 sm:ml-0">
-                <CommitmentActions item={item} />
+                <CommitmentActions item={item} timezone={timezone} />
               </div>
             </li>
           ))}

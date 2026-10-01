@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { unstable_rethrow, useRouter, useSearchParams } from "next/navigation";
 import { FilePlus2, LoaderCircle, MoreHorizontal, Pin, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +25,7 @@ import { formatNoteTimestamp } from "@/features/notes/utils";
 import { filterNotesByMetadata, mergeNoteSearchResults, noteFolderPath } from "@/features/notes/local-search";
 import { useWorkspaceScrollRestoration } from "@/components/shared/use-workspace-scroll-restoration";
 import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
+import { useActionFeedback } from "@/components/shared/action-feedback";
 
 type Folder = { id: string; name: string; parent_id: string | null };
 type WorkspaceState = "ready" | "base" | "unavailable";
@@ -60,6 +61,7 @@ function NoteRow({
   onTogglePinned,
   onTrash,
   showExcerpt,
+  pending,
 }: {
   note: NoteListItem;
   folders: Folder[];
@@ -74,6 +76,7 @@ function NoteRow({
   onTogglePinned: (note: NoteListItem) => void;
   onTrash: (note: NoteListItem) => void;
   showExcerpt: boolean;
+  pending: boolean;
 }) {
   return (
     <article className="group relative -mx-2 rounded-[10px] px-2 transition-[background-color] ui-transition after:absolute after:bottom-0 after:left-2 after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden hover:bg-[var(--surface-hover)]">
@@ -82,6 +85,8 @@ function NoteRow({
           {renaming ? (
             <input
               autoFocus
+              disabled={pending}
+              maxLength={240}
               value={renameValue}
               onChange={(event) => onRenameChange(event.target.value)}
               onBlur={onRenameCommit}
@@ -123,6 +128,7 @@ function NoteRow({
             size="icon-sm"
             className="absolute right-1 top-[10px] z-10 text-[var(--text-tertiary)] md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 focus-visible:opacity-100"
             aria-label={`管理 ${note.title || "无标题笔记"}`}
+            disabled={pending}
           >
             <MoreHorizontal />
           </Button>
@@ -163,22 +169,31 @@ export function NotesWorkspace({
   initialHasMore: boolean;
 }) {
   const router = useRouter();
+  const feedback = useActionFeedback();
   const params = useSearchParams();
   const [query, setQuery] = useState(params.get("q") ?? "");
   const [scope, setScope] = useState<"context" | "all">(params.get("scope") === "all" ? "all" : "context");
-  const [results, setResults] = useState<NoteListItem[] | null>(null);
-  const [searchState, setSearchState] = useState<"idle" | "loading" | "error">("idle");
+  const [remoteSearch, setRemoteSearch] = useState<{ key: string; results: NoteListItem[]; state: "idle" | "error" } | null>(null);
   const [additional, setAdditional] = useState<NoteListItem[]>([]);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
+  const [searchAttempt, setSearchAttempt] = useState(0);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const mutationInFlight = useRef(false);
+  const loadMoreInFlight = useRef(false);
   const [renaming, setRenaming] = useState<NoteListItem | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [moving, setMoving] = useState<NoteListItem | null>(null);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
   const requestRef = useRef<AbortController | null>(null);
   const listScrollRef = useWorkspaceScrollRestoration("notes:list");
   const normalizedQuery = query.trim();
   const activeFolderId = scope === "context" ? selectedFolder?.id ?? null : null;
+  const searchKey = JSON.stringify([activeFolderId, normalizedQuery, searchAttempt]);
+  const currentSearch = remoteSearch?.key === searchKey ? remoteSearch : null;
+  const results = currentSearch?.results ?? null;
+  const searchState = !normalizedQuery ? "idle" : currentSearch?.state ?? "loading";
 
   const allNotes = useMemo(() => {
     const byId = new Map(notes.map((note) => [note.id, note]));
@@ -213,15 +228,11 @@ export function NotesWorkspace({
   useEffect(() => {
     if (!normalizedQuery) {
       requestRef.current?.abort();
-      setResults(null);
-      setSearchState("idle");
       return;
     }
     const controller = new AbortController();
     requestRef.current?.abort();
     requestRef.current = controller;
-    setResults(null);
-    setSearchState("loading");
     const timer = window.setTimeout(async () => {
       try {
         const search = new URLSearchParams({ q: normalizedQuery, limit: "30" });
@@ -230,13 +241,11 @@ export function NotesWorkspace({
         const body = (await response.json()) as { results?: NoteListItem[]; error?: string };
         if (!response.ok) throw new Error(body.error);
         if (!controller.signal.aborted) {
-          setResults(body.results ?? []);
-          setSearchState("idle");
+          setRemoteSearch({ key: searchKey, results: body.results ?? [], state: "idle" });
         }
       } catch {
         if (!controller.signal.aborted) {
-          setResults(null);
-          setSearchState("error");
+          setRemoteSearch({ key: searchKey, results: [], state: "error" });
         }
       }
     }, 160);
@@ -244,7 +253,7 @@ export function NotesWorkspace({
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [activeFolderId, normalizedQuery]);
+  }, [activeFolderId, normalizedQuery, searchKey]);
 
   const syncSearchUrl = (nextQuery: string, nextScope: "context" | "all") => {
     const url = new URL(window.location.href);
@@ -259,22 +268,55 @@ export function NotesWorkspace({
     syncSearchUrl(value, scope);
   };
 
-  const mutate = (action: (form: FormData) => Promise<void>, form: FormData) =>
+  const mutate = (action: (form: FormData) => Promise<void>, form: FormData, message: string, onSuccess?: () => void) => {
+    if (mutationInFlight.current) return;
+    mutationInFlight.current = true;
+    setMutationError(null);
     startTransition(async () => {
-      await action(form);
-      notesWorkspaceResource.invalidate();
-      void notesWorkspaceResource.revalidate().catch(() => {});
+      try {
+        await action(form);
+        onSuccess?.();
+        feedback.show({ message, tone: "success" });
+        notesWorkspaceResource.invalidate();
+        // A refresh failure must not relabel an acknowledged write as failed.
+        void notesWorkspaceResource.revalidate().catch(() => {
+          setMutationError("操作已保存，列表暂时未能更新。请重新读取列表。");
+        });
+      } catch (error) {
+        unstable_rethrow(error);
+        setMutationError("操作未能确认。请重新读取列表核对结果，再重试；重命名和移动中的输入会保留。");
+      } finally {
+        mutationInFlight.current = false;
+      }
     });
+  };
+
+  const refreshList = () => {
+    startTransition(async () => {
+      try {
+        await notesWorkspaceResource.revalidate({ force: true });
+        setMutationError(null);
+      } catch {
+        setMutationError("列表暂时无法读取。请检查网络后重试，已有笔记仍保留。");
+      }
+    });
+  };
 
   const loadMore = async () => {
+    if (loadMoreInFlight.current) return;
+    loadMoreInFlight.current = true;
     setLoadingMore(true);
+    setLoadMoreError(false);
     try {
       const response = await fetch(`/api/notes/list?offset=${allNotes.length}&limit=50`);
       const body = (await response.json()) as { notes?: NoteListItem[]; hasMore?: boolean };
       if (!response.ok) throw new Error();
       setAdditional((current) => [...current, ...(body.notes ?? [])]);
       setHasMore(Boolean(body.hasMore));
+    } catch {
+      setLoadMoreError(true);
     } finally {
+      loadMoreInFlight.current = false;
       setLoadingMore(false);
     }
   };
@@ -307,6 +349,12 @@ export function NotesWorkspace({
             今日日记暂时未能创建。刷新后重试；已有日记不会被删除。
           </p>
         ) : null}
+
+        {mutationError ? <div role="alert" className="mb-4 rounded-[9px] bg-red-50 px-3 py-2 text-[11.5px] leading-5 text-[var(--danger)]">
+          <p>{mutationError}</p>
+          <Button variant="ghost" size="sm" disabled={pending} onClick={refreshList}>重新读取列表</Button>
+        </div> : null}
+        {pending ? <p role="status" className="mb-2 text-[11px] text-[var(--text-tertiary)]">正在处理，请稍候…</p> : null}
 
         <header className="flex min-h-11 flex-wrap items-end gap-2.5">
           <div className="mr-auto min-w-0">
@@ -363,6 +411,7 @@ export function NotesWorkspace({
               : searchState === "loading"
                 ? "已先显示本地匹配，正在补充正文全文结果…"
                 : "标题匹配优先，正文命中随后补充。"}
+            {searchState === "error" ? <button type="button" onClick={() => setSearchAttempt((value) => value + 1)} className="pressable ml-2 min-h-8 rounded-[6px] px-1 text-[var(--accent)] underline underline-offset-2">重试全文搜索</button> : null}
           </p>
         ) : null}
 
@@ -384,9 +433,10 @@ export function NotesWorkspace({
                     const form = new FormData();
                     form.set("note_id", note.id);
                     form.set("title", nextTitle);
-                    mutate(renameNote, form);
+                    mutate(renameNote, form, "笔记标题已保存", () => setRenaming(null));
+                  } else {
+                    setRenaming(null);
                   }
-                  setRenaming(null);
                 }}
                 onRenameCancel={() => setRenaming(null)}
                 onRename={(item) => {
@@ -397,21 +447,23 @@ export function NotesWorkspace({
                 onTogglePinned={(item) => {
                   const form = new FormData();
                   form.set("note_id", item.id);
-                  mutate(toggleNotePinned, form);
+                  mutate(toggleNotePinned, form, item.pinned_at ? "已取消收藏" : "已加入收藏");
                 }}
                 onTrash={(item) => {
                   const form = new FormData();
                   form.set("note_id", item.id);
-                  mutate(trashNote, form);
+                  mutate(trashNote, form, "已移到回收站");
                 }}
                 showExcerpt={Boolean(normalizedQuery)}
+                pending={pending}
               />
             ))}
             {!normalizedQuery && hasMore ? (
               <div className="py-5 text-center">
+                {loadMoreError ? <p role="alert" className="mb-1 text-[11px] text-[var(--danger)]">加载失败，已显示的笔记仍保留。</p> : null}
                 <Button variant="ghost" disabled={loadingMore} onClick={() => void loadMore()}>
                   {loadingMore ? <LoaderCircle className="animate-spin" /> : null}
-                  {loadingMore ? "正在加载…" : "加载更多"}
+                  {loadingMore ? "正在加载…" : loadMoreError ? "重试加载更多" : "加载更多"}
                 </Button>
               </div>
             ) : null}
@@ -437,16 +489,16 @@ export function NotesWorkspace({
             onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
-              mutate(moveNote, form);
-              setMoving(null);
+              mutate(moveNote, form, "笔记位置已更新", () => setMoving(null));
             }}
             className="w-full max-w-sm rounded-[18px] border border-[var(--separator)] bg-[var(--material-thick)] p-4 shadow-[var(--shadow-dialog)] backdrop-blur-2xl backdrop-saturate-[180%]"
           >
             <input type="hidden" name="note_id" value={moving.id} />
+            {mutationError ? <div role="alert" className="mb-3 text-[11px] leading-5 text-[var(--danger)]"><p>{mutationError}</p><Button type="button" variant="ghost" size="sm" disabled={pending} onClick={refreshList}>重新读取列表</Button></div> : null}
             <FolderPicker folders={folders} initialFolderId={moving.folder_id} idPrefix={`move-${moving.id}`} label="移动到" />
             <div className="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={() => setMoving(null)}>取消</Button>
-              <Button type="submit">移动</Button>
+              <Button type="button" variant="ghost" disabled={pending} onClick={() => setMoving(null)}>取消</Button>
+              <Button type="submit" disabled={pending}>{pending ? "正在移动…" : "移动"}</Button>
             </div>
           </form>
         </div>

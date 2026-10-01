@@ -62,25 +62,44 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   const [rangeTruncated, setRangeTruncated] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
   const [compactViewport, setCompactViewport] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [lookupAttempt, setLookupAttempt] = useState(0);
+  const [lookup, setLookup] = useState<{ id: string; error?: string } | null>(null);
+  const linkedEventRequest = useRef<AbortController | null>(null);
+  const calendarNavigationIntent = useRef<string | null | undefined>(undefined);
+  const preserveDraftOnNavigation = useRef(false);
+  const navigationRef = useRef({ initialEventId, initialCreateOpen });
+  const eventStateRef = useRef(events);
+  const selectedRef = useRef(selected);
+  const draftRef = useRef(draft);
+  const movingIds = useRef(new Set<string>());
+  const syncingRef = useRef(false);
   const activeRangeRef = useRef<Range | null>(null);
   const requestSequenceRef = useRef(0);
   const ai = useWorkspacePanel("calendar-ai");
   const inspector = useWorkspacePanel("calendar-inspector");
+  const openInspector = inspector.open;
+  const closeInspector = inspector.close;
+
+  useEffect(() => { eventStateRef.current = eventState; }, [eventState]);
+  useEffect(() => { selectedRef.current = selected; draftRef.current = draft; }, [draft, selected]);
+  useEffect(() => { navigationRef.current = { initialEventId, initialCreateOpen }; }, [initialCreateOpen, initialEventId]);
+  useEffect(() => () => { requestSequenceRef.current += 1; }, []);
 
   useEffect(() => {
-    if (initialEventId || initialCreateOpen) return;
     const restore = window.setTimeout(() => {
-      const session = loadWorkspaceSession<{ view?: View; cursor?: string; categories?: string[]; hideInternship?: boolean }>("calendar:workspace");
+      const session = navigationRef.current.initialEventId || navigationRef.current.initialCreateOpen ? null : loadWorkspaceSession<{ view?: View; cursor?: string; categories?: string[]; hideInternship?: boolean }>("calendar:workspace");
+      setSessionReady(true);
       if (!session) return;
-      if (session.view) setView(session.view);
+      if (session.view && ["day", "week", "month"].includes(session.view)) setView(window.matchMedia("(max-width: 767px)").matches && session.view === "week" ? "day" : session.view);
       if (session.cursor && !Number.isNaN(new Date(session.cursor).getTime())) setCursor(new Date(session.cursor));
       if (session.categories) setSelectedCategories(new Set(session.categories));
       if (typeof session.hideInternship === "boolean") setHideInternship(session.hideInternship);
     }, 0);
     return () => window.clearTimeout(restore);
-  }, [initialCreateOpen, initialEventId]);
+  }, []);
 
-  useEffect(() => { saveWorkspaceSession("calendar:workspace", { view, cursor: cursor.toISOString(), categories: [...selectedCategories], hideInternship }); }, [cursor, hideInternship, selectedCategories, view]);
+  useEffect(() => { if (sessionReady) saveWorkspaceSession("calendar:workspace", { view, cursor: cursor.toISOString(), categories: [...selectedCategories], hideInternship }); }, [cursor, hideInternship, selectedCategories, sessionReady, view]);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
@@ -94,27 +113,87 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   }, []);
 
   useEffect(() => {
-    if (!initialEventId) return;
-    let cancelled = false;
+    const intent = calendarNavigationIntent.current;
+    if (intent !== undefined) {
+      if (initialEventId !== (intent ?? undefined) || initialCreateOpen) return;
+      calendarNavigationIntent.current = undefined;
+      if (preserveDraftOnNavigation.current) {
+        preserveDraftOnNavigation.current = false;
+        return;
+      }
+    }
+    const controller = new AbortController();
+    linkedEventRequest.current?.abort();
+    linkedEventRequest.current = controller;
     const openById = (event: CalendarEventRecord) => {
-      if (cancelled) return;
+      if (controller.signal.aborted) return;
+      selectedRef.current = event;
+      draftRef.current = null;
       setSelected(event);
       setDraft(null);
-      inspector.open();
+      setLookup(null);
+      setCursor(new Date(event.starts_at));
+      // A direct link must be visible even if a previous category filter hid it.
+      setSelectedCategories(new Set());
+      setHideInternship(false);
+      setEventState((current) => [event, ...current.filter((item) => item.id !== event.id)]);
+      openInspector();
     };
-    const local = events.find((item) => item.id === initialEventId);
-    if (local) { openById(local); return; }
-    void fetch(`/api/calendar/events/by-id?id=${encodeURIComponent(initialEventId)}`, { cache: "no-store", credentials: "same-origin" })
-      .then((response) => response.json())
-      .then((data: { event?: CalendarEventRecord }) => {
-        if (!data.event) return;
-        setEventState((current) => current.some((item) => item.id === data.event!.id) ? current : [data.event!, ...current]);
-        openById(data.event!);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialEventId]);
+    const start = window.setTimeout(() => {
+      setSelected(null);
+      setLookup(null);
+      setDraft(initialCreateOpen && !initialEventId ? initialDraft(timezone) : null);
+      if (!initialEventId) {
+        if (initialCreateOpen) openInspector();
+        else closeInspector();
+        return;
+      }
+      setLookup({ id: initialEventId });
+      openInspector();
+      const local = eventStateRef.current.find((item) => item.id === initialEventId);
+      if (local) { openById(local); return; }
+      void fetch(`/api/calendar/events/by-id?id=${encodeURIComponent(initialEventId)}`, { cache: "no-store", credentials: "same-origin", signal: controller.signal })
+        .then(async (response) => {
+          if (!response.ok) throw new Error(response.status === 404 ? "没有找到这条日程，可能已删除或尚未同步。" : "暂时无法读取这条日程，请重试。");
+          return response.json() as Promise<{ event?: CalendarEventRecord }>;
+        })
+        .then((data) => {
+          if (!data.event || data.event.id !== initialEventId || Number.isNaN(Date.parse(data.event.starts_at))) throw new Error("日程数据不完整，请重试。");
+          openById(data.event);
+        })
+        .catch((error: unknown) => {
+          if (!controller.signal.aborted) setLookup({ id: initialEventId, error: error instanceof Error ? error.message : "暂时无法读取这条日程，请重试。" });
+        });
+    }, 0);
+    return () => { window.clearTimeout(start); controller.abort(); };
+  }, [closeInspector, initialCreateOpen, initialEventId, lookupAttempt, openInspector, timezone]);
+
+  const closeDetails = () => {
+    linkedEventRequest.current?.abort();
+    setLookup(null);
+    selectedRef.current = null;
+    draftRef.current = null;
+    setSelected(null);
+    setDraft(null);
+    closeInspector();
+    preserveDraftOnNavigation.current = false;
+    if (initialEventId || initialCreateOpen || calendarNavigationIntent.current !== undefined) {
+      calendarNavigationIntent.current = null;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("event");
+      url.searchParams.delete("create");
+      router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+    }
+  };
+
+  useEffect(() => {
+    if (!inspector.isOpen) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) closeDetails();
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  });
 
   const availableViews: View[] = compactViewport ? ["day", "month"] : ["day", "week", "month"];
   const filtered = useMemo(() => filterCalendarEvents(eventState, selectedCategories, hideInternship), [eventState, hideInternship, selectedCategories]);
@@ -134,13 +213,13 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     const sequence = ++requestSequenceRef.current;
     const resource = calendarRangeResource(`calendar:range:${key}`, start, end);
     const cached = !force ? resource.get().data : undefined;
-    if (cached) { setEventState(cached.events); setRangeTruncated(cached.truncated); setCalendarError(null); return cached.events; }
+    if (cached) { setEventState(cached.events); setRangeTruncated(cached.truncated); setCalendarError(null); setLoadingRange(false); return cached.events; }
     setLoadingRange(true);
     try {
       const data = await resource.revalidate({ force });
       if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setRangeTruncated(data.truncated);
       if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) { setEventState(data.events); setCalendarError(null); }
-      return data.events;
+      return isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence) ? data.events : null;
     } catch {
       if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setCalendarError("无法读取当前日历范围；正在保留已显示的日程。请稍后重试或同步 Outlook。");
       return null;
@@ -159,19 +238,48 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     return null;
   }, [fetchRange, invalidateCalendarCache]);
 
-  const openEvent = (event: CalendarEventRecord) => { setSelected(event); setDraft(null); inspector.open(); };
-  const openDraft = (range: Draft) => { setSelected(null); setDraft(range); inspector.open(); };
-
-  const sync = () => startSync(async () => {
-    const result = await syncAndBackupMicrosoftAction();
-    await refetchActiveRange();
-    router.refresh();
-    if (result.status === "error") {
-      setCalendarError(`Outlook 同步未完成：${result.message}`);
-      return;
+  const openEvent = (event: CalendarEventRecord) => {
+    linkedEventRequest.current?.abort();
+    selectedRef.current = event; draftRef.current = null;
+    setLookup(null); setSelected(event); setDraft(null); openInspector();
+    preserveDraftOnNavigation.current = false;
+    if ((initialEventId && initialEventId !== event.id) || initialCreateOpen || calendarNavigationIntent.current !== undefined) {
+      calendarNavigationIntent.current = event.id;
+      const url = new URL(window.location.href);
+      url.searchParams.set("event", event.id);
+      url.searchParams.delete("create");
+      router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
     }
-    if (result.degraded.length) setCalendarError(`日历已同步；部分辅助环节未完成：${result.degraded.join("；")}`);
-  });
+  };
+  const openDraft = (range: Draft) => {
+    linkedEventRequest.current?.abort();
+    selectedRef.current = null; draftRef.current = range;
+    setLookup(null); setSelected(null); setDraft(range); openInspector();
+    if (initialEventId || initialCreateOpen || calendarNavigationIntent.current !== undefined) {
+      calendarNavigationIntent.current = null;
+      preserveDraftOnNavigation.current = true;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("event");
+      url.searchParams.delete("create");
+      router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+    }
+  };
+
+  const sync = () => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    startSync(async () => {
+      try {
+        const result = await syncAndBackupMicrosoftAction();
+        await refetchActiveRange();
+        router.refresh();
+        if (result.status === "error") setCalendarError(`Outlook 同步未完成：${result.message}`);
+        else if (result.degraded.length) setCalendarError(`日历已同步；部分辅助环节未完成：${result.degraded.join("；")}`);
+      } catch {
+        setCalendarError("Outlook 同步失败，请稍后重试。");
+      } finally { syncingRef.current = false; }
+    });
+  };
 
   const changeCursor = (amount: number) => setCursor((date) => shiftCalendarCursor(date, timezone, view === "week" ? amount * 7 : amount));
   const jumpToDate = (value: string) => {
@@ -180,35 +288,41 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   };
 
   const moveEvent = async (event: CalendarEventRecord, range: Draft & { isAllDay: boolean }) => {
-    const form = new FormData();
-    form.set("provider_event_id", event.provider_event_id); form.set("original_subject", event.subject); form.set("original_starts_at", event.starts_at); form.set("original_ends_at", event.ends_at);
-    form.set("subject", event.subject); form.set("description", event.body_text ?? ""); form.set("location_name", event.location_name ?? ""); form.set("starts_at", range.startsAt); form.set("ends_at", range.endsAt);
-    form.set("is_all_day_present", "true"); if (range.isAllDay) form.set("is_all_day", "on"); form.set("importance", event.importance); form.set("show_as", event.show_as === "unknown" ? "busy" : event.show_as); form.set("classification_mode", "auto"); form.set("preserve_categories", "true");
-    const result = await updateCalendarEvent({ status: "idle", message: "" }, form);
-    if (result.status !== "success") {
-      setCalendarError(`未能移动日程：${result.message}`);
-      throw new Error(result.message);
-    }
-    const refreshed = await refetchActiveRange();
-    if (!refreshed) {
-      setCalendarError("Outlook 已更新日程，但本地日历仍在对账；请稍后同步 Outlook。");
-      throw new Error("calendar_local_reconciliation_pending");
-    }
-    const reconciliation = reconcileCalendarMutationRange(refreshed, event.id);
-    if (reconciliation.kind === "moved_out_of_range") {
-      setSelected((current) => current?.id === event.id ? null : current);
-      inspector.close();
-      return;
-    }
-    setEventState((current) => replaceCalendarEvent(current, reconciliation.event));
-    setSelected((current) => current?.id === event.id ? reconciliation.event : current);
+    if (movingIds.current.has(event.id)) throw new Error("calendar_event_update_pending");
+    movingIds.current.add(event.id);
+    try {
+      const form = new FormData();
+      form.set("provider_event_id", event.provider_event_id); form.set("original_subject", event.subject); form.set("original_starts_at", event.starts_at); form.set("original_ends_at", event.ends_at);
+      form.set("subject", event.subject); form.set("description", event.body_text ?? ""); form.set("location_name", event.location_name ?? ""); form.set("starts_at", range.startsAt); form.set("ends_at", range.endsAt);
+      form.set("is_all_day_present", "true"); if (range.isAllDay) form.set("is_all_day", "on"); form.set("importance", event.importance); form.set("show_as", event.show_as === "unknown" ? "busy" : event.show_as); form.set("classification_mode", "auto"); form.set("preserve_categories", "true");
+      const result = await updateCalendarEvent({ status: "idle", message: "" }, form);
+      if (result.status !== "success") {
+        setCalendarError(`移动结果尚未确认：${result.message} 请重新读取后检查。`);
+        throw new Error(result.message);
+      }
+      const refreshed = await refetchActiveRange();
+      if (!refreshed) {
+        setCalendarError("Outlook 已更新日程，但本地日历仍在对账；请稍后同步 Outlook。");
+        throw new Error("calendar_local_reconciliation_pending");
+      }
+      const reconciliation = reconcileCalendarMutationRange(refreshed, event.id);
+      if (reconciliation.kind === "moved_out_of_range") {
+        setSelected((current) => current?.id === event.id ? null : current);
+        if (selectedRef.current?.id === event.id) closeDetails();
+        return;
+      }
+      setEventState((current) => replaceCalendarEvent(current, reconciliation.event));
+      setSelected((current) => current?.id === event.id ? reconciliation.event : current);
+    } catch (error) {
+      setCalendarError((current) => current ?? "移动结果尚未确认，请重新读取后检查。");
+      throw error;
+    } finally { movingIds.current.delete(event.id); }
   };
 
   const reconcileInspectorMutation = async (kind: "update" | "delete") => {
     if (kind === "delete") {
       if (selected) setEventState((current) => removeCalendarEvent(current, selected.id));
-      setSelected(null);
-      inspector.close();
+      if (selectedRef.current?.id === selected?.id) closeDetails();
       invalidateCalendarCache();
       return;
     }
@@ -218,16 +332,14 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
       invalidateCalendarCache();
       return;
     }
-    setSelected(null);
-    inspector.close();
+    if (selectedRef.current?.id === selected?.id) closeDetails();
     invalidateCalendarCache();
   };
 
   const reconcileCreatedEvent = async () => {
     const refreshed = await refetchActiveRange();
     if (!refreshed) setCalendarError("Outlook 已创建日程，但本地日历仍在对账；请稍后同步 Outlook。");
-    setDraft(null);
-    inspector.close();
+    if (draftRef.current === draft && !selectedRef.current) closeDetails();
   };
 
   const weekRange = view === "week" ? weekRangeInTimeZone(cursor.toISOString(), timezone) : null;
@@ -304,10 +416,10 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
 
         <CalendarFullView events={filtered} categories={categories} timezone={timezone} initialView={fullCalendarView(view)} initialDate={cursor} onOpen={openEvent} onCreate={openDraft} onMove={moveEvent} onRangeChange={onRangeChange} loadingRange={loadingRange} />
         {rangeTruncated ? <p className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[rgba(255,249,235,.94)] px-2.5 py-1 text-[10px] text-[var(--warning)] shadow-sm backdrop-blur-md">当前范围仅显示前 1,000 条日程</p> : null}
-        {calendarError ? <p role="status" className="absolute left-3 top-[92px] z-10 max-w-md rounded-[8px] border border-[rgba(178,80,0,.16)] bg-[rgba(255,249,235,.96)] px-2.5 py-2 text-[10.5px] leading-5 text-[var(--warning)] shadow-sm backdrop-blur-md">{calendarError}</p> : null}
+        {calendarError ? <p role="status" className="absolute left-3 top-[92px] z-10 max-w-md rounded-[8px] border border-[rgba(178,80,0,.16)] bg-[rgba(255,249,235,.96)] px-2.5 py-2 text-[10.5px] leading-5 text-[var(--warning)] shadow-sm backdrop-blur-md">{calendarError} <button type="button" disabled={loadingRange} onClick={() => void refetchActiveRange()} className="ml-2 font-medium underline">{loadingRange ? "读取中…" : "重新读取"}</button></p> : null}
       </div>
 
-      <Inspector open={inspector.isOpen} title={selected ? "日程详情" : "新建日程"} onClose={inspector.close} className="calendar-inspector w-[min(380px,calc(100vw-8px))]">{selected ? <><CalendarEventEditForm key={selected.id} event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={reconcileInspectorMutation} /><EntityBacklinks type="calendar_event" id={selected.id} /></> : draft ? <CalendarCreateForm key={`${draft.startsAt}:${draft.endsAt}:${draft.isAllDay ? "all-day" : "timed"}`} timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={reconcileCreatedEvent} /> : null}</Inspector>
+      <Inspector open={inspector.isOpen} title={selected || lookup ? "日程详情" : "新建日程"} onClose={closeDetails} className="calendar-inspector w-[min(380px,calc(100vw-8px))]">{selected ? <><CalendarEventEditForm key={selected.id} event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={reconcileInspectorMutation} /><EntityBacklinks type="calendar_event" id={selected.id} /></> : draft ? <CalendarCreateForm key={`${draft.startsAt}:${draft.endsAt}:${draft.isAllDay ? "all-day" : "timed"}`} timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={reconcileCreatedEvent} /> : lookup ? <div role="status" className="space-y-3 text-sm text-[var(--text-secondary)]"><p>{lookup.error ?? "正在读取日程…"}</p>{lookup.error ? <button type="button" onClick={() => setLookupAttempt((current) => current + 1)} className="font-medium text-[var(--accent)]">重新读取</button> : null}</div> : null}</Inspector>
       {ai.isOpen ? <AISidecar open onClose={ai.close} context="Calendar"><CalendarAssistant timezone={timezone} categories={categories} /></AISidecar> : null}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent className="max-h-[82dvh] overflow-y-auto sm:max-w-2xl"><CalendarCategoryManager categories={categories} timezone={timezone} scopeReady={scopeReady} events={eventState} referenceTime={cursor.getTime()} /></DialogContent></Dialog>
     </section>

@@ -8,6 +8,7 @@ import rehypeSanitize from "rehype-sanitize";
 import {
   Copy,
   Download,
+  Link2,
   Maximize2,
   Minimize2,
   MoreHorizontal,
@@ -22,6 +23,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useActionFeedback } from "@/components/shared/action-feedback";
+import { CopyNoteReference } from "@/components/notes/copy-note-reference";
+import { noteReferenceMarkdown } from "@/features/notes/links/reference";
 import { isInternalEntityHref } from "@/features/links/parser";
 import { recordNotePdfExport, saveNote, setNoteContentOrigin } from "@/features/notes/actions";
 import { isAiGeneratedNote } from "@/features/notes/content-origin";
@@ -439,6 +442,14 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
       feedback.show({ message: "复制失败，请检查浏览器权限。", tone: "error" });
     }
   };
+  const copyCurrentNoteReference = async () => {
+    try {
+      await copyText(noteReferenceMarkdown(title, `/notes/${note.id}`));
+      feedback.show({ message: "已复制笔记引用，可粘贴到笔记、任务或日程", tone: "success" });
+    } catch {
+      feedback.show({ message: "复制失败，请检查浏览器权限后重试。", tone: "error" });
+    }
+  };
   const handleImageUploadStatus = useCallback((message: string) => {
     if (!message || message.includes("正在")) return;
     const error = message.includes("失败") || message.includes("不支持") || message.includes("失效") || message.includes("未能");
@@ -514,6 +525,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             <span className="hidden sm:inline">AI</span>
           </Button>
           <div className="hidden items-center gap-0.5 sm:flex">
+            <CopyNoteReference title={title} href={`/notes/${note.id}`} />
             <Button
               variant={aiGenerated ? "outline" : "ghost"}
               size="sm"
@@ -547,6 +559,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => void copyCurrentNoteReference()}><Link2 aria-hidden="true" />复制笔记引用</DropdownMenuItem>
               <DropdownMenuItem disabled={isChangingContentOrigin} onSelect={toggleContentOrigin}>
                 <Sparkles aria-hidden="true" />{aiGenerated ? "取消 AI 生成标记" : "标记为 AI 生成"}
               </DropdownMenuItem>
@@ -557,17 +570,20 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
           </DropdownMenu>
         </div>
         {state !== "已保存" ? (
-          <p
+          <div
             role={saveHasError ? "alert" : "status"}
             aria-live="polite"
-            className={`border-b border-[var(--separator)] px-3 py-[5px] text-[10.5px] leading-4 min-[760px]:hidden ${saveHasError ? "bg-red-50/65 text-[var(--danger)]" : saveNeedsAttention ? "bg-amber-50/55 text-[var(--warning)]" : "text-[var(--text-secondary)]"}`}
+            className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--separator)] px-3 py-[5px] text-[10.5px] leading-4 ${saveHasError ? "bg-red-50/65 text-[var(--danger)]" : `min-[760px]:hidden ${saveNeedsAttention ? "bg-amber-50/55 text-[var(--warning)]" : "text-[var(--text-secondary)]"}`}`}
           >
-            {state === "保存失败"
+            <span>{state === "保存失败"
               ? "保存失败，本机恢复草稿已保留。请检查网络后点击保存。"
               : state === "版本冲突"
-                ? "检测到其他设备修改。当前草稿已保留，请刷新后核对内容。"
-                : statusLabel}
-          </p>
+                ? "检测到其他设备修改。当前草稿已保留；请先复制草稿，在新标签页打开此笔记核对内容。"
+                : statusLabel}</span>
+            {state === "保存失败" ? <button type="button" onClick={() => { flushDraft(); void save(); }} className="pressable min-h-8 rounded-[6px] px-2 font-medium underline underline-offset-2">重试保存</button> : null}
+            {saveHasError ? <button type="button" onClick={() => void copyFullNote()} className="pressable min-h-8 rounded-[6px] px-2 font-medium underline underline-offset-2">复制当前草稿</button> : null}
+            {state === "版本冲突" ? <a href={`/notes/${note.id}`} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-8 items-center rounded-[6px] px-2 font-medium underline underline-offset-2">在新标签页核对</a> : null}
+          </div>
         ) : null}
         <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-canvas)]">
           <VisualMarkdownEditor

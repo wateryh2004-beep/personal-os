@@ -1,3 +1,5 @@
+import { taskRecordHref, eventRecordHref, milestoneRecordHref } from "./record-links";
+import { getTodayFocus } from "./focus-queries";
 import { after } from "next/server";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { withPerfSpan } from "@/lib/performance/server-perf";
@@ -291,6 +293,7 @@ export async function getTodayWorkspace(
     const resolvedOwner = owner ?? await latency.time("auth", () => requireOwner());
     const { supabase, userId } = resolvedOwner;
     const sources = await getTodayWorkspaceSources(now, resolvedOwner, latency);
+    const focus = await getTodayFocus(resolvedOwner, now, sources.timezone);
     const workspace = latency.timeSync("assemble", () => {
       const {
         timezone,
@@ -333,6 +336,7 @@ export async function getTodayWorkspace(
       );
 
       return {
+        focus,
         timezone,
         calendar: {
           today: todayEvents,
@@ -367,7 +371,7 @@ export async function getTodayWorkspace(
               kind: "event" as const,
               title: event.subject || "未命名日程",
               at: event.starts_at,
-              href: "/calendar",
+              href: eventRecordHref(event.id),
               detail: event.location_name ?? undefined,
             })),
           ...tasks.upcoming.map((task) => ({
@@ -375,7 +379,7 @@ export async function getTodayWorkspace(
             kind: "task" as const,
             title: task.title || "未命名任务",
             at: task.due_at!,
-            href: "/tasks",
+            href: taskRecordHref(task.id),
           })),
           ...milestones
             .filter((item) => {
@@ -387,7 +391,7 @@ export async function getTodayWorkspace(
               kind: "milestone" as const,
               title: item.title,
               at: `${item.target_date}T00:00:00`,
-              href: "/career/roadmap",
+              href: milestoneRecordHref(item.id),
             })),
         ]
           .sort((a, b) => a.at.localeCompare(b.at))

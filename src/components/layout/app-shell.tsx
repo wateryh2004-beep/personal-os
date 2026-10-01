@@ -33,6 +33,7 @@ import { navActive } from "@/lib/navigation";
 import {
   contextualCreateKindForPath,
   desktopNavigationGroups,
+  mobileMoreNavigationGroups,
   getMobileRecentNavigation,
   mergeRecentNavigation,
   navigationItemForPath,
@@ -65,6 +66,7 @@ type NavigationProps = {
   pendingHref?: string | null;
   onNavigate?: (href: string) => void;
   onIntent?: (href: string) => void;
+  groups?: typeof desktopNavigationGroups;
 };
 
 function pathnameFromHref(href: string | null | undefined) {
@@ -72,10 +74,10 @@ function pathnameFromHref(href: string | null | undefined) {
   return href.split(/[?#]/, 1)[0] || "/";
 }
 
-function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent }: NavigationProps) {
+function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent, groups = desktopNavigationGroups }: NavigationProps) {
   const pendingPathname = pathnameFromHref(pendingHref);
 
-  return <nav aria-label="主导航" className="space-y-5.5">{desktopNavigationGroups.map((group, groupIndex) => <div key={group.label ?? groupIndex}>
+  return <nav aria-label="主导航" className="space-y-5.5">{groups.map((group, groupIndex) => <div key={group.label ?? groupIndex}>
     {group.label && !collapsed ? <p className="mb-1.5 px-2.5 text-[10.5px] font-semibold tracking-[0.015em] text-[var(--text-tertiary)]">{group.label}</p> : null}
     <div className="space-y-px">{group.items.map(({ name, href, icon: Icon }) => {
       const active = navActive(pathname, href);
@@ -83,7 +85,7 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent }: 
       const link = <Link
         href={href}
         prefetch={href === "/career"}
-        onClick={() => onNavigate?.(href)}
+        onNavigate={() => onNavigate?.(href)}
         onPointerEnter={() => onIntent?.(href)}
         onFocus={() => onIntent?.(href)}
         onPointerDown={() => onIntent?.(href)}
@@ -313,7 +315,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   const toggleCollapsed = () => setCollapsed((value) => {
     const next = !value;
-    localStorage.setItem(sidebarStorageKey, JSON.stringify(next));
+    try {
+      localStorage.setItem(sidebarStorageKey, JSON.stringify(next));
+    } catch {
+      /* Sidebar controls still work if browser storage is unavailable. */
+    }
     return next;
   });
   const openCommand = (section: CommandCenterSection) => {
@@ -333,7 +339,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       <Link
         href="/today"
         prefetch={false}
-        onClick={() => beginNavigation("/today")}
+        onNavigate={() => beginNavigation("/today")}
         onPointerEnter={() => prefetchNavigationTarget("/today")}
         onFocus={() => prefetchNavigationTarget("/today")}
         aria-label="Life of HANG，返回 Now"
@@ -351,7 +357,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       <Link
         href="/settings"
         prefetch={false}
-        onClick={() => beginNavigation("/settings")}
+        onNavigate={() => beginNavigation("/settings")}
         onPointerEnter={() => prefetchNavigationTarget("/settings")}
         onFocus={() => prefetchNavigationTarget("/settings")}
         aria-current={pathname === "/settings" ? "page" : undefined}
@@ -392,7 +398,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                 key={targetHref}
                 href={targetHref}
                 prefetch={false}
-                onClick={() => { beginNavigation(targetHref); setMobileOpen(false); }}
+                onNavigate={() => { beginNavigation(targetHref); setMobileOpen(false); }}
                 onPointerEnter={() => prefetchNavigationTarget(targetHref)}
                 onFocus={() => prefetchNavigationTarget(targetHref)}
                 onPointerDown={() => prefetchNavigationTarget(targetHref)}
@@ -408,12 +414,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               </Link>;
             })}</div>
           </div> : null}
-          <Navigation pathname={pathname} collapsed={false} pendingHref={visiblePendingHref} onNavigate={(href) => { beginNavigation(href); setMobileOpen(false); }} onIntent={prefetchNavigationTarget} />
+          <Navigation groups={mobileMoreNavigationGroups} pathname={pathname} collapsed={false} pendingHref={visiblePendingHref} onNavigate={(href) => { beginNavigation(href); setMobileOpen(false); }} onIntent={prefetchNavigationTarget} />
         </div>
         <Link
           href="/settings"
           prefetch={false}
-          onClick={() => { beginNavigation("/settings"); setMobileOpen(false); }}
+          onNavigate={() => { beginNavigation("/settings"); setMobileOpen(false); }}
           onPointerEnter={() => prefetchNavigationTarget("/settings")}
           onFocus={() => prefetchNavigationTarget("/settings")}
           className={cn(

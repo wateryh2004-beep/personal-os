@@ -38,7 +38,7 @@ export function MobileTabBar({ onOpenMore, pendingHref, onNavigate, onIntent }: 
         key={href}
         href={href}
         prefetch={false}
-        onClick={() => onNavigate?.(href)}
+        onNavigate={() => onNavigate?.(href)}
         onPointerEnter={() => onIntent?.(href)}
         onFocus={() => onIntent?.(href)}
         onPointerDown={() => onIntent?.(href)}

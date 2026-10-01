@@ -72,7 +72,7 @@ export default async function NotePage({ params }: { params: Promise<{ noteId: s
 
     <section>
       <div className="flex items-center gap-2"><Link2 className="size-3.5 text-[var(--accent)]" aria-hidden="true" /><h2 className="text-[13px] font-semibold text-[var(--text-primary)]">关联脉络</h2></div>
-      <NoteBacklinks referenced={data.links} backlinks={data.backlinks} />
+      <NoteBacklinks referenced={data.links} backlinks={data.backlinks} bodyMarkdown={data.note.body_markdown} />
       <EntityBacklinks type="note" id={data.note.id} />
     </section>
 

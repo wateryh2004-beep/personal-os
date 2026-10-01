@@ -35,13 +35,13 @@ function newMilestone(trackId: string, targetDate: string): Omit<RoadmapMileston
   return { track_id: trackId, career_direction_id: null, title: "", description: null, starts_on: null, target_date: targetDate, status: "planned", importance: "normal" };
 }
 
-export function CareerRoadmapClient({ tracks, milestones, directions, todayDate }: { tracks: RoadmapTrack[]; milestones: RoadmapMilestone[]; directions: Direction[]; todayDate: string }) {
+export function CareerRoadmapClient({ tracks, milestones, directions, todayDate, initialMilestoneId }: { tracks: RoadmapTrack[]; milestones: RoadmapMilestone[]; directions: Direction[]; todayDate: string; initialMilestoneId?: string }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const domain = useMemo(() => getTimelineDomain(new Date(`${todayDate}T12:00:00Z`), milestones, tracks), [milestones, todayDate, tracks]);
   const [zoom, setZoom] = useState<TimelineZoom>("normal");
   const [hideCompleted, setHideCompleted] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState("");
-  const [selectedMilestone, setSelectedMilestone] = useState<RoadmapMilestone | Omit<RoadmapMilestone, "id"> | null>(null);
+  const [selectedMilestone, setSelectedMilestone] = useState<RoadmapMilestone | Omit<RoadmapMilestone, "id"> | null>(() => milestones.find((item) => item.id === initialMilestoneId) ?? null);
   const [editingTrack, setEditingTrack] = useState<RoadmapTrack | Omit<RoadmapTrack, "id" | "position"> | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [draggedTrack, setDraggedTrack] = useState<string | null>(null);

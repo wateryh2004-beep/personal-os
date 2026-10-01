@@ -65,6 +65,15 @@ export const desktopNavigationGroups = desktopGroupDefinitions
   .filter((group) => group.items.length > 0);
 
 export const mobileTabNavigation = navigationRegistry.filter((item) => item.mobileTab);
+// Keep Notes immediately discoverable in More, and don't repeat the four tabs
+// already present in the mobile shell. Desktop navigation stays unchanged.
+export const mobileMoreNavigationGroups = [
+  { label: "笔记", items: navigationRegistry.filter((item) => item.href === "/notes") },
+  ...desktopNavigationGroups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.mobileTab && item.href !== "/notes"),
+  })).filter((group) => group.items.length > 0),
+];
 export const commandPaletteNavigation = navigationRegistry.filter((item) => item.commandPalette);
 
 export function navigationItemForPath(pathname: string) {

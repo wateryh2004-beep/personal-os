@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { TodayPriorities } from "@/components/today/today-priorities";
+import { PracticeReflectionFields } from "@/components/career/interview/practice-reflection-fields";
+import { ActionFeedbackProvider } from "@/components/shared/action-feedback";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { SidePanelShell } from "@/components/shared/side-panel-shell";
@@ -24,6 +27,11 @@ export function MobileNativeHarness() {
           <button data-testid="open-panel" type="button" onClick={() => setPanelOpen(true)} className="min-h-11 rounded-xl bg-[var(--surface-control)] px-4">打开 Panel</button>
         </div>
         <p className="break-words text-sm leading-6 text-[var(--text-secondary)]">360 / 390 / 412 / 430 px responsive contract · no private fixture data · no authenticated content.</p>
+      </div>
+
+      <div data-testid="daily-flow-harness" className="mx-auto my-6 max-w-md space-y-6">
+        <ActionFeedbackProvider><TodayPriorities focus={{ date: "2026-10-01", selectedIds: [], selectedTasks: [], available: true, candidates: [1,2,3,4].map((n) => ({ id: `c0000000-0000-4000-8000-00000000000${n}`, title: `E2E 未定期任务 ${n} · 用于移动端布局验证`, status: "notStarted", due_at: null, importance: "normal" })) }} /></ActionFeedbackProvider>
+        <form onSubmit={(event) => event.preventDefault()} aria-label="练习表单测试"><PracticeReflectionFields /></form>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

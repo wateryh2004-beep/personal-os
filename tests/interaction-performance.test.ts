@@ -100,7 +100,9 @@ describe("interaction performance guardrails", () => {
     expect(calendarWorkspace).toContain("calendar_local_reconciliation_pending");
     expect(calendarWorkspace).toContain("本地日历仍在对账");
     expect(calendarWorkspace).toContain('reconciliation.kind === "moved_out_of_range"');
-    expect(calendarWorkspace).toContain("inspector.close()");
+    expect(calendarWorkspace).toContain("const closeInspector = inspector.close");
+    expect(calendarWorkspace).toContain("closeDetails()");
+    expect(calendarWorkspace).toContain("linkedEventRequest.current?.abort()");
     expect(calendarWorkspace).toContain("reconcileCalendarMutationRange");
     const editForm = source("src/components/calendar/calendar-event-edit-form.tsx");
     expect(editForm).toContain("keepEndAfterStart");

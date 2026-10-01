@@ -15,7 +15,7 @@ async function backCloses(page, trigger, visibleTarget) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
   try {
     for (const width of widths) {
       const context = await browser.newContext({
@@ -34,6 +34,27 @@ async function backCloses(page, trigger, visibleTarget) {
       await careerTab.waitFor({ state: "visible" });
       assert.equal(await careerTab.getAttribute("href"), "/career", `${width}px Career tab should link directly to /career`);
       assert.equal(await page.getByRole("link", { name: /笔记/ }).count(), 0, `${width}px Notes should move under More instead of occupying a primary tab`);
+
+      const focus = page.locator('[aria-labelledby="today-priorities-heading"]');
+      await focus.getByRole("button", { name: "选择重点" }).click();
+      for (const n of [1,2,3]) await focus.getByRole("button", { name: new RegExp(`E2E 未定期任务 ${n}`) }).click();
+      assert.equal(await focus.getByRole("button", { name: /E2E 未定期任务 4/ }).isDisabled(), true, `${width}px limits priorities to three`);
+      assert.equal(await focus.locator('a[href^="/tasks?task="]').count(), 3, `${width}px uses exact task links`);
+      await focus.getByRole("button", { name: /移除重点 E2E 未定期任务 2/ }).click();
+      assert.equal(await focus.getByRole("button", { name: /E2E 未定期任务 4/ }).isEnabled(), true);
+      await focus.getByRole("button", { name: "取消", exact: true }).click();
+      assert.equal(await focus.locator('a[href^="/tasks?task="]').count(), 0, "cancel does not save selections");
+      await page.locator('[name="duration_seconds"]').fill("90");
+      const issue = page.locator('[name="issue_tags"]').first();
+      await issue.check();
+      await issue.uncheck();
+      if (process.env.E2E_SCREENSHOT_DIR) {
+        const { mkdir } = await import("node:fs/promises");
+        await mkdir(process.env.E2E_SCREENSHOT_DIR, { recursive: true });
+        await page.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/daily-flow-${width}.png`, fullPage: true });
+      }
+      const flowOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      assert.ok(flowOverflow <= 1, `${width}px daily flow has ${flowOverflow}px horizontal overflow`);
 
       await backCloses(page, "open-dialog", "dialog-input");
       await backCloses(page, "open-sheet", "sheet-input");

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   CalendarDays,
@@ -80,12 +81,14 @@ const quickDueAt = (dayOffset: number) => {
 function TaskRow({
   task,
   selected,
+  pending,
   onOpen,
   onToggle,
   onUpdate,
 }: {
   task: TodoTask;
   selected: boolean;
+  pending: boolean;
   onOpen: () => void;
   onToggle: () => void;
   onUpdate: (patch: UpdateTaskPatch) => void;
@@ -117,6 +120,8 @@ function TaskRow({
           event.stopPropagation();
           onToggle();
         }}
+        disabled={pending}
+        aria-busy={pending}
         aria-label={`${completed ? "恢复" : "完成"} ${task.title}`}
         className={`-m-2 mt-[-6px] inline-flex size-10 items-center justify-center rounded-full transition-[background-color,color] ui-transition sm:m-0 sm:mt-0.5 sm:size-6 ${
           completed
@@ -162,6 +167,7 @@ function TaskRow({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
+            disabled={pending}
             aria-label={`${task.title} 更多操作`}
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
@@ -214,20 +220,26 @@ function QuickAdd({
   listId,
   listLabel,
   onCreated,
+  onUnconfirmed,
 }: {
   listId: string;
   listLabel: string;
-  onCreated: (task: TodoTask, temporaryId?: string) => void;
+  onCreated: (task: TodoTask | null, temporaryId?: string) => void;
+  onUnconfirmed: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
+  const submittingRef = useRef(false);
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const title = String(form.get("title") || "").trim();
-    if (!title) return;
+    if (!title || submittingRef.current) return;
+    submittingRef.current = true;
+    setMessage("");
 
     const temporaryId = `optimistic-${crypto.randomUUID()}`;
     onCreated({
@@ -246,40 +258,41 @@ function QuickAdd({
     setOpen(false);
 
     start(async () => {
-      const result = await createMicrosoftTodoTaskAction({ status: "idle", message: "" }, form);
-      setMessage(result.message);
-      if (result.status === "success" && result.taskId) {
-        onCreated(
-          {
-            id: result.taskId,
-            providerTaskId: result.taskId,
-            todoListId: listId,
-            title,
-            bodyText: null,
-            status: "notStarted",
-            importance: "normal",
-            dueAt: null,
-            completedAt: null,
-            lastModifiedAt: null,
-          },
-          temporaryId,
-        );
-      } else {
-        onCreated(
-          {
-            id: "",
-            providerTaskId: temporaryId,
-            todoListId: listId,
-            title: "",
-            bodyText: null,
-            status: "notStarted",
-            importance: "normal",
-            dueAt: null,
-            completedAt: null,
-            lastModifiedAt: null,
-          },
-          temporaryId,
-        );
+      try {
+        const result = await createMicrosoftTodoTaskAction({ status: "idle", message: "" }, form);
+        setMessage(result.message);
+        if (result.status === "success" && result.taskId) {
+          setDraftTitle("");
+          onCreated(
+            {
+              id: result.taskId,
+              providerTaskId: result.taskId,
+              todoListId: listId,
+              title,
+              bodyText: null,
+              status: "notStarted",
+              importance: "normal",
+              dueAt: null,
+              completedAt: null,
+              lastModifiedAt: null,
+            },
+            temporaryId,
+          );
+        } else {
+          onCreated(null, temporaryId);
+          setDraftTitle(title);
+          setOpen(true);
+          setMessage("添加结果尚未确认，请重新读取后检查，避免重复创建。");
+          onUnconfirmed();
+        }
+      } catch {
+        onCreated(null, temporaryId);
+        setDraftTitle(title);
+        setOpen(true);
+        setMessage("添加结果尚未确认，请重新读取后检查，避免重复创建。");
+        onUnconfirmed();
+      } finally {
+        submittingRef.current = false;
       }
     });
   };
@@ -294,6 +307,7 @@ function QuickAdd({
           <input
             autoFocus
             name="title"
+            defaultValue={draftTitle}
             required
             maxLength={500}
             placeholder="新建任务"
@@ -313,6 +327,7 @@ function QuickAdd({
       ) : (
         <button
           type="button"
+          disabled={pending}
           onClick={() => setOpen(true)}
           className="pressable inline-flex min-h-11 items-center gap-2 rounded-[8px] px-1 text-[12.5px] font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] sm:min-h-8"
         >
@@ -335,12 +350,14 @@ function QuickAdd({
 function TaskInspector({
   task,
   list,
+  pending,
   onClose,
   update,
   remove,
 }: {
   task: TodoTask;
   list: string;
+  pending: boolean;
   onClose: () => void;
   update: (patch: UpdateTaskPatch) => Promise<void>;
   remove: () => Promise<void>;
@@ -351,13 +368,19 @@ function TaskInspector({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [message, setMessage] = useState("");
 
+  const savingRef = useRef(false);
+
   const save = async (patch: UpdateTaskPatch) => {
+    if (savingRef.current || pending) return;
+    savingRef.current = true;
     try {
       await update(patch);
       setEditing(null);
       setMessage("已保存");
     } catch {
-      setMessage("保存失败，已恢复原值。");
+      setMessage("保存结果尚未确认，请重新读取后检查。");
+    } finally {
+      savingRef.current = false;
     }
   };
 
@@ -372,7 +395,7 @@ function TaskInspector({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setDeleteOpen(true)}>
+              <DropdownMenuItem disabled={pending} onSelect={() => setDeleteOpen(true)}>
                 <Trash2 />删除任务
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -383,6 +406,7 @@ function TaskInspector({
           {editing === "title" ? (
             <input
               autoFocus
+              disabled={pending}
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               onBlur={() => {
@@ -392,6 +416,8 @@ function TaskInspector({
               onKeyDown={(event) => {
                 if (event.key === "Enter") void save({ title });
                 if (event.key === "Escape") {
+                  event.preventDefault();
+                  event.stopPropagation();
                   setTitle(task.title);
                   setEditing(null);
                 }
@@ -401,7 +427,8 @@ function TaskInspector({
           ) : (
             <button
               type="button"
-              onClick={() => setEditing("title")}
+              disabled={pending}
+              onClick={() => { setTitle(task.title); setEditing("title"); }}
               className="w-full text-left text-[18px] font-semibold leading-6 tracking-[-0.03em] text-[var(--text-primary)]"
             >
               {task.title}
@@ -417,7 +444,8 @@ function TaskInspector({
             {!editing && task.bodyText ? (
               <button
                 type="button"
-                onClick={() => setEditing("body")}
+                disabled={pending}
+              onClick={() => { setBody(task.bodyText ?? ""); setEditing("body"); }}
                 className="text-[11px] font-medium text-[var(--accent)]"
               >
                 编辑
@@ -425,6 +453,7 @@ function TaskInspector({
             ) : null}
           </div>
           {editing === "body" ? (
+            <fieldset disabled={pending} aria-busy={pending}>
             <MentionTextarea
               autoFocus
               value={body}
@@ -437,6 +466,7 @@ function TaskInspector({
               placeholder="输入 @ 引用笔记、日程或文件"
               className="mt-2.5 min-h-28 w-full resize-y rounded-[10px] border-0 bg-[var(--surface-control)] p-3 text-[12.5px] leading-5.5 outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]"
             />
+            </fieldset>
           ) : task.bodyText ? (
             <div className="mt-1.5">
               <EntityMarkdown body={task.bodyText} className="text-[12.5px] leading-5.5 text-[var(--text-secondary)]" />
@@ -444,7 +474,8 @@ function TaskInspector({
           ) : (
             <button
               type="button"
-              onClick={() => setEditing("body")}
+              disabled={pending}
+                onClick={() => { setBody(task.bodyText ?? ""); setEditing("body"); }}
               className="mt-1.5 text-left text-[12.5px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
             >
               添加说明…
@@ -462,6 +493,7 @@ function TaskInspector({
             <dd>
               <input
                 type="datetime-local"
+                disabled={pending}
                 value={task.dueAt?.slice(0, 16) ?? ""}
                 onChange={(event) =>
                   void save({
@@ -476,6 +508,7 @@ function TaskInspector({
             <dt className="text-[12px] text-[var(--text-tertiary)]">优先级</dt>
             <dd>
               <select
+                disabled={pending}
                 value={task.importance}
                 onChange={(event) =>
                   void save({ importance: event.target.value as TodoTask["importance"] })
@@ -513,10 +546,11 @@ function TaskInspector({
             </Button>
             <Button
               variant="destructive"
+              disabled={pending}
               onClick={() =>
                 void remove()
                   .then(onClose)
-                  .catch(() => setMessage("删除失败，任务已恢复。"))
+                  .catch(() => setMessage("删除结果尚未确认，请重新读取后检查。"))
               }
             >
               删除
@@ -541,7 +575,20 @@ export function TaskWorkspace({
   initialCreateOpen?: boolean;
   initialTaskId?: string;
 }) {
+  const router = useRouter();
   const [rows, setRows] = useState(tasks);
+  const rowsRef = useRef(tasks);
+  const pendingPatches = useRef(new Map<string, Partial<TodoTask>>());
+  const pendingBaselines = useRef(new Map<string, TodoTask>());
+  const locallyPublishedRows = useRef(new WeakSet<TodoTask[]>());
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [sessionReady, setSessionReady] = useState(false);
+  const linkedTaskRef = useRef(initialTaskId);
+  // undefined: route owns selection; string/null: a local replace is pending.
+  const taskNavigationIntent = useRef<string | null | undefined>(undefined);
+  const [retrying, setRetrying] = useState(false);
+  const retryingRef = useRef(false);
+  const [taskError, setTaskError] = useState<string | null>(null);
   const [view, setView] = useState<TaskView>(initialTaskId ? "all" : "today");
   const [listId, setListId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialTaskId ?? null);
@@ -555,33 +602,110 @@ export function TaskWorkspace({
     return () => window.clearTimeout(reconcileDay);
   }, []);
 
+  // Publish only local edits. Mirroring every render back into the resource can
+  // overwrite a newer server response before its rows have reached this component.
+  const updateRows = useCallback((updater: (current: TodoTask[]) => TodoTask[]) => {
+    const next = updater(rowsRef.current);
+    rowsRef.current = next;
+    locallyPublishedRows.current.add(next);
+    setRows(next);
+    tasksWorkspaceResource.mutate((workspace) => workspace ? { ...workspace, tasks: next } : undefined);
+  }, []);
+
   useEffect(() => {
-    if (initialTaskId) return;
-    const restore = window.setTimeout(() => {
-      const session = loadWorkspaceSession<{
-        view?: TaskView;
-        listId?: string | null;
-        selectedId?: string | null;
-      }>("tasks:workspace");
-      if (!session) return;
-      if (session.view) setView(session.view);
-      if (session.listId !== undefined) setListId(session.listId);
-      if (session.selectedId && tasks.some((task) => task.id === session.selectedId)) {
-        setSelectedId(session.selectedId);
+    // Resource props also echo our optimistic cache writes. Only a server read
+    // may advance the rollback baseline while an edit is pending.
+    if (!locallyPublishedRows.current.has(tasks)) {
+      for (const task of tasks) {
+        if (pendingPatches.current.has(task.id)) pendingBaselines.current.set(task.id, task);
       }
+    }
+    const next = tasks.map((task) => ({ ...task, ...pendingPatches.current.get(task.id) }));
+    for (const task of rowsRef.current) {
+      if (!next.some((row) => row.id === task.id) && (task.id.startsWith("optimistic-") || pendingPatches.current.has(task.id))) next.push(task);
+    }
+    rowsRef.current = next;
+    // The authoritative workspace can refresh without remounting this route.
+    setRows(next);
+  }, [tasks]);
+
+  useEffect(() => {
+    const restore = window.setTimeout(() => {
+      if (!linkedTaskRef.current) {
+        const session = loadWorkspaceSession<{ view?: TaskView; listId?: string | null; selectedId?: string | null }>("tasks:workspace");
+        if (session?.view && Object.hasOwn(labels, session.view)) setView(session.view);
+        if (session?.listId !== undefined) setListId(session.listId);
+        if (session?.selectedId && rowsRef.current.some((task) => task.id === session.selectedId)) setSelectedId(session.selectedId);
+      }
+      setSessionReady(true);
     }, 0);
     return () => window.clearTimeout(restore);
-  }, [initialTaskId, tasks]);
+  }, []);
 
   useEffect(() => {
-    saveWorkspaceSession("tasks:workspace", { view, listId, selectedId });
-  }, [listId, selectedId, view]);
+    if (sessionReady) saveWorkspaceSession("tasks:workspace", { view, listId, selectedId });
+  }, [listId, selectedId, sessionReady, view]);
 
   useEffect(() => {
-    tasksWorkspaceResource.mutate((workspace) =>
-      workspace ? { ...workspace, lists, tasks: rows } : undefined,
-    );
-  }, [lists, rows]);
+    // Search-param navigation reuses the mounted workspace, including Back/Forward.
+    linkedTaskRef.current = initialTaskId;
+    const intent = taskNavigationIntent.current;
+    if (intent !== undefined) {
+      // Delayed RSC responses must not reopen an inspector the user dismissed.
+      if (initialTaskId !== (intent ?? undefined)) return;
+      taskNavigationIntent.current = undefined;
+    }
+    if (!initialTaskId) {
+      // URL selection is external navigation state, including browser Back.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedId(null);
+      return;
+    }
+    setSelectedId(initialTaskId);
+    setListId(null);
+    setView(rowsRef.current.find((task) => task.id === initialTaskId)?.status === "completed" ? "completed" : "all");
+  }, [initialTaskId]);
+
+  const closeTask = (id = selectedId) => {
+    setSelectedId((current) => current === id ? null : current);
+    const intent = taskNavigationIntent.current;
+    // A completed older mutation must not dismiss a newer pending selection.
+    if (intent !== undefined && intent !== id) return;
+    const url = new URL(window.location.href);
+    const linkedId = url.searchParams.get("task");
+    if (intent === undefined && linkedId !== id) return;
+    taskNavigationIntent.current = null;
+    url.searchParams.delete("task");
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+  };
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) closeTask();
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  });
+
+  const openTask = (task: TodoTask) => {
+    setSelectedId(task.id);
+    if ((initialTaskId && initialTaskId !== task.id) || taskNavigationIntent.current !== undefined) {
+      taskNavigationIntent.current = task.id;
+      const url = new URL(window.location.href);
+      url.searchParams.set("task", task.id);
+      router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+    }
+  };
+
+  const retryTasks = async () => {
+    if (retryingRef.current) return;
+    retryingRef.current = true;
+    setRetrying(true);
+    try { await tasksWorkspaceResource.revalidate({ force: true }); setTaskError(null); }
+    catch { show({ message: "暂时无法读取任务，请稍后重试。", tone: "error" }); }
+    finally { retryingRef.current = false; setRetrying(false); }
+  };
 
   const selected = rows.find((task) => task.id === selectedId) ?? null;
   const quickAddTarget = useMemo(() => resolveQuickAddTarget(lists, listId), [listId, lists]);
@@ -595,7 +719,7 @@ export function TaskWorkspace({
       const proposal = detail?.proposal;
       const taskId = typeof proposal?.taskId === "string" ? proposal.taskId : null;
       if (!taskId) return;
-      setRows((current) => {
+      updateRows((current) => {
         if (detail.actionType === "tasks.delete") {
           return current.filter((task) => task.id !== taskId);
         }
@@ -625,24 +749,45 @@ export function TaskWorkspace({
     };
     window.addEventListener("personal-os:tasks-mutated", reconcileAgentMutation);
     return () => window.removeEventListener("personal-os:tasks-mutated", reconcileAgentMutation);
-  }, []);
+  }, [updateRows]);
 
   const mutate = async (
     id: string,
     apply: (task: TodoTask) => TodoTask,
     request: () => Promise<void>,
   ) => {
-    const before = rows;
-    setRows((current) => current.map((task) => (task.id === id ? apply(task) : task)));
+    if (pendingPatches.current.has(id)) return;
+    const before = rowsRef.current.find((task) => task.id === id);
+    if (!before || id.startsWith("optimistic-")) return;
+    const optimistic = apply(before);
+    const keys = (Object.keys(optimistic) as (keyof TodoTask)[]).filter((key) => optimistic[key] !== before[key]);
+    const patch = Object.fromEntries(keys.map((key) => [key, optimistic[key]])) as Partial<TodoTask>;
+    pendingPatches.current.set(id, patch);
+    pendingBaselines.current.set(id, before);
+    setPendingIds(new Set(pendingPatches.current.keys()));
+    updateRows((current) => current.map((task) => task.id === id ? { ...task, ...patch } : task));
     try {
       await request();
     } catch (error) {
-      setRows(before);
+      setTaskError("操作结果尚未确认；本地显示已回退，请重新读取后检查。");
+      // Only roll back fields still owned by this optimistic edit. Other rows
+      // and newer agent/server changes must survive a failed request.
+      const baseline = pendingBaselines.current.get(id) ?? before;
+      updateRows((current) => current.map((task) => {
+        if (task.id !== id) return task;
+        const rollback = Object.fromEntries(keys.filter((key) => task[key] === optimistic[key]).map((key) => [key, baseline[key]]));
+        return { ...task, ...rollback };
+      }));
       throw error;
+    } finally {
+      pendingPatches.current.delete(id);
+      pendingBaselines.current.delete(id);
+      setPendingIds(new Set(pendingPatches.current.keys()));
     }
   };
 
   const toggle = async (task: TodoTask) => {
+    if (pendingPatches.current.has(task.id) || task.id.startsWith("optimistic-")) return;
     const form = new FormData();
     form.set("task_id", task.id);
     try {
@@ -669,13 +814,13 @@ export function TaskWorkspace({
               (row) => ({ ...row, status: "notStarted", completedAt: null }),
               () => reopenMicrosoftTodoTaskAction(undo),
             ).catch(() =>
-              show({ message: "恢复失败，任务状态已重新同步。", tone: "error" }),
+              show({ message: "恢复结果尚未确认，请重新读取后检查。", tone: "error" }),
             );
           },
         });
       }
     } catch {
-      show({ message: "更新失败，任务已恢复原状态。", tone: "error" });
+      show({ message: "更新结果尚未确认，请重新读取后检查。", tone: "error" });
     }
   };
 
@@ -684,13 +829,13 @@ export function TaskWorkspace({
     [dayBounds, listId, rows, view],
   );
 
-  const onCreated = (task: TodoTask, temporaryId?: string) =>
-    setRows((current) =>
+  const onCreated = (task: TodoTask | null, temporaryId?: string) =>
+    updateRows((current) =>
       temporaryId
-        ? task.id
-          ? [...current.filter((row) => row.id !== temporaryId), task]
+        ? task?.id
+          ? [...current.filter((row) => row.id !== temporaryId && row.id !== task.id), current.find((row) => row.id === task.id) ?? task]
           : current.filter((row) => row.id !== temporaryId)
-        : [...current, task],
+        : task ? [...current, task] : current,
     );
 
   const updateFromRow = (task: TodoTask, patch: UpdateTaskPatch) => {
@@ -698,7 +843,7 @@ export function TaskWorkspace({
       task.id,
       (row) => ({ ...row, ...patch }),
       () => updateMicrosoftTodoTaskAction({ taskId: task.id, ...patch }),
-    ).catch(() => show({ message: "更新失败，任务已恢复原状态。", tone: "error" }));
+    ).catch(() => show({ message: "更新结果尚未确认，请重新读取后检查。", tone: "error" }));
   };
 
   return (
@@ -812,8 +957,10 @@ export function TaskWorkspace({
                   listId={quickAddTarget.id}
                   listLabel={quickAddTarget.displayName}
                   onCreated={onCreated}
+                  onUnconfirmed={() => setTaskError("添加结果尚未确认，请重新读取后检查，避免重复创建。")}
                 />
               ) : null}
+              {taskError ? <p role="status" className="mb-3 text-xs leading-5 text-[var(--warning)]">{taskError} <button type="button" disabled={retrying} onClick={() => void retryTasks()} className="ml-2 font-medium underline">{retrying ? "读取中…" : "重新读取"}</button></p> : null}
               <div className="border-t border-[var(--separator)]">
                 {visible.length ? (
                   visible.map((task) => (
@@ -821,7 +968,8 @@ export function TaskWorkspace({
                       key={task.id}
                       task={task}
                       selected={task.id === selectedId}
-                      onOpen={() => setSelectedId(task.id)}
+                      pending={pendingIds.has(task.id) || task.id.startsWith("optimistic-")}
+                      onOpen={() => openTask(task)}
                       onToggle={() => void toggle(task)}
                       onUpdate={(patch) => updateFromRow(task, patch)}
                     />
@@ -884,11 +1032,19 @@ export function TaskWorkspace({
         </div>
       </div>
 
+      {selectedId && !selected ? (
+        <Inspector open title="任务详情" onClose={() => closeTask(selectedId)} className="tasks-inspector">
+          <p role="status" className="text-sm text-[var(--text-secondary)]">没有找到这条任务，可能已删除或尚未同步。</p>
+          <Button className="mt-3" variant="outline" disabled={retrying} onClick={() => void retryTasks()}>{retrying ? "读取中…" : "重新读取"}</Button>
+        </Inspector>
+      ) : null}
       {selected ? (
         <TaskInspector
+          key={selected.id}
           task={selected}
+          pending={pendingIds.has(selected.id) || selected.id.startsWith("optimistic-")}
           list={listName(lists, selected.todoListId)}
-          onClose={() => setSelectedId(null)}
+          onClose={() => closeTask(selectedId)}
           update={(patch) =>
             mutate(
               selected.id,
@@ -897,15 +1053,20 @@ export function TaskWorkspace({
             )
           }
           remove={async () => {
-            const before = rows;
-            setRows((current) => current.filter((task) => task.id !== selected.id));
+            if (pendingPatches.current.has(selected.id)) throw new Error("task_mutation_pending");
+            pendingPatches.current.set(selected.id, {});
+            setPendingIds(new Set(pendingPatches.current.keys()));
             const form = new FormData();
             form.set("task_id", selected.id);
             try {
               await deleteMicrosoftTodoTaskAction(form);
+              updateRows((current) => current.filter((task) => task.id !== selected.id));
             } catch (error) {
-              setRows(before);
+              setTaskError("删除结果尚未确认，请重新读取后检查。");
               throw error;
+            } finally {
+              pendingPatches.current.delete(selected.id);
+              setPendingIds(new Set(pendingPatches.current.keys()));
             }
           }}
         />

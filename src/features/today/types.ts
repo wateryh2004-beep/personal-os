@@ -43,14 +43,14 @@ export type NowNextAction =
       event: NowCalendarEvent;
       state: "ongoing" | "starting_soon" | "upcoming";
       reason: string;
-      href: "/calendar";
+      href: string;
     }
-  | { kind: "task"; task: NowTask; reason: string; href: "/tasks" }
+  | { kind: "task"; task: NowTask; reason: string; href: string }
   | {
       kind: "career_milestone";
       milestone: NowCareerMilestone;
       reason: string;
-      href: "/career/roadmap";
+      href: string;
     }
   | { kind: "inbox"; count: number; reason: string; href: "/inbox" }
   | { kind: "none"; reason: string };
@@ -96,7 +96,15 @@ export type TodayBriefItem = {
     agentPrompt: string;
   };
 };
+export type TodayFocus = {
+  date: string;
+  selectedIds: string[];
+  selectedTasks: NowTask[];
+  candidates: NowTask[];
+  available: boolean;
+};
 export type NowWorkspace = {
+  focus?: TodayFocus;
   timezone: string;
   calendar: {
     today: NowCalendarEvent[];
