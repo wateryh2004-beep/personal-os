@@ -17,6 +17,12 @@ describe("mobile workspace geometry ownership", () => {
     expect(read("src/app/mobile-core-workspaces.css")).toContain("grid-template-columns: 36px minmax(0, 1fr) 36px !important");
   });
 
+  it("reserves a separate close-control area in the mobile Notes navigator", () => {
+    const source = read("src/components/notes/notes-workspace-shell.tsx");
+    expect(source).toContain('className={onNavigate ? "mr-[52px]" : undefined}');
+    expect(source).toContain('className={onNavigate ? "size-11" : undefined}');
+  });
+
   it("does not apply full-screen blur to dialog or sheet scrims", () => {
     for (const component of ["dialog", "sheet"]) {
       const source = read(`src/components/ui/${component}.tsx`);

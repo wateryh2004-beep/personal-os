@@ -216,12 +216,23 @@ async function backCloses(page, trigger, visibleTarget) {
           assert.ok(folderBox.y + folderBox.height + 8 <= titleBox.y, "mobile folder control must not cover the Notes title");
           await folder.click();
           await page.getByRole("dialog", { name: "笔记文件", exact: true }).waitFor({ state: "visible" });
+          const drawer = page.getByRole("dialog", { name: "笔记文件", exact: true });
+          const closeDrawer = drawer.getByRole("button", { name: "关闭", exact: true });
+          const closeBox = await closeDrawer.boundingBox();
+          const createBox = await drawer.getByRole("button", { name: "新建笔记", exact: true }).boundingBox();
+          assert.ok(closeBox && createBox);
+          assert.ok(createBox.x + createBox.width + 8 <= closeBox.x, "Notes drawer create and close controls must have separate hit areas");
+          assert.ok(createBox.width >= 44 && createBox.height >= 44, "Notes drawer create control is touch-sized");
           assert.equal(await page.locator('[data-slot="sheet-overlay"]').evaluate((node) => getComputedStyle(node).backdropFilter), "none", "sheet scrim should not blur the full page");
           await capture(page, `workspace-notes-folder-${width}`);
           await page.evaluate(() => history.back());
           await page.getByRole("dialog", { name: "笔记文件", exact: true }).waitFor({ state: "hidden" });
           const after = await title.boundingBox();
           assert.ok(after && Math.abs(after.y - titleBox.y) <= 1, "closing folder navigation preserves title geometry");
+          await folder.click();
+          await drawer.waitFor({ state: "visible" });
+          await closeDrawer.click();
+          await drawer.waitFor({ state: "hidden" });
         }
         if (scene === "tasks" && width < 768) {
           const row = page.getByRole("button", { name: "打开任务：核对本周计划", exact: true });

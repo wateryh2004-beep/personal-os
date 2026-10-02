@@ -187,7 +187,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   </>;
 
   return <div className="flex h-full min-h-0 flex-col bg-[var(--material-sidebar)] px-2.5 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)]">
-    <div className="flex min-h-8 items-center justify-between px-1"><span className="text-[13.5px] font-semibold tracking-[-0.012em] text-[var(--text-primary)]">Notes</span><form action={createNoteInFolder}><input type="hidden" name="folder_id" value={selectedFolderId ?? ""} /><Button size="icon-xs" aria-label="新建笔记"><FilePlus2 /></Button></form></div>
+    <div className="flex min-h-8 items-center justify-between px-1"><span className="text-[13.5px] font-semibold tracking-[-0.012em] text-[var(--text-primary)]">Notes</span><form action={createNoteInFolder} className={onNavigate ? "mr-[52px]" : undefined}><input type="hidden" name="folder_id" value={selectedFolderId ?? ""} /><Button size="icon-xs" className={onNavigate ? "size-11" : undefined} aria-label="新建笔记"><FilePlus2 /></Button></form></div>
     <label className="relative mt-2.5 block">
       <span className="sr-only">切换笔记</span>
       <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]" aria-hidden="true" />
