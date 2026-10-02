@@ -224,6 +224,14 @@ async function backCloses(page, trigger, visibleTarget) {
           const future = await page.locator('[aria-labelledby="today-future-heading"]').boundingBox();
           const focus = await page.locator('[aria-labelledby="today-focus-heading"]').boundingBox();
           assert.ok(schedule && context && future && focus);
+          const contentBounds = await page.locator(".now-workspace").evaluate((node) => {
+            const box = node.getBoundingClientRect();
+            const style = getComputedStyle(node);
+            return { left: box.left + parseFloat(style.paddingLeft), right: box.right - parseFloat(style.paddingRight) };
+          });
+          for (const box of [schedule, context, future, focus]) {
+            assert.ok(box.x >= contentBounds.left - 1 && box.x + box.width <= contentBounds.right + 1, `${scene} ${width}px sections must stay inside content gutters, even when body overflow is clipped`);
+          }
           if (width >= 1024) assert.ok(Math.abs(focus.x - future.x) <= 1, "Today primary and secondary columns align");
           const body = await textMetrics(page.locator('[aria-labelledby="today-priorities-heading"] > div p').first());
           assert.ok(body.fontSize >= 12 && body.lineHeight >= 20, "Today supporting copy stays readable");

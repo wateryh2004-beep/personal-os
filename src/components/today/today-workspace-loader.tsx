@@ -23,7 +23,7 @@ function TodayShell() {
         </div>
       </div>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12">
+      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12">
         {[0, 1].map((column) => (
           <div key={column}>
             <div className="ui-skeleton-shimmer h-3 w-24 rounded-full" />

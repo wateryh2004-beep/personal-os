@@ -23,7 +23,7 @@ export default function TodayLoading() {
           </div>
         </section>
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12">
+        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12">
           {[0,1].map((block) => (
             <section key={block}>
               <Skeleton className="h-3.5 w-20" />
@@ -34,7 +34,7 @@ export default function TodayLoading() {
           ))}
         </div>
 
-        <div className="mt-8 grid gap-8 border-t border-[var(--separator)] pt-6 sm:mt-12 sm:pt-8 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12">
+        <div className="mt-8 grid grid-cols-1 gap-8 border-t border-[var(--separator)] pt-6 sm:mt-12 sm:pt-8 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12">
           {[0,1].map((block) => <section key={block}><Skeleton className="h-3.5 w-20" /><Skeleton className="mt-3 h-24 w-full" /></section>)}
         </div>
       </div>

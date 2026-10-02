@@ -16,6 +16,7 @@ Interview provenance or the 153-question library is changed.
   contrast on white and the app's `#f4f4f6` / `#f5f5f7` base surfaces. This is
   not a claim about every tinted, disabled or translucent state.
 - Today uses a consistent 32 px mobile section gap and aligned desktop columns.
+  Explicit shrinkable grid tracks keep populated 360 px sections inside their gutters.
   Its secondary divider changes from 60 + 44 px to 32 + 24 px on mobile, and
   from 76 + 52 px to 48 + 32 px on desktop. Empty-state padding is reduced.
   Body copy is 13–14 px and supporting copy is at least 12 px in those sections.

@@ -16,7 +16,7 @@ export function NowWorkspaceView({ workspace }: { workspace: NowWorkspace }) {
         <div className="mt-6 sm:mt-8"><TodayCommitments commitments={workspace.commitments} timezone={workspace.timezone} /></div>
       </div>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12">
+      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12">
         <TodaySchedule workspace={workspace} />
         <TodayFocusStack workspace={workspace} />
       </div>

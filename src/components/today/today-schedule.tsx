@@ -18,7 +18,7 @@ export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
   const schedule = buildTodaySchedule(workspace.calendar.today);
 
   return (
-    <section aria-labelledby="today-schedule-heading">
+    <section aria-labelledby="today-schedule-heading" className="min-w-0">
       <TodaySectionHeader href="/calendar" label="日历">
         <span id="today-schedule-heading">今日日程</span>
       </TodaySectionHeader>

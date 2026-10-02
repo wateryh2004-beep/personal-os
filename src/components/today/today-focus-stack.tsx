@@ -11,7 +11,7 @@ export function TodayFocusStack({ workspace }: { workspace: NowWorkspace }) {
   const isEmpty = !stack.tasks.length && !stack.attention.length;
 
   return (
-    <section aria-labelledby="today-focus-heading">
+    <section aria-labelledby="today-focus-heading" className="min-w-0">
       <TodaySectionHeader href="/tasks" label="任务">
         <span id="today-focus-heading">任务与关注</span>
       </TodaySectionHeader>
