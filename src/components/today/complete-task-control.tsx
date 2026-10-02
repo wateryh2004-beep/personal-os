@@ -1,15 +1,19 @@
 "use client";
 
+import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
+
 import { useRef, useState, useTransition } from "react";
 import { Check, CheckCircle2, LoaderCircle } from "lucide-react";
 import { completeMicrosoftTodoTaskAction } from "@/features/tasks/microsoft-todo";
-import { todayWorkspaceResource } from "@/features/today/workspace-resource";
-import { tasksWorkspaceResource } from "@/features/tasks/workspace-resource";
+import { todayWorkspaceResource as todayResource } from "@/features/today/workspace-resource";
+import { tasksWorkspaceResource as tasksResource } from "@/features/tasks/workspace-resource";
 import { useActionFeedback } from "@/components/shared/action-feedback";
 
 type CompleteTaskControlProps = { taskId: string; title: string; compact?: boolean };
 
 export function CompleteTaskControl({ taskId, title, compact = false }: CompleteTaskControlProps) {
+  const tasksWorkspaceResource = useWorkspaceResourceLease(tasksResource);
+  const todayWorkspaceResource = useWorkspaceResourceLease(todayResource);
   const [pending, startTransition] = useTransition();
   const [failed, setFailed] = useState(false);
   const [completed, setCompleted] = useState(false);

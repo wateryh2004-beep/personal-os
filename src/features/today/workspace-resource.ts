@@ -1,18 +1,14 @@
 "use client";
 
-import { createWorkspaceResource } from "@/lib/workspace-resource-cache";
+import { createWorkspaceResource, readWorkspaceResponse } from "@/lib/workspace-resource-cache";
 import type { NowWorkspace } from "./types";
 
-async function readTodayWorkspace(): Promise<NowWorkspace> {
-  const response = await fetch("/api/today/workspace", { cache: "no-store", credentials: "same-origin" });
-  const body = await response.json() as NowWorkspace & { error?: string };
-  if (!response.ok) throw new Error(body.error ?? "today_workspace_unavailable");
-  return body;
+async function readTodayWorkspace(signal?: AbortSignal): Promise<NowWorkspace> {
+  return readWorkspaceResponse<NowWorkspace>("/api/today/workspace", signal);
 }
 
 export const todayWorkspaceResource = createWorkspaceResource(
   "today:workspace-data",
   readTodayWorkspace,
   20_000,
-  { prefetchStrategy: "route-owned" },
 );

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/lib/workspace-revalidation";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { accessTokenForConnection, ensureManagedOutlookCategories, executeCalendarOperation, MicrosoftGraphError, syncOutlookMasterCategories, updateOutlookMasterCategoryColor } from "@/lib/adapters/microsoft-graph/calendar";
 import type { OutlookCategoryColor } from "./classification/taxonomy";
@@ -132,9 +132,9 @@ export async function createCalendarEvent(_previousState: CalendarCreateState, f
     try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "创建") }; }
     await markInboxProcessed(supabase, userId, inboxId, "calendar", queued.id);
     await syncCalendarEventLinks(supabase, userId, queued.id, parsed.data.description);
-    revalidatePath("/calendar");
-    revalidatePath("/inbox");
-    revalidatePath("/today");
+    await revalidatePath("/calendar");
+    await revalidatePath("/inbox");
+    await revalidatePath("/today");
     return { status: "success", message: "已创建并同步到 Outlook。" };
   } catch {
     return { status: "error", message: "日程未能创建。请检查连接状态或网络后重试。" };
@@ -176,7 +176,7 @@ export async function updateCalendarEvent(_previousState: CalendarCreateState, f
     await audit(supabase, userId, "confirm", queued.id, { operation_type: "update", confirmation: "single_step" });
     try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "更新") }; }
     await syncCalendarEventLinks(supabase, userId, queued.id, value.description);
-    revalidatePath("/calendar"); revalidatePath("/today");
+    await revalidatePath("/calendar"); await revalidatePath("/today");
     return { status: "success", message: "已更新并同步到 Outlook。" };
   } catch {
     return { status: "error", message: "日程未能更新，请检查连接状态或网络后重试。" };
@@ -210,8 +210,8 @@ export async function deleteCalendarEvent(_previousState: CalendarCreateState, f
     if (queueError || !queued) fail();
     await audit(supabase, userId, "confirm", queued.id, { operation_type: queued.operation_type, confirmation: "single_step" });
     try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "删除") }; }
-    revalidatePath("/calendar");
-    revalidatePath("/today");
+    await revalidatePath("/calendar");
+    await revalidatePath("/today");
     return { status: "success", message: "已从 Outlook 删除这条日程。" };
   } catch {
     return { status: "error", message: "日程未能删除。请检查连接状态或网络后重试。" };
@@ -226,7 +226,7 @@ export async function confirmCalendarOperation(formData: FormData) {
   if (error || !data) fail();
   await audit(supabase, userId, "confirm", data.id, { operation_type: data.operation_type });
   try { await executeCalendarOperation(data.id, userId); } catch { /* The operation stores a safe error code; render it instead of crashing the page. */ }
-  revalidatePath("/calendar");
+  await revalidatePath("/calendar");
 }
 
 export async function cancelCalendarOperation(formData: FormData) {
@@ -236,7 +236,7 @@ export async function cancelCalendarOperation(formData: FormData) {
   const { data, error } = await supabase.from("calendar_operations").update({ status: "cancelled", completed_at: new Date().toISOString() }).eq("id", parsed.data.operationId).in("status", ["pending_confirmation", "queued"]).select("id,operation_type").maybeSingle();
   if (error || !data) fail();
   await audit(supabase, userId, "cancel", data.id, { operation_type: data.operation_type });
-  revalidatePath("/calendar");
+  await revalidatePath("/calendar");
 }
 
 export async function queueCalendarSync() {
@@ -246,7 +246,7 @@ export async function queueCalendarSync() {
   if (error || !data) fail();
   await audit(supabase, userId, "request", data.id, { operation_type: "sync" });
   try { await executeCalendarOperation(data.id, userId); } catch { /* The operation stores a safe error code; render it instead of crashing the page. */ }
-  revalidatePath("/calendar");
+  await revalidatePath("/calendar");
 }
 
 export async function syncAndBackupMicrosoftAction(): Promise<
@@ -257,8 +257,8 @@ export async function syncAndBackupMicrosoftAction(): Promise<
   const activeConnection = await connection(supabase);
   try {
     const result = await syncAndBackupMicrosoftWorkspace(activeConnection.id, userId, "manual");
-    revalidatePath("/calendar");
-    revalidatePath("/tasks");
+    await revalidatePath("/calendar");
+    await revalidatePath("/tasks");
     return { status: "success", calendarEventCount: result.calendarEventCount, calendarCategoryCount: result.calendarCategoryCount, calendarCategoryStatus: result.calendarCategoryStatus, todoTaskCount: result.todoTaskCount, degraded: result.degraded };
   } catch (error) {
     // 返回错误结果而非抛异常：开发/生产环境都能可靠显示真实错误码
@@ -276,7 +276,7 @@ export async function initializeCalendarCategoriesAction(_previousState: Calenda
     const { supabase, userId } = await requireOwner();
     const activeConnection = await connection(supabase);
     const result = await ensureManagedOutlookCategories(activeConnection.id, userId);
-    revalidatePath("/calendar");
+    await revalidatePath("/calendar");
     return { status: "success", message: result.createdCount ? `已在 Outlook 新建 ${result.createdCount} 个 Personal OS 分类。` : "Outlook 分类已经齐全。" };
   } catch {
     return { status: "error", message: "无法初始化 Outlook 分类。请先重新授权 Outlook。" };
@@ -296,7 +296,7 @@ export async function updateCalendarCategoryColorAction(_previousState: Calendar
     const accessToken = await accessTokenForConnection(activeConnection.id, userId);
     await updateOutlookMasterCategoryColor(accessToken, category.provider_category_id, colorValue as OutlookCategoryColor);
     await syncOutlookMasterCategories(activeConnection.id, userId);
-    revalidatePath("/calendar");
+    await revalidatePath("/calendar");
     return { status: "success", message: "颜色已更新到 Outlook。" };
   } catch {
     return { status: "error", message: "分类颜色未能更新到 Outlook。" };
@@ -316,7 +316,7 @@ export async function updateCalendarCategoryAiAction(_previousState: CalendarCre
     const { error } = await admin.from("calendar_categories").update({ ai_description: description || null, keywords, ai_enabled: formData.get("ai_enabled") === "on" }).eq("id", categoryId).eq("user_id", userId).is("archived_at", null);
     if (error) return { status: "error", message: "AI 分类设置未能保存。" };
     await admin.from("audit_logs").insert({ user_id: userId, action: "update_ai_settings", entity_type: "calendar_category", entity_id: categoryId, after_data: { ai_enabled: formData.get("ai_enabled") === "on", keyword_count: keywords.length }, actor_type: "user" });
-    revalidatePath("/calendar");
+    await revalidatePath("/calendar");
     return { status: "success", message: "AI 分类设置已保存。" };
   } catch {
     return { status: "error", message: "请检查说明和关键词后重试。" };
@@ -334,7 +334,7 @@ export async function backfillCalendarCategoriesAction(_previousState: CalendarB
   try {
     const { userId } = await requireOwner();
     const counts = await classifyUnlabeledCalendarEvents(userId);
-    revalidatePath("/calendar");
+    await revalidatePath("/calendar");
     const parts = [
       counts.updated ? `已为 ${counts.updated} 条历史日程分类` : "",
       counts.alreadyLabeled ? `${counts.alreadyLabeled} 条已有分类未改动` : "",

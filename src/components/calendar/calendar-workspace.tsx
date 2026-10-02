@@ -23,7 +23,9 @@ import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse,
 import { primaryCalendarCategories } from "@/features/calendar/classification/taxonomy";
 import { outlookCategoryDot } from "@/features/calendar/categories/visual";
 import { EntityBacklinks } from "@/components/links/entity-backlinks";
-import { calendarRangeResource, invalidateCalendarRangeResources } from "@/features/calendar/workspace-resource";
+import { calendarRangeResource, invalidateCalendarRangeResources, type CalendarRangeData } from "@/features/calendar/workspace-resource";
+
+import { captureWorkspaceScope, WorkspaceReadSupersededError } from "@/lib/workspace-resource-cache";
 
 const CalendarAssistant = dynamic(() => import("@/components/calendar/calendar-assistant").then((module) => module.CalendarAssistant), { ssr: false });
 
@@ -75,7 +77,10 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   const selectedRef = useRef(selected);
   const draftRef = useRef(draft);
   const movingIds = useRef(new Set<string>());
+  const pendingMoves = useRef(new Map<string, Draft & { isAllDay: boolean }>());
+  const rangeSubscription = useRef<{ resource: ReturnType<typeof calendarRangeResource>; unsubscribe: () => void; reconcile: (reapply?: boolean) => void } | null>(null);
   const syncingRef = useRef(false);
+  const mountedRef = useRef(true);
   const activeRangeRef = useRef<Range | null>(null);
   const requestSequenceRef = useRef(0);
   const ai = useWorkspacePanel("calendar-ai");
@@ -86,7 +91,25 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   useEffect(() => { eventStateRef.current = eventState; }, [eventState]);
   useEffect(() => { selectedRef.current = selected; draftRef.current = draft; }, [draft, selected]);
   useEffect(() => { navigationRef.current = { initialEventId, initialCreateOpen }; }, [initialCreateOpen, initialEventId]);
-  useEffect(() => () => { requestSequenceRef.current += 1; }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    const subscription = rangeSubscription.current;
+    if (subscription) {
+      subscription.unsubscribe();
+      subscription.unsubscribe = subscription.resource.subscribe(() => subscription.reconcile());
+      subscription.reconcile();
+    }
+    const revalidate = () => { void rangeSubscription.current?.resource.revalidate().catch(() => {}); };
+    window.addEventListener("focus", revalidate);
+    window.addEventListener("online", revalidate);
+    return () => {
+      requestSequenceRef.current += 1;
+      rangeSubscription.current?.unsubscribe();
+      mountedRef.current = false;
+      window.removeEventListener("focus", revalidate);
+      window.removeEventListener("online", revalidate);
+    };
+  }, []);
 
   useEffect(() => {
     const restore = window.setTimeout(() => {
@@ -256,33 +279,73 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     return next;
   });
 
-  const invalidateCalendarCache = useCallback(() => { invalidateCalendarRangeResources(); }, []);
+  const invalidateCalendarCache = useCallback(() => {
+    invalidateCalendarRangeResources();
+    // Locally initiated invalidation (for example a deletion) has the same
+    // active-reader behavior as a server workspace revision.
+    void rangeSubscription.current?.resource.revalidate().catch(() => {});
+  }, []);
   const fetchRange = useCallback(async (range: Range, force = false) => {
     const start = fullCalendarDateToInstant(range.start, timezone);
     const end = fullCalendarDateToInstant(range.end, timezone);
     const key = calendarRangeKey(start, end);
     activeRangeRef.current = range;
     const sequence = ++requestSequenceRef.current;
+    const scopeCurrent = captureWorkspaceScope();
     const resource = calendarRangeResource(`calendar:range:${key}`, start, end);
-    const cached = !force ? resource.get().data : undefined;
-    if (cached) { setEventState(cached.events); setRangeTruncated(cached.truncated); setCalendarError(null); setLoadingRange(false); return cached.events; }
-    setLoadingRange(true);
+    if (rangeSubscription.current?.resource !== resource) {
+      rangeSubscription.current?.unsubscribe();
+      let applied: CalendarRangeData | undefined;
+      const subscription = {
+        resource,
+        unsubscribe: () => {},
+        reconcile: (reapply = false) => {
+          if (!mountedRef.current || rangeSubscription.current !== subscription || !scopeCurrent()) return;
+          const snapshot = resource.get();
+          if (snapshot.data && (reapply || snapshot.data !== applied)) {
+            applied = snapshot.data;
+            const next = snapshot.data.events.map((event) => {
+              const move = pendingMoves.current.get(event.id);
+              return move ? { ...event, starts_at: move.startsAt, ends_at: move.endsAt, is_all_day: move.isAllDay } : event;
+            });
+            // A revision can arrive while FullCalendar is persisting a drag.
+            // Keep that local overlay, including when the remote row is absent.
+            for (const event of eventStateRef.current) {
+              const move = pendingMoves.current.get(event.id);
+              if (move && !next.some((item) => item.id === event.id)) next.push({ ...event, starts_at: move.startsAt, ends_at: move.endsAt, is_all_day: move.isAllDay });
+            }
+            eventStateRef.current = next;
+            setEventState(next);
+            setRangeTruncated(snapshot.data.truncated);
+            // The selected record is also the editor's optimistic-concurrency
+            // baseline. Keep it stable with the user's unsaved form inputs.
+          }
+          setLoadingRange(Boolean(snapshot.promise));
+          if (snapshot.error && !(snapshot.error instanceof WorkspaceReadSupersededError)) {
+            setCalendarError("无法读取当前日历范围；正在保留已显示的日程。请稍后重试或同步 Outlook。");
+          } else if (snapshot.data && !reapply) setCalendarError(null);
+        },
+      };
+      rangeSubscription.current = subscription;
+      subscription.unsubscribe = resource.subscribe(() => subscription.reconcile());
+      subscription.reconcile();
+    }
     try {
+      // revalidate respects staleAt and deduplicates a revision-triggered read;
+      // the subscription has already displayed any cached snapshot above.
       const data = await resource.revalidate({ force });
-      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setRangeTruncated(data.truncated);
-      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) { setEventState(data.events); setCalendarError(null); }
-      return isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence) ? data.events : null;
-    } catch {
-      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setCalendarError("无法读取当前日历范围；正在保留已显示的日程。请稍后重试或同步 Outlook。");
+      return scopeCurrent() && isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence) ? data.events : null;
+    } catch (error) {
+      if (error instanceof WorkspaceReadSupersededError || (error instanceof Error && error.name === "AbortError")) return null;
+      if (scopeCurrent() && isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setCalendarError("无法读取当前日历范围；正在保留已显示的日程。请稍后重试或同步 Outlook。");
       return null;
-    } finally {
-      if (isCurrentCalendarRangeResponse(requestSequenceRef.current, sequence)) setLoadingRange(false);
     }
   }, [timezone]);
 
   const onRangeChange = useCallback((range: Range) => {
-    if (!sameRange(activeRangeRef.current, range)) void fetchRange(range);
-  }, [fetchRange]);
+    const key = calendarRangeKey(fullCalendarDateToInstant(range.start, timezone), fullCalendarDateToInstant(range.end, timezone));
+    if (!sameRange(activeRangeRef.current, range) || rangeSubscription.current?.resource.key !== `calendar:range:${key}`) void fetchRange(range);
+  }, [fetchRange, timezone]);
 
   const refetchActiveRange = useCallback(async () => {
     invalidateCalendarCache();
@@ -320,14 +383,18 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   const sync = () => {
     if (syncingRef.current) return;
     syncingRef.current = true;
+    const scopeCurrent = captureWorkspaceScope();
     startSync(async () => {
       try {
         const result = await syncAndBackupMicrosoftAction();
+        if (!scopeCurrent()) return;
         await refetchActiveRange();
+        if (!scopeCurrent()) return;
         router.refresh();
         if (result.status === "error") setCalendarError(`Outlook 同步未完成：${result.message}`);
         else if (result.degraded.length) setCalendarError(`日历已同步；部分辅助环节未完成：${result.degraded.join("；")}`);
       } catch {
+        if (!scopeCurrent()) return;
         setCalendarError("Outlook 同步失败，请稍后重试。");
       } finally { syncingRef.current = false; }
     });
@@ -342,23 +409,29 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   const moveEvent = async (event: CalendarEventRecord, range: Draft & { isAllDay: boolean }) => {
     if (movingIds.current.has(event.id)) throw new Error("calendar_event_update_pending");
     movingIds.current.add(event.id);
+    pendingMoves.current.set(event.id, range);
+    const scopeCurrent = captureWorkspaceScope();
     try {
       const form = new FormData();
       form.set("provider_event_id", event.provider_event_id); form.set("original_subject", event.subject); form.set("original_starts_at", event.starts_at); form.set("original_ends_at", event.ends_at);
       form.set("subject", event.subject); form.set("description", event.body_text ?? ""); form.set("location_name", event.location_name ?? ""); form.set("starts_at", range.startsAt); form.set("ends_at", range.endsAt);
       form.set("is_all_day_present", "true"); if (range.isAllDay) form.set("is_all_day", "on"); form.set("importance", event.importance); form.set("show_as", event.show_as === "unknown" ? "busy" : event.show_as); form.set("classification_mode", "auto"); form.set("preserve_categories", "true");
       const result = await updateCalendarEvent({ status: "idle", message: "" }, form);
+      if (!scopeCurrent()) return;
       if (result.status !== "success") {
         setCalendarError(`移动结果尚未确认：${result.message} 请重新读取后检查。`);
         throw new Error(result.message);
       }
       const refreshed = await refetchActiveRange();
+      if (!scopeCurrent()) return;
       if (!refreshed) {
         setCalendarError("Outlook 已更新日程，但本地日历仍在对账；请稍后同步 Outlook。");
         throw new Error("calendar_local_reconciliation_pending");
       }
+      pendingMoves.current.delete(event.id);
       const reconciliation = reconcileCalendarMutationRange(refreshed, event.id);
       if (reconciliation.kind === "moved_out_of_range") {
+        setEventState((current) => removeCalendarEvent(current, event.id));
         setSelected((current) => current?.id === event.id ? null : current);
         if (selectedRef.current?.id === event.id) closeDetails();
         return;
@@ -366,12 +439,18 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
       setEventState((current) => replaceCalendarEvent(current, reconciliation.event));
       setSelected((current) => current?.id === event.id ? reconciliation.event : current);
     } catch (error) {
+      if (!scopeCurrent()) return;
       setCalendarError((current) => current ?? "移动结果尚未确认，请重新读取后检查。");
       throw error;
-    } finally { movingIds.current.delete(event.id); }
+    } finally {
+      movingIds.current.delete(event.id);
+      pendingMoves.current.delete(event.id);
+      if (scopeCurrent()) rangeSubscription.current?.reconcile(true);
+    }
   };
 
   const reconcileInspectorMutation = async (kind: "update" | "delete") => {
+    const scopeCurrent = captureWorkspaceScope();
     if (kind === "delete") {
       if (selected) setEventState((current) => removeCalendarEvent(current, selected.id));
       if (selectedRef.current?.id === selected?.id) closeDetails();
@@ -379,17 +458,19 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
       return;
     }
     const refreshed = await refetchActiveRange();
+    if (!scopeCurrent()) return;
     if (!refreshed) {
       setCalendarError("Outlook 已更新日程，但本地日历仍在对账；请稍后同步 Outlook。");
       invalidateCalendarCache();
       return;
     }
     if (selectedRef.current?.id === selected?.id) closeDetails();
-    invalidateCalendarCache();
   };
 
   const reconcileCreatedEvent = async () => {
+    const scopeCurrent = captureWorkspaceScope();
     const refreshed = await refetchActiveRange();
+    if (!scopeCurrent()) return;
     if (!refreshed) setCalendarError("Outlook 已创建日程，但本地日历仍在对账；请稍后同步 Outlook。");
     if (draftRef.current === draft && !selectedRef.current) closeDetails();
   };

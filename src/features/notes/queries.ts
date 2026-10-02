@@ -107,9 +107,10 @@ export async function getNotesWorkspace(owner?: Owner): Promise<{
   timezone: string;
   state: WorkspaceState;
   hasMore: boolean;
+  navigatorNotes: { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null }[];
 }> {
   const { supabase, userId } = owner ?? await withPerfSpan("notes.workspace.auth", () => requireOwner());
-  const [profileResult, notesPage, foldersResult] = await Promise.all([
+  const [profileResult, notesPage, foldersResult, navigatorResult] = await Promise.all([
     withPerfSpan("notes.workspace.profile", () => supabase
       .from("profiles")
       .select("timezone")
@@ -120,7 +121,9 @@ export async function getNotesWorkspace(owner?: Owner): Promise<{
       .from("note_folders")
       .select("id,name,parent_id")
       .is("archived_at", null)
-      .order("position")),
+      .order("position").order("name")),
+    supabase.from("notes").select("id,title,folder_id,updated_at,content_origin")
+      .is("deleted_at", null).neq("status", "archived").order("updated_at", { ascending: false }),
   ]);
   const timezone = profileResult.data?.timezone || "Asia/Shanghai";
 
@@ -131,6 +134,7 @@ export async function getNotesWorkspace(owner?: Owner): Promise<{
       timezone,
       state: "unavailable",
       hasMore: false,
+      navigatorNotes: [],
     };
   }
   if (isNotesWorkspaceSchemaMissing(foldersResult.error)) {
@@ -139,6 +143,7 @@ export async function getNotesWorkspace(owner?: Owner): Promise<{
       folders: [],
       timezone,
       state: "base",
+      navigatorNotes: [],
     };
   }
   if (foldersResult.error) {
@@ -148,6 +153,7 @@ export async function getNotesWorkspace(owner?: Owner): Promise<{
       timezone,
       state: "unavailable",
       hasMore: false,
+      navigatorNotes: [],
     };
   }
 
@@ -156,6 +162,7 @@ export async function getNotesWorkspace(owner?: Owner): Promise<{
     folders: foldersResult.data ?? [],
     timezone,
     state: "ready",
+    navigatorNotes: navigatorResult.error ? [] : navigatorResult.data ?? [],
   };
 }
 

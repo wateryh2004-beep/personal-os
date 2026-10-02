@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
 import { NowWorkspaceView } from "@/components/today/now-workspace";
-import { perfMark, perfMeasure } from "@/lib/perf";
 import { todayWorkspaceResource } from "@/features/today/workspace-resource";
-import { useWorkspaceResourceLifecycle } from "@/lib/workspace-resource-cache";
-import type { NowWorkspace } from "@/features/today/types";
+import { useWorkspaceResource } from "@/lib/workspace-resource-cache";
+import { WorkspaceReadError } from "@/components/shared/workspace-read-error";
 
 function TodayShell() {
   return (
@@ -45,15 +43,10 @@ function TodayShell() {
   );
 }
 
-export function TodayWorkspaceLoader({ initialWorkspace }: { initialWorkspace: NowWorkspace }) {
-  const snapshot = useSyncExternalStore(todayWorkspaceResource.subscribe, todayWorkspaceResource.get, todayWorkspaceResource.get);
-  useWorkspaceResourceLifecycle(todayWorkspaceResource);
-  useEffect(() => {
-    const hadCachedData = todayWorkspaceResource.get().data !== undefined;
-    todayWorkspaceResource.set(initialWorkspace);
-    perfMark("workspace-visible", { workspace: "today", cached: hadCachedData, source: "rsc" });
-    void todayWorkspaceResource.revalidate().then(() => perfMeasure("workspace-data-ready", "navigation-click", { workspace: "today" })).catch(() => {});
-  }, [initialWorkspace]);
-  const data = snapshot.data ?? initialWorkspace;
+export function TodayWorkspaceLoader() {
+  const snapshot = useWorkspaceResource(todayWorkspaceResource, "today");
+
+  const data = snapshot.data;
+  if (!data && snapshot.error) return <WorkspaceReadError resource={todayWorkspaceResource} />;
   return data ? <NowWorkspaceView workspace={data} /> : <TodayShell />;
 }

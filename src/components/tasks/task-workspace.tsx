@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
+
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -55,7 +57,7 @@ import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-sess
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
 import { formatDate } from "@/lib/format";
 import { useWorkspaceScrollRestoration } from "@/components/shared/use-workspace-scroll-restoration";
-import { tasksWorkspaceResource } from "@/features/tasks/workspace-resource";
+import { tasksWorkspaceResource as tasksResource } from "@/features/tasks/workspace-resource";
 
 const TaskAssistant = dynamic(
   () => import("@/components/tasks/task-assistant").then((module) => module.TaskAssistant),
@@ -576,6 +578,8 @@ export function TaskWorkspace({
   initialCreateOpen?: boolean;
   initialTaskId?: string;
 }) {
+
+  const tasksWorkspaceResource = useWorkspaceResourceLease(tasksResource);
   const router = useRouter();
   const [rows, setRows] = useState(tasks);
   const rowsRef = useRef(tasks);
@@ -613,7 +617,7 @@ export function TaskWorkspace({
     locallyPublishedRows.current.add(next);
     setRows(next);
     tasksWorkspaceResource.mutate((workspace) => workspace ? { ...workspace, tasks: next } : undefined);
-  }, []);
+  }, [tasksWorkspaceResource]);
 
   useEffect(() => {
     // Resource props also echo our optimistic cache writes. Only a server read

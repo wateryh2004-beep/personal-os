@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { NotesWorkspace } from "@/components/notes/notes-workspace";
-import { notesWorkspaceResource, type NotesWorkspaceData } from "@/features/notes/workspace-resource";
+import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
 import { lastNotesListSessionKey, lastNotesListTtlMs } from "@/features/notes/navigation";
-import { perfMark, perfMeasure } from "@/lib/perf";
 import { saveWorkspaceSession } from "@/lib/workspace-session";
-import { useWorkspaceResourceLifecycle } from "@/lib/workspace-resource-cache";
+import { useWorkspaceResource } from "@/lib/workspace-resource-cache";
+import { WorkspaceReadError } from "@/components/shared/workspace-read-error";
 
 function NotesShell() {
   return (
@@ -25,23 +25,18 @@ function NotesShell() {
   );
 }
 
-export function NotesWorkspaceLoader({ initialWorkspace, folderId, initialView, dailyError }: { initialWorkspace: NotesWorkspaceData; folderId?: string; initialView: "all" | "favorites" | "recent"; dailyError: boolean }) {
+export function NotesWorkspaceLoader({ folderId, initialView, dailyError }: { folderId?: string; initialView: "all" | "favorites" | "recent"; dailyError: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const search = searchParams.toString();
   const listHref = useMemo(() => `${pathname}${search ? `?${search}` : ""}`, [pathname, search]);
-  const snapshot = useSyncExternalStore(notesWorkspaceResource.subscribe, notesWorkspaceResource.get, notesWorkspaceResource.get);
-  useWorkspaceResourceLifecycle(notesWorkspaceResource);
+  const snapshot = useWorkspaceResource(notesWorkspaceResource, "notes");
   useEffect(() => {
     saveWorkspaceSession(lastNotesListSessionKey, { href: listHref }, lastNotesListTtlMs);
   }, [listHref]);
-  useEffect(() => {
-    const hadCachedData = notesWorkspaceResource.get().data !== undefined;
-    notesWorkspaceResource.set(initialWorkspace);
-    perfMark("workspace-visible", { workspace: "notes", cached: hadCachedData, source: "rsc" });
-    void notesWorkspaceResource.revalidate().then(() => perfMeasure("workspace-data-ready", "navigation-click", { workspace: "notes" })).catch(() => {});
-  }, [initialWorkspace]);
-  const data = snapshot.data ?? initialWorkspace;
+
+  const data = snapshot.data;
+  if (!data && snapshot.error) return <WorkspaceReadError resource={notesWorkspaceResource} />;
   if (!data) return <NotesShell />;
   const selectedFolder = data.folders.find((folder) => folder.id === folderId) ?? null;
   return <NotesWorkspace notes={data.notes} folders={data.folders} timezone={data.timezone} state={data.state} selectedFolder={selectedFolder} initialView={initialView} dailyError={dailyError} initialHasMore={data.hasMore} />;

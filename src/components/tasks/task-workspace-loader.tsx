@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
 import { TasksShell } from "./tasks-workspace-skeleton";
 import { MicrosoftDeviceConnect } from "@/components/calendar/microsoft-device-connect";
 import { TaskWorkspace } from "@/components/tasks/task-workspace";
 import type { TaskDayBounds } from "@/features/tasks/task-view";
-import { perfMark, perfMeasure } from "@/lib/perf";
 import {
   tasksWorkspaceResource,
-  type TasksWorkspaceData,
 } from "@/features/tasks/workspace-resource";
-import { useWorkspaceResourceLifecycle } from "@/lib/workspace-resource-cache";
-
+import { useWorkspaceResource } from "@/lib/workspace-resource-cache";
+import { WorkspaceReadError } from "@/components/shared/workspace-read-error";
 
 function WorkspaceMessage({ tone, title, children }: { tone: "danger" | "warning"; title?: string; children: React.ReactNode }) {
   return (
@@ -27,38 +24,18 @@ function WorkspaceMessage({ tone, title, children }: { tone: "danger" | "warning
 }
 
 export function TaskWorkspaceLoader({
-  initialWorkspace,
   initialDayBounds,
   initialCreateOpen = false,
   initialTaskId,
 }: {
-  initialWorkspace: TasksWorkspaceData;
   initialDayBounds: TaskDayBounds;
   initialCreateOpen?: boolean;
   initialTaskId?: string;
 }) {
-  const snapshot = useSyncExternalStore(
-    tasksWorkspaceResource.subscribe,
-    tasksWorkspaceResource.get,
-    tasksWorkspaceResource.get,
-  );
-  useWorkspaceResourceLifecycle(tasksWorkspaceResource);
+  const snapshot = useWorkspaceResource(tasksWorkspaceResource, "tasks");
 
-  useEffect(() => {
-    const hadCachedData = tasksWorkspaceResource.get().data !== undefined;
-    tasksWorkspaceResource.set(initialWorkspace);
-    perfMark("workspace-visible", {
-      workspace: "tasks",
-      cached: hadCachedData,
-      source: "rsc",
-    });
-    void tasksWorkspaceResource
-      .revalidate()
-      .then(() => perfMeasure("workspace-data-ready", "navigation-click", { workspace: "tasks" }))
-      .catch(() => {});
-  }, [initialWorkspace]);
-
-  const data = snapshot.data ?? initialWorkspace;
+  const data = snapshot.data;
+  if (!data && snapshot.error) return <WorkspaceReadError resource={tasksWorkspaceResource} />;
   if (!data) return <TasksShell />;
   if (data.unavailable) {
     return <WorkspaceMessage tone="danger" title="任务">无法读取 Microsoft To Do 缓存。请检查数据库连接。</WorkspaceMessage>;

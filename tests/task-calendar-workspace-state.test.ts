@@ -48,6 +48,7 @@ vi.mock("@/components/calendar/calendar-full-view", () => ({ CalendarFullView: (
 import { TaskWorkspace } from "@/components/tasks/task-workspace";
 import { CalendarWorkspace } from "@/components/calendar/calendar-workspace";
 import { WorkspacePanelProvider } from "@/components/layout/workspace-panel-provider";
+import { createWorkspaceResource } from "@/lib/workspace-resource-cache";
 import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 
 function task(id: string, patch: Partial<TodoTask> = {}): TodoTask {
@@ -61,6 +62,12 @@ function deferred<T>() {
   let reject!: (reason?: unknown) => void;
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
+}
+
+function rangeFixture(data?: { events: CalendarEventRecord[]; truncated: boolean }, fetcher = async () => ({ events: [] as CalendarEventRecord[], truncated: false })) {
+  const resource = createWorkspaceResource("test:calendar-range", fetcher, 120_000);
+  if (data) resource.set(data);
+  return resource;
 }
 
 let root: Root;
@@ -92,7 +99,7 @@ beforeEach(() => {
   mocks.update.mockResolvedValue(undefined);
   mocks.reopen.mockResolvedValue(undefined);
   mocks.revalidateTasks.mockResolvedValue(undefined);
-  mocks.range.mockReturnValue({ get: () => ({}), revalidate: vi.fn().mockResolvedValue({ events: [], truncated: false }) });
+  mocks.range.mockReturnValue(rangeFixture());
   mocks.fullView = null;
   mocks.realInspector = false;
   mocks.router.replace.mockReset();
@@ -331,8 +338,8 @@ describe("Calendar exact-record navigation", () => {
   it("clears a stale range spinner when a newer cached range wins", async () => {
     const request = deferred<{ events: CalendarEventRecord[]; truncated: boolean }>();
     const eventB = calendarEvent("b");
-    mocks.range.mockReturnValueOnce({ get: () => ({}), revalidate: () => request.promise })
-      .mockReturnValueOnce({ get: () => ({ data: { events: [eventB], truncated: false } }) });
+    mocks.range.mockReturnValueOnce(rangeFixture(undefined, () => request.promise))
+      .mockReturnValueOnce(rangeFixture({ events: [eventB], truncated: false }));
     await renderCalendar(); await flushTimers();
     await act(async () => { mocks.fullView!.onRangeChange({ start: new Date("2026-10-01"), end: new Date("2026-10-08") }); });
     expect(mocks.fullView!.loadingRange).toBe(true);
@@ -347,7 +354,7 @@ describe("Calendar exact-record navigation", () => {
     const eventA = calendarEvent("a"), eventB = calendarEvent("b");
     const request = deferred<{ status: string; message: string }>();
     mocks.updateCalendar.mockReturnValue(request.promise);
-    mocks.range.mockReturnValue({ get: () => ({ data: { events: [eventA, eventB], truncated: false } }), revalidate: vi.fn().mockResolvedValue({ events: [eventB], truncated: false }) });
+    mocks.range.mockReturnValue(rangeFixture({ events: [eventA, eventB], truncated: false }, async () => ({ events: [eventB], truncated: false })));
     await renderCalendar(undefined, { events: [eventA, eventB] }); await flushTimers();
     await act(async () => { mocks.fullView!.onRangeChange({ start: new Date("2026-12-20"), end: new Date("2026-12-21") }); });
     await act(async () => { textButton("Event a").click(); });

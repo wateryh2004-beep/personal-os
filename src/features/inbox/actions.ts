@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/lib/workspace-revalidation";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { contentHash } from "@/features/notes/utils";
@@ -34,8 +34,8 @@ export async function captureInboxItem(_: InboxCaptureState, formData: FormData)
         reason: error instanceof Error ? error.message : "unknown_error",
       });
     }
-    revalidatePath("/inbox");
-    revalidatePath("/today");
+    await revalidatePath("/inbox");
+    await revalidatePath("/today");
     return { status: "success", message: "已加入 Inbox。", inboxId: data.id, classified };
   } catch (error) {
     console.error("[inbox:capture] failed", {
@@ -52,7 +52,7 @@ export async function reclassifyInboxItem(_: InboxClassifyState, formData: FormD
     const { supabase, userId } = await requireOwner();
     const result = await classifyInboxItem({ supabase, userId, inboxId: parsed.data.inboxId });
     await audit(supabase, userId, "reclassify", parsed.data.inboxId, { status: result.status });
-    revalidatePath("/inbox");
+    await revalidatePath("/inbox");
     return {
       status: "success",
       message: result.status === "ready" ? "已识别出去向，请在列表确认。" : "仍无法判断，可手动选择去向。",
@@ -82,7 +82,7 @@ export async function dismissInboxProposal(_: InboxClassifyState, formData: Form
       .maybeSingle();
     if (error || !data) throw new Error("inbox_dismiss_failed");
     await audit(supabase, userId, "dismiss_proposal", data.id, {});
-    revalidatePath("/inbox");
+    await revalidatePath("/inbox");
     return { status: "success", message: "已放回收集盒。" };
   } catch {
     return { status: "error", message: "操作失败，请重试。" };
@@ -105,8 +105,8 @@ export async function archiveInboxItem(_: InboxCaptureState, formData: FormData)
       .maybeSingle();
     if (error || !data) throw new Error("inbox_archive_failed");
     await audit(supabase, userId, "archive", data.id, {});
-    revalidatePath("/inbox");
-    revalidatePath("/today");
+    await revalidatePath("/inbox");
+    await revalidatePath("/today");
     return { status: "success", message: "已归档，可在页面底部恢复。" };
   } catch (error) {
     console.error("[inbox:archive] failed", { reason: error instanceof Error ? error.message : "unknown_error" });
@@ -128,8 +128,8 @@ export async function restoreInboxItem(_: InboxCaptureState, formData: FormData)
       .maybeSingle();
     if (error || !data) throw new Error("inbox_restore_failed");
     await audit(supabase, userId, "restore", data.id, {});
-    revalidatePath("/inbox");
-    revalidatePath("/today");
+    await revalidatePath("/inbox");
+    await revalidatePath("/today");
     return { status: "success", message: "已恢复到 Inbox。" };
   } catch (error) {
     console.error("[inbox:restore] failed", { reason: error instanceof Error ? error.message : "unknown_error" });
@@ -169,9 +169,9 @@ export async function convertInboxToNote(_: InboxCaptureState, formData: FormDat
     const { error: processedError } = await supabase.from("inbox_items").update({ converted_note_id: note.id, processed_at: now }).eq("id", item.id);
     if (processedError) throw new Error("inbox_update_failed");
     await audit(supabase, userId, "convert_to_note", item.id, { note_id: note.id, content_hash: contentHash(body) });
-    revalidatePath("/inbox");
-    revalidatePath("/notes");
-    revalidatePath("/today");
+    await revalidatePath("/inbox");
+    await revalidatePath("/notes");
+    await revalidatePath("/today");
     return { status: "success", message: "已创建笔记。" };
   } catch {
     return { status: "error", message: "笔记未能创建，请重试。" };
@@ -227,10 +227,10 @@ export async function convertInboxToDailyNote(_: InboxCaptureState, formData: Fo
       destination_id: destination.noteId,
       date: destination.date,
     });
-    revalidatePath("/inbox");
-    revalidatePath("/notes");
-    revalidatePath(`/notes/${destination.noteId}`);
-    revalidatePath("/today");
+    await revalidatePath("/inbox");
+    await revalidatePath("/notes");
+    await revalidatePath(`/notes/${destination.noteId}`);
+    await revalidatePath("/today");
     return {
       status: "success",
       message: `已写入 ${destination.date} 的今日日记。`,

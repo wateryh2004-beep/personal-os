@@ -1,3 +1,6 @@
+import { cookies } from "next/headers";
+import { WorkspaceIdentityBoundary } from "@/components/layout/workspace-identity-boundary";
+import { workspaceRevisionCookie } from "@/lib/workspace-revalidation";
 import { AppShell } from "@/components/layout/app-shell";
 import { requireOwner } from "@/lib/auth/require-owner";
 
@@ -13,6 +16,7 @@ export const dynamic = "force-dynamic";
  * render tree when a page independently asks for the current owner.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  await requireOwner();
-  return <AppShell>{children}</AppShell>;
+  const { userId } = await requireOwner();
+  const revision = (await cookies()).get(workspaceRevisionCookie)?.value ?? "initial";
+  return <WorkspaceIdentityBoundary ownerId={userId} revision={revision}><AppShell>{children}</AppShell></WorkspaceIdentityBoundary>;
 }

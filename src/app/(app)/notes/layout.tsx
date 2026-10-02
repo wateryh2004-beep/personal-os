@@ -1,7 +1,5 @@
-import { NotesLiveWorkspaceShell } from "@/components/notes/notes-live-workspace-shell";
-import { getNotesNavigator } from "@/features/notes/queries";
+import { NotesWorkspaceShellLoader } from "@/components/notes/notes-workspace-shell-loader";
 
-export default async function NotesLayout({ children }: { children: React.ReactNode }) {
-  const { folders, notes } = await getNotesNavigator();
-  return <NotesLiveWorkspaceShell folders={folders} notes={notes}>{children}</NotesLiveWorkspaceShell>;
+export default function NotesLayout({ children }: { children: React.ReactNode }) {
+  return <NotesWorkspaceShellLoader>{children}</NotesWorkspaceShellLoader>;
 }

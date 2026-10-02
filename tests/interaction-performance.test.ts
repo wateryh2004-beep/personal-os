@@ -157,11 +157,13 @@ describe("interaction performance guardrails", () => {
     expect(notePage).toContain("const aiPromise = getAiSettings()");
   });
 
-  it("starts private workspace reads in the Server Component navigation path", () => {
-    expect(todayPage).toContain("await getTodayWorkspace()");
-    expect(tasksPage).toContain("const workspacePromise = getMicrosoftTodoWorkspace()");
-    expect(notesPage).toContain("const workspacePromise = getNotesWorkspace()");
-    expect(calendarPage).toContain("const workspacePromise = getCalendarWorkspace()");
+  it("lets authorized workspace shells mount before the data read", () => {
+    for (const page of [todayPage, tasksPage, notesPage, calendarPage]) {
+      expect(page).not.toMatch(/get(Today|Notes|Calendar|MicrosoftTodo)Workspace/);
+      expect(page).not.toContain("initialWorkspace=");
+    }
+    expect(tasksPage).toContain("initialTaskId={params.task}");
+    expect(calendarPage).toContain("initialEventId={params.event}");
   });
 
   it("makes deployment and calendar scheduler evidence visible to the owner", () => {
