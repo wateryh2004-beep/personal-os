@@ -10,7 +10,7 @@ import { InterviewFastWorkspace } from "@/components/career/interview/interview-
 const makeItem = (id: string, contextId: string | null, category = "resume") => ({ preparationId: `prep-${id}`, questionId: id, contextId, prompt: `Question ${id}`, category, categoryLabel: category, style: "standard", subcategory: null, competencies: [], thoughts: `Logic ${id}`, answer: `Answer ${id}`, answerId: null });
 const props = { targets: [{ id: "swire", title: "Swire", organization: "太古集团", role: "MT" }], items: [makeItem("general1", null), makeItem("general2", null, "knowledge"), makeItem("swire1", "swire")], initialContextId: "", initialQuestionId: "", initialCategory: "all" };
 let host: HTMLDivElement, root: Root;
-const button = (text: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find((node) => node.textContent?.trim() === text)!;
+const button = (text: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find((node) => (node.getAttribute("aria-label") ?? node.textContent?.trim()) === text)!;
 const detail = () => host.querySelector<HTMLElement>('[data-testid="interview-question-detail"]')!;
 const list = () => host.querySelector<HTMLElement>('[data-testid="interview-question-list"]')!;
 beforeEach(() => {
@@ -32,7 +32,8 @@ it("starts on the general list and opens even the initially selected question", 
   expect(list().classList.contains("hidden")).toBe(true);
   expect(detail().classList.contains("hidden")).toBe(false);
   expect(detail().querySelector("h1")!.textContent).toBe("Question general1");
-  expect(detail().querySelector("textarea")!.value).toBe("Logic general1");
+  expect(detail().textContent).toContain("Logic general1");
+  expect(detail().querySelector("textarea")).toBeNull();
   expect(document.activeElement).toBe(detail());
   expect(window.location.search).toBe("?question=general1");
   expect(mocks.save).not.toHaveBeenCalled();
@@ -79,6 +80,7 @@ it("keeps desktop selection inline without adding a mobile history entry", async
 
 const draftMeta = { status: "draft", source: "ai_draft", language: "bilingual", confirmed_at: null, version_number: 1 };
 async function edit(label: string, value: string) {
+  if (!detail().querySelector("textarea")) await act(async () => button("编辑思路与答案").click());
   const input = host.querySelector<HTMLTextAreaElement>(`[aria-label="${label}"]`)!;
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(input, value);
@@ -94,7 +96,8 @@ it("shows bilingual reference answers immediately without a confirmation action"
   await render({ items: [item], initialQuestionId: "draft" });
   expect(detail().textContent).toContain("参考答案 · 待确认");
   expect(detail().textContent).toContain("中英双语");
-  expect(detail().querySelector<HTMLTextAreaElement>('[aria-label="答案"]')?.value).toBe(item.answer);
+  expect(detail().textContent).toContain("Complete English answer");
+  expect(detail().querySelector("textarea")).toBeNull();
   expect(mocks.save).not.toHaveBeenCalled();
 });
 it("marks thought-only saves as unchanged and preserves draft metadata", async () => {
@@ -118,7 +121,7 @@ it("pins an edited draft after save and after switching away and back", async ()
   await act(async () => button("Question general2").click());
   await act(async () => button("Question general1").click());
   expect(new URLSearchParams(window.location.search).get("answer")).toBe("new-draft");
-  expect(detail().querySelector<HTMLTextAreaElement>('[aria-label="答案"]')?.value).toBe("A revised complete answer");
+  expect(detail().textContent).toContain("A revised complete answer");
   await flush(await edit("思路", "Other thoughts"));
   expect((mocks.save.mock.calls[1][0] as FormData).get("answer_changed")).toBe("0");
   expect((mocks.save.mock.calls[1][0] as FormData).get("answer_id")).toBe("new-draft");
@@ -163,4 +166,81 @@ it("waits for the newest queued save before opening its exact confirmation versi
   expect(event.defaultPrevented).toBe(true); expect(mocks.navigate).not.toHaveBeenCalled();
   await act(async () => { finishSecond({ answerId: "draft-3", answerMeta: { ...draftMeta, version_number: 3 } }); });
   expect(mocks.navigate).toHaveBeenCalledWith("/career/interview/questions/draft?answer=draft-3#answer-versions");
+});
+
+async function changeFilter(label: string, value: string) {
+  const input = host.querySelector<HTMLInputElement | HTMLSelectElement>(`[aria-label="${label}"]`)!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(input instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLSelectElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event(input instanceof HTMLInputElement ? "input" : "change", { bubbles: true }));
+  });
+}
+it("searches reference bodies and restores filters after mobile Back/Forward without writes", async () => {
+  await render();
+  await changeFilter("搜索题库", "Answer general2");
+  expect(list().textContent).not.toContain("Question general1");
+  await act(async () => button("Question general2").click());
+  expect(new URLSearchParams(window.location.search).get("q")).toBe("Answer general2");
+  const length = history.length;
+  await act(async () => button("参考表达").click());
+  expect(history.length).toBe(length);
+  expect(history.state?.interviewDetail).toBe(true);
+  await act(async () => { history.back(); await new Promise((resolve) => setTimeout(resolve, 30)); });
+  expect(detail().classList.contains("hidden")).toBe(true);
+  expect(host.querySelector<HTMLInputElement>('[aria-label="搜索题库"]')!.value).toBe("Answer general2");
+  await act(async () => { history.forward(); await new Promise((resolve) => setTimeout(resolve, 30)); });
+  expect(detail().textContent).toContain("Question general2");
+  expect(mocks.save).not.toHaveBeenCalled();
+});
+it("clears unmatched filters and never mistakes a filter conflict for a different deep-linked question", async () => {
+  await render({ initialQuestionId: "general2", initialQuery: "general1" });
+  expect(detail().querySelector("h1")!.textContent).toBe("Question general2");
+  expect(new URLSearchParams(window.location.search).get("q")).toBeNull();
+  await changeFilter("搜索题库", "nothingmatches");
+  expect(list().textContent).toContain("没有找到匹配的问题");
+  await act(async () => button("清除筛选").click());
+  expect(list().textContent).toContain("Question general1");
+  expect(mocks.save).not.toHaveBeenCalled();
+});
+it("searches newly edited content without reload and preserves failed edits after switching", async () => {
+  mocks.save.mockRejectedValue(new Error("Offline"));
+  await render({ initialQuestionId: "general1" });
+  await flush(await edit("答案", "Newly discoverable knowledge"));
+  await act(async () => button("Question general2").click());
+  expect(host.textContent).toContain("修改还未保存");
+  await changeFilter("搜索题库", "discoverable");
+  expect(list().textContent).toContain("Question general1");
+  await act(async () => button("Question general1").click());
+  expect(detail().textContent).toContain("Newly discoverable knowledge");
+});
+it("recovers navigation after an earlier queued failure followed by the newest successful save", async () => {
+  let failFirst!: (error: unknown) => void;
+  mocks.save.mockImplementationOnce(() => new Promise((_, reject) => { failFirst = reject; }));
+  mocks.save.mockResolvedValue({ answerId: "recovered", answerMeta: draftMeta });
+  await render({ initialQuestionId: "general1" });
+  await flush(await edit("答案", "First version"));
+  await flush(await edit("答案", "Latest version"));
+  await act(async () => { failFirst(new Error("Temporary")); });
+  expect(mocks.save).toHaveBeenCalledTimes(2);
+  expect(detail().textContent).toContain("已保存");
+  expect(host.textContent).not.toContain("修改还未保存");
+});
+it("keeps reading free of writes and exposes a loading failure instead of an empty success", async () => {
+  await render({ unavailable: true, initialQuestionId: "general1" });
+  expect(host.textContent).toContain("部分题库数据加载失败");
+  await act(async () => button("编辑思路与答案").click());
+  await act(async () => button("阅读学习").click());
+  expect(mocks.save).not.toHaveBeenCalled();
+});
+it("restores a newly saved body-search match with Back and Forward", async () => {
+  await render({ initialQuestionId: "general1" });
+  await flush(await edit("答案", "unique-persisted-keyword"));
+  await act(async () => button("← 返回题目列表").click());
+  await changeFilter("搜索题库", "unique-persisted-keyword");
+  await act(async () => button("Question general1").click());
+  await act(async () => { history.back(); await new Promise((resolve) => setTimeout(resolve, 30)); });
+  expect(detail().classList.contains("hidden")).toBe(true);
+  await act(async () => { history.forward(); await new Promise((resolve) => setTimeout(resolve, 30)); });
+  expect(detail().classList.contains("hidden")).toBe(false);
+  expect(detail().textContent).toContain("unique-persisted-keyword");
 });

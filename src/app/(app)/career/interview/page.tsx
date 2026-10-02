@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { InterviewFastWorkspace } from "@/components/career/interview/interview-fast-workspace";
 import { getInterviewWorkspaceData } from "@/features/interview/queries";
 import { selectWorkspaceAnswer, workspaceAnswerMetadata } from "@/features/interview/workspace-answers";
@@ -5,9 +6,10 @@ import { selectWorkspaceAnswer, workspaceAnswerMetadata } from "@/features/inter
 export default async function InterviewWorkspacePage({
   searchParams,
 }: {
-  searchParams: Promise<{ context?: string; question?: string; category?: string; answer?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const params = await searchParams;
+  const rawParams = await searchParams;
+  const params = Object.fromEntries(Object.entries(rawParams).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]));
   const data = await getInterviewWorkspaceData();
 
   const targets = data.contexts.map((context: any) => ({
@@ -54,6 +56,8 @@ export default async function InterviewWorkspacePage({
       questionId: prep.question_id as string,
       contextId: (prep.context_id as string | null) ?? null,
       prompt: (prep.prompt_override || relation.canonical_prompt) as string,
+      shortTitle: (relation.short_title as string | null) ?? null,
+      parentQuestionId: (relation.parent_question_id as string | null) ?? null,
       category: (typeById.get(relation.question_type_id)?.key as string | undefined) ?? "behavioral",
       categoryLabel: (typeById.get(relation.question_type_id)?.label as string | undefined) ?? "行为",
       style: (relation.question_style as string | null) ?? "standard",
@@ -63,6 +67,7 @@ export default async function InterviewWorkspacePage({
         label: item.label as string,
       })),
       thoughts: thoughts as string,
+      learning: { keyMessage: prep.key_message && !thoughts.includes(prep.key_message) ? prep.key_message : "", logic: prep.answer_logic_markdown && !thoughts.includes(prep.answer_logic_markdown) ? prep.answer_logic_markdown : "", pitfalls: prep.risk_markdown ?? "", nextFocus: prep.next_focus ?? "" },
       answer: (answer?.body_markdown as string | undefined) ?? "",
       answerId: (answer?.id as string | undefined) ?? null,
       answerMeta: workspaceAnswerMetadata(answer),
@@ -80,16 +85,21 @@ export default async function InterviewWorkspacePage({
     ? params.question
     : "";
   const initialQuestionId = requestedQuestion;
-  const initialItem = scopedItems.find((item) => item.questionId === initialQuestionId) ?? scopedItems[0];
+  // A recovered query or filter-only navigation must initialize a fresh, complete client snapshot.
+  const snapshotKey = createHash("sha256").update(JSON.stringify([items, targets, data.unavailable, params])).digest("hex").slice(0, 20);
 
   return (
     <InterviewFastWorkspace
-      key={`${initialContextId}:${initialQuestionId}:${initialItem?.answerId ?? ""}:${initialItem?.answerMeta?.status ?? ""}:${initialItem?.answerMeta?.confirmed_at ?? ""}`}
+      key={snapshotKey}
       targets={targets}
       items={items}
       initialContextId={initialContextId}
       initialQuestionId={initialQuestionId}
       initialCategory={params.category ?? "all"}
+      initialQuery={params.q ?? ""}
+      initialDomain={params.domain ?? "all"}
+      initialStyle={params.style ?? "all"}
+      unavailable={data.unavailable}
     />
   );
 }

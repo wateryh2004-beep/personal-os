@@ -21,12 +21,13 @@ export default async function PracticeDetailPage({ params, searchParams }: {
   const primaryStory = data.linkedStories[0] ?? null;
   const savedAttempt = data.attempts.find((attempt: { id: string }) => attempt.id === saved);
   const questionHref = prep.context_id ? `/career/interview/questions/${prep.question_id}?context=${prep.context_id}` : `/career/interview/questions/${prep.question_id}`;
-  const queueHref = prep.context_id ? `/career/interview/practice?context=${prep.context_id}` : "/career/interview/practice";
+  const queueHref = `/career/interview/practice?context=${prep.context_id ?? "general"}`;
+  const learningHref = `/career/interview?question=${prep.question_id}${prep.context_id ? `&context=${prep.context_id}` : ""}`;
 
   return (
     <>
       <header className="mb-2">
-        <Link href={questionHref} className="text-xs text-zinc-400 hover:text-zinc-700">← 返回题目</Link>
+        <Link href={learningHref} className="text-xs text-zinc-400 hover:text-zinc-700">← 返回学习题目</Link>
         <h1 className="mt-4 max-w-3xl text-2xl font-semibold leading-9 tracking-[-0.025em] text-zinc-950">{prompt}</h1>
         {context?.title ? <p className="mt-2 text-xs text-zinc-400">{context.title}</p> : null}
       </header>

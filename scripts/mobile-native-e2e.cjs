@@ -74,11 +74,32 @@ async function backCloses(page, trigger, visibleTarget) {
       const questionDetail = interview.getByTestId("interview-question-detail");
       assert.equal(await interview.getByLabel("面试岗位").inputValue(), "");
       assert.equal(await questionDetail.isVisible(), false);
+      await interview.getByLabel("搜索题库", { exact: true }).fill("English reference");
+      await interview.getByLabel("学习模块", { exact: true }).selectOption("SQL与数据分析");
+      await interview.getByLabel("提问风格", { exact: true }).selectOption("stress");
+      assert.equal(await questionList.getByRole("button", { name: "E2E 面试问题 0", exact: true }).count(), 0);
+      await questionList.getByRole("button", { name: "E2E 面试问题 1", exact: true }).tap();
+      await questionDetail.waitFor({ state: "visible" });
+      await questionDetail.getByRole("button", { name: "参考表达", exact: true }).tap();
+      await page.evaluate(() => history.back());
+      await questionList.waitFor({ state: "visible" });
+      assert.equal(await interview.getByLabel("搜索题库", { exact: true }).inputValue(), "English reference");
+      assert.equal(await interview.getByLabel("学习模块", { exact: true }).inputValue(), "SQL与数据分析");
+      await interview.getByLabel("搜索题库", { exact: true }).fill("no-matching-question");
+      await questionList.getByRole("button", { name: "清除筛选", exact: true }).tap();
+      assert.equal(await interview.getByLabel("搜索题库", { exact: true }).inputValue(), "");
+      await capture(page, `interview-library-${width}`);
       await questionList.getByRole("button", { name: "E2E 面试问题 0", exact: true }).tap();
       await questionDetail.waitFor({ state: "visible" });
       assert.equal(await questionList.isVisible(), false);
-      assert.equal(await questionDetail.locator("textarea").first().inputValue(), "E2E 思路 0");
-      assert.equal(await questionDetail.locator("textarea").nth(1).inputValue(), "E2E 答案 0");
+      assert.ok((await questionDetail.innerText()).includes("E2E 思路 0"));
+      assert.equal(await questionDetail.locator("textarea").count(), 0);
+      assert.ok((await questionDetail.innerText()).includes("E2E 答案 0"));
+      await questionDetail.getByRole("button", { name: "编辑思路与答案", exact: true }).tap();
+      assert.ok((await questionDetail.getByLabel("思路", { exact: true }).inputValue()).includes("E2E 思路 0"));
+      assert.equal(await questionDetail.getByLabel("答案", { exact: true }).inputValue(), "E2E 答案 0");
+      await questionDetail.getByRole("button", { name: "阅读学习", exact: true }).tap();
+      assert.equal(await questionDetail.locator("textarea").count(), 0);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
       await capture(page, `interview-detail-${width}`);
       await page.evaluate(() => history.back());
@@ -91,9 +112,12 @@ async function backCloses(page, trigger, visibleTarget) {
       await questionDetail.waitFor({ state: "visible" });
       assert.ok((await questionDetail.innerText()).includes("参考答案 · 待确认"));
       assert.ok((await questionDetail.innerText()).includes("中英双语"));
-      const reference = questionDetail.getByLabel("答案", { exact: true });
-      assert.ok((await reference.inputValue()).includes("E2E English reference answer"));
-      assert.ok(await reference.evaluate((element) => element.scrollHeight - element.clientHeight) <= 2, `${width}px bilingual answer should grow to reveal all text`);
+      const reference = questionDetail.getByTestId("interview-study-view");
+      assert.ok((await reference.innerText()).includes("E2E English reference answer"));
+      assert.equal(await questionDetail.locator("textarea").count(), 0, "reading never opens an editor");
+      const detailHistoryLength = await page.evaluate(() => history.length);
+      await questionDetail.getByRole("button", { name: "参考表达", exact: true }).tap();
+      assert.equal(await page.evaluate(() => history.length), detailHistoryLength);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
       await capture(page, `interview-reference-${width}`);
       await questionDetail.getByRole("button", { name: "← 返回题目列表" }).tap();
@@ -101,7 +125,7 @@ async function backCloses(page, trigger, visibleTarget) {
       await interview.getByLabel("面试岗位").selectOption("e2e-target");
       await questionList.getByRole("button", { name: "E2E 面试问题 2", exact: true }).tap();
       await questionDetail.waitFor({ state: "visible" });
-      assert.equal(await questionDetail.locator("textarea").first().inputValue(), "E2E 思路 2");
+      assert.ok((await questionDetail.innerText()).includes("E2E 思路 2"));
       await capture(page, `interview-target-${width}`);
       await page.goto(`${baseURL}/mobile-native-e2e`, { waitUntil: "networkidle" });
 
@@ -125,6 +149,27 @@ async function backCloses(page, trigger, visibleTarget) {
       await context.close();
       console.log(`mobile-native-e2e: ${width}px passed`);
     }
+
+    const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const page = await desktop.newPage();
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`${baseURL}/mobile-native-e2e`, { waitUntil: "networkidle" });
+    const interview = page.getByTestId("interview-harness");
+    const questionList = interview.getByTestId("interview-question-list");
+    const detail = interview.getByTestId("interview-question-detail");
+    await interview.getByLabel("搜索题库", { exact: true }).fill("English reference");
+    await questionList.getByRole("button", { name: "E2E 面试问题 1", exact: true }).click();
+    assert.equal(await questionList.isVisible(), true);
+    assert.equal(await detail.isVisible(), true);
+    assert.ok((await detail.innerText()).includes("E2E English reference answer"));
+    assert.equal(await detail.locator("textarea").count(), 0);
+    assert.equal(await detail.getByRole("link", { name: "练习这道题 →", exact: true }).getAttribute("href"), "/career/interview/practice/e2e-prep-1");
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
+    await capture(page, "interview-desktop-1440");
+    assert.deepEqual(errors, [], "desktop learning view should not have uncaught errors");
+    await desktop.close();
+    console.log("mobile-native-e2e: 1440px desktop passed");
   } finally {
     await browser.close();
   }

@@ -14,11 +14,12 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
     <>
       <PageHeader title="复盘" description="回答三个问题：哪里缺故事，哪里没练够，哪些素材用得太集中。" />
       <CareerNav current="/career/interview" />
-      <InterviewNav current="/career/interview/insights" />
+      <InterviewNav current="/career/interview/insights" context={context} />
 
       <form className="mb-8 flex items-center gap-2">
         <select name="context" defaultValue={context ?? ""} className="h-9 max-w-sm rounded-[10px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none">
           <option value="">全部岗位</option>
+          <option value="general">通用面试</option>
           {data.contexts.map((item: any) => <option key={item.id} value={item.id}>{item.title}</option>)}
         </select>
         <button className="pressable rounded-[7px] px-1.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]">切换</button>

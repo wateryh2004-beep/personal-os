@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from "react";
 import {
   createInterviewContext,
   createInterviewQuestion,
@@ -12,29 +12,14 @@ import {
   legacyCategoryByQuestionType,
   questionTypeLabels,
 } from "@/features/interview/constants";
-import type { WorkspaceAnswerMetadata } from "@/features/interview/workspace-answers";
+import { emptyLibraryFilters, filterWorkspaceItems, normalizeLibraryFilters, workspaceDomain, workspaceUrl, type LibraryFilters, type WorkspaceItem } from "@/features/interview/workspace-library";
+import { InterviewStudyView } from "./interview-study-view";
 
 type Target = {
   id: string;
   title: string;
   organization: string | null;
   role: string | null;
-};
-
-type WorkspaceItem = {
-  preparationId: string;
-  questionId: string;
-  contextId: string | null;
-  prompt: string;
-  category: string;
-  categoryLabel: string;
-  style: string;
-  subcategory: string | null;
-  competencies: Array<{ key: string; label: string }>;
-  thoughts: string;
-  answer: string;
-  answerId: string | null;
-  answerMeta?: WorkspaceAnswerMetadata | null;
 };
 
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
@@ -48,30 +33,8 @@ const CORE_CATEGORIES = [
   "situational",
 ] as const;
 
-const SPECIAL_CATEGORIES = ["stress"] as const;
-const CLOSING_CATEGORIES = ["candidate_question"] as const;
-const ALL_CATEGORIES = [...CORE_CATEGORIES, ...SPECIAL_CATEGORIES, ...CLOSING_CATEGORIES] as const;
-
-const categoryShortLabels: Record<string, string> = {
-  ...questionTypeLabels,
-  motivation_fit: "动机",
-  knowledge: "专业",
-  stress: "压力",
-};
-
-function workspaceUrl(contextId: string, questionId: string, category: string, answerId?: string | null) {
-  const params = new URLSearchParams();
-  if (contextId) params.set("context", contextId);
-  if (questionId) params.set("question", questionId);
-  if (category !== "all") params.set("category", category);
-  if (questionId && answerId) params.set("answer", answerId);
-  const query = params.toString();
-  return query ? `/career/interview?${query}` : "/career/interview";
-}
-
-function isKnownCategory(category: string) {
-  return (ALL_CATEGORIES as readonly string[]).includes(category);
-}
+const ALL_CATEGORIES = [...CORE_CATEGORIES, "candidate_question"];
+const categoryShortLabels: Record<string, string> = { ...questionTypeLabels, motivation_fit: "动机", knowledge: "专业", business_case: "商业案例" };
 
 export function InterviewFastWorkspace({
   targets,
@@ -79,39 +42,47 @@ export function InterviewFastWorkspace({
   initialContextId,
   initialQuestionId,
   initialCategory,
+  initialQuery = "",
+  initialDomain = "all",
+  initialStyle = "all",
+  unavailable = false,
 }: {
   targets: Target[];
   items: WorkspaceItem[];
   initialContextId: string;
   initialQuestionId: string;
   initialCategory: string;
+  initialQuery?: string;
+  initialDomain?: string;
+  initialStyle?: string;
+  unavailable?: boolean;
 }) {
   const router = useRouter();
-  const initialItems = items.filter((item) =>
-    (initialContextId ? item.contextId === initialContextId : item.contextId === null)
-    && (initialCategory === "all" || !isKnownCategory(initialCategory)
-      || (initialCategory === "stress" ? item.style === "stress" : item.category === initialCategory)),
-  );
-  const initialItem =
-    initialItems.find((item) => item.questionId === initialQuestionId)
-    ?? initialItems[0]
-    ?? null;
-  const resolvedInitialCategory =
-    initialCategory === "all" || isKnownCategory(initialCategory)
-      ? initialCategory
-      : initialItem?.category ?? "all";
+  const [refreshing, startRefresh] = useTransition();
+  const requestedFilters = normalizeLibraryFilters({ category: initialCategory, q: initialQuery, domain: initialDomain, style: initialStyle });
+  const initialScope = items.filter((item) => initialContextId ? item.contextId === initialContextId : item.contextId === null);
+  const requestedItem = initialScope.find((item) => item.questionId === initialQuestionId);
+  const conflictingFilters = Boolean(requestedItem && !filterWorkspaceItems([requestedItem], requestedFilters).length);
+  const initialFilters = conflictingFilters ? emptyLibraryFilters : requestedFilters;
+  const initialItems = filterWorkspaceItems(initialScope, initialFilters);
+  const initialItem = requestedItem ?? initialItems[0] ?? null;
+  const [filters, setFilters] = useState(initialFilters);
+  const category = filters.category;
+  const [editing, setEditing] = useState(false);
 
-  const [mobileDetailOpen, setMobileDetailOpen] = useState(Boolean(initialQuestionId && initialItem));
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(Boolean(initialQuestionId && initialItem?.questionId === initialQuestionId));
   const detailRef = useRef<HTMLElement | null>(null);
   const [contextId, setContextId] = useState(initialContextId);
   const [questionId, setQuestionId] = useState(initialItem?.questionId ?? "");
-  const [category, setCategory] = useState(resolvedInitialCategory);
   const [thoughts, setThoughts] = useState(initialItem?.thoughts ?? "");
   const [answer, setAnswer] = useState(initialItem?.answer ?? "");
   const [answerId, setAnswerId] = useState(initialItem?.answerId ?? null);
   const [answerMeta, setAnswerMeta] = useState(initialItem?.answerMeta ?? null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState("");
+  const [searchDrafts, setSearchDrafts] = useState<Record<string, { thoughts: string; answer: string }>>({});
+  const [failedSaves, setFailedSaves] = useState<Record<string, string>>({});
+  const pendingSavesRef = useRef(0);
   const answerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const draftsRef = useRef(new Map(items.map((item) => [
@@ -127,27 +98,21 @@ export function InterviewFastWorkspace({
   const saveSequenceRef = useRef(new Map<string, number>());
 
   const contextItems = useMemo(
-    () => items.filter((item) => (contextId ? item.contextId === contextId : item.contextId === null)),
-    [contextId, items],
+    () => items.filter((item) => contextId ? item.contextId === contextId : item.contextId === null).map((item) => {
+      const draft = searchDrafts[item.preparationId];
+      return draft ? { ...item, ...draft } : item;
+    }),
+    [contextId, items, searchDrafts],
   );
 
+  const domains = useMemo(() => [...new Set(contextItems.map(workspaceDomain))].sort((a, b) => a.localeCompare(b, "zh-CN")), [contextItems]);
   const counts = useMemo(() => {
-    const next: Record<string, number> = { all: contextItems.length };
-    for (const item of contextItems) {
-      next[item.category] = (next[item.category] ?? 0) + 1;
-      if (item.style === "stress") next.stress = (next.stress ?? 0) + 1;
-    }
+    const matching = filterWorkspaceItems(contextItems, { ...filters, category: "all" });
+    const next: Record<string, number> = { all: matching.length };
+    for (const item of matching) next[item.category] = (next[item.category] ?? 0) + 1;
     return next;
-  }, [contextItems]);
-
-  const visibleItems = useMemo(
-    () => category === "all"
-      ? contextItems
-      : category === "stress"
-        ? contextItems.filter((item) => item.style === "stress")
-        : contextItems.filter((item) => item.category === category),
-    [category, contextItems],
-  );
+  }, [contextItems, filters]);
+  const visibleItems = useMemo(() => filterWorkspaceItems(contextItems, filters), [filters, contextItems]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -171,6 +136,7 @@ export function InterviewFastWorkspace({
 
     if (selectedRef.current?.preparationId === preparationId) setSaveState("saving");
 
+    pendingSavesRef.current += 1;
     const queued = saveQueueRef.current
       .catch(() => undefined)
       .then(async () => {
@@ -184,6 +150,7 @@ export function InterviewFastWorkspace({
         formData.set("answer_changed", answerSnapshot !== draft?.savedAnswer ? "1" : "0");
 
         const result = await saveInterviewWorkspace(formData);
+        setFailedSaves((previous) => { const next = { ...previous }; delete next[preparationId]; return next; });
         if (draft) {
           draft.answerId = result.answerId ?? null;
           draft.answerMeta = result.answerMeta ?? null;
@@ -192,6 +159,7 @@ export function InterviewFastWorkspace({
           draftsRef.current.set(preparationId, draft);
         }
         if (selectedRef.current?.preparationId === preparationId) {
+          if (draft && saveSequenceRef.current.get(preparationId) === sequence) dirtyRef.current = draft.answer !== draft.savedAnswer || draft.thoughts !== draft.savedThoughts;
           setAnswerId(result.answerId ?? null);
           setAnswerMeta(result.answerMeta ?? null);
           // Pin the actual displayed version so reloading a saved draft cannot hide it behind a current answer.
@@ -210,15 +178,27 @@ export function InterviewFastWorkspace({
         }
       })
       .catch((error: unknown) => {
+        setFailedSaves((previous) => ({ ...previous, [preparationId]: error instanceof Error ? error.message : "保存失败，请重试。" }));
         if (selectedRef.current?.preparationId === preparationId) {
-          dirtyRef.current = true;
+          if (saveSequenceRef.current.get(preparationId) === sequence) dirtyRef.current = true;
           setSaveError(error instanceof Error ? error.message : "保存失败，请重试。");
           setSaveState("error");
         }
-      });
+      })
+      .finally(() => { pendingSavesRef.current -= 1; });
 
     saveQueueRef.current = queued;
     return queued;
+  }, [clearTimer]);
+
+  useEffect(() => {
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      if (!pendingSavesRef.current && ![...draftsRef.current.values()].some((draft) => draft.answer !== draft.savedAnswer || draft.thoughts !== draft.savedThoughts)) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => { clearTimer(); window.removeEventListener("beforeunload", warnBeforeLeaving); };
   }, [clearTimer]);
 
   const scheduleSave = useCallback(() => {
@@ -230,65 +210,67 @@ export function InterviewFastWorkspace({
     }, 650);
   }, [clearTimer, saveNow]);
 
-  const replaceUrl = useCallback((nextContextId: string, nextQuestionId: string, nextCategory: string, answerId?: string | null) => {
-    window.history.replaceState(null, "", workspaceUrl(nextContextId, nextQuestionId, nextCategory, answerId));
+  const replaceUrl = useCallback((nextContextId: string, nextQuestionId: string, nextFilters: LibraryFilters, answerId?: string | null) => {
+    window.history.replaceState(window.history.state, "", workspaceUrl(nextContextId, nextQuestionId, nextFilters, answerId));
   }, []);
 
-  const switchItem = useCallback((nextContextId: string, nextItem: WorkspaceItem | null, nextCategory = category, updateUrl = true) => {
-    void saveNow();
+  useEffect(() => {
+    if (conflictingFilters) replaceUrl(initialContextId, initialQuestionId, emptyLibraryFilters, requestedItem?.answerId);
+    // Canonicalize only the initial server-provided deep link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  const switchItem = useCallback((nextContextId: string, nextItem: WorkspaceItem | null, nextFilters: LibraryFilters, updateUrl = true) => {
+    void saveNow();
     selectedRef.current = nextItem;
     const draft = nextItem ? draftsRef.current.get(nextItem.preparationId) : null;
     const nextThoughts = draft?.thoughts ?? nextItem?.thoughts ?? "";
     const nextAnswer = draft?.answer ?? nextItem?.answer ?? "";
-    dirtyRef.current = false;
+    dirtyRef.current = Boolean(draft && (draft.thoughts !== draft.savedThoughts || draft.answer !== draft.savedAnswer));
     setContextId(nextContextId);
     setQuestionId(nextItem?.questionId ?? "");
     setThoughts(nextThoughts);
     setAnswer(nextAnswer);
     setAnswerId(draft?.answerId ?? nextItem?.answerId ?? null);
     setAnswerMeta(draft?.answerMeta ?? nextItem?.answerMeta ?? null);
+    setEditing(false);
     thoughtsRef.current = nextThoughts;
     answerRef.current = nextAnswer;
-    setSaveState("idle");
+    setSaveState(dirtyRef.current ? "dirty" : "idle");
     setSaveError("");
-    if (updateUrl) replaceUrl(nextContextId, nextItem?.questionId ?? "", nextCategory, draft?.answerId ?? nextItem?.answerId);
-  }, [category, replaceUrl, saveNow]);
+    if (updateUrl) replaceUrl(nextContextId, nextItem?.questionId ?? "", nextFilters, draft?.answerId ?? nextItem?.answerId);
+  }, [replaceUrl, saveNow]);
 
   const handleContextChange = (nextContextId: string) => {
     setMobileDetailOpen(false);
-    const nextItems = items.filter((item) => (nextContextId ? item.contextId === nextContextId : item.contextId === null));
-    const nextCategory = "all";
-    setCategory(nextCategory);
-    switchItem(nextContextId, nextItems[0] ?? null, nextCategory, false);
-    replaceUrl(nextContextId, "", nextCategory);
+    const nextItems = items.filter((item) => nextContextId ? item.contextId === nextContextId : item.contextId === null);
+    setFilters(emptyLibraryFilters);
+    switchItem(nextContextId, nextItems[0] ?? null, emptyLibraryFilters, false);
+    replaceUrl(nextContextId, "", emptyLibraryFilters);
   };
 
-  const handleCategoryChange = (nextCategory: string) => {
+  const handleFiltersChange = (patch: Partial<LibraryFilters>) => {
+    const next = normalizeLibraryFilters({ ...filters, ...patch });
+    const visible = filterWorkspaceItems(contextItems, next);
+    setFilters(next);
     setMobileDetailOpen(false);
-    const nextVisible = nextCategory === "all"
-      ? contextItems
-      : nextCategory === "stress"
-        ? contextItems.filter((item) => item.style === "stress")
-        : contextItems.filter((item) => item.category === nextCategory);
-    setCategory(nextCategory);
-
-    const currentStillVisible = nextVisible.find((item) => item.questionId === questionId) ?? null;
-    const nextItem = currentStillVisible ?? nextVisible[0] ?? null;
-    switchItem(contextId, nextItem, nextCategory, false);
-    replaceUrl(contextId, "", nextCategory);
+    switchItem(contextId, visible.find((item) => item.questionId === questionId) ?? visible[0] ?? null, next, false);
+    replaceUrl(contextId, "", next);
   };
 
   const handleQuestionChange = (nextQuestionId: string) => {
-    const nextItem = visibleItems.find((item) => item.questionId === nextQuestionId) ?? null;
+    const nextItem = contextItems.find((item) => item.questionId === nextQuestionId) ?? null;
+    if (!nextItem) return;
+    const nextFilters = visibleItems.some((item) => item.questionId === nextQuestionId) ? filters : emptyLibraryFilters;
+    setFilters(nextFilters);
     const mobile = window.matchMedia("(max-width: 767px)").matches;
-    if (mobile) {
-      // The list is a real history entry so Android Back closes the detail.
-      replaceUrl(contextId, "", category);
-      window.history.pushState({ interviewDetail: true }, "", workspaceUrl(contextId, nextQuestionId, category, nextItem ? draftsRef.current.get(nextItem.preparationId)?.answerId : null));
+    if (mobile && !mobileDetailOpen) {
+      // Keep the filtered list in history so Back restores the same discovery context.
+      replaceUrl(contextId, "", nextFilters);
+      window.history.pushState({ interviewDetail: true }, "", workspaceUrl(contextId, nextQuestionId, nextFilters, draftsRef.current.get(nextItem.preparationId)?.answerId));
     }
-    switchItem(contextId, nextItem, category, !mobile);
-    setMobileDetailOpen(Boolean(nextItem));
+    switchItem(contextId, nextItem, nextFilters, !mobile || mobileDetailOpen);
+    setMobileDetailOpen(true);
   };
 
   const closeMobileDetail = () => {
@@ -296,7 +278,7 @@ export function InterviewFastWorkspace({
     else {
       void saveNow();
       setMobileDetailOpen(false);
-      replaceUrl(contextId, "", category);
+      replaceUrl(contextId, "", filters);
     }
   };
 
@@ -305,16 +287,11 @@ export function InterviewFastWorkspace({
       const params = new URLSearchParams(window.location.search);
       const requestedContext = params.get("context") ?? "";
       const nextContext = targets.some((target) => target.id === requestedContext) ? requestedContext : "";
-      const requestedCategory = params.get("category") ?? "all";
-      const nextCategory = isKnownCategory(requestedCategory) ? requestedCategory : "all";
-      const scoped = items.filter((item) =>
-        (nextContext ? item.contextId === nextContext : item.contextId === null)
-        && (nextCategory === "all" || (nextCategory === "stress" ? item.style === "stress" : item.category === nextCategory)),
-      );
-      const requestedQuestion = params.get("question");
-      const matched = scoped.find((item) => item.questionId === requestedQuestion);
-      setCategory(nextCategory);
-      switchItem(nextContext, matched ?? scoped[0] ?? null, nextCategory, false);
+      const nextFilters = normalizeLibraryFilters({ category: params.get("category") ?? "all", domain: params.get("domain") ?? "all", style: params.get("style") ?? "all", q: params.get("q") ?? "" });
+      const scoped = filterWorkspaceItems(items.filter((item) => nextContext ? item.contextId === nextContext : item.contextId === null).map((item) => { const draft = draftsRef.current.get(item.preparationId); return draft ? { ...item, thoughts: draft.thoughts, answer: draft.answer } : item; }), nextFilters);
+      const matched = scoped.find((item) => item.questionId === params.get("question"));
+      setFilters(nextFilters);
+      switchItem(nextContext, matched ?? scoped[0] ?? null, nextFilters, false);
       setMobileDetailOpen(Boolean(matched));
     };
     window.addEventListener("popstate", restoreHistory);
@@ -339,7 +316,7 @@ export function InterviewFastWorkspace({
     if (!textarea) return;
     textarea.style.height = "auto";
     textarea.style.height = `${Math.max(312, textarea.scrollHeight)}px`;
-  }, [answer, questionId, mobileDetailOpen]);
+  }, [answer, questionId, mobileDetailOpen, editing]);
 
   const selected = contextItems.find((item) => item.questionId === questionId) ?? null;
   const detailParams = new URLSearchParams();
@@ -347,13 +324,13 @@ export function InterviewFastWorkspace({
   if (answerId) detailParams.set("answer", answerId);
   const detailHref = selected ? `/career/interview/questions/${selected.questionId}${detailParams.size ? `?${detailParams}` : ""}` : "";
   const followDetailLink = (event: MouseEvent<HTMLAnchorElement>, hash = "") => {
-    if (!dirtyRef.current && saveState !== "saving" && saveState !== "error") return;
+    if (!dirtyRef.current && !pendingSavesRef.current && !Object.keys(failedSaves).length && saveState !== "error") return;
     event.preventDefault();
     const item = selectedRef.current;
     if (!item) return;
     void (async () => {
       await saveNow();
-      if (selectedRef.current?.preparationId !== item.preparationId || dirtyRef.current) return;
+      if (selectedRef.current?.preparationId !== item.preparationId || dirtyRef.current || [...draftsRef.current.values()].some((draft) => draft.answer !== draft.savedAnswer || draft.thoughts !== draft.savedThoughts)) return;
       const saved = draftsRef.current.get(item.preparationId);
       if (!saved || saved.answer !== saved.savedAnswer || saved.thoughts !== saved.savedThoughts) return;
       const params = new URLSearchParams();
@@ -362,16 +339,28 @@ export function InterviewFastWorkspace({
       router.push(`/career/interview/questions/${item.questionId}${params.size ? `?${params}` : ""}${hash}`);
     })();
   };
-  const newQuestionType = category === "all" || category === "stress" ? "behavioral" : category;
+  const followWorkspaceLink = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (!dirtyRef.current && !pendingSavesRef.current && !Object.keys(failedSaves).length && saveState !== "error") return;
+    event.preventDefault();
+    const selected = selectedRef.current;
+    void (async () => {
+      await saveNow();
+      if (selectedRef.current !== selected || dirtyRef.current || [...draftsRef.current.values()].some((draft) => draft.answer !== draft.savedAnswer || draft.thoughts !== draft.savedThoughts)) return;
+      const draft = selected ? draftsRef.current.get(selected.preparationId) : null;
+      if (draft && (draft.answer !== draft.savedAnswer || draft.thoughts !== draft.savedThoughts)) return;
+      router.push(href);
+    })();
+  };
+  const newQuestionType = category === "all" ? "behavioral" : category;
   const newQuestionCategory = legacyCategoryByQuestionType[newQuestionType] ?? "behavioral";
-  const newQuestionStyle = category === "stress" ? "stress" : "standard";
+  const newQuestionStyle = filters.style === "stress" ? "stress" : "standard";
 
   return (
     <div className="interview-workspace -mx-2 sm:-mx-3">
       <div className="px-2 sm:px-3">
         <div className="flex min-h-9 flex-wrap items-center justify-between gap-2.5">
           <div className="flex min-w-0 max-w-full items-center gap-2.5">
-            <Link href="/career" prefetch className="pressable rounded-[8px] px-1 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">← Career</Link>
+            <Link href="/career" onClick={(event) => followWorkspaceLink(event, "/career")} prefetch className="pressable rounded-[8px] px-1 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">← Career</Link>
             <select
               aria-label="面试岗位"
               value={contextId}
@@ -388,8 +377,8 @@ export function InterviewFastWorkspace({
           </div>
 
           <div className="flex items-center gap-1">
-            <Link href="/career/interview/practice" className="pressable rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">练习</Link>
-            <Link href="/career/interview/insights" className="pressable rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">复盘</Link>
+            <Link href={`/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`} onClick={(event) => followWorkspaceLink(event, `/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`)} className="pressable rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">练习</Link>
+            <Link href={`/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`} onClick={(event) => followWorkspaceLink(event, `/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`)} className="pressable rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">复盘</Link>
             <details className="relative">
               <summary className="pressable cursor-pointer list-none rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 岗位</summary>
               <form action={createInterviewContext} className="absolute right-0 z-30 mt-2 grid w-[min(480px,88vw)] gap-3 rounded-[14px] border border-[var(--separator)] bg-[var(--material-popover)] p-4 shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%] sm:grid-cols-2">
@@ -403,53 +392,28 @@ export function InterviewFastWorkspace({
           </div>
         </div>
 
-        <div className={`${mobileDetailOpen ? "hidden md:block" : ""} mt-5 border-b border-[var(--separator)] pb-3.5`}>
-          <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--text-tertiary)]">核心问题</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <CategoryButton label="全部" count={counts.all ?? 0} active={category === "all"} onClick={() => handleCategoryChange("all")} />
-            {CORE_CATEGORIES.map((key) => (
-              <CategoryButton
-                key={key}
-                label={categoryShortLabels[key]}
-                count={counts[key] ?? 0}
-                active={category === key}
-                onClick={() => handleCategoryChange(key)}
-              />
-            ))}
+        <div className={`${mobileDetailOpen ? "hidden md:block" : ""} mt-5 border-b border-[var(--separator)] pb-4`}>
+          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+            <div><h1 className="text-xl font-semibold tracking-tight">面试学习库</h1><p className="mt-1 text-[12px] leading-6 text-[var(--text-tertiary)]">理解知识与推导，整理自己的表达，再练习复盘</p></div>
+            <span className="text-[12px] tabular-nums text-[var(--text-tertiary)]">{contextItems.length} 道题</span>
           </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px]">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[var(--text-tertiary)]">特殊场景</span>
-              {SPECIAL_CATEGORIES.map((key) => (
-                <CategoryTextButton
-                  key={key}
-                  label={categoryShortLabels[key]}
-                  count={counts[key] ?? 0}
-                  active={category === key}
-                  onClick={() => handleCategoryChange(key)}
-                />
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[var(--text-tertiary)]">收尾</span>
-              {CLOSING_CATEGORIES.map((key) => (
-                <CategoryTextButton
-                  key={key}
-                  label={categoryShortLabels[key]}
-                  count={counts[key] ?? 0}
-                  active={category === key}
-                  onClick={() => handleCategoryChange(key)}
-                />
-              ))}
-            </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(180px,1fr)_minmax(130px,220px)_130px]">
+            <label className="col-span-2 grid gap-1 text-[11px] text-[var(--text-tertiary)] sm:col-span-1">搜索题库<input type="search" aria-label="搜索题库" value={filters.q} onChange={(event) => handleFiltersChange({ q: event.target.value })} placeholder="题目、概念、思路或答案" className="min-h-11 w-full min-w-0 rounded-[9px] bg-[var(--surface-control)] px-3 text-[14px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" /></label>
+            <label className="grid gap-1 text-[11px] text-[var(--text-tertiary)]">学习模块<select aria-label="学习模块" value={filters.domain} onChange={(event) => handleFiltersChange({ domain: event.target.value })} className="min-h-11 w-full min-w-0 rounded-[9px] bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部模块</option>{filters.domain !== "all" && !domains.includes(filters.domain) ? <option value={filters.domain}>{filters.domain}</option> : null}{domains.map((domain) => <option key={domain} value={domain}>{domain}</option>)}</select></label>
+            <label className="grid gap-1 text-[11px] text-[var(--text-tertiary)]">提问风格<select aria-label="提问风格" value={filters.style} onChange={(event) => handleFiltersChange({ style: event.target.value })} className="min-h-11 rounded-[9px] bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部风格</option><option value="standard">标准提问</option><option value="stress">压力追问</option></select></label>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="问题类型筛选">
+            <CategoryButton label="全部题型" count={counts.all ?? 0} active={category === "all"} onClick={() => handleFiltersChange({ category: "all" })} />
+            {ALL_CATEGORIES.map((key) => <CategoryButton key={key} label={categoryShortLabels[key]} count={counts[key] ?? 0} active={category === key} onClick={() => handleFiltersChange({ category: key })} />)}
           </div>
         </div>
+        {Object.keys(failedSaves).length ? <div role="alert" className="mt-3 rounded-[9px] bg-[var(--surface-control)] p-3 text-[12px] leading-6 text-[var(--danger)]">修改还未保存，请重试后再离开。{Object.entries(failedSaves).map(([id, error]) => { const item = items.find((entry) => entry.preparationId === id); return item ? <button type="button" key={id} onClick={() => { setFilters(emptyLibraryFilters); switchItem(item.contextId ?? "", item, emptyLibraryFilters); setMobileDetailOpen(true); setEditing(true); setSaveError(error); setSaveState("error"); }} className="block min-h-11 text-left underline">{item.shortTitle || item.prompt}：{error}</button> : null; })}</div> : null}
+        {unavailable ? <div role="alert" className="mt-3 flex flex-wrap items-center gap-3 rounded-[9px] bg-[var(--surface-control)] p-3 text-[13px] text-[var(--danger)]">部分题库数据加载失败，当前结果可能不完整。<button type="button" onClick={() => { void (async () => { await saveNow(); if (![...draftsRef.current.values()].some((draft) => draft.answer !== draft.savedAnswer || draft.thoughts !== draft.savedThoughts)) startRefresh(() => router.refresh()); })(); }} disabled={refreshing} className="min-h-8 underline">{refreshing ? "重新加载中…" : "重新加载"}</button></div> : null}
       </div>
 
       <div className="mt-4 grid min-h-[680px] gap-5 md:grid-cols-[286px_minmax(0,1fr)] md:gap-8">
         <aside data-testid="interview-question-list" className={`${mobileDetailOpen ? "hidden md:block" : ""} min-h-0 rounded-[16px] bg-[color-mix(in_srgb,var(--surface-control)_48%,transparent)] p-2.5 ring-1 ring-inset ring-black/[0.022]`}>
-          <form action={createInterviewQuestion} className="mb-2.5">
+          <details className="mb-3"><summary className="min-h-11 cursor-pointer px-2 py-3 text-[12px] font-medium text-[var(--accent)]">+ 添加自己的问题</summary><form action={createInterviewQuestion} className="mb-2.5">
             <textarea
               required
               name="canonical_prompt"
@@ -460,25 +424,18 @@ export function InterviewFastWorkspace({
             <div className="mt-1 flex items-center justify-between gap-2 px-1">
               {category === "all" ? (
                 <select name="category" defaultValue="behavioral" aria-label="新问题类型" className="max-w-[160px] bg-transparent text-[11px] text-[var(--text-tertiary)] outline-none">
-                  {[...CORE_CATEGORIES, ...CLOSING_CATEGORIES].map((key) => (
+                  {ALL_CATEGORIES.map((key) => (
                     <option key={key} value={legacyCategoryByQuestionType[key] ?? key}>{questionTypeLabels[key]}</option>
-                  ))}
-                </select>
-              ) : category === "stress" ? (
-                <select name="question_type_key" defaultValue="behavioral" aria-label="压力题的问题类型" className="max-w-[160px] bg-transparent text-[11px] text-[var(--text-tertiary)] outline-none">
-                  {[...CORE_CATEGORIES, ...CLOSING_CATEGORIES].map((key) => (
-                    <option key={key} value={key}>{questionTypeLabels[key]}</option>
                   ))}
                 </select>
               ) : <input type="hidden" name="category" value={newQuestionCategory} />}
               <button className="pressable rounded-[7px] px-1.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]">添加</button>
             </div>
-            {category === "stress" ? <input type="hidden" name="category" value="behavioral" /> : null}
             <input type="hidden" name="question_style" value={newQuestionStyle} />
             <input type="hidden" name="context_id" value={contextId} />
             <input type="hidden" name="return_to_workspace" value="1" />
             <input type="hidden" name="short_title" value="" />
-            <input type="hidden" name="subcategory" value="" />
+            <input type="hidden" name="subcategory" value={filters.domain === "all" ? "" : filters.domain} />
             <input type="hidden" name="competency_tags" value="" />
             <input type="hidden" name="prompt_variants" value="" />
             <input type="hidden" name="source_type" value="manual" />
@@ -489,11 +446,11 @@ export function InterviewFastWorkspace({
             <input type="hidden" name="parent_question_id" value="" />
             <input type="hidden" name="follow_up_kind" value="" />
             <input type="hidden" name="difficulty" value="3" />
-          </form>
+          </form></details>
 
           <div className="mb-1.5 flex items-center justify-between px-2">
-            <span className="text-[10.5px] font-medium text-[var(--text-tertiary)]">{category === "all" ? "全部问题" : category === "stress" ? "压力风格" : questionTypeLabels[category] ?? "问题"}</span>
-            <span className="text-[10.5px] tabular-nums text-[var(--text-tertiary)]">{visibleItems.length}</span>
+            <span className="text-[10.5px] font-medium text-[var(--text-tertiary)]">{category === "all" ? "全部问题" : questionTypeLabels[category] ?? "问题"}</span>
+            <span className="text-[10.5px] tabular-nums text-[var(--text-tertiary)]">{visibleItems.length} / {contextItems.length}</span>
           </div>
 
           <nav aria-label="面试题目" className="space-y-px pr-0.5 md:max-h-[600px] md:overflow-y-auto">
@@ -504,13 +461,16 @@ export function InterviewFastWorkspace({
                   type="button"
                   key={item.preparationId}
                   onClick={() => handleQuestionChange(item.questionId)}
+                  aria-label={item.prompt}
+                  aria-current={active ? "true" : undefined}
                   className={`pressable block w-full rounded-[9px] px-2.5 py-2.5 text-left text-[13px] leading-[1.45] ${active ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-white/55 hover:text-[var(--text-primary)]"}`}
                 >
-                  <span className="line-clamp-2">{item.prompt}</span>
+                  <span className="line-clamp-2">{item.shortTitle || item.prompt}</span>
+                  <span className="mt-1 block truncate text-[10.5px] font-normal text-[var(--text-tertiary)]">{workspaceDomain(item)} · {item.categoryLabel}</span>
                 </button>
               );
             })}
-            {!visibleItems.length ? <p className="px-2 py-4 text-xs text-[var(--text-tertiary)]">这个分类还没有问题。</p> : null}
+            {!visibleItems.length ? <div className="px-2 py-5 text-[13px] leading-6 text-[var(--text-tertiary)]"><p>{contextItems.length ? "没有找到匹配的问题" : "这个题库还没有问题"}</p><p className="text-xs">{contextItems.length ? "试试其他关键词，或清除筛选。" : "可以添加自己的问题，或切换面试目标。"}</p>{contextItems.length ? <button type="button" onClick={() => handleFiltersChange(emptyLibraryFilters)} className="mt-2 min-h-11 text-[var(--accent)]">清除筛选</button> : null}</div> : null}
           </nav>
         </aside>
 
@@ -521,7 +481,7 @@ export function InterviewFastWorkspace({
               <div className="flex flex-wrap items-start justify-between gap-3 md:flex-nowrap md:gap-5">
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-[10.5px] text-[var(--text-tertiary)]">
-                    <span>{selected.categoryLabel}</span>
+                    <span>{workspaceDomain(selected)}</span><span>· {selected.categoryLabel}</span>
                     {selected.style === "stress" ? <span>· 压力</span> : null}
                     {selected.competencies.slice(0, 2).map((competency) => <span key={competency.key}>· {competency.label}</span>)}
                   </div>
@@ -537,12 +497,22 @@ export function InterviewFastWorkspace({
                 </Link>
               </div>
 
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex rounded-[10px] bg-[var(--surface-control)] p-1" aria-label="学习模式">
+                  <button type="button" aria-pressed={!editing} onClick={() => { void saveNow(); setEditing(false); }} className={`min-h-9 rounded-[7px] px-4 text-[12px] ${!editing ? "bg-[var(--surface-canvas)] font-medium" : "text-[var(--text-tertiary)]"}`}>阅读学习</button>
+                  <button type="button" aria-pressed={editing} onClick={() => setEditing(true)} className={`min-h-9 rounded-[7px] px-4 text-[12px] ${editing ? "bg-[var(--surface-canvas)] font-medium" : "text-[var(--text-tertiary)]"}`}>编辑思路与答案</button>
+                </div>
+                <Link href={`/career/interview/practice/${selected.preparationId}`} onClick={(event) => followWorkspaceLink(event, `/career/interview/practice/${selected.preparationId}`)} className="inline-flex min-h-11 items-center rounded-[9px] bg-[var(--accent)] px-4 text-[12px] font-medium text-white">练习这道题 →</Link>
+              </div>
+              {answerMeta ? <div className="mt-4 text-[11px] leading-6 text-[var(--text-tertiary)]"><span>{answerMeta.status === "current" ? "当前答案" : "参考草稿 · 待确认"} · {answerMeta.language === "en" ? "英文" : answerMeta.language === "bilingual" ? "中英双语" : "中文"} · V{answerMeta.version_number} · {answerMeta.source === "ai_draft" ? "AI 起草" : answerMeta.source === "ai_edited" ? "AI 起草后编辑" : answerMeta.source === "imported" ? "导入" : "人工编辑"}</span>{answerMeta.status === "draft" ? <p>可直接阅读；核对个人事实后再设为当前答案。阅读和编辑都不会自动确认。</p> : null}<Link href={`${detailHref}#answer-versions`} prefetch={false} onClick={(event) => followDetailLink(event, "#answer-versions")} className="inline-flex min-h-9 items-center font-medium text-[var(--accent)]">{answerMeta.status === "draft" ? "查看版本并确认答案 →" : "查看答案版本 →"}</Link></div> : null}
+              {!editing ? <InterviewStudyView thoughts={thoughts} answer={answer} isDraft={answerMeta?.status === "draft"} learning={selected.learning} related={contextItems.filter((item) => item.parentQuestionId === selected.questionId || (selected.parentQuestionId && item.questionId === selected.parentQuestionId))} onSelect={handleQuestionChange} /> : <div>
               <section className="mt-9">
                 <div className="flex items-baseline justify-between gap-3">
                   <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">思路</h2>
                   <span className="text-[10.5px] text-[var(--text-tertiary)]">先想清楚，再组织表达</span>
                 </div>
                 <textarea
+                  disabled={refreshing}
                   aria-label="思路"
                   value={thoughts}
                   onChange={(event) => {
@@ -555,6 +525,11 @@ export function InterviewFastWorkspace({
                         draft.thoughts = value;
                         draftsRef.current.set(selectedRef.current.preparationId, draft);
                       }
+                    }
+                    if (selectedRef.current) {
+                      const id = selectedRef.current.preparationId;
+                      const searchDraft = { thoughts: thoughtsRef.current, answer: answerRef.current };
+                      setSearchDrafts((previous) => ({ ...previous, [id]: searchDraft }));
                     }
                     scheduleSave();
                   }}
@@ -570,23 +545,9 @@ export function InterviewFastWorkspace({
                   <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">{answerMeta?.status === "draft" ? "参考答案 · 待确认" : "答案"}</h2>
                   <span className="text-[10.5px] text-[var(--text-tertiary)]">写成你面试时真正会说的话</span>
                 </div>
-                {answerMeta ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-5 text-[var(--text-secondary)]">
-                    <span>{answerMeta.status === "current" ? "当前答案" : "参考草稿"} · {answerMeta.language === "en" ? "英文" : answerMeta.language === "bilingual" ? "中英双语" : "中文"} · V{answerMeta.version_number}</span>
-                    <span>{answerMeta.source === "ai_draft" ? "AI 起草" : answerMeta.source === "ai_edited" ? "AI 起草后编辑" : answerMeta.source === "imported" ? "导入" : "人工编辑"}</span>
-                    {answerMeta.status === "draft" ? <span>可直接阅读；核对个人事实后再设为当前答案</span> : null}
-                  </div>
-                ) : null}
-                {answerMeta?.status === "draft" ? (
-                  <Link
-                    href={`${detailHref}#answer-versions`}
-                    prefetch={false}
-                    onClick={(event) => followDetailLink(event, "#answer-versions")}
-                    className="mt-2 inline-flex min-h-11 items-center text-[12px] font-medium text-[var(--accent)]"
-                  >查看版本并确认答案 →</Link>
-                ) : null}
                 <textarea
                   ref={answerTextareaRef}
+                  disabled={refreshing}
                   aria-label="答案"
                   value={answer}
                   onChange={(event) => {
@@ -600,6 +561,11 @@ export function InterviewFastWorkspace({
                         draftsRef.current.set(selectedRef.current.preparationId, draft);
                       }
                     }
+                    if (selectedRef.current) {
+                      const id = selectedRef.current.preparationId;
+                      const searchDraft = { thoughts: thoughtsRef.current, answer: answerRef.current };
+                      setSearchDrafts((previous) => ({ ...previous, [id]: searchDraft }));
+                    }
                     scheduleSave();
                   }}
                   onBlur={() => { void saveNow(); }}
@@ -609,9 +575,11 @@ export function InterviewFastWorkspace({
                 />
               </section>
 
+              </div>}
               <div aria-live="polite" className={`mt-2 min-h-4 text-right text-[10.5px] transition-colors ui-transition ${saveState === "error" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>
-                {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "error" ? saveError || "保存失败" : ""}
+                {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "error" ? saveError || "保存失败" : saveState === "dirty" ? "有未保存的修改" : ""}
               </div>
+              {saveState === "error" || saveState === "dirty" ? <button type="button" onClick={() => { void saveNow(); }} className="mt-2 min-h-11 text-xs text-[var(--accent)]">重试保存</button> : null}
               {saveState === "error" && !answer.trim() ? (
                 <button type="button" className="mt-2 min-h-11 text-xs text-[var(--accent)]" onClick={() => {
                   const item = selectedRef.current;
@@ -626,7 +594,7 @@ export function InterviewFastWorkspace({
             </div>
           ) : (
             <div className="grid min-h-[520px] place-items-center px-8 text-center text-[13px] leading-6 text-[var(--text-tertiary)]">
-              {contextItems.length ? "这个分类还没有问题。你可以直接从左侧添加。" : contextId ? "这个岗位还没有面试题。" : "先添加通用题目，或选择一个目标岗位。"}
+              {contextItems.length ? "没有匹配的问题。调整关键词或清除筛选，继续学习。" : contextId ? "这个岗位还没有面试题。" : "先添加通用题目，或选择一个目标岗位。"}
             </div>
           )}
         </main>
@@ -651,33 +619,10 @@ function CategoryButton({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`pressable inline-flex h-8 items-center gap-1.5 rounded-[9px] px-2.5 text-[12px] font-medium ${active ? "bg-[var(--text-primary)] text-white shadow-[var(--shadow-control)]" : "bg-[var(--surface-control)] text-[var(--text-secondary)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-primary)]"}`}
+      className={`pressable inline-flex min-h-9 items-center gap-1.5 rounded-[9px] px-2.5 text-[12px] font-medium ${active ? "bg-[var(--text-primary)] text-white shadow-[var(--shadow-control)]" : "bg-[var(--surface-control)] text-[var(--text-secondary)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-primary)]"}`}
     >
       <span>{label}</span>
       <span className={`text-[10px] tabular-nums ${active ? "text-white/60" : "text-[var(--text-tertiary)]"}`}>{count}</span>
-    </button>
-  );
-}
-
-function CategoryTextButton({
-  label,
-  count,
-  active,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`pressable rounded-[7px] px-1.5 py-1 ${active ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
-    >
-      {label} <span className="tabular-nums text-[var(--text-tertiary)]">{count}</span>
     </button>
   );
 }
