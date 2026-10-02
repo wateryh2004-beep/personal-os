@@ -18,7 +18,7 @@ function openCreate(kind: "task" | "calendar" | "inbox", title: string) {
 }
 
 const actionClass =
-  "pressable inline-flex min-h-11 sm:min-h-8 items-center gap-1 rounded-[8px] px-1.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50";
+  "pressable inline-flex min-h-11 sm:min-h-8 items-center gap-1 rounded-[8px] px-1.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50";
 
 function DeferTaskControl({ task, timezone }: { task: NonNullable<NowCommitment["task"]>; timezone: string }) {
   const [pending, startTransition] = useTransition();
@@ -107,15 +107,15 @@ export function TodayCommitments({ commitments, timezone }: { commitments: NowCo
     <section aria-labelledby="today-commitments-heading" className="border-y border-[var(--separator)]">
       <div className="flex min-h-12 flex-wrap items-end justify-between gap-2.5 py-3">
         <div>
-          <h2 id="today-commitments-heading" className="text-[14px] font-semibold tracking-[-0.01em]">
+          <h2 id="today-commitments-heading" className="text-[14px] font-semibold leading-6">
             到期与临近提醒
           </h2>
-          <p className="mt-0.5 text-[10.5px] text-[var(--text-tertiary)]">
+          <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">
             来自截止时间、日程和职业节点，不会自动加入今日重点
           </p>
         </div>
         {commitments.length ? (
-          <span className="text-[10.5px] tabular-nums text-[var(--text-tertiary)]">
+          <span className="text-[12px] tabular-nums text-[var(--text-tertiary)]">
             {commitments.length} 项
           </span>
         ) : null}
@@ -128,14 +128,14 @@ export function TodayCommitments({ commitments, timezone }: { commitments: NowCo
               <div className="min-w-0">
                 <Link
                   href={item.href}
-                  className="block truncate text-[12.5px] font-medium text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)]"
+                  className="block truncate text-[14px] font-medium text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)]"
                 >
                   {item.title}
                 </Link>
-                <p className="mt-1 line-clamp-2 text-[10.5px] leading-[1.55] text-[var(--text-secondary)]">
+                <p className="mt-1 line-clamp-2 text-[12px] leading-[1.55] text-[var(--text-secondary)]">
                   {item.whyNow} · {item.constraint}
                 </p>
-                <p className="mt-1 text-[9.5px] text-[var(--text-tertiary)]">{item.source.label}</p>
+                <p className="mt-1 text-[12px] text-[var(--text-tertiary)]">{item.source.label}</p>
               </div>
               <div className="-ml-1 shrink-0 sm:ml-0">
                 <CommitmentActions item={item} timezone={timezone} />
@@ -144,8 +144,8 @@ export function TodayCommitments({ commitments, timezone }: { commitments: NowCo
           ))}
         </ul>
       ) : (
-        <div className="flex items-center gap-2 border-t border-[var(--separator)] py-5 text-[12px] text-[var(--text-secondary)]">
-          <Check className="size-4 text-[var(--success)]" aria-hidden="true" />
+        <div className="flex items-center gap-2 border-t border-[var(--separator)] py-3 text-[13px] leading-[22px] text-[var(--text-secondary)]">
+          <Check className="size-4 shrink-0 text-[var(--success)]" aria-hidden="true" />
           暂无足够依据推荐下一步。先把新想法记到收集箱即可。
         </div>
       )}
@@ -155,7 +155,7 @@ export function TodayCommitments({ commitments, timezone }: { commitments: NowCo
           <button
             type="button"
             onClick={() => setExpanded((value) => !value)}
-            className="pressable inline-flex items-center gap-1 rounded-[8px] px-1 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+            className="pressable inline-flex items-center gap-1 rounded-[8px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
           >
             {expanded ? "收起" : `还有 ${commitments.length - DEFAULT_VISIBLE} 项`}
             <ChevronDown className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />

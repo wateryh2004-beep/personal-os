@@ -4,6 +4,20 @@ const { chromium } = require("playwright");
 
 const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
 const widths = [360, 390, 412, 430];
+const visualMetrics = [];
+
+async function captureElement(locator, name) {
+  if (!process.env.E2E_SCREENSHOT_DIR) return;
+  await locator.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/${name}.png` });
+}
+
+async function textMetrics(locator) {
+  return locator.evaluate((node) => {
+    const style = getComputedStyle(node);
+    const box = node.getBoundingClientRect();
+    return { fontSize: parseFloat(style.fontSize), lineHeight: parseFloat(style.lineHeight), letterSpacing: style.letterSpacing, color: style.color, x: box.x, y: box.y, width: box.width, height: box.height };
+  });
+}
 
 async function capture(page, name) {
   if (!process.env.E2E_SCREENSHOT_DIR) return;
@@ -103,6 +117,7 @@ async function backCloses(page, trigger, visibleTarget) {
       assert.equal(await questionDetail.locator("textarea").count(), 0);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
       await capture(page, `interview-detail-${width}`);
+      await captureElement(questionDetail, `interview-detail-crop-${width}`);
       await page.evaluate(() => history.back());
       await questionList.waitFor({ state: "visible" });
       await page.evaluate(() => history.forward());
@@ -168,13 +183,14 @@ async function backCloses(page, trigger, visibleTarget) {
     assert.equal(await detail.getByRole("link", { name: "练习这道题 →", exact: true }).getAttribute("href"), "/career/interview/practice/e2e-prep-1");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
     await capture(page, "interview-desktop-1440");
+    await captureElement(interview, "interview-workspace-crop-1440");
     assert.deepEqual(errors, [], "desktop learning view should not have uncaught errors");
     await desktop.close();
     console.log("mobile-native-e2e: 1440px desktop passed");
 
     // Shared shell screenshots use real workspace components with synthetic
     // fixtures. Route stubs supply only fixture reads; no form is submitted.
-    for (const width of [390, 1440]) {
+    for (const width of [360, 390, 430, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 1000 }, isMobile: width < 768, hasTouch: width < 768 });
       await context.route("**/api/calendar/events?**", (route) => route.fulfill({ json: { events: [], truncated: false } }));
       await context.route("**/api/tasks/lists", (route) => route.fulfill({ json: { lists: [{ id: "e2e-list", displayName: "日常", isDefault: true }] } }));
@@ -182,7 +198,7 @@ async function backCloses(page, trigger, visibleTarget) {
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       let todayOrigin;
-      for (const scene of ["today", "today-loading", "tasks", "tasks-loading", "calendar", "calendar-loading", "notes"]) {
+      for (const scene of ["heading", "today", "today-filled", "today-loading", "tasks", "tasks-loading", "calendar", "calendar-loading", "notes"]) {
         await page.goto(`${baseURL}/mobile-native-e2e?scene=${scene}`, { waitUntil: "networkidle" });
         await page.getByTestId("workspace-polish-harness").waitFor();
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1, `${scene} ${width}px should not overflow`);
@@ -197,6 +213,44 @@ async function backCloses(page, trigger, visibleTarget) {
           const expectedInset = Math.max(0, main.width - 1080) / 2 + (width < 768 ? 16 : 32);
           assert.ok(Math.abs(inset - expectedInset) <= 1, `Today ${width}px has one responsive gutter: ${inset}, expected ${expectedInset}`);
           todayOrigin = await page.locator(".now-workspace > header").boundingBox();
+        }
+        if (scene === "today" || scene === "today-filled") {
+          const captureButton = await page.getByRole("button", { name: "加入 Inbox", exact: true }).boundingBox();
+          assert.ok(captureButton);
+          assert.ok(Math.abs(captureButton.width - captureButton.height) <= 1, "quick capture keeps a circular hit target");
+          if (width < 768) assert.ok(captureButton.width >= 44, "quick capture is touch sized");
+          const schedule = await page.locator('[aria-labelledby="today-schedule-heading"]').boundingBox();
+          const context = await page.locator('[aria-labelledby="today-context-heading"]').boundingBox();
+          const future = await page.locator('[aria-labelledby="today-future-heading"]').boundingBox();
+          const focus = await page.locator('[aria-labelledby="today-focus-heading"]').boundingBox();
+          assert.ok(schedule && context && future && focus);
+          if (width >= 1024) assert.ok(Math.abs(focus.x - future.x) <= 1, "Today primary and secondary columns align");
+          const body = await textMetrics(page.locator('[aria-labelledby="today-priorities-heading"] > div p').first());
+          assert.ok(body.fontSize >= 12 && body.lineHeight >= 20, "Today supporting copy stays readable");
+          visualMetrics.push({ scene, width, captureButton, schedule, context, future, focus, body });
+        }
+        if (scene === "heading" || scene === "tasks" || scene === "notes") {
+          const title = await textMetrics(page.locator("#main-content h1").first());
+          assert.equal(title.fontSize, width < 768 ? 24 : 28, "workspace titles share a responsive scale");
+          assert.ok(title.lineHeight / title.fontSize >= 1.2, "CJK headings have enough line height");
+          visualMetrics.push({ scene, width, title });
+        }
+        if (scene === "tasks") {
+          const activeTab = page.locator('nav[aria-label="任务视图"] [aria-pressed="true"]');
+          const underline = await activeTab.evaluate((node) => {
+            const style = getComputedStyle(node, "::after");
+            return { height: parseFloat(style.height), bottom: parseFloat(style.bottom) };
+          });
+          assert.deepEqual(underline, { height: 2, bottom: 0 }, "active task underline stays inside its scrolling rail");
+          const row = page.getByRole("button", { name: "打开任务：核对本周计划", exact: true });
+          assert.equal((await textMetrics(row.locator("h2"))).fontSize, 14);
+          assert.equal((await textMetrics(row.locator("h2 + p"))).fontSize, 13);
+        }
+        if (scene === "notes" && width < 768) {
+          const menu = await page.getByRole("button", { name: "管理 学习记录", exact: true }).boundingBox();
+          assert.ok(menu && menu.width >= 44 && menu.height >= 44, "Notes row menu is touch sized");
+          const title = await page.getByRole("link", { name: "学习记录", exact: true }).last().boundingBox();
+          assert.ok(title && title.x + title.width <= menu.x, "Notes text and menu hit areas stay separate");
         }
         if (scene === "today-loading") {
           const skeletonOrigin = await page.locator(".now-workspace > header").boundingBox();
@@ -265,6 +319,10 @@ async function backCloses(page, trigger, visibleTarget) {
       assert.deepEqual(errors, [], `shared workspaces ${width}px should have no uncaught errors`);
       await context.close();
       console.log(`workspace-polish-e2e: ${width}px passed`);
+    }
+    if (process.env.E2E_SCREENSHOT_DIR) {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(`${process.env.E2E_SCREENSHOT_DIR}/typography-spacing-metrics.json`, JSON.stringify(visualMetrics, null, 2));
     }
   } finally {
     await browser.close();

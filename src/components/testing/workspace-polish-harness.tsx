@@ -1,5 +1,8 @@
 "use client";
 
+import { PageHeader } from "@/components/shared/page-header";
+import { Button } from "@/components/ui/button";
+import { DashboardLayout } from "@/components/layout/page-layouts";
 import { AppShell } from "@/components/layout/app-shell";
 import { NowWorkspaceView } from "@/components/today/now-workspace";
 import { TaskWorkspace } from "@/components/tasks/task-workspace";
@@ -12,7 +15,7 @@ import TodayLoading from "@/app/(app)/today/loading";
 import type { NowWorkspace } from "@/features/today/types";
 import type { TodoTask } from "@/features/tasks/types";
 
-export type PolishScene = "today" | "tasks" | "calendar" | "notes" | "today-loading" | "tasks-loading" | "calendar-loading";
+export type PolishScene = "heading" | "today" | "today-filled" | "tasks" | "calendar" | "notes" | "today-loading" | "tasks-loading" | "calendar-loading";
 
 // Fixture-only, reached through the existing explicitly gated E2E route. Never
 // populated from an account, and the browser test never submits these forms.
@@ -24,6 +27,20 @@ const now: NowWorkspace = {
   availability: { calendar: "ready", tasks: "ready", career: "ready", inbox: "ready", briefing: "ready" },
   summary: { todayEventCount: 0, todayTaskCount: 0, attentionCount: 0 },
   focus: { date: "2026-10-02", selectedIds: [], selectedTasks: [], candidates: [], available: true },
+};
+const filledTask = { id: "e2e-today-task", title: "整理项目复盘：把问题、判断与下一步写清楚", due_at: "2026-10-02T09:00:00Z", importance: "high", status: "notStarted" };
+const filledNow: NowWorkspace = {
+  ...now,
+  summary: { todayEventCount: 2, todayTaskCount: 1, attentionCount: 0 },
+  calendar: { ...now.calendar, today: [
+    { id: "e2e-all-day", subject: "阅读与学习 · Synthetic fixture", starts_at: "2026-10-01T16:00:00Z", ends_at: "2026-10-02T16:00:00Z", is_all_day: true, location_name: null },
+    { id: "e2e-meeting", subject: "项目复盘 / Project review", starts_at: "2026-10-02T06:00:00Z", ends_at: "2026-10-02T07:00:00Z", is_all_day: false, location_name: "测试工作区" },
+  ] },
+  tasks: { overdue: [], today: [filledTask], upcoming: [] },
+  focus: { date: "2026-10-02", selectedIds: [filledTask.id], selectedTasks: [filledTask], candidates: [], available: true },
+  commitments: [{ id: "e2e-commitment", kind: "task", title: filledTask.title, whyNow: "今天到期", constraint: "17:00 前完成复盘记录", href: "/tasks?task=e2e-today-task", source: { domain: "tasks", entityId: filledTask.id, label: "Microsoft To Do · 测试清单" }, task: filledTask }],
+  todayBrief: [{ id: "e2e-brief", title: "复盘前先核对记录，再组织表达", reason: "这是用于中英文排版与长行换行验证的虚构内容。", priority: 1, sourceRefs: [{ id: "e2e-note", domain: "notes", title: "项目学习记录", href: "/notes/e2e-note" }] }],
+  upcoming: [{ id: "e2e-future", kind: "event", title: "每周回顾 / Weekly review", at: "2026-10-03T06:00:00Z", href: "/calendar?event=e2e-future", detail: "核对待办、日程与下一周的学习安排" }],
 };
 const tasks: TodoTask[] = ["核对本周计划", "整理学习笔记", "准备下一次复盘"].map((title, index) => ({
   id: `e2e-polish-task-${index}`, providerTaskId: `e2e-${index}`, todoListId: "e2e-list", title,
@@ -40,10 +57,11 @@ const events: [] = [];
 const categories: [] = [];
 
 export function WorkspacePolishHarness({ scene }: { scene: PolishScene }) {
-  const pathname = `/${scene.replace("-loading", "")}`;
+  const pathname = scene === "heading" ? "/today" : `/${scene.replace(/-(loading|filled)$/, "")}`;
   return <div data-testid="workspace-polish-harness" data-scene={scene}>
     <AppShell presentationPathname={pathname}>
-      {scene === "today" ? <NowWorkspaceView workspace={now} /> : null}
+      {scene === "heading" ? <DashboardLayout><PageHeader eyebrow="Collection · 排版验证" title="项目与长期计划 / Projects and long-term plans" description="中英文标题、说明和操作保持清晰层级。This synthetic fixture checks wrapping without hiding long titles." action={<Button>新建项目</Button>} secondaryActions={<Button variant="ghost">查看全部</Button>} /><div className="mt-8 border-t border-[var(--separator)] pt-4 text-[14px] leading-6 text-[var(--text-secondary)]">仅用于共享标题组件的布局验证，不包含个人资料。</div></DashboardLayout> : null}
+      {scene === "today" || scene === "today-filled" ? <NowWorkspaceView workspace={scene === "today-filled" ? filledNow : now} /> : null}
       {scene === "tasks" ? <TaskWorkspace tasks={tasks} lists={lists} initialDayBounds={{ startMs: 0, endMs: 8_640_000_000_000_000 }} /> : null}
       {scene === "calendar" ? <CalendarWorkspace events={events} categories={categories} timezone="Asia/Shanghai" syncStatus={null} scopeReady /> : null}
       {scene === "notes" ? <NotesWorkspaceShell folders={folders} notes={notes}><NotesWorkspace notes={notes} folders={folders} timezone="Asia/Shanghai" state="ready" selectedFolder={null} initialView="all" dailyError={false} initialHasMore={false} /></NotesWorkspaceShell> : null}

@@ -59,7 +59,7 @@ describe("core UI consistency polish", () => {
     expect(polish).toContain('article a[href^="/notes/"]');
     expect(polish).toContain("var(--tab-bar-height)");
     expect(now).toContain('className="now-workspace');
-    expect(header).toContain('text-[30px]');
+    expect(header).toContain('page-title');
     expect(header).toContain('text-[13px]');
   });
 });
