@@ -94,13 +94,13 @@ function NoteRow({
                 if (event.key === "Enter") onRenameCommit();
                 if (event.key === "Escape") onRenameCancel();
               }}
-              className="h-7 min-w-0 flex-1 border-b border-[var(--accent)] bg-transparent px-0 text-[13.5px] font-medium tracking-[-0.008em] text-[var(--text-primary)] outline-none"
+              className="h-7 min-w-0 flex-1 border-b border-[var(--accent)] bg-transparent px-0 text-[14px] font-medium leading-[22px] text-[var(--text-primary)] outline-none"
               aria-label="笔记标题"
             />
           ) : (
             <Link
               href={`/notes/${note.id}`}
-              className="truncate text-[13.5px] font-medium tracking-[-0.008em] text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)] after:absolute after:inset-0 after:content-['']"
+              className="truncate text-[14px] font-medium leading-[22px] text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)] after:absolute after:inset-0 after:content-['']"
             >
               {note.title || "无标题笔记"}
             </Link>
@@ -113,11 +113,11 @@ function NoteRow({
           ) : null}
         </div>
         {showExcerpt && note.excerpt ? (
-          <p className="mt-1 line-clamp-2 max-w-[66ch] text-[12px] leading-[1.55] text-[var(--text-secondary)]">
+          <p className="mt-1 line-clamp-2 max-w-[66ch] text-[13px] leading-[22px] text-[var(--text-secondary)]">
             {note.excerpt}
           </p>
         ) : null}
-        <p className="mt-1 truncate text-[10.5px] leading-4 text-[var(--text-tertiary)]">
+        <p className="mt-1 truncate text-[12px] leading-5 text-[var(--text-tertiary)]">
           {folderPath(note, folders)} · {formatNoteTimestamp(note.updated_at, timezone)}
         </p>
       </div>
@@ -126,7 +126,7 @@ function NoteRow({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="absolute right-1 top-[10px] z-10 text-[var(--text-tertiary)] md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 focus-visible:opacity-100"
+            className="absolute right-0 top-2 z-10 max-md:size-11 text-[var(--text-tertiary)] md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 focus-visible:opacity-100"
             aria-label={`管理 ${note.title || "无标题笔记"}`}
             disabled={pending}
           >
@@ -358,10 +358,10 @@ export function NotesWorkspace({
 
         <header className="flex min-h-11 flex-wrap items-end gap-2.5">
           <div className="mr-auto min-w-0">
-            <h1 className="truncate text-[27px] font-semibold leading-[1.08] tracking-[-0.042em] text-[var(--text-primary)]">
+            <h1 className="page-title truncate">
               {title}
             </h1>
-            <p className="mt-0.5 text-[10.5px] leading-4 tabular-nums text-[var(--text-tertiary)]">
+            <p className="mt-1 text-[12px] leading-5 tabular-nums text-[var(--text-tertiary)]">
               {normalizedQuery ? `${visible.length} 个搜索结果` : `${visible.length} 篇笔记`}
             </p>
           </div>

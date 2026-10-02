@@ -10,16 +10,16 @@ export function PageHeader({ title, description, eyebrow, back, action, secondar
   className?: string;
 }) {
   return (
-    <header className={cn("flex min-w-0 flex-wrap items-start justify-between gap-5", className)}>
-      <div className="flex min-w-0 items-start gap-3.5">
+    <header className={cn("flex min-w-0 flex-wrap items-start justify-between gap-4", className)}>
+      <div className="flex min-w-0 items-start gap-3">
         {back}
         <div className="min-w-0">
-          {eyebrow ? <div className="mb-1.5 text-[10.5px] font-semibold tracking-[.015em] text-[var(--text-tertiary)]">{eyebrow}</div> : null}
-          <h1 className="truncate text-[30px] font-semibold leading-[1.06] tracking-[-0.042em] text-[var(--text-primary)]">{title}</h1>
+          {eyebrow ? <div className="mb-2 text-[12px] font-medium leading-5 text-[var(--text-tertiary)]">{eyebrow}</div> : null}
+          <h1 className="page-title break-words">{title}</h1>
           {description ? <p className="mt-2 max-w-2xl text-[13px] leading-[1.6] text-[var(--text-secondary)]">{description}</p> : null}
         </div>
       </div>
-      {action || secondaryActions ? <div className="flex shrink-0 items-center gap-1.5 pt-0.5">{secondaryActions}{action}</div> : null}
+      {action || secondaryActions ? <div className="flex shrink-0 items-center gap-2 pt-0.5">{secondaryActions}{action}</div> : null}
     </header>
   );
 }

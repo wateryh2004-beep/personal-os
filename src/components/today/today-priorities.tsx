@@ -68,38 +68,38 @@ export function TodayPriorities({ focus }: { focus: TodayFocus }) {
   return <section aria-labelledby="today-priorities-heading" className="border-y border-[var(--separator)] py-4">
     <div className="flex items-start justify-between gap-3">
       <div>
-        <h2 id="today-priorities-heading" className="text-[15px] font-semibold">今日重点 <span className="ml-1 text-[11px] font-normal text-[var(--text-tertiary)]">{selected.length}/3</span></h2>
-        <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">自己选 1–3 件今天值得推进的事，没有截止日期也可以</p>
+        <h2 id="today-priorities-heading" className="text-[15px] font-semibold">今日重点 <span className="ml-1 text-[12px] font-normal text-[var(--text-tertiary)]">{selected.length}/3</span></h2>
+        <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">自己选 1–3 件今天值得推进的事，没有截止日期也可以</p>
       </div>
-      {!editing && focus.available ? <button type="button" onClick={begin} className="min-h-11 shrink-0 px-2 text-[12px] font-medium text-[var(--accent)]">{selected.length ? "调整" : "选择重点"}</button> : null}
+      {!editing && focus.available ? <button type="button" onClick={begin} className="min-h-11 shrink-0 px-2 text-[13px] font-medium text-[var(--accent)]">{selected.length ? "调整" : "选择重点"}</button> : null}
     </div>
-    {!focus.available ? <div className="mt-3 text-[12px] text-[var(--text-secondary)]" role="status">今日重点暂不可用，其他日程和到期提醒仍可查看。<button type="button" onClick={() => { void todayWorkspaceResource.revalidate({ force: true }).catch(() => {}); }} className="ml-2 min-h-11 text-[var(--accent)]">重试</button></div> : null}
+    {!focus.available ? <div className="mt-3 text-[13px] text-[var(--text-secondary)]" role="status">今日重点暂不可用，其他日程和到期提醒仍可查看。<button type="button" onClick={() => { void todayWorkspaceResource.revalidate({ force: true }).catch(() => {}); }} className="ml-2 min-h-11 text-[var(--accent)]">重试</button></div> : null}
     {selected.length ? <ol className="mt-3 divide-y divide-[var(--separator)]">
       {selected.map((task, index) => <li key={task.id} className="flex min-h-14 items-center gap-2">
-        <span className="w-4 text-[11px] tabular-nums text-[var(--text-tertiary)]">{index + 1}</span>
+        <span className="w-4 text-[12px] tabular-nums text-[var(--text-tertiary)]">{index + 1}</span>
         <div className="min-w-0 flex-1 py-2">
           <Link href={taskRecordHref(task.id)} className={`block break-words text-[13px] font-medium hover:text-[var(--accent)] ${task.status === "completed" ? "text-[var(--text-tertiary)] line-through" : ""}`}>{task.title || "未命名任务"}</Link>
-          <span className="mt-1 block text-[10px] text-[var(--text-tertiary)]">Microsoft To Do · {task.status === "completed" ? "今天已完成" : task.due_at ? "已设截止时间" : "无截止日期"}</span>
+          <span className="mt-1 block text-[12px] text-[var(--text-tertiary)]">Microsoft To Do · {task.status === "completed" ? "今天已完成" : task.due_at ? "已设截止时间" : "无截止日期"}</span>
         </div>
         {editing ? <button type="button" disabled={pending} aria-label={`移除重点 ${task.title}`} onClick={() => setSelectedIds((ids) => ids.filter((id) => id !== task.id))} className="inline-flex size-11 shrink-0 items-center justify-center text-[var(--text-secondary)] disabled:opacity-50"><X className="size-4" /></button>
-          : task.status === "completed" ? <CheckCircle2 className="mr-3 size-4 text-[var(--success)]" aria-label="已完成" />
+          : task.status === "completed" ? <CheckCircle2 className="mr-3 size-4 shrink-0 text-[var(--success)]" aria-label="已完成" />
           : task.status !== "unavailable" ? <CompleteTaskControl taskId={task.id} title={task.title} compact /> : null}
       </li>)}
-    </ol> : !editing && focus.available ? <p className="mt-4 text-[12px] text-[var(--text-tertiary)]">还没选重点。到期事项会单独提醒，不会自动替你决定今天的重心。</p> : null}
+    </ol> : !editing && focus.available ? <p className="mt-3 text-[13px] leading-[22px] text-[var(--text-tertiary)]">还没选重点。到期事项会单独提醒，不会自动替你决定今天的重心。</p> : null}
     {editing ? <div className="mt-3 border-t border-[var(--separator)] pt-3">
-      <label className="block text-[11px] text-[var(--text-secondary)]" htmlFor="today-priority-search">选择已有任务（最近 200 条未完成任务）</label>
+      <label className="block text-[12px] text-[var(--text-secondary)]" htmlFor="today-priority-search">选择已有任务（最近 200 条未完成任务）</label>
       <input id="today-priority-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务，包括没有截止日期的任务" className="mt-2 min-h-11 w-full rounded-lg bg-[var(--surface-control)] px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" />
       <ul className="mt-2 max-h-64 overflow-y-auto">
-        {candidates.slice(0, 30).map((task) => <li key={task.id}><button type="button" disabled={pending || selectedIds.length >= 3} onClick={() => setSelectedIds((ids) => [...ids, task.id])} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-[var(--surface-hover)] disabled:opacity-40"><Plus className="size-3.5 shrink-0" /><span className="min-w-0 break-words text-[12px]">{task.title || "未命名任务"}<span className="ml-2 text-[10px] text-[var(--text-tertiary)]">{task.due_at ? "有截止时间" : "无截止日期"}</span></span></button></li>)}
+        {candidates.slice(0, 30).map((task) => <li key={task.id}><button type="button" disabled={pending || selectedIds.length >= 3} onClick={() => setSelectedIds((ids) => [...ids, task.id])} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-[var(--surface-hover)] disabled:opacity-40"><Plus className="size-3.5 shrink-0" /><span className="min-w-0 break-words text-[13px]">{task.title || "未命名任务"}<span className="ml-2 text-[12px] text-[var(--text-tertiary)]">{task.due_at ? "有截止时间" : "无截止日期"}</span></span></button></li>)}
       </ul>
-      {!candidates.length ? <p className="py-3 text-[12px] text-[var(--text-tertiary)]">没有匹配的未完成任务。<Link href="/tasks?create=1" className="ml-1 text-[var(--accent)]">新建任务</Link></p> : null}
-      {selectedIds.length === 3 ? <p className="mt-2 text-[11px] text-[var(--text-secondary)]">已选满 3 件，移除一件后可替换</p> : null}
+      {!candidates.length ? <p className="py-3 text-[13px] text-[var(--text-tertiary)]">没有匹配的未完成任务。<Link href="/tasks?create=1" className="ml-1 text-[var(--accent)]">新建任务</Link></p> : null}
+      {selectedIds.length === 3 ? <p className="mt-2 text-[12px] text-[var(--text-secondary)]">已选满 3 件，移除一件后可替换</p> : null}
       <div className="mt-3 flex gap-2">
-        <button type="button" disabled={pending} onClick={save} className="min-h-11 rounded-lg bg-[var(--accent)] px-4 text-[12px] font-medium text-white disabled:opacity-50">{pending ? "保存中…" : failed ? "重试保存" : "保存重点"}</button>
-        <button type="button" disabled={pending} onClick={() => { setEditing(false); setMessage(""); }} className="min-h-11 rounded-lg px-3 text-[12px] text-[var(--text-secondary)]">取消</button>
-        {failed ? <button type="button" disabled={pending} onClick={reload} className="min-h-11 px-2 text-[12px] text-[var(--accent)]">载入最新重点</button> : null}
+        <button type="button" disabled={pending} onClick={save} className="min-h-11 rounded-lg bg-[var(--accent)] px-4 text-[13px] font-medium text-white disabled:opacity-50">{pending ? "保存中…" : failed ? "重试保存" : "保存重点"}</button>
+        <button type="button" disabled={pending} onClick={() => { setEditing(false); setMessage(""); }} className="min-h-11 rounded-lg px-3 text-[13px] text-[var(--text-secondary)]">取消</button>
+        {failed ? <button type="button" disabled={pending} onClick={reload} className="min-h-11 px-2 text-[13px] text-[var(--accent)]">载入最新重点</button> : null}
       </div>
     </div> : null}
-    {message ? <p role={failed ? "alert" : "status"} className={`mt-3 text-[12px] leading-5 ${failed ? "text-[var(--danger)]" : "text-[var(--text-secondary)]"}`}>{message}</p> : null}
+    {message ? <p role={failed ? "alert" : "status"} className={`mt-3 text-[13px] leading-5 ${failed ? "text-[var(--danger)]" : "text-[var(--text-secondary)]"}`}>{message}</p> : null}
   </section>;
 }

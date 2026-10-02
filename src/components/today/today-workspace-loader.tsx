@@ -15,7 +15,7 @@ function TodayShell() {
       <div className="ui-skeleton-shimmer mt-4 h-3 w-56 max-w-[70%] rounded-full" />
       <div className="ui-skeleton-shimmer mt-7 h-9 w-full max-w-[680px] rounded-[var(--radius-md)]" />
 
-      <div className="mt-9 border-y border-[var(--separator)] py-5">
+      <div className="mt-8 sm:mt-10 border-y border-[var(--separator)] py-5">
         <div className="ui-skeleton-shimmer h-2.5 w-20 rounded-full" />
         <div className="mt-5 space-y-4">
           <div className="ui-skeleton-shimmer h-4 w-[min(440px,76%)] rounded-full" />
@@ -23,7 +23,7 @@ function TodayShell() {
         </div>
       </div>
 
-      <div className="mt-11 grid gap-11 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-[60px]">
+      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12">
         {[0, 1].map((column) => (
           <div key={column}>
             <div className="ui-skeleton-shimmer h-3 w-24 rounded-full" />

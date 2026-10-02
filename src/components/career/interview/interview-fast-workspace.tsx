@@ -375,7 +375,7 @@ export function InterviewFastWorkspace({
       <div className="px-2 sm:px-3">
         <div className="flex min-h-9 flex-wrap items-center justify-between gap-2.5">
           <div className="flex min-w-0 max-w-full items-center gap-2.5">
-            <Link href="/career" onClick={(event) => followWorkspaceLink(event, "/career")} prefetch className="pressable rounded-[8px] px-1 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">← Career</Link>
+            <Link href="/career" onClick={(event) => followWorkspaceLink(event, "/career")} prefetch className="pressable rounded-[8px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">← Career</Link>
             <select
               aria-label="面试岗位"
               value={contextId}
@@ -392,10 +392,10 @@ export function InterviewFastWorkspace({
           </div>
 
           <div className="flex items-center gap-1">
-            <Link href={`/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`} onClick={(event) => followWorkspaceLink(event, `/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`)} className="pressable rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">练习</Link>
-            <Link href={`/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`} onClick={(event) => followWorkspaceLink(event, `/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`)} className="pressable rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">复盘</Link>
+            <Link href={`/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`} onClick={(event) => followWorkspaceLink(event, `/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`)} className="pressable rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">练习</Link>
+            <Link href={`/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`} onClick={(event) => followWorkspaceLink(event, `/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`)} className="pressable rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">复盘</Link>
             <details className="relative">
-              <summary className="pressable cursor-pointer list-none rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 岗位</summary>
+              <summary className="pressable cursor-pointer list-none rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 岗位</summary>
               <form action={createInterviewContext} className="absolute right-0 z-30 mt-2 grid w-[min(480px,88vw)] gap-3 rounded-[14px] border border-[var(--separator)] bg-[var(--material-popover)] p-4 shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%] sm:grid-cols-2">
                 <input name="organization_snapshot" required placeholder="公司" className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]" />
                 <input name="role_title_snapshot" required placeholder="岗位" className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]" />
@@ -409,13 +409,13 @@ export function InterviewFastWorkspace({
 
         <div className={`${mobileDetailOpen ? "hidden md:block" : ""} mt-5 border-b border-[var(--separator)] pb-4`}>
           <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-            <div><h1 className="text-xl font-semibold tracking-tight">面试学习库</h1><p className="mt-1 text-[12px] leading-6 text-[var(--text-tertiary)]">理解知识与推导，整理自己的表达，再练习复盘</p></div>
+            <div><h1 className="text-xl font-semibold leading-[1.3] tracking-[-0.015em]">面试学习库</h1><p className="mt-1 text-[12px] leading-6 text-[var(--text-tertiary)]">理解知识与推导，整理自己的表达，再练习复盘</p></div>
             <span className="text-[12px] tabular-nums text-[var(--text-tertiary)]">{contextItems.length} 道题</span>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(180px,1fr)_minmax(130px,220px)_130px]">
-            <label className="col-span-2 grid gap-1 text-[11px] text-[var(--text-tertiary)] sm:col-span-1">搜索题库<input type="search" aria-label="搜索题库" value={filters.q} onChange={(event) => handleFiltersChange({ q: event.target.value })} placeholder="题目、概念、思路或答案" className="min-h-11 w-full min-w-0 rounded-[9px] bg-[var(--surface-control)] px-3 text-[14px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" /></label>
-            <label className="grid gap-1 text-[11px] text-[var(--text-tertiary)]">学习模块<select aria-label="学习模块" value={filters.domain} onChange={(event) => handleFiltersChange({ domain: event.target.value })} className="min-h-11 w-full min-w-0 rounded-[9px] bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部模块</option>{filters.domain !== "all" && !domains.includes(filters.domain) ? <option value={filters.domain}>{filters.domain}</option> : null}{domains.map((domain) => <option key={domain} value={domain}>{domain}</option>)}</select></label>
-            <label className="grid gap-1 text-[11px] text-[var(--text-tertiary)]">提问风格<select aria-label="提问风格" value={filters.style} onChange={(event) => handleFiltersChange({ style: event.target.value })} className="min-h-11 rounded-[9px] bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部风格</option><option value="standard">标准提问</option><option value="stress">压力追问</option></select></label>
+            <label className="col-span-2 grid gap-1 text-[12px] text-[var(--text-tertiary)] sm:col-span-1">搜索题库<input type="search" aria-label="搜索题库" value={filters.q} onChange={(event) => handleFiltersChange({ q: event.target.value })} placeholder="题目、概念、思路或答案" className="min-h-11 w-full min-w-0 rounded-[9px] bg-[var(--surface-control)] px-3 text-[14px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" /></label>
+            <label className="grid gap-1 text-[12px] text-[var(--text-tertiary)]">学习模块<select aria-label="学习模块" value={filters.domain} onChange={(event) => handleFiltersChange({ domain: event.target.value })} className="min-h-11 w-full min-w-0 rounded-[9px] bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部模块</option>{filters.domain !== "all" && !domains.includes(filters.domain) ? <option value={filters.domain}>{filters.domain}</option> : null}{domains.map((domain) => <option key={domain} value={domain}>{domain}</option>)}</select></label>
+            <label className="grid gap-1 text-[12px] text-[var(--text-tertiary)]">提问风格<select aria-label="提问风格" value={filters.style} onChange={(event) => handleFiltersChange({ style: event.target.value })} className="min-h-11 rounded-[9px] bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部风格</option><option value="standard">标准提问</option><option value="stress">压力追问</option></select></label>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="问题类型筛选">
             <CategoryButton label="全部题型" count={counts.all ?? 0} active={category === "all"} onClick={() => handleFiltersChange({ category: "all" })} />
@@ -438,13 +438,13 @@ export function InterviewFastWorkspace({
             />
             <div className="mt-1 flex items-center justify-between gap-2 px-1">
               {category === "all" ? (
-                <select name="category" defaultValue="behavioral" aria-label="新问题类型" className="max-w-[160px] bg-transparent text-[11px] text-[var(--text-tertiary)] outline-none">
+                <select name="category" defaultValue="behavioral" aria-label="新问题类型" className="max-w-[160px] bg-transparent text-[12px] text-[var(--text-tertiary)] outline-none">
                   {ALL_CATEGORIES.map((key) => (
                     <option key={key} value={legacyCategoryByQuestionType[key] ?? key}>{questionTypeLabels[key]}</option>
                   ))}
                 </select>
               ) : <input type="hidden" name="category" value={newQuestionCategory} />}
-              <button className="pressable rounded-[7px] px-1.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]">添加</button>
+              <button className="pressable rounded-[7px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]">添加</button>
             </div>
             <input type="hidden" name="question_style" value={newQuestionStyle} />
             <input type="hidden" name="context_id" value={contextId} />
@@ -464,8 +464,8 @@ export function InterviewFastWorkspace({
           </form></details>
 
           <div className="mb-1.5 flex items-center justify-between px-2">
-            <span className="text-[10.5px] font-medium text-[var(--text-tertiary)]">{category === "all" ? "全部问题" : questionTypeLabels[category] ?? "问题"}</span>
-            <span className="text-[10.5px] tabular-nums text-[var(--text-tertiary)]">{visibleItems.length} / {contextItems.length}</span>
+            <span className="text-[12px] font-medium text-[var(--text-tertiary)]">{category === "all" ? "全部问题" : questionTypeLabels[category] ?? "问题"}</span>
+            <span className="text-[12px] tabular-nums text-[var(--text-tertiary)]">{visibleItems.length} / {contextItems.length}</span>
           </div>
 
           <nav aria-label="面试题目" className="space-y-px pr-0.5 md:max-h-[600px] md:overflow-y-auto">
@@ -480,18 +480,18 @@ export function InterviewFastWorkspace({
             <div className="min-w-0">
               <div className="flex flex-wrap items-start justify-between gap-3 md:flex-nowrap md:gap-5">
                 <div className="min-w-0">
-                  <div className="mb-2 flex flex-wrap items-center gap-2 text-[10.5px] text-[var(--text-tertiary)]">
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-tertiary)]">
                     <span>{workspaceDomain(selected)}</span><span>· {selected.categoryLabel}</span>
                     {selected.style === "stress" ? <span>· 压力</span> : null}
                     {selected.competencies.slice(0, 2).map((competency) => <span key={competency.key}>· {competency.label}</span>)}
                   </div>
-                  <h1 className="max-w-3xl text-[23px] font-semibold leading-[1.42] tracking-[-0.035em] text-[var(--text-primary)]">{selected.prompt}</h1>
+                  <h1 className="max-w-3xl text-[23px] font-semibold leading-[1.42] tracking-[-0.015em] text-[var(--text-primary)]">{selected.prompt}</h1>
                 </div>
                 <Link
                   href={detailHref}
                   prefetch={false}
                   onClick={(event) => followDetailLink(event)}
-                  className="mt-1 shrink-0 rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] transition-colors ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
+                  className="mt-1 shrink-0 rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] transition-colors ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
                 >
                   完整题目与答案 →
                 </Link>
@@ -504,12 +504,12 @@ export function InterviewFastWorkspace({
                 </div>
                 <Link href={`/career/interview/practice/${selected.preparationId}`} onClick={(event) => followWorkspaceLink(event, `/career/interview/practice/${selected.preparationId}`)} className="inline-flex min-h-11 items-center rounded-[9px] bg-[var(--accent)] px-4 text-[12px] font-medium text-white">练习这道题 →</Link>
               </div>
-              {answerMeta ? <div className="mt-4 text-[11px] leading-6 text-[var(--text-tertiary)]"><span>{answerMeta.status === "current" ? "当前答案" : "参考草稿 · 待确认"} · {answerMeta.language === "en" ? "英文" : answerMeta.language === "bilingual" ? "中英双语" : "中文"} · V{answerMeta.version_number} · {answerMeta.source === "ai_draft" ? "AI 起草" : answerMeta.source === "ai_edited" ? "AI 起草后编辑" : answerMeta.source === "imported" ? "导入" : "人工编辑"}</span>{answerMeta.status === "draft" ? <p>可直接阅读；核对个人事实后再设为当前答案。阅读和编辑都不会自动确认。</p> : null}<Link href={`${detailHref}#answer-versions`} prefetch={false} onClick={(event) => followDetailLink(event, "#answer-versions")} className="inline-flex min-h-9 items-center font-medium text-[var(--accent)]">{answerMeta.status === "draft" ? "查看版本并确认答案 →" : "查看答案版本 →"}</Link></div> : null}
+              {answerMeta ? <div className="mt-4 text-[12px] leading-6 text-[var(--text-tertiary)]"><span>{answerMeta.status === "current" ? "当前答案" : "参考草稿 · 待确认"} · {answerMeta.language === "en" ? "英文" : answerMeta.language === "bilingual" ? "中英双语" : "中文"} · V{answerMeta.version_number} · {answerMeta.source === "ai_draft" ? "AI 起草" : answerMeta.source === "ai_edited" ? "AI 起草后编辑" : answerMeta.source === "imported" ? "导入" : "人工编辑"}</span>{answerMeta.status === "draft" ? <p>可直接阅读；核对个人事实后再设为当前答案。阅读和编辑都不会自动确认。</p> : null}<Link href={`${detailHref}#answer-versions`} prefetch={false} onClick={(event) => followDetailLink(event, "#answer-versions")} className="inline-flex min-h-9 items-center font-medium text-[var(--accent)]">{answerMeta.status === "draft" ? "查看版本并确认答案 →" : "查看答案版本 →"}</Link></div> : null}
               {!editing ? <InterviewStudyView thoughts={thoughts} answer={answer} isDraft={answerMeta?.status === "draft"} learning={selected.learning} related={relatedItems} onSelect={handleQuestionChange} /> : <div>
               <section className="mt-9">
                 <div className="flex items-baseline justify-between gap-3">
-                  <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">思路</h2>
-                  <span className="text-[10.5px] text-[var(--text-tertiary)]">先想清楚，再组织表达</span>
+                  <h2 className="text-[12px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">思路</h2>
+                  <span className="text-[12px] text-[var(--text-tertiary)]">先想清楚，再组织表达</span>
                 </div>
                 <textarea
                   disabled={refreshing}
@@ -542,8 +542,8 @@ export function InterviewFastWorkspace({
 
               <section className="mt-7">
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">{answerMeta?.status === "draft" ? "参考答案 · 待确认" : "答案"}</h2>
-                  <span className="text-[10.5px] text-[var(--text-tertiary)]">写成你面试时真正会说的话</span>
+                  <h2 className="text-[12px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">{answerMeta?.status === "draft" ? "参考答案 · 待确认" : "答案"}</h2>
+                  <span className="text-[12px] text-[var(--text-tertiary)]">写成你面试时真正会说的话</span>
                 </div>
                 <textarea
                   ref={answerTextareaRef}
@@ -576,7 +576,7 @@ export function InterviewFastWorkspace({
               </section>
 
               </div>}
-              <div aria-live="polite" className={`mt-2 min-h-4 text-right text-[10.5px] transition-colors ui-transition ${saveState === "error" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>
+              <div aria-live="polite" className={`mt-2 min-h-4 text-right text-[12px] transition-colors ui-transition ${saveState === "error" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>
                 {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "error" ? saveError || "保存失败" : saveState === "dirty" ? "有未保存的修改" : ""}
               </div>
               {saveState === "error" || saveState === "dirty" ? <button type="button" onClick={() => { void saveNow(); }} className="mt-2 min-h-11 text-xs text-[var(--accent)]">重试保存</button> : null}
@@ -625,7 +625,7 @@ const QuestionOption = memo(function QuestionOption({ item, active, onSelect }: 
       className={`pressable block w-full rounded-[9px] px-2.5 py-2.5 text-left text-[13px] leading-[1.45] ${active ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-white/55 hover:text-[var(--text-primary)]"}`}
     >
       <span className="line-clamp-2">{item.shortTitle || item.prompt}</span>
-      <span className="mt-1 block truncate text-[10.5px] font-normal text-[var(--text-tertiary)]">{workspaceDomain(item)} · {item.categoryLabel}</span>
+      <span className="mt-1 block truncate text-[12px] font-normal text-[var(--text-tertiary)]">{workspaceDomain(item)} · {item.categoryLabel}</span>
     </button>
   );
 });

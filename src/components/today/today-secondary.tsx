@@ -14,9 +14,9 @@ function formatDate(value: string, timezone: string) {
 }
 
 function UpcomingIcon({ kind }: { kind: NowUpcomingItem["kind"] }) {
-  if (kind === "event") return <CalendarDays className="size-3.5" aria-hidden="true" />;
-  if (kind === "task") return <CheckCircle2 className="size-3.5" aria-hidden="true" />;
-  return <Milestone className="size-3.5" aria-hidden="true" />;
+  if (kind === "event") return <CalendarDays className="size-3.5 shrink-0" aria-hidden="true" />;
+  if (kind === "task") return <CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />;
+  return <Milestone className="size-3.5 shrink-0" aria-hidden="true" />;
 }
 
 export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
@@ -26,18 +26,18 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
   const hasContext = contextItems.length > 0 || workspace.briefing.entries.length > 0;
 
   return (
-    <div className="grid gap-11 lg:grid-cols-[minmax(0,1.22fr)_minmax(300px,.78fr)] lg:gap-[60px]">
-      <section aria-labelledby="today-context-heading">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12">
+      <section aria-labelledby="today-context-heading" className="min-w-0">
         <TodaySectionHeader href="/briefing" label="简报">
           <span id="today-context-heading">背景与简报</span>
         </TodaySectionHeader>
-        <div className="mt-2.5 border-t border-[var(--separator)] pt-2.5">
+        <div className="mt-2 border-t border-[var(--separator)] pt-2">
           <TodayBrief items={contextItems} />
 
           {workspace.briefing.entries.length ? (
             <div className={contextItems.length ? "mt-4 border-t border-[var(--separator)] pt-3" : ""}>
               {workspace.briefing.date ? (
-                <p className="mb-1.5 text-[9.5px] font-medium text-[var(--text-tertiary)]">
+                <p className="mb-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">
                   {workspace.briefing.date.slice(5).replace("-", " 月 ")} 日 Briefing
                 </p>
               ) : null}
@@ -50,11 +50,11 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
                       rel={entry.url ? "noreferrer" : undefined}
                       className="group block py-2"
                     >
-                      <span className="block text-[11.5px] font-medium leading-5 text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
+                      <span className="block text-[13px] font-medium leading-5 text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                         {entry.title}
                       </span>
                       {entry.reason ? (
-                        <span className="mt-0.5 line-clamp-1 block text-[10.5px] leading-5 text-[var(--text-secondary)]">
+                        <span className="mt-0.5 line-clamp-1 block text-[12px] leading-5 text-[var(--text-secondary)]">
                           {entry.reason}
                         </span>
                       ) : null}
@@ -66,36 +66,36 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
           ) : null}
 
           {workspace.availability.briefing === "unavailable" ? (
-            <p className="py-4 text-[12px] text-[var(--text-secondary)]">Briefing 暂不可用。</p>
+            <p className="py-3 text-[13px] leading-[22px] text-[var(--text-secondary)]">Briefing 暂不可用。</p>
           ) : !hasContext ? (
-            <p className="py-4 text-[12px] leading-5 text-[var(--text-secondary)]">
+            <p className="py-3 text-[13px] leading-[22px] text-[var(--text-secondary)]">
               暂无额外背景。首屏已经包含今天需要的信息。
             </p>
           ) : null}
         </div>
       </section>
 
-      <section aria-labelledby="today-future-heading">
+      <section aria-labelledby="today-future-heading" className="min-w-0">
         <TodaySectionHeader>
           <span id="today-future-heading">未来 7 天</span>
         </TodaySectionHeader>
-        <div className="mt-3 border-t border-[var(--separator)] pt-1">
+        <div className="mt-2 border-t border-[var(--separator)] pt-2">
           {workspace.upcoming.length ? (
             <ul className="divide-y divide-[var(--separator)]">
               {workspace.upcoming.map((item) => (
                 <li key={item.id}>
-                  <Link href={item.href} className="group grid grid-cols-[66px_minmax(0,1fr)] gap-2.5 py-2">
-                    <span className="pt-0.5 text-[9.5px] tabular-nums text-[var(--text-tertiary)]">
+                  <Link href={item.href} className="group grid grid-cols-[84px_minmax(0,1fr)] gap-2.5 py-2">
+                    <span className="pt-0.5 text-[12px] tabular-nums text-[var(--text-tertiary)]">
                       {formatDate(item.at, workspace.timezone)}
                     </span>
                     <span className="flex min-w-0 gap-2 text-[var(--text-tertiary)]">
                       <UpcomingIcon kind={item.kind} />
                       <span className="min-w-0">
-                        <span className="block truncate text-[12px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
+                        <span className="block truncate text-[13px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                           {item.title}
                         </span>
                         {item.detail ? (
-                          <span className="mt-0.5 block truncate text-[10px] leading-5 text-[var(--text-secondary)]">
+                          <span className="mt-0.5 block truncate text-[12px] leading-5 text-[var(--text-secondary)]">
                             {item.detail}
                           </span>
                         ) : null}
@@ -106,7 +106,7 @@ export function TodaySecondary({ workspace }: { workspace: NowWorkspace }) {
               ))}
             </ul>
           ) : (
-            <p className="py-4 text-[12px] text-[var(--text-secondary)]">未来一周暂无已安排事项。</p>
+            <p className="py-3 text-[13px] leading-[22px] text-[var(--text-secondary)]">未来一周暂无已安排事项。</p>
           )}
         </div>
       </section>

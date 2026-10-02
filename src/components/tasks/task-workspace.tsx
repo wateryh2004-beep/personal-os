@@ -141,7 +141,7 @@ function TaskRow({
 
       <div className="min-w-0">
         <h2
-          className={`truncate text-[13.5px] font-medium tracking-[-0.008em] ${
+          className={`truncate text-[14px] font-medium leading-[22px] ${
             completed
               ? "text-[var(--text-tertiary)] line-through decoration-[color-mix(in_srgb,var(--text-tertiary)_55%,transparent)]"
               : "text-[var(--text-primary)]"
@@ -150,12 +150,12 @@ function TaskRow({
           {task.title}
         </h2>
         {task.bodyText ? (
-          <p className="mt-0.5 line-clamp-1 max-w-[68ch] text-[11.5px] leading-5 text-[var(--text-secondary)]">
+          <p className="mt-1 line-clamp-1 max-w-[68ch] text-[13px] leading-5 text-[var(--text-secondary)]">
             {task.bodyText}
           </p>
         ) : null}
         {task.importance === "high" || dueLabel ? (
-          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] text-[var(--text-tertiary)]">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] leading-5 text-[var(--text-tertiary)]">
             {task.importance === "high" ? (
               <span className="font-medium text-[var(--warning)]">高优先级</span>
             ) : null}
@@ -900,10 +900,10 @@ export function TaskWorkspace({
           <div className="mx-auto flex max-w-[980px] items-start justify-between gap-3.5">
             <div className="min-w-0">
               <div className="flex items-baseline gap-2.5">
-                <h1 className="text-[27px] font-semibold tracking-[-0.042em] text-[var(--text-primary)]">
+                <h1 className="page-title">
                   任务
                 </h1>
-                <span className="text-[11px] tabular-nums text-[var(--text-tertiary)]">
+                <span className="text-[12px] leading-5 tabular-nums text-[var(--text-tertiary)]">
                   {visible.length}
                 </span>
               </div>
@@ -917,9 +917,9 @@ export function TaskWorkspace({
                     type="button"
                     onClick={() => setView(item)}
                     aria-pressed={view === item}
-                    className={`relative shrink-0 pb-1.5 text-[11.5px] font-medium transition-colors ui-transition ${
+                    className={`relative shrink-0 pb-2 text-[13px] leading-5 font-medium transition-colors ui-transition ${
                       view === item
-                        ? "text-[var(--text-primary)] after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-[var(--accent)]"
+                        ? "text-[var(--text-primary)] after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[var(--accent)]"
                         : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                     }`}
                   >

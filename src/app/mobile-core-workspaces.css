@@ -30,10 +30,6 @@
 
   /* Today: reduce desktop-style vertical air while retaining hierarchy. */
   .now-workspace { padding-top: 22px !important; padding-left: 16px !important; padding-right: 16px !important; }
-  .now-workspace > div.mt-10,
-  .now-workspace > div.sm\:mt-12 { margin-top: 28px !important; }
-  .now-workspace > div.mt-12 { margin-top: 32px !important; gap: 32px !important; }
-  .now-workspace > div.mt-16 { margin-top: 40px !important; padding-top: 32px !important; }
   .now-workspace button,
   .now-workspace a { min-height: 40px; }
 
@@ -57,7 +53,7 @@
   section:has(nav[aria-label="任务视图"]) article[role="button"] { grid-template-columns: 36px minmax(0, 1fr) 36px !important; gap: 6px !important; min-height: 58px; padding: 11px 0 !important; }
   section:has(nav[aria-label="任务视图"]) article[role="button"] > button { width: 36px !important; height: 36px !important; margin-top: -2px !important; }
   section:has(nav[aria-label="任务视图"]) article[role="button"] > svg:last-child { display: none; }
-  section:has(nav[aria-label="任务视图"]) article[role="button"] h2 { overflow: visible !important; white-space: normal !important; line-height: 1.35; }
+  section:has(nav[aria-label="任务视图"]) article[role="button"] h2 { overflow: visible !important; white-space: normal !important; line-height: 1.55; }
   section:has(nav[aria-label="任务视图"]) article[role="button"] p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 
   /* Notes: let visualViewport drive the editor when the software keyboard opens. */
@@ -73,7 +69,7 @@
   .life-markdown-statusbar { display: none; }
   /* NotesWorkspace owns its 56px top inset for the floating folder control.
      Keep that reservation whether the list contains rows or is empty. */
-  main.workspace-scroll:has(article a[href^="/notes/"]) article > div { min-height: 56px; padding: 12px 36px 12px 0 !important; }
+  main.workspace-scroll:has(article a[href^="/notes/"]) article > div { min-height: 56px; padding: 12px 48px 12px 0 !important; }
 
   /* Briefing: reading is the primary phone interaction. */
   .briefing-workspace { gap: 16px !important; }
