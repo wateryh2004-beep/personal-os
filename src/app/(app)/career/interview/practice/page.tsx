@@ -14,11 +14,12 @@ export default async function InterviewPracticePage({ searchParams }: { searchPa
     <>
       <PageHeader title="练习" description="系统根据面试重要性、练习新鲜度、故事成熟度和能力证据缺口决定顺序。" />
       <CareerNav current="/career/interview" />
-      <InterviewNav current="/career/interview/practice" />
+      <InterviewNav current="/career/interview/practice" context={context} />
 
       <form className="mb-8 flex items-center gap-2">
         <select name="context" defaultValue={context ?? ""} className="h-9 max-w-sm rounded-[10px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]">
           <option value="">全部岗位</option>
+          <option value="general">通用面试</option>
           {data.contexts.map((item: any) => <option key={item.id} value={item.id}>{item.title}</option>)}
         </select>
         <button className="pressable rounded-[7px] px-1.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">切换</button>

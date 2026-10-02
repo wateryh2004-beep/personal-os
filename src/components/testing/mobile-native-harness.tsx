@@ -41,8 +41,9 @@ export function MobileNativeHarness() {
           items={[null, null, "e2e-target"].map((contextId, index) => ({
             preparationId: `e2e-prep-${index}`, questionId: `e2e-question-${index}`, contextId,
             prompt: `E2E 面试问题 ${index}`, category: "resume", categoryLabel: "简历",
-            style: "standard", subcategory: null, competencies: [],
-            thoughts: `E2E 思路 ${index}`,
+            style: index === 1 ? "stress" : "standard", subcategory: index === 1 ? "技术面 · SQL与数据分析" : "简历深挖", competencies: [],
+            learning: { keyMessage: "先说判断，再给证据", logic: "1. 明确问题与边界\n2. 说明假设与推导\n3. 用反例检验结论", pitfalls: "不要把相关关系当作因果关系。", nextFocus: "不看答案，先用一分钟说清关键概念。" },
+            thoughts: `## 概念白话解释\n\nE2E 思路 ${index}\n\n先理解问题，再建立推导路径。`,
             answer: index === 1 ? `${"E2E 中文参考答案：先回答问题，再用可核对的事实解释。\n\n".repeat(10)}${"E2E English reference answer: state the answer, then explain with verifiable facts.\n\n".repeat(10)}` : `E2E 答案 ${index}`,
             answerId: index === 1 ? "e2e-draft" : null,
             answerMeta: index === 1 ? { status: "draft", source: "ai_draft", language: "bilingual", confirmed_at: null, version_number: 2 } : null,

@@ -35,3 +35,18 @@ it("does not apply an answer pin to another question", async () => {
   const page = await Page({ searchParams: Promise.resolve({ question: "q1", answer: "foreign" }) });
   expect(page.props.items[0].answer).toBe("");
 });
+it("normalizes repeated URL parameters instead of passing arrays to the client", async () => {
+  const page = await Page({ searchParams: Promise.resolve({ q: ["first", "second"], domain: ["Finance"], question: ["q1"] }) });
+  expect(page.props.initialQuery).toBe("first");
+  expect(page.props.initialDomain).toBe("Finance");
+  expect(page.props.initialQuestionId).toBe("q1");
+});
+it("remounts refreshed snapshots and same-route filter links without stale client drafts", async () => {
+  const initial = await Page({ searchParams: Promise.resolve({}) });
+  const filtered = await Page({ searchParams: Promise.resolve({ q: "new keyword" }) });
+  expect(filtered.key).not.toBe(initial.key);
+  data.answers.push({ id: "recovered", preparation_id: "p2", answer_mode: "spoken", language: "zh", target_seconds: null, body_markdown: "Recovered after partial query failure", version_number: 1, status: "draft", source: "ai_draft", confirmed_at: null, updated_at: "2026-10-02" });
+  const recovered = await Page({ searchParams: Promise.resolve({}) });
+  expect(recovered.key).not.toBe(initial.key);
+  expect(recovered.props.items[1].answerId).toBe("recovered");
+});

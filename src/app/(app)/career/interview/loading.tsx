@@ -1,0 +1,3 @@
+export default function InterviewLoading() {
+  return <div role="status" aria-label="正在加载面试学习库" className="animate-pulse space-y-5 motion-reduce:animate-none"><div className="h-9 w-56 rounded-lg bg-[var(--surface-control)]" /><div className="h-28 rounded-lg bg-[var(--surface-control)]" /><div className="grid gap-8 md:grid-cols-[286px_1fr]"><div className="h-96 rounded-lg bg-[var(--surface-control)]" /><div className="hidden space-y-4 md:block"><div className="h-12 rounded-lg bg-[var(--surface-control)]" /><div className="h-72 rounded-lg bg-[var(--surface-control)]" /></div></div><span className="sr-only">正在加载题目、思路与参考答案…</span></div>;
+}

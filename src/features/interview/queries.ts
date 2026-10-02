@@ -76,6 +76,34 @@ async function getWorkspaceAnswers(supabase: Awaited<ReturnType<typeof requireOw
   }
 }
 
+// Page relations as well as answers: Supabase's default row cap must not silently
+// truncate a growing bank before client-side search and filtering.
+async function getWorkspacePreparations(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"]) {
+  const rows: unknown[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const result = await supabase.from("interview_question_preparations")
+      .select("id,question_id,context_id,prompt_override,working_thoughts_markdown,key_message,answer_logic_markdown,risk_markdown,next_focus,target_language,position,updated_at,interview_questions!inner(id,canonical_prompt,short_title,question_type_id,question_style,subcategory,parent_question_id,follow_up_kind,archived_at)")
+      .is("archived_at", null).is("interview_questions.archived_at", null)
+      .order("position").order("updated_at", { ascending: false }).order("id")
+      .range(offset, offset + 499);
+    if (result.error) return { data: null, error: result.error };
+    rows.push(...(result.data ?? []));
+    if ((result.data?.length ?? 0) < 500) return { data: rows, error: null };
+  }
+}
+
+async function getWorkspaceCompetencyLinks(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"]) {
+  const rows: unknown[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const result = await supabase.from("interview_question_competencies")
+      .select("question_id,competency_id,relevance,is_primary")
+      .order("question_id").order("competency_id").range(offset, offset + 499);
+    if (result.error) return { data: null, error: result.error };
+    rows.push(...(result.data ?? []));
+    if ((result.data?.length ?? 0) < 500) return { data: rows, error: null };
+  }
+}
+
 export async function getInterviewWorkspaceData() {
   const { supabase } = await requireOwner();
 
@@ -88,22 +116,14 @@ export async function getInterviewWorkspaceData() {
       .is("archived_at", null)
       .order("priority", { ascending: false })
       .order("title"),
-    supabase
-      .from("interview_question_preparations")
-      .select("id,question_id,context_id,prompt_override,working_thoughts_markdown,key_message,answer_logic_markdown,target_language,position,updated_at,interview_questions!inner(id,canonical_prompt,short_title,question_type_id,question_style,subcategory,parent_question_id,follow_up_kind,archived_at)")
-      .is("archived_at", null)
-      .is("interview_questions.archived_at", null)
-      .order("position")
-      .order("updated_at", { ascending: false }),
+    getWorkspacePreparations(supabase),
     getWorkspaceAnswers(supabase),
     supabase
       .from("interview_question_types")
       .select("id,key,label,position")
       .is("archived_at", null)
       .order("position"),
-    supabase
-      .from("interview_question_competencies")
-      .select("question_id,competency_id,relevance,is_primary"),
+    getWorkspaceCompetencyLinks(supabase),
     supabase
       .from("interview_competencies")
       .select("id,key,label,position")
@@ -360,7 +380,8 @@ export async function getPracticeQueue(contextId?: string | null) {
     .is("archived_at", null)
     .is("interview_questions.archived_at", null)
     .neq("status", "paused");
-  if (contextId) prepQuery = prepQuery.eq("context_id", contextId);
+  if (contextId === "general") prepQuery = prepQuery.is("context_id", null);
+  else if (contextId) prepQuery = prepQuery.eq("context_id", contextId);
 
   const [prepsResult, contextsResult, attemptsResult, archetypeStoriesResult, storiesResult, questionCompetenciesResult, storyCompetenciesResult] = await Promise.all([
     prepQuery,
@@ -544,7 +565,8 @@ export async function getInterviewInsights(contextId?: string | null) {
   let prepQuery = supabase.from("interview_question_preparations")
     .select("id,question_id,context_id,status,importance,last_practiced_at")
     .is("archived_at", null);
-  if (contextId) prepQuery = prepQuery.eq("context_id", contextId);
+  if (contextId === "general") prepQuery = prepQuery.is("context_id", null);
+  else if (contextId) prepQuery = prepQuery.eq("context_id", contextId);
 
   const [prepsResult, questionsResult, competencyLinksResult, competenciesResult, attemptsResult, contextsResult, archetypeStoriesResult, storiesResult, storyCompetenciesResult] = await Promise.all([
     prepQuery,
