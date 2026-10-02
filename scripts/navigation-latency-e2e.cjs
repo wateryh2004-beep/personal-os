@@ -51,9 +51,10 @@ const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       if (cacheState === "data-plus-prefetch-requested") {
         const prefetched = page.waitForResponse((response) => response.request().headers().rsc && response.url().includes(`workspace=${target}`));
         await page.getByTestId(`prefetch-${target}`).click();
-        await (await prefetched).finished();
-        // Let the completed Flight payload reach Next's router cache.
-        await page.waitForTimeout(100);
+        await prefetched;
+        // Dynamic Flight prefetch can remain streaming. It is speculative, so
+        // never gate this correctness check on response.finished().
+        await page.waitForTimeout(delay + rttMs + 100);
       }
       // Record the first visible DOM frame directly; locator polling below is
       // only a correctness wait and must not inflate the measured latency.
