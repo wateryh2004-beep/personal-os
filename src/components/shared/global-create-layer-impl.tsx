@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { CalendarPlus, CheckSquare2, FilePlus2, Inbox, Plane, ShoppingBag, SquareKanban } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,9 @@ function localDateTime(offsetMinutes = 0) {
 
 /** A thin, global capture surface. It deliberately keeps only primary fields. */
 export function GlobalCreateLayer({ initialRequest, contentOnly = false, onClose }: { initialRequest?: CreateRequest; contentOnly?: boolean; onClose?: () => void }) {
+  const formId = useId();
+  const submissionInFlight = useRef(false);
+  const [listAttempt, setListAttempt] = useState(0);
   const [open, setOpen] = useState(Boolean(initialRequest));
   const [kind, setKind] = useState<CreateKind | null>(initialRequest?.kind ?? null);
   const [prefill, setPrefill] = useState(initialRequest?.title ?? "");
@@ -59,17 +63,19 @@ export function GlobalCreateLayer({ initialRequest, contentOnly = false, onClose
       setLists(body.lists ?? []);
     }).catch(() => { if (!controller.signal.aborted) setMessage("无法读取任务清单，请稍后重试。"); });
     return () => controller.abort();
-  }, [kind, open]);
+  }, [kind, listAttempt, open]);
   const close = () => { setOpen(false); setKind(null); setPrefill(""); onClose?.(); };
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submissionInFlight.current) return;
     const form = new FormData(event.currentTarget);
-    if (kind === "note") { start(() => createNote()); return; }
+    submissionInFlight.current = true;
     setMessage("");
     perfMark("quick-create-submit", { kind });
     start(async () => {
       try {
-        if (kind === "task") {
+        if (kind === "note") await createNote();
+        else if (kind === "task") {
           const result = await createMicrosoftTodoTaskAction({ status: "idle", message: "" }, form);
           if (result.status !== "success") throw new Error(result.message);
         } else if (kind === "calendar") {
@@ -90,13 +96,76 @@ export function GlobalCreateLayer({ initialRequest, contentOnly = false, onClose
         perfMeasure("quick-create-confirmed", "quick-create-submit", { kind });
         close();
       } catch (error) {
+        unstable_rethrow(error);
         setMessage(error instanceof Error && error.message ? error.message : "保存失败，当前输入仍保留。请检查网络后重试。");
+      } finally {
+        submissionInFlight.current = false;
       }
     });
   };
   const selected = options.find((option) => option.kind === kind);
+  const field = (label: string, control: React.ReactNode, optional = false) => (
+    <label className="grid gap-1.5 text-[13px] leading-5 text-[var(--text-secondary)]">
+      <span>{label}{optional ? <span className="ml-1 text-[12px] text-[var(--text-tertiary)]">（可选）</span> : null}</span>
+      {control}
+    </label>
+  );
   const content = <DialogContent className="sm:max-w-lg">
-{!kind ? <><DialogHeader><DialogTitle>快速新建</DialogTitle><DialogDescription>先捕捉，再整理；只显示完成当前动作所需的字段。</DialogDescription></DialogHeader><div className="grid gap-2">{options.map((option) => { const Icon = option.icon; return <button key={option.kind} type="button" onClick={() => setKind(option.kind)} className="group flex min-h-15 items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-canvas)] px-3.5 text-left transition-[border-color,background-color,transform] ui-transition hover:border-[color-mix(in_srgb,var(--accent)_28%,var(--border))] hover:bg-[var(--accent-soft)] active:translate-y-px"><span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-hover)] text-[var(--accent)] transition-colors ui-transition group-hover:bg-[var(--surface-canvas)]"><Icon className="size-4" /></span><span className="min-w-0"><span className="block text-sm font-medium text-[var(--text-primary)]">{option.label}</span><span className="mt-0.5 block text-xs text-[var(--text-secondary)]">{option.description}</span></span></button>; })}</div></> : <form onSubmit={submit} className="grid gap-4"><DialogHeader><DialogTitle>{selected?.label}</DialogTitle><DialogDescription>{selected?.description}</DialogDescription></DialogHeader>{kind === "task" ? <><Input key={`task-${prefill}`} autoFocus name="title" required maxLength={500} defaultValue={prefill} placeholder="任务内容" /><label className="grid gap-1 text-xs text-[var(--text-secondary)]">清单<select name="todo_list_id" required defaultValue={lists.find((list) => list.isDefault)?.id ?? lists[0]?.id ?? ""} className="h-9 rounded-[var(--radius-md)] border bg-transparent px-2.5 text-sm"><option value="" disabled>{lists.length ? "选择清单" : "正在读取清单…"}</option>{lists.map((list) => <option key={list.id} value={list.id}>{list.displayName}</option>)}</select></label><Input name="due_at" type="datetime-local" aria-label="截止时间（可选）" /><input type="hidden" name="body_text" value="" /><input type="hidden" name="importance" value="normal" /></> : null}{kind === "calendar" ? <><Input key={`calendar-${prefill}`} autoFocus name="subject" required maxLength={500} defaultValue={prefill} placeholder="日程标题" /><div className="grid grid-cols-2 gap-3"><Input name="starts_at" type="datetime-local" defaultValue={localDateTime()} required /><Input name="ends_at" type="datetime-local" defaultValue={localDateTime(60)} required /></div><input type="hidden" name="is_all_day" value="false" /><input type="hidden" name="description" value="" /></> : null}{kind === "note" ? <p className="rounded-[var(--radius-md)] bg-[var(--surface-hover)] px-3 py-2.5 text-sm leading-6 text-[var(--text-secondary)]">将创建一篇空白笔记，并直接打开编辑器。</p> : null}{kind === "inbox" ? <Textarea key={`inbox-${prefill}`} autoFocus name="content" required maxLength={10000} defaultValue={prefill} placeholder="记下这件事，稍后再决定去向…" /> : null}{kind === "shopping" ? <><Input autoFocus name="title" required placeholder="想买什么？" /><Input name="priceCny" type="number" min="0" step="0.01" placeholder="价格（元，可选）" /><input type="hidden" name="necessity" value="unknown" /></> : null}{kind === "travel" ? <><Input autoFocus name="title" required placeholder="目的地或旅行主题" /><Textarea name="description" placeholder="一行想法（可选）" /></> : null}{kind === "project" ? <><Input autoFocus name="name" required maxLength={180} placeholder="项目名称" /><Textarea name="description" placeholder="项目说明（可选）" /><Input name="due_date" type="date" /></> : null}{message ? <p role="alert" className="text-sm text-[var(--danger)]">{message}</p> : null}<div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={close}>取消</Button><Button disabled={pending || (kind === "task" && !lists.length)}>{pending ? "正在保存…" : kind === "inbox" ? "记录" : "创建"}</Button></div></form>}
-    </DialogContent>;
+    {!kind ? <>
+      <DialogHeader><DialogTitle>快速新建</DialogTitle><DialogDescription>先记下来，细节稍后补充。</DialogDescription></DialogHeader>
+      <div className="grid gap-1">
+        {options.map((option) => {
+          const Icon = option.icon;
+          return <button key={option.kind} type="button" onClick={() => { setMessage(""); setKind(option.kind); }} className="group flex min-h-15 items-center gap-3 rounded-[var(--radius-lg)] px-3.5 text-left transition-colors ui-transition hover:bg-[var(--surface-hover)] active:bg-[var(--surface-selected)]">
+            <span className="flex size-8 shrink-0 items-center justify-center text-[var(--accent)]"><Icon className="size-4" aria-hidden="true" /></span>
+            <span className="min-w-0"><span className="block text-sm font-medium text-[var(--text-primary)]">{option.label}</span><span className="mt-0.5 block text-xs text-[var(--text-secondary)]">{option.description}</span></span>
+          </button>;
+        })}
+      </div>
+    </> : <form onSubmit={submit} aria-busy={pending} aria-describedby={message ? `${formId}-error` : undefined} className="grid gap-4">
+      <DialogHeader><DialogTitle>{selected?.label}</DialogTitle><DialogDescription>{selected?.description}</DialogDescription></DialogHeader>
+      <fieldset disabled={pending} className="grid min-w-0 gap-4 disabled:opacity-70">
+        <legend className="sr-only">{selected?.label}内容</legend>
+        {kind === "task" ? <>
+          {field("任务内容", <Input key={`task-${prefill}`} autoFocus name="title" required maxLength={500} defaultValue={prefill} placeholder="写下要做的事" />)}
+          {field("清单", <select key={lists.length ? "loaded" : "loading"} name="todo_list_id" required defaultValue={lists.find((list) => list.isDefault)?.id ?? lists[0]?.id ?? ""} className="h-9 rounded-[var(--radius-md)] border bg-[var(--surface-control)] px-3 text-sm"><option value="" disabled>{lists.length ? "选择清单" : message ? "清单暂未读取" : "正在读取清单…"}</option>{lists.map((list) => <option key={list.id} value={list.id}>{list.displayName}</option>)}</select>)}
+          {!lists.length && message ? <button type="button" className="min-h-11 justify-self-start text-[13px] text-[var(--accent)]" onClick={() => { setMessage(""); setListAttempt((value) => value + 1); }}>重新读取清单</button> : null}
+          {field("截止时间", <Input name="due_at" type="datetime-local" />, true)}
+          <input type="hidden" name="body_text" value="" /><input type="hidden" name="importance" value="normal" />
+        </> : null}
+        {kind === "calendar" ? <>
+          {field("日程标题", <Input key={`calendar-${prefill}`} autoFocus name="subject" required maxLength={500} defaultValue={prefill} placeholder="日程名称" />)}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {field("开始时间", <Input name="starts_at" type="datetime-local" defaultValue={localDateTime()} required />)}
+            {field("结束时间", <Input name="ends_at" type="datetime-local" defaultValue={localDateTime(60)} required />)}
+          </div>
+          <input type="hidden" name="is_all_day" value="false" /><input type="hidden" name="description" value="" />
+        </> : null}
+        {kind === "note" ? <p className="text-[13px] leading-6 text-[var(--text-secondary)]">创建空白笔记，直接开始编辑。</p> : null}
+        {kind === "inbox" ? field("记录内容", <Textarea key={`inbox-${prefill}`} autoFocus name="content" required maxLength={10000} defaultValue={prefill} placeholder="记下这件事，稍后再决定去向" />) : null}
+        {kind === "shopping" ? <>
+          {field("物品名称", <Input autoFocus name="title" required placeholder="想买什么？" />)}
+          {field("价格（元）", <Input name="priceCny" type="number" min="0" step="0.01" inputMode="decimal" />, true)}
+          <input type="hidden" name="necessity" value="unknown" />
+        </> : null}
+        {kind === "travel" ? <>
+          {field("目的地或旅行主题", <Input autoFocus name="title" required />)}
+          {field("旅行想法", <Textarea name="description" />, true)}
+        </> : null}
+        {kind === "project" ? <>
+          {field("项目名称", <Input autoFocus name="name" required maxLength={180} />)}
+          {field("项目说明", <Textarea name="description" />, true)}
+          {field("目标日期", <Input name="due_date" type="date" />, true)}
+        </> : null}
+      </fieldset>
+      <div className="min-h-5">
+        {message ? <p id={`${formId}-error`} role="alert" className="text-[13px] leading-5 text-[var(--danger)]">{message}</p> : <p role="status" className="text-[12px] text-[var(--text-tertiary)]">{pending ? "正在保存，请稍候…" : ""}</p>}
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={close}>取消</Button>
+        <Button disabled={pending || (kind === "task" && !lists.length)}>{pending ? "正在保存…" : kind === "inbox" ? "记录" : "创建"}</Button>
+      </div>
+    </form>}
+  </DialogContent>;
   return contentOnly ? content : <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>{content}</Dialog>;
 }

@@ -46,6 +46,12 @@ export function parseNoteListItems(input: unknown): NoteListItem[] {
   }));
 }
 
+/** Folder/favorite pages never fetch document bodies, including on the base schema. */
+export function parseNoteMetadataListItems(input: unknown): NoteListItem[] {
+  const schema = noteListItemSchema.omit({ excerpt: true }).extend({ folder_id: z.string().uuid().nullable().optional() });
+  return z.array(schema).parse(input).map((note) => ({ ...note, folder_id: note.folder_id ?? null, content_origin: note.content_origin ?? null, excerpt: null }));
+}
+
 export function parseFallbackNoteListItems(input: unknown): NoteListItem[] {
   return z.array(fallbackNoteSchema).parse(input).map((note) => ({
     id: note.id,

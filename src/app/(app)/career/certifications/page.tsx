@@ -1,7 +1,9 @@
+import { CareerForm } from "@/components/career/career-form";
+import { submitCareerForm } from "@/features/career/form-actions";
 import { CareerNav } from "@/components/career/career-nav";
 import { Field, PrimaryButton, SelectField, TextField } from "@/components/career/form-controls";
 import { PageHeader } from "@/components/shared/page-header";
-import { archiveCertification, createCertification, updateCertification } from "@/features/career/actions";
+
 import { getCertifications } from "@/features/career/queries";
 
 const statuses = [
@@ -29,7 +31,7 @@ export default async function CertificationsPage() {
       <div className="mb-7 flex justify-end">
         <details>
           <summary className="pressable cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 新增证书</summary>
-          <form action={createCertification} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
+          <CareerForm action={submitCareerForm.bind(null, "createCertification")} resetOnSuccess className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
             <Field label="名称" name="name" required />
             <Field label="发证机构" name="issuer" />
             <SelectField label="状态" name="status" values={statuses} defaultValue="planned" />
@@ -41,7 +43,7 @@ export default async function CertificationsPage() {
             <SelectField label="证明材料" name="document_id" values={documentOptions} defaultValue="" />
             <TextField label="说明" name="notes_markdown" />
             <div><PrimaryButton>创建</PrimaryButton></div>
-          </form>
+          </CareerForm>
         </details>
       </div>
 
@@ -61,7 +63,7 @@ export default async function CertificationsPage() {
 
             <details className="mt-1.5">
               <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">编辑</summary>
-              <form action={updateCertification} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
+              <CareerForm action={submitCareerForm.bind(null, "updateCertification")} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
                 <input type="hidden" name="certification_id" value={item.id} />
                 <Field label="名称" name="name" defaultValue={item.name} required />
                 <Field label="发证机构" name="issuer" defaultValue={item.issuer} />
@@ -74,8 +76,8 @@ export default async function CertificationsPage() {
                 <SelectField label="证明材料" name="document_id" values={documentOptions} defaultValue={item.document_id ?? ""} />
                 <TextField label="说明" name="notes_markdown" defaultValue={item.notes_markdown} />
                 <div><PrimaryButton>保存</PrimaryButton></div>
-              </form>
-              <form action={archiveCertification} className="mt-2.5 px-1"><input type="hidden" name="certification_id" value={item.id} /><button className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档</button></form>
+              </CareerForm>
+              <CareerForm action={submitCareerForm.bind(null, "archiveCertification")} successMessage="已归档。" className="mt-2.5 px-1"><input type="hidden" name="certification_id" value={item.id} /><button className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档</button></CareerForm>
             </details>
           </article>
         ))}

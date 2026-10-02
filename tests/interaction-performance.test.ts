@@ -5,7 +5,7 @@ const source = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 const calendar = source("src/components/calendar/calendar-full-view.tsx");
-const globalStyles = source("src/app/globals.css");
+const globalStyles = [source("src/app/globals.css"), source("src/app/workspaces.css")].join("\n");
 const calendarWorkspace = source("src/components/calendar/calendar-workspace.tsx");
 const appShell = source("src/components/layout/app-shell.tsx");
 const globalAgent = source("src/components/assistant/global-agent.tsx");

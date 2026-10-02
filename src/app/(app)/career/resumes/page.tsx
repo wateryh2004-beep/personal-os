@@ -1,8 +1,10 @@
+import { CareerForm } from "@/components/career/career-form";
+import { submitCareerForm } from "@/features/career/form-actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
 import { ResumeCard } from "@/components/career/resume-card";
 import { Field, PrimaryButton, TextField } from "@/components/career/form-controls";
-import { createResumeVersion } from "@/features/career/actions";
+
 import { getResumeVersions } from "@/features/career/queries";
 
 const selectClass =
@@ -14,7 +16,7 @@ export default async function ResumesPage() {
 
   return (
     <>
-      <PageHeader title="简历中心" description="管理不同岗位使用的简历版本，并保留每次投递实际使用的版本。" />
+      <PageHeader title="简历" description="管理不同岗位使用的简历版本，并保留每次投递实际使用的版本。" />
       <CareerNav current="/career/resumes" />
 
       {data.unavailable ? (
@@ -27,7 +29,7 @@ export default async function ResumesPage() {
         <summary className="pressable inline-flex cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">
           + 新建简历版本
         </summary>
-        <form action={createResumeVersion} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] backdrop-blur-xl md:grid-cols-3">
+        <CareerForm action={submitCareerForm.bind(null, "createResumeVersion")} resetOnSuccess className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
           <Field name="title" label="名称 *" required />
           <Field name="version_label" label="版本标签" />
           <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-secondary)]">
@@ -43,7 +45,7 @@ export default async function ResumesPage() {
           <div className="md:col-span-3">
             <PrimaryButton>创建草稿</PrimaryButton>
           </div>
-        </form>
+        </CareerForm>
       </details>
 
       <div className="space-y-7">

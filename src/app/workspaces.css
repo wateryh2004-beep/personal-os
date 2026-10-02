@@ -1,0 +1,69 @@
+/* Module skins for third-party editors and calendars. Layout belongs to components. */
+.calendar-canvas .fc { height:100%; color:var(--text-primary); font-size:13px; }
+.calendar-canvas .fc-theme-standard td,.calendar-canvas .fc-theme-standard th { border-color:var(--border-subtle); }
+.calendar-canvas .fc-scrollgrid { border-width:0; }
+.calendar-canvas .fc-col-header-cell { background:color-mix(in srgb,var(--surface-canvas) 88%,var(--surface-sidebar)); }
+.calendar-canvas .fc-col-header-cell-cushion { padding:9px 4px; color:var(--text-secondary); font-weight:500; text-decoration:none; }
+.calendar-canvas .fc-day-today { background:color-mix(in srgb,var(--accent-soft) 42%,transparent)!important; }
+.calendar-canvas .fc-day-today .fc-col-header-cell-cushion { color:var(--accent); font-weight:600; }
+.calendar-canvas .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { display:inline-block; min-width:23px; margin-top:2px; margin-right:6px; padding:2px 6px; text-align:center; background:var(--accent); color:#fff; border-radius:9999px; }
+.calendar-canvas .fc-timegrid-slot { height:1.85em; border-color:rgba(60,60,67,.10); }
+.calendar-canvas .fc-timegrid-slot-minor { border-top-style:dotted; border-top-color:rgba(60,60,67,.07); }
+.calendar-canvas .fc-timegrid-slot-label-cushion { color:var(--text-tertiary); font-size:11px; padding-right:10px; }
+.calendar-canvas .fc-timegrid-now-indicator-line { border-color:var(--danger); border-width:1px; }
+.calendar-canvas .fc-timegrid-now-indicator-arrow { border-color:var(--danger); color:var(--danger); }
+.calendar-canvas .fc-event { border-width:1px 1px 1px 3px; border-radius:8px; box-shadow:none; cursor:pointer; }
+.calendar-canvas .fc-timegrid-event { margin:1px 2px; }
+.calendar-canvas .fc .fc-timegrid-event-harness { left:0!important; right:0!important; margin-left:0!important; margin-right:2px!important; }
+.calendar-canvas .fc-daygrid-day-frame { min-height:112px; }
+.calendar-canvas .fc-daygrid-event { border-radius:8px; margin:2px 3px; min-height:22px; transition:box-shadow var(--motion-fast) var(--ease-standard),filter var(--motion-fast) var(--ease-standard); }
+.calendar-canvas .fc-timegrid .fc-daygrid-day-frame { min-height:0!important; }
+.calendar-canvas .fc-timegrid .fc-daygrid-day-events { min-height:0!important; margin:0!important; display:flex; flex-wrap:wrap; align-items:flex-start; }
+.calendar-canvas .fc-timegrid .fc-daygrid-day-events > .fc-daygrid-event-harness { flex:1 1 0%; min-width:0; margin-right:2px; }
+.calendar-canvas .fc-timegrid .fc-daygrid-day-events > .fc-daygrid-event-harness .fc-daygrid-event { display:block; width:100%!important; min-height:0!important; margin:1px 0!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.calendar-canvas .fc-event:hover { box-shadow:0 2px 8px rgba(0,0,0,.075); filter:saturate(1.025); }
+.calendar-canvas .fc-day-other .fc-daygrid-day-number { color:color-mix(in srgb,var(--text-tertiary) 58%,transparent); }
+.calendar-canvas .fc-day-other { background:color-mix(in srgb,var(--surface-hover) 48%,transparent); }
+.calendar-canvas .fc-event-main { color:inherit!important; }
+.calendar-canvas .fc-highlight { background:color-mix(in srgb,var(--accent-soft) 72%,transparent); }
+.calendar-canvas .fc-more-link { color:var(--accent); font-size:11px; }
+.calendar-canvas .fc-daygrid-day-number { color:var(--text-secondary); font-size:12px; padding:5px 7px; text-decoration:none; }
+.calendar-canvas .fc-scrollgrid-section-sticky > * { background:#fff; }
+@media (max-width:767px) { .calendar-canvas .fc-timegrid-slot { height:1.6em; } .calendar-canvas .fc-daygrid-day-frame { min-height:84px; } .calendar-canvas .fc-daygrid-event { margin:2px 1px; } }
+.life-markdown-editor { display:flex; height:100%; min-height:0; flex-direction:column; background:var(--surface-canvas); color:var(--foreground); font-family:var(--font-sans); }
+.life-markdown-toolbar { position:sticky; top:0; z-index:5; display:flex; min-height:44px; align-items:center; gap:4px; overflow-x:auto; overscroll-behavior-inline:contain; padding:4px 12px; padding-left:max(12px,env(safe-area-inset-left)); padding-right:max(12px,env(safe-area-inset-right)); border-bottom:1px solid var(--border-subtle); background:color-mix(in srgb,var(--surface-canvas) 96%,var(--surface-sidebar)); box-shadow:none; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.life-markdown-toolbar::-webkit-scrollbar { display:none; }
+.life-codemirror { min-height:0; flex:1; overflow:hidden; }
+.life-codemirror .cm-editor { height:100%; min-height:0; }
+.life-codemirror .cm-scroller { -webkit-tap-highlight-color:transparent; }
+.life-markdown-statusbar { flex-shrink:0; display:flex; align-items:center; justify-content:space-between; min-height:26px; padding:0 14px; border-top:1px solid var(--border-subtle); background:color-mix(in srgb,var(--surface-canvas) 96%,var(--surface-sidebar)); color:var(--text-tertiary); font-size:12px; font-variant-numeric:tabular-nums; user-select:none; }
+.note-outline-item.is-active { background:var(--surface-selected); color:var(--text-primary); font-weight:600; }
+.notes-editor-loading { min-height:20rem; padding:1.5rem; background:var(--surface-canvas); }
+.notes-editor-loading::before { content:""; display:block; height:1rem; width:36%; border-radius:var(--radius-sm); background:var(--surface-hover); box-shadow:0 2.5rem 0 var(--surface-hover),0 5rem 0 var(--surface-hover),0 7.5rem 0 var(--surface-hover); animation:ui-loading-breathe 1.2s var(--ease-standard) infinite alternate; }
+
+.notes-editor-surface:fullscreen { box-sizing:border-box; height:var(--app-viewport-height); overflow:hidden; background:var(--background); padding:1.25rem 1.5rem; }
+
+
+/* Stable module classes, independent of whether the list contains results. */
+.notes-list-workspace { background:var(--surface-canvas); }
+.notes-navigator { background:var(--surface-sidebar); }
+.notes-document-shell { background:var(--surface-canvas); }
+.notes-title-input { color:var(--text-primary); }
+.notes-document-shell .life-codemirror .cm-editor { font-size:16px; }
+.notes-document-shell .life-codemirror .cm-scroller { line-height:1.76; scrollbar-width:thin; }
+.notes-document-shell .life-codemirror .cm-content { max-width:720px; padding:28px 32px 84px; }
+.notes-document-shell .life-codemirror .cm-activeLine { background:transparent; }
+.notes-document-shell .life-codemirror .cm-selectionBackground,
+.notes-document-shell .life-codemirror .cm-editor.cm-focused .cm-selectionBackground { background:var(--accent-soft); }
+.notes-document-shell .life-markdown-toolbar { background:var(--surface-canvas); }
+.notes-document-shell .life-markdown-statusbar { background:var(--surface-canvas); }
+.note-outline-item.is-active { background:var(--accent-soft); color:var(--accent); }
+.career-surface summary { list-style:none; }
+.career-surface summary::-webkit-details-marker { display:none; }
+.career-surface h1,.career-surface h2,.career-surface h3 { text-wrap:balance; }
+.calendar-workspace .fc-scroller { scrollbar-width:thin; overscroll-behavior:contain; }
+.calendar-workspace .fc-timegrid-now-indicator-line { overflow:visible; }
+.calendar-workspace .fc-timegrid-now-indicator-line::before { content:""; position:absolute; top:-3.5px; left:-3.5px; width:7px; height:7px; border-radius:50%; background:var(--danger); }
+.calendar-workspace .fc-more-link { border-radius:var(--radius-sm); padding:2px 5px; }
+.calendar-workspace .fc-more-link:hover { background:var(--surface-hover); }
+.now-workspace { padding-bottom:max(3rem,calc(var(--tab-bar-height) + 1.5rem)); }

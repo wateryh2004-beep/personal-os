@@ -50,11 +50,13 @@ function SheetContent({
   side = "right",
   showCloseButton = true,
   onOpenAutoFocus,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  const previousFocus = React.useRef<HTMLElement | null>(null)
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -62,12 +64,27 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed z-50 flex flex-col gap-4 border-[var(--separator)] bg-[var(--material-thick)] bg-clip-padding text-[13px] text-popover-foreground shadow-[var(--shadow-dialog)] backdrop-blur-2xl backdrop-saturate-[180%] ui-panel-transition data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:rounded-t-[22px] data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-[min(88vw,360px)] data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-[min(88vw,360px)] data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:rounded-b-[22px] data-[side=top]:border-b data-open:animate-in data-open:fade-in-0 data-[side=bottom]:data-open:slide-in-from-bottom-2 data-[side=left]:data-open:slide-in-from-left-2 data-[side=right]:data-open:slide-in-from-right-2 data-[side=top]:data-open:slide-in-from-top-2 data-closed:animate-out data-closed:fade-out-0 data-[side=bottom]:data-closed:slide-out-to-bottom-2 data-[side=left]:data-closed:slide-out-to-left-2 data-[side=right]:data-closed:slide-out-to-right-2 data-[side=top]:data-closed:slide-out-to-top-2",
+          "fixed z-50 flex flex-col gap-4 border-[var(--separator)] bg-[var(--material-thick)] bg-clip-padding text-[13px] text-popover-foreground shadow-[var(--shadow-dialog)] ui-panel-transition data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:rounded-t-[22px] data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-[min(88vw,360px)] data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-[min(88vw,360px)] data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:rounded-b-[22px] data-[side=top]:border-b data-open:animate-in data-open:fade-in-0 data-[side=bottom]:data-open:slide-in-from-bottom-2 data-[side=left]:data-open:slide-in-from-left-2 data-[side=right]:data-open:slide-in-from-right-2 data-[side=top]:data-open:slide-in-from-top-2 data-closed:animate-out data-closed:fade-out-0 data-[side=bottom]:data-closed:slide-out-to-bottom-2 data-[side=left]:data-closed:slide-out-to-left-2 data-[side=right]:data-closed:slide-out-to-right-2 data-[side=top]:data-closed:slide-out-to-top-2",
           className,
         )}
         onOpenAutoFocus={(event) => {
+          previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
           onOpenAutoFocus?.(event)
-          if (!event.defaultPrevented && window.matchMedia("(max-width: 767px)").matches) event.preventDefault()
+          if (!event.defaultPrevented && window.matchMedia("(max-width: 767px)").matches) {
+            event.preventDefault()
+            if (event.target instanceof HTMLElement) {
+              const heading = event.target.querySelector<HTMLElement>('[data-slot="sheet-title"]')
+              const focusTarget = heading ?? event.target
+              focusTarget.focus({ preventScroll: true })
+            }
+          }
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          if (!event.defaultPrevented && previousFocus.current?.isConnected) {
+            event.preventDefault()
+            previousFocus.current.focus({ preventScroll: true })
+          }
         }}
         {...props}
       >
@@ -94,7 +111,7 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function SheetTitle({ className, ...props }: React.ComponentProps<typeof SheetPrimitive.Title>) {
-  return <SheetPrimitive.Title data-slot="sheet-title" className={cn("text-[15px] font-semibold tracking-[-0.015em] text-[var(--text-primary)]", className)} {...props} />
+  return <SheetPrimitive.Title data-slot="sheet-title" tabIndex={-1} className={cn("text-[15px] font-semibold tracking-[-0.015em] text-[var(--text-primary)]", className)} {...props} />
 }
 
 function SheetDescription({ className, ...props }: React.ComponentProps<typeof SheetPrimitive.Description>) {

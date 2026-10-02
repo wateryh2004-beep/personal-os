@@ -8,7 +8,8 @@ describe("interaction continuity contracts", () => {
     const shell = source("src/components/layout/app-shell.tsx") + source("src/components/layout/use-shell-navigation.ts");
     expect(shell).toContain("pendingHref");
     expect(shell).toContain('perfMark("navigation-click"');
-    expect(shell).toContain('perfMeasure("navigation-ready"');
+    expect(shell).toContain('perfMeasure("route-commit"');
+    expect(shell).not.toContain('perfMeasure("navigation-ready"');
   });
 
   it("keeps desktop panel widths local and mobile panels non-resizable", () => {
@@ -53,7 +54,7 @@ describe("interaction continuity contracts", () => {
     expect(hook).toContain("saveWorkspaceSession");
     expect(hook).not.toContain("history.pushState");
     expect(tasks).toContain('useWorkspaceScrollRestoration("tasks:list")');
-    expect(notes).toContain('useWorkspaceScrollRestoration("notes:list")');
+    expect(notes).toContain('useWorkspaceScrollRestoration("notes:list",');
   });
 
   it("routes Notes context actions to the full-screen notes chat workspace", () => {

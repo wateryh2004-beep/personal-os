@@ -898,7 +898,7 @@ export function TaskWorkspace({
   };
 
   return (
-    <section className="flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
+    <section className="tasks-workspace flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="shrink-0 px-5 pb-2.5 pt-[18px] sm:px-7 lg:px-10">
           <div className="mx-auto flex max-w-[980px] items-start justify-between gap-3.5">
@@ -912,7 +912,7 @@ export function TaskWorkspace({
                 </span>
               </div>
               <nav
-                className="mt-2.5 flex items-center gap-4.5 overflow-x-auto"
+                className="tasks-view-tabs mt-2.5 flex items-center gap-4.5 overflow-x-auto"
                 aria-label="任务视图"
               >
                 {(["today", "upcoming", "all", "completed"] as TaskView[]).map((item) => (
@@ -970,7 +970,7 @@ export function TaskWorkspace({
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={assistant.toggle}>
+              <Button variant="ghost" size="sm" onClick={assistant.toggle} aria-label="打开任务 AI">
                 <Sparkles />
                 <span className="hidden sm:inline">AI</span>
               </Button>

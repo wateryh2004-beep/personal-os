@@ -1,5 +1,6 @@
 "use client";
 
+import { CareerHomeView, type CareerHomeData } from "@/components/career/career-home-view";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { DashboardLayout } from "@/components/layout/page-layouts";
@@ -14,8 +15,9 @@ import { CalendarShell } from "@/components/calendar/calendar-workspace-skeleton
 import TodayLoading from "@/app/(app)/today/loading";
 import type { NowWorkspace } from "@/features/today/types";
 import type { TodoTask } from "@/features/tasks/types";
+import { NoteEditorPolishFixture } from "./note-editor-polish-fixture";
 
-export type PolishScene = "heading" | "today" | "today-filled" | "tasks" | "calendar" | "notes" | "today-loading" | "tasks-loading" | "calendar-loading";
+export type PolishScene = "heading" | "career" | "career-filled" | "today" | "today-filled" | "tasks" | "calendar" | "notes" | "note-editor" | "today-loading" | "tasks-loading" | "calendar-loading";
 
 // Fixture-only, reached through the existing explicitly gated E2E route. Never
 // populated from an account, and the browser test never submits these forms.
@@ -56,15 +58,29 @@ const lists = [{ id: "e2e-list", displayName: "日常", isDefault: true }];
 const events: [] = [];
 const categories: [] = [];
 
+const career: CareerHomeData = {
+  now: Date.parse("2026-10-03T08:00:00Z"), profile: null, directions: [], experienceCount: 0,
+  skillCount: 0, resumeCount: 0, applications: [], milestones: [], interviewTargets: [], interviewPreparations: [], unavailable: false,
+};
+const filledCareer: CareerHomeData = {
+  ...career,
+  profile: { professional_headline: "Synthetic fixture · 仅用于职业工作台布局验证", current_stage: null },
+  interviewTargets: [{ id: "e2e-target", title: "示例面试准备", organization_snapshot: "布局测试组织", role_title_snapshot: "Synthetic fixture / 示例岗位", status: "active", next_interview_at: "2026-10-04T06:00:00Z" }],
+  interviewPreparations: [{ id: "e2e-prep", context_id: "e2e-target", status: "draft", next_practice_at: null }],
+  milestones: [{ id: "e2e-milestone", title: "示例事项：核对准备材料与接下来的计划", target_date: "2026-10-03", status: "planned" }],
+};
+
 export function WorkspacePolishHarness({ scene }: { scene: PolishScene }) {
-  const pathname = scene === "heading" ? "/today" : `/${scene.replace(/-(loading|filled)$/, "")}`;
+  const pathname = scene === "heading" ? "/today" : scene === "note-editor" ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
   return <div data-testid="workspace-polish-harness" data-scene={scene}>
     <AppShell presentationPathname={pathname}>
       {scene === "heading" ? <DashboardLayout><PageHeader eyebrow="Collection · 排版验证" title="项目与长期计划 / Projects and long-term plans" description="中英文标题、说明和操作保持清晰层级。This synthetic fixture checks wrapping without hiding long titles." action={<Button>新建项目</Button>} secondaryActions={<Button variant="ghost">查看全部</Button>} /><div className="mt-8 border-t border-[var(--separator)] pt-4 text-[14px] leading-6 text-[var(--text-secondary)]">仅用于共享标题组件的布局验证，不包含个人资料。</div></DashboardLayout> : null}
+      {scene === "career" || scene === "career-filled" ? <div><p className="mb-4 text-[12px] text-[var(--text-secondary)]">Synthetic fixture · 以下仅为布局验证，不包含个人经历或业务数据。</p><CareerHomeView data={scene === "career-filled" ? filledCareer : career} showContinue={false}/></div> : null}
       {scene === "today" || scene === "today-filled" ? <NowWorkspaceView workspace={scene === "today-filled" ? filledNow : now} /> : null}
       {scene === "tasks" ? <TaskWorkspace tasks={tasks} lists={lists} initialDayBounds={{ startMs: 0, endMs: 8_640_000_000_000_000 }} /> : null}
       {scene === "calendar" ? <CalendarWorkspace events={events} categories={categories} timezone="Asia/Shanghai" syncStatus={null} scopeReady /> : null}
       {scene === "notes" ? <NotesWorkspaceShell folders={folders} notes={notes}><NotesWorkspace notes={notes} folders={folders} timezone="Asia/Shanghai" state="ready" selectedFolder={null} initialView="all" dailyError={false} initialHasMore={false} /></NotesWorkspaceShell> : null}
+      {scene === "note-editor" ? <NoteEditorPolishFixture /> : null}
       {scene === "today-loading" ? <TodayLoading /> : null}
       {scene === "tasks-loading" ? <TasksShell /> : null}
       {scene === "calendar-loading" ? <CalendarShell /> : null}

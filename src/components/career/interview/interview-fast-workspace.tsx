@@ -1,5 +1,8 @@
 "use client";
 
+import { saveWorkspaceSession } from "@/lib/workspace-session";
+import { CAREER_CONTINUE_KEY } from "@/components/career/career-continue";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from "react";
@@ -367,6 +370,14 @@ export function InterviewFastWorkspace({
     })();
   };
   const newQuestionType = category === "all" ? "behavioral" : category;
+  useEffect(() => {
+    if (!selected) return;
+    saveWorkspaceSession(CAREER_CONTINUE_KEY, {
+      href: workspaceUrl(contextId, selected.questionId, filters, answerId),
+      label: selected.shortTitle || selected.prompt,
+    });
+  }, [selected, contextId, filters, answerId]);
+
   const newQuestionCategory = legacyCategoryByQuestionType[newQuestionType] ?? "behavioral";
   const newQuestionStyle = filters.style === "stress" ? "stress" : "standard";
 
@@ -375,7 +386,7 @@ export function InterviewFastWorkspace({
       <div className="px-2 sm:px-3">
         <div className="flex min-h-9 flex-wrap items-center justify-between gap-2.5">
           <div className="flex min-w-0 max-w-full items-center gap-2.5">
-            <Link href="/career" onClick={(event) => followWorkspaceLink(event, "/career")} prefetch className="pressable rounded-[8px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">← Career</Link>
+            <Link href="/career" onClick={(event) => followWorkspaceLink(event, "/career")} prefetch className="pressable rounded-[8px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">← 工作台</Link>
             <select
               aria-label="面试岗位"
               value={contextId}
@@ -396,7 +407,7 @@ export function InterviewFastWorkspace({
             <Link href={`/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`} onClick={(event) => followWorkspaceLink(event, `/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`)} className="pressable rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">复盘</Link>
             <details className="relative">
               <summary className="pressable cursor-pointer list-none rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 岗位</summary>
-              <form action={createInterviewContext} className="absolute right-0 z-30 mt-2 grid w-[min(480px,88vw)] gap-3 rounded-[14px] border border-[var(--separator)] bg-[var(--material-popover)] p-4 shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%] sm:grid-cols-2">
+              <form action={createInterviewContext} className="absolute right-0 z-30 mt-2 grid w-[min(480px,88vw)] gap-3 rounded-[14px] border border-[var(--separator)] bg-[var(--material-popover)] p-4 shadow-[var(--shadow-popover)] sm:grid-cols-2">
                 <input name="organization_snapshot" required placeholder="公司" className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]" />
                 <input name="role_title_snapshot" required placeholder="岗位" className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]" />
                 <input type="hidden" name="context_type" value="target" />
@@ -409,7 +420,7 @@ export function InterviewFastWorkspace({
 
         <div className={`${mobileDetailOpen ? "hidden md:block" : ""} mt-5 border-b border-[var(--separator)] pb-4`}>
           <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-            <div><h1 className="text-xl font-semibold leading-[1.3] tracking-[-0.015em]">面试学习库</h1><p className="mt-1 text-[12px] leading-6 text-[var(--text-tertiary)]">理解知识与推导，整理自己的表达，再练习复盘</p></div>
+            <div><h1 className="text-xl font-semibold leading-[1.3] tracking-[-0.015em]">面试准备</h1><p className="mt-1 text-[12px] leading-6 text-[var(--text-tertiary)]">理解知识与推导，整理自己的表达，再练习复盘</p></div>
             <span className="text-[12px] tabular-nums text-[var(--text-tertiary)]">{contextItems.length} 道题</span>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(180px,1fr)_minmax(130px,220px)_130px]">

@@ -19,5 +19,5 @@ export function DocumentLayout({ className, ...props }: LayoutProps) {
 }
 
 export function ContextSidebar({ className, ...props }: React.ComponentProps<"aside">) {
-  return <aside className={cn("border-b bg-[var(--material-sidebar)] p-4 backdrop-blur-2xl backdrop-saturate-[180%] md:sticky md:top-[var(--toolbar-height)] md:h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] md:overflow-y-auto md:border-r md:border-b-0", className)} {...props} />;
+  return <aside className={cn("border-b bg-[var(--material-sidebar)] p-4 md:sticky md:top-[var(--toolbar-height)] md:h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] md:overflow-y-auto md:border-r md:border-b-0", className)} {...props} />;
 }

@@ -6,10 +6,10 @@ const read = (path: string) => readFileSync(path, "utf8");
 describe("core UI consistency polish", () => {
   it("uses the system visual foundation without stale font or browser chrome", () => {
     const layout = read("src/app/layout.tsx");
-    const polish = read("src/app/ui-polish.css");
+    const polish = read("src/app/globals.css");
 
-    expect(layout).toContain('import "./ui-polish.css"');
-    expect(layout).toContain('themeColor: "#f5f5f7"');
+    expect(layout).toContain('import "./workspaces.css"');
+    expect(layout).toContain('themeColor: "#f7f7f5"');
     expect(layout).not.toContain("next/font/google");
     expect(polish).toContain("--separator:");
     expect(polish).toContain("--shadow-popover:");
@@ -28,8 +28,8 @@ describe("core UI consistency polish", () => {
     expect(dialog).toContain("max-sm:bottom-0");
     expect(popover).toContain("shadow-[var(--shadow-popover)]");
     expect(tooltip).toContain("delayDuration = 320");
-    expect(panel).toContain("bg-[var(--material-thick)]");
-    expect(panel).toContain("border-white/55");
+    expect(panel).toContain("bg-[var(--surface-canvas)]");
+    expect(panel).toContain("border-[var(--border-subtle)]");
     expect(panel).toContain("shadow-[var(--shadow-panel)]");
     expect(feedback).toContain("shadow-[var(--shadow-popover)]");
   });
@@ -39,27 +39,26 @@ describe("core UI consistency polish", () => {
     const today = read("src/components/today/today-workspace-loader.tsx");
     const tasks = read("src/components/tasks/tasks-workspace-skeleton.tsx");
     const calendar = read("src/components/calendar/calendar-workspace-skeleton.tsx");
-    const polish = read("src/app/ui-polish.css");
-
     expect(skeleton).toContain("ui-skeleton-shimmer");
     expect(skeleton).not.toContain("animate-pulse");
     expect(today).toContain("ui-skeleton-shimmer");
     expect(tasks).toContain("ui-skeleton-shimmer");
     expect(calendar).toContain("ui-skeleton-shimmer");
-    expect(polish).toContain(".notes-editor-loading::before");
+    expect(read("src/app/workspaces.css")).toContain(".notes-editor-loading::before");
   });
 
   it("keeps mobile spacing and shared typography aligned", () => {
-    const polish = read("src/app/ui-polish.css");
+    const polish = read("src/app/globals.css");
     const now = read("src/components/today/now-workspace.tsx");
     const header = read("src/components/shared/page-header.tsx");
 
-    expect(polish).toContain('--page-inline-mobile: 16px');
-    expect(polish).toContain('nav[aria-label="任务视图"]');
-    expect(polish).toContain('article a[href^="/notes/"]');
-    expect(polish).toContain("var(--tab-bar-height)");
+    expect(polish).toContain('--page-inline-mobile:16px');
+    expect(read("src/app/responsive.css")).toContain(".tasks-view-tabs");
+    expect(read("src/app/workspaces.css")).toContain(".notes-list-workspace");
+    expect(read("src/app/workspaces.css")).not.toContain(':has(article');
+    expect(read("src/app/responsive.css")).toContain("var(--tab-bar-height)");
     expect(now).toContain('className="now-workspace');
     expect(header).toContain('page-title');
-    expect(header).toContain('text-[13px]');
+    expect(header).toContain('text-[14px]');
   });
 });

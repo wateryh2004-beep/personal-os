@@ -36,7 +36,7 @@ describe("Notes experience contracts", () => {
 
   it("supports instant note switching from the persistent navigator", () => {
     const navigator = source("src/components/notes/notes-workspace-shell.tsx");
-    expect(navigator).toContain("切换笔记…");
+    expect(navigator).toContain("快速打开…");
     expect(navigator).toContain("filterNotesByMetadata");
     expect(navigator).toContain("noteFolderPath");
     expect(navigator).toContain('event.key === "Escape"');

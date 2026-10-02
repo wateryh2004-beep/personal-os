@@ -28,7 +28,7 @@ export function MicrosoftTodoCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button type="button" size="sm" onClick={() => setOpen(true)}>
+      <Button type="button" size="sm" onClick={() => setOpen(true)} aria-label="新建任务">
         <Plus aria-hidden="true" />
         <span className="hidden sm:inline">新建</span>
       </Button>

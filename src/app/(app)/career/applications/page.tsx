@@ -1,6 +1,8 @@
+import Link from "next/link";
+import { CareerForm } from "@/components/career/career-form";
+import { submitCareerForm } from "@/features/career/form-actions";
 import { PageHeader } from "@/components/shared/page-header";
-import { CareerNav } from "@/components/career/career-nav";
-import { createCareerApplication, transitionCareerApplication } from "@/features/career/actions";
+import { CareerNav, CareerOpportunityNav } from "@/components/career/career-nav";
 import { getApplications } from "@/features/career/queries";
 
 const stages = [
@@ -16,15 +18,17 @@ const stages = [
 
 const stageLabel = Object.fromEntries(stages);
 const controlClass = "h-9 rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
-const labelClass = "grid gap-1.5 text-[11px] font-medium text-[var(--text-secondary)]";
+const labelClass = "grid gap-1.5 text-[12px] font-medium text-[var(--text-secondary)]";
 
-export default async function ApplicationsPage() {
-  const data = await getApplications();
+export default async function ApplicationsPage({ searchParams }: { searchParams: Promise<{ opportunity?: string }> }) {
+  const [data, params] = await Promise.all([getApplications(), searchParams]);
+  const selectedOpportunity = data.opportunities.find((item) => item.id === params.opportunity);
 
   return (
     <>
-      <PageHeader title="申请" description="只保留真实投递和阶段变化。" />
+      <PageHeader title="机会与申请" description="只保留真实投递和阶段变化。" />
       <CareerNav current="/career/applications" />
+      <CareerOpportunityNav current="applications" />
 
       {data.unavailable ? (
         <p className="mb-6 rounded-[10px] bg-amber-50 px-3.5 py-2.5 text-[12px] leading-5 text-amber-800">
@@ -32,15 +36,15 @@ export default async function ApplicationsPage() {
         </p>
       ) : null}
 
-      <div className="mb-7 flex justify-end">
-        <details>
+      <div id="create-application" className="mb-7 scroll-mt-24">
+        <details open={Boolean(selectedOpportunity)}>
           <summary className="pressable cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
             + 新建申请
           </summary>
-          <form action={createCareerApplication} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] backdrop-blur-xl md:grid-cols-3">
+          <CareerForm action={submitCareerForm.bind(null, "createCareerApplication")} resetOnSuccess successMessage="申请已建立，可在下方查看。" successTargetId="application-list" className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
             <label className={labelClass}>
               <span>机会</span>
-              <select required name="opportunity_id" className={controlClass}>
+              <select required name="opportunity_id" defaultValue={selectedOpportunity?.id ?? ""} className={controlClass}>
                 <option value="">选择机会</option>
                 {data.opportunities.map((item) => <option key={item.id} value={item.id}>{item.organization} · {item.role_title}</option>)}
               </select>
@@ -69,36 +73,37 @@ export default async function ApplicationsPage() {
             <button disabled={!data.opportunities.length} className="pressable h-9 w-fit rounded-[10px] bg-[var(--accent)] px-3.5 text-[13px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] disabled:opacity-40">
               创建
             </button>
-          </form>
+          </CareerForm>
         </details>
       </div>
 
-      <div className="space-y-px">
+      <div id="application-list" className="space-y-px scroll-mt-24">
         {data.applications.map((application) => {
           const opportunity = Array.isArray(application.career_opportunities) ? application.career_opportunities[0] : application.career_opportunities;
           const resume = Array.isArray(application.resume_versions) ? application.resume_versions[0] : application.resume_versions;
           const history = data.events.filter((event) => event.application_id === application.id);
 
           return (
-            <article key={application.id} className="rounded-[10px] px-2.5 py-3.5 transition-colors ui-transition hover:bg-[var(--surface-hover)]">
+            <article id={`application-${application.id}`} key={application.id} className="rounded-[10px] px-2.5 py-3.5 transition-colors ui-transition hover:bg-[var(--surface-hover)]">
               <div className="grid gap-1.5 sm:grid-cols-[1fr_auto] sm:items-start">
                 <div>
-                  <h2 className="text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{opportunity?.role_title || "未知岗位"}</h2>
+                  <h2 className="text-[14px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{opportunity?.role_title || "未知岗位"}</h2>
                   <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">{opportunity?.organization || "未知组织"}</p>
                 </div>
-                <p className="text-[11px] leading-5 text-[var(--text-tertiary)]">{stageLabel[application.status] ?? application.status}</p>
+                <p className="text-[12px] leading-5 text-[var(--text-tertiary)]">{stageLabel[application.status] ?? application.status}</p>
               </div>
 
-              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[var(--text-tertiary)]">
-                {resume?.title ? <span>{resume.title}</span> : null}
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[var(--text-tertiary)]">
+                {resume?.title && application.resume_version_id ? <Link href={`/career/resumes#resume-${application.resume_version_id}`} className="inline-flex min-h-9 items-center text-[var(--accent)]">简历：{resume.title} →</Link> : null}
+                {application.opportunity_id ? <Link href={`/career/opportunities#opportunity-${application.opportunity_id}`} className="inline-flex min-h-9 items-center text-[var(--accent)]">查看机会 →</Link> : null}
                 {application.applied_at ? <span>{new Date(application.applied_at).toLocaleString("zh-CN")}</span> : null}
               </div>
 
               <details className="mt-2">
-                <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
+                <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
                   更新与历史
                 </summary>
-                <form action={transitionCareerApplication} className="mt-3 flex flex-wrap items-center gap-2">
+                <CareerForm action={submitCareerForm.bind(null, "transitionCareerApplication")} successMessage="申请阶段已更新。" className="mt-3 flex flex-wrap items-center gap-2">
                   <input type="hidden" name="application_id" value={application.id}/>
                   <input type="hidden" name="note" value=""/>
                   <select name="status" defaultValue={application.status} className={`${controlClass} h-8 px-2.5 text-[12px]`}>
@@ -107,12 +112,12 @@ export default async function ApplicationsPage() {
                   <button className="pressable h-8 rounded-[8px] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">
                     更新阶段
                   </button>
-                </form>
+                </CareerForm>
 
                 {history.length ? (
                   <ol className="mt-3 space-y-1.5 border-l border-[var(--separator)] pl-3">
                     {history.map((event) => (
-                      <li key={event.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11px] leading-5 text-[var(--text-secondary)]">
+                      <li key={event.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[12px] leading-5 text-[var(--text-secondary)]">
                         <span>{event.from_status ? (stageLabel[event.from_status] ?? event.from_status) + " → " : ""}{stageLabel[event.to_status] ?? event.to_status}</span>
                         <time className="tabular-nums text-[var(--text-tertiary)]">{new Date(event.occurred_at).toLocaleString("zh-CN")}</time>
                       </li>

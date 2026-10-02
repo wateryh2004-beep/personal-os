@@ -57,7 +57,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-[20px] border border-[var(--separator)] bg-[var(--material-thick)] p-5 text-[13px] text-popover-foreground shadow-[var(--shadow-dialog)] backdrop-blur-2xl backdrop-saturate-[180%] ui-panel-transition outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-open:slide-in-from-bottom-1 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-closed:slide-out-to-bottom-1 max-sm:bottom-0 max-sm:left-0 max-sm:top-auto max-sm:max-h-[min(82dvh,720px)] max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:overflow-y-auto max-sm:rounded-b-none max-sm:rounded-t-[22px] max-sm:border-x-0 max-sm:border-b-0 max-sm:px-4 max-sm:pt-5",
+          "fixed left-1/2 top-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-[20px] border border-[var(--separator)] bg-[var(--material-thick)] p-5 text-[13px] text-popover-foreground shadow-[var(--shadow-dialog)] ui-panel-transition outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-1 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-1 max-sm:bottom-0 max-sm:left-0 max-sm:top-auto max-sm:max-h-[min(82dvh,720px)] max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:overflow-y-auto max-sm:rounded-b-none max-sm:rounded-t-[22px] max-sm:border-x-0 max-sm:border-b-0 max-sm:px-4 max-sm:pt-5",
           className,
         )}
         onOpenAutoFocus={(event) => {

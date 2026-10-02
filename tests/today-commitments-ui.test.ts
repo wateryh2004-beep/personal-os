@@ -7,7 +7,7 @@ const source = readFileSync(resolve(process.cwd(), "src/components/today/today-c
 describe("Today commitment interaction contract", () => {
   it("keeps the surface bounded, evidence-only, and usable on narrow screens", () => {
     expect(source).toContain("const DEFAULT_VISIBLE = 5");
-    expect(source).toContain("暂无足够依据推荐下一步");
+    expect(source).toContain("暂无到期与临近提醒");
     expect(source).toContain("sm:grid-cols-[minmax(0,1fr)_auto]");
     expect(source).toContain("sm:items-center");
   });

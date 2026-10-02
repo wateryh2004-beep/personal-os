@@ -17,19 +17,21 @@ describe("navigation registry", () => {
     const hrefs = navigationRegistry.map((item) => item.href);
     expect(new Set(hrefs).size).toBe(hrefs.length);
     expect(desktopNavigationGroups.flatMap((group) => group.items).map((item) => item.href)).toEqual([
-      "/today", "/inbox", "/calendar", "/tasks", "/projects", "/reviews", "/notes", "/files", "/briefing", "/shopping", "/travel", "/career",
+      "/today", "/notes", "/career", "/inbox", "/calendar", "/tasks", "/projects", "/reviews", "/files", "/briefing", "/shopping", "/travel",
     ]);
-    expect(mobileTabNavigation.map((item) => item.href)).toEqual(["/today", "/calendar", "/tasks", "/career"]);
+    expect(mobileTabNavigation.map((item) => item.href)).toEqual(["/today", "/notes", "/career"]);
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/settings");
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/reviews");
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/briefing");
   });
 
-  it("keeps Notes prominent in mobile More without duplicating bottom tabs", () => {
-    expect(mobileMoreNavigationGroups[0].items.map((item) => item.href)).toEqual(["/notes"]);
+  it("keeps every secondary module reachable in More without duplicating frequent tabs", () => {
+    expect(mobileMoreNavigationGroups[0].items.map((item) => item.href)).toContain("/calendar");
     const more = mobileMoreNavigationGroups.flatMap((group) => group.items).map((item) => item.href);
     expect(new Set(more).size).toBe(more.length);
     expect(more).not.toContain("/career");
+    expect(more).not.toContain("/notes");
+    expect(more).toContain("/tasks");
     expect(mobileTabNavigation.map((item) => item.href)).toContain("/career");
     expect(new Set([...more, ...mobileTabNavigation.map((item) => item.href)])).toEqual(new Set(desktopNavigationGroups.flatMap((group) => group.items).map((item) => item.href)));
   });
@@ -74,7 +76,6 @@ describe("navigation registry", () => {
       { href: "/reviews", label: "Reviews" },
     ];
     expect(getMobileRecentNavigation(recents, "/today")).toEqual([
-      { targetHref: "/notes/123", item: navigationItemForPath("/notes/123") },
       { targetHref: "/projects", item: navigationItemForPath("/projects") },
       { targetHref: "/reviews", item: navigationItemForPath("/reviews") },
     ]);

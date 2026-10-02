@@ -8,6 +8,7 @@ import { lastNotesListSessionKey, lastNotesListTtlMs } from "@/features/notes/na
 import { saveWorkspaceSession } from "@/lib/workspace-session";
 import { useWorkspaceResource } from "@/lib/workspace-resource-cache";
 import { WorkspaceReadError } from "@/components/shared/workspace-read-error";
+import { WorkspaceSyncStatus } from "@/components/shared/workspace-sync-status";
 
 function NotesShell() {
   return (
@@ -39,5 +40,10 @@ export function NotesWorkspaceLoader({ folderId, initialView, dailyError }: { fo
   if (!data && snapshot.error) return <WorkspaceReadError resource={notesWorkspaceResource} />;
   if (!data) return <NotesShell />;
   const selectedFolder = data.folders.find((folder) => folder.id === folderId) ?? null;
-  return <NotesWorkspace notes={data.notes} folders={data.folders} timezone={data.timezone} state={data.state} selectedFolder={selectedFolder} initialView={initialView} dailyError={dailyError} initialHasMore={data.hasMore} />;
+  return <div className="flex h-full min-h-0 flex-col">
+    <WorkspaceSyncStatus error={snapshot.error} resource={notesWorkspaceResource} />
+    <div className="min-h-0 flex-1">
+      <NotesWorkspace notes={data.notes} folders={data.folders} timezone={data.timezone} state={data.state} selectedFolder={selectedFolder} initialView={initialView} dailyError={dailyError} initialHasMore={data.hasMore} />
+    </div>
+  </div>;
 }

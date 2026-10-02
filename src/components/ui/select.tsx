@@ -29,7 +29,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "pressable flex w-fit items-center justify-between gap-1.5 rounded-[var(--radius-md)] border border-transparent bg-[var(--surface-control)] pr-2 pl-2.5 text-[13px] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,.28)] outline-none select-none hover:bg-[var(--surface-control-hover)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)] disabled:cursor-not-allowed disabled:opacity-45 aria-invalid:ring-2 aria-invalid:ring-[color-mix(in_srgb,var(--danger)_18%,transparent)] data-placeholder:text-[var(--text-tertiary)] data-[size=default]:h-8 data-[size=sm]:h-7 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+        "pressable flex w-fit items-center justify-between gap-1.5 rounded-[var(--radius-md)] border border-transparent bg-[var(--surface-control)] pr-2 pl-2.5 text-[13px] whitespace-nowrap outline-none select-none hover:bg-[var(--surface-control-hover)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_60%,transparent)] disabled:cursor-not-allowed disabled:opacity-45 aria-invalid:ring-2 aria-invalid:ring-[color-mix(in_srgb,var(--danger)_18%,transparent)] data-placeholder:text-[var(--text-tertiary)] data-[size=default]:h-[var(--control-height)] data-[size=sm]:h-[var(--control-height-sm)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
         className,
       )}
       {...props}
@@ -55,7 +55,7 @@ function SelectContent({
         data-slot="select-content"
         data-align-trigger={position === "item-aligned"}
         className={cn(
-          "relative z-50 max-h-(--radix-select-content-available-height) min-w-36 origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-[12px] border border-[var(--separator)] bg-[var(--material-popover)] text-[var(--text-primary)] shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%] ui-panel-transition data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-0.5 data-[side=left]:slide-in-from-right-0.5 data-[side=right]:slide-in-from-left-0.5 data-[side=top]:slide-in-from-bottom-0.5 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "relative z-50 max-h-(--radix-select-content-available-height) min-w-36 origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-[12px] border border-[var(--separator)] bg-[var(--material-popover)] text-[var(--text-primary)] shadow-[var(--shadow-popover)] ui-panel-transition data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-0.5 data-[side=left]:slide-in-from-right-0.5 data-[side=right]:slide-in-from-left-0.5 data-[side=top]:slide-in-from-bottom-0.5 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
           position === "popper" && "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className,
         )}
@@ -77,7 +77,7 @@ function SelectContent({
 }
 
 function SelectLabel({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.Label>) {
-  return <SelectPrimitive.Label data-slot="select-label" className={cn("px-2 py-1 text-[10.5px] font-medium text-[var(--text-tertiary)]", className)} {...props} />
+  return <SelectPrimitive.Label data-slot="select-label" className={cn("px-2 py-1 text-xs font-medium text-[var(--text-tertiary)]", className)} {...props} />
 }
 
 function SelectItem({ className, children, ...props }: React.ComponentProps<typeof SelectPrimitive.Item>) {

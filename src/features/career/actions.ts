@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { applicationSchema, applicationTransitionSchema, bulletSchema, canApproveBullet, careerDirectionSchema, careerMilestoneSchema, careerProfileSchema, careerTrackOrderSchema, careerTrackSchema, certificationSchema, factSchema, formObject, gapAnalysisSchema, isCurrent, opportunitySchema, outputSchema, requirementSchema, resumeVersionSchema, skillSchema, experienceSchema } from "./schemas";
 import { assessRequirement, type GapEvidence } from "./gap-analysis";
+import { CareerInputError, careerValidationErrors } from "./form-state";
 
 function failed(error: unknown): never { void error; throw new Error("操作未能完成，请检查输入、权限或配置后重试。"); }
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, entityType: string, entityId: string, afterData: Record<string, unknown> = {}) {
@@ -16,7 +17,11 @@ async function own(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"
   const { data, error } = await supabase.from(table).select("id").eq("id", id).maybeSingle();
   if (error || !data) failed(new Error("找不到该记录或无权访问。"));
 }
-function parse<T>(schema: { safeParse: (data: unknown) => { success: boolean; data?: T } }, data: unknown): T { const result = schema.safeParse(data); if (!result.success) failed(new Error("输入不符合要求，请检查后重试。")); return result.data!; }
+function parse<T>(schema: { safeParse: (data: unknown) => { success: boolean; data?: T; error?: { issues: { path: PropertyKey[]; code: string; message: string; maximum?: number | bigint }[] } } }, data: unknown): T {
+  const result = schema.safeParse(data);
+  if (!result.success) throw new CareerInputError(careerValidationErrors(result.error?.issues ?? []));
+  return result.data!;
+}
 
 export async function saveCareerProfile(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const value = parse(careerProfileSchema, formObject(formData));
@@ -119,7 +124,7 @@ export async function approveBullet(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const bulletId = String(formData.get("bullet_id") || ""); await own(supabase, "experience_bullets", bulletId);
   const { data: bullet, error } = await supabase.from("experience_bullets").select("experience_id,source").eq("id", bulletId).single(); if (error || !bullet) failed(error || new Error("未找到表达。"));
   const { count } = await supabase.from("bullet_fact_links").select("id", { count: "exact", head: true }).eq("bullet_id", bulletId);
-  if (!canApproveBullet({ hasFact: Boolean(count), source: bullet.source })) failed(new Error("批准前请至少关联一条事实；AI 来源内容须先人工改写。"));
+  if (!canApproveBullet({ hasFact: Boolean(count), source: bullet.source })) throw new CareerInputError({}, "批准前请至少关联一条事实；AI 来源内容须先人工改写。");
   const { error: updateError } = await supabase.from("experience_bullets").update({ status: "approved", approved_at: new Date().toISOString() }).eq("id", bulletId); if (updateError) failed(updateError);
   await audit(supabase, userId, "approve", "experience_bullet", bulletId); revalidatePath(`/career/experiences/${bullet.experience_id}`);
 }

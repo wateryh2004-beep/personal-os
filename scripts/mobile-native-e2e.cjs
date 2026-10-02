@@ -52,11 +52,25 @@ async function backCloses(page, trigger, visibleTarget) {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       assert.ok(overflow <= 1, `${width}px viewport has ${overflow}px horizontal overflow`);
 
-      const careerTab = page.getByRole("link", { name: /职业/ });
+      // Drawer behavior belongs to the real AppShell; the standalone overlay
+      // fixture only renders a tab bar with an intentionally inert More button.
+      await page.goto(`${baseURL}/mobile-native-e2e?scene=heading`, { waitUntil: "networkidle" });
+      await page.getByTestId("workspace-polish-harness").waitFor();
+      const bottomNavigation = page.getByRole("navigation", { name: "底部导航" });
+      const careerTab = bottomNavigation.getByRole("link", { name: "职业", exact: true });
       await careerTab.waitFor({ state: "visible" });
       assert.equal(await careerTab.getAttribute("href"), "/career", `${width}px Career tab should link directly to /career`);
-      assert.equal(await page.getByRole("link", { name: /笔记/ }).count(), 0, `${width}px Notes should move under More instead of occupying a primary tab`);
+      assert.deepEqual(await bottomNavigation.getByRole("link").evaluateAll((links) => links.map((link) => link.getAttribute("href"))), ["/today", "/notes", "/career"], `${width}px frequent workspaces stay one tap away`);
+      await bottomNavigation.getByRole("button", { name: "更多", exact: true }).click();
+      const more = page.getByRole("dialog");
+      for (const name of ["日历", "任务", "收集箱", "项目", "回顾", "文件", "简报", "购物", "旅行", "设置"]) {
+        await more.getByRole("link", { name, exact: true }).waitFor({ state: "visible" });
+      }
+      await page.evaluate(() => history.back());
+      await more.waitFor({ state: "hidden" });
 
+      await page.goto(`${baseURL}/mobile-native-e2e`, { waitUntil: "networkidle" });
+      await page.getByTestId("mobile-native-harness").waitFor();
       const focus = page.locator('[aria-labelledby="today-priorities-heading"]');
       await focus.getByRole("button", { name: "选择重点" }).click();
       for (const n of [1,2,3]) await focus.getByRole("button", { name: new RegExp(`E2E 未定期任务 ${n}`) }).click();
@@ -222,20 +236,24 @@ async function backCloses(page, trigger, visibleTarget) {
           const schedule = await page.locator('[aria-labelledby="today-schedule-heading"]').boundingBox();
           const context = await page.locator('[aria-labelledby="today-context-heading"]').boundingBox();
           const future = await page.locator('[aria-labelledby="today-future-heading"]').boundingBox();
-          const focus = await page.locator('[aria-labelledby="today-focus-heading"]').boundingBox();
-          assert.ok(schedule && context && future && focus);
+          const priorities = await page.locator('[aria-labelledby="today-priorities-heading"]').boundingBox();
+          const reminders = await page.locator('[aria-labelledby="today-commitments-heading"]').boundingBox();
+          assert.ok(schedule && context && future && priorities && reminders);
+          assert.equal(await page.locator('[aria-labelledby="today-focus-heading"]').count(), 0, "empty or already-prioritized tasks do not repeat in another section");
           const contentBounds = await page.locator(".now-workspace").evaluate((node) => {
             const box = node.getBoundingClientRect();
             const style = getComputedStyle(node);
             return { left: box.left + parseFloat(style.paddingLeft), right: box.right - parseFloat(style.paddingRight) };
           });
-          for (const box of [schedule, context, future, focus]) {
+          for (const box of [schedule, context, future, priorities, reminders]) {
             assert.ok(box.x >= contentBounds.left - 1 && box.x + box.width <= contentBounds.right + 1, `${scene} ${width}px sections must stay inside content gutters, even when body overflow is clipped`);
           }
-          if (width >= 1024) assert.ok(Math.abs(focus.x - future.x) <= 1, "Today primary and secondary columns align");
+          assert.ok(Math.abs(priorities.x - reminders.x) <= 1, "Today priorities and reminders align");
+          if (width >= 1024) assert.ok(schedule.x >= priorities.x + priorities.width, "Today schedule sits beside priorities on desktop");
+          else assert.ok(schedule.y >= priorities.y + priorities.height, "Today schedule follows priorities on smaller screens");
           const body = await textMetrics(page.locator('[aria-labelledby="today-priorities-heading"] > div p').first());
           assert.ok(body.fontSize >= 12 && body.lineHeight >= 20, "Today supporting copy stays readable");
-          visualMetrics.push({ scene, width, captureButton, schedule, context, future, focus, body });
+          visualMetrics.push({ scene, width, captureButton, schedule, context, future, priorities, reminders, body });
         }
         if (scene === "heading" || scene === "tasks" || scene === "notes") {
           const title = await textMetrics(page.locator("#main-content h1").first());
@@ -307,7 +325,7 @@ async function backCloses(page, trigger, visibleTarget) {
         await capture(page, `workspace-${scene}-${width}`);
         if (scene === "tasks") {
           await page.getByRole("button", { name: "打开任务：核对本周计划", exact: true }).click();
-          const detail = page.getByRole("complementary", { name: "任务详情", exact: true });
+          const detail = page.getByRole("dialog", { name: "任务详情", exact: true });
           await detail.waitFor({ state: "visible" });
           await capture(page, `workspace-task-detail-${width}`);
           if (width < 768) await page.evaluate(() => history.back());

@@ -83,4 +83,43 @@ describe("side-panel geometry and input", () => {
     await act(async () => handle().dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })));
     expect(panel().style.getPropertyValue("--panel-width")).toBe("352px");
   });
+
+  it("opens on its heading instead of the width control and restores desktop focus", async () => {
+    const trigger = document.createElement("button"); trigger.textContent = "Open"; document.body.append(trigger); trigger.focus();
+    try {
+      await act(async () => render());
+      expect(document.activeElement).toBe(panel().querySelector("h2"));
+      await act(async () => render(false));
+      await act(async () => new Promise((resolve) => window.setTimeout(resolve, 0)));
+      expect(document.activeElement).toBe(trigger);
+    } finally { trigger.remove(); }
+  });
+
+  it("makes the mobile panel modal without opening an input and closes on browser Back", async () => {
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: true })) });
+    vi.spyOn(window.history, "back").mockImplementation(() => {});
+    window.history.replaceState({ __NA: true }, "", "/today");
+    const trigger = document.createElement("button"); document.body.append(trigger); trigger.focus();
+    const onClose = vi.fn();
+    try {
+      const props = { open: true, onClose, title: "详情", children: createElement("input", { "aria-label": "标题" }) };
+      await act(async () => root.render(createElement(SidePanelShell, props)));
+      expect(panel().getAttribute("role")).toBe("dialog");
+      expect(panel().getAttribute("aria-modal")).toBe("true");
+      expect(document.activeElement).toBe(panel().querySelector("h2"));
+      expect(handle().getAttribute("tabindex")).toBe("-1");
+      expect(trigger.getAttribute("aria-hidden")).toBe("true");
+      trigger.focus();
+      expect(panel().contains(document.activeElement)).toBe(true);
+      expect(window.history.state.__personalOsMobileLayer).toMatch(/^side-panel:inspector:/);
+      await act(async () => window.dispatchEvent(new PopStateEvent("popstate", { state: { __NA: true } })));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => render(false));
+      await act(async () => new Promise((resolve) => window.setTimeout(resolve, 0)));
+      expect(document.activeElement).toBe(trigger);
+      expect(trigger.hasAttribute("aria-hidden")).toBe(false);
+      trigger.remove();
+    }
+  });
 });

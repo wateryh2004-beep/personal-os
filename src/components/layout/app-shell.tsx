@@ -326,7 +326,7 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
     [pathname, recentNavigation],
   );
 
-  const desktopSidebar = useMemo(() => <aside style={{ width: desktopWidth }} className="fixed inset-y-0 left-0 z-30 hidden shrink-0 flex-col border-r border-white/55 bg-[var(--material-sidebar)] shadow-[8px_0_30px_rgba(0,0,0,.025)] backdrop-blur-2xl backdrop-saturate-[180%] md:flex">
+  const desktopSidebar = useMemo(() => <aside style={{ width: desktopWidth }} className="app-sidebar fixed inset-y-0 left-0 z-30 hidden shrink-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--material-sidebar)] md:flex">
     <div className={cn("flex h-12 items-center px-2.5", collapsed ? "justify-center" : "justify-between")}>
       <Link
         href="/today"
@@ -334,7 +334,7 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
         onNavigate={(event) => beginNavigation("/today", event)}
         onPointerEnter={() => prefetchNavigationTarget("/today")}
         onFocus={() => prefetchNavigationTarget("/today")}
-        aria-label="Life of HANG，返回 Now"
+        aria-label="Life of HANG，返回今日"
         className={cn("wordmark truncate text-[15.5px] text-[var(--text-primary)]", collapsed ? "text-base" : "px-1.5")}
       >
         {collapsed ? "H" : "Life of HANG"}
@@ -360,10 +360,10 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
             : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
           collapsed ? "justify-center" : "px-2.5",
         )}
-        aria-label={collapsed ? "Settings" : undefined}
+        aria-label={collapsed ? "设置" : undefined}
       >
         <Settings className="size-4 text-[var(--text-tertiary)]" strokeWidth={1.8} aria-hidden="true" />
-        {collapsed ? null : "Settings"}
+        {collapsed ? null : "设置"}
       </Link>
       <form action={logoutAction} onSubmit={() => { clearWorkspaceSessions(); clearWorkspaceResources(); }}>
         <button className={cn("pressable flex h-9 w-full items-center gap-2.5 rounded-[11px] text-[13px] font-medium tracking-[-0.007em] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]", collapsed ? "justify-center" : "px-2.5")} aria-label={collapsed ? "退出登录" : undefined}>
@@ -375,13 +375,17 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
   </aside>, [beginNavigation, collapsed, desktopWidth, pathname, prefetchNavigationTarget, visiblePendingHref]);
 
   return <div className="min-h-[var(--app-viewport-height)] bg-[var(--surface-app)]">
+    <a href="#main-content" className="skip-link fixed left-3 top-3 z-[100] rounded-[var(--radius-md)] bg-[var(--surface-canvas)] px-4 py-3 text-sm text-[var(--accent)] shadow-[var(--shadow-popover)] -translate-y-[200%] focus:translate-y-0" onClick={(event) => {
+      event.preventDefault();
+      document.getElementById("main-content")?.focus({ preventScroll: true });
+    }}>跳到正文</a>
     {visiblePendingHref ? <>
       <div data-navigation-progress aria-hidden="true" className="pointer-events-none fixed inset-x-0 top-0 z-[70] h-0.5 overflow-hidden bg-[var(--accent-soft)]" />
       <p role="status" className="sr-only">正在打开{navigationItemForPath(pathnameFromHref(visiblePendingHref) ?? "")?.name ?? "页面"}…</p>
     </> : null}
     {desktopSidebar}
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-      <SheetContent side="left" className="w-[min(84vw,282px)] gap-0 border-r border-white/55 bg-[var(--material-thick)] p-0 backdrop-blur-2xl backdrop-saturate-[180%]">
+      <SheetContent side="left" className="w-[min(84vw,282px)] gap-0 border-r border-[var(--border-subtle)] bg-[var(--material-thick)] p-0">
         <div className="flex min-h-12 items-center px-4 pt-[env(safe-area-inset-top)]"><SheetTitle className="wordmark text-[16px]">Life of HANG</SheetTitle></div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
           {mobileRecentNavigation.length ? <div className="mb-4">
@@ -423,19 +427,19 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
           pathname === "/settings" ? "text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)]",
         )}
         >
-          <Settings className="size-4 text-[var(--text-tertiary)]" strokeWidth={1.8} aria-hidden="true" />Settings
+          <Settings className="size-4 text-[var(--text-tertiary)]" strokeWidth={1.8} aria-hidden="true" />设置
         </Link>
       </SheetContent>
     </Sheet>
     <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="min-h-[var(--app-viewport-height)] min-w-0 bg-[var(--surface-canvas)] md:ml-[var(--shell-width)]">
-      <header className="sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-2.5 border-b border-white/55 bg-[var(--material-toolbar)] px-3 pt-[env(safe-area-inset-top)] shadow-[0_8px_28px_rgba(0,0,0,.025)] backdrop-blur-2xl backdrop-saturate-[180%] sm:px-4">
+      <header className="app-toolbar sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-2.5 border-b border-[var(--border-subtle)] bg-[var(--material-toolbar)] px-3 pt-[env(safe-area-inset-top)] sm:px-4">
         <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu aria-hidden="true" /></Button>
         <button type="button" onClick={() => openCommand("search")} className="pressable mx-auto flex h-8 w-full max-w-lg items-center gap-2 rounded-[11px] bg-[var(--surface-control)] px-2.5 text-left text-[13px] text-[var(--text-tertiary)] shadow-[inset_0_1px_0_rgba(255,255,255,.36)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-secondary)]"><Search className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden font-sans text-[10px] font-medium text-[var(--text-tertiary)] sm:inline">⌘K</kbd></button>
-        <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={openGlobalAgent} aria-label="询问 Personal OS" className="gap-1.5"><Sparkles className="size-3.5" aria-hidden="true"/><span className="hidden sm:inline">Ask</span><kbd className="hidden font-sans text-[9px] font-medium text-[var(--text-tertiary)] lg:inline">⌘J</kbd></Button></TooltipTrigger><TooltipContent>Ask Personal OS</TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={openGlobalAgent} aria-label="询问 Personal OS" className="gap-1.5"><Sparkles className="size-3.5" aria-hidden="true"/><span className="hidden sm:inline">询问</span><kbd className="hidden font-sans text-[9px] font-medium text-[var(--text-tertiary)] lg:inline">⌘J</kbd></Button></TooltipTrigger><TooltipContent>询问 Personal OS（⌘J）</TooltipContent></Tooltip>
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" onClick={openContextualCreate} aria-label="快速新建"><Plus aria-hidden="true" /></Button></TooltipTrigger><TooltipContent>快速新建（⌘N）</TooltipContent></Tooltip>
       </header>
       <div className="min-w-0">
-        <main id="main-content" className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>
+        <main id="main-content" tabIndex={-1} className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>
         {globalAgentOpen ? <GlobalAgent open onClose={closeGlobalAgent} /> : null}
       </div>
     </div>

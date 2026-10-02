@@ -9,6 +9,8 @@ import { listNotesWorkspacePage } from "@/features/notes/queries";
 const querySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().min(1).max(100).default(50),
+  folderId: z.string().uuid().optional(),
+  view: z.enum(["all", "favorites", "recent"]).default("all"),
 });
 
 export async function GET(request: Request) {
@@ -17,6 +19,8 @@ export async function GET(request: Request) {
     const parsed = querySchema.safeParse({
       offset: url.searchParams.get("offset") ?? undefined,
       limit: url.searchParams.get("limit") ?? undefined,
+      folderId: url.searchParams.get("folderId") ?? undefined,
+      view: url.searchParams.get("view") ?? undefined,
     });
     if (!parsed.success) {
       return NextResponse.json({ error: "分页参数无效。" }, { status: 400 });

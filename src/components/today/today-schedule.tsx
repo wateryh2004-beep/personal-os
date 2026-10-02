@@ -2,8 +2,9 @@ import { eventRecordHref } from "@/features/today/record-links";
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 import type { NowWorkspace } from "@/features/today/types";
-import { buildTodaySchedule } from "@/features/today/utils";
+import { todaySchedulePresentation } from "@/features/today/presentation";
 import { TodaySectionHeader } from "./section-header";
+import { CommitmentActions } from "./today-commitments";
 
 function formatTime(value: string, timezone: string) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -15,12 +16,13 @@ function formatTime(value: string, timezone: string) {
 }
 
 export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
-  const schedule = buildTodaySchedule(workspace.calendar.today);
+  const schedule = todaySchedulePresentation(workspace);
+  const eventReminders = new Map(workspace.commitments.filter((item) => item.kind === "event").map((item) => [item.source.entityId, item]));
 
   return (
     <section aria-labelledby="today-schedule-heading" className="min-w-0">
       <TodaySectionHeader href="/calendar" label="日历">
-        <span id="today-schedule-heading">今日日程</span>
+        <span id="today-schedule-heading">{schedule.nextEvent ? "接下来" : "今日日程"}</span>
       </TodaySectionHeader>
 
       <div className="mt-2 border-t border-[var(--separator)] pt-2">
@@ -66,13 +68,14 @@ export function TodaySchedule({ workspace }: { workspace: NowWorkspace }) {
                       {event.location_name ? ` · ${event.location_name}` : ""}
                     </span>
                   </Link>
+                  {eventReminders.has(event.id) ? <div className="ml-3.5 mt-1"><span className="text-[12px] text-[var(--accent)]">{eventReminders.get(event.id)!.whyNow}</span><CommitmentActions item={eventReminders.get(event.id)!} timezone={workspace.timezone} /></div> : null}
                 </li>
               ))}
             </ol>
 
             {schedule.hiddenCount ? (
               <Link href="/calendar" className="mt-2 inline-flex text-[12px] font-medium text-[var(--text-tertiary)] hover:text-[var(--accent)]">
-                还有 {schedule.hiddenCount} 项日程
+                查看全天 {workspace.calendar.today.length} 项日程
               </Link>
             ) : null}
           </>

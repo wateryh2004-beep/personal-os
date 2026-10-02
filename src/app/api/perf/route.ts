@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-owner";
-import { clientMetricNames } from "@/lib/performance/client-metrics";
+import { clientMetricNames, clientMetricRoutes } from "@/lib/performance/client-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,7 @@ const metricSchema = z.object({
   name: z.enum(clientMetricNames),
   value: z.number().finite().min(0).max(120_000),
   rating: z.enum(["good", "needs-improvement", "poor"]).optional(),
-  route: z.enum(["/today", "/calendar", "/tasks", "/notes", "/notes/[id]", "/briefing"]),
+  route: z.enum(clientMetricRoutes),
   displayMode: z.enum(["standalone", "browser"]),
   viewport: z.enum(["360", "390", "412", "430", "wide"]),
 }).strict();

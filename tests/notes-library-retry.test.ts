@@ -44,6 +44,7 @@ beforeEach(() => {
   document.body.append(container);
   root = createRoot(container);
   vi.clearAllMocks();
+  vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -69,15 +70,15 @@ describe("Notes library retry flows", () => {
     vi.mocked(moveNote).mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(undefined);
     await act(async () => renderWorkspace());
     await act(async () => button("移动到…").click());
-    const select = container.querySelector("select")!;
+    const select = document.body.querySelector("select")!;
     await act(async () => { select.value = "folder"; select.dispatchEvent(new Event("change", { bubbles: true })); });
     await act(async () => select.closest("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-    expect(container.textContent).toContain("操作未能确认");
-    expect(container.querySelector("select")?.value).toBe("folder");
+    expect(document.body.textContent).toContain("操作未能确认");
+    expect(document.body.querySelector("select")?.value).toBe("folder");
     expect(mocks.show).not.toHaveBeenCalled();
     await act(async () => select.closest("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     expect(vi.mocked(moveNote).mock.calls[1][0].get("folder_id")).toBe("folder");
-    expect(container.querySelector("select")).toBeNull();
+    expect(document.body.querySelector("select")).toBeNull();
     expect(mocks.show).toHaveBeenCalledWith({ message: "笔记位置已更新", tone: "success" });
   });
 });

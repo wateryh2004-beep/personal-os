@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const tabBar = readFileSync("src/components/layout/mobile-tab-bar.tsx", "utf8");
 const appShell = readFileSync("src/components/layout/app-shell.tsx", "utf8");
-const globals = readFileSync("src/app/globals.css", "utf8");
+const responsive = readFileSync("src/app/responsive.css", "utf8");
 
 describe("mobile tab bar contract", () => {
   it("only renders on mobile and sits above the safe-area inset", () => {
@@ -41,6 +41,6 @@ describe("mobile tab bar contract", () => {
   });
 
   it("reserves tab-bar height on mobile in the design tokens", () => {
-    expect(globals).toMatch(/--tab-bar-height:calc\(56px \+ env\(safe-area-inset-bottom\)\)/);
+    expect(responsive).toMatch(/--tab-bar-height:\s*calc\(64px \+ env\(safe-area-inset-bottom\)\)/);
   });
 });
