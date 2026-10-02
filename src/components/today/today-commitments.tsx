@@ -1,13 +1,15 @@
 "use client";
 
+import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
+
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { CalendarPlus, Check, CheckSquare2, ChevronDown, Inbox, TimerReset } from "lucide-react";
 import type { NowCommitment } from "@/features/today/types";
 import { CompleteTaskControl } from "./complete-task-control";
 import { shiftCalendarCursor } from "@/features/calendar/timezone";
-import { tasksWorkspaceResource } from "@/features/tasks/workspace-resource";
-import { todayWorkspaceResource } from "@/features/today/workspace-resource";
+import { tasksWorkspaceResource as tasksResource } from "@/features/tasks/workspace-resource";
+import { todayWorkspaceResource as todayResource } from "@/features/today/workspace-resource";
 import { useActionFeedback } from "@/components/shared/action-feedback";
 import { deferMicrosoftTodoTaskAction } from "@/features/tasks/microsoft-todo";
 
@@ -21,6 +23,8 @@ const actionClass =
   "pressable inline-flex min-h-11 sm:min-h-8 items-center gap-1 rounded-[8px] px-1.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50";
 
 function DeferTaskControl({ task, timezone }: { task: NonNullable<NowCommitment["task"]>; timezone: string }) {
+  const tasksWorkspaceResource = useWorkspaceResourceLease(tasksResource);
+  const todayWorkspaceResource = useWorkspaceResourceLease(todayResource);
   const [pending, startTransition] = useTransition();
   const [failed, setFailed] = useState(false);
   const inFlight = useRef(false);

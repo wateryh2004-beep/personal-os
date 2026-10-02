@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/lib/workspace-revalidation";
 import { z } from "zod";
 import { syncMicrosoftTodo } from "@/lib/adapters/microsoft-graph/todo";
 import { microsoftTodoRepository } from "./repository";
@@ -27,15 +27,15 @@ export async function syncMicrosoftTodoAction() {
   const connection = await activeConnection(supabase);
   const result = await syncMicrosoftTodo(connection.id, userId);
   await audit(supabase, userId, "sync", connection.id, result);
-  revalidatePath("/tasks");
+  await revalidatePath("/tasks");
 }
 
 export async function syncAndBackupMicrosoftTodoAction() {
   const { supabase, userId } = await requireOwner();
   const connection = await activeConnection(supabase);
   await syncAndBackupMicrosoftWorkspace(connection.id, userId, "manual");
-  revalidatePath("/tasks");
-  revalidatePath("/calendar");
+  await revalidatePath("/tasks");
+  await revalidatePath("/calendar");
 }
 
 const completeSchema = z.object({ taskId: z.string().uuid() });
@@ -78,9 +78,9 @@ export async function createMicrosoftTodoTaskAction(_: TodoCreateState, formData
     await markInboxProcessed(supabase, userId, parsed.data.inboxId, "task", taskId);
     const bodyLinkSync = await syncEntityReferenceLinks(supabase, userId, "todo_task", taskId, parsed.data.bodyText ?? "");
     if (!bodyLinkSync.ok) console.error(JSON.stringify({ level: "warn", action: "sync_entity_reference_links", taskId, code: bodyLinkSync.code }));
-    revalidatePath("/tasks");
-    revalidatePath("/inbox");
-    revalidatePath("/today");
+    await revalidatePath("/tasks");
+    await revalidatePath("/inbox");
+    await revalidatePath("/today");
     return { status: "success", message: "任务已写入 Microsoft To Do。", taskId };
   } catch {
     return { status: "error", message: "任务未能写入 Microsoft To Do。请稍后重试或重新连接。" };
@@ -94,8 +94,8 @@ export async function completeMicrosoftTodoTaskAction(formData: FormData) {
   const connection = await activeConnection(supabase);
   await microsoftTodoRepository.complete(connection.id, userId, parsed.data.taskId);
   await audit(supabase, userId, "complete", parsed.data.taskId, { provider: "microsoft_todo" });
-  revalidatePath("/tasks");
-  revalidatePath("/today");
+  await revalidatePath("/tasks");
+  await revalidatePath("/today");
 }
 
 /** User-triggered defer; the provider-backed task remains the sole authority. */
@@ -107,8 +107,8 @@ export async function deferMicrosoftTodoTaskAction(formData: FormData) {
   const { data: before } = await supabase.from("microsoft_todo_tasks").select("due_at,title").eq("id", parsed.data.taskId).is("archived_at", null).maybeSingle();
   await microsoftTodoRepository.update(connection.id, userId, parsed.data.taskId, { dueAt: parsed.data.dueAt });
   await audit(supabase, userId, "defer", parsed.data.taskId, { provider: "microsoft_todo", before, due_at: parsed.data.dueAt });
-  revalidatePath("/tasks");
-  revalidatePath("/today");
+  await revalidatePath("/tasks");
+  await revalidatePath("/today");
 }
 
 export async function updateMicrosoftTodoTaskAction(input: unknown) {
@@ -123,8 +123,8 @@ export async function updateMicrosoftTodoTaskAction(input: unknown) {
     const bodyLinkSync = await syncEntityReferenceLinks(supabase, userId, "todo_task", parsed.data.taskId, parsed.data.bodyText ?? "");
     if (!bodyLinkSync.ok) console.error(JSON.stringify({ level: "warn", action: "sync_entity_reference_links", taskId: parsed.data.taskId, code: bodyLinkSync.code }));
   }
-  revalidatePath("/tasks");
-  revalidatePath("/today");
+  await revalidatePath("/tasks");
+  await revalidatePath("/today");
 }
 
 export async function deleteMicrosoftTodoTaskAction(formData: FormData) {
@@ -135,8 +135,8 @@ export async function deleteMicrosoftTodoTaskAction(formData: FormData) {
   const { data: before } = await supabase.from("microsoft_todo_tasks").select("title,status,todo_list_id").eq("id", parsed.data.taskId).is("archived_at", null).maybeSingle();
   await microsoftTodoRepository.delete(connection.id, userId, parsed.data.taskId);
   await audit(supabase, userId, "delete", parsed.data.taskId, { provider: "microsoft_todo", before });
-  revalidatePath("/tasks");
-  revalidatePath("/today");
+  await revalidatePath("/tasks");
+  await revalidatePath("/today");
 }
 
 export async function reopenMicrosoftTodoTaskAction(formData: FormData) {
@@ -146,6 +146,6 @@ export async function reopenMicrosoftTodoTaskAction(formData: FormData) {
   const connection = await activeConnection(supabase);
   await microsoftTodoRepository.reopen(connection.id, userId, parsed.data.taskId);
   await audit(supabase, userId, "reopen", parsed.data.taskId, { provider: "microsoft_todo" });
-  revalidatePath("/tasks");
-  revalidatePath("/today");
+  await revalidatePath("/tasks");
+  await revalidatePath("/today");
 }

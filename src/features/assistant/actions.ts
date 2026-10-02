@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/lib/workspace-revalidation";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { AgentActionConflict, executeFrozenAgentAction } from "./executor";
@@ -75,7 +75,7 @@ export async function approveAgentAction(actionId: string): Promise<AgentActionR
     await audit({ supabase, userId, action: "agent_action_succeeded", actionId, data: { run_id: action.run_id, domain: action.domain, action_type: action.action_type } });
     const { count } = await supabase.from("agent_actions").select("id", { count: "exact", head: true }).eq("run_id", action.run_id).eq("status", "proposed");
     if ((count ?? 0) === 0) await supabase.from("agent_runs").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", action.run_id);
-    revalidatePath("/calendar"); revalidatePath("/tasks"); revalidatePath("/notes"); revalidatePath("/today"); revalidatePath("/career"); revalidatePath("/memory");
+    await revalidatePath("/calendar"); await revalidatePath("/tasks"); await revalidatePath("/notes"); await revalidatePath("/today"); await revalidatePath("/career"); await revalidatePath("/memory");
     const href = typeof result === "object" && result && "href" in result ? String(result.href) : undefined;
     return { status: "success", message: "已确认并完成。", actionId, href };
   } catch (executionError) {

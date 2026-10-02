@@ -1,16 +1,19 @@
 "use client";
 
+import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
+
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { CheckCircle2, Plus, X } from "lucide-react";
 import type { NowTask, TodayFocus } from "@/features/today/types";
 import { selectFocusCandidates } from "@/features/today/focus";
 import { saveTodayFocusAction } from "@/features/today/focus-actions";
-import { todayWorkspaceResource } from "@/features/today/workspace-resource";
+import { todayWorkspaceResource as todayResource } from "@/features/today/workspace-resource";
 import { taskRecordHref } from "@/features/today/record-links";
 import { CompleteTaskControl } from "./complete-task-control";
 
 export function TodayPriorities({ focus }: { focus: TodayFocus }) {
+  const todayWorkspaceResource = useWorkspaceResourceLease(todayResource);
   const [editing, setEditing] = useState(false);
   const [selectedIds, setSelectedIds] = useState(focus.selectedIds);
   const [previousIds, setPreviousIds] = useState(focus.selectedIds);

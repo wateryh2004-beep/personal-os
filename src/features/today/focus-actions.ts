@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/lib/workspace-revalidation";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { focusSaveError, todayFocusSchema } from "./focus";
 
@@ -15,7 +15,7 @@ export async function saveTodayFocusAction(input: unknown): Promise<{ ok: boolea
       p_previous_ids: parsed.data.previousIds,
     });
     if (error) return { ok: false, message: focusSaveError(error.message) };
-    revalidatePath("/today");
+    await revalidatePath("/today");
     return { ok: true, message: "今日重点已保存，可在其他设备继续查看。" };
   } catch {
     return { ok: false, message: focusSaveError("") };

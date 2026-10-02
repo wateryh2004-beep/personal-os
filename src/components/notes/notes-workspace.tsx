@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
+
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { unstable_rethrow, useRouter, useSearchParams } from "next/navigation";
@@ -24,7 +26,7 @@ import type { NoteListItem } from "@/features/notes/types";
 import { formatNoteTimestamp } from "@/features/notes/utils";
 import { filterNotesByMetadata, mergeNoteSearchResults, noteFolderPath } from "@/features/notes/local-search";
 import { useWorkspaceScrollRestoration } from "@/components/shared/use-workspace-scroll-restoration";
-import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
+import { notesWorkspaceResource as notesResource } from "@/features/notes/workspace-resource";
 import { useActionFeedback } from "@/components/shared/action-feedback";
 
 type Folder = { id: string; name: string; parent_id: string | null };
@@ -168,6 +170,8 @@ export function NotesWorkspace({
   dailyError: boolean;
   initialHasMore: boolean;
 }) {
+
+  const notesWorkspaceResource = useWorkspaceResourceLease(notesResource);
   const router = useRouter();
   const feedback = useActionFeedback();
   const params = useSearchParams();

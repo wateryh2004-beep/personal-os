@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), revalidate: vi.fn(), owner: vi.fn() }));
-vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
+vi.mock("@/lib/workspace-revalidation", () => ({ revalidatePath: mocks.revalidate }));
 vi.mock("@/lib/auth/require-owner", () => ({ requireOwner: mocks.owner }));
 import { saveTodayFocusAction } from "@/features/today/focus-actions";
 const input = { date: "2026-10-01", taskIds: ["c0000000-0000-4000-8000-000000000001"], previousIds: [] };

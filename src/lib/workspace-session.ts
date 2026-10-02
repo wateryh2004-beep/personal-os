@@ -68,3 +68,13 @@ export function clearWorkspaceSessions() {
     }
   } catch { /* unavailable storage */ }
 }
+
+/** Retain same-owner draft recovery through reloads, discard other identities. */
+export function reconcileWorkspaceSessionOwner(ownerId: string) {
+  if (typeof window === "undefined") return;
+  const key = `${WORKSPACE_SESSION_PREFIX}owner`;
+  try {
+    if (window.sessionStorage.getItem(key) !== ownerId) clearWorkspaceSessions();
+    window.sessionStorage.setItem(key, ownerId);
+  } catch { /* Unavailable recovery storage never blocks the workspace. */ }
+}

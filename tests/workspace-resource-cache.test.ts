@@ -66,7 +66,7 @@ it("detaches pre-mutation reads so a late stale response cannot replace saved da
   const afterMutation = resource.revalidate({ force: true });
   expect(fetcher).toHaveBeenCalledTimes(2);
   oldRead({ version: 1 });
-  await beforeMutation;
+  await expect(beforeMutation).rejects.toThrow("workspace_read_superseded");
   expect(resource.get().data).toEqual({ version: 2 });
   freshRead({ version: 3 });
   await afterMutation;

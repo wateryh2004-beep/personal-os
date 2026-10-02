@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
 import { CalendarShell } from "./calendar-workspace-skeleton";
 import { CalendarWorkspace } from "@/components/calendar/calendar-workspace";
 import { MicrosoftDeviceConnect } from "@/components/calendar/microsoft-device-connect";
-import { calendarWorkspaceResource, type CalendarWorkspaceData } from "@/features/calendar/workspace-resource";
-import { perfMark, perfMeasure } from "@/lib/perf";
-import { useWorkspaceResourceLifecycle } from "@/lib/workspace-resource-cache";
-
+import { calendarWorkspaceResource } from "@/features/calendar/workspace-resource";
+import { useWorkspaceResource } from "@/lib/workspace-resource-cache";
+import { WorkspaceReadError } from "@/components/shared/workspace-read-error";
 
 function CalendarMessage({ children }: { children: React.ReactNode }) {
   return (
@@ -18,16 +16,11 @@ function CalendarMessage({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function CalendarWorkspaceLoader({ initialWorkspace, initialCreateOpen = false, initialEventId }: { initialWorkspace: CalendarWorkspaceData; initialCreateOpen?: boolean; initialEventId?: string }) {
-  const snapshot = useSyncExternalStore(calendarWorkspaceResource.subscribe, calendarWorkspaceResource.get, calendarWorkspaceResource.get);
-  useWorkspaceResourceLifecycle(calendarWorkspaceResource);
-  useEffect(() => {
-    const hadCachedData = calendarWorkspaceResource.get().data !== undefined;
-    calendarWorkspaceResource.set(initialWorkspace);
-    perfMark("workspace-visible", { workspace: "calendar", cached: hadCachedData, source: "rsc" });
-    void calendarWorkspaceResource.revalidate().then(() => perfMeasure("workspace-data-ready", "navigation-click", { workspace: "calendar" })).catch(() => {});
-  }, [initialWorkspace]);
-  const data = snapshot.data ?? initialWorkspace;
+export function CalendarWorkspaceLoader({ initialCreateOpen = false, initialEventId }: { initialCreateOpen?: boolean; initialEventId?: string }) {
+  const snapshot = useWorkspaceResource(calendarWorkspaceResource, "calendar");
+
+  const data = snapshot.data;
+  if (!data && snapshot.error) return <WorkspaceReadError resource={calendarWorkspaceResource} />;
   if (!data) return <CalendarShell />;
   if (data.unavailable) return <CalendarMessage>日历数据尚未连接。</CalendarMessage>;
   if (!data.connection || data.connection.last_error_code === "calendar_not_connected") return <MicrosoftDeviceConnect reconnect={Boolean(data.connection)} />;

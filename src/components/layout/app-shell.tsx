@@ -141,10 +141,10 @@ function workspaceResourceForHref(href: WorkspacePrefetchHref): PrefetchableWork
   return todayWorkspaceResource;
 }
 
-function prefetchWorkspaceData(href: WorkspacePrefetchHref, coldOnly: boolean) {
+async function prefetchWorkspaceData(href: WorkspacePrefetchHref, coldOnly: boolean) {
   const resource = workspaceResourceForHref(href);
   if (coldOnly && !shouldBackgroundWarmData(resource.get().data)) return;
-  void resource.prefetch().catch(() => {});
+  await resource.prefetch().catch(() => {});
 }
 
 export function AppShell({ children, presentationPathname }: { children: React.ReactNode; presentationPathname?: string }) {
@@ -169,6 +169,10 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
     if (new URL(href, window.location.href).href !== window.location.href) {
       releaseMobileBackLayerForNavigation("sheet");
     }
+    const targetPath = pathnameFromHref(href);
+    // A requested navigation is not speculation: start its data alongside RSC,
+    // including keyboard/command/query links without an earlier pointer hover.
+    if (targetPath && isWorkspacePrefetchHref(targetPath)) void prefetchWorkspaceData(targetPath, false);
     navigate(href);
   }, [navigate]);
 
@@ -256,11 +260,15 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
     let cancelled = false;
     const prefetch = () => {
       if (cancelled || document.visibilityState !== "visible" || shouldAvoidSpeculativePrefetch()) return;
-      targets.forEach((href) => {
-        backgroundPrefetched.current.add(href);
-        router.prefetch(href);
-        prefetchWorkspaceData(href, true);
-      });
+      void (async () => {
+        for (const href of targets) {
+          if (cancelled || document.visibilityState !== "visible" || shouldAvoidSpeculativePrefetch()) return;
+          backgroundPrefetched.current.add(href);
+          router.prefetch(href);
+          // Idle reads are serial so they do not compete with the active view.
+          await prefetchWorkspaceData(href, true);
+        }
+      })();
     };
 
     const idleWindow = window as unknown as {

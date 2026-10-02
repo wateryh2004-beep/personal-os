@@ -29,6 +29,8 @@ import { isInternalEntityHref } from "@/features/links/parser";
 import { recordNotePdfExport, saveNote, setNoteContentOrigin } from "@/features/notes/actions";
 import { isAiGeneratedNote } from "@/features/notes/content-origin";
 import { markdownFilename } from "@/features/notes/utils";
+import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
+import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
 import { publishNotesNavigatorTitle } from "@/features/notes/navigator-title-sync";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
@@ -197,6 +199,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
       return saveInFlightRef.current;
     }
     if (!isDirtyRef.current) return;
+    const scopeIsCurrent = captureWorkspaceScope();
 
     const operation = (async () => {
       do {
@@ -212,12 +215,18 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             title: snapshot.title,
             bodyMarkdown: snapshot.body,
           });
+          if (!scopeIsCurrent()) return;
           if (result.status === "conflict") {
             isDirtyRef.current = true;
             flushDraft();
             setState("版本冲突");
             return;
           }
+          notesWorkspaceResource.mutate((workspace) => workspace ? { ...workspace,
+            notes: workspace.notes.map((row) => row.id === note.id ? { ...row, title: snapshot.title, updated_at: result.lastSavedAt } : row),
+            navigatorNotes: workspace.navigatorNotes.map((row) => row.id === note.id ? { ...row, title: snapshot.title, updated_at: result.lastSavedAt } : row),
+          } : workspace);
+          notesWorkspaceResource.invalidate();
           revisionRef.current = result.revision;
           setLastSavedAt(result.lastSavedAt);
           perfMark("note-autosave-end", { noteId: note.id, revision: result.revision });
@@ -233,6 +242,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             queueDraft(latest.title, latest.body, result.revision);
           }
         } catch {
+          if (!scopeIsCurrent()) return;
           perfMark("note-autosave-failed", { noteId: note.id });
           const latest = latestContentRef.current;
           isDirtyRef.current = true;
