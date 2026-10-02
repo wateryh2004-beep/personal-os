@@ -2,7 +2,8 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ save: vi.fn() }));
+const mocks = vi.hoisted(() => ({ save: vi.fn(), navigate: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.navigate }) }));
 vi.mock("next/link", () => ({ default: ({ children, prefetch: _prefetch, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { prefetch?: boolean }) => createElement("a", props, children) }));
 vi.mock("@/features/interview/actions", () => ({ createInterviewContext: vi.fn(), createInterviewQuestion: vi.fn(), saveInterviewWorkspace: mocks.save }));
 import { InterviewFastWorkspace } from "@/components/career/interview/interview-fast-workspace";
@@ -74,4 +75,92 @@ it("keeps desktop selection inline without adding a mobile history entry", async
   expect(window.history.length).toBe(length);
   expect(list().className).toContain("md:block");
   expect(detail().querySelector("h1")!.textContent).toBe("Question general2");
+});
+
+const draftMeta = { status: "draft", source: "ai_draft", language: "bilingual", confirmed_at: null, version_number: 1 };
+async function edit(label: string, value: string) {
+  const input = host.querySelector<HTMLTextAreaElement>(`[aria-label="${label}"]`)!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  return input;
+}
+async function flush(input: HTMLTextAreaElement) {
+  await act(async () => { input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
+}
+it("shows bilingual reference answers immediately without a confirmation action", async () => {
+  const item = { ...makeItem("draft", null), answerId: "ai-1", answerMeta: draftMeta, answer: "完整中文回答\n\nComplete English answer" };
+  await render({ items: [item], initialQuestionId: "draft" });
+  expect(detail().textContent).toContain("参考答案 · 待确认");
+  expect(detail().textContent).toContain("中英双语");
+  expect(detail().querySelector<HTMLTextAreaElement>('[aria-label="答案"]')?.value).toBe(item.answer);
+  expect(mocks.save).not.toHaveBeenCalled();
+});
+it("marks thought-only saves as unchanged and preserves draft metadata", async () => {
+  mocks.save.mockResolvedValue({ answerId: "ai-1", answerMeta: draftMeta });
+  await render({ items: [{ ...makeItem("draft", null), answerId: "ai-1", answerMeta: draftMeta }], initialQuestionId: "draft" });
+  await flush(await edit("思路", "New thoughts only"));
+  expect(mocks.save).toHaveBeenCalledOnce();
+  const submitted = mocks.save.mock.calls[0][0] as FormData;
+  expect(submitted.get("answer_changed")).toBe("0");
+  expect(submitted.get("answer_id")).toBe("ai-1");
+  expect(detail().textContent).toContain("参考答案 · 待确认");
+});
+it("pins an edited draft after save and after switching away and back", async () => {
+  const item = { ...makeItem("general1", null), answerId: "current-1", answerMeta: { ...draftMeta, status: "current" } };
+  mocks.save.mockResolvedValue({ answerId: "new-draft", answerMeta: { ...draftMeta, source: "ai_edited", version_number: 2 } });
+  window.history.replaceState(null, "", "/career/interview?question=general1");
+  await render({ items: [item, makeItem("general2", null)], initialQuestionId: "general1" });
+  await flush(await edit("答案", "A revised complete answer"));
+  expect((mocks.save.mock.calls[0][0] as FormData).get("answer_changed")).toBe("1");
+  expect(new URLSearchParams(window.location.search).get("answer")).toBe("new-draft");
+  await act(async () => button("Question general2").click());
+  await act(async () => button("Question general1").click());
+  expect(new URLSearchParams(window.location.search).get("answer")).toBe("new-draft");
+  expect(detail().querySelector<HTMLTextAreaElement>('[aria-label="答案"]')?.value).toBe("A revised complete answer");
+  await flush(await edit("思路", "Other thoughts"));
+  expect((mocks.save.mock.calls[1][0] as FormData).get("answer_changed")).toBe("0");
+  expect((mocks.save.mock.calls[1][0] as FormData).get("answer_id")).toBe("new-draft");
+});
+it("serializes edits against the last successful save without replacing newer typing", async () => {
+  let finishFirst!: (value: unknown) => void;
+  mocks.save.mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }));
+  mocks.save.mockResolvedValue({ answerId: "draft-3", answerMeta: { ...draftMeta, version_number: 3 } });
+  await render({ items: [{ ...makeItem("draft", null), answerId: "draft-1", answerMeta: draftMeta }], initialQuestionId: "draft" });
+  await flush(await edit("答案", "First edit"));
+  await flush(await edit("答案", "Second edit"));
+  expect(mocks.save).toHaveBeenCalledOnce();
+  await act(async () => { finishFirst({ answerId: "draft-2", answerMeta: { ...draftMeta, version_number: 2 } }); });
+  expect(mocks.save).toHaveBeenCalledTimes(2);
+  expect((mocks.save.mock.calls[1][0] as FormData).get("answer_id")).toBe("draft-2");
+  expect((mocks.save.mock.calls[1][0] as FormData).get("answer")).toBe("Second edit");
+  expect((mocks.save.mock.calls[1][0] as FormData).get("answer_changed")).toBe("1");
+  expect(detail().querySelector<HTMLTextAreaElement>('[aria-label="答案"]')?.value).toBe("Second edit");
+});
+it("shows a clear rejection and blocks confirmation navigation after save failure", async () => {
+  mocks.save.mockRejectedValue(new Error("答案不能为空；请归档该版本。"));
+  await render({ items: [{ ...makeItem("draft", null), answerId: "draft-1", answerMeta: draftMeta }], initialQuestionId: "draft" });
+  await flush(await edit("答案", ""));
+  expect(detail().textContent).toContain("答案不能为空");
+  const link = [...detail().querySelectorAll("a")].find((node) => node.textContent?.includes("查看版本并确认"))!;
+  const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+  await act(async () => { link.dispatchEvent(event); });
+  expect(event.defaultPrevented).toBe(true);
+});
+it("waits for the newest queued save before opening its exact confirmation version", async () => {
+  let finishFirst!: (value: unknown) => void, finishSecond!: (value: unknown) => void;
+  mocks.save.mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }));
+  mocks.save.mockImplementationOnce(() => new Promise((resolve) => { finishSecond = resolve; }));
+  await render({ items: [{ ...makeItem("draft", null), answerId: "draft-1", answerMeta: draftMeta }], initialQuestionId: "draft" });
+  await flush(await edit("答案", "First edit"));
+  await flush(await edit("答案", "Second edit"));
+  await act(async () => { finishFirst({ answerId: "draft-2", answerMeta: { ...draftMeta, version_number: 2 } }); });
+  expect(detail().textContent).toContain("保存中");
+  const link = [...detail().querySelectorAll("a")].find((node) => node.textContent?.includes("查看版本并确认"))!;
+  const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+  await act(async () => { link.dispatchEvent(event); });
+  expect(event.defaultPrevented).toBe(true); expect(mocks.navigate).not.toHaveBeenCalled();
+  await act(async () => { finishSecond({ answerId: "draft-3", answerMeta: { ...draftMeta, version_number: 3 } }); });
+  expect(mocks.navigate).toHaveBeenCalledWith("/career/interview/questions/draft?answer=draft-3#answer-versions");
 });

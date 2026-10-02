@@ -1,10 +1,11 @@
 import { InterviewFastWorkspace } from "@/components/career/interview/interview-fast-workspace";
 import { getInterviewWorkspaceData } from "@/features/interview/queries";
+import { selectWorkspaceAnswer, workspaceAnswerMetadata } from "@/features/interview/workspace-answers";
 
 export default async function InterviewWorkspacePage({
   searchParams,
 }: {
-  searchParams: Promise<{ context?: string; question?: string; category?: string }>;
+  searchParams: Promise<{ context?: string; question?: string; category?: string; answer?: string }>;
 }) {
   const params = await searchParams;
   const data = await getInterviewWorkspaceData();
@@ -41,7 +42,10 @@ export default async function InterviewWorkspacePage({
     const relation = Array.isArray(prep.interview_questions) ? prep.interview_questions[0] : prep.interview_questions;
     if (!relation) return [];
     const answerList = answersByPreparation.get(prep.id) ?? [];
-    const answer = answerList.find((candidate: any) => candidate.language === prep.target_language) ?? answerList[0];
+    const requestedAnswer = params.question === prep.question_id && params.answer
+      ? selectWorkspaceAnswer(answerList.filter((candidate) => candidate.id === params.answer), prep.target_language ?? "zh")
+      : null;
+    const answer = requestedAnswer ?? selectWorkspaceAnswer(answerList, prep.target_language ?? "zh");
     const thoughts = prep.working_thoughts_markdown
       || [prep.key_message, prep.answer_logic_markdown].filter(Boolean).join("\n\n");
 
@@ -61,6 +65,7 @@ export default async function InterviewWorkspacePage({
       thoughts: thoughts as string,
       answer: (answer?.body_markdown as string | undefined) ?? "",
       answerId: (answer?.id as string | undefined) ?? null,
+      answerMeta: workspaceAnswerMetadata(answer),
     }];
   });
 
@@ -75,9 +80,11 @@ export default async function InterviewWorkspacePage({
     ? params.question
     : "";
   const initialQuestionId = requestedQuestion;
+  const initialItem = scopedItems.find((item) => item.questionId === initialQuestionId) ?? scopedItems[0];
 
   return (
     <InterviewFastWorkspace
+      key={`${initialContextId}:${initialQuestionId}:${initialItem?.answerId ?? ""}:${initialItem?.answerMeta?.status ?? ""}:${initialItem?.answerMeta?.confirmed_at ?? ""}`}
       targets={targets}
       items={items}
       initialContextId={initialContextId}

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import {
   createInterviewContext,
   createInterviewQuestion,
@@ -11,6 +12,7 @@ import {
   legacyCategoryByQuestionType,
   questionTypeLabels,
 } from "@/features/interview/constants";
+import type { WorkspaceAnswerMetadata } from "@/features/interview/workspace-answers";
 
 type Target = {
   id: string;
@@ -32,6 +34,7 @@ type WorkspaceItem = {
   thoughts: string;
   answer: string;
   answerId: string | null;
+  answerMeta?: WorkspaceAnswerMetadata | null;
 };
 
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
@@ -56,11 +59,12 @@ const categoryShortLabels: Record<string, string> = {
   stress: "压力",
 };
 
-function workspaceUrl(contextId: string, questionId: string, category: string) {
+function workspaceUrl(contextId: string, questionId: string, category: string, answerId?: string | null) {
   const params = new URLSearchParams();
   if (contextId) params.set("context", contextId);
   if (questionId) params.set("question", questionId);
   if (category !== "all") params.set("category", category);
+  if (questionId && answerId) params.set("answer", answerId);
   const query = params.toString();
   return query ? `/career/interview?${query}` : "/career/interview";
 }
@@ -82,6 +86,7 @@ export function InterviewFastWorkspace({
   initialQuestionId: string;
   initialCategory: string;
 }) {
+  const router = useRouter();
   const initialItems = items.filter((item) =>
     (initialContextId ? item.contextId === initialContextId : item.contextId === null)
     && (initialCategory === "all" || !isKnownCategory(initialCategory)
@@ -103,11 +108,15 @@ export function InterviewFastWorkspace({
   const [category, setCategory] = useState(resolvedInitialCategory);
   const [thoughts, setThoughts] = useState(initialItem?.thoughts ?? "");
   const [answer, setAnswer] = useState(initialItem?.answer ?? "");
+  const [answerId, setAnswerId] = useState(initialItem?.answerId ?? null);
+  const [answerMeta, setAnswerMeta] = useState(initialItem?.answerMeta ?? null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [saveError, setSaveError] = useState("");
+  const answerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const draftsRef = useRef(new Map(items.map((item) => [
     item.preparationId,
-    { thoughts: item.thoughts, answer: item.answer, answerId: item.answerId },
+    { thoughts: item.thoughts, savedThoughts: item.thoughts, answer: item.answer, savedAnswer: item.answer, answerId: item.answerId, answerMeta: item.answerMeta ?? null },
   ])));
   const selectedRef = useRef<WorkspaceItem | null>(initialItem);
   const thoughtsRef = useRef(thoughts);
@@ -115,6 +124,7 @@ export function InterviewFastWorkspace({
   const dirtyRef = useRef(false);
   const timerRef = useRef<number | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const saveSequenceRef = useRef(new Map<string, number>());
 
   const contextItems = useMemo(
     () => items.filter((item) => (contextId ? item.contextId === contextId : item.contextId === null)),
@@ -149,13 +159,15 @@ export function InterviewFastWorkspace({
   const saveNow = useCallback(() => {
     clearTimer();
     const selected = selectedRef.current;
-    if (!selected || !dirtyRef.current) return Promise.resolve();
+    if (!selected || !dirtyRef.current) return saveQueueRef.current;
 
     dirtyRef.current = false;
     const preparationId = selected.preparationId;
     const questionId = selected.questionId;
     const thoughtsSnapshot = thoughtsRef.current;
     const answerSnapshot = answerRef.current;
+    const sequence = (saveSequenceRef.current.get(preparationId) ?? 0) + 1;
+    saveSequenceRef.current.set(preparationId, sequence);
 
     if (selectedRef.current?.preparationId === preparationId) setSaveState("saving");
 
@@ -169,19 +181,38 @@ export function InterviewFastWorkspace({
         formData.set("answer_id", draft?.answerId ?? "");
         formData.set("thoughts", thoughtsSnapshot);
         formData.set("answer", answerSnapshot);
+        formData.set("answer_changed", answerSnapshot !== draft?.savedAnswer ? "1" : "0");
 
         const result = await saveInterviewWorkspace(formData);
         if (draft) {
           draft.answerId = result.answerId ?? null;
+          draft.answerMeta = result.answerMeta ?? null;
+          draft.savedAnswer = answerSnapshot;
+          draft.savedThoughts = thoughtsSnapshot;
           draftsRef.current.set(preparationId, draft);
         }
-        if (selectedRef.current?.preparationId === preparationId && !dirtyRef.current) {
+        if (selectedRef.current?.preparationId === preparationId) {
+          setAnswerId(result.answerId ?? null);
+          setAnswerMeta(result.answerMeta ?? null);
+          // Pin the actual displayed version so reloading a saved draft cannot hide it behind a current answer.
+          if (window.location.pathname === "/career/interview" && result.answerId) {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get("question") === questionId || !window.matchMedia("(max-width: 767px)").matches) {
+              params.set("question", questionId);
+              params.set("answer", result.answerId);
+              window.history.replaceState(window.history.state, "", `/career/interview?${params}`);
+            }
+          }
+        }
+        if (selectedRef.current?.preparationId === preparationId && !dirtyRef.current && saveSequenceRef.current.get(preparationId) === sequence) {
+          setSaveError("");
           setSaveState("saved");
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (selectedRef.current?.preparationId === preparationId) {
           dirtyRef.current = true;
+          setSaveError(error instanceof Error ? error.message : "保存失败，请重试。");
           setSaveState("error");
         }
       });
@@ -199,8 +230,8 @@ export function InterviewFastWorkspace({
     }, 650);
   }, [clearTimer, saveNow]);
 
-  const replaceUrl = useCallback((nextContextId: string, nextQuestionId: string, nextCategory: string) => {
-    window.history.replaceState(null, "", workspaceUrl(nextContextId, nextQuestionId, nextCategory));
+  const replaceUrl = useCallback((nextContextId: string, nextQuestionId: string, nextCategory: string, answerId?: string | null) => {
+    window.history.replaceState(null, "", workspaceUrl(nextContextId, nextQuestionId, nextCategory, answerId));
   }, []);
 
   const switchItem = useCallback((nextContextId: string, nextItem: WorkspaceItem | null, nextCategory = category, updateUrl = true) => {
@@ -215,10 +246,13 @@ export function InterviewFastWorkspace({
     setQuestionId(nextItem?.questionId ?? "");
     setThoughts(nextThoughts);
     setAnswer(nextAnswer);
+    setAnswerId(draft?.answerId ?? nextItem?.answerId ?? null);
+    setAnswerMeta(draft?.answerMeta ?? nextItem?.answerMeta ?? null);
     thoughtsRef.current = nextThoughts;
     answerRef.current = nextAnswer;
     setSaveState("idle");
-    if (updateUrl) replaceUrl(nextContextId, nextItem?.questionId ?? "", nextCategory);
+    setSaveError("");
+    if (updateUrl) replaceUrl(nextContextId, nextItem?.questionId ?? "", nextCategory, draft?.answerId ?? nextItem?.answerId);
   }, [category, replaceUrl, saveNow]);
 
   const handleContextChange = (nextContextId: string) => {
@@ -251,7 +285,7 @@ export function InterviewFastWorkspace({
     if (mobile) {
       // The list is a real history entry so Android Back closes the detail.
       replaceUrl(contextId, "", category);
-      window.history.pushState({ interviewDetail: true }, "", workspaceUrl(contextId, nextQuestionId, category));
+      window.history.pushState({ interviewDetail: true }, "", workspaceUrl(contextId, nextQuestionId, category, nextItem ? draftsRef.current.get(nextItem.preparationId)?.answerId : null));
     }
     switchItem(contextId, nextItem, category, !mobile);
     setMobileDetailOpen(Boolean(nextItem));
@@ -300,7 +334,34 @@ export function InterviewFastWorkspace({
     return () => window.clearTimeout(timer);
   }, [saveState]);
 
+  useEffect(() => {
+    const textarea = answerTextareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.max(312, textarea.scrollHeight)}px`;
+  }, [answer, questionId, mobileDetailOpen]);
+
   const selected = contextItems.find((item) => item.questionId === questionId) ?? null;
+  const detailParams = new URLSearchParams();
+  if (contextId) detailParams.set("context", contextId);
+  if (answerId) detailParams.set("answer", answerId);
+  const detailHref = selected ? `/career/interview/questions/${selected.questionId}${detailParams.size ? `?${detailParams}` : ""}` : "";
+  const followDetailLink = (event: MouseEvent<HTMLAnchorElement>, hash = "") => {
+    if (!dirtyRef.current && saveState !== "saving" && saveState !== "error") return;
+    event.preventDefault();
+    const item = selectedRef.current;
+    if (!item) return;
+    void (async () => {
+      await saveNow();
+      if (selectedRef.current?.preparationId !== item.preparationId || dirtyRef.current) return;
+      const saved = draftsRef.current.get(item.preparationId);
+      if (!saved || saved.answer !== saved.savedAnswer || saved.thoughts !== saved.savedThoughts) return;
+      const params = new URLSearchParams();
+      if (item.contextId) params.set("context", item.contextId);
+      if (saved.answerId) params.set("answer", saved.answerId);
+      router.push(`/career/interview/questions/${item.questionId}${params.size ? `?${params}` : ""}${hash}`);
+    })();
+  };
   const newQuestionType = category === "all" || category === "stress" ? "behavioral" : category;
   const newQuestionCategory = legacyCategoryByQuestionType[newQuestionType] ?? "behavioral";
   const newQuestionStyle = category === "stress" ? "stress" : "standard";
@@ -467,9 +528,9 @@ export function InterviewFastWorkspace({
                   <h1 className="max-w-3xl text-[23px] font-semibold leading-[1.42] tracking-[-0.035em] text-[var(--text-primary)]">{selected.prompt}</h1>
                 </div>
                 <Link
-                  href={`/career/interview/questions/${selected.questionId}${contextId ? `?context=${contextId}` : ""}`}
+                  href={detailHref}
                   prefetch={false}
-                  onClick={() => { void saveNow(); }}
+                  onClick={(event) => followDetailLink(event)}
                   className="mt-1 shrink-0 rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--text-tertiary)] transition-colors ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
                 >
                   完整题目与答案 →
@@ -482,6 +543,7 @@ export function InterviewFastWorkspace({
                   <span className="text-[10.5px] text-[var(--text-tertiary)]">先想清楚，再组织表达</span>
                 </div>
                 <textarea
+                  aria-label="思路"
                   value={thoughts}
                   onChange={(event) => {
                     const value = event.target.value;
@@ -504,11 +566,28 @@ export function InterviewFastWorkspace({
               </section>
 
               <section className="mt-7">
-                <div className="flex items-baseline justify-between gap-3">
-                  <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">答案</h2>
+                <div className="flex flex-wrap items-baseline justify-between gap-3">
+                  <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">{answerMeta?.status === "draft" ? "参考答案 · 待确认" : "答案"}</h2>
                   <span className="text-[10.5px] text-[var(--text-tertiary)]">写成你面试时真正会说的话</span>
                 </div>
+                {answerMeta ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-5 text-[var(--text-secondary)]">
+                    <span>{answerMeta.status === "current" ? "当前答案" : "参考草稿"} · {answerMeta.language === "en" ? "英文" : answerMeta.language === "bilingual" ? "中英双语" : "中文"} · V{answerMeta.version_number}</span>
+                    <span>{answerMeta.source === "ai_draft" ? "AI 起草" : answerMeta.source === "ai_edited" ? "AI 起草后编辑" : answerMeta.source === "imported" ? "导入" : "人工编辑"}</span>
+                    {answerMeta.status === "draft" ? <span>可直接阅读；核对个人事实后再设为当前答案</span> : null}
+                  </div>
+                ) : null}
+                {answerMeta?.status === "draft" ? (
+                  <Link
+                    href={`${detailHref}#answer-versions`}
+                    prefetch={false}
+                    onClick={(event) => followDetailLink(event, "#answer-versions")}
+                    className="mt-2 inline-flex min-h-11 items-center text-[12px] font-medium text-[var(--accent)]"
+                  >查看版本并确认答案 →</Link>
+                ) : null}
                 <textarea
+                  ref={answerTextareaRef}
+                  aria-label="答案"
                   value={answer}
                   onChange={(event) => {
                     const value = event.target.value;
@@ -530,9 +609,20 @@ export function InterviewFastWorkspace({
                 />
               </section>
 
-              <div aria-live="polite" className={`mt-2 h-4 text-right text-[10.5px] transition-colors ui-transition ${saveState === "error" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>
-                {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "error" ? "保存失败" : ""}
+              <div aria-live="polite" className={`mt-2 min-h-4 text-right text-[10.5px] transition-colors ui-transition ${saveState === "error" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>
+                {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "error" ? saveError || "保存失败" : ""}
               </div>
+              {saveState === "error" && !answer.trim() ? (
+                <button type="button" className="mt-2 min-h-11 text-xs text-[var(--accent)]" onClick={() => {
+                  const item = selectedRef.current;
+                  const draft = item ? draftsRef.current.get(item.preparationId) : null;
+                  if (!draft) return;
+                  draft.answer = draft.savedAnswer;
+                  setAnswer(draft.savedAnswer);
+                  answerRef.current = draft.savedAnswer;
+                  scheduleSave();
+                }}>恢复已保存的答案</button>
+              ) : null}
             </div>
           ) : (
             <div className="grid min-h-[520px] place-items-center px-8 text-center text-[13px] leading-6 text-[var(--text-tertiary)]">

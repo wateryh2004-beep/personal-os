@@ -1,6 +1,7 @@
 import { requireOwner } from "@/lib/auth/require-owner";
 import { evidenceTypeLabels, type EvidenceType } from "./constants";
 import { buildMonthlyIssueTrend, countTags, rankSmartPracticeQueue, readinessChecklist } from "./utils";
+import type { WorkspaceAnswer } from "./workspace-answers";
 
 export type InterviewQuestionFilters = {
   q?: string;
@@ -58,6 +59,23 @@ async function getEvidenceCatalog(supabase: Awaited<ReturnType<typeof requireOwn
 }
 
 
+async function getWorkspaceAnswers(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"]) {
+  const answers: WorkspaceAnswer[] = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const result = await supabase.from("interview_answer_versions")
+      .select("id,preparation_id,answer_mode,target_seconds,language,body_markdown,version_number,status,source,confirmed_at,updated_at")
+      .in("status", ["current", "draft"])
+      .eq("answer_mode", "spoken")
+      .is("archived_at", null)
+      .order("id")
+      .range(offset, offset + pageSize - 1);
+    if (result.error) return { data: null, error: result.error };
+    answers.push(...(result.data ?? []));
+    if ((result.data?.length ?? 0) < pageSize) return { data: answers, error: null };
+  }
+}
+
 export async function getInterviewWorkspaceData() {
   const { supabase } = await requireOwner();
 
@@ -77,14 +95,7 @@ export async function getInterviewWorkspaceData() {
       .is("interview_questions.archived_at", null)
       .order("position")
       .order("updated_at", { ascending: false }),
-    supabase
-      .from("interview_answer_versions")
-      .select("id,preparation_id,answer_mode,target_seconds,language,body_markdown,version_number,status,updated_at")
-      .eq("status", "current")
-      .eq("answer_mode", "spoken")
-      .is("archived_at", null)
-      .order("target_seconds", { ascending: true, nullsFirst: true })
-      .order("version_number", { ascending: false }),
+    getWorkspaceAnswers(supabase),
     supabase
       .from("interview_question_types")
       .select("id,key,label,position")
@@ -694,4 +705,3 @@ export async function getInterviewInsights(contextId?: string | null) {
     ),
   };
 }
-

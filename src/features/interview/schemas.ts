@@ -33,6 +33,15 @@ const optionalInt = (min: number, max: number) =>
 const tagField = (limit: number) =>
   z.string().max(4_000).optional().transform((value) => splitTagInput(value, limit));
 
+export const interviewWorkspaceSchema = z.object({
+  preparation_id: z.string().uuid(),
+  question_id: z.string().uuid(),
+  answer_id: optionalUuid,
+  thoughts: z.string().max(100_000),
+  answer: z.string().max(50_000),
+  answer_changed: z.enum(["0", "1"]).optional(),
+});
+
 function nullableIso(value: unknown) {
   const raw = String(value ?? "").trim();
   if (!raw) return null;

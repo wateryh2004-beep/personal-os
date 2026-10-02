@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireOwner } from "@/lib/auth/require-owner";
 import {
   interviewAnswerSchema,
+  interviewWorkspaceSchema,
   interviewAttemptSchema,
   interviewContextSchema,
   interviewEvidenceSchema,
@@ -19,6 +20,7 @@ import {
   formObject,
 } from "./schemas";
 import { questionTypeByLegacyCategory, type EvidenceType } from "./constants";
+import { selectWorkspaceAnswer, workspaceAnswerMetadata, type WorkspaceAnswer } from "./workspace-answers";
 
 function failed(error: unknown): never {
   void error;
@@ -292,89 +294,94 @@ export async function ensureInterviewPreparation(formData: FormData) {
 
 export async function saveInterviewWorkspace(formData: FormData) {
   const { supabase, userId } = await requireOwner();
-  const preparationId = String(formData.get("preparation_id") || "");
-  const questionId = String(formData.get("question_id") || "");
-  const currentAnswerId = String(formData.get("answer_id") || "") || null;
-  const thoughts = String(formData.get("thoughts") || "");
-  const answer = String(formData.get("answer") || "");
+  const value = parse(interviewWorkspaceSchema, formObject(formData));
+  const { preparation_id: preparationId, question_id: questionId, thoughts, answer } = value;
+  const { data: preparation, error: preparationError } = await supabase
+    .from("interview_question_preparations")
+    .select("id,target_language")
+    .eq("id", preparationId)
+    .eq("question_id", questionId)
+    .eq("user_id", userId)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (preparationError || !preparation) failed(preparationError);
 
-  const thoughtWrite = supabase
+  let answerQuery = supabase.from("interview_answer_versions")
+    .select("id,preparation_id,answer_mode,target_seconds,language,body_markdown,version_number,status,source,confirmed_at,updated_at")
+    .eq("preparation_id", preparationId)
+    .eq("user_id", userId)
+    .eq("answer_mode", "spoken")
+    .in("status", ["current", "draft"])
+    .is("archived_at", null);
+  if (value.answer_id) answerQuery = answerQuery.eq("id", value.answer_id);
+  const { data: answerRows, error: answerError } = await answerQuery;
+  if (answerError) failed(answerError);
+  const original = selectWorkspaceAnswer(answerRows ?? [], preparation.target_language ?? "zh");
+  if (value.answer_id && !original) failed(new Error("答案版本已改变，请刷新后重试。"));
+
+  const answerChanged = value.answer_changed !== "0" && answer !== (original?.body_markdown ?? "");
+  // A temporary empty editor must not retire a real answer or revive older drafts.
+  if (answerChanged && original && !answer.trim()) {
+    throw new Error("答案不能为空；如需删除，请在“完整题目与答案”中归档该版本。");
+  }
+  const { error: thoughtError, data: savedPreparation } = await supabase
     .from("interview_question_preparations")
     .update({ working_thoughts_markdown: thoughts })
     .eq("id", preparationId)
     .eq("question_id", questionId)
     .eq("user_id", userId)
-    .select("id,target_language")
+    .is("archived_at", null)
+    .select("id")
     .maybeSingle();
+  if (thoughtError || !savedPreparation) failed(thoughtError);
 
-  if (currentAnswerId) {
-    const answerWrite = answer.trim()
-      ? supabase
-          .from("interview_answer_versions")
-          .update({
-            body_markdown: answer,
-            change_note: null,
-            source: "human",
-            confirmed_at: new Date().toISOString(),
-          })
-          .eq("id", currentAnswerId)
-          .eq("preparation_id", preparationId)
-          .eq("user_id", userId)
-          .select("id")
-          .maybeSingle()
-      : supabase
-          .from("interview_answer_versions")
-          .update({ status: "retired" })
-          .eq("id", currentAnswerId)
-          .eq("preparation_id", preparationId)
-          .eq("user_id", userId)
-          .select("id")
-          .maybeSingle();
-
-    const [prepResult, answerResult] = await Promise.all([thoughtWrite, answerWrite]);
-    if (prepResult.error || !prepResult.data || answerResult.error || !answerResult.data) {
-      failed(prepResult.error ?? answerResult.error ?? new Error("自动保存失败。"));
-    }
-    return { answerId: answer.trim() ? currentAnswerId : null };
+  if (!answerChanged || !answer.trim()) {
+    return { answerId: original?.id ?? null, answerMeta: workspaceAnswerMetadata(original) };
   }
 
-  const prepResult = await thoughtWrite;
-  if (prepResult.error || !prepResult.data) failed(prepResult.error ?? new Error("自动保存失败。"));
-  if (!answer.trim()) return { answerId: null };
-
-  const language = prepResult.data.target_language || "zh";
-  const { data: latest, error: latestError } = await supabase
-    .from("interview_answer_versions")
-    .select("version_number")
-    .eq("preparation_id", preparationId)
-    .eq("answer_mode", "spoken")
-    .eq("language", language)
-    .is("target_seconds", null)
-    .order("version_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (latestError) failed(latestError);
-
-  const { data: inserted, error: insertError } = await supabase
-    .from("interview_answer_versions")
-    .insert({
+  const language = original?.language ?? preparation.target_language ?? "zh";
+  const targetSeconds = original?.target_seconds ?? null;
+  // Preserve provenance and old bodies, including adopted versions, until explicit confirmation.
+  const source = original?.source === "ai_draft" || original?.source === "ai_edited" ? "ai_edited" : "human";
+  let inserted: WorkspaceAnswer | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    let latestQuery = supabase.from("interview_answer_versions")
+      .select("version_number")
+      .eq("preparation_id", preparationId)
+      .eq("user_id", userId)
+      .eq("answer_mode", "spoken")
+      .eq("language", language)
+      .order("version_number", { ascending: false })
+      .limit(1);
+    latestQuery = targetSeconds == null ? latestQuery.is("target_seconds", null) : latestQuery.eq("target_seconds", targetSeconds);
+    const { data: latest, error: latestError } = await latestQuery.maybeSingle();
+    if (latestError) failed(latestError);
+    const result = await supabase.from("interview_answer_versions").insert({
       user_id: userId,
       preparation_id: preparationId,
       answer_mode: "spoken",
-      target_seconds: null,
+      target_seconds: targetSeconds,
       language,
       body_markdown: answer,
-      change_note: null,
+      change_note: "工作区编辑保存；待确认",
       version_number: (latest?.version_number ?? 0) + 1,
-      source: "human",
-      status: "current",
-      confirmed_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
-  if (insertError || !inserted) failed(insertError ?? new Error("自动保存失败。"));
-
-  return { answerId: inserted.id };
+      source,
+      status: "draft",
+      confirmed_at: null,
+    }).select("id,preparation_id,answer_mode,target_seconds,language,body_markdown,version_number,status,source,confirmed_at,updated_at").single();
+    if (result.error?.code === "23505" && attempt < 2) continue;
+    if (result.error || !result.data) failed(result.error);
+    inserted = result.data;
+    break;
+  }
+  if (!inserted) failed(new Error("自动保存失败。"));
+  await audit(supabase, userId, "create", "interview_answer_version", inserted.id, {
+    preparation_id: preparationId,
+    based_on_answer_id: original?.id ?? null,
+    source,
+    status: "draft",
+  });
+  return { answerId: inserted.id, answerMeta: workspaceAnswerMetadata(inserted) };
 }
 
 export async function updateInterviewPreparation(formData: FormData) {
@@ -432,7 +439,19 @@ export async function createInterviewAnswerVersion(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const makeCurrent = String(formData.get("make_current") || "") === "1";
   const value = parse(interviewAnswerSchema, formObject(formData));
-  await own(supabase, "interview_question_preparations", value.preparation_id);
+  const { data: preparation, error: preparationError } = await supabase.from("interview_question_preparations")
+    .select("id,question_id,context_id").eq("id", value.preparation_id).eq("user_id", userId)
+    .is("archived_at", null).maybeSingle();
+  if (preparationError || !preparation) failed(preparationError);
+  const basedOnAnswerId = String(formData.get("based_on_answer_id") || "");
+  let source = "human";
+  if (basedOnAnswerId) {
+    const { data: original, error } = await supabase.from("interview_answer_versions")
+      .select("source").eq("id", basedOnAnswerId).eq("preparation_id", value.preparation_id)
+      .eq("user_id", userId).is("archived_at", null).maybeSingle();
+    if (error || !original) failed(error);
+    if (original.source === "ai_draft" || original.source === "ai_edited") source = "ai_edited";
+  }
   let query = supabase.from("interview_answer_versions").select("version_number")
     .eq("preparation_id", value.preparation_id)
     .eq("answer_mode", value.answer_mode)
@@ -445,7 +464,7 @@ export async function createInterviewAnswerVersion(formData: FormData) {
     ...value,
     user_id: userId,
     version_number: (latest?.version_number ?? 0) + 1,
-    source: "human",
+    source,
     status: "draft",
   }).select("id").single();
   if (error || !data) failed(error);
@@ -472,7 +491,12 @@ export async function createInterviewAnswerVersion(formData: FormData) {
     }
   }
   await audit(supabase, userId, "create", "interview_answer_version", data.id, { preparation_id: value.preparation_id, answer_mode: value.answer_mode, language: value.language, target_seconds: value.target_seconds, make_current: makeCurrent });
-  revalidateInterview(undefined, value.preparation_id);
+  revalidateInterview(preparation.question_id, value.preparation_id);
+  if (formData.get("return_to_question") === "1") {
+    const params = new URLSearchParams({ answer: data.id });
+    if (preparation.context_id) params.set("context", preparation.context_id);
+    redirect(`/career/interview/questions/${preparation.question_id}?${params}`);
+  }
 }
 
 export async function promoteInterviewAnswerVersion(formData: FormData) {
