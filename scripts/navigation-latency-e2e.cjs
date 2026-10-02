@@ -23,6 +23,8 @@ const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       const warm = cacheState !== "cold";
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
       const page = await context.newPage();
+      page.setDefaultTimeout(15_000);
+      console.log(`navigation fixture: ${mode} ${target} ${cacheState} ${delay}ms`);
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       const reads = { tasks: 0, notes: 0 };
@@ -57,25 +59,25 @@ const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       // only a correctness wait and must not inflate the measured latency.
       await page.evaluate((text) => {
         performance.clearMarks("fixture-content-visible");
-        let queued = false;
-        const observer = new MutationObserver(() => {
-          if (queued) return;
+        const deadline = performance.now() + 15_000;
+        const firstVisibleFrame = () => {
           const match = [...document.querySelectorAll('[data-testid="latency-harness"] span, [data-testid="latency-harness"] a, [data-testid="latency-harness"] button, [data-testid="latency-harness"] h1, [data-testid="latency-harness"] h2, [data-testid="latency-harness"] h3')]
             .find((node) => node.textContent.trim() === text && node.getClientRects().length && getComputedStyle(node).visibility !== "hidden");
-          if (!match) return;
-          queued = true;
-          observer.disconnect();
-          requestAnimationFrame(() => performance.mark("fixture-content-visible"));
-        });
-        observer.observe(document, { subtree: true, childList: true, characterData: true, attributes: true });
+          if (match) { performance.mark("fixture-content-visible"); return; }
+          // Stylesheet/visibility changes need not cause a DOM mutation. Check
+          // each browser frame rather than relying solely on MutationObserver.
+          if (performance.now() < deadline) requestAnimationFrame(firstVisibleFrame);
+        };
+        requestAnimationFrame(firstVisibleFrame);
       }, target === "tasks" ? "Synthetic latency task" : "Synthetic latency note");
       const beforeRsc = rscRequests;
       const beforeReads = reads[target];
       await page.getByTestId(`go-${target}`).click();
       await page.getByText(target === "tasks" ? "Synthetic latency task" : "Synthetic latency note", { exact: true }).first().waitFor();
-      await page.waitForFunction(() => performance.getEntriesByName("fixture-content-visible").length > 0);
+      await page.waitForFunction(() => performance.getEntriesByName("fixture-content-visible").length > 0, null, { timeout: 15_000 });
       const duration = await page.evaluate(() => performance.getEntriesByName("fixture-content-visible").at(-1).startTime - performance.getEntriesByName("fixture-navigation-click").at(-1).startTime);
       samples.push({ mode, target, cacheState, syntheticDataDelayMs: delay, syntheticRscRttMs: rttMs, clickToContentMs: Math.round(duration), navigationRscRequests: rscRequests - beforeRsc, additionalWorkspaceApiReads: reads[target] - beforeReads });
+      console.log(JSON.stringify(samples.at(-1)));
       assert.equal(errors.length, 0, errors.join("\n"));
       if (mode === "resource") assert.equal(reads[target] - beforeReads, warm ? 0 : 1, "navigation and loader share one resource read");
       if (mode === "resource" && warm && delay === 800) {
@@ -101,7 +103,7 @@ const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       await context.close();
     }
     await mkdir(output, { recursive: true });
-    const result = { scope: "In-app navigation. data-only = RSC route miss with an already-warm workspace cache; data-plus-prefetch-requested attempts RSC warming; navigationRscRequests records whether a new request was still required. Does not measure a hard reload or real Supabase/auth latency.", label: "Synthetic production-build fixture; not authenticated production-user latency", timingMethod: "Click handler mark to first visible matching DOM frame (MutationObserver + requestAnimationFrame); independent of Playwright polling", samples };
+    const result = { scope: "In-app navigation. data-only = RSC route miss with an already-warm workspace cache; data-plus-prefetch-requested attempts RSC warming; navigationRscRequests records whether a new request was still required. Does not measure a hard reload or real Supabase/auth latency.", label: "Synthetic production-build fixture; not authenticated production-user latency", timingMethod: "Click handler mark to first visible matching DOM animation frame; independent of Playwright polling", samples };
     await writeFile(`${output}/navigation-latency.json`, JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result, null, 2));
   } finally { await browser.close(); }
