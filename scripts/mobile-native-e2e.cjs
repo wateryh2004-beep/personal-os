@@ -207,6 +207,30 @@ async function backCloses(page, trigger, visibleTarget) {
           const width = await page.getByRole("button", { name: "调整笔记导航宽度，双击恢复默认" }).evaluate((node) => node.parentElement.getBoundingClientRect().width);
           assert.equal(width, 272, "first Notes visit preserves the intended navigator width");
         }
+        if (scene === "notes" && width < 768) {
+          const folder = page.getByRole("button", { name: "打开笔记文件", exact: true });
+          const title = page.getByRole("heading", { name: "全部笔记", exact: true });
+          const folderBox = await folder.boundingBox();
+          const titleBox = await title.boundingBox();
+          assert.ok(folderBox && titleBox);
+          assert.ok(folderBox.y + folderBox.height + 8 <= titleBox.y, "mobile folder control must not cover the Notes title");
+          await folder.click();
+          await page.getByRole("dialog", { name: "笔记文件", exact: true }).waitFor({ state: "visible" });
+          assert.equal(await page.locator('[data-slot="sheet-overlay"]').evaluate((node) => getComputedStyle(node).backdropFilter), "none", "sheet scrim should not blur the full page");
+          await capture(page, `workspace-notes-folder-${width}`);
+          await page.evaluate(() => history.back());
+          await page.getByRole("dialog", { name: "笔记文件", exact: true }).waitFor({ state: "hidden" });
+          const after = await title.boundingBox();
+          assert.ok(after && Math.abs(after.y - titleBox.y) <= 1, "closing folder navigation preserves title geometry");
+        }
+        if (scene === "tasks" && width < 768) {
+          const row = page.getByRole("button", { name: "打开任务：核对本周计划", exact: true });
+          const rowBox = await row.boundingBox();
+          const titleBox = await row.getByRole("heading", { name: "核对本周计划", exact: true }).boundingBox();
+          const menuBox = await row.getByRole("button", { name: "核对本周计划 更多操作", exact: true }).boundingBox();
+          assert.ok(rowBox && titleBox && menuBox);
+          assert.ok(menuBox.x >= titleBox.x + titleBox.width && menuBox.y < titleBox.y + titleBox.height && menuBox.y - rowBox.y < 20, "task menu remains in the title row's right-hand column");
+        }
         await capture(page, `workspace-${scene}-${width}`);
         if (scene === "tasks") {
           await page.getByRole("button", { name: "打开任务：核对本周计划", exact: true }).click();
@@ -223,6 +247,7 @@ async function backCloses(page, trigger, visibleTarget) {
       await page.goto(`${baseURL}/mobile-native-e2e?scene=today`, { waitUntil: "networkidle" });
       await page.getByRole("button", { name: "快速新建", exact: true }).click();
       await page.getByRole("dialog").waitFor({ state: "visible" });
+      assert.equal(await page.locator('[data-slot="dialog-overlay"]').evaluate((node) => getComputedStyle(node).backdropFilter), "none", "dialog scrim should not blur the full page");
       await capture(page, `workspace-create-reduced-motion-${width}`);
       await page.keyboard.press("Escape");
       await page.getByRole("dialog").waitFor({ state: "hidden" });

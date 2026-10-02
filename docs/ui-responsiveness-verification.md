@@ -22,6 +22,9 @@
 - Today has one owner for responsive content gutters. Its loading layout has
   the same origin. Tasks and Calendar now use workspace-shaped route loading
   states, including a one-day mobile calendar skeleton.
+- Mobile Notes preserves space between its folder control and heading for both
+  populated and empty lists. Task row menus keep their own right-hand column.
+  Dialog and sheet scrims use tint without a full-page backdrop-blur pass.
 
 ## Reproducible CPU/work-count evidence
 
@@ -53,7 +56,9 @@ The existing `E2E_MOBILE_HARNESS=1` route now has fixture-only shell scenes for
 Today, Tasks, Calendar, Notes and loading states. CI captures 390 px and 1440 px
 views, checks horizontal overflow, active navigation, Today gutter/loading
 origin, Notes default width, Tasks detail close/Back, and reduced-motion dialog
-dismissal. The established 360–430 px Interview/history/draft provenance tests
+dismissal. Bounding-box checks prevent the mobile Notes folder/title collision
+and task menu wrapping; computed-style checks verify unblurred dialog/sheet
+scrims. The established 360–430 px Interview/history/draft provenance tests
 still run. All fixtures are synthetic; tests do not submit mutations.
 
 Navigation interruption and delayed-import ownership use deterministic React
