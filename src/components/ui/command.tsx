@@ -39,15 +39,17 @@ function CommandDialog({
   children,
   className,
   showCloseButton = false,
+  contentOnly = false,
   ...props
 }: React.ComponentProps<typeof Dialog> & {
   title?: string
   description?: string
   className?: string
   showCloseButton?: boolean
+  contentOnly?: boolean
 }) {
-  return (
-    <Dialog {...props}>
+  const content = (
+    <>
       <DialogHeader className="sr-only">
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
@@ -61,8 +63,9 @@ function CommandDialog({
       >
         {children}
       </DialogContent>
-    </Dialog>
+    </>
   )
+  return contentOnly ? content : <Dialog {...props}>{content}</Dialog>
 }
 
 function CommandInput({

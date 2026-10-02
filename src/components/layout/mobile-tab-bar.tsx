@@ -5,14 +5,16 @@ import { usePathname } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { mobileTabNavigation } from "@/lib/navigation-registry";
 import { navActive } from "@/lib/navigation";
+import type { ShellNavigationEvent } from "@/components/layout/use-shell-navigation";
 import { cn } from "@/lib/utils";
 
-const itemClass = "pressable flex min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-[12px] text-[10.5px] font-medium tracking-[-0.01em]";
+const itemClass = "navigation-tab pressable relative flex min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-[12px] text-[10.5px] font-medium tracking-[-0.01em]";
 
 type MobileTabBarProps = {
   onOpenMore: () => void;
+  presentationPathname?: string;
   pendingHref?: string | null;
-  onNavigate?: (href: string) => void;
+  onNavigate?: (href: string, event: ShellNavigationEvent) => void;
   onIntent?: (href: string) => void;
 };
 
@@ -21,8 +23,9 @@ function pathnameFromHref(href: string | null | undefined) {
   return href.split(/[?#]/, 1)[0] || "/";
 }
 
-export function MobileTabBar({ onOpenMore, pendingHref, onNavigate, onIntent }: MobileTabBarProps) {
-  const pathname = usePathname();
+export function MobileTabBar({ onOpenMore, presentationPathname, pendingHref, onNavigate, onIntent }: MobileTabBarProps) {
+  const routePathname = usePathname();
+  const pathname = presentationPathname ?? routePathname;
   const pendingPathname = pathnameFromHref(pendingHref);
   const moreActive = !mobileTabNavigation.some((tab) => navActive(pathname, tab.href));
   const morePending = Boolean(
@@ -38,19 +41,19 @@ export function MobileTabBar({ onOpenMore, pendingHref, onNavigate, onIntent }: 
         key={href}
         href={href}
         prefetch={false}
-        onNavigate={() => onNavigate?.(href)}
+        onNavigate={(event) => onNavigate?.(href, event)}
         onPointerEnter={() => onIntent?.(href)}
         onFocus={() => onIntent?.(href)}
         onPointerDown={() => onIntent?.(href)}
         onTouchStart={() => onIntent?.(href)}
         aria-current={active ? "page" : undefined}
         aria-busy={pending || undefined}
+        data-pending={pending || undefined}
         className={cn(
           itemClass,
-          active || pending
+          (pendingPathname ? pending : active)
             ? "text-[var(--accent)]"
             : "text-[var(--text-tertiary)] active:bg-[var(--surface-hover)] active:opacity-70",
-          pending && "opacity-60",
         )}
       >
         <Icon className="size-5" strokeWidth={active || pending ? 2.2 : 1.85} aria-hidden="true" />
@@ -62,12 +65,12 @@ export function MobileTabBar({ onOpenMore, pendingHref, onNavigate, onIntent }: 
       onClick={onOpenMore}
       aria-current={moreActive ? "page" : undefined}
       aria-busy={morePending || undefined}
+      data-pending={morePending || undefined}
       className={cn(
         itemClass,
-        moreActive || morePending
+        (pendingPathname ? morePending : moreActive)
           ? "text-[var(--accent)]"
           : "text-[var(--text-tertiary)] active:bg-[var(--surface-hover)] active:opacity-70",
-        morePending && "opacity-60",
       )}
     >
       <MoreHorizontal className="size-5" strokeWidth={moreActive || morePending ? 2.2 : 1.85} aria-hidden="true" />

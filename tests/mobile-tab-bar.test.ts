@@ -30,7 +30,8 @@ describe("mobile tab bar contract", () => {
   it("receives shell-level pending feedback and opens the existing drawer", () => {
     expect(tabBar).toContain("pendingHref");
     expect(tabBar).toContain("aria-busy={pending || undefined}");
-    expect(appShell).toContain("<MobileTabBar onOpenMore={() => setMobileOpen(true)} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget} />");
+    expect(appShell).toContain("<MobileTabBar presentationPathname={presentationPathname}");
+    expect(appShell).toContain("onOpenMore={() => setMobileOpen(true)} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget}");
   });
 
   it("surfaces recently visited non-tab modules in the mobile drawer", () => {

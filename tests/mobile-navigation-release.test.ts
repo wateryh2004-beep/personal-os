@@ -25,7 +25,7 @@ it("lets a confirmed More navigation own a pending URL change without a competin
     expect(window.location.pathname).toBe("/notes");
     const shell = readFileSync("src/components/layout/app-shell.tsx", "utf8");
     expect(shell).toContain('new URL(href, window.location.href).href !== window.location.href');
-    expect(shell.indexOf('releaseMobileBackLayerForNavigation("sheet")')).toBeLessThan(shell.indexOf('if (pathnameFromHref(href) === pathname) return'));
+    expect(shell.indexOf('releaseMobileBackLayerForNavigation("sheet")')).toBeLessThan(shell.indexOf('    navigate(href);'));
   } finally {
     await act(async () => root.unmount()); host.remove(); vi.restoreAllMocks();
     delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;

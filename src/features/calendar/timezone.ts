@@ -14,11 +14,27 @@ export type CalendarDate = `${number}-${number}-${number}`;
 
 type Parts = { year: number; month: number; day: number; hour: number; minute: number; second: number };
 
-function partsForInstant(value: string | Date, timezone: string): Parts {
-  const parts = new Intl.DateTimeFormat("en-CA", {
+// Building an Intl formatter loads locale/timezone rules. A single drag checks
+// 73 offsets for DST, and a visible calendar projects both ends of every event.
+// Reuse the immutable formatter, never the date or user data. Keep the cache
+// bounded because this module also runs in long-lived server processes.
+const formatters = new Map<string, Intl.DateTimeFormat>();
+const formatterLimit = 16;
+
+function formatterForTimezone(timezone: string) {
+  const cached = formatters.get(timezone);
+  if (cached) return cached;
+  const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
-  }).formatToParts(new Date(value));
+  });
+  if (formatters.size >= formatterLimit) formatters.delete(formatters.keys().next().value!);
+  formatters.set(timezone, formatter);
+  return formatter;
+}
+
+function partsForInstant(value: string | Date, timezone: string): Parts {
+  const parts = formatterForTimezone(timezone).formatToParts(new Date(value));
   const get = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
   return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute"), second: get("second") };
 }

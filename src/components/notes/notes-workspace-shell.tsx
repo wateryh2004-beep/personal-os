@@ -248,8 +248,9 @@ export function NotesWorkspaceShell({ folders, notes, children }: { folders: Not
   useEffect(() => {
     const restore = window.setTimeout(() => {
       try {
-        const stored = Number(localStorage.getItem("personal-os:notes-navigator-width:v1"));
-        if (Number.isFinite(stored)) {
+        const saved = localStorage.getItem("personal-os:notes-navigator-width:v1");
+        const stored = saved?.trim() ? Number(saved) : NaN;
+        if (Number.isFinite(stored) && stored > 0) {
           const next = Math.max(220, Math.min(360, stored));
           navigatorWidthRef.current = next;
           setNavigatorWidth(next);

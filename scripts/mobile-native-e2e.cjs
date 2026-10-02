@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Node CommonJS browser-test entrypoint. */
 const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
 
@@ -170,6 +171,65 @@ async function backCloses(page, trigger, visibleTarget) {
     assert.deepEqual(errors, [], "desktop learning view should not have uncaught errors");
     await desktop.close();
     console.log("mobile-native-e2e: 1440px desktop passed");
+
+    // Shared shell screenshots use real workspace components with synthetic
+    // fixtures. Route stubs supply only fixture reads; no form is submitted.
+    for (const width of [390, 1440]) {
+      const context = await browser.newContext({ viewport: { width, height: 1000 }, isMobile: width < 768, hasTouch: width < 768 });
+      await context.route("**/api/calendar/events?**", (route) => route.fulfill({ json: { events: [], truncated: false } }));
+      await context.route("**/api/tasks/lists", (route) => route.fulfill({ json: { lists: [{ id: "e2e-list", displayName: "日常", isDefault: true }] } }));
+      const page = await context.newPage();
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      let todayOrigin;
+      for (const scene of ["today", "today-loading", "tasks", "tasks-loading", "calendar", "calendar-loading", "notes"]) {
+        await page.goto(`${baseURL}/mobile-native-e2e?scene=${scene}`, { waitUntil: "networkidle" });
+        await page.getByTestId("workspace-polish-harness").waitFor();
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1, `${scene} ${width}px should not overflow`);
+        if (scene === "tasks") await page.getByRole("button", { name: "全部", exact: true }).click();
+        const selected = page.locator('nav [aria-current="page"]:visible');
+        assert.equal(await selected.count(), 1, `${scene} ${width}px should identify one active navigation destination`);
+        if (scene === "today") {
+          const heading = await page.getByRole("heading", { name: "现在", exact: true }).boundingBox();
+          const main = await page.locator("#main-content").boundingBox();
+          assert.ok(heading && main);
+          const inset = heading.x - main.x;
+          const expectedInset = Math.max(0, main.width - 1080) / 2 + (width < 768 ? 16 : 32);
+          assert.ok(Math.abs(inset - expectedInset) <= 1, `Today ${width}px has one responsive gutter: ${inset}, expected ${expectedInset}`);
+          todayOrigin = await page.locator(".now-workspace > header").boundingBox();
+        }
+        if (scene === "today-loading") {
+          const skeletonOrigin = await page.locator(".now-workspace > header").boundingBox();
+          assert.ok(todayOrigin && skeletonOrigin);
+          assert.ok(Math.abs(todayOrigin.x - skeletonOrigin.x) <= 1 && Math.abs(todayOrigin.y - skeletonOrigin.y) <= 1, `Today ${width}px loading and content share an origin`);
+        }
+        if (scene === "notes" && width >= 768) {
+          const width = await page.getByRole("button", { name: "调整笔记导航宽度，双击恢复默认" }).evaluate((node) => node.parentElement.getBoundingClientRect().width);
+          assert.equal(width, 272, "first Notes visit preserves the intended navigator width");
+        }
+        await capture(page, `workspace-${scene}-${width}`);
+        if (scene === "tasks") {
+          await page.getByRole("button", { name: "打开任务：核对本周计划", exact: true }).click();
+          const detail = page.getByRole("complementary", { name: "任务详情", exact: true });
+          await detail.waitFor({ state: "visible" });
+          await capture(page, `workspace-task-detail-${width}`);
+          if (width < 768) await page.evaluate(() => history.back());
+          else await detail.getByRole("button", { name: "关闭任务详情", exact: true }).click();
+          await detail.waitFor({ state: "hidden" });
+          assert.equal(await page.locator('[data-navigation-progress]').count(), 0);
+        }
+      }
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.goto(`${baseURL}/mobile-native-e2e?scene=today`, { waitUntil: "networkidle" });
+      await page.getByRole("button", { name: "快速新建", exact: true }).click();
+      await page.getByRole("dialog").waitFor({ state: "visible" });
+      await capture(page, `workspace-create-reduced-motion-${width}`);
+      await page.keyboard.press("Escape");
+      await page.getByRole("dialog").waitFor({ state: "hidden" });
+      assert.deepEqual(errors, [], `shared workspaces ${width}px should have no uncaught errors`);
+      await context.close();
+      console.log(`workspace-polish-e2e: ${width}px passed`);
+    }
   } finally {
     await browser.close();
   }
@@ -177,4 +237,3 @@ async function backCloses(page, trigger, visibleTarget) {
   console.error(error);
   process.exit(1);
 });
-

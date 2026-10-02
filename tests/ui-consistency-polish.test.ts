@@ -37,8 +37,8 @@ describe("core UI consistency polish", () => {
   it("uses one loading rhythm across core workspaces", () => {
     const skeleton = read("src/components/ui/skeleton.tsx");
     const today = read("src/components/today/today-workspace-loader.tsx");
-    const tasks = read("src/components/tasks/task-workspace-loader.tsx");
-    const calendar = read("src/components/calendar/calendar-workspace-loader.tsx");
+    const tasks = read("src/components/tasks/tasks-workspace-skeleton.tsx");
+    const calendar = read("src/components/calendar/calendar-workspace-skeleton.tsx");
     const polish = read("src/app/ui-polish.css");
 
     expect(skeleton).toContain("ui-skeleton-shimmer");

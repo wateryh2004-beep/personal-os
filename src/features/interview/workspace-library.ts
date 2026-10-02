@@ -31,14 +31,21 @@ export function normalizeLibraryFilters(filters: Partial<LibraryFilters>): Libra
   };
 }
 export function workspaceDomain(item: WorkspaceItem) { return item.subcategory?.replace(/^(通用|技术面|Case面)\s*·\s*/, "").trim() || "未分类"; }
-export function filterWorkspaceItems(items: WorkspaceItem[], filters: LibraryFilters) {
+// Scope this cache to a workspace. Items are immutable snapshots: editing a body
+// produces a new item, so old normalized bodies can be garbage-collected.
+export type WorkspaceSearchIndex = WeakMap<WorkspaceItem, string>;
+export function filterWorkspaceItems(items: WorkspaceItem[], filters: LibraryFilters, searchIndex?: WorkspaceSearchIndex) {
   const terms = filters.q.normalize("NFKC").trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   return items.filter((item) => {
     if (filters.category !== "all" && item.category !== filters.category) return false;
     if (filters.domain !== "all" && workspaceDomain(item) !== filters.domain) return false;
     if (filters.style !== "all" && item.style !== filters.style) return false;
     if (!terms.length) return true;
-    const text = [item.shortTitle, item.prompt, item.subcategory, item.categoryLabel, item.thoughts, item.answer, ...Object.values(item.learning ?? {}), ...item.competencies.map((entry) => entry.label)].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase();
+    let text = searchIndex?.get(item);
+    if (text === undefined) {
+      text = [item.shortTitle, item.prompt, item.subcategory, item.categoryLabel, item.thoughts, item.answer, ...Object.values(item.learning ?? {}), ...item.competencies.map((entry) => entry.label)].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase();
+      searchIndex?.set(item, text);
+    }
     return terms.every((term) => text.includes(term));
   });
 }

@@ -1,13 +1,11 @@
-import { DashboardLayout } from "@/components/layout/page-layouts";
-
 function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`ui-skeleton-shimmer rounded-[8px] ${className}`} />;
 }
 
 export default function TodayLoading() {
   return (
-    <DashboardLayout className="p-0" aria-busy="true" aria-label="正在加载今天">
-      <div className="mx-auto w-full max-w-[1080px] px-4 py-[30px] sm:px-6 sm:py-[38px] lg:px-8 lg:py-[46px]">
+    <div aria-busy="true" aria-label="正在加载今天">
+      <div className="now-workspace mx-auto w-full max-w-[1080px] px-4 py-[30px] sm:px-6 sm:py-[38px] lg:px-8 lg:py-[46px]">
         <header>
           <Skeleton className="h-3 w-28" />
           <Skeleton className="mt-[7px] h-8 w-24" />
@@ -40,6 +38,6 @@ export default function TodayLoading() {
           {[0,1].map((block) => <section key={block}><Skeleton className="h-3.5 w-20" /><Skeleton className="mt-3 h-24 w-full" /></section>)}
         </div>
       </div>
-    </DashboardLayout>
+    </div>
   );
 }

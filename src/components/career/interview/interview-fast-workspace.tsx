@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition, type MouseEvent } from "react";
 import {
   createInterviewContext,
   createInterviewQuestion,
@@ -12,7 +12,7 @@ import {
   legacyCategoryByQuestionType,
   questionTypeLabels,
 } from "@/features/interview/constants";
-import { emptyLibraryFilters, filterWorkspaceItems, normalizeLibraryFilters, workspaceDomain, workspaceUrl, type LibraryFilters, type WorkspaceItem } from "@/features/interview/workspace-library";
+import { emptyLibraryFilters, filterWorkspaceItems, normalizeLibraryFilters, workspaceDomain, workspaceUrl, type LibraryFilters, type WorkspaceItem, type WorkspaceSearchIndex } from "@/features/interview/workspace-library";
 import { InterviewStudyView } from "./interview-study-view";
 
 type Target = {
@@ -59,13 +59,17 @@ export function InterviewFastWorkspace({
 }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
-  const requestedFilters = normalizeLibraryFilters({ category: initialCategory, q: initialQuery, domain: initialDomain, style: initialStyle });
-  const initialScope = items.filter((item) => initialContextId ? item.contextId === initialContextId : item.contextId === null);
-  const requestedItem = initialScope.find((item) => item.questionId === initialQuestionId);
-  const conflictingFilters = Boolean(requestedItem && !filterWorkspaceItems([requestedItem], requestedFilters).length);
-  const initialFilters = conflictingFilters ? emptyLibraryFilters : requestedFilters;
-  const initialItems = filterWorkspaceItems(initialScope, initialFilters);
-  const initialItem = requestedItem ?? initialItems[0] ?? null;
+  const [searchIndex] = useState<WorkspaceSearchIndex>(() => new WeakMap());
+  // These are mount defaults, not derivations of every textarea keystroke.
+  const [{ initialItem, initialFilters, conflictingFilters, requestedItem }] = useState(() => {
+    const requestedFilters = normalizeLibraryFilters({ category: initialCategory, q: initialQuery, domain: initialDomain, style: initialStyle });
+    const initialScope = items.filter((item) => initialContextId ? item.contextId === initialContextId : item.contextId === null);
+    const requestedItem = initialScope.find((item) => item.questionId === initialQuestionId);
+    const conflictingFilters = Boolean(requestedItem && !filterWorkspaceItems([requestedItem], requestedFilters, searchIndex).length);
+    const initialFilters = conflictingFilters ? emptyLibraryFilters : requestedFilters;
+    const initialItems = filterWorkspaceItems(initialScope, initialFilters, searchIndex);
+    return { initialItem: requestedItem ?? initialItems[0] ?? null, initialFilters, conflictingFilters, requestedItem };
+  });
   const [filters, setFilters] = useState(initialFilters);
   const category = filters.category;
   const [editing, setEditing] = useState(false);
@@ -85,10 +89,11 @@ export function InterviewFastWorkspace({
   const pendingSavesRef = useRef(0);
   const answerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const draftsRef = useRef(new Map(items.map((item) => [
+  const [initialDrafts] = useState(() => new Map(items.map((item) => [
     item.preparationId,
     { thoughts: item.thoughts, savedThoughts: item.thoughts, answer: item.answer, savedAnswer: item.answer, answerId: item.answerId, answerMeta: item.answerMeta ?? null },
   ])));
+  const draftsRef = useRef(initialDrafts);
   const selectedRef = useRef<WorkspaceItem | null>(initialItem);
   const thoughtsRef = useRef(thoughts);
   const answerRef = useRef(answer);
@@ -98,21 +103,28 @@ export function InterviewFastWorkspace({
   const saveSequenceRef = useRef(new Map<string, number>());
 
   const contextItems = useMemo(
-    () => items.filter((item) => contextId ? item.contextId === contextId : item.contextId === null).map((item) => {
+    () => items.filter((item) => contextId ? item.contextId === contextId : item.contextId === null),
+    [contextId, items],
+  );
+  const draftItems = useMemo(
+    () => contextItems.map((item) => {
       const draft = searchDrafts[item.preparationId];
       return draft ? { ...item, ...draft } : item;
     }),
-    [contextId, items, searchDrafts],
+    [contextItems, searchDrafts],
   );
 
   const domains = useMemo(() => [...new Set(contextItems.map(workspaceDomain))].sort((a, b) => a.localeCompare(b, "zh-CN")), [contextItems]);
+  // Body edits only affect discovery when there is an active text search.
+  const searchItems = filters.q.trim() ? draftItems : contextItems;
+  const { domain, style, q } = filters;
+  const matchingItems = useMemo(() => filterWorkspaceItems(searchItems, { category: "all", domain, style, q }, searchIndex), [searchItems, domain, style, q, searchIndex]);
   const counts = useMemo(() => {
-    const matching = filterWorkspaceItems(contextItems, { ...filters, category: "all" });
-    const next: Record<string, number> = { all: matching.length };
-    for (const item of matching) next[item.category] = (next[item.category] ?? 0) + 1;
+    const next: Record<string, number> = { all: matchingItems.length };
+    for (const item of matchingItems) next[item.category] = (next[item.category] ?? 0) + 1;
     return next;
-  }, [contextItems, filters]);
-  const visibleItems = useMemo(() => filterWorkspaceItems(contextItems, filters), [filters, contextItems]);
+  }, [matchingItems]);
+  const visibleItems = useMemo(() => category === "all" ? matchingItems : matchingItems.filter((item) => item.category === category), [category, matchingItems]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -251,17 +263,19 @@ export function InterviewFastWorkspace({
 
   const handleFiltersChange = (patch: Partial<LibraryFilters>) => {
     const next = normalizeLibraryFilters({ ...filters, ...patch });
-    const visible = filterWorkspaceItems(contextItems, next);
+    const visible = filterWorkspaceItems(draftItems, next, searchIndex);
     setFilters(next);
     setMobileDetailOpen(false);
     switchItem(contextId, visible.find((item) => item.questionId === questionId) ?? visible[0] ?? null, next, false);
     replaceUrl(contextId, "", next);
   };
 
-  const handleQuestionChange = (nextQuestionId: string) => {
+  const handleQuestionChange = useCallback((nextQuestionId: string) => {
     const nextItem = contextItems.find((item) => item.questionId === nextQuestionId) ?? null;
     if (!nextItem) return;
-    const nextFilters = visibleItems.some((item) => item.questionId === nextQuestionId) ? filters : emptyLibraryFilters;
+    const draft = draftsRef.current.get(nextItem.preparationId);
+    const searchableItem = draft ? { ...nextItem, thoughts: draft.thoughts, answer: draft.answer } : nextItem;
+    const nextFilters = filterWorkspaceItems([searchableItem], filters, searchIndex).length ? filters : emptyLibraryFilters;
     setFilters(nextFilters);
     const mobile = window.matchMedia("(max-width: 767px)").matches;
     if (mobile && !mobileDetailOpen) {
@@ -271,7 +285,7 @@ export function InterviewFastWorkspace({
     }
     switchItem(contextId, nextItem, nextFilters, !mobile || mobileDetailOpen);
     setMobileDetailOpen(true);
-  };
+  }, [contextItems, filters, searchIndex, mobileDetailOpen, contextId, replaceUrl, switchItem]);
 
   const closeMobileDetail = () => {
     if (window.history.state?.interviewDetail) window.history.back();
@@ -288,7 +302,7 @@ export function InterviewFastWorkspace({
       const requestedContext = params.get("context") ?? "";
       const nextContext = targets.some((target) => target.id === requestedContext) ? requestedContext : "";
       const nextFilters = normalizeLibraryFilters({ category: params.get("category") ?? "all", domain: params.get("domain") ?? "all", style: params.get("style") ?? "all", q: params.get("q") ?? "" });
-      const scoped = filterWorkspaceItems(items.filter((item) => nextContext ? item.contextId === nextContext : item.contextId === null).map((item) => { const draft = draftsRef.current.get(item.preparationId); return draft ? { ...item, thoughts: draft.thoughts, answer: draft.answer } : item; }), nextFilters);
+      const scoped = filterWorkspaceItems(items.filter((item) => nextContext ? item.contextId === nextContext : item.contextId === null).map((item) => { const draft = draftsRef.current.get(item.preparationId); return draft ? { ...item, thoughts: draft.thoughts, answer: draft.answer } : item; }), nextFilters, searchIndex);
       const matched = scoped.find((item) => item.questionId === params.get("question"));
       setFilters(nextFilters);
       switchItem(nextContext, matched ?? scoped[0] ?? null, nextFilters, false);
@@ -296,7 +310,7 @@ export function InterviewFastWorkspace({
     };
     window.addEventListener("popstate", restoreHistory);
     return () => window.removeEventListener("popstate", restoreHistory);
-  }, [items, targets, switchItem]);
+  }, [items, targets, switchItem, searchIndex]);
 
   useEffect(() => {
     if (mobileDetailOpen && window.matchMedia("(max-width: 767px)").matches) {
@@ -319,6 +333,7 @@ export function InterviewFastWorkspace({
   }, [answer, questionId, mobileDetailOpen, editing]);
 
   const selected = contextItems.find((item) => item.questionId === questionId) ?? null;
+  const relatedItems = useMemo(() => selected ? contextItems.filter((item) => item.parentQuestionId === selected.questionId || (selected.parentQuestionId && item.questionId === selected.parentQuestionId)) : [], [contextItems, selected]);
   const detailParams = new URLSearchParams();
   if (contextId) detailParams.set("context", contextId);
   if (answerId) detailParams.set("answer", answerId);
@@ -454,22 +469,7 @@ export function InterviewFastWorkspace({
           </div>
 
           <nav aria-label="面试题目" className="space-y-px pr-0.5 md:max-h-[600px] md:overflow-y-auto">
-            {visibleItems.map((item) => {
-              const active = item.questionId === questionId;
-              return (
-                <button
-                  type="button"
-                  key={item.preparationId}
-                  onClick={() => handleQuestionChange(item.questionId)}
-                  aria-label={item.prompt}
-                  aria-current={active ? "true" : undefined}
-                  className={`pressable block w-full rounded-[9px] px-2.5 py-2.5 text-left text-[13px] leading-[1.45] ${active ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-white/55 hover:text-[var(--text-primary)]"}`}
-                >
-                  <span className="line-clamp-2">{item.shortTitle || item.prompt}</span>
-                  <span className="mt-1 block truncate text-[10.5px] font-normal text-[var(--text-tertiary)]">{workspaceDomain(item)} · {item.categoryLabel}</span>
-                </button>
-              );
-            })}
+            <QuestionOptions items={visibleItems} questionId={questionId} onSelect={handleQuestionChange} />
             {!visibleItems.length ? <div className="px-2 py-5 text-[13px] leading-6 text-[var(--text-tertiary)]"><p>{contextItems.length ? "没有找到匹配的问题" : "这个题库还没有问题"}</p><p className="text-xs">{contextItems.length ? "试试其他关键词，或清除筛选。" : "可以添加自己的问题，或切换面试目标。"}</p>{contextItems.length ? <button type="button" onClick={() => handleFiltersChange(emptyLibraryFilters)} className="mt-2 min-h-11 text-[var(--accent)]">清除筛选</button> : null}</div> : null}
           </nav>
         </aside>
@@ -505,7 +505,7 @@ export function InterviewFastWorkspace({
                 <Link href={`/career/interview/practice/${selected.preparationId}`} onClick={(event) => followWorkspaceLink(event, `/career/interview/practice/${selected.preparationId}`)} className="inline-flex min-h-11 items-center rounded-[9px] bg-[var(--accent)] px-4 text-[12px] font-medium text-white">练习这道题 →</Link>
               </div>
               {answerMeta ? <div className="mt-4 text-[11px] leading-6 text-[var(--text-tertiary)]"><span>{answerMeta.status === "current" ? "当前答案" : "参考草稿 · 待确认"} · {answerMeta.language === "en" ? "英文" : answerMeta.language === "bilingual" ? "中英双语" : "中文"} · V{answerMeta.version_number} · {answerMeta.source === "ai_draft" ? "AI 起草" : answerMeta.source === "ai_edited" ? "AI 起草后编辑" : answerMeta.source === "imported" ? "导入" : "人工编辑"}</span>{answerMeta.status === "draft" ? <p>可直接阅读；核对个人事实后再设为当前答案。阅读和编辑都不会自动确认。</p> : null}<Link href={`${detailHref}#answer-versions`} prefetch={false} onClick={(event) => followDetailLink(event, "#answer-versions")} className="inline-flex min-h-9 items-center font-medium text-[var(--accent)]">{answerMeta.status === "draft" ? "查看版本并确认答案 →" : "查看答案版本 →"}</Link></div> : null}
-              {!editing ? <InterviewStudyView thoughts={thoughts} answer={answer} isDraft={answerMeta?.status === "draft"} learning={selected.learning} related={contextItems.filter((item) => item.parentQuestionId === selected.questionId || (selected.parentQuestionId && item.questionId === selected.parentQuestionId))} onSelect={handleQuestionChange} /> : <div>
+              {!editing ? <InterviewStudyView thoughts={thoughts} answer={answer} isDraft={answerMeta?.status === "draft"} learning={selected.learning} related={relatedItems} onSelect={handleQuestionChange} /> : <div>
               <section className="mt-9">
                 <div className="flex items-baseline justify-between gap-3">
                   <h2 className="text-[11px] font-semibold tracking-[.012em] text-[var(--text-tertiary)]">思路</h2>
@@ -602,6 +602,33 @@ export function InterviewFastWorkspace({
     </div>
   );
 }
+
+const QuestionOptions = memo(function QuestionOptions({ items, questionId, onSelect }: {
+  items: WorkspaceItem[];
+  questionId: string;
+  onSelect: (questionId: string) => void;
+}) {
+  return items.map((item) => <QuestionOption key={item.preparationId} item={item} active={item.questionId === questionId} onSelect={onSelect} />);
+});
+
+const QuestionOption = memo(function QuestionOption({ item, active, onSelect }: {
+  item: WorkspaceItem;
+  active: boolean;
+  onSelect: (questionId: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(item.questionId)}
+      aria-label={item.prompt}
+      aria-current={active ? "true" : undefined}
+      className={`pressable block w-full rounded-[9px] px-2.5 py-2.5 text-left text-[13px] leading-[1.45] ${active ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-white/55 hover:text-[var(--text-primary)]"}`}
+    >
+      <span className="line-clamp-2">{item.shortTitle || item.prompt}</span>
+      <span className="mt-1 block truncate text-[10.5px] font-normal text-[var(--text-tertiary)]">{workspaceDomain(item)} · {item.categoryLabel}</span>
+    </button>
+  );
+});
 
 function CategoryButton({
   label,

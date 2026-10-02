@@ -13,7 +13,7 @@ import {
   Settings,
   Sparkles,
 } from "lucide-react";
-import { ViewTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
@@ -42,7 +42,7 @@ import {
   RECENT_NAVIGATION_STORAGE_KEY,
   type RecentNavigationItem,
 } from "@/lib/navigation-registry";
-import { perfMark, perfMeasure } from "@/lib/perf";
+import { useShellNavigation, type ShellNavigationEvent } from "@/components/layout/use-shell-navigation";
 import { GlobalCreateLayer } from "@/components/shared/global-create-layer";
 import { matchesShortcut } from "@/features/shortcuts/registry";
 import { ActionFeedbackProvider } from "@/components/shared/action-feedback";
@@ -65,7 +65,7 @@ type NavigationProps = {
   pathname: string;
   collapsed: boolean;
   pendingHref?: string | null;
-  onNavigate?: (href: string) => void;
+  onNavigate?: (href: string, event: ShellNavigationEvent) => void;
   onIntent?: (href: string) => void;
   groups?: typeof desktopNavigationGroups;
 };
@@ -83,23 +83,24 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent, gr
     <div className="space-y-px">{group.items.map(({ name, href, icon: Icon }) => {
       const active = navActive(pathname, href);
       const pending = pendingPathname ? navActive(pendingPathname, href) : false;
+      const selected = pendingPathname ? pending : active;
       const link = <Link
         href={href}
         prefetch={href === "/career"}
-        onNavigate={() => onNavigate?.(href)}
+        onNavigate={(event) => onNavigate?.(href, event)}
         onPointerEnter={() => onIntent?.(href)}
         onFocus={() => onIntent?.(href)}
         onPointerDown={() => onIntent?.(href)}
         onTouchStart={() => onIntent?.(href)}
         aria-current={active ? "page" : undefined}
         aria-busy={pending || undefined}
+        data-pending={pending || undefined}
         aria-label={collapsed ? name : undefined}
         className={cn(
-          "pressable flex h-[36px] min-w-0 items-center gap-2.5 rounded-[11px] px-2.5 text-[13px] font-medium tracking-[-0.007em]",
-          active || pending
+          "navigation-link pressable relative flex h-[36px] min-w-0 items-center gap-2.5 rounded-[11px] px-2.5 text-[13px] font-medium tracking-[-0.007em]",
+          selected
             ? "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
-          pending && "opacity-60",
           collapsed && "justify-center px-0",
         )}
       >
@@ -114,7 +115,7 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent, gr
 }
 
 function shellContentClass(pathname: string) {
-  if (pathname === "/calendar" || pathname === "/tasks" || pathname === "/files" || pathname === "/career/roadmap") return "p-0";
+  if (pathname === "/today" || pathname === "/calendar" || pathname === "/tasks" || pathname === "/files" || pathname === "/career/roadmap") return "p-0";
   if (pathname === "/notes" || /^\/notes\/[0-9a-f-]{36}$/.test(pathname)) return "p-0";
   if (pathname.startsWith("/career")) return "career-surface mx-auto w-full max-w-[980px] px-4 py-7 pb-[calc(var(--tab-bar-height)+1rem)] sm:px-6 md:pb-8 lg:px-8";
   return "mx-auto w-full max-w-[var(--content-dashboard-width)] px-4 py-6 pb-[calc(var(--tab-bar-height)+1rem)] sm:px-6 md:pb-6 lg:px-8";
@@ -146,35 +147,30 @@ function prefetchWorkspaceData(href: WorkspacePrefetchHref, coldOnly: boolean) {
   void resource.prefetch().catch(() => {});
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
-  return <ActionFeedbackProvider><WorkspacePanelProvider><AppShellInner>{children}</AppShellInner></WorkspacePanelProvider></ActionFeedbackProvider>;
+export function AppShell({ children, presentationPathname }: { children: React.ReactNode; presentationPathname?: string }) {
+  return <ActionFeedbackProvider><WorkspacePanelProvider><AppShellInner presentationPathname={presentationPathname}>{children}</AppShellInner></WorkspacePanelProvider></ActionFeedbackProvider>;
 }
 
-function AppShellInner({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+function AppShellInner({ children, presentationPathname }: { children: React.ReactNode; presentationPathname?: string }) {
+  const routePathname = usePathname();
+  const pathname = presentationPathname ?? routePathname;
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandSection, setCommandSection] = useState<CommandCenterSection>("search");
-  const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const [showNavigationProgress, setShowNavigationProgress] = useState(false);
+  const { navigate, pendingHref: visiblePendingHref } = useShellNavigation(pathname, router);
   const [recentNavigation, setRecentNavigation] = useState<RecentNavigationItem[]>([]);
   const backgroundPrefetched = useRef(new Set<WorkspacePrefetchHref>());
   const { isOpen: globalAgentOpen, open: openGlobalAgent, close: closeGlobalAgent } = useWorkspacePanel("global-agent");
 
-  const pendingPathname = pathnameFromHref(pendingHref);
-  const visiblePendingHref = pendingPathname === pathname ? null : pendingHref;
-
-  const beginNavigation = useCallback((href: string) => {
+  const beginNavigation = useCallback((href: string, event?: ShellNavigationEvent) => {
+    event?.preventDefault();
     if (new URL(href, window.location.href).href !== window.location.href) {
       releaseMobileBackLayerForNavigation("sheet");
     }
-    if (pathnameFromHref(href) === pathname) return;
-    setShowNavigationProgress(false);
-    setPendingHref(href);
-    perfMark("navigation-click", { href });
-  }, [pathname]);
+    navigate(href);
+  }, [navigate]);
 
   const prefetchNavigationTarget = useCallback((href: string) => {
     if (shouldAvoidSpeculativePrefetch()) return;
@@ -194,27 +190,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!pendingHref || pathnameFromHref(pendingHref) !== pathname) return;
-    perfMark("route-commit", { href: pathname });
-    perfMeasure("route-commit", "navigation-click", { href: pathname });
-    perfMeasure("navigation-ready", "navigation-click", { href: pathname });
-    const timer = window.setTimeout(() => {
-      setShowNavigationProgress(false);
-      setPendingHref(null);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [pathname, pendingHref]);
-
-  useEffect(() => {
-    if (!visiblePendingHref) return;
-    const timer = window.setTimeout(() => setShowNavigationProgress(true), 180);
-    return () => window.clearTimeout(timer);
-  }, [visiblePendingHref]);
-
-  useEffect(() => {
     const handleNavigationStart = (event: Event) => {
       const href = (event as CustomEvent<{ href?: unknown }>).detail?.href;
-      if (typeof href === "string") beginNavigation(href);
+      if (typeof href !== "string" || !event.cancelable) return;
+      event.preventDefault();
+      beginNavigation(href);
     };
     window.addEventListener("personal-os:navigation-start", handleNavigationStart);
     return () => window.removeEventListener("personal-os:navigation-start", handleNavigationStart);
@@ -343,7 +323,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       <Link
         href="/today"
         prefetch={false}
-        onNavigate={() => beginNavigation("/today")}
+        onNavigate={(event) => beginNavigation("/today", event)}
         onPointerEnter={() => prefetchNavigationTarget("/today")}
         onFocus={() => prefetchNavigationTarget("/today")}
         aria-label="Life of HANG，返回 Now"
@@ -361,7 +341,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       <Link
         href="/settings"
         prefetch={false}
-        onNavigate={() => beginNavigation("/settings")}
+        onNavigate={(event) => beginNavigation("/settings", event)}
         onPointerEnter={() => prefetchNavigationTarget("/settings")}
         onFocus={() => prefetchNavigationTarget("/settings")}
         aria-current={pathname === "/settings" ? "page" : undefined}
@@ -387,7 +367,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   </aside>, [beginNavigation, collapsed, desktopWidth, pathname, prefetchNavigationTarget, visiblePendingHref]);
 
   return <div className="min-h-[var(--app-viewport-height)] bg-[var(--surface-app)]">
-    {showNavigationProgress ? <div data-navigation-progress aria-hidden="true" className="fixed inset-x-0 top-0 z-[70] h-px bg-[var(--accent)]" /> : null}
+    {visiblePendingHref ? <>
+      <div data-navigation-progress aria-hidden="true" className="pointer-events-none fixed inset-x-0 top-0 z-[70] h-0.5 overflow-hidden bg-[var(--accent-soft)]" />
+      <p role="status" className="sr-only">正在打开{navigationItemForPath(pathnameFromHref(visiblePendingHref) ?? "")?.name ?? "页面"}…</p>
+    </> : null}
     {desktopSidebar}
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
       <SheetContent side="left" className="w-[min(84vw,282px)] gap-0 border-r border-white/55 bg-[var(--material-thick)] p-0 backdrop-blur-2xl backdrop-saturate-[180%]">
@@ -402,15 +385,16 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                 key={targetHref}
                 href={targetHref}
                 prefetch={false}
-                onNavigate={() => { beginNavigation(targetHref); setMobileOpen(false); }}
+                onNavigate={(event) => { beginNavigation(targetHref, event); setMobileOpen(false); }}
                 onPointerEnter={() => prefetchNavigationTarget(targetHref)}
                 onFocus={() => prefetchNavigationTarget(targetHref)}
                 onPointerDown={() => prefetchNavigationTarget(targetHref)}
                 onTouchStart={() => prefetchNavigationTarget(targetHref)}
                 aria-busy={pending || undefined}
+                data-pending={pending || undefined}
                 className={cn(
-                  "flex h-[34px] min-w-0 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-[13px] font-medium text-[var(--text-secondary)] transition-[background-color,color,opacity] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
-                  pending && "bg-[var(--surface-selected)] text-[var(--text-primary)] opacity-60 [&>svg]:text-[var(--accent)]",
+                  "navigation-link relative flex h-[34px] min-w-0 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-[13px] font-medium text-[var(--text-secondary)] transition-[background-color,color,opacity] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
+                  pending && "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]",
                 )}
               >
                 <Icon className="size-4 shrink-0 text-[var(--text-tertiary)]" strokeWidth={pending ? 2 : 1.8} aria-hidden="true" />
@@ -418,12 +402,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               </Link>;
             })}</div>
           </div> : null}
-          <Navigation groups={mobileMoreNavigationGroups} pathname={pathname} collapsed={false} pendingHref={visiblePendingHref} onNavigate={(href) => { beginNavigation(href); setMobileOpen(false); }} onIntent={prefetchNavigationTarget} />
+          <Navigation groups={mobileMoreNavigationGroups} pathname={pathname} collapsed={false} pendingHref={visiblePendingHref} onNavigate={(href, event) => { beginNavigation(href, event); setMobileOpen(false); }} onIntent={prefetchNavigationTarget} />
         </div>
         <Link
           href="/settings"
           prefetch={false}
-          onNavigate={() => { beginNavigation("/settings"); setMobileOpen(false); }}
+          onNavigate={(event) => { beginNavigation("/settings", event); setMobileOpen(false); }}
           onPointerEnter={() => prefetchNavigationTarget("/settings")}
           onFocus={() => prefetchNavigationTarget("/settings")}
           className={cn(
@@ -443,13 +427,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" onClick={openContextualCreate} aria-label="快速新建"><Plus aria-hidden="true" /></Button></TooltipTrigger><TooltipContent>快速新建（⌘N）</TooltipContent></Tooltip>
       </header>
       <div className="min-w-0">
-        <ViewTransition default="app-route">
-          <main id="main-content" className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>
-        </ViewTransition>
+        <main id="main-content" className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>
         {globalAgentOpen ? <GlobalAgent open onClose={closeGlobalAgent} /> : null}
       </div>
     </div>
-    <MobileTabBar onOpenMore={() => setMobileOpen(true)} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget} />
+    <MobileTabBar presentationPathname={presentationPathname} onOpenMore={() => setMobileOpen(true)} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget} />
     <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} initialSection={commandSection} />
     <GlobalCreateLayer />
   </div>;

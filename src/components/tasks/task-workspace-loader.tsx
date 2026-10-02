@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { TasksShell } from "./tasks-workspace-skeleton";
 import { MicrosoftDeviceConnect } from "@/components/calendar/microsoft-device-connect";
 import { TaskWorkspace } from "@/components/tasks/task-workspace";
 import type { TaskDayBounds } from "@/features/tasks/task-view";
@@ -11,37 +12,6 @@ import {
 } from "@/features/tasks/workspace-resource";
 import { useWorkspaceResourceLifecycle } from "@/lib/workspace-resource-cache";
 
-function TasksShell() {
-  return (
-    <section
-      aria-busy="true"
-      className="h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] overflow-hidden bg-[var(--surface-canvas)] px-5 pt-[18px] sm:px-7 lg:px-10"
-    >
-      <div className="mx-auto max-w-[980px]">
-        <div className="ui-skeleton-shimmer h-7 w-20 rounded-[7px]" />
-        <div className="mt-2.5 flex gap-4.5">
-          <div className="ui-skeleton-shimmer h-3 w-8 rounded-full" />
-          <div className="ui-skeleton-shimmer h-3 w-16 rounded-full" />
-          <div className="ui-skeleton-shimmer h-3 w-8 rounded-full" />
-        </div>
-      </div>
-      <div className="mx-auto mt-7 max-w-[748px]">
-        <div className="ui-skeleton-shimmer h-3 w-24 rounded-full" />
-        <div className="mt-3.5 border-t border-[var(--separator)]">
-          {[0, 1, 2, 3].map((item) => (
-            <div key={item} className="flex h-[60px] items-center gap-3 border-b border-[var(--separator)]">
-              <div className="ui-skeleton-shimmer size-[18px] rounded-full" />
-              <div className="min-w-0 flex-1">
-                <div className="ui-skeleton-shimmer h-3.5 w-[min(320px,72%)] rounded-full" />
-                <div className="ui-skeleton-shimmer mt-2 h-2.5 w-24 rounded-full" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
 
 function WorkspaceMessage({ tone, title, children }: { tone: "danger" | "warning"; title?: string; children: React.ReactNode }) {
   return (

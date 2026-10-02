@@ -5,7 +5,7 @@ const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.
 
 describe("interaction continuity contracts", () => {
   it("keeps navigation feedback local while a route is loading", () => {
-    const shell = source("src/components/layout/app-shell.tsx");
+    const shell = source("src/components/layout/app-shell.tsx") + source("src/components/layout/use-shell-navigation.ts");
     expect(shell).toContain("pendingHref");
     expect(shell).toContain('perfMark("navigation-click"');
     expect(shell).toContain('perfMeasure("navigation-ready"');
