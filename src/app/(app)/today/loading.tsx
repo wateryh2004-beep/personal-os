@@ -10,7 +10,7 @@ export default function TodayLoading() {
           <Skeleton className="h-5 w-28" />
           <Skeleton className="mt-1 h-9 sm:h-[41px] w-24" />
           <Skeleton className="mt-2 h-[22px] w-64 max-w-full" />
-          <Skeleton className="mt-6 h-14 sm:h-11 w-full max-w-[680px] rounded-[11px]" />
+          <Skeleton className="mt-6 h-14 md:h-11 w-full max-w-[680px] rounded-[11px]" />
         </header>
 
         <section className="mt-8 sm:mt-10">

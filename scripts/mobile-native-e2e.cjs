@@ -190,7 +190,7 @@ async function backCloses(page, trigger, visibleTarget) {
 
     // Shared shell screenshots use real workspace components with synthetic
     // fixtures. Route stubs supply only fixture reads; no form is submitted.
-    for (const width of [360, 390, 430, 1440]) {
+    for (const width of [360, 390, 430, 640, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 1000 }, isMobile: width < 768, hasTouch: width < 768 });
       await context.route("**/api/calendar/events?**", (route) => route.fulfill({ json: { events: [], truncated: false } }));
       await context.route("**/api/tasks/lists", (route) => route.fulfill({ json: { lists: [{ id: "e2e-list", displayName: "日常", isDefault: true }] } }));

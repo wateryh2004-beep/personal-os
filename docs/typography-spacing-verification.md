@@ -29,7 +29,7 @@ Interview provenance or the 153-question library is changed.
 
 The existing browser harness uses only synthetic data and never submits forms.
 It now exercises empty and populated Today, Tasks, Calendar, Notes, loading
-states and a long shared heading at 360 / 390 / 430 / 1440 px. Interview retains
+states and a long shared heading at 360 / 390 / 430 / 640 / 1440 px. Interview retains
 360 / 390 / 412 / 430 px history, filters, provenance and reading-mode checks.
 Cropped Interview screenshots supplement the full-page images.
 
