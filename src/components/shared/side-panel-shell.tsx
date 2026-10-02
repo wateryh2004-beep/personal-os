@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
@@ -35,61 +35,100 @@ export function SidePanelShell({
   const defaults = variant === "assistant" ? 420 : 352;
   const bounds = variant === "assistant" ? { min: 340, max: 640 } : { min: 300, max: 520 };
   const storageKey = `personal-os:panel-width:${variant}:v1`;
-  const [width, setWidth] = useState(defaults);
   const widthRef = useRef(defaults);
   const previousFocus = useRef<HTMLElement | null>(null);
   const asideRef = useRef<HTMLElement | null>(null);
+  const resizeHandleRef = useRef<HTMLButtonElement | null>(null);
+  const dragCleanup = useRef<(() => void) | null>(null);
+
+  const applyWidth = (next: number) => {
+    widthRef.current = next;
+    asideRef.current?.style.setProperty("--panel-width", `${next}px`);
+    resizeHandleRef.current?.setAttribute("aria-valuenow", String(Math.round(next)));
+  };
 
   useMobileBackLayer(open, onClose, `side-panel:${variant}`);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    let next = defaults;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      const stored = saved?.trim() ? Number(saved) : NaN;
+      if (Number.isFinite(stored) && stored > 0) next = Math.max(bounds.min, Math.min(bounds.max, stored));
+    } catch { /* Persistence is an enhancement. */ }
+    widthRef.current = next;
+    asideRef.current?.style.setProperty("--panel-width", `${next}px`);
+    resizeHandleRef.current?.setAttribute("aria-valuenow", String(Math.round(next)));
+  }, [bounds.max, bounds.min, defaults, open, storageKey]);
 
   useEffect(() => {
     if (!open) return;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const restore = window.setTimeout(() => {
-      try {
-        const stored = Number(localStorage.getItem(storageKey));
-        if (Number.isFinite(stored)) {
-          const next = Math.max(bounds.min, Math.min(bounds.max, stored));
-          widthRef.current = next;
-          setWidth(next);
-        }
-      } catch { /* Persistence is an enhancement. */ }
-    }, 0);
     const isMobile = window.matchMedia("(max-width: 767px)").matches;
     const timer = isMobile
       ? undefined
       : window.setTimeout(() => asideRef.current?.querySelector<HTMLElement>("input:not([type=hidden]), textarea, button")?.focus(), 0);
     return () => {
       if (timer !== undefined) window.clearTimeout(timer);
-      window.clearTimeout(restore);
+      dragCleanup.current?.();
       previousFocus.current?.focus({ preventScroll: true });
     };
-  }, [bounds.max, bounds.min, open, storageKey]);
+  }, [open]);
+
+  const persistWidth = () => {
+    try { localStorage.setItem(storageKey, String(Math.round(widthRef.current))); } catch { /* no-op */ }
+  };
 
   const resize = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (window.matchMedia("(max-width: 767px)").matches) return;
+    if (event.button !== 0 || window.matchMedia("(max-width: 767px)").matches) return;
     event.preventDefault();
+    dragCleanup.current?.();
     const startX = event.clientX;
     const startWidth = widthRef.current;
+    const max = Math.max(bounds.min, Math.min(bounds.max, window.innerWidth * (variant === "assistant" ? 0.5 : 0.45)));
+    let frame: number | null = null;
+    asideRef.current?.setAttribute("data-resizing", "true");
     const onMove = (move: PointerEvent) => {
-      const max = Math.min(bounds.max, window.innerWidth * (variant === "assistant" ? 0.5 : 0.45));
-      const next = Math.max(bounds.min, Math.min(max, startWidth + startX - move.clientX));
-      widthRef.current = next;
-      setWidth(next);
+      widthRef.current = Math.max(bounds.min, Math.min(max, startWidth + startX - move.clientX));
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        applyWidth(widthRef.current);
+      });
     };
-    const onEnd = () => {
-      try { localStorage.setItem(storageKey, String(Math.round(widthRef.current))); } catch { /* no-op */ }
+    const cleanup = () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onEnd);
+      asideRef.current?.removeAttribute("data-resizing");
+      dragCleanup.current = null;
     };
+    const onEnd = () => {
+      applyWidth(widthRef.current);
+      persistWidth();
+      cleanup();
+    };
+    dragCleanup.current = cleanup;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onEnd, { once: true });
+    window.addEventListener("pointercancel", onEnd, { once: true });
   };
 
   const resetWidth = () => {
-    widthRef.current = defaults;
-    setWidth(defaults);
+    dragCleanup.current?.();
+    applyWidth(defaults);
     try { localStorage.removeItem(storageKey); } catch { /* no-op */ }
+  };
+
+  const resizeWithKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home") return;
+    event.preventDefault();
+    if (event.key === "Home") { resetWidth(); return; }
+    const max = Math.max(bounds.min, Math.min(bounds.max, window.innerWidth * (variant === "assistant" ? 0.5 : 0.45)));
+    applyWidth(Math.max(bounds.min, Math.min(max, widthRef.current + (event.key === "ArrowLeft" ? 16 : -16))));
+    persistWidth();
   };
 
   if (!open) return null;
@@ -103,9 +142,9 @@ export function SidePanelShell({
     />
     <aside
       ref={asideRef}
-      style={{ "--panel-width": `${width}px` } as React.CSSProperties}
+      style={{ "--panel-width": `${defaults}px` } as React.CSSProperties}
       className={cn(
-        "fixed bottom-0 right-0 top-[var(--toolbar-height)] z-40 flex h-[calc(var(--app-viewport-height)-var(--toolbar-height))] min-h-0 max-w-full flex-col overflow-hidden border-l border-white/55 bg-[var(--material-thick)] text-popover-foreground shadow-[var(--shadow-panel)] backdrop-blur-2xl backdrop-saturate-[180%] ui-panel-transition animate-in fade-in-0 slide-in-from-right-2 md:w-[min(var(--panel-width),calc(100vw-8px))]",
+        "side-panel-surface fixed bottom-0 right-0 top-[var(--toolbar-height)] z-40 flex h-[calc(var(--app-viewport-height)-var(--toolbar-height))] min-h-0 max-w-full flex-col overflow-hidden border-l border-white/55 bg-[var(--material-thick)] text-popover-foreground shadow-[var(--shadow-panel)] backdrop-blur-2xl backdrop-saturate-[180%] ui-panel-transition animate-in fade-in-0 slide-in-from-right-2 md:w-[min(var(--panel-width),calc(100vw-8px))]",
         variant === "assistant" ? "w-[min(420px,100vw)]" : "w-[min(352px,100vw)]",
         className,
       )}
@@ -113,7 +152,14 @@ export function SidePanelShell({
     >
       <button
         type="button"
+        ref={resizeHandleRef}
+        role="separator"
+        aria-orientation="vertical"
+        aria-valuemin={bounds.min}
+        aria-valuemax={bounds.max}
+        aria-valuenow={defaults}
         onPointerDown={resize}
+        onKeyDown={resizeWithKeyboard}
         onDoubleClick={resetWidth}
         className="group absolute inset-y-0 left-0 z-10 hidden w-2 cursor-col-resize touch-none md:block after:absolute after:inset-y-5 after:left-1/2 after:w-px after:-translate-x-1/2 after:rounded-full after:bg-transparent after:transition-colors after:duration-[var(--motion-fast)] hover:after:bg-[color-mix(in_srgb,var(--accent)_26%,var(--separator))] focus-visible:after:bg-[var(--accent)]"
         aria-label="调整面板宽度，双击恢复默认"

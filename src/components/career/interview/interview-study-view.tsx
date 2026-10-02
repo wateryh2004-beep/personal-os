@@ -1,9 +1,10 @@
 "use client";
 
+import { memo } from "react";
 import { EntityMarkdown } from "@/components/links/entity-markdown";
 import type { WorkspaceItem } from "@/features/interview/workspace-library";
 
-export function InterviewStudyView({ thoughts, answer, isDraft, learning, related, onSelect }: {
+export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, answer, isDraft, learning, related, onSelect }: {
   thoughts: string;
   answer: string;
   isDraft: boolean;
@@ -38,8 +39,8 @@ export function InterviewStudyView({ thoughts, answer, isDraft, learning, relate
       </section>
     </div>
   );
-}
+});
 
-function StudyMarkdown({ body }: { body: string }) {
+const StudyMarkdown = memo(function StudyMarkdown({ body }: { body: string }) {
   return <EntityMarkdown body={body} className="min-w-0 text-[14px] leading-7 [overflow-wrap:anywhere] [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm [&_p]:leading-7 [&_li]:leading-7 [&_img]:max-w-full" />;
-}
+});

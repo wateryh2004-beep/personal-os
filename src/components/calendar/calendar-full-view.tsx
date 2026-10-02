@@ -15,6 +15,7 @@ import styles from "./calendar-native.module.css";
 
 type CalendarView = "timeGridWeek" | "timeGridDay" | "dayGridMonth";
 type Range = { start: Date; end: Date };
+const calendarPlugins = [timeGridPlugin, dayGridPlugin, interactionPlugin];
 
 export function CalendarFullView({ events, categories, timezone, initialView, initialDate, onOpen, onCreate, onMove, onRangeChange, loadingRange }: {
   events: CalendarEventRecord[];
@@ -55,7 +56,9 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     }
   })(); };
 
-  const calendarEvents = events.map((event) => {
+  // Opening a panel or changing a loading label must not re-project every
+  // event or tell FullCalendar that its event source has changed.
+  const calendarEvents = useMemo(() => events.map((event) => {
     const visual = resolveCalendarEventVisual(event.categories, categories);
     return {
       id: event.id,
@@ -69,7 +72,7 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
       textColor: visual.foreground,
       extendedProps: { event, visual },
     };
-  });
+  }), [events, categories, timezone]);
 
   const eventContent = useCallback((info: { event: { title: string; extendedProps: { event: CalendarEventRecord; visual: { dot: string } } }; timeText: string; view: { type: CalendarView } }) => {
     const visual = info.event.extendedProps.visual;
@@ -108,7 +111,7 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     <div className={styles.canvas}>
       <FullCalendar
         ref={calendarRef}
-        plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
+        plugins={calendarPlugins}
         initialView={initialView}
         initialDate={visualInitialDate}
         timeZone="UTC"

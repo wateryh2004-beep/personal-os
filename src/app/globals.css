@@ -86,7 +86,7 @@
 html {
   background:var(--surface-app);
   color-scheme:light;
-  scroll-behavior:smooth;
+  scroll-behavior:auto;
 }
 body {
   background:
@@ -192,7 +192,7 @@ div:has(> nav[aria-label="笔记视图"]) > div:nth-of-type(2) { margin-top:18px
 div:has(> nav[aria-label="笔记视图"]) .workspace-scroll a { font-size:12.5px!important; }
 div:has(> nav[aria-label="笔记视图"]) .workspace-scroll > div > div { min-height:31px; }
 
-main.workspace-scroll:has(article a[href^="/notes/"]) { padding-top:30px!important; background:var(--surface-canvas); }
+main.workspace-scroll:has(article a[href^="/notes/"]) { background:var(--surface-canvas); }
 main.workspace-scroll:has(article a[href^="/notes/"]) > div { max-width:748px!important; }
 main.workspace-scroll:has(article a[href^="/notes/"]) header { border-bottom:0!important; padding-bottom:10px!important; }
 main.workspace-scroll:has(article a[href^="/notes/"]) header h1 { font-size:27px!important; line-height:1.08!important; font-weight:650!important; letter-spacing:-.042em!important; }
@@ -292,7 +292,6 @@ main.workspace-scroll:has(article a[href^="/notes/"]) article a[href^="/notes/"]
   .notes-document-shell .life-markdown-toolbar button,.notes-document-shell .life-markdown-toolbar select { min-width:40px!important; min-height:40px!important; }
   .notes-document-shell .life-codemirror .cm-content { padding:26px 22px 84px!important; }
   .notes-document-shell .life-markdown-statusbar [data-status="cursor"] { display:none; }
-  main.workspace-scroll:has(article a[href^="/notes/"]) { padding-top:58px!important; }
 }
 
 
@@ -366,27 +365,44 @@ details > summary { transition:color var(--motion-fast) var(--ease-standard),opa
 }
 
 
-/* React 19.2 route transitions: deliberately subtle, content-first. */
-::view-transition-group(.app-route) {
-  animation-duration:var(--motion-base);
-  animation-timing-function:var(--ease-emphasized);
+/* Loading feedback stays on the live page; no full-page snapshot delays input. */
+[data-navigation-progress]::after {
+  content:"";
+  display:block;
+  height:100%;
+  width:32%;
+  background:var(--accent);
+  animation:navigation-progress 1s linear infinite;
 }
-::view-transition-old(.app-route) {
-  animation:app-route-out var(--motion-fast) var(--ease-standard) both;
+@keyframes navigation-progress {
+  from { transform:translateX(-100%); }
+  to { transform:translateX(413%); }
 }
-::view-transition-new(.app-route) {
-  animation:app-route-in var(--motion-base) var(--ease-emphasized) both;
+.navigation-link[data-pending="true"]::after {
+  content:"";
+  position:absolute;
+  right:5px;
+  top:calc(50% - 2px);
+  width:4px;
+  height:4px;
+  border-radius:50%;
+  background:var(--accent);
 }
-@keyframes app-route-out {
-  to { opacity:.84; transform:translateY(-1px); }
+.navigation-tab[data-pending="true"]::after {
+  content:"";
+  position:absolute;
+  top:1px;
+  width:16px;
+  height:2px;
+  border-radius:999px;
+  background:var(--accent);
 }
-@keyframes app-route-in {
-  from { opacity:.72; transform:translateY(3px); }
-  to { opacity:1; transform:translateY(0); }
+.side-panel-surface[data-resizing="true"] {
+  user-select:none;
+  animation:none;
 }
 @media (prefers-reduced-motion:reduce) {
-  ::view-transition-old(.app-route),
-  ::view-transition-new(.app-route) { animation:none!important; }
+  [data-navigation-progress]::after { width:100%; animation:none; }
 }
 
 

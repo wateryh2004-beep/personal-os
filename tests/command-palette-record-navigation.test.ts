@@ -21,14 +21,17 @@ import { GlobalCommandPalette } from "@/components/search/global-command-palette
 import { RECENT_NAVIGATION_STORAGE_KEY } from "@/lib/navigation-registry";
 
 describe("command palette record navigation", () => {
-  it.each(["tasks", "calendar"])("announces same-path %s navigation before router.push", async (workspace) => {
+  it.each([["tasks", false], ["calendar", false], ["tasks", true], ["calendar", true]] as const)("dispatches same-path %s navigation once (handled: %s)", async (workspace, handled) => {
     vi.useFakeTimers();
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     mocks.pathname = `/${workspace}`;
     const href = workspace === "tasks" ? "/tasks?task=b" : "/calendar?event=b";
     window.localStorage.setItem(RECENT_NAVIGATION_STORAGE_KEY, JSON.stringify([{ href, label: "Target B" }]));
     const events: string[] = [];
-    const onStart = (event: Event) => events.push((event as CustomEvent<{ href: string }>).detail.href);
+    const onStart = (event: Event) => {
+      events.push((event as CustomEvent<{ href: string }>).detail.href);
+      if (handled) event.preventDefault();
+    };
     window.addEventListener("personal-os:navigation-start", onStart);
     const historyState = { __NA: true, tree: ["test-tree"], retained: "kept" };
     mocks.push.mockImplementation((value: string) => {
@@ -45,7 +48,8 @@ describe("command palette record navigation", () => {
       window.history.replaceState({ ...historyState, __personalOsMobileLayer: "dialog:test-marker" }, "", mocks.pathname);
       await act(async () => { target!.click(); });
       expect(events).toEqual([href]);
-      expect(mocks.push).toHaveBeenLastCalledWith(href);
+      expect(mocks.push).toHaveBeenCalledTimes(handled ? 0 : 1);
+      if (!handled) expect(mocks.push).toHaveBeenLastCalledWith(href);
     } finally {
       await act(async () => { root.unmount(); }); container.remove();
       window.removeEventListener("personal-os:navigation-start", onStart);

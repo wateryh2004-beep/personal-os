@@ -9,7 +9,8 @@ function source(path: string) {
 describe("global overlay bundle boundaries", () => {
   it("keeps the command palette entrypoint lightweight", () => {
     const entry = source("src/components/search/global-command-palette.tsx");
-    expect(entry).toContain("next/dynamic");
+    expect(entry).toContain("lazy(");
+    expect(entry).toContain("<Suspense fallback={<LazyDialogPlaceholder");
     expect(entry).toContain("global-command-palette-impl");
     expect(entry).not.toContain("useGlobalSearch");
     expect(entry).not.toContain("@/components/ui/command");
@@ -17,7 +18,8 @@ describe("global overlay bundle boundaries", () => {
 
   it("keeps cross-domain create actions out of the persistent shell", () => {
     const entry = source("src/components/shared/global-create-layer.tsx");
-    expect(entry).toContain("next/dynamic");
+    expect(entry).toContain("lazy(");
+    expect(entry).toContain("<Suspense fallback={<LazyDialogPlaceholder");
     expect(entry).toContain("global-create-layer-impl");
     expect(entry).not.toContain("createMicrosoftTodoTaskAction");
     expect(entry).not.toContain("createCalendarEvent");

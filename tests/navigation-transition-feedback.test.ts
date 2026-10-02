@@ -2,22 +2,24 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const appShell = readFileSync("src/components/layout/app-shell.tsx", "utf8");
+const navigation = readFileSync("src/components/layout/use-shell-navigation.ts", "utf8");
 const tabBar = readFileSync("src/components/layout/mobile-tab-bar.tsx", "utf8");
 const commandPalette = readFileSync("src/components/search/global-command-palette-impl.tsx", "utf8");
 
 describe("navigation transition feedback", () => {
-  it("shows restrained delayed navigation feedback and route transitions", () => {
-    expect(appShell).toContain("window.setTimeout(() => setShowNavigationProgress(true), 180)");
+  it("shows immediate non-blocking feedback without full-page snapshots", () => {
+    expect(appShell).not.toContain("setShowNavigationProgress");
+    expect(navigation).toContain("useTransition");
     expect(appShell).toContain("data-navigation-progress");
-    expect(appShell).toContain("h-px");
-    expect(appShell).toContain("ViewTransition");
+    expect(appShell).toContain("pointer-events-none");
+    expect(appShell).not.toContain("ViewTransition");
   });
 
   it("shares one pending-navigation state across desktop and mobile navigation", () => {
-    expect(appShell).toContain("const [pendingHref, setPendingHref]");
+    expect(navigation).toContain("useState<NavigationRequest | null>");
     expect(appShell).toContain("pendingHref={visiblePendingHref}");
     expect(appShell).toContain("onNavigate={beginNavigation}");
-    expect(tabBar).toContain("pending && \"opacity-60\"");
+    expect(tabBar).toContain("data-pending={pending || undefined}");
   });
 
   it("lets command-palette navigation participate in shell transition feedback", () => {
