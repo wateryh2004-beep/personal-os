@@ -4,6 +4,7 @@ import { NowWorkspaceView } from "@/components/today/now-workspace";
 import { todayWorkspaceResource } from "@/features/today/workspace-resource";
 import { useWorkspaceResource } from "@/lib/workspace-resource-cache";
 import { WorkspaceReadError } from "@/components/shared/workspace-read-error";
+import { WorkspaceSyncStatus } from "@/components/shared/workspace-sync-status";
 
 function TodayShell() {
   return (
@@ -48,5 +49,8 @@ export function TodayWorkspaceLoader() {
 
   const data = snapshot.data;
   if (!data && snapshot.error) return <WorkspaceReadError resource={todayWorkspaceResource} />;
-  return data ? <NowWorkspaceView workspace={data} /> : <TodayShell />;
+  return data ? <>
+    <WorkspaceSyncStatus error={snapshot.error} resource={todayWorkspaceResource} />
+    <NowWorkspaceView workspace={data} />
+  </> : <TodayShell />;
 }

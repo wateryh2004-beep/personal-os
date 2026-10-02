@@ -5,8 +5,8 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 describe("mobile workspace geometry ownership", () => {
   it("lets the Notes list reserve folder-control space without row-dependent top overrides", () => {
-    expect(read("src/components/notes/notes-workspace.tsx")).toContain("pt-14");
-    for (const file of ["globals", "mobile-core-workspaces", "ui-polish", "calendar-notes-polish"]) {
+    expect(read("src/components/notes/notes-workspace.tsx")).toContain("pt-16");
+    for (const file of ["globals", "workspaces", "responsive"]) {
       const css = read(`src/app/${file}.css`);
       const noteRules = [...css.matchAll(/main\.workspace-scroll:has\(article a\[href\^="\/notes\/"\]\)\s*\{([^}]+)\}/g)];
       for (const [, declarations] of noteRules) expect(declarations).not.toContain("padding-top");
@@ -14,7 +14,7 @@ describe("mobile workspace geometry ownership", () => {
   });
 
   it("allocates a third mobile task column for the row menu", () => {
-    expect(read("src/app/mobile-core-workspaces.css")).toContain("grid-template-columns: 36px minmax(0, 1fr) 36px !important");
+    expect(read("src/app/responsive.css")).toContain("grid-template-columns: 44px minmax(0, 1fr) 44px !important");
   });
 
   it("reserves a separate close-control area in the mobile Notes navigator", () => {

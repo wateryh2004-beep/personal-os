@@ -25,7 +25,7 @@ export function ActionFeedbackProvider({ children }: { children: React.ReactNode
       {children}
       {feedback ? (
         <div
-          className="fixed bottom-[calc(var(--tab-bar-height)+1rem)] left-1/2 z-[70] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2.5 rounded-full border border-[var(--separator)] bg-[var(--material-popover)] px-3.5 py-2 text-[13px] leading-5 shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%] data-[state=open]:animate-in"
+          className="fixed bottom-[calc(var(--tab-bar-height)+1rem)] left-1/2 z-[70] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2.5 rounded-full border border-[var(--separator)] bg-[var(--material-popover)] px-3.5 py-2 text-[13px] leading-5 shadow-[var(--shadow-popover)] data-[state=open]:animate-in"
           role={feedback.tone === "error" ? "alert" : "status"}
         >
           <span className={`size-1.5 shrink-0 rounded-full ${feedback.tone === "error" ? "bg-[var(--danger)]" : "bg-[var(--success)]"}`} aria-hidden="true" />

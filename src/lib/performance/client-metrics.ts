@@ -4,19 +4,29 @@ export const clientMetricNames = [
   "INP",
   "LCP",
   "TTFB",
-  "navigation-ready",
   "route-commit",
+  "workspace-data-ready",
 ] as const;
 
 export type ClientMetricName = (typeof clientMetricNames)[number];
-export type ClientMetricRoute = "/today" | "/calendar" | "/tasks" | "/notes" | "/notes/[id]" | "/briefing";
+export const clientMetricRoutes = ["/today", "/calendar", "/tasks", "/notes", "/notes/[id]", "/briefing", "/career", "/career/interview"] as const;
+export type ClientMetricRoute = (typeof clientMetricRoutes)[number];
 export type ViewportBucket = "360" | "390" | "412" | "430" | "wide";
 
 export function normalizeMetricRoute(pathname: string): ClientMetricRoute | null {
-  if (pathname === "/today" || pathname === "/calendar" || pathname === "/tasks" || pathname === "/notes" || pathname === "/briefing") {
-    return pathname;
+  const route = pathname.split(/[?#]/, 1)[0];
+  if (route === "/today" || route === "/calendar" || route === "/tasks" || route === "/notes" || route === "/briefing") {
+    return route;
   }
-  if (/^\/notes\/[0-9a-f-]{36}$/i.test(pathname)) return "/notes/[id]";
+  if (/^\/notes\/[0-9a-f-]{36}$/i.test(route)) return "/notes/[id]";
+  if (route === "/career/interview" || route.startsWith("/career/interview/")) return "/career/interview";
+  if (route === "/career" || route.startsWith("/career/")) return "/career";
+  return null;
+}
+
+/** A resource can finish before the shell's pathname effect; use its own identity. */
+export function workspaceMetricRoute(workspace?: string): ClientMetricRoute | null {
+  if (workspace === "today" || workspace === "calendar" || workspace === "tasks" || workspace === "notes") return `/${workspace}`;
   return null;
 }
 

@@ -4,6 +4,7 @@ import { withPerfSpan } from "@/lib/performance/server-perf";
 import {
   parseFallbackNoteListItems,
   parseNoteListItems,
+  parseNoteMetadataListItems,
 } from "./listing";
 import type { NoteListItem } from "./types";
 import { getNoteLinkRelations, listNoteLinkSuggestions } from "./links/queries";
@@ -77,10 +78,40 @@ async function fallbackNotesPage(
 
 export async function listNotesWorkspacePage(
   supabase: Supabase,
-  { offset = 0, limit = defaultNotesPageSize }: { offset?: number; limit?: number } = {},
+  { offset = 0, limit = defaultNotesPageSize, folderId, view = "all" }: {
+    offset?: number;
+    limit?: number;
+    folderId?: string;
+    view?: "all" | "favorites" | "recent";
+  } = {},
 ) {
   const boundedOffset = Math.max(0, offset);
   const boundedLimit = Math.max(1, Math.min(limit, 100));
+  // Apply the active range before pagination. Filtering a global first page
+  // can otherwise declare an older folder empty with no way to load its notes.
+  if (folderId || view !== "all") {
+    const readScope = async (compatible: boolean) => {
+      let query = supabase.from("notes")
+        .select(compatible ? "id,title,updated_at,pinned_at" : "id,title,updated_at,pinned_at,folder_id,content_origin")
+        .neq("status", "archived");
+      if (!compatible) query = query.is("deleted_at", null).neq("status", "trashed");
+      if (folderId) query = query.eq("folder_id", folderId);
+      else if (view === "favorites") query = query.not("pinned_at", "is", null);
+      if (view !== "recent") query = query.order("pinned_at", { ascending: false, nullsFirst: false });
+      return query.order("updated_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(boundedOffset, boundedOffset + boundedLimit);
+    };
+    let result = await readScope(false);
+    let compatible = false;
+    if (!folderId && isNotesWorkspaceSchemaMissing(result.error)) {
+      compatible = true;
+      result = await readScope(true);
+    }
+    if (result.error) return { notes: [] as NoteListItem[], hasMore: false, state: "unavailable" as const };
+    const parsed = parseNoteMetadataListItems(result.data ?? []);
+    return { notes: parsed.slice(0, boundedLimit), hasMore: parsed.length > boundedLimit, state: compatible ? "base" as const : "ready" as const };
+  }
   const result = await withPerfSpan("notes.workspace.rpc", () => supabase.rpc("list_notes_workspace", {
     p_limit: boundedLimit + 1,
     p_offset: boundedOffset,

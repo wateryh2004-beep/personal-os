@@ -52,10 +52,18 @@ async function backCloses(page, trigger, visibleTarget) {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       assert.ok(overflow <= 1, `${width}px viewport has ${overflow}px horizontal overflow`);
 
-      const careerTab = page.getByRole("link", { name: /职业/ });
+      const bottomNavigation = page.getByRole("navigation", { name: "底部导航" });
+      const careerTab = bottomNavigation.getByRole("link", { name: "职业", exact: true });
       await careerTab.waitFor({ state: "visible" });
       assert.equal(await careerTab.getAttribute("href"), "/career", `${width}px Career tab should link directly to /career`);
-      assert.equal(await page.getByRole("link", { name: /笔记/ }).count(), 0, `${width}px Notes should move under More instead of occupying a primary tab`);
+      assert.deepEqual(await bottomNavigation.getByRole("link").evaluateAll((links) => links.map((link) => link.getAttribute("href"))), ["/today", "/notes", "/career"], `${width}px frequent workspaces stay one tap away`);
+      await bottomNavigation.getByRole("button", { name: "更多", exact: true }).click();
+      const more = page.getByRole("dialog");
+      for (const name of ["日历", "任务", "收集箱", "项目", "回顾", "文件", "简报", "购物", "旅行", "设置"]) {
+        await more.getByRole("link", { name, exact: true }).waitFor({ state: "visible" });
+      }
+      await page.evaluate(() => history.back());
+      await more.waitFor({ state: "hidden" });
 
       const focus = page.locator('[aria-labelledby="today-priorities-heading"]');
       await focus.getByRole("button", { name: "选择重点" }).click();

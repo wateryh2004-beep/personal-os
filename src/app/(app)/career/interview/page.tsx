@@ -1,3 +1,4 @@
+import { WorkspaceReadyMetric } from "@/components/performance/workspace-ready-metric";
 import { createHash } from "node:crypto";
 import { InterviewFastWorkspace } from "@/components/career/interview/interview-fast-workspace";
 import { getInterviewWorkspaceData } from "@/features/interview/queries";
@@ -89,6 +90,8 @@ export default async function InterviewWorkspacePage({
   const snapshotKey = createHash("sha256").update(JSON.stringify([items, targets, data.unavailable, params])).digest("hex").slice(0, 20);
 
   return (
+    <>
+    <WorkspaceReadyMetric workspace="career-interview" />
     <InterviewFastWorkspace
       key={snapshotKey}
       targets={targets}
@@ -101,5 +104,6 @@ export default async function InterviewWorkspacePage({
       initialStyle={params.style ?? "all"}
       unavailable={data.unavailable}
     />
+    </>
   );
 }

@@ -1,7 +1,9 @@
+import { CareerForm } from "@/components/career/career-form";
+import { submitCareerForm } from "@/features/career/form-actions";
 import { CareerNav } from "@/components/career/career-nav";
 import { Field, PrimaryButton, SelectField, TextField } from "@/components/career/form-controls";
 import { PageHeader } from "@/components/shared/page-header";
-import { archiveDirection, createDirection, updateDirection } from "@/features/career/actions";
+
 import { getDirections } from "@/features/career/queries";
 
 const statuses = [
@@ -26,7 +28,7 @@ export default async function DirectionsPage() {
       <div className="mb-7 flex justify-end">
         <details>
           <summary className="pressable cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 新增方向</summary>
-          <form action={createDirection} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] backdrop-blur-xl md:grid-cols-3">
+          <CareerForm action={submitCareerForm.bind(null, "createDirection")} resetOnSuccess className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
             <Field label="方向名称" name="name" required />
             <SelectField label="状态" name="status" values={statuses} defaultValue="exploring" />
             <Field label="优先级" name="priority" type="number" defaultValue="0" />
@@ -37,7 +39,7 @@ export default async function DirectionsPage() {
             <TextField label="反对证据" name="opposing_evidence_markdown" />
             <input type="hidden" name="description" value="" />
             <div><PrimaryButton>创建</PrimaryButton></div>
-          </form>
+          </CareerForm>
         </details>
       </div>
 
@@ -60,7 +62,7 @@ export default async function DirectionsPage() {
                 <Read label="支持证据" value={item.supporting_evidence_markdown} />
                 <Read label="反对证据" value={item.opposing_evidence_markdown} />
               </div>
-              <form action={updateDirection} className="mt-4.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
+              <CareerForm action={submitCareerForm.bind(null, "updateDirection")} className="mt-4.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
                 <input type="hidden" name="direction_id" value={item.id} />
                 <Field label="方向名称" name="name" defaultValue={item.name} required />
                 <SelectField label="状态" name="status" values={statuses} defaultValue={item.status} />
@@ -72,8 +74,8 @@ export default async function DirectionsPage() {
                 <TextField label="反对证据" name="opposing_evidence_markdown" defaultValue={item.opposing_evidence_markdown} />
                 <input type="hidden" name="description" value={item.description ?? ""} />
                 <div><PrimaryButton>保存</PrimaryButton></div>
-              </form>
-              <form action={archiveDirection} className="mt-2.5 px-1"><input type="hidden" name="direction_id" value={item.id} /><button className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档</button></form>
+              </CareerForm>
+              <CareerForm action={submitCareerForm.bind(null, "archiveDirection")} successMessage="已归档。" className="mt-2.5 px-1"><input type="hidden" name="direction_id" value={item.id} /><button className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档</button></CareerForm>
             </details>
           </article>
         ))}

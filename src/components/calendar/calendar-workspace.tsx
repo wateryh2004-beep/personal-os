@@ -482,9 +482,9 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   const syncTone = syncStatus?.state === "failed" ? "bg-[var(--danger)]" : syncStatus?.state === "fresh" && !syncStatus.subscriptionExpiring ? "bg-[var(--success)]" : "bg-[var(--warning)]";
 
   return (
-    <section className="flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
+    <section className="calendar-workspace flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <header className="shrink-0 border-b border-white/55 bg-[var(--material-toolbar)] shadow-[0_1px_0_rgba(60,60,67,.035)] backdrop-blur-2xl backdrop-saturate-[180%]">
+        <header className="shrink-0 border-b border-[var(--border-subtle)] bg-[var(--material-toolbar)] shadow-[0_1px_0_rgba(60,60,67,.035)]">
           <div className="flex min-h-[50px] items-center justify-between gap-3 px-3 md:px-4">
             <div className="flex min-w-0 items-center gap-1">
               <button className="pressable inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" onClick={() => changeCursor(-1)} aria-label="上一段日期"><ChevronLeft size={17} /></button>

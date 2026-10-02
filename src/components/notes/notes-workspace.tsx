@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { unstable_rethrow, useRouter, useSearchParams } from "next/navigation";
 import { FilePlus2, LoaderCircle, MoreHorizontal, Pin, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,7 @@ import { filterNotesByMetadata, mergeNoteSearchResults, noteFolderPath } from "@
 import { useWorkspaceScrollRestoration } from "@/components/shared/use-workspace-scroll-restoration";
 import { notesWorkspaceResource as notesResource } from "@/features/notes/workspace-resource";
 import { useActionFeedback } from "@/components/shared/action-feedback";
+import { useNotesListing } from "@/features/notes/use-notes-listing";
 
 type Folder = { id: string; name: string; parent_id: string | null };
 type WorkspaceState = "ready" | "base" | "unavailable";
@@ -81,8 +83,8 @@ function NoteRow({
   pending: boolean;
 }) {
   return (
-    <article className="group relative -mx-2 rounded-[10px] px-2 transition-[background-color] ui-transition after:absolute after:bottom-0 after:left-2 after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden hover:bg-[var(--surface-hover)]">
-      <div className="relative py-[13px] pr-10">
+    <article className="notes-list-row group relative -mx-2 rounded-[var(--radius-md)] px-2 transition-[background-color] ui-transition after:absolute after:bottom-0 after:left-2 after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden hover:bg-[var(--surface-hover)]">
+      <div className="notes-list-row-content relative min-h-16 py-3 pr-12 md:pr-10">
         <div className="flex min-w-0 items-center gap-2">
           {renaming ? (
             <input
@@ -178,32 +180,24 @@ export function NotesWorkspace({
   const [query, setQuery] = useState(params.get("q") ?? "");
   const [scope, setScope] = useState<"context" | "all">(params.get("scope") === "all" ? "all" : "context");
   const [remoteSearch, setRemoteSearch] = useState<{ key: string; results: NoteListItem[]; state: "idle" | "error" } | null>(null);
-  const [additional, setAdditional] = useState<NoteListItem[]>([]);
-  const [hasMore, setHasMore] = useState(initialHasMore);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadMoreError, setLoadMoreError] = useState(false);
   const [searchAttempt, setSearchAttempt] = useState(0);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const mutationInFlight = useRef(false);
-  const loadMoreInFlight = useRef(false);
   const [renaming, setRenaming] = useState<NoteListItem | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [moving, setMoving] = useState<NoteListItem | null>(null);
   const [pending, startTransition] = useTransition();
   const requestRef = useRef<AbortController | null>(null);
-  const listScrollRef = useWorkspaceScrollRestoration("notes:list");
+  const listing = useNotesListing({ notes, hasMore: initialHasMore, folderId: selectedFolder?.id, view: initialView });
   const normalizedQuery = query.trim();
   const activeFolderId = scope === "context" ? selectedFolder?.id ?? null : null;
   const searchKey = JSON.stringify([activeFolderId, normalizedQuery, searchAttempt]);
   const currentSearch = remoteSearch?.key === searchKey ? remoteSearch : null;
   const results = currentSearch?.results ?? null;
   const searchState = !normalizedQuery ? "idle" : currentSearch?.state ?? "loading";
+  const listScrollRef = useWorkspaceScrollRestoration("notes:list", normalizedQuery ? searchState !== "loading" : listing.loaded);
 
-  const allNotes = useMemo(() => {
-    const byId = new Map(notes.map((note) => [note.id, note]));
-    additional.forEach((note) => byId.set(note.id, note));
-    return [...byId.values()];
-  }, [additional, notes]);
+  const allNotes = listing.notes;
 
   const localSearchResults = useMemo(() => {
     if (!normalizedQuery) return [];
@@ -217,15 +211,8 @@ export function NotesWorkspace({
 
   const visible = useMemo(() => {
     if (normalizedQuery) return combinedSearchResults;
-    if (selectedFolder) return allNotes.filter((note) => note.folder_id === selectedFolder.id);
-    if (initialView === "favorites") return allNotes.filter((note) => note.pinned_at);
-    if (initialView === "recent") {
-      return [...allNotes]
-        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-        .slice(0, 50);
-    }
     return allNotes;
-  }, [allNotes, combinedSearchResults, initialView, normalizedQuery, selectedFolder]);
+  }, [allNotes, combinedSearchResults, normalizedQuery]);
 
   const title = selectedFolder?.name ?? (initialView === "favorites" ? "收藏" : initialView === "recent" ? "最近编辑" : "全部笔记");
 
@@ -306,25 +293,6 @@ export function NotesWorkspace({
     });
   };
 
-  const loadMore = async () => {
-    if (loadMoreInFlight.current) return;
-    loadMoreInFlight.current = true;
-    setLoadingMore(true);
-    setLoadMoreError(false);
-    try {
-      const response = await fetch(`/api/notes/list?offset=${allNotes.length}&limit=50`);
-      const body = (await response.json()) as { notes?: NoteListItem[]; hasMore?: boolean };
-      if (!response.ok) throw new Error();
-      setAdditional((current) => [...current, ...(body.notes ?? [])]);
-      setHasMore(Boolean(body.hasMore));
-    } catch {
-      setLoadMoreError(true);
-    } finally {
-      loadMoreInFlight.current = false;
-      setLoadingMore(false);
-    }
-  };
-
   const newNoteForm = (className?: string) => (
     <form action={createNoteInFolder} className={className}>
       <input type="hidden" name="folder_id" value={selectedFolder?.id ?? ""} />
@@ -335,7 +303,7 @@ export function NotesWorkspace({
   return (
     <main
       ref={listScrollRef}
-      className="notes-library workspace-scroll h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pb-6 pt-14 sm:px-7 md:pt-7 lg:px-10"
+      className="notes-library notes-list-workspace workspace-scroll h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pb-24 pt-16 sm:px-7 md:pb-6 md:pt-7 lg:px-10"
     >
       <div className="mx-auto max-w-[748px]">
         {state === "base" ? (
@@ -362,27 +330,30 @@ export function NotesWorkspace({
 
         <header className="flex min-h-11 flex-wrap items-end gap-2.5">
           <div className="mr-auto min-w-0">
-            <h1 className="page-title truncate">
+            <h1 className="page-title break-words">
               {title}
             </h1>
             <p className="mt-1 text-[12px] leading-5 tabular-nums text-[var(--text-tertiary)]">
-              {normalizedQuery ? `${visible.length} 个搜索结果` : `${visible.length} 篇笔记`}
+              {normalizedQuery ? `${visible.length} 个搜索结果` : !listing.loaded ? "正在读取当前范围…" : `${listing.hasMore ? "已加载 " : ""}${visible.length} 篇笔记`}
             </p>
           </div>
           <AskNotesButton onClick={() => router.push("/notes/ask")} />
           {newNoteForm("hidden md:block")}
         </header>
+        <div aria-live="polite" className="mt-1 min-h-5 text-[12px] leading-5 text-[var(--text-secondary)]">
+          {!normalizedQuery && listing.loaded && listing.error ? <>列表暂未更新，保留上次内容。<button type="button" onClick={listing.retry} className="ml-2 rounded-[var(--radius-sm)] text-[var(--accent)] underline underline-offset-2">重试更新</button></> : !normalizedQuery && listing.refreshing ? "正在更新列表…" : null}
+        </div>
 
         <div className="mt-5 flex items-center gap-2">
           <label className="relative min-w-0 flex-1">
-            <span className="sr-only">搜索笔记</span>
+            <span className="sr-only">搜索内容</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]" aria-hidden="true" />
             <input
               autoComplete="off"
               value={query}
               onChange={(event) => updateQuery(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Escape" && query) updateQuery(""); }}
-              placeholder={selectedFolder && scope === "context" ? `在「${selectedFolder.name}」中搜索…` : "搜索标题、正文或文件夹…"}
+              placeholder={selectedFolder && scope === "context" ? `搜索内容 · ${selectedFolder.name}` : "搜索内容 · 标题、正文或文件夹"}
               className="h-9 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] pl-8 pr-16 text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
             />
             <span className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
@@ -462,16 +433,11 @@ export function NotesWorkspace({
                 pending={pending}
               />
             ))}
-            {!normalizedQuery && hasMore ? (
-              <div className="py-5 text-center">
-                {loadMoreError ? <p role="alert" className="mb-1 text-[11px] text-[var(--danger)]">加载失败，已显示的笔记仍保留。</p> : null}
-                <Button variant="ghost" disabled={loadingMore} onClick={() => void loadMore()}>
-                  {loadingMore ? <LoaderCircle className="animate-spin" /> : null}
-                  {loadingMore ? "正在加载…" : loadMoreError ? "重试加载更多" : "加载更多"}
-                </Button>
-              </div>
-            ) : null}
           </section>
+        ) : !normalizedQuery && !listing.loaded ? (
+          <div role={listing.error ? "alert" : "status"} className="py-10 text-center text-[13px] leading-6 text-[var(--text-secondary)]">
+            {listing.error ? <>当前范围暂时无法读取，已有笔记仍保留。<div className="mt-2"><Button variant="outline" onClick={listing.retry}>重试读取</Button></div></> : "正在读取笔记…"}
+          </div>
         ) : (
           <div className="py-16 text-center">
             <p className="text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">
@@ -485,17 +451,27 @@ export function NotesWorkspace({
             </div>
           </div>
         )}
+        {!normalizedQuery && listing.hasMore ? (
+          <div className="py-5 text-center">
+            {listing.error ? <p role="alert" className="mb-1 text-[12px] text-[var(--danger)]">加载失败，已显示的笔记仍保留。</p> : null}
+            <Button variant="ghost" disabled={listing.loadingMore} onClick={() => void listing.loadMore()}>
+              {listing.loadingMore ? <LoaderCircle className="animate-spin" /> : null}
+              {listing.loadingMore ? "正在加载…" : listing.error ? "重试加载更多" : "加载更多"}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
-      {moving ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/10 p-4 backdrop-blur-[2px]">
+      <Dialog open={Boolean(moving)} onOpenChange={(open) => { if (!open && !pending) setMoving(null); }}>
+        {moving ? <DialogContent showCloseButton={!pending} onEscapeKeyDown={(event) => { if (pending) event.preventDefault(); }} onPointerDownOutside={(event) => { if (pending) event.preventDefault(); }}>
+          <DialogHeader><DialogTitle>移动笔记</DialogTitle><DialogDescription>为“{moving.title || "无标题笔记"}”选择文件夹。</DialogDescription></DialogHeader>
           <form
             onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
               mutate(moveNote, form, "笔记位置已更新", () => setMoving(null));
             }}
-            className="w-full max-w-sm rounded-[18px] border border-[var(--separator)] bg-[var(--material-thick)] p-4 shadow-[var(--shadow-dialog)] backdrop-blur-2xl backdrop-saturate-[180%]"
+            className="grid gap-2"
           >
             <input type="hidden" name="note_id" value={moving.id} />
             {mutationError ? <div role="alert" className="mb-3 text-[11px] leading-5 text-[var(--danger)]"><p>{mutationError}</p><Button type="button" variant="ghost" size="sm" disabled={pending} onClick={refreshList}>重新读取列表</Button></div> : null}
@@ -505,8 +481,8 @@ export function NotesWorkspace({
               <Button type="submit" disabled={pending}>{pending ? "正在移动…" : "移动"}</Button>
             </div>
           </form>
-        </div>
-      ) : null}
+        </DialogContent> : null}
+      </Dialog>
 
       <form action={createNoteInFolder} className="fixed bottom-[calc(var(--tab-bar-height)+1rem)] right-4 z-30 md:hidden">
         <input type="hidden" name="folder_id" value={selectedFolder?.id ?? ""} />

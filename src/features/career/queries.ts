@@ -126,6 +126,7 @@ export async function getCareerHome() {
   ]);
 
   return {
+    now: Date.now(),
     profile: profile.data,
     directions: directions.data ?? [],
     experienceCount: experiencesCount.count ?? 0,

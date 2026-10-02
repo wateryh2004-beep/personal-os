@@ -11,8 +11,10 @@ import { saveTodayFocusAction } from "@/features/today/focus-actions";
 import { todayWorkspaceResource as todayResource } from "@/features/today/workspace-resource";
 import { taskRecordHref } from "@/features/today/record-links";
 import { CompleteTaskControl } from "./complete-task-control";
+import { priorityDueLabel } from "@/features/today/presentation";
+import { DeferTaskControl } from "./today-commitments";
 
-export function TodayPriorities({ focus }: { focus: TodayFocus }) {
+export function TodayPriorities({ focus, timezone = "Asia/Shanghai" }: { focus: TodayFocus; timezone?: string }) {
   const todayWorkspaceResource = useWorkspaceResourceLease(todayResource);
   const [editing, setEditing] = useState(false);
   const [selectedIds, setSelectedIds] = useState(focus.selectedIds);
@@ -68,25 +70,25 @@ export function TodayPriorities({ focus }: { focus: TodayFocus }) {
     });
   }
 
-  return <section aria-labelledby="today-priorities-heading" className="border-y border-[var(--separator)] py-4">
+  return <section aria-labelledby="today-priorities-heading" className="today-priorities min-w-0">
     <div className="flex items-start justify-between gap-3">
       <div>
         <h2 id="today-priorities-heading" className="text-[15px] font-semibold">今日重点 <span className="ml-1 text-[12px] font-normal text-[var(--text-tertiary)]">{selected.length}/3</span></h2>
-        <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">自己选 1–3 件今天值得推进的事，没有截止日期也可以</p>
+        <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">自己选 1–3 件今天值得推进的事</p>
       </div>
       {!editing && focus.available ? <button type="button" onClick={begin} className="min-h-11 shrink-0 px-2 text-[13px] font-medium text-[var(--accent)]">{selected.length ? "调整" : "选择重点"}</button> : null}
     </div>
     {!focus.available ? <div className="mt-3 text-[13px] text-[var(--text-secondary)]" role="status">今日重点暂不可用，其他日程和到期提醒仍可查看。<button type="button" onClick={() => { void todayWorkspaceResource.revalidate({ force: true }).catch(() => {}); }} className="ml-2 min-h-11 text-[var(--accent)]">重试</button></div> : null}
-    {selected.length ? <ol className="mt-3 divide-y divide-[var(--separator)]">
+    {selected.length ? <ol className="mt-3 divide-y divide-[var(--separator)] border-t border-[var(--separator)]">
       {selected.map((task, index) => <li key={task.id} className="flex min-h-14 items-center gap-2">
         <span className="w-4 text-[12px] tabular-nums text-[var(--text-tertiary)]">{index + 1}</span>
         <div className="min-w-0 flex-1 py-2">
           <Link href={taskRecordHref(task.id)} className={`block break-words text-[13px] font-medium hover:text-[var(--accent)] ${task.status === "completed" ? "text-[var(--text-tertiary)] line-through" : ""}`}>{task.title || "未命名任务"}</Link>
-          <span className="mt-1 block text-[12px] text-[var(--text-tertiary)]">Microsoft To Do · {task.status === "completed" ? "今天已完成" : task.due_at ? "已设截止时间" : "无截止日期"}</span>
+          <span className="mt-1 block text-[12px] text-[var(--text-secondary)]">{priorityDueLabel(task, focus.date, timezone)}</span>
         </div>
         {editing ? <button type="button" disabled={pending} aria-label={`移除重点 ${task.title}`} onClick={() => setSelectedIds((ids) => ids.filter((id) => id !== task.id))} className="inline-flex size-11 shrink-0 items-center justify-center text-[var(--text-secondary)] disabled:opacity-50"><X className="size-4" /></button>
           : task.status === "completed" ? <CheckCircle2 className="mr-3 size-4 shrink-0 text-[var(--success)]" aria-label="已完成" />
-          : task.status !== "unavailable" ? <CompleteTaskControl taskId={task.id} title={task.title} compact /> : null}
+          : task.status !== "unavailable" ? <div className="flex shrink-0 items-center gap-0.5">{task.due_at ? <DeferTaskControl task={task} timezone={timezone} /> : null}<CompleteTaskControl taskId={task.id} title={task.title} compact /></div> : null}
       </li>)}
     </ol> : !editing && focus.available ? <p className="mt-3 text-[13px] leading-[22px] text-[var(--text-tertiary)]">还没选重点。到期事项会单独提醒，不会自动替你决定今天的重心。</p> : null}
     {editing ? <div className="mt-3 border-t border-[var(--separator)] pt-3">

@@ -22,7 +22,7 @@ function openCreate(kind: "task" | "calendar" | "inbox", title: string) {
 const actionClass =
   "pressable inline-flex min-h-11 sm:min-h-8 items-center gap-1 rounded-[8px] px-1.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50";
 
-function DeferTaskControl({ task, timezone }: { task: NonNullable<NowCommitment["task"]>; timezone: string }) {
+export function DeferTaskControl({ task, timezone }: { task: NonNullable<NowCommitment["task"]>; timezone: string }) {
   const tasksWorkspaceResource = useWorkspaceResourceLease(tasksResource);
   const todayWorkspaceResource = useWorkspaceResourceLease(todayResource);
   const [pending, startTransition] = useTransition();
@@ -63,7 +63,7 @@ function DeferTaskControl({ task, timezone }: { task: NonNullable<NowCommitment[
   );
 }
 
-function CommitmentActions({ item, timezone }: { item: NowCommitment; timezone: string }) {
+export function CommitmentActions({ item, timezone }: { item: NowCommitment; timezone: string }) {
   if (item.kind === "task" && item.task) {
     return (
       <div className="flex items-center gap-0.5">
@@ -103,7 +103,7 @@ function CommitmentActions({ item, timezone }: { item: NowCommitment; timezone: 
   );
 }
 
-export function TodayCommitments({ commitments, timezone }: { commitments: NowCommitment[]; timezone: string }) {
+export function TodayCommitments({ commitments, timezone, priorityReminderCount = 0, scheduleReminderCount = 0 }: { commitments: NowCommitment[]; timezone: string; priorityReminderCount?: number; scheduleReminderCount?: number }) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? commitments : commitments.slice(0, DEFAULT_VISIBLE);
 
@@ -115,7 +115,7 @@ export function TodayCommitments({ commitments, timezone }: { commitments: NowCo
             到期与临近提醒
           </h2>
           <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">
-            来自截止时间、日程和职业节点，不会自动加入今日重点
+            {priorityReminderCount || scheduleReminderCount ? [priorityReminderCount ? `${priorityReminderCount} 项到期任务已在重点中显示` : "", scheduleReminderCount ? `${scheduleReminderCount} 项日程提醒已在时间轴显示` : ""].filter(Boolean).join(" · ") : "来自截止时间、日程和职业节点"}
           </p>
         </div>
         {commitments.length ? (
@@ -150,7 +150,7 @@ export function TodayCommitments({ commitments, timezone }: { commitments: NowCo
       ) : (
         <div className="flex items-center gap-2 border-t border-[var(--separator)] py-3 text-[13px] leading-[22px] text-[var(--text-secondary)]">
           <Check className="size-4 shrink-0 text-[var(--success)]" aria-hidden="true" />
-          暂无足够依据推荐下一步。先把新想法记到收集箱即可。
+          {priorityReminderCount || scheduleReminderCount ? "其余事项暂无到期或临近提醒。" : "暂无到期与临近提醒。"}
         </div>
       )}
 

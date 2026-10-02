@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useReportWebVitals } from "next/web-vitals";
 import {
   isClientMetricName,
   normalizeMetricRoute,
+  workspaceMetricRoute,
   viewportBucket,
   type ClientMetricName,
   type ClientMetricRoute,
@@ -47,7 +48,7 @@ function commonFields(route: ClientMetricRoute) {
 export function ClientPerformanceReporter() {
   const pathname = usePathname();
   const routeRef = useRef<ClientMetricRoute | null>(normalizeMetricRoute(pathname));
-  routeRef.current = normalizeMetricRoute(pathname);
+  useLayoutEffect(() => { routeRef.current = normalizeMetricRoute(pathname); }, [pathname]);
 
   useReportWebVitals((metric) => {
     const route = routeRef.current;
@@ -66,9 +67,11 @@ export function ClientPerformanceReporter() {
 
   useEffect(() => {
     const onNavigationMetric = (event: Event) => {
-      const detail = (event as CustomEvent<{ name?: string; durationMs?: number; href?: string }>).detail;
+      const detail = (event as CustomEvent<{ name?: string; durationMs?: number; href?: string; workspace?: string }>).detail;
       if (!detail || !detail.name || !isClientMetricName(detail.name) || typeof detail.durationMs !== "number") return;
-      const route = normalizeMetricRoute(detail.href ?? pathname);
+      const route = detail.name === "workspace-data-ready"
+        ? (detail.href ? normalizeMetricRoute(detail.href) : workspaceMetricRoute(detail.workspace))
+        : normalizeMetricRoute(detail.href ?? pathname);
       if (!route) return;
       deliver({
         kind: "navigation",

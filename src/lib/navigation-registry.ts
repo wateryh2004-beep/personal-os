@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { navActive } from "@/lib/navigation";
 
-export type NavigationGroup = "now" | "plan" | "knowledge" | "life" | "career" | "system";
+export type NavigationGroup = "frequent" | "plan" | "knowledge" | "life" | "system";
 export type ContextualCreateKind = "note" | "task" | "calendar" | "shopping" | "travel" | "project" | "inbox";
 
 export type NavigationRegistryItem = {
@@ -34,27 +34,26 @@ export type NavigationRegistryItem = {
 };
 
 export const navigationRegistry: readonly NavigationRegistryItem[] = [
-  { name: "Now", mobileName: "今日", href: "/today", icon: LayoutDashboard, group: "now", desktopMain: true, mobileTab: true, commandPalette: true },
-  { name: "Inbox", href: "/inbox", icon: Inbox, group: "now", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "inbox" } },
-  { name: "Calendar", mobileName: "日历", href: "/calendar", icon: CalendarDays, group: "plan", desktopMain: true, mobileTab: true, commandPalette: true, contextualCreate: { kind: "calendar" } },
-  { name: "Tasks", mobileName: "任务", href: "/tasks", icon: CheckSquare2, group: "plan", desktopMain: true, mobileTab: true, commandPalette: true, contextualCreate: { kind: "task" } },
-  { name: "Projects", href: "/projects", icon: SquareKanban, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "project" } },
-  { name: "Reviews", href: "/reviews", icon: Star, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true },
-  { name: "Notes", mobileName: "笔记", href: "/notes", icon: FileText, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "note", descendants: true } },
-  { name: "Files", href: "/files", icon: FolderClosed, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true },
-  { name: "Briefing", href: "/briefing", icon: Newspaper, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true },
-  { name: "Shopping", href: "/shopping", icon: ShoppingBag, group: "life", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "shopping" } },
-  { name: "Travel", href: "/travel", icon: Plane, group: "life", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "travel", descendants: true } },
-  { name: "Career", mobileName: "职业", href: "/career", icon: BriefcaseBusiness, group: "career", desktopMain: true, mobileTab: true, commandPalette: true },
-  { name: "Settings", href: "/settings", icon: Settings, group: "system", desktopMain: false, mobileTab: false, commandPalette: true },
+  { name: "今日", href: "/today", icon: LayoutDashboard, group: "frequent", desktopMain: true, mobileTab: true, commandPalette: true },
+  { name: "笔记", href: "/notes", icon: FileText, group: "frequent", desktopMain: true, mobileTab: true, commandPalette: true, contextualCreate: { kind: "note", descendants: true } },
+  { name: "职业", href: "/career", icon: BriefcaseBusiness, group: "frequent", desktopMain: true, mobileTab: true, commandPalette: true },
+  { name: "收集箱", href: "/inbox", icon: Inbox, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "inbox" } },
+  { name: "日历", href: "/calendar", icon: CalendarDays, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "calendar" } },
+  { name: "任务", href: "/tasks", icon: CheckSquare2, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "task" } },
+  { name: "项目", href: "/projects", icon: SquareKanban, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "project" } },
+  { name: "回顾", href: "/reviews", icon: Star, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true },
+  { name: "文件", href: "/files", icon: FolderClosed, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true },
+  { name: "简报", href: "/briefing", icon: Newspaper, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true },
+  { name: "购物", href: "/shopping", icon: ShoppingBag, group: "life", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "shopping" } },
+  { name: "旅行", href: "/travel", icon: Plane, group: "life", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "travel", descendants: true } },
+  { name: "设置", href: "/settings", icon: Settings, group: "system", desktopMain: false, mobileTab: false, commandPalette: true },
 ];
 
 const desktopGroupDefinitions: ReadonlyArray<{ id: NavigationGroup; label: string | null }> = [
-  { id: "now", label: null },
-  { id: "plan", label: "Plan" },
-  { id: "knowledge", label: "Knowledge" },
-  { id: "life", label: "Life" },
-  { id: "career", label: null },
+  { id: "frequent", label: null },
+  { id: "plan", label: "计划" },
+  { id: "knowledge", label: "资料" },
+  { id: "life", label: "生活" },
 ];
 
 export const desktopNavigationGroups = desktopGroupDefinitions
@@ -65,15 +64,11 @@ export const desktopNavigationGroups = desktopGroupDefinitions
   .filter((group) => group.items.length > 0);
 
 export const mobileTabNavigation = navigationRegistry.filter((item) => item.mobileTab);
-// Keep Notes immediately discoverable in More, and don't repeat the four tabs
-// already present in the mobile shell. Desktop navigation stays unchanged.
-export const mobileMoreNavigationGroups = [
-  { label: "笔记", items: navigationRegistry.filter((item) => item.href === "/notes") },
-  ...desktopNavigationGroups.map((group) => ({
+// Every other module remains one drawer away without repeating the three tabs.
+export const mobileMoreNavigationGroups = desktopNavigationGroups.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.mobileTab && item.href !== "/notes"),
-  })).filter((group) => group.items.length > 0),
-];
+    items: group.items.filter((item) => !item.mobileTab),
+  })).filter((group) => group.items.length > 0);
 export const commandPaletteNavigation = navigationRegistry.filter((item) => item.commandPalette);
 
 export function navigationItemForPath(pathname: string) {

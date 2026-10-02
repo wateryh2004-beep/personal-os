@@ -34,7 +34,7 @@ export function useShellNavigation(pathname: string, router: ShellRouter) {
     if (pathname === from && targetPathname(href) !== pathname) return;
     perfMark("route-commit", { href: pathname });
     perfMeasure("route-commit", "navigation-click", { href: pathname });
-    perfMeasure("navigation-ready", "navigation-click", { href: pathname });
+    // Data readiness is measured by the destination workspace after content mounts.
   }, [isPending, pathname]);
 
   useEffect(() => {

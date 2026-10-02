@@ -27,20 +27,20 @@ afterEach(async () => { await act(async () => root.unmount()); host.remove(); })
 
 describe("mobile navigation feedback", () => {
   it("marks only the newest destination busy without moving the current-page semantics", async () => {
-    await act(async () => render("/tasks"));
-    expect(host.querySelector('[aria-busy="true"]')?.getAttribute("href")).toBe("/tasks");
+    await act(async () => render("/notes"));
+    expect(host.querySelector('[aria-busy="true"]')?.getAttribute("href")).toBe("/notes");
     expect(host.querySelector('[aria-current="page"]')?.getAttribute("href")).toBe("/today");
-    await act(async () => render("/calendar"));
+    await act(async () => render("/career"));
     expect(host.querySelectorAll('[aria-busy="true"]')).toHaveLength(1);
-    expect(host.querySelector('[data-pending="true"]')?.getAttribute("href")).toBe("/calendar");
-    route.pathname = "/calendar";
+    expect(host.querySelector('[data-pending="true"]')?.getAttribute("href")).toBe("/career");
+    route.pathname = "/career";
     await act(async () => render(null));
     expect(host.querySelector('[aria-busy="true"]')).toBeNull();
-    expect(host.querySelector('[aria-current="page"]')?.getAttribute("href")).toBe("/calendar");
+    expect(host.querySelector('[aria-current="page"]')?.getAttribute("href")).toBe("/career");
   });
 
   it("keeps More responsive while loading a non-tab destination", async () => {
-    await act(async () => render("/notes"));
+    await act(async () => render("/calendar"));
     const more = host.querySelector("button")!;
     expect(more.getAttribute("aria-busy")).toBe("true");
     await act(async () => more.click());
@@ -49,7 +49,7 @@ describe("mobile navigation feedback", () => {
 
   it("uses the fixture presentation route for active-tab semantics", async () => {
     route.pathname = "/mobile-native-e2e";
-    await act(async () => render(null, "/calendar"));
-    expect(host.querySelector('[aria-current="page"]')?.getAttribute("href")).toBe("/calendar");
+    await act(async () => render(null, "/career"));
+    expect(host.querySelector('[aria-current="page"]')?.getAttribute("href")).toBe("/career");
   });
 });

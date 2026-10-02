@@ -77,20 +77,21 @@ describe("Notes editor reliability", () => {
     expect(picker).not.toContain("levels.map");
   });
 
-  it("keeps save, fullscreen, and PDF export directly accessible in the editor header", () => {
+  it("keeps save and focus visible while moving PDF export into the shared More menu", () => {
     expect(editor).toContain("立即保存，当前状态");
-    expect(editor).toContain("进入全屏编辑");
+    expect(editor).toContain("进入专注");
     expect(editor).toContain("setIsFallbackFullscreen(true)");
     expect(editor).toContain("导出 PDF");
-    expect(editor.indexOf("进入全屏编辑")).toBeLessThan(editor.indexOf('aria-label="导出笔记 PDF"'));
-    expect(editor).not.toContain("<DropdownMenu>");
+    expect(editor.indexOf("进入专注")).toBeLessThan(editor.indexOf('aria-label="更多笔记操作"'));
+    expect(editor).toContain("onSelect={startPdfExport}");
   });
 
   it("shows actionable save failures at desktop and mobile sizes", () => {
     expect(editor).toContain("重试保存");
     expect(editor).toContain("复制当前草稿");
-    expect(editor).toContain('saveHasError ? "bg-red-50/65');
-    expect(editor).toContain("CopyNoteReference");
+    expect(editor).toContain("bg-[var(--danger-soft)]");
+    expect(editor).toContain("copyCurrentNoteReference");
+    expect(editor).toContain("{saveHasError ? (");
   });
 
   it("retains loaded notes and mutation inputs when a request fails", () => {

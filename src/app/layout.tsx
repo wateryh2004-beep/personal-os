@@ -1,9 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import "./ui-polish.css";
-import "./mobile-polish.css";
-import "./mobile-core-workspaces.css";
-import "./calendar-notes-polish.css";
+import "./workspaces.css";
+import "./responsive.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PwaLifecycle } from "@/components/pwa/pwa-lifecycle";
 import { ClientPerformanceReporter } from "@/components/performance/client-performance-reporter";
@@ -23,7 +21,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  themeColor: "#f5f5f7",
+  themeColor: "#f7f7f5",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

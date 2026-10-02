@@ -29,11 +29,11 @@ export function NoteDocumentShell({ noteId, editor, inspector }: { noteId: strin
       className="notes-document-shell relative flex h-full min-h-0 overflow-hidden bg-[var(--surface-canvas)]"
     >
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex h-11 items-center justify-between px-2.5">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex h-12 items-center justify-between px-2.5">
           <button
             type="button"
             onClick={returnToNotesList}
-            className="pressable pointer-events-auto inline-flex size-8 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] md:hidden"
+            className="pressable pointer-events-auto inline-flex size-11 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] md:hidden"
             aria-label="返回笔记列表"
           >
             <ChevronLeft className="size-[18px]" aria-hidden="true" />
@@ -44,7 +44,7 @@ export function NoteDocumentShell({ noteId, editor, inspector }: { noteId: strin
             onClick={noteInspector.toggle}
             aria-pressed={noteInspector.isOpen}
             aria-label={noteInspector.isOpen ? "关闭笔记详情" : "打开笔记详情"}
-            className={`pressable pointer-events-auto inline-flex size-8 items-center justify-center rounded-full ${noteInspector.isOpen ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
+            className={`pressable pointer-events-auto inline-flex size-11 items-center justify-center rounded-full ${noteInspector.isOpen ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
           >
             <PanelRight className="size-4" aria-hidden="true" />
           </button>

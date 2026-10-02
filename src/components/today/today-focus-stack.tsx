@@ -9,11 +9,12 @@ import { TodaySectionHeader } from "./section-header";
 export function TodayFocusStack({ workspace }: { workspace: NowWorkspace }) {
   const stack = buildTodayFocusStack(workspace.tasks, workspace.attention, workspace.nextAction);
   const isEmpty = !stack.tasks.length && !stack.attention.length;
+  if (isEmpty && workspace.availability.tasks === "ready") return null;
 
   return (
     <section aria-labelledby="today-focus-heading" className="min-w-0">
       <TodaySectionHeader href="/tasks" label="任务">
-        <span id="today-focus-heading">任务与关注</span>
+        <span id="today-focus-heading">其他待办与关注</span>
       </TodaySectionHeader>
 
       <div className="mt-2 border-t border-[var(--separator)] pt-2">

@@ -1,7 +1,7 @@
 const controlClass =
-  "h-9 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] shadow-[inset_0_0_0_.5px_rgba(60,60,67,.05)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
+  "min-h-11 w-full sm:min-h-9 rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[14px] text-[var(--text-primary)] shadow-[inset_0_0_0_.5px_rgba(60,60,67,.05)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
 
-const labelClass = "grid gap-1.5 text-[11px] font-medium text-[var(--text-secondary)]";
+const labelClass = "grid gap-1.5 text-[13px] font-medium text-[var(--text-secondary)]";
 
 export function Field({
   label,
@@ -85,7 +85,7 @@ export function SelectField({
 }
 
 export const PrimaryButton = ({ children }: { children: React.ReactNode }) => (
-  <button className="pressable h-9 w-fit rounded-[10px] bg-[var(--accent)] px-3.5 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,.06)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]">
+  <button className="pressable min-h-11 w-fit sm:min-h-9 rounded-[10px] bg-[var(--accent)] px-3.5 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,.06)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]">
     {children}
   </button>
 );
