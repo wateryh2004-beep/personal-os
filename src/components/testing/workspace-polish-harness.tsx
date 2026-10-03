@@ -15,9 +15,10 @@ import { CalendarShell } from "@/components/calendar/calendar-workspace-skeleton
 import TodayLoading from "@/app/(app)/today/loading";
 import type { NowWorkspace } from "@/features/today/types";
 import type { TodoTask } from "@/features/tasks/types";
+import { FilesPolishFixture } from "./files-polish-fixture";
 import { NoteEditorPolishFixture } from "./note-editor-polish-fixture";
 
-export type PolishScene = "heading" | "career" | "career-filled" | "today" | "today-filled" | "tasks" | "calendar" | "notes" | "note-editor" | "today-loading" | "tasks-loading" | "calendar-loading";
+export type PolishScene = "heading" | "career" | "career-filled" | "today" | "today-filled" | "tasks" | "calendar" | "notes" | "note-editor" | "note-pdf" | "files" | "today-loading" | "tasks-loading" | "calendar-loading";
 
 // Fixture-only, reached through the existing explicitly gated E2E route. Never
 // populated from an account, and the browser test never submits these forms.
@@ -71,7 +72,7 @@ const filledCareer: CareerHomeData = {
 };
 
 export function WorkspacePolishHarness({ scene }: { scene: PolishScene }) {
-  const pathname = scene === "heading" ? "/today" : scene === "note-editor" ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
+  const pathname = scene === "heading" ? "/today" : (scene === "note-editor" || scene === "note-pdf") ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
   return <div data-testid="workspace-polish-harness" data-scene={scene}>
     <AppShell presentationPathname={pathname}>
       {scene === "heading" ? <DashboardLayout><PageHeader eyebrow="Collection · 排版验证" title="项目与长期计划 / Projects and long-term plans" description="中英文标题、说明和操作保持清晰层级。This synthetic fixture checks wrapping without hiding long titles." action={<Button>新建项目</Button>} secondaryActions={<Button variant="ghost">查看全部</Button>} /><div className="mt-8 border-t border-[var(--separator)] pt-4 text-[14px] leading-6 text-[var(--text-secondary)]">仅用于共享标题组件的布局验证，不包含个人资料。</div></DashboardLayout> : null}
@@ -80,7 +81,8 @@ export function WorkspacePolishHarness({ scene }: { scene: PolishScene }) {
       {scene === "tasks" ? <TaskWorkspace tasks={tasks} lists={lists} initialDayBounds={{ startMs: 0, endMs: 8_640_000_000_000_000 }} /> : null}
       {scene === "calendar" ? <CalendarWorkspace events={events} categories={categories} timezone="Asia/Shanghai" syncStatus={null} scopeReady /> : null}
       {scene === "notes" ? <NotesWorkspaceShell folders={folders} notes={notes}><NotesWorkspace notes={notes} folders={folders} timezone="Asia/Shanghai" state="ready" selectedFolder={null} initialView="all" dailyError={false} initialHasMore={false} /></NotesWorkspaceShell> : null}
-      {scene === "note-editor" ? <NoteEditorPolishFixture /> : null}
+      {scene === "note-editor" || scene === "note-pdf" ? <NoteEditorPolishFixture pdf={scene === "note-pdf"} /> : null}
+      {scene === "files" ? <FilesPolishFixture /> : null}
       {scene === "today-loading" ? <TodayLoading /> : null}
       {scene === "tasks-loading" ? <TasksShell /> : null}
       {scene === "calendar-loading" ? <CalendarShell /> : null}

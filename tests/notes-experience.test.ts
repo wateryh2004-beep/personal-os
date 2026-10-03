@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { filterNotesByMetadata, mergeNoteSearchResults, noteFolderPath } from "@/features/notes/local-search";
+import { filterNotesByMetadata, mergeNoteSearchResults, noteFolderPath, createNoteFolderPathResolver } from "@/features/notes/local-search";
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -22,6 +22,18 @@ describe("Notes experience contracts", () => {
     expect(filterNotesByMetadata(notes, folders, "工作").map((note) => note.id)).toEqual(["2", "1"]);
   });
 
+  it("resolves nested, missing and circular folder paths without changing ranking", () => {
+    const cyclic = [{ id: "a", name: "甲", parent_id: "b" }, { id: "b", name: "乙", parent_id: "a" }];
+    const resolve = createNoteFolderPathResolver([...folders, ...cyclic]);
+    expect(resolve("reits")).toBe("工作 / REITs");
+    expect(resolve("a")).toBe("乙 / 甲");
+    expect(resolve("missing")).toBe("根目录");
+    expect(resolve(null)).toBe("根目录");
+    const renamed = folders.map((folder) => folder.id === "work" ? { ...folder, name: "项目" } : folder);
+    expect(createNoteFolderPathResolver(renamed)("reits")).toBe("项目 / REITs");
+    expect(filterNotesByMetadata(notes, renamed, "项目 reits").map((note) => note.id)).toEqual(["1"]);
+  });
+
   it("merges immediate local hits with remote body hits without duplicates", () => {
     expect(mergeNoteSearchResults([notes[0]], [notes[0], notes[2]])).toEqual([notes[0], notes[2]]);
   });
@@ -38,7 +50,7 @@ describe("Notes experience contracts", () => {
     const navigator = source("src/components/notes/notes-workspace-shell.tsx");
     expect(navigator).toContain("快速打开…");
     expect(navigator).toContain("filterNotesByMetadata");
-    expect(navigator).toContain("noteFolderPath");
+    expect(navigator).toContain("createNoteFolderPathResolver");
     expect(navigator).toContain('event.key === "Escape"');
   });
 

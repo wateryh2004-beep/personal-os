@@ -55,5 +55,14 @@ describe("cached workspace synchronization", () => {
     await act(async () => root.render(createElement(TodayWorkspaceLoader)));
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("工作区暂时无法读取");
     expect(host.querySelector("input")).toBeNull();
+    let fail!: (error: Error) => void;
+    state.revalidate.mockImplementation(() => new Promise<void>((_, reject) => { fail = reject; }));
+    const retry = host.querySelector<HTMLButtonElement>("button")!;
+    await act(async () => { retry.click(); retry.click(); });
+    expect(state.revalidate).toHaveBeenCalledTimes(1);
+    expect(retry.disabled).toBe(true);
+    await act(async () => fail(new Error("still offline")));
+    expect(retry.disabled).toBe(false);
+    expect(retry.textContent).toBe("重新读取");
   });
 });

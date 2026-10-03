@@ -11,7 +11,7 @@ import { createFolder, createNoteInFolder, moveFolder, moveNote, renameFolder } 
 import { openDailyNote } from "@/features/notes/actions";
 import { notesDragAutoScrollDelta } from "@/features/notes/drag-auto-scroll";
 import { canMoveFolderTo, expandedFolderPath, visibleExpandedFolders } from "@/features/notes/folder-tree";
-import { filterNotesByMetadata, noteFolderPath } from "@/features/notes/local-search";
+import { filterNotesByMetadata, createNoteFolderPathResolver } from "@/features/notes/local-search";
 
 export type NotesNavigatorFolder = { id: string; name: string; parent_id: string | null };
 export type NotesNavigatorNote = { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null };
@@ -76,16 +76,17 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
     () => filterNotesByMetadata(navigatorNotes, navigatorFolders, navigatorQuery, 60),
     [navigatorFolders, navigatorNotes, navigatorQuery],
   );
+  const resolveFolderPath = useMemo(() => createNoteFolderPathResolver(navigatorFolders), [navigatorFolders]);
   const searchActive = Boolean(navigatorQuery.trim());
 
   const children = useMemo(() => {
     const map = new Map<string | null, NotesNavigatorFolder[]>();
-    navigatorFolders.forEach((folder) => map.set(folder.parent_id, [...(map.get(folder.parent_id) ?? []), folder]));
+    navigatorFolders.forEach((folder) => { const siblings = map.get(folder.parent_id); if (siblings) siblings.push(folder); else map.set(folder.parent_id, [folder]); });
     return map;
   }, [navigatorFolders]);
   const notesByFolder = useMemo(() => {
     const map = new Map<string | null, NotesNavigatorNote[]>();
-    navigatorNotes.forEach((note) => map.set(note.folder_id, [...(map.get(note.folder_id) ?? []), note]));
+    navigatorNotes.forEach((note) => { const siblings = map.get(note.folder_id); if (siblings) siblings.push(note); else map.set(note.folder_id, [note]); });
     return map;
   }, [navigatorNotes]);
 
@@ -224,7 +225,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
               <FileText className="size-3.5 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[12px] font-medium">{note.title || "无标题笔记"}</span>
-                <span className="mt-0.5 block truncate text-[12px] text-[var(--text-tertiary)]">{noteFolderPath(note.folder_id, navigatorFolders)}</span>
+                <span className="mt-0.5 block truncate text-[12px] text-[var(--text-tertiary)]">{resolveFolderPath(note.folder_id)}</span>
               </span>
               {note.content_origin === "ai_generated" ? <Sparkles className="size-3 shrink-0 text-[var(--ai-accent)]" aria-label="AI 生成" /> : null}
             </Link>

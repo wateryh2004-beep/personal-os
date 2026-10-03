@@ -67,3 +67,7 @@
 .calendar-workspace .fc-more-link { border-radius:var(--radius-sm); padding:2px 5px; }
 .calendar-workspace .fc-more-link:hover { background:var(--surface-hover); }
 .now-workspace { padding-bottom:max(3rem,calc(var(--tab-bar-height) + 1.5rem)); }
+
+/* Skip off-screen note row layout while Radix menus continue to use a portal. */
+.notes-list-row { content-visibility:auto; contain-intrinsic-block-size:auto 88px; }
+.notes-list-row:focus-within { content-visibility:visible; }

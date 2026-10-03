@@ -11,6 +11,7 @@ vi.mock("@/components/shared/inspector", () => ({ Inspector: () => null }));
 
 const pdf: NoteAttachment = { id: "11111111-1111-4111-8111-111111111111", title: "原件", original_filename: "原件.pdf", mime_type: "application/pdf", file_size: 1024, role: "pdf_snapshot" };
 let root: Root | undefined;
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 afterEach(async () => { if (root) await act(async () => root!.unmount()); document.body.innerHTML = ""; root = undefined; });
 
 async function mount(attachments: NoteAttachment[]) {
@@ -31,19 +32,43 @@ describe("Document PDF reader", () => {
     expect(container.querySelector("input")).toBe(input);
     expect(input.value).toBe("新的未保存正文");
     expect(input.parentElement!.hidden).toBe(true);
-    expect(container.querySelector("iframe")!.getAttribute("src")).toBe(`/api/files/${pdf.id}/download?inline=1#view=FitH`);
+    const iframe = container.querySelector("iframe")!;
+    expect(iframe.getAttribute("src")).toBe(`/api/files/${pdf.id}/download?inline=1#view=FitH`);
     await act(async () => [...container.querySelectorAll("button")].find((button) => button.textContent === "正文")!.click());
     expect(input.parentElement!.hidden).toBe(false);
     expect(input.value).toBe("新的未保存正文");
-    expect(container.querySelector("iframe")).toBeNull();
+    expect(container.querySelector("iframe")).toBe(iframe);
+    expect(iframe.parentElement!.hidden).toBe(true);
+    await act(async () => button.click());
+    expect(container.querySelector("iframe")).toBe(iframe);
+    expect(iframe.parentElement!.hidden).toBe(false);
   });
 
   it("opens an independent PDF document directly and provides fallback links", async () => {
     const container = await mount([{ ...pdf, role: "primary_pdf" }]);
+    expect(container.querySelector("input")).toBeNull();
     expect(container.querySelector("iframe")!.title).toBe("PDF 阅读器：原件");
     expect([...container.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual([
       `/api/files/${pdf.id}/download?inline=1`, `/api/files/${pdf.id}/download`,
     ]);
+  });
+
+  it("provides an explicit reload and replaces the reader when choosing another PDF", async () => {
+    const second = { ...pdf, id: "second", title: "第二份原件" };
+    const container = await mount([{ ...pdf, role: "primary_pdf" }, second]);
+    const firstReader = container.querySelector("iframe")!;
+    await act(async () => firstReader.dispatchEvent(new Event("load")));
+    expect(firstReader.parentElement!.getAttribute("aria-busy")).toBe("false");
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="重新加载 PDF"]')!.click());
+    const reloadedReader = container.querySelector("iframe")!;
+    expect(reloadedReader).not.toBe(firstReader);
+    expect(reloadedReader.parentElement!.getAttribute("aria-busy")).toBe("true");
+    const select = container.querySelector("select")!;
+    await act(async () => { select.value = second.id; select.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(container.querySelector("iframe")!.title).toBe("PDF 阅读器：第二份原件");
+    expect(container.querySelector("iframe")).not.toBe(reloadedReader);
+    await act(async () => [...container.querySelectorAll("button")].find((button) => button.textContent === "正文")!.click());
+    expect(container.querySelector("input")).not.toBeNull();
   });
 
   it("shows Markdown normally when no PDF is attached", async () => {

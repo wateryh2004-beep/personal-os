@@ -14,18 +14,30 @@ function normalize(value: string) {
   return value.normalize("NFKC").toLocaleLowerCase("zh-CN").replace(/\s+/g, " ").trim();
 }
 
-export function noteFolderPath(folderId: string | null, folders: NoteSearchFolder[]) {
-  if (!folderId) return "根目录";
+/** Reuse folder metadata and resolved paths across a complete search/list. */
+export function createNoteFolderPathResolver(folders: NoteSearchFolder[]) {
   const byId = new Map(folders.map((folder) => [folder.id, folder]));
-  const parts: string[] = [];
-  const seen = new Set<string>();
-  let current = byId.get(folderId);
-  while (current && !seen.has(current.id)) {
-    parts.unshift(current.name);
-    seen.add(current.id);
-    current = current.parent_id ? byId.get(current.parent_id) : undefined;
-  }
-  return parts.length ? parts.join(" / ") : "根目录";
+  const paths = new Map<string, string>();
+  return (folderId: string | null): string => {
+    if (!folderId) return "根目录";
+    const cached = paths.get(folderId);
+    if (cached !== undefined) return cached;
+    const parts: string[] = [];
+    const seen = new Set<string>();
+    let current = byId.get(folderId);
+    while (current && !seen.has(current.id)) {
+      parts.unshift(current.name);
+      seen.add(current.id);
+      current = current.parent_id ? byId.get(current.parent_id) : undefined;
+    }
+    const path = parts.length ? parts.join(" / ") : "根目录";
+    paths.set(folderId, path);
+    return path;
+  };
+}
+
+export function noteFolderPath(folderId: string | null, folders: NoteSearchFolder[]) {
+  return createNoteFolderPathResolver(folders)(folderId);
 }
 
 export function filterNotesByMetadata<T extends NoteSearchItem>(
@@ -37,11 +49,14 @@ export function filterNotesByMetadata<T extends NoteSearchItem>(
   const normalizedQuery = normalize(query);
   if (!normalizedQuery) return notes.slice(0, limit);
   const tokens = normalizedQuery.split(" ").filter(Boolean);
+  const resolvePath = createNoteFolderPathResolver(folders);
+  const normalizedPaths = new Map<string | null, string>();
 
   return notes
     .map((note, index) => {
       const title = normalize(note.title || "无标题笔记");
-      const path = normalize(noteFolderPath(note.folder_id, folders));
+      let path = normalizedPaths.get(note.folder_id);
+      if (path === undefined) { path = normalize(resolvePath(note.folder_id)); normalizedPaths.set(note.folder_id, path); }
       const haystack = `${title} ${path}`;
       if (!tokens.every((token) => haystack.includes(token))) return null;
       let score = 0;

@@ -185,3 +185,14 @@
   .notes-navigation-sheet { width:min(88vw,340px); background:var(--surface-canvas); }
   .notes-navigation-sheet :is(input,nav a,nav button,.workspace-scroll a) { min-height:44px; }
 }
+
+@media (max-width:767px) {
+  /* Embedded editors fill the space left by the document/PDF toolbar. */
+  .notes-document-shell .notes-editor-surface:not(:fullscreen),
+  .notes-document-shell .life-markdown-editor { height:100%; min-height:0; }
+  .notes-document-shell :is([aria-label="文档阅读方式"] button, a, [aria-label="重新加载 PDF"]) { min-height:44px; }
+  .notes-document-shell [aria-label="重新加载 PDF"] { min-width:44px; }
+  :is(.files-workspace, .files-actions-popover) :is(button, a, summary, select, input) { min-height:44px; }
+  .files-workspace :is([aria-label^="下载 "], [aria-label^="操作 "], summary) { min-width:44px; }
+  :is(.files-workspace, .files-actions-popover) :is(input, select) { font-size:16px; }
+}
