@@ -17,7 +17,9 @@ async function capture(page, name) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
+  // Native PDF reading needs the full browser's new headless mode, not the
+  // default headless shell: https://playwright.dev/docs/browsers#chromium-new-headless-mode
+  const browser = await chromium.launch({ channel: "chromium", headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
   try {
     for (const width of [360, 390, 430, 768, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 900 }, isMobile: width < 768, hasTouch: width < 768 });
