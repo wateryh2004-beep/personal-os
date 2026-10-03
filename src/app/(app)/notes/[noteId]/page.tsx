@@ -1,3 +1,4 @@
+import { noteAttachmentUrl } from "@/features/notes/attachments";
 import { notFound } from "next/navigation";
 import { NoteEditor } from "@/components/notes/note-editor";
 import { NoteDocumentShell } from "@/components/notes/note-document-shell";
@@ -83,6 +84,12 @@ export default async function NotePage({ params }: { params: Promise<{ noteId: s
       {data.versions.length > 5 ? <p className="mt-1.5 text-[10.5px] text-[var(--text-tertiary)]">仅展示最近 5 个版本。</p> : null}
     </section>
 
+    {data.attachments.length ? <section>
+      <details><summary className="cursor-pointer text-[13px] font-semibold text-[var(--text-primary)]">原件与附件 · {data.attachments.length}</summary>
+        <ul className="mt-2 space-y-1">{data.attachments.map((file) => <li key={file.id}><a href={noteAttachmentUrl(file.id, true)} target="_blank" rel="noopener noreferrer" className="block truncate rounded-[8px] px-2 py-1.5 text-[12px] text-[var(--accent)] hover:bg-[var(--surface-hover)]">{file.original_filename}</a></li>)}</ul>
+      </details>
+    </section> : null}
+
     <section>
       <h2 className="text-[10.5px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">文档操作</h2>
       <a className="pressable mt-2.5 flex h-8 items-center gap-2 rounded-[8px] px-2 text-[12px] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]" href={`/api/exports/notes/${data.note.id}`}><Download className="size-4 text-[var(--accent)]" aria-hidden="true" />下载 Markdown</a>
@@ -90,5 +97,5 @@ export default async function NotePage({ params }: { params: Promise<{ noteId: s
       <p className="mt-2.5 text-[10.5px] text-[var(--text-tertiary)]">创建于 {compactDate(data.note.created_at)} · 修订 {data.note.revision}</p>
     </section>
   </div>;
-  return <NoteDocumentShell noteId={data.note.id} editor={<NoteEditor note={data.note} noteAiDefaultModel={ai.settings?.model === "deepseek-v4-pro" ? "deepseek-v4-pro" : "deepseek-v4-flash"} />} inspector={inspector} />;
+  return <NoteDocumentShell key={data.note.id} noteId={data.note.id} attachments={data.attachments} editor={<NoteEditor note={data.note} noteAiDefaultModel={ai.settings?.model === "deepseek-v4-pro" ? "deepseek-v4-pro" : "deepseek-v4-flash"} />} inspector={inspector} />;
 }

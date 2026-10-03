@@ -1,3 +1,4 @@
+import { attachmentRole, type NoteAttachment } from "@/features/notes/attachments";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { withPerfSpan } from "@/lib/performance/server-perf";
@@ -269,11 +270,29 @@ export async function getRecentNoteLinkSuggestions(limit = 35) {
 
 const noteIdSchema = z.string().uuid();
 
+async function getNoteAttachments(supabase: Supabase, userId: string, noteId: string): Promise<NoteAttachment[]> {
+  const links = await supabase.from("entity_links")
+    .select("target_id,metadata")
+    .eq("user_id", userId).eq("source_type", "note").eq("source_id", noteId)
+    .eq("target_type", "document").in("relationship_type", ["attachment", "source"])
+    .is("archived_at", null);
+  if (links.error || !links.data?.length) return [];
+  const files = await supabase.from("documents")
+    .select("id,title,original_filename,mime_type,file_size")
+    .eq("user_id", userId).eq("storage_provider", "cloudflare_r2")
+    .eq("storage_state", "available").is("archived_at", null)
+    .in("id", [...new Set(links.data.map((link) => link.target_id))]);
+  if (files.error) return [];
+  return (files.data ?? []).map((file) => ({ ...file,
+    role: attachmentRole(links.data.find((link) => link.target_id === file.id)?.metadata),
+  }));
+}
+
 export async function getNote(id: string) {
   if (!noteIdSchema.safeParse(id).success) return null;
-  const { supabase } = await requireOwner();
+  const { supabase, userId } = await requireOwner();
 
-  // All three reads are keyed only by noteId. Starting them together removes a
+  // Independent reads start together, including owner-scoped file metadata. This removes a
   // full Vercel ↔ Supabase round-trip from the document-open critical path.
   const notePromise = supabase.from("notes").select("*").eq("id", id).maybeSingle();
   const versionsPromise = supabase
@@ -282,10 +301,12 @@ export async function getNote(id: string) {
     .eq("note_id", id)
     .order("version_number", { ascending: false });
   const relationsPromise = getNoteLinkRelations(supabase, id);
-  const [noteResult, versionsResult, relations] = await Promise.all([
+  const attachmentsPromise = getNoteAttachments(supabase, userId, id);
+  const [noteResult, versionsResult, relations, attachments] = await Promise.all([
     notePromise,
     versionsPromise,
     relationsPromise,
+    attachmentsPromise,
   ]);
 
   if (noteResult.error || !noteResult.data) return null;
@@ -303,6 +324,7 @@ export async function getNote(id: string) {
     versions: (versions.data ?? []).map((version) => ({ ...version, reason: (version as { reason?: string }).reason ?? "initial" })),
     links: relations.referenced,
     backlinks: relations.backlinks,
+    attachments,
     state: isNotesWorkspaceSchemaMissing(versionsResult.error) || linksUnavailable ? "base" as const : "ready" as const,
   };
 }
