@@ -41,6 +41,28 @@ export async function POST(request: Request) {
     const { data } = await supabase.from("file_folders").select("id").eq("id", parsed.data.folderId).is("archived_at", null).maybeSingle();
     if (!data) return fail("目标文件夹不存在或无权访问。", 404);
   }
+  // Resume only this owner's matching pending object; attachment IDs stay stable.
+  if (parsed.data.checksum && !parsed.data.noteId) {
+    let pendingQuery = supabase.from("documents")
+      .select("id,title,original_filename,mime_type,file_size,folder_id,storage_path,text_extraction_status")
+      .eq("user_id", userId).eq("checksum", parsed.data.checksum)
+      .eq("mime_type", parsed.data.contentType).eq("file_size", parsed.data.size)
+      .eq("storage_provider", "cloudflare_r2").eq("storage_bucket", r2BucketName())
+      .eq("storage_state", "pending").is("archived_at", null);
+    pendingQuery = parsed.data.folderId ? pendingQuery.eq("folder_id", parsed.data.folderId) : pendingQuery.is("folder_id", null);
+    const { data: pending, error: lookupError } = await pendingQuery.order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (lookupError) return fail("暂时无法检查未完成的上传，请稍后重试。", 500);
+    if (pending) {
+      try {
+        return NextResponse.json({ documentId: pending.id, resumed: true,
+          uploadUrl: await createUploadUrl(pending.storage_path, pending.mime_type),
+          file: { id: pending.id, title: pending.title, originalFilename: pending.original_filename,
+            mimeType: pending.mime_type, fileSize: pending.file_size, folderId: pending.folder_id,
+            textExtractionStatus: pending.text_extraction_status },
+        }, { headers });
+      } catch { return fail("暂时无法续传，请稍后重试。", 500); }
+    }
+  }
   const documentId = randomUUID();
   const filename = safeFilename(parsed.data.filename);
   const key = `${userId}/files/${documentId}/${filename}`;
@@ -48,6 +70,7 @@ export async function POST(request: Request) {
     id: documentId, user_id: userId, title: filename, document_type: "other", original_filename: filename,
     storage_bucket: r2BucketName(), storage_path: key, storage_provider: "cloudflare_r2", storage_state: "pending",
     mime_type: parsed.data.contentType, file_size: parsed.data.size, folder_id: parsed.data.folderId ?? null,
+    checksum: parsed.data.checksum ?? null,
     text_extraction_status: initialExtractionStatus(filename, parsed.data.contentType, parsed.data.size),
   });
   if (error) return fail("文件记录未能创建。", 500);

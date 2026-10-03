@@ -37,6 +37,7 @@ export const uploadRequestSchema = z.object({
   size: z.number().int().positive().max(maxFileSize),
   folderId: z.string().uuid().nullable().optional(),
   noteId: z.string().uuid().nullable().optional(),
+  checksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
 
 export const completeUploadSchema = z.object({ documentId: z.string().uuid(), noteId: z.string().uuid().nullable().optional() });

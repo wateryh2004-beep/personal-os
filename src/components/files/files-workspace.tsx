@@ -1,5 +1,7 @@
 "use client";
 
+import { runUploadBatch } from "@/features/files/upload-batch";
+
 import { Archive, Download, File, FilePlus2, Folder, FolderPlus, LoaderCircle, MoreHorizontal, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { archiveFile, createFileFolder, moveFile, renameFile, restoreFile, setFileAiVisibility } from "@/features/files/actions";
@@ -76,17 +78,27 @@ export function FilesWorkspace({ folders, files, archivedFiles = [], initialUplo
   async function upload(filesToUpload: FileList | null) {
     if (!filesToUpload?.length || ["preparing", "uploading", "verifying", "extracting"].includes(stage)) return;
     setStage("preparing"); setProgress(0); setMessage("");
+    const batch = Array.from(filesToUpload);
+    const fileProgress = batch.map(() => 0);
+    let uploadedCount = 0;
+    const totalBytes = batch.reduce((total, file) => total + file.size, 0);
+    const updateProgress = (index: number, value: number) => {
+      fileProgress[index] = value;
+      setProgress(Math.round(batch.reduce((total, file, i) => total + file.size * fileProgress[i], 0) / totalBytes));
+    };
     try {
-      for (const file of Array.from(filesToUpload)) {
-        const created = await fetch("/api/files/upload-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename: file.name, contentType: file.type || "application/octet-stream", size: file.size, folderId }) });
-        let payload: { documentId?: string; uploadUrl?: string; error?: string; file?: { id: string; title: string; originalFilename: string; mimeType: string; fileSize: number; folderId: string | null; textExtractionStatus: FileRecord["text_extraction_status"] } };
+      const result = await runUploadBatch(batch, async (file, index) => {
+        const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+        const checksum = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+        const created = await fetch("/api/files/upload-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename: file.name, contentType: file.type || "application/octet-stream", size: file.size, folderId, checksum }) });
+        let payload: { documentId?: string; uploadUrl?: string; resumed?: boolean; error?: string; file?: { id: string; title: string; originalFilename: string; mimeType: string; fileSize: number; folderId: string | null; textExtractionStatus: FileRecord["text_extraction_status"] } };
         try { payload = await created.json() as typeof payload; } catch { throw new Error("上传准备服务返回无效响应，请稍后重试。"); }
         if (!created.ok || !payload.documentId || !payload.uploadUrl) throw new Error(payload.error || "上传准备失败。");
-        setStage("uploading"); setProgress(0);
-        const status = await uploadToR2(payload.uploadUrl, file, setProgress);
-        if (status === null) { void fetch(`/api/files/upload-url?documentId=${encodeURIComponent(payload.documentId)}`, { method: "DELETE" }); throw new Error(await browserR2NetworkMessage()); }
-        if (status < 200 || status >= 300) { void fetch(`/api/files/upload-url?documentId=${encodeURIComponent(payload.documentId)}`, { method: "DELETE" }); throw new Error(directUploadFailureMessage(status)); }
-        setStage("verifying");
+        setStage("uploading");
+        const status = await uploadToR2(payload.uploadUrl, file, (value) => updateProgress(index, value));
+        if (status === null) { if (!payload.resumed) void fetch(`/api/files/upload-url?documentId=${encodeURIComponent(payload.documentId)}`, { method: "DELETE" }); throw new Error(await browserR2NetworkMessage()); }
+        if (status < 200 || status >= 300) { if (!payload.resumed) void fetch(`/api/files/upload-url?documentId=${encodeURIComponent(payload.documentId)}`, { method: "DELETE" }); throw new Error(directUploadFailureMessage(status)); }
+        if (batch.length === 1) setStage("verifying");
         const completed = await fetch("/api/files/upload-url", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: payload.documentId }) });
         if (!completed.ok) throw new Error(await responseError(completed, "文件上传后未能确认。"));
         const verification = await completed.json() as { extractionStatus?: FileRecord["text_extraction_status"] };
@@ -108,7 +120,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = [], initialUplo
           };
           setFileRows((current) => [localFile, ...current.filter((item) => item.id !== localFile.id)]);
         }
-        if (verification.extractionStatus === "pending") {
+        if (verification.extractionStatus === "pending" && batch.length === 1) {
           setStage("extracting");
           const extracted = await fetch(`/api/files/${payload.documentId}/extract`, { method: "POST" });
           const extraction = await extracted.json().catch(() => null) as { status?: FileRecord["text_extraction_status"]; characterCount?: number } | null;
@@ -116,8 +128,14 @@ export function FilesWorkspace({ folders, files, archivedFiles = [], initialUplo
           if (!extracted.ok && extracted.status !== 422)
             setMessage("文件已上传，文本解析将由后台继续处理。");
         }
-      }
-      setStage("complete"); setProgress(100); setMessage(`已上传 ${filesToUpload.length} 个文件。`);
+        uploadedCount++;
+        updateProgress(index, 100);
+        setMessage(`已完成 ${uploadedCount} / ${batch.length} 个文件。请保持此页面打开。`);
+      });
+      setStage(result.errors.length ? "error" : "complete");
+      if (!result.errors.length) setProgress(100);
+      const errorMessage = result.errors[0]?.message;
+      setMessage(result.errors.length ? `已上传 ${result.uploaded} 个，${result.errors.length} 个未完成。${errorMessage}` : `已上传 ${result.uploaded} 个文件。${batch.length > 1 ? "文本索引将由后台逐步完成。" : ""}`);
     } catch (error) { const raw = error instanceof Error ? error.message : "上传失败，请重试。"; setStage("error"); setMessage(/failed to fetch/i.test(raw) ? "无法连接应用服务器，暂时无法准备上传。请检查网络后重试。" : raw); }
     finally { if (inputRef.current) inputRef.current.value = ""; }
   }
