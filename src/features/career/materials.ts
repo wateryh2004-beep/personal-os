@@ -73,12 +73,7 @@ export function collectCareerMaterialAssociations(input: {
   return associations.filter((item, index) => associations.findIndex((candidate) => candidate.documentId === item.documentId && candidate.href === item.href && candidate.label === item.label) === index);
 }
 
-/** Owner UI access is independent of AI visibility. Never send these rows to an AI service. */
-export function careerMaterialReadHref(document: CareerMaterialDocument) {
-  return document.storage_provider === "cloudflare_r2" && document.storage_state === "available"
-    ? `/api/files/${encodeURIComponent(document.id)}/download?inline=1`
-    : null;
-}
+export { careerMaterialReadHref } from "./material-links";
 
 type DatabaseClient = Awaited<ReturnType<typeof requireOwner>>["supabase"];
 async function loadOwnedRows<T>(supabase: DatabaseClient, userId: string, table: string, columns: string, ids?: string[], documentLinks = false): Promise<{ rows: T[]; unavailable: boolean }> {

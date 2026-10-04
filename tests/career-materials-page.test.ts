@@ -8,17 +8,22 @@ vi.mock("next/link", () => ({ default: ({ children, ...props }: React.AnchorHTML
 vi.mock("@/components/links/entity-markdown", () => ({ EntityMarkdown: ({ body }: { body: string }) => createElement("div", { "data-reading-body": true }, body) }));
 vi.mock("@/features/career/materials", async (importOriginal) => ({ ...await importOriginal<typeof import("@/features/career/materials")>(), getCareerMaterials: mocks.materials }));
 import CareerMaterialsPage from "@/app/(app)/career/materials/page";
+import { CareerMaterialsView } from "@/components/career/career-materials-view";
 
 const document = { id: "doc", title: "Synthetic evidence", original_filename: "synthetic.pdf", document_type: "other", confidentiality_level: "private", ai_visibility: "never", storage_provider: "cloudflare_r2", storage_state: "available", uploaded_at: "2026-10-01T08:00:00Z" };
 
 describe("Career materials reading page", () => {
   it("renders saved resume Markdown, an authenticated file link, and the original privacy label without write controls", async () => {
-    mocks.materials.mockResolvedValue({
+    const data = {
       resumes: [{ id: "resume", title: "Synthetic resume", version_label: "v1", status: "draft", content_markdown: "# Synthetic resume body", document_id: "doc", updated_at: "2026-10-01T08:00:00Z" }],
       documents: [document, { ...document, id: "legacy", title: "Synthetic legacy evidence", storage_provider: "supabase_storage" }],
       associations: [{ documentId: "doc", label: "Synthetic resume", href: "#resume-resume" }, { documentId: "legacy", label: "经历", href: "/career/experiences/experience" }], unavailable: false,
-    });
+    };
+    mocks.materials.mockResolvedValue(data);
     const html = renderToStaticMarkup(await CareerMaterialsPage());
+    expect(html).toBe(renderToStaticMarkup(createElement(CareerMaterialsView, { data })));
+    expect(html).toContain('data-testid="career-materials-view"');
+    expect(html).toContain('data-document-id="legacy"');
     expect(html).toContain("# Synthetic resume body");
     expect(html).toContain('href="/api/files/doc/download?inline=1"');
     expect(html).toContain("不供 AI 使用");
