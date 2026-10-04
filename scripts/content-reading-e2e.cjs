@@ -25,8 +25,10 @@ const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
         const crossOrigin = await page.request.post(`${baseURL}/api/content`, { headers: { Origin: "https://attacker.example.test" }, data: {} });
         assert.equal(crossOrigin.status(), 403, "real write endpoint rejects cross-origin requests");
       }
-      assert.equal(await page.locator("form,textarea").count(), 0, "reading route contains no authoring forms");
+      assert.equal(await page.getByRole("region", { name: "笔记正文" }).locator("form,textarea").count(), 0, "reading route contains no authoring forms");
       assert.ok((await page.locator("article").innerText()).includes("100−20−15=65"));
+      assert.equal(await page.locator("#main-content").evaluate((node) => getComputedStyle(node).paddingLeft), "0px", "reader keeps the Notes shell's single gutter");
+      if (width < 768) await page.getByRole("button", { name: "打开笔记文件", exact: true }).waitFor({ state: "visible" });
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
       assert.equal(await page.evaluate(() => Boolean(window.__contentInjected)), false);
       assert.equal(await page.locator('a[href^="javascript:"]').count(), 0);
