@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAuthCallbackPath, isPrivateAppPath, isPublicPath, safeRedirectPath } from "@/lib/supabase/proxy";
+import { isAuthCallbackPath, isIndependentGatewayPath, isPrivateAppPath, isPublicPath, safeRedirectPath } from "@/lib/supabase/proxy";
 
 describe("application proxy paths", () => {
   it("classifies every app route as private except explicit recovery/public routes", () => {
@@ -30,5 +30,24 @@ describe("application proxy paths", () => {
     expect(safeRedirectPath("https://evil.example")).toBe("/today");
     expect(safeRedirectPath("//evil.example")).toBe("/today");
     expect(safeRedirectPath("\\\\evil.example")).toBe("/today");
+    expect(safeRedirectPath("/\\evil.example")).toBe("/today");
+    expect(safeRedirectPath("/path\\next")).toBe("/today");
+    expect(safeRedirectPath("/%5cevil.example")).toBe("/today");
+    expect(safeRedirectPath("/notes?query=private#revision")).toBe("/notes?query=private#revision");
+    expect(safeRedirectPath("/\n/evil.example")).toBe("/today");
+  });
+
+  it("makes only the registered discovery routes public", () => {
+    for (const path of ["/.well-known/oauth-protected-resource/api/mcp", "/.well-known/oauth-authorization-server"]) {
+      expect(isPublicPath(path)).toBe(true);
+      expect(isPrivateAppPath(path)).toBe(false);
+      expect(isIndependentGatewayPath(path)).toBe(true);
+      expect(isPublicPath(`${path}/other`)).toBe(false);
+    }
+    for (const path of ["/.well-known/other", "/api/oauth/decision", "/api/oauth/authorize/other", "/api/mcp/other", "/settings/connections/codex/authorize"]) expect(isIndependentGatewayPath(path)).toBe(false);
+  });
+
+  it.each(["/login", "/login?next=/login", "/login/", "/login#form", "/notes/../login", "/%6cogin"])("prevents %s from becoming a login redirect loop", (next) => {
+    expect(safeRedirectPath(next)).toBe("/today");
   });
 });

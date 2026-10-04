@@ -1,3 +1,5 @@
+import { ContentReadingFixture } from "@/components/testing/content-reading-fixture";
+import { CodexAuthorizationFixture, type CodexFixtureScene } from "@/components/testing/codex-authorization-fixture";
 import { NotesSearchFixture } from "@/components/testing/notes-search-fixture";
 import { cookies } from "next/headers";
 import { workspaceRevisionCookie } from "@/lib/workspace-revalidation";
@@ -11,6 +13,8 @@ export const dynamic = "force-dynamic";
 export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string }> }) {
   if (process.env.E2E_MOBILE_HARNESS !== "1") notFound();
   const { scene, workspace, mode, delay: rawDelay } = await searchParams;
+  if (scene === "content-reader") return <ContentReadingFixture />;
+  if (scene && ["codex-consent", "codex-grants", "codex-expired", "codex-unavailable"].includes(scene)) return <CodexAuthorizationFixture scene={scene as CodexFixtureScene} />;
   if (scene === "notes-search") return <NotesSearchFixture />;
   if (scene === "latency") {
     const delay = Math.min(1500, Math.max(0, Number(rawDelay) || 0));
@@ -19,7 +23,7 @@ export default async function MobileNativeE2EPage({ searchParams }: { searchPara
     if (mode === "baseline" && workspace !== "home") await new Promise((resolve) => setTimeout(resolve, delay));
     return <NavigationLatencyHarness workspace={workspace ?? "home"} mode={mode ?? "resource"} delay={delay} revision={(await cookies()).get(workspaceRevisionCookie)?.value ?? "fixture-v1"} />;
   }
-  if (scene && ["heading", "career", "career-filled", "today", "today-filled", "tasks", "calendar", "notes", "note-editor", "note-pdf", "files", "today-loading", "tasks-loading", "calendar-loading"].includes(scene)) {
+  if (scene && ["heading", "career", "career-filled", "career-materials", "today", "today-filled", "tasks", "calendar", "notes", "note-editor", "note-pdf", "files", "today-loading", "tasks-loading", "calendar-loading"].includes(scene)) {
     return <WorkspacePolishHarness scene={scene as PolishScene} />;
   }
   return <MobileNativeHarness />;

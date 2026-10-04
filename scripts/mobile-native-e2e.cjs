@@ -124,11 +124,12 @@ async function backCloses(page, trigger, visibleTarget) {
       assert.ok((await questionDetail.innerText()).includes("E2E 思路 0"));
       assert.equal(await questionDetail.locator("textarea").count(), 0);
       assert.ok((await questionDetail.innerText()).includes("E2E 答案 0"));
-      await questionDetail.getByRole("button", { name: "编辑思路与答案", exact: true }).tap();
-      assert.ok((await questionDetail.getByLabel("思路", { exact: true }).inputValue()).includes("E2E 思路 0"));
-      assert.equal(await questionDetail.getByLabel("答案", { exact: true }).inputValue(), "E2E 答案 0");
-      await questionDetail.getByRole("button", { name: "阅读学习", exact: true }).tap();
-      assert.equal(await questionDetail.locator("textarea").count(), 0);
+      assert.equal(await interview.locator("form").count(), 0, "primary workspace has no authoring forms");
+      assert.equal(await questionDetail.getByRole("button", { name: "编辑思路与答案", exact: true }).count(), 0);
+      assert.equal(await questionDetail.getByRole("link", { name: "练习这道题 →", exact: true }).count(), 1);
+      await questionDetail.getByText("来源、使用边界与版本", { exact: true }).tap();
+      assert.ok((await questionDetail.getByRole("link", { name: "查看答案版本 →", exact: true }).getAttribute("href")).includes("#answer-versions"));
+      await questionDetail.getByText("来源、使用边界与版本", { exact: true }).tap();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
       await capture(page, `interview-detail-${width}`);
       await captureElement(questionDetail, `interview-detail-crop-${width}`);
@@ -194,6 +195,8 @@ async function backCloses(page, trigger, visibleTarget) {
     assert.equal(await detail.isVisible(), true);
     assert.ok((await detail.innerText()).includes("E2E English reference answer"));
     assert.equal(await detail.locator("textarea").count(), 0);
+    const listBox = await questionList.boundingBox();
+    assert.ok(listBox && listBox.height < 300, "filtered sidebar stays content-sized instead of stretching into an empty card beside a long answer");
     assert.equal(await detail.getByRole("link", { name: "练习这道题 →", exact: true }).getAttribute("href"), "/career/interview/practice/e2e-prep-1");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
     await capture(page, "interview-desktop-1440");

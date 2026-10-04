@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { isOwnerEmail } from "@/lib/auth/owner";
+import { safeRedirectPath } from "@/lib/supabase/proxy";
 import { LoginForm } from "./login-form";
 
 export const dynamic = "force-dynamic";
@@ -10,20 +11,24 @@ export const dynamic = "force-dynamic";
 type LoginSearchParams = Promise<{
   error?: string;
   reset?: string;
+  next?: string | string[];
 }>;
 
 export default async function Login({ searchParams }: { searchParams: LoginSearchParams }) {
+  const params = await searchParams;
+  const next = safeRedirectPath(typeof params.next === "string" ? params.next : null);
+  let signedIn = false;
   if (isSupabaseConfigured) {
     try {
       const client = await createClient();
       const { data } = await client.auth.getClaims();
-      if (isOwnerEmail(data?.claims.email as string | undefined)) redirect("/today");
+      signedIn = Boolean(data?.claims.sub) && isOwnerEmail(data?.claims.email as string | undefined);
     } catch {
       // Keep the login page usable even when the auth backend is temporarily unavailable.
     }
   }
+  if (signedIn) redirect(next);
 
-  const params = await searchParams;
   const proxyNotice = (await headers()).get("x-personal-os-auth-notice") === "not-authorized"
     ? "该账户无权访问此私人系统。"
     : undefined;
@@ -40,7 +45,7 @@ export default async function Login({ searchParams }: { searchParams: LoginSearc
 
   return (
     <main className="grid min-h-screen place-items-center p-6">
-      <LoginForm initialError={proxyNotice ?? queryError} initialMessage={message} />
+      <LoginForm initialError={proxyNotice ?? queryError} initialMessage={message} next={next} />
     </main>
   );
 }

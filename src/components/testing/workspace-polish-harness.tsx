@@ -1,5 +1,6 @@
 "use client";
 
+import { CareerMaterialsView, type CareerMaterialsData } from "@/components/career/career-materials-view";
 import { CareerHomeView, type CareerHomeData } from "@/components/career/career-home-view";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ import type { TodoTask } from "@/features/tasks/types";
 import { FilesPolishFixture } from "./files-polish-fixture";
 import { NoteEditorPolishFixture } from "./note-editor-polish-fixture";
 
-export type PolishScene = "heading" | "career" | "career-filled" | "today" | "today-filled" | "tasks" | "calendar" | "notes" | "note-editor" | "note-pdf" | "files" | "today-loading" | "tasks-loading" | "calendar-loading";
+export type PolishScene = "heading" | "career" | "career-filled" | "career-materials" | "today" | "today-filled" | "tasks" | "calendar" | "notes" | "note-editor" | "note-pdf" | "files" | "today-loading" | "tasks-loading" | "calendar-loading";
 
 // Fixture-only, reached through the existing explicitly gated E2E route. Never
 // populated from an account, and the browser test never submits these forms.
@@ -68,15 +69,84 @@ const filledCareer: CareerHomeData = {
   profile: { professional_headline: "Synthetic fixture · 仅用于职业工作台布局验证", current_stage: null },
   interviewTargets: [{ id: "e2e-target", title: "示例面试准备", organization_snapshot: "布局测试组织", role_title_snapshot: "Synthetic fixture / 示例岗位", status: "active", next_interview_at: "2026-10-04T06:00:00Z" }],
   interviewPreparations: [{ id: "e2e-prep", context_id: "e2e-target", status: "draft", next_practice_at: null }],
+  recentReadings: [
+    {
+      id: "e2e-prep", questionId: "e2e-reading-target", contextId: "e2e-target",
+      title: "如何把经历讲清楚：从问题、判断到结果 / Explain your reasoning",
+      summary: "Synthetic fixture · 先说明具体问题，再给出判断依据和采取的行动。用一项可核对的结果收尾，同时说清限制与下一步。此段仅用于验证阅读摘要在窄屏和桌面上的换行。",
+      updatedAt: "2026-10-03T07:30:00Z",
+    },
+    {
+      id: "e2e-general-prep-1", questionId: "e2e-reading-general-1", contextId: null,
+      title: "面对条件变化，怎样重新判断优先级？",
+      summary: "Synthetic fixture · 明确目标和约束，再比较几个可行选择。把结论、依据与尚待确认的信息分开表达。",
+      updatedAt: "2026-10-02T10:00:00Z",
+    },
+    {
+      id: "e2e-general-prep-2", questionId: "e2e-reading-general-2", contextId: null,
+      title: "How would you verify an unexpected result? / 核对异常结果",
+      summary: "Synthetic fixture · Check the source, compare assumptions, and explain what evidence would change the conclusion.",
+      updatedAt: "2026-10-02T08:00:00Z",
+    },
+    {
+      id: "e2e-general-prep-3", questionId: "e2e-reading-general-3", contextId: null,
+      title: "用自己的话复述一个概念 · 无摘要布局",
+      summary: "",
+      updatedAt: "2026-10-01T09:00:00Z",
+    },
+  ],
   milestones: [{ id: "e2e-milestone", title: "示例事项：核对准备材料与接下来的计划", target_date: "2026-10-03", status: "planned" }],
 };
 
+// Only synthetic content; there are no uploaded blobs behind these fixture IDs.
+const careerMaterials: CareerMaterialsData = {
+  resumes: [
+    {
+      id: "e2e-materials-resume", title: "Synthetic resume · 项目分析与问题解决 / Analytical work and reasoning",
+      version_label: "布局验证 v2", status: "final", updated_at: "2026-10-03T08:00:00Z",
+      document_id: "e2e-materials-never",
+      content_markdown: "## 示例简历 / Synthetic résumé\n\n这是一份完全虚构的阅读布局样本。用于检查长标题、中文与英文混排、段落和列表，不能作为个人经历使用。\n\n### 工作方法\n\n- 先定义问题与约束，再整理可核对的依据\n- Explain the assumptions, compare alternatives, and describe the result\n- 保留来源与版本，方便回到原始材料复核",
+    },
+    {
+      id: "e2e-materials-draft", title: "Synthetic draft · 尚无正文的简历版本", version_label: "草稿 v1",
+      status: "draft", content_markdown: "", document_id: "e2e-materials-legacy", updated_at: "2026-10-02T08:00:00Z",
+    },
+  ],
+  documents: [
+    {
+      id: "e2e-materials-never", title: "Synthetic evidence · 用于验证多行标题与阅读链接的项目说明、结果核对和证明材料 / A deliberately long reading title",
+      original_filename: "SyntheticEvidence_LongFileNameForNarrowScreenWrapping_项目说明与事实核对_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ.pdf",
+      document_type: "resume_pdf", confidentiality_level: "private", ai_visibility: "never",
+      storage_provider: "cloudflare_r2", storage_state: "available", uploaded_at: "2026-10-03T08:00:00Z",
+    },
+    {
+      id: "e2e-materials-legacy", title: "Synthetic legacy attachment · 旧版证明材料",
+      original_filename: "synthetic-legacy-evidence.pdf", document_type: "internship_proof", confidentiality_level: "private", ai_visibility: "normal",
+      storage_provider: "supabase_storage", storage_state: "available", uploaded_at: "2026-10-02T08:00:00Z",
+    },
+    {
+      id: "e2e-materials-sensitive", title: "Synthetic certificate · 核对用材料",
+      original_filename: "synthetic-certificate.pdf", document_type: "certificate", confidentiality_level: "sensitive", ai_visibility: "sensitive",
+      storage_provider: "cloudflare_r2", storage_state: "available", uploaded_at: "2026-10-01T08:00:00Z",
+    },
+  ],
+  associations: [
+    { documentId: "e2e-materials-never", label: "Synthetic resume", href: "#resume-e2e-materials-resume" },
+    { documentId: "e2e-materials-never", label: "经历事实的来源", href: "/career/experiences/e2e-materials-experience" },
+    { documentId: "e2e-materials-legacy", label: "Synthetic draft", href: "#resume-e2e-materials-draft" },
+    { documentId: "e2e-materials-sensitive", label: "Synthetic certificate", href: "/career/certifications" },
+  ],
+  // Exercise a partial-read warning alongside records that are still readable.
+  unavailable: true,
+};
+
 export function WorkspacePolishHarness({ scene }: { scene: PolishScene }) {
-  const pathname = scene === "heading" ? "/today" : (scene === "note-editor" || scene === "note-pdf") ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
+  const pathname = scene === "career-materials" ? "/career/materials" : scene === "heading" ? "/today" : (scene === "note-editor" || scene === "note-pdf") ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
   return <div data-testid="workspace-polish-harness" data-scene={scene}>
     <AppShell presentationPathname={pathname}>
       {scene === "heading" ? <DashboardLayout><PageHeader eyebrow="Collection · 排版验证" title="项目与长期计划 / Projects and long-term plans" description="中英文标题、说明和操作保持清晰层级。This synthetic fixture checks wrapping without hiding long titles." action={<Button>新建项目</Button>} secondaryActions={<Button variant="ghost">查看全部</Button>} /><div className="mt-8 border-t border-[var(--separator)] pt-4 text-[14px] leading-6 text-[var(--text-secondary)]">仅用于共享标题组件的布局验证，不包含个人资料。</div></DashboardLayout> : null}
       {scene === "career" || scene === "career-filled" ? <div><p className="mb-4 text-[12px] text-[var(--text-secondary)]">Synthetic fixture · 以下仅为布局验证，不包含个人经历或业务数据。</p><CareerHomeView data={scene === "career-filled" ? filledCareer : career} showContinue={false}/></div> : null}
+      {scene === "career-materials" ? <div data-testid="career-materials-fixture"><p className="mb-4 text-[12px] text-[var(--text-secondary)]">Synthetic fixture · 以下仅为阅读布局验证，不包含个人资料或真实文件。</p><CareerMaterialsView data={careerMaterials} /></div> : null}
       {scene === "today" || scene === "today-filled" ? <NowWorkspaceView workspace={scene === "today-filled" ? filledNow : now} /> : null}
       {scene === "tasks" ? <TaskWorkspace tasks={tasks} lists={lists} initialDayBounds={{ startMs: 0, endMs: 8_640_000_000_000_000 }} /> : null}
       {scene === "calendar" ? <CalendarWorkspace events={events} categories={categories} timezone="Asia/Shanghai" syncStatus={null} scopeReady /> : null}

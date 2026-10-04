@@ -9,9 +9,11 @@ const initial: LoginState = {};
 export function LoginForm({
   initialError,
   initialMessage,
+  next = "/today",
 }: {
   initialError?: string;
   initialMessage?: string;
+  next?: string;
 }) {
   const [state, action, pending] = useActionState(
     loginAction,
@@ -22,6 +24,7 @@ export function LoginForm({
 
   return (
     <form action={action} className="w-full max-w-sm space-y-5 border bg-white p-7">
+      <input type="hidden" name="next" value={next} />
       <h1 className="text-xl font-semibold">Personal OS</h1>
       <p className="text-sm text-zinc-500">私人空间，仅限所有者登录。</p>
 

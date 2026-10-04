@@ -1,5 +1,7 @@
 "use client";
 
+import { noteDocumentId } from "@/features/notes/routes";
+
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -41,7 +43,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   const treeScrollRef = useRef<HTMLDivElement>(null);
   const dragPointerYRef = useRef<number | null>(null);
   const dragScrollFrameRef = useRef<number | null>(null);
-  const activeNoteId = /^\/notes\/([0-9a-f-]{36})$/i.exec(pathname)?.[1] ?? null;
+  const activeNoteId = noteDocumentId(pathname);
 
   const stopDragAutoScroll = () => {
     dragPointerYRef.current = null;

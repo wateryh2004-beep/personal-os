@@ -125,7 +125,32 @@ export async function getCareerHome() {
       .is("archived_at", null),
   ]);
 
+  // A small reading shelf, scoped to the visible targets and general study.
+  // Do not load the full answer bank or infer that an update means the user read it.
+  const targetIds = (interviewTargets.data ?? []).map((target) => target.id as string);
+  const recentReadings = await supabase.from("interview_question_preparations")
+    .select("id,question_id,context_id,prompt_override,key_message,updated_at,interview_questions!inner(canonical_prompt,short_title,archived_at)")
+    .eq("user_id", userId)
+    .neq("status", "paused")
+    .is("archived_at", null)
+    .is("interview_questions.archived_at", null)
+    .or(targetIds.length ? `context_id.is.null,context_id.in.(${targetIds.join(",")})` : "context_id.is.null")
+    .order("updated_at", { ascending: false })
+    .order("id")
+    .limit(6);
+
   return {
+    recentReadings: (recentReadings.data ?? []).map((row) => {
+      const question = Array.isArray(row.interview_questions) ? row.interview_questions[0] : row.interview_questions;
+      return {
+        id: row.id as string,
+        questionId: row.question_id as string,
+        contextId: row.context_id as string | null,
+        title: (row.prompt_override || question?.short_title || question?.canonical_prompt || "面试学习") as string,
+        summary: (row.key_message || "") as string,
+        updatedAt: row.updated_at as string,
+      };
+    }),
     now: Date.now(),
     profile: profile.data,
     directions: directions.data ?? [],
@@ -146,6 +171,7 @@ export async function getCareerHome() {
       || milestones.error
       || interviewTargets.error
       || interviewPreparations.error
+      || recentReadings.error
     ),
   };
 }
