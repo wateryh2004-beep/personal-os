@@ -45,6 +45,7 @@ jobs:
           done
           curl -fsS http://127.0.0.1:3000/mobile-native-e2e > /dev/null
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/notes-search-e2e.cjs
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/content-reading-e2e.cjs
           NODE_PATH="$(npm root -g)" node scripts/mobile-native-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/navigation-latency-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/workspace-reliability-e2e.cjs

@@ -1,3 +1,4 @@
+import { ContentReadingFixture } from "@/components/testing/content-reading-fixture";
 import { NotesSearchFixture } from "@/components/testing/notes-search-fixture";
 import { cookies } from "next/headers";
 import { workspaceRevisionCookie } from "@/lib/workspace-revalidation";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string }> }) {
   if (process.env.E2E_MOBILE_HARNESS !== "1") notFound();
   const { scene, workspace, mode, delay: rawDelay } = await searchParams;
+  if (scene === "content-reader") return <ContentReadingFixture />;
   if (scene === "notes-search") return <NotesSearchFixture />;
   if (scene === "latency") {
     const delay = Math.min(1500, Math.max(0, Number(rawDelay) || 0));

@@ -1,5 +1,7 @@
 "use client";
 
+import { isNotesWorkspacePath } from "@/features/notes/routes";
+
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
@@ -116,7 +118,7 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent, gr
 
 function shellContentClass(pathname: string) {
   if (pathname === "/today" || pathname === "/calendar" || pathname === "/tasks" || pathname === "/files" || pathname === "/career/roadmap") return "p-0";
-  if (pathname === "/notes" || /^\/notes\/[0-9a-f-]{36}$/.test(pathname)) return "p-0";
+  if (isNotesWorkspacePath(pathname)) return "p-0";
   if (pathname.startsWith("/career")) return "career-surface mx-auto w-full max-w-[980px] px-4 py-7 pb-[calc(var(--tab-bar-height)+1rem)] sm:px-6 md:pb-8 lg:px-8";
   return "mx-auto w-full max-w-[var(--content-dashboard-width)] px-4 py-6 pb-[calc(var(--tab-bar-height)+1rem)] sm:px-6 md:pb-6 lg:px-8";
 }

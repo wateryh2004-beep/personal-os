@@ -68,6 +68,32 @@ const filledCareer: CareerHomeData = {
   profile: { professional_headline: "Synthetic fixture · 仅用于职业工作台布局验证", current_stage: null },
   interviewTargets: [{ id: "e2e-target", title: "示例面试准备", organization_snapshot: "布局测试组织", role_title_snapshot: "Synthetic fixture / 示例岗位", status: "active", next_interview_at: "2026-10-04T06:00:00Z" }],
   interviewPreparations: [{ id: "e2e-prep", context_id: "e2e-target", status: "draft", next_practice_at: null }],
+  recentReadings: [
+    {
+      id: "e2e-prep", questionId: "e2e-reading-target", contextId: "e2e-target",
+      title: "如何把经历讲清楚：从问题、判断到结果 / Explain your reasoning",
+      summary: "Synthetic fixture · 先说明具体问题，再给出判断依据和采取的行动。用一项可核对的结果收尾，同时说清限制与下一步。此段仅用于验证阅读摘要在窄屏和桌面上的换行。",
+      updatedAt: "2026-10-03T07:30:00Z",
+    },
+    {
+      id: "e2e-general-prep-1", questionId: "e2e-reading-general-1", contextId: null,
+      title: "面对条件变化，怎样重新判断优先级？",
+      summary: "Synthetic fixture · 明确目标和约束，再比较几个可行选择。把结论、依据与尚待确认的信息分开表达。",
+      updatedAt: "2026-10-02T10:00:00Z",
+    },
+    {
+      id: "e2e-general-prep-2", questionId: "e2e-reading-general-2", contextId: null,
+      title: "How would you verify an unexpected result? / 核对异常结果",
+      summary: "Synthetic fixture · Check the source, compare assumptions, and explain what evidence would change the conclusion.",
+      updatedAt: "2026-10-02T08:00:00Z",
+    },
+    {
+      id: "e2e-general-prep-3", questionId: "e2e-reading-general-3", contextId: null,
+      title: "用自己的话复述一个概念 · 无摘要布局",
+      summary: "",
+      updatedAt: "2026-10-01T09:00:00Z",
+    },
+  ],
   milestones: [{ id: "e2e-milestone", title: "示例事项：核对准备材料与接下来的计划", target_date: "2026-10-03", status: "planned" }],
 };
 
