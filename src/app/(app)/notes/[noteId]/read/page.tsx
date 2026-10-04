@@ -19,7 +19,7 @@ export default async function NoteReadingPage({ params }: { params: Promise<{ no
       .is("archived_at", null).order("version_number", { ascending: false }).limit(10),
   ]);
   return <NoteReader note={{ id: note.id, title: note.title, bodyMarkdown: note.body_markdown, revision: note.revision, historyUnavailable: Boolean(sources.error || versions.error),
-    sources: (sources.data ?? []).map((row) => ({ source: typeof row.after_data?.source === "string" ? row.after_data.source : "外部内容", sourceUrl: typeof row.after_data?.sourceUrl === "string" ? row.after_data.sourceUrl : null, savedAt: row.created_at })),
+    sources: (sources.data ?? []).map((row) => ({ source: typeof row.after_data?.source === "string" ? row.after_data.source : "外部内容", sourceUrl: typeof row.after_data?.sourceUrl === "string" ? row.after_data.sourceUrl : null, captureMode: row.after_data?.captureMode === "original" || row.after_data?.captureMode === "curated" ? row.after_data.captureMode : null, savedAt: row.created_at })),
     versions: (versions.data ?? []).map((row) => ({ id: row.id, title: row.title, bodyMarkdown: row.body_markdown, versionNumber: row.version_number })),
   }} />;
 }

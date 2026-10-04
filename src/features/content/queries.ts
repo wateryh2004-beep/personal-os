@@ -36,7 +36,7 @@ export async function readContent(owner: Owner, command: ContentReadCommand) {
       .select("after_data,created_at").eq("user_id", userId).eq("entity_id", command.id)
       .eq("action", "content.write").order("created_at", { ascending: false }).limit(10);
     if (sourceError) throw new Error("content_read_unavailable");
-    return { ...data, href: `/notes/${data.id}/read`, sources: (sources ?? []).map((row) => ({ source: row.after_data?.source ?? null, sourceUrl: row.after_data?.sourceUrl ?? null, savedAt: row.created_at })) };
+    return { ...data, href: `/notes/${data.id}/read`, sources: (sources ?? []).map((row) => ({ source: row.after_data?.source ?? null, sourceUrl: row.after_data?.sourceUrl ?? null, captureMode: row.after_data?.captureMode ?? null, contentOrigin: row.after_data?.contentOrigin ?? null, savedAt: row.created_at })) };
   }
 
   if (command.action === "find") {

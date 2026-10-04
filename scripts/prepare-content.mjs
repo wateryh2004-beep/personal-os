@@ -4,7 +4,7 @@
 import { contentWriteSchema } from "../src/features/content/contracts.ts";
 
 if (process.argv.slice(2).some((value) => value === "--help")) {
-  process.stdout.write("Usage: node --experimental-transform-types scripts/prepare-content.mjs < chosen-command.json\nValidates one explicitly chosen content command and prints normalized JSON. Does not publish or connect.\n");
+  process.stdout.write("Usage: node --experimental-transform-types scripts/prepare-content.mjs < chosen-command.json\nValidates one explicitly chosen content command and prints normalized JSON. Does not publish or connect. Note commands require contentOrigin=human|ai_generated; captureMode=original|curated is optional and does not imply authorship.\n");
 } else if (process.argv.length > 2 || process.stdin.isTTY) {
   process.stderr.write("Supply one JSON command on stdin. Credentials and command-line content are not accepted.\n");
   process.exitCode = 2;

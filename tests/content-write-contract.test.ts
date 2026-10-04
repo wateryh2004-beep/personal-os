@@ -6,7 +6,7 @@ const operationId = "11111111-1111-4111-8111-111111111111";
 const entityId = "22222222-2222-4222-8222-222222222222";
 const answerId = "33333333-3333-4333-8333-333333333333";
 const updatedAt = "2026-10-04T17:00:00.123456+00:00";
-const createNote = { operation: "note.create", operationId, source: "codex", title: "Selected conversation", bodyMarkdown: "\n# Original\n\n  exact Markdown  \n" };
+const createNote = { operation: "note.create", operationId, source: "codex", contentOrigin: "human", captureMode: "original", title: "Selected conversation", bodyMarkdown: "\n# Original\n\n  exact Markdown  \n" };
 const updateNote = { ...createNote, operation: "note.update", noteId: entityId, expectedRevision: 3, expectedUpdatedAt: updatedAt };
 const appendAnswer = { operation: "interview.answer.append", operationId, source: "claude", preparationId: entityId, answerMode: "spoken", language: "en", targetSeconds: 90, expectedVersion: 0, expectedAnswerId: null, expectedUpdatedAt: null, bodyMarkdown: "  My exact draft\n" };
 const noteResult = { operationId, entityType: "note", entityId, revision: 1, updatedAt, href: `/notes/${entityId}/read`, replayed: false };
@@ -18,6 +18,16 @@ describe("strict external content commands", () => {
     expect(value.bodyMarkdown).toBe(createNote.bodyMarkdown);
     expect(value.sourceUrl).toBe(sourceUrl);
     expect(value).toMatchObject({ folderId: null });
+  });
+
+  it("requires an explicit authorship choice without inferring it from the tool or capture mode", () => {
+    expect(contentWriteSchema.safeParse({ ...createNote, contentOrigin: undefined }).success).toBe(false);
+    expect(contentWriteSchema.safeParse({ ...updateNote, contentOrigin: undefined }).success).toBe(false);
+    expect(contentWriteSchema.safeParse({ ...createNote, contentOrigin: "mixed" }).success).toBe(false);
+    expect(contentWriteSchema.parse({ ...createNote, contentOrigin: "human", captureMode: "original" })).toMatchObject({ contentOrigin: "human" });
+    expect(contentWriteSchema.parse({ ...createNote, contentOrigin: "ai_generated", captureMode: "original" })).toMatchObject({ contentOrigin: "ai_generated", captureMode: "original" });
+    expect(contentWriteSchema.parse({ ...updateNote, contentOrigin: "ai_generated", captureMode: "curated" })).toMatchObject({ contentOrigin: "ai_generated", captureMode: "curated" });
+    expect(contentWriteSchema.safeParse({ ...createNote, captureMode: "automatic" }).success).toBe(false);
   });
 
   it.each(["user_id", "userId", "status", "confirmed_at", "makeCurrent", "ai_visibility", "content_origin", "requestHeaders"])("rejects caller-supplied %s", (field) => {

@@ -23,7 +23,8 @@ describe("prepared-only content transaction safety contract", () => {
     expect(sql).toContain("a.user_id = v_user and a.request_id = v_operation_id");
     expect(sql).toContain("v_receipt->>'commandHash' is distinct from v_hash");
     expect(sql.indexOf("v_receipt->'result'")).toBeLessThan(sql.indexOf("insert into public.notes"));
-    expect(sql).toContain("'source', v_source, 'sourceUrl', v_source_url, 'result', v_result");
+    expect(sql).toContain("'source', v_source, 'sourceUrl', v_source_url");
+    expect(sql).toContain("'contentOrigin', v_content_origin, 'captureMode', v_capture_mode");
   });
 
   it("locks selected active notes and preserves old and new snapshots atomically", () => {
@@ -33,6 +34,9 @@ describe("prepared-only content transaction safety contract", () => {
     expect(sql).toContain("'external_initial' else 'external_update'");
     expect(sql.indexOf("'before_external_update'")).toBeLessThan(sql.indexOf("update public.notes"));
     expect(sql).toContain("revision = v_note.revision + 1");
+    expect(sql).toContain("content_origin = v_content_origin");
+    expect(sql).not.toContain("content_origin = 'ai_generated'");
+    expect(sql).toContain("array['title', 'contentOrigin']");
     expect(sql).toContain("'/notes/' || v_note.id::text || '/read'");
   });
 

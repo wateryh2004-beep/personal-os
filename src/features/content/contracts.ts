@@ -10,6 +10,9 @@ const common = {
   sourceUrl,
 };
 const noteFields = {
+  // Authorship is explicit; the external tool and capture method do not prove it.
+  contentOrigin: z.enum(["human", "ai_generated"]),
+  captureMode: z.enum(["original", "curated"]).nullable().optional().default(null),
   title: z.string().min(1).max(240).refine((value) => Boolean(value.trim()), "A title is required"),
   // Preserve the exact supplied Markdown; never trim, reformat, or append provenance.
   bodyMarkdown: z.string().max(200_000),

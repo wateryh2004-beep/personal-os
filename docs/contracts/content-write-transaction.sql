@@ -51,6 +51,8 @@ declare
   v_body_hash text;
   v_source text;
   v_source_url text;
+  v_content_origin text;
+  v_capture_mode text;
   v_mode text;
   v_language text;
   v_change_note text;
@@ -66,11 +68,11 @@ begin
   v_operation := p_command->>'operation';
   v_required := array['operation', 'operationId', 'source', 'bodyMarkdown'];
   if v_operation = 'note.create' then
-    v_required := v_required || array['title'];
-    v_allowed := v_required || array['sourceUrl', 'folderId'];
+    v_required := v_required || array['title', 'contentOrigin'];
+    v_allowed := v_required || array['sourceUrl', 'folderId', 'captureMode'];
   elsif v_operation = 'note.update' then
-    v_required := v_required || array['title', 'noteId', 'expectedRevision', 'expectedUpdatedAt'];
-    v_allowed := v_required || array['sourceUrl'];
+    v_required := v_required || array['title', 'contentOrigin', 'noteId', 'expectedRevision', 'expectedUpdatedAt'];
+    v_allowed := v_required || array['sourceUrl', 'captureMode'];
   elsif v_operation = 'interview.answer.append' then
     v_required := v_required || array['preparationId', 'answerMode', 'language', 'targetSeconds', 'expectedVersion', 'expectedAnswerId', 'expectedUpdatedAt'];
     v_allowed := v_required || array['sourceUrl', 'changeNote'];
@@ -117,8 +119,18 @@ begin
   v_body_hash := encode(sha256(convert_to(v_body, 'UTF8')), 'hex');
 
   if v_operation in ('note.create', 'note.update') then
-    if jsonb_typeof(p_command->'title') <> 'string' then
+    if jsonb_typeof(p_command->'title') <> 'string' or jsonb_typeof(p_command->'contentOrigin') <> 'string' then
       raise exception using errcode = '22023', message = 'invalid note title type';
+    end if;
+    v_content_origin := p_command->>'contentOrigin';
+    if v_content_origin not in ('human', 'ai_generated')
+      or (p_command ? 'captureMode' and jsonb_typeof(p_command->'captureMode') not in ('string', 'null'))
+    then
+      raise exception using errcode = '22023', message = 'invalid authorship or capture mode';
+    end if;
+    v_capture_mode := p_command->>'captureMode';
+    if v_capture_mode is not null and v_capture_mode not in ('original', 'curated') then
+      raise exception using errcode = '22023', message = 'invalid capture mode';
     end if;
     v_title := p_command->>'title';
     if char_length(v_title) > 240 or char_length(btrim(v_title)) = 0 then
@@ -138,7 +150,7 @@ begin
         content_hash, word_count, character_count, last_saved_at, content_origin, ai_visibility)
       values(v_user, v_folder_id, v_title, v_body, 'active', 1, v_body_hash,
         case when btrim(v_body) = '' then 0 else cardinality(regexp_split_to_array(btrim(v_body), '\s+')) end,
-        char_length(v_body), now(), 'ai_generated', 'normal')
+        char_length(v_body), now(), v_content_origin, 'normal')
       returning * into v_note;
       v_snapshot_version := 1;
     else
@@ -172,11 +184,11 @@ begin
       values(v_user, v_note.id, v_note.title, v_note.body_markdown, v_snapshot_version,
         v_user, encode(sha256(convert_to(v_note.body_markdown, 'UTF8')), 'hex'), v_note.revision, 'before_external_update');
       v_snapshot_version := v_snapshot_version + 1;
-      v_before := jsonb_build_object('revision', v_note.revision, 'updatedAt', v_note.updated_at);
+      v_before := jsonb_build_object('revision', v_note.revision, 'updatedAt', v_note.updated_at, 'contentOrigin', v_note.content_origin);
       update public.notes set title = v_title, body_markdown = v_body,
         content_hash = v_body_hash, revision = v_note.revision + 1,
         word_count = case when btrim(v_body) = '' then 0 else cardinality(regexp_split_to_array(btrim(v_body), '\s+')) end,
-        character_count = char_length(v_body), last_saved_at = now(), content_origin = 'ai_generated'
+        character_count = char_length(v_body), last_saved_at = now(), content_origin = v_content_origin
         where id = v_note.id and user_id = v_user returning * into v_note;
     end if;
     insert into public.note_versions(user_id, note_id, title, body_markdown, version_number,
@@ -271,7 +283,7 @@ begin
   insert into public.audit_logs(user_id, action, entity_type, entity_id, actor_type, request_id, before_data, after_data)
   values(v_user, 'content.write', v_result->>'entityType', (v_result->>'entityId')::uuid, 'external_agent',
     v_operation_id, v_before, jsonb_build_object('commandHash', v_hash, 'operation', v_operation,
-      'source', v_source, 'sourceUrl', v_source_url, 'result', v_result));
+      'source', v_source, 'sourceUrl', v_source_url, 'contentOrigin', v_content_origin, 'captureMode', v_capture_mode, 'result', v_result));
   return v_result;
 end;
 $function$;

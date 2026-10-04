@@ -6,7 +6,7 @@ import { EntityMarkdown } from "@/components/links/entity-markdown";
 
 export type NoteReaderData = {
   id: string; title: string; bodyMarkdown: string; revision: number;
-  sources: { source: string; sourceUrl: string | null; savedAt: string }[];
+  sources: { source: string; sourceUrl: string | null; captureMode?: "original" | "curated" | null; savedAt: string }[];
   historyUnavailable?: boolean;
   versions: { id: string; versionNumber: number; title: string; bodyMarkdown: string }[];
 };
@@ -26,7 +26,7 @@ export function NoteReader({ note }: { note: NoteReaderData }) {
       {note.sources.length ? <details className="mt-8 border-t border-[var(--separator)] py-3">
         <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">来源与保存记录</summary>
         <ul className="space-y-3 py-2 text-sm text-[var(--text-secondary)]">{note.sources.map((source, index) => <li key={`${source.savedAt}-${index}`}>
-          <span>{source.source} · {source.savedAt.slice(0, 10)}</span>
+          <span>{source.source} · {source.savedAt.slice(0, 10)}{source.captureMode === "original" ? " · 原文保留" : source.captureMode === "curated" ? " · 整理版本" : ""}</span>
           {source.sourceUrl && /^https?:\/\//i.test(source.sourceUrl) ? <a href={source.sourceUrl} target="_blank" rel="noreferrer noopener" className="ml-3 inline-flex min-h-11 items-center text-[var(--accent)]">查看原始来源</a> : null}
         </li>)}</ul>
         <p className="text-xs leading-5 text-[var(--text-tertiary)]">来源记录说明内容从哪里保存，不代表其中的事实已经核验。</p>

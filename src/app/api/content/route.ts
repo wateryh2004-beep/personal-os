@@ -2,6 +2,8 @@ import { revalidatePath } from "next/cache";
 import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-owner";
 import { contentReadSchema, readContent } from "@/features/content/queries";
 import { ContentWriteError, writeContent } from "@/lib/adapters/content/supabase-content";
+import { hasSameOrigin } from "@/lib/auth/same-origin";
+import { env } from "@/lib/env";
 
 const headers = { "Cache-Control": "private, no-store, max-age=0" };
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers });
@@ -25,9 +27,7 @@ export async function POST(request: Request) {
   try {
     // Session cookies alone are not CSRF protection. Reject absent, opaque,
     // cross-origin, and cross-site requests before any database work.
-    const origin = request.headers.get("origin");
-    if (!origin || origin !== new URL(request.url).origin
-      || request.headers.get("sec-fetch-site") === "cross-site") return json({ error: "forbidden" }, 403);
+    if (!hasSameOrigin(request, env.appUrl)) return json({ error: "forbidden" }, 403);
     if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json") return json({ error: "invalid_content_type" }, 415);
     const owner = await requireOwnerApi();
     const declaredLength = Number(request.headers.get("content-length") ?? 0);
