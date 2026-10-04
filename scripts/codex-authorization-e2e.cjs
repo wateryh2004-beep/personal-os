@@ -6,6 +6,13 @@ const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
 (async () => {
   const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
   try {
+    const headerContext = await browser.newContext();
+    for (const path of ["/login", "/settings/connections/codex", "/settings/connections/codex/authorize", "/api/oauth/authorize"]) {
+      const response = await headerContext.request.get(`${baseURL}${path}`, { maxRedirects: 0 });
+      assert.equal(response.headers()["x-frame-options"], "DENY", `${path} denies framing`);
+      assert.ok(response.headers()["content-security-policy"]?.includes("frame-ancestors 'none'"), `${path} has CSP anti-framing`);
+    }
+    await headerContext.close();
     for (const width of [360, 390, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 1000 }, isMobile: width < 768, hasTouch: width < 768 });
       const page = await context.newPage();

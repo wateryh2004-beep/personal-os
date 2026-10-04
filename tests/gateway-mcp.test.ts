@@ -37,6 +37,28 @@ describe("independent scoped MCP boundary", () => {
     expect((await POST(request("tools/list", {}, undefined, { origin: "https://attacker.example" }))).status).toBe(403);
     expect(withGatewayStore).not.toHaveBeenCalled();
   });
+  it("rejects expired, foreign-client and wrong-audience tokens", async () => {
+    const valid = { ...token! };
+    for (const patch of [
+      { expiresAt: new Date(Date.now() - 1000).toISOString() },
+      { clientId: "unregistered-client" },
+      { resource: `${base}/other-resource` },
+    ]) {
+      token = { ...valid, ...patch };
+      const response = await POST(request("tools/list"));
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toContain("invalid_token");
+    }
+    expect(store.readContent).not.toHaveBeenCalled();
+  });
+  it("rejects a mismatched host and redacts storage failures", async () => {
+    expect((await POST(request("tools/list", {}, undefined, { host: "attacker.example" }))).status).toBe(403);
+    expect(withGatewayStore).not.toHaveBeenCalled();
+    vi.mocked(withGatewayStore).mockRejectedValue(new Error("private database connection details"));
+    const response = await POST(request("tools/list"));
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe('{"error":"temporarily_unavailable"}');
+  });
   it("exposes only the granted read tools through the real MCP SDK", async () => {
     const response = await POST(request("tools/list"));
     expect(response.status).toBe(200);

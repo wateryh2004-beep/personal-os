@@ -37,8 +37,8 @@ const decisionFields = { request_id: requestId, decision: "approve", scope: "not
 function decisionRequest(nonce = "n".repeat(43)) { return new Request(`${config.issuer}/api/oauth/decision`, { headers: { cookie: `${consentCookieName(requestId)}=${nonce}` } }); }
 
 describe("Codex OAuth protocol", () => {
-  it.each(["http://127.0.0.1/callback", "http://127.0.0.1:1/callback", "http://127.0.0.1:65535/callback"])("allows registered literal loopback URI %s", (uri) => expect(isCodexRedirectUri(uri)).toBe(true));
-  it.each(["http://localhost/callback", "https://127.0.0.1/callback", "http://127.1/callback", "http://0x7f000001/callback", "http://127.0.0.1:0/callback", "http://127.0.0.1:65536/callback", "http://127.0.0.1:0123/callback", "http://127.0.0.1/callback/x", "http://127.0.0.1/callback?x=1", "http://127.0.0.1/callback#x", "http://x@127.0.0.1/callback", "http://127.0.0.1/%63allback", "http://127.0.0.1/callback/"])("rejects redirect widening %s", (uri) => expect(isCodexRedirectUri(uri)).toBe(false));
+  it.each(["http://127.0.0.1:1/callback", "http://127.0.0.1:80/callback", "http://127.0.0.1:65535/callback"])("allows registered literal loopback URI %s", (uri) => expect(isCodexRedirectUri(uri)).toBe(true));
+  it.each(["http://127.0.0.1/callback", "http://localhost/callback", "https://127.0.0.1/callback", "http://127.1/callback", "http://0x7f000001/callback", "http://127.0.0.1:0/callback", "http://127.0.0.1:65536/callback", "http://127.0.0.1:0123/callback", "http://127.0.0.1/callback/x", "http://127.0.0.1/callback?x=1", "http://127.0.0.1/callback#x", "http://x@127.0.0.1/callback", "http://127.0.0.1/%63allback", "http://127.0.0.1/callback/"])("rejects redirect widening %s", (uri) => expect(isCodexRedirectUri(uri)).toBe(false));
   it.each<Record<string, string>>([{ code_challenge_method: "plain" }, { code_challenge: "" }, { state: "" }, { resource: `${config.resource}/other` }, { scope: "notes:read notes:read" }, { scope: "admin" }, { client_id: "other" }])("rejects invalid authorization parameters", (fields) => expect(() => parseAuthorizationRequest(authRequest(fields), config)).toThrow(GatewayOAuthError));
   it("rejects duplicate and unknown authorization parameters", () => {
     expect(() => parseAuthorizationRequest(new Request(`${authRequest().url}&state=second`), config)).toThrow();
@@ -50,10 +50,23 @@ describe("Codex OAuth protocol", () => {
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe(`${config.issuer}/settings/connections/codex/authorize?request_id=${requestId}`);
     const cookie = response.headers.get("set-cookie")!;
-    expect(cookie).toContain("HttpOnly; Secure; SameSite=Lax; Max-Age=300");
+    expect(cookie).toContain("HttpOnly; Secure; SameSite=Lax; Max-Age=600");
     const nonce = cookie.split(";")[0].split("=")[1];
     expect(vi.mocked(store.createRequest).mock.calls[0][0].csrfHash).toBe(hashSecret(nonce));
     expect(cookie).not.toContain("sb-");
+  });
+  it("allows consent after six minutes within the advertised ten-minute request window", async () => {
+    const started = Date.now();
+    const store = storeFixture();
+    vi.mocked(store.getRequest).mockResolvedValue({ ...pending, expiresAt: new Date(started + 600_000).toISOString() });
+    const persistence = { approve: vi.fn(async () => {}), deny: vi.fn(async () => {}) };
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(started + 360_000);
+      const response = await decideAuthorization(store, config, decisionRequest(), decisionFields, ownerId, persistence);
+      expect(response.status).toBe(303);
+      expect(persistence.approve).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
   });
   it("issues a code through owner persistence and returns state plus exact issuer", async () => {
     const store = storeFixture();
@@ -99,6 +112,23 @@ describe("Codex OAuth protocol", () => {
     expect(vi.mocked(store.consumeCode).mock.calls[0][1]).toBe(vi.mocked(store.saveToken).mock.calls[0][1]);
     await expect(exchangeAuthorizationCode(store, config, tokenFields())).rejects.toMatchObject({ code: "invalid_grant" });
     expect(store.saveToken).toHaveBeenCalledOnce();
+  });
+  it("preserves explicit :80 through parsing, pending storage, redirect and token exchange", async () => {
+    const redirectUri = "http://127.0.0.1:80/callback";
+    expect(new URL(redirectUri).href).toBe("http://127.0.0.1/callback");
+    const input = parseAuthorizationRequest(authRequest({ redirect_uri: redirectUri }), config);
+    expect(input.redirectUri).toBe(redirectUri);
+    const store = storeFixture();
+    vi.mocked(store.getRequest).mockResolvedValue({ ...pending, redirectUri });
+    vi.mocked(store.getCode).mockResolvedValue({ ...code, redirectUri });
+    await prepareAuthorization(store, config, input, ownerId);
+    expect(vi.mocked(store.createRequest).mock.calls[0][0].redirectUri).toBe(redirectUri);
+    const persistence = { approve: vi.fn(async () => {}), deny: vi.fn(async () => {}) };
+    const approved = await decideAuthorization(store, config, decisionRequest(), decisionFields, ownerId, persistence);
+    expect(approved.headers.get("location")).toMatch(/^http:\/\/127\.0\.0\.1:80\/callback\?code=/);
+    const denied = await decideAuthorization(store, config, decisionRequest(), { ...decisionFields, decision: "deny" }, ownerId, persistence);
+    expect(denied.headers.get("location")).toMatch(/^http:\/\/127\.0\.0\.1:80\/callback\?error=access_denied/);
+    expect((await exchangeAuthorizationCode(store, config, tokenFields({ redirect_uri: redirectUri }))).scope).toBe("notes:read");
   });
   it("consumes incorrect PKCE without creating an access token", async () => {
     const store = storeFixture();

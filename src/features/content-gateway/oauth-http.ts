@@ -24,8 +24,8 @@ export const isRequestId = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-
 /** Deliberately inspect raw authority: URL normalization accepts 127.1, hex IPs,
  * escaped paths and other aliases that must not widen this native client. */
 export function isCodexRedirectUri(value: string) {
-  const match = /^http:\/\/127\.0\.0\.1(?::([1-9][0-9]{0,4}))?\/callback$/.exec(value);
-  return Boolean(match && (!match[1] || Number(match[1]) <= 65535));
+  const match = /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})\/callback$/.exec(value);
+  return Boolean(match && Number(match[1]) <= 65535);
 }
 
 export function parseScopes(value: string): GatewayScope[] {
@@ -76,7 +76,7 @@ export function consentCookieName(id: string) {
   return `__Host-personalos-oauth-${id}`;
 }
 export function consentCookie(id: string, value: string, clear = false) {
-  return `${consentCookieName(id)}=${clear ? "" : value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${clear ? 0 : 300}`;
+  return `${consentCookieName(id)}=${clear ? "" : value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${clear ? 0 : 600}`;
 }
 export function readConsentCookie(request: Request, id: string) {
   const name = consentCookieName(id);
@@ -88,9 +88,9 @@ export function readConsentCookie(request: Request, id: string) {
 }
 export function authorizationRedirect(config: GatewayConfig, redirectUri: string, state: string, result: { code: string } | { error: OAuthErrorCode }) {
   if (!isCodexRedirectUri(redirectUri)) throw new GatewayOAuthError("invalid_request");
-  const url = new URL(redirectUri);
-  for (const [key, value] of Object.entries(result)) url.searchParams.set(key, value);
-  url.searchParams.set("state", state);
-  url.searchParams.set("iss", config.issuer);
-  return new Response(null, { status: 303, headers: { ...oauthHeaders, Location: url.href } });
+  // This validated URI has no query or fragment. Preserve its exact authority:
+  // URL serialization would drop an explicit :80, violating the callback
+  // contract shared with SQL and the code exchange's exact URI comparison.
+  const query = new URLSearchParams({ ...result, state, iss: config.issuer });
+  return new Response(null, { status: 303, headers: { ...oauthHeaders, Location: `${redirectUri}?${query}` } });
 }

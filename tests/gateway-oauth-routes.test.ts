@@ -92,6 +92,14 @@ describe("OAuth HTTP boundary", () => {
     expect((await authorize(new Request(`${base}/api/oauth/authorize?${authorizationQuery()}`))).status).toBe(403);
     expect(store.createRequest).not.toHaveBeenCalled();
   });
+  it("rejects a missing callback port before browser authentication or database work", async () => {
+    const query = authorizationQuery();
+    query.set("redirect_uri", "http://127.0.0.1/callback");
+    const response = await authorize(new Request(`${base}/api/oauth/authorize?${query}`));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(requireOwnerApi).not.toHaveBeenCalled(); expect(withGatewayStore).not.toHaveBeenCalled();
+  });
   it("commits consumption on bad PKCE and rejects a correct retry", async () => {
     const invalid = await exchange(request("token", tokenBody({ code_verifier: "b".repeat(43) })));
     expect(invalid.status).toBe(400); expect(await invalid.json()).toEqual({ error: "invalid_grant" });
