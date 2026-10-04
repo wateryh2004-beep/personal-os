@@ -27,7 +27,8 @@ export function NotesSearchFixture() {
       if (!target) return;
       // Keep the navigation inside the gated fixture, using real App Router history.
       event.preventDefault();
-      event.stopPropagation();
+      // Let the row's real onClick save its scroll/query snapshot. preventDefault
+      // stops only Next Link's production navigation, not that target handler.
       const query = new URLSearchParams(params);
       query.set("document", target.pathname.split("/").at(-1)!);
       router.push(`/mobile-native-e2e?${query}`);

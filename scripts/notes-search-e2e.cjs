@@ -45,14 +45,26 @@ const rows = Array.from({ length: 30 }, (_, index) => ({
       await last.scrollIntoViewIfNeeded();
       const scrollBefore = await list.evaluate((node) => node.scrollTop);
       assert.ok(scrollBefore > 0);
+      const listUrl = page.url();
       await last.click();
       await page.locator(".notes-document-shell").waitFor();
       await page.getByRole("navigation", { name: "文档位置" }).waitFor();
+      const savedScroll = await page.evaluate((href) => {
+        const url = new URL(href);
+        return JSON.parse(sessionStorage.getItem(`life-of-hang:workspace:scroll:notes:list:${url.pathname}${url.search}`) || "null")?.value?.scrollTop;
+      }, listUrl);
+      assert.ok(typeof savedScroll === "number" && Math.abs(savedScroll - scrollBefore) < 4, `snapshot before navigation: expected ${scrollBefore}, saved ${savedScroll}`);
       await page.screenshot({ path: `${output}/notes-location-${width}.png`, fullPage: true });
       await page.goBack();
       await input.waitFor();
       assert.equal(await input.inputValue(), "阅读");
-      await page.waitForFunction((previous) => Math.abs(document.querySelector(".notes-list-workspace").scrollTop - previous) < 4, scrollBefore);
+      try {
+        await page.waitForFunction((previous) => Math.abs(document.querySelector(".notes-list-workspace").scrollTop - previous) < 4, scrollBefore);
+      } catch (error) {
+        console.error("search scroll recovery", { width, expected: scrollBefore, saved: savedScroll, actual: await list.evaluate((node) => node.scrollTop), url: page.url() });
+        await page.screenshot({ path: `${output}/notes-return-failure-${width}.png`, fullPage: true });
+        throw error;
+      }
       assert.equal(await page.locator("a[data-note-result]").count(), 30);
       await page.goForward();
       await page.locator(".notes-document-shell").waitFor();
