@@ -25,6 +25,7 @@ const rows = Array.from({ length: 30 }, (_, index) => ({
       await input.fill("阅读");
       await page.waitForFunction(() => new URL(location.href).searchParams.get("q") === "阅读");
       await page.waitForFunction(() => document.querySelector(".notes-list-row p mark"));
+      assert.equal(await page.locator(".notes-list-row").first().evaluate((node) => getComputedStyle(node).contentVisibility), "visible", "search rows use real heights before restoring scroll");
       const first = page.locator("a[data-note-result]").first();
       await input.press("ArrowDown");
       assert.equal(await first.evaluate((node) => node === document.activeElement), true);
@@ -34,6 +35,10 @@ const rows = Array.from({ length: 30 }, (_, index) => ({
       if (width < 768) {
         const box = await input.boundingBox();
         assert.ok(box.height >= 44, "mobile search is touch sized");
+        const create = page.locator("header").getByRole("button", { name: "新建笔记", exact: true });
+        const createBox = await create.boundingBox();
+        assert.ok(createBox.width >= 44 && createBox.height >= 44, "mobile create stays touch sized in the header");
+        assert.equal(await page.locator(".notes-list-workspace form.fixed").count(), 0, "no floating create action covers results");
         const clearBox = await page.getByRole("button", { name: "清空搜索" }).boundingBox();
         assert.ok(clearBox.width >= 44 && clearBox.height >= 44, "mobile clear action is touch sized");
         assert.ok(await input.evaluate((node) => parseFloat(getComputedStyle(node).fontSize)) >= 16, "search does not trigger mobile input zoom");

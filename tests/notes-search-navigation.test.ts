@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
 import { act, createElement, type AnchorHTMLAttributes, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -176,6 +177,37 @@ async function setUrl(href: string, method: "replaceState" | "pushState" = "repl
 }
 
 describe("Notes URL-driven search", () => {
+  it("uses stable row geometry for search, including remount, and restores browsing estimates on clear", async () => {
+    const stylesheet = document.createElement("style");
+    stylesheet.textContent = readFileSync("src/app/workspaces.css", "utf8");
+    document.head.append(stylesheet);
+    const visibility = () => getComputedStyle(container.querySelector(".notes-list-row")!).contentVisibility;
+    try {
+      await renderWorkspace();
+      expect(visibility()).toBe("auto");
+      const input = container.querySelector<HTMLInputElement>("#notes-library-search")!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Alpha");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(visibility()).toBe("visible");
+      await act(async () => root.render(createElement("div", null, "Document")));
+      await renderWorkspace();
+      expect(visibility()).toBe("visible");
+      await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="清空搜索"]')!.click());
+      expect(visibility()).toBe("auto");
+    } finally { stylesheet.remove(); }
+  });
+  it("keeps folder-aware creation in the header instead of covering mobile results", async () => {
+    await renderWorkspace();
+    const create = container.querySelector<HTMLButtonElement>('header button[aria-label="新建笔记"]')!;
+    expect(create).not.toBeNull();
+    expect(create.className).toContain("max-md:size-11");
+    expect(create.closest("form")?.querySelector<HTMLInputElement>('input[name="folder_id"]')?.value).toBe(folder.id);
+    expect(container.querySelectorAll('button[aria-label="新建笔记"]')).toHaveLength(1);
+    expect(container.querySelector('form.fixed')).toBeNull();
+  });
+
   it("reads the current q and scope, replacing native URL state without a router navigation", async () => {
     await setUrl("/notes?folder=fixture-folder&view=recent&q=Alpha&scope=all#position");
     await renderWorkspace();

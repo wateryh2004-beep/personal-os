@@ -296,16 +296,17 @@ export function NotesWorkspace({
     });
   };
 
-  const newNoteForm = (className?: string) => (
+  const newNoteForm = (className?: string, compact = false) => (
     <form action={createNoteInFolder} className={className}>
       <input type="hidden" name="folder_id" value={selectedFolder?.id ?? ""} />
-      <Button type="submit" size="sm"><FilePlus2 />新建笔记</Button>
+      <Button type="submit" size="sm" aria-label="新建笔记" title="新建笔记" className={compact ? "max-md:size-11 max-md:px-0" : undefined}><FilePlus2 aria-hidden="true" /><span className={compact ? "hidden md:inline" : undefined}>新建笔记</span></Button>
     </form>
   );
 
   return (
     <main
       ref={listScrollRef}
+      data-searching={Boolean(normalizedQuery)}
       className="notes-library notes-list-workspace workspace-scroll h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pb-24 pt-16 sm:px-7 md:pb-6 md:pt-7 lg:px-10"
     >
       <div className="mx-auto max-w-[748px]">
@@ -341,7 +342,7 @@ export function NotesWorkspace({
             </p>
           </div>
           <AskNotesButton onClick={() => router.push("/notes/ask")} />
-          {newNoteForm("hidden md:block")}
+          {newNoteForm("shrink-0", true)}
         </header>
         <div aria-live="polite" className="mt-1 min-h-5 text-[12px] leading-5 text-[var(--text-secondary)]">
           {!normalizedQuery && listing.loaded && listing.error ? <>列表暂未更新，保留上次内容。<button type="button" onClick={listing.retry} className="ml-2 rounded-[var(--radius-sm)] text-[var(--accent)] underline underline-offset-2">重试更新</button></> : !normalizedQuery && listing.refreshing ? "正在更新列表…" : null}
@@ -513,16 +514,6 @@ export function NotesWorkspace({
         </DialogContent> : null}
       </Dialog>
 
-      <form action={createNoteInFolder} className="fixed bottom-[calc(var(--tab-bar-height)+1rem)] right-4 z-30 md:hidden">
-        <input type="hidden" name="folder_id" value={selectedFolder?.id ?? ""} />
-        <button
-          type="submit"
-          aria-label="新建笔记"
-          className="pressable flex size-12 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_8px_22px_rgba(0,113,227,.18),0_1px_3px_rgba(0,0,0,.08)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]"
-        >
-          <FilePlus2 className="size-5" aria-hidden="true" />
-        </button>
-      </form>
     </main>
   );
 }

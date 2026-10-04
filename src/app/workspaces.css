@@ -71,3 +71,7 @@
 /* Skip off-screen note row layout while Radix menus continue to use a portal. */
 .notes-list-row { content-visibility:auto; contain-intrinsic-block-size:auto 88px; }
 .notes-list-row:focus-within { content-visibility:visible; }
+
+/* Search previews vary in height. Lay out the bounded result set before scroll
+   recovery; offscreen 88px estimates otherwise clamp the saved Back position. */
+.notes-list-workspace[data-searching="true"] .notes-list-row { content-visibility:visible; contain-intrinsic-block-size:none; }
