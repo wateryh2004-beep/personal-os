@@ -8,7 +8,10 @@ describe("private route boundary", () => {
     const response = await updateSession(new NextRequest(`http://personal-os.test${pathname}`));
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("http://personal-os.test/login?error=configuration");
+    const location = new URL(response.headers.get("location")!);
+    expect(location.origin + location.pathname).toBe("http://personal-os.test/login");
+    expect(location.searchParams.get("error")).toBe("configuration");
+    expect(location.searchParams.get("next")).toBe(pathname);
     expect(await response.text()).not.toMatch(/Life of HANG|Notes|Career|Investing|Calendar/);
   });
 

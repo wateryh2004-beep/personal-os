@@ -12,10 +12,22 @@ export const verifiedOwnerEmailHeader = "x-personal-os-verified-owner-email";
 // The manifest is fetched by Chrome's installability check outside the signed-in
 // application flow. Password recovery must also be reachable without a session.
 const publicPaths = new Set(["/login", "/forgot-password", "/manifest.webmanifest"]);
+const independentGatewayPaths = new Set([
+  "/.well-known/oauth-protected-resource/api/mcp",
+  "/.well-known/oauth-authorization-server",
+  "/api/oauth/authorize",
+  "/api/oauth/token",
+  "/api/oauth/revoke",
+  "/api/mcp",
+]);
 const authCallbackPaths = ["/api/auth/callback", "/api/integrations/microsoft/callback"];
 
+export function isIndependentGatewayPath(pathname: string) {
+  return independentGatewayPaths.has(pathname);
+}
+
 export function isPublicPath(pathname: string) {
-  return publicPaths.has(pathname);
+  return publicPaths.has(pathname) || pathname === "/.well-known/oauth-protected-resource/api/mcp" || pathname === "/.well-known/oauth-authorization-server";
 }
 
 export function isAuthCallbackPath(pathname: string) {
@@ -34,9 +46,12 @@ export function isPrivateAppPath(pathname: string) {
 export const isProtectedApplicationPath = isPrivateAppPath;
 
 export function safeRedirectPath(value: string | null | undefined, fallback = "/today") {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\\\")) return fallback;
+  if (!value || !value.startsWith("/") || value.startsWith("//") || /[\\\\\u0000-\u001f\u007f]|%5c/i.test(value)) return fallback;
   try {
     const url = new URL(value, "https://personal-os.local");
+    // An already-authenticated login page redirects to this destination; a
+    // return to login itself would loop, including its normalized variants.
+    if (decodeURIComponent(url.pathname).replace(/\/+$/, "").toLowerCase() === "/login") return fallback;
     return url.origin === "https://personal-os.local" ? `${url.pathname}${url.search}${url.hash}` : fallback;
   } catch {
     return fallback;
@@ -58,6 +73,7 @@ function clearSupabaseCookies(request: NextRequest, response: NextResponse) {
 function loginRedirect(request: NextRequest, error?: "configuration" | "not-authorized") {
   const url = new URL("/login", request.url);
   if (error) url.searchParams.set("error", error);
+  url.searchParams.set("next", safeRedirectPath(`${request.nextUrl.pathname}${request.nextUrl.search}`));
   return NextResponse.redirect(url);
 }
 
@@ -93,6 +109,11 @@ export async function updateSession(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete(verifiedOwnerIdHeader);
   requestHeaders.delete(verifiedOwnerEmailHeader);
+
+  // These exact protocol endpoints authenticate in their own handlers. A
+  // browser session must neither be required nor injected into Codex OAuth/MCP.
+  // Consent decisions remain on the normal authenticated-owner path.
+  if (isIndependentGatewayPath(pathname)) return NextResponse.next({ request: { headers: requestHeaders } });
 
   if (!isSupabaseConfigured) {
     if (privateAppPath) return attachPrivateProxyTiming(loginRedirect(request, "configuration"), proxyStartedAt);
@@ -140,7 +161,8 @@ export async function updateSession(request: NextRequest) {
 
   if (isPublicPath(pathname) && data?.claims.sub) {
     if (isOwner) {
-      const redirectResponse = NextResponse.redirect(new URL("/today", request.url));
+      const next = pathname === "/login" ? safeRedirectPath(request.nextUrl.searchParams.get("next")) : "/today";
+      const redirectResponse = NextResponse.redirect(new URL(next, request.url));
       return copySessionCookies(response, redirectResponse);
     }
     // A non-owner never gets an authenticated login response. The response

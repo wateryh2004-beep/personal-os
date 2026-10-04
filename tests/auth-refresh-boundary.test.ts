@@ -101,4 +101,40 @@ describe("refreshed session preserves owner boundary", () => {
     expect(mocks.requestHeaders.get("cookie")).toContain("old-session");
     await expect(requireOwnerApi()).rejects.toMatchObject({ code: "not-authorized" });
   });
+
+  it.each(["/.well-known/oauth-protected-resource/api/mcp", "/.well-known/oauth-authorization-server", "/api/oauth/authorize", "/api/oauth/token", "/api/oauth/revoke", "/api/mcp"])("keeps %s independent of browser auth and strips forged identity", async (path) => {
+    const response = await updateSession(spoofedRequest(path));
+    const headers = forwardedHeaders(response);
+    expect(headers.has(verifiedOwnerIdHeader)).toBe(false);
+    expect(headers.has(verifiedOwnerEmailHeader)).toBe(false);
+    expect(response.headers.has("location")).toBe(false);
+    expect(mocks.claimsCalls).toBe(0);
+  });
+
+  it("keeps browser consent decisions on the owner-authentication boundary", async () => {
+    const response = await updateSession(spoofedRequest("/api/oauth/decision"));
+    mocks.requestHeaders = forwardedHeaders(response);
+    expect(mocks.claimsCalls).toBe(1);
+    expect(mocks.requestHeaders.has(verifiedOwnerIdHeader)).toBe(false);
+    await expect(requireOwnerApi()).rejects.toMatchObject({ code: "not-authorized" });
+  });
+
+  it("preserves the exact consent request through cold-login redirect", async () => {
+    const path = "/settings/connections/codex/authorize?request_id=33333333-3333-4333-8333-333333333333";
+    const response = await updateSession(spoofedRequest(path));
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("next")).toBe(path);
+  });
+
+  it("returns an already signed-in owner from login to the safe consent URL", async () => {
+    mocks.claims = { sub: ownerId, email: "owner@example.com" };
+    const next = "/settings/connections/codex/authorize?request_id=33333333-3333-4333-8333-333333333333";
+    const response = await updateSession(spoofedRequest(`/login?next=${encodeURIComponent(next)}`));
+    expect(response.headers.get("location")).toBe(`https://personal-os.test${next}`);
+    const unsafe = await updateSession(spoofedRequest("/login?next=https%3A%2F%2Fevil.example"));
+    expect(unsafe.headers.get("location")).toBe("https://personal-os.test/today");
+    const loop = await updateSession(spoofedRequest("/login?next=%2Flogin%3Fnext%3D%2Flogin"));
+    expect(loop.headers.get("location")).toBe("https://personal-os.test/today");
+  });
 });

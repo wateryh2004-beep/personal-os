@@ -19,6 +19,11 @@ export default async function Settings() {
     <>
       <PageHeader title="设置" />
       <div className="space-y-4.5 text-[13px]">
+        <section className="border-t border-[var(--separator)] pt-4.5 text-base">
+          <h2 className="font-semibold text-[var(--text-primary)]">Codex 连接</h2>
+          <p className="mt-2 leading-7 text-[var(--text-secondary)]">查看独立 Codex 的内容权限、到期时间，并随时撤销授权。</p>
+          <Link className="mt-2 inline-flex min-h-11 items-center text-[var(--accent)] hover:underline" href="/settings/connections/codex">管理 Codex 授权 →</Link>
+        </section>
         <DeepSeekSettingsForm
           configured={Boolean(ai.settings)}
           settings={ai.settings}

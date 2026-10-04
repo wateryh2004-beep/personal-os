@@ -48,6 +48,7 @@ jobs:
           status=0
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/notes-search-e2e.cjs || status=1
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/content-reading-e2e.cjs || status=1
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/codex-authorization-e2e.cjs || status=1
           NODE_PATH="$(npm root -g)" node scripts/mobile-native-e2e.cjs || status=1
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/navigation-latency-e2e.cjs || status=1
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/workspace-reliability-e2e.cjs || status=1

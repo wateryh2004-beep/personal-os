@@ -7,6 +7,7 @@ import { isOwnerEmail } from "@/lib/auth/owner";
 import { resolveRecoveryOrigin } from "@/lib/auth/recovery-origin";
 import { env, isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
+import { safeRedirectPath } from "@/lib/supabase/proxy";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -49,7 +50,8 @@ export async function loginAction(_: LoginState, formData: FormData): Promise<Lo
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: "登录失败，请检查邮箱和密码。" };
-  redirect("/today");
+  const next = formData.get("next");
+  redirect(safeRedirectPath(typeof next === "string" ? next : null));
 }
 
 export async function requestPasswordResetAction(

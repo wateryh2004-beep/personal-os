@@ -1,4 +1,5 @@
 import { ContentReadingFixture } from "@/components/testing/content-reading-fixture";
+import { CodexAuthorizationFixture, type CodexFixtureScene } from "@/components/testing/codex-authorization-fixture";
 import { NotesSearchFixture } from "@/components/testing/notes-search-fixture";
 import { cookies } from "next/headers";
 import { workspaceRevisionCookie } from "@/lib/workspace-revalidation";
@@ -13,6 +14,7 @@ export default async function MobileNativeE2EPage({ searchParams }: { searchPara
   if (process.env.E2E_MOBILE_HARNESS !== "1") notFound();
   const { scene, workspace, mode, delay: rawDelay } = await searchParams;
   if (scene === "content-reader") return <ContentReadingFixture />;
+  if (scene && ["codex-consent", "codex-grants", "codex-expired", "codex-unavailable"].includes(scene)) return <CodexAuthorizationFixture scene={scene as CodexFixtureScene} />;
   if (scene === "notes-search") return <NotesSearchFixture />;
   if (scene === "latency") {
     const delay = Math.min(1500, Math.max(0, Number(rawDelay) || 0));
