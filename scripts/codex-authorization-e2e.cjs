@@ -47,6 +47,11 @@ const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
         }
         if (process.env.E2E_SCREENSHOT_DIR) {
           await mkdir(process.env.E2E_SCREENSHOT_DIR, { recursive: true });
+          // Clicking the lower consent button scrolls the viewport. Reset before
+          // capture so sticky chrome is not painted in the middle of a stitched image.
+          await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); window.scrollTo(0, 0); });
+          await page.waitForFunction(() => window.scrollY === 0);
+          await page.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/${scene}-${width}-viewport.png` });
           await page.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/${scene}-${width}.png`, fullPage: true });
         }
       }
