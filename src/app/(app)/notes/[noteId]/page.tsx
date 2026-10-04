@@ -1,3 +1,4 @@
+import { noteFolderPath } from "@/features/notes/local-search";
 import { noteAttachmentUrl } from "@/features/notes/attachments";
 import { notFound } from "next/navigation";
 import { NoteEditor } from "@/components/notes/note-editor";
@@ -97,5 +98,5 @@ export default async function NotePage({ params }: { params: Promise<{ noteId: s
       <p className="mt-2.5 text-[10.5px] text-[var(--text-tertiary)]">创建于 {compactDate(data.note.created_at)} · 修订 {data.note.revision}</p>
     </section>
   </div>;
-  return <NoteDocumentShell key={data.note.id} noteId={data.note.id} attachments={data.attachments} editor={<NoteEditor note={data.note} noteAiDefaultModel={ai.settings?.model === "deepseek-v4-pro" ? "deepseek-v4-pro" : "deepseek-v4-flash"} />} inspector={inspector} />;
+  return <NoteDocumentShell key={data.note.id} noteId={data.note.id} location={{ href: data.note.folder_id ? `/notes?folder=${data.note.folder_id}` : "/notes", label: noteFolderPath(data.note.folder_id ?? null, folders) }} attachments={data.attachments} editor={<NoteEditor note={data.note} noteAiDefaultModel={ai.settings?.model === "deepseek-v4-pro" ? "deepseek-v4-pro" : "deepseek-v4-flash"} />} inspector={inspector} />;
 }

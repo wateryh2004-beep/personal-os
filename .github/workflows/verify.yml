@@ -47,6 +47,7 @@ jobs:
           NODE_PATH="$(npm root -g)" node scripts/mobile-native-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/navigation-latency-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/workspace-reliability-e2e.cjs
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/notes-search-e2e.cjs
       - name: Save mobile QA screenshots
         if: always()
         uses: actions/upload-artifact@v4

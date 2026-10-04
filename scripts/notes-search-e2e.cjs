@@ -1,0 +1,64 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Node browser-test entrypoint. */
+const assert = require("node:assert/strict");
+const { mkdir } = require("node:fs/promises");
+const { chromium } = require("playwright");
+const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
+const output = process.env.E2E_SCREENSHOT_DIR || "test-results/mobile";
+const rows = Array.from({ length: 30 }, (_, index) => ({
+  id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+  title: `阅读记录 ${String(index + 1).padStart(2, "0")} · Synthetic fixture`,
+  excerpt: "…这段阅读内容仅用于搜索与排版验证，不包含任何个人资料。",
+  folder_id: "20000000-0000-4000-8000-000000000002", updated_at: "2026-10-04T00:00:00Z", pinned_at: null, content_origin: "manual",
+}));
+(async () => {
+  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
+  try {
+    await mkdir(output, { recursive: true });
+    for (const width of [360, 390, 768, 1440]) {
+      const context = await browser.newContext({ viewport: { width, height: 900 }, isMobile: width < 768, hasTouch: width < 768 });
+      const page = await context.newPage();
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.route("**/api/**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(new URL(route.request().url()).pathname === "/api/notes/search" ? { results: rows } : {}) }));
+      await page.goto(`${baseURL}/mobile-native-e2e?scene=notes-search`);
+      const input = page.locator("#notes-library-search");
+      await input.fill("阅读");
+      await page.waitForFunction(() => new URL(location.href).searchParams.get("q") === "阅读");
+      await page.waitForFunction(() => document.querySelector(".notes-list-row p mark"));
+      const first = page.locator("a[data-note-result]").first();
+      await input.press("ArrowDown");
+      assert.equal(await first.evaluate((node) => node === document.activeElement), true);
+      await first.press("Escape");
+      assert.equal(await input.evaluate((node) => node === document.activeElement), true);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1, `${width}px search has no horizontal overflow`);
+      if (width < 768) {
+        const box = await input.boundingBox();
+        assert.ok(box.height >= 44, "mobile search is touch sized");
+        const clearBox = await page.getByRole("button", { name: "清空搜索" }).boundingBox();
+        assert.ok(clearBox.width >= 44 && clearBox.height >= 44, "mobile clear action is touch sized");
+        assert.ok(await input.evaluate((node) => parseFloat(getComputedStyle(node).fontSize)) >= 16, "search does not trigger mobile input zoom");
+      }
+      await input.blur();
+      await page.screenshot({ path: `${output}/notes-search-${width}.png`, fullPage: true });
+      const list = page.locator(".notes-list-workspace");
+      const last = page.locator("a[data-note-result]").last();
+      await last.scrollIntoViewIfNeeded();
+      const scrollBefore = await list.evaluate((node) => node.scrollTop);
+      assert.ok(scrollBefore > 0);
+      await last.click();
+      await page.locator(".notes-document-shell").waitFor();
+      await page.getByRole("navigation", { name: "文档位置" }).waitFor();
+      await page.screenshot({ path: `${output}/notes-location-${width}.png`, fullPage: true });
+      await page.goBack();
+      await input.waitFor();
+      assert.equal(await input.inputValue(), "阅读");
+      await page.waitForFunction((previous) => Math.abs(document.querySelector(".notes-list-workspace").scrollTop - previous) < 4, scrollBefore);
+      assert.equal(await page.locator("a[data-note-result]").count(), 30);
+      await page.goForward();
+      await page.locator(".notes-document-shell").waitFor();
+      assert.deepEqual(errors, [], `${width}px has no uncaught client errors`);
+      await context.close();
+      console.log(`notes-search-e2e: ${width}px passed`);
+    }
+  } finally { await browser.close(); }
+})().catch((error) => { console.error(error); process.exitCode = 1; });

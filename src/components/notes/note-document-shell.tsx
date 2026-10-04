@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Inspector } from "@/components/shared/inspector";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
 import { publishNotesNavigatorTitle } from "@/features/notes/navigator-title-sync";
@@ -10,8 +11,8 @@ import { ChevronLeft, PanelRight, ExternalLink, Download, RefreshCw } from "luci
 import { useState } from "react";
 import { noteAttachmentUrl, notePdfAttachments, type NoteAttachment } from "@/features/notes/attachments";
 
-export function NoteDocumentShell({ noteId, editor, inspector, attachments = [] }: {
-  noteId: string; editor: React.ReactNode; inspector: React.ReactNode; attachments?: NoteAttachment[];
+export function NoteDocumentShell({ noteId, editor, inspector, attachments = [], location }: {
+  noteId: string; editor: React.ReactNode; inspector: React.ReactNode; attachments?: NoteAttachment[]; location?: { href: string; label: string };
 }) {
   const pdfs = notePdfAttachments(attachments);
   const [view, setView] = useState<"markdown" | "pdf">(pdfs[0]?.role === "primary_pdf" ? "pdf" : "markdown");
@@ -41,16 +42,18 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [] 
       className="notes-document-shell relative flex h-full min-h-0 overflow-hidden bg-[var(--surface-canvas)]"
     >
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex h-12 items-center justify-between px-2.5">
+        <div className="flex h-11 shrink-0 items-center gap-1 px-2.5">
           <button
             type="button"
             onClick={returnToNotesList}
-            className="pressable pointer-events-auto inline-flex size-11 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] md:hidden"
+            className="pressable pointer-events-auto inline-flex size-11 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
             aria-label="返回笔记列表"
           >
             <ChevronLeft className="size-[18px]" aria-hidden="true" />
           </button>
-          <span className="hidden md:block" />
+          <nav aria-label="文档位置" className="min-w-0 flex-1">
+            {location ? <Link href={location.href} title={location.label} aria-label={`返回文件夹：${location.label}`} className="block truncate rounded-[var(--radius-sm)] py-2 text-[12px] leading-7 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]">{location.label}</Link> : null}
+          </nav>
           <button
             type="button"
             onClick={noteInspector.toggle}
@@ -61,7 +64,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [] 
             <PanelRight className="size-4" aria-hidden="true" />
           </button>
         </div>
-        {pdfs.length > 0 ? <div className="flex h-12 shrink-0 items-center gap-1 border-b border-[var(--separator)] pl-12 pr-14 md:pl-6" role="group" aria-label="文档阅读方式">
+        {pdfs.length > 0 ? <div className="flex h-12 shrink-0 items-center gap-1 border-b border-[var(--separator)] px-3 md:px-6" role="group" aria-label="文档阅读方式">
           <button type="button" aria-pressed={view === "markdown"} onClick={() => { setEditorVisited(true); setView("markdown"); }} className={`pressable rounded-[8px] px-3 py-1.5 text-[12px] ${view === "markdown" ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}>正文</button>
           <button type="button" aria-pressed={view === "pdf"} onClick={() => { setPdfVisited(true); setView("pdf"); }} className={`pressable rounded-[8px] px-3 py-1.5 text-[12px] ${view === "pdf" ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}>PDF</button>
           <span className="ml-2 hidden truncate text-[11px] text-[var(--text-tertiary)] sm:block">{selectedPdf?.role === "pdf_snapshot" ? "飞书导入时的原始排版" : selectedPdf?.title}</span>

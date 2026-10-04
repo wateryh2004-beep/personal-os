@@ -8,6 +8,7 @@ import {
   parseNoteMetadataListItems,
 } from "./listing";
 import type { NoteListItem } from "./types";
+import { mergeNoteSearchResults } from "./local-search";
 import { getNoteLinkRelations, listNoteLinkSuggestions } from "./links/queries";
 
 type QueryError = { code?: string } | null;
@@ -230,22 +231,38 @@ export async function searchNotesWorkspace(
   query: string,
   folderId: string | null,
   limit = 30,
+  owner?: Owner,
 ) {
   const normalized = query.trim();
-  if (!normalized) return [] as NoteListItem[];
-  const { supabase } = await requireOwner();
-  let request = supabase
-    .from("notes")
-    .select("id,title,body_markdown,updated_at,pinned_at,folder_id,content_origin")
-    .is("deleted_at", null)
-    .neq("status", "archived")
-    .or(`title.ilike.%${normalized.replace(/[%_,()]/g, " ")}%,body_markdown.ilike.%${normalized.replace(/[%_,()]/g, " ")}%`)
-    .order("updated_at", { ascending: false })
-    .limit(Math.max(1, Math.min(limit, 50)));
-  if (folderId && noteIdSchema.safeParse(folderId).success) request = request.eq("folder_id", folderId);
-  const { data, error } = await request;
-  if (error) return [] as NoteListItem[];
-  return parseFallbackNoteListItems(data ?? []);
+  if (!normalized || (folderId && !noteIdSchema.safeParse(folderId).success)) return [] as NoteListItem[];
+  const { supabase, userId } = owner ?? await requireOwner();
+  const boundedLimit = Math.max(1, Math.min(limit, 50));
+  // A literal regex avoids raw .or() grammar and ILIKE's %, _ and * wildcards.
+  const literalQuery = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const readMatches = (column: "title" | "body_markdown") => {
+    let request = supabase
+      .from("notes")
+      .select("id,title,body_markdown,updated_at,pinned_at,folder_id,content_origin")
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .neq("status", "archived")
+      .neq("status", "trashed")
+      .regexIMatch(column, literalQuery)
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: true })
+      .limit(boundedLimit);
+    if (folderId) request = request.eq("folder_id", folderId);
+    return request;
+  };
+  // Reserve a separate bounded title window so newer body hits cannot hide titles.
+  const [titles, bodies] = await Promise.all([readMatches("title"), readMatches("body_markdown")]);
+  if (titles.error || bodies.error) throw new Error("notes_search_failed");
+  return mergeNoteSearchResults(
+    parseFallbackNoteListItems(titles.data ?? [], normalized),
+    parseFallbackNoteListItems(bodies.data ?? [], normalized),
+    boundedLimit,
+    normalized,
+  );
 }
 
 /** Folder metadata for controls that move an already-authorized note. */

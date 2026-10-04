@@ -483,7 +483,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
       className={`notes-editor-surface flex h-full min-w-0 overflow-hidden bg-[var(--surface-canvas)] ${isFallbackFullscreen ? "fixed inset-0 z-[80] h-[var(--app-viewport-height)]" : ""}`}
     >
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="notes-editor-toolbar grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-[var(--separator)] bg-[var(--surface-canvas)] px-12 py-1.5 md:pl-6 md:pr-14">
+        <div className="notes-editor-toolbar grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-[var(--separator)] bg-[var(--surface-canvas)] px-3 py-1.5 md:px-6">
           <div className="col-span-2 flex min-h-10 min-w-0 items-center gap-2 md:col-span-1">
             {aiGenerated ? <span title="AI 生成内容不会被 AI 读取为背景" className="shrink-0 text-[12px] text-[var(--accent)]"><Sparkles aria-label="AI 生成内容" className="size-4" /></span> : null}
             <input
@@ -502,7 +502,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
               placeholder="无标题笔记"
             />
           </div>
-          <div className="col-span-2 -mx-9 flex min-h-11 items-center gap-1 md:col-span-1 md:mx-0">
+          <div className="col-span-2 flex min-h-11 items-center gap-1 md:col-span-1 md:mx-0">
             <span aria-live="polite" title={statusLabel} className={`mr-auto w-[8.5rem] shrink-0 truncate text-[12px] tabular-nums md:mr-2 ${saveHasError ? "text-[var(--danger)]" : saveNeedsAttention ? "text-[var(--warning)]" : "text-[var(--text-secondary)]"}`}>
               {statusLabel}
             </span>

@@ -25,10 +25,13 @@ import {
 } from "@/features/notes/actions";
 import type { NoteListItem } from "@/features/notes/types";
 import { formatNoteTimestamp } from "@/features/notes/utils";
-import { filterNotesByMetadata, mergeNoteSearchResults, noteFolderPath } from "@/features/notes/local-search";
+import { filterNotesByMetadata, mergeNoteSearchResults, noteFolderPath, splitNoteSearchHighlights } from "@/features/notes/local-search";
 import { useWorkspaceScrollRestoration } from "@/components/shared/use-workspace-scroll-restoration";
 import { notesWorkspaceResource as notesResource } from "@/features/notes/workspace-resource";
 import { useActionFeedback } from "@/components/shared/action-feedback";
+import { useNotesSearch } from "@/features/notes/use-notes-search";
+import { lastNotesListSessionKey, lastNotesListTtlMs } from "@/features/notes/navigation";
+import { saveWorkspaceSession } from "@/lib/workspace-session";
 import { useNotesListing } from "@/features/notes/use-notes-listing";
 
 type Folder = { id: string; name: string; parent_id: string | null };
@@ -36,6 +39,12 @@ type WorkspaceState = "ready" | "base" | "unavailable";
 
 function folderPath(note: NoteListItem, folders: Folder[]) {
   return noteFolderPath(note.folder_id, folders);
+}
+
+function SearchText({ text, query }: { text: string; query: string }) {
+  return splitNoteSearchHighlights(text, query).map((part, index) => part.matched
+    ? <mark key={index} className="rounded-[2px] bg-[var(--accent-soft)] text-inherit">{part.text}</mark>
+    : part.text);
 }
 
 function AskNotesButton({ onClick }: { onClick: () => void }) {
@@ -65,6 +74,8 @@ function NoteRow({
   onTogglePinned,
   onTrash,
   showExcerpt,
+  searchQuery,
+  onOpen,
   pending,
 }: {
   note: NoteListItem;
@@ -80,6 +91,8 @@ function NoteRow({
   onTogglePinned: (note: NoteListItem) => void;
   onTrash: (note: NoteListItem) => void;
   showExcerpt: boolean;
+  searchQuery: string;
+  onOpen: () => void;
   pending: boolean;
 }) {
   return (
@@ -104,9 +117,11 @@ function NoteRow({
           ) : (
             <Link
               href={`/notes/${note.id}`}
-              className="truncate text-[14px] font-medium leading-[22px] text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)] after:absolute after:inset-0 after:content-['']"
+              data-note-result
+              onClick={onOpen}
+              className="truncate text-[14px] font-medium leading-[22px] text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)] focus-visible:outline-none focus-visible:after:rounded-[var(--radius-md)] focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--accent)] after:absolute after:inset-0 after:content-['']"
             >
-              {note.title || "无标题笔记"}
+              <SearchText text={note.title || "无标题笔记"} query={searchQuery} />
             </Link>
           )}
           {note.content_origin === "ai_generated" ? (
@@ -118,11 +133,11 @@ function NoteRow({
         </div>
         {showExcerpt && note.excerpt ? (
           <p className="mt-1 line-clamp-2 max-w-[66ch] text-[13px] leading-[22px] text-[var(--text-secondary)]">
-            {note.excerpt}
+            <SearchText text={note.excerpt} query={searchQuery} />
           </p>
         ) : null}
         <p className="mt-1 truncate text-[12px] leading-5 text-[var(--text-tertiary)]">
-          {folderPath(note, folders)} · {formatNoteTimestamp(note.updated_at, timezone)}
+          <SearchText text={folderPath(note, folders)} query={searchQuery} />{!showExcerpt ? ` · ${formatNoteTimestamp(note.updated_at, timezone)}` : null}
         </p>
       </div>
       <DropdownMenu>
@@ -177,24 +192,25 @@ export function NotesWorkspace({
   const router = useRouter();
   const feedback = useActionFeedback();
   const params = useSearchParams();
-  const [query, setQuery] = useState(params.get("q") ?? "");
-  const [scope, setScope] = useState<"context" | "all">(params.get("scope") === "all" ? "all" : "context");
-  const [remoteSearch, setRemoteSearch] = useState<{ key: string; results: NoteListItem[]; state: "idle" | "error" } | null>(null);
-  const [searchAttempt, setSearchAttempt] = useState(0);
+  // Keep input updates urgent while Next applies native-history changes in a
+  // transition. A different URL query (including Back/Forward) remains authoritative.
+  const routeQuery = params.get("q") ?? "";
+  const [searchDraft, setSearchDraft] = useState({ routeQuery, value: routeQuery });
+  if (searchDraft.routeQuery !== routeQuery) setSearchDraft({ routeQuery, value: routeQuery });
+  const query = searchDraft.routeQuery === routeQuery ? searchDraft.value : routeQuery;
+  const scope = params.get("scope") === "all" ? "all" : "context";
+  const searchInput = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLElement>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const mutationInFlight = useRef(false);
   const [renaming, setRenaming] = useState<NoteListItem | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [moving, setMoving] = useState<NoteListItem | null>(null);
   const [pending, startTransition] = useTransition();
-  const requestRef = useRef<AbortController | null>(null);
   const listing = useNotesListing({ notes, hasMore: initialHasMore, folderId: selectedFolder?.id, view: initialView });
   const normalizedQuery = query.trim();
   const activeFolderId = scope === "context" ? selectedFolder?.id ?? null : null;
-  const searchKey = JSON.stringify([activeFolderId, normalizedQuery, searchAttempt]);
-  const currentSearch = remoteSearch?.key === searchKey ? remoteSearch : null;
-  const results = currentSearch?.results ?? null;
-  const searchState = !normalizedQuery ? "idle" : currentSearch?.state ?? "loading";
+  const { results, state: searchState, retry: retrySearch } = useNotesSearch(normalizedQuery, activeFolderId);
   const listScrollRef = useWorkspaceScrollRestoration("notes:list", normalizedQuery ? searchState !== "loading" : listing.loaded);
 
   const allNotes = listing.notes;
@@ -205,8 +221,8 @@ export function NotesWorkspace({
     return filterNotesByMetadata(candidates, folders, normalizedQuery, 30);
   }, [activeFolderId, allNotes, folders, normalizedQuery]);
   const combinedSearchResults = useMemo(
-    () => mergeNoteSearchResults(localSearchResults, results ?? [], 50),
-    [localSearchResults, results],
+    () => mergeNoteSearchResults(localSearchResults, results ?? [], 50, normalizedQuery, folders),
+    [localSearchResults, results, normalizedQuery, folders],
   );
 
   const visible = useMemo(() => {
@@ -217,45 +233,32 @@ export function NotesWorkspace({
   const title = selectedFolder?.name ?? (initialView === "favorites" ? "收藏" : initialView === "recent" ? "最近编辑" : "全部笔记");
 
   useEffect(() => {
-    if (!normalizedQuery) {
-      requestRef.current?.abort();
-      return;
-    }
-    const controller = new AbortController();
-    requestRef.current?.abort();
-    requestRef.current = controller;
-    const timer = window.setTimeout(async () => {
-      try {
-        const search = new URLSearchParams({ q: normalizedQuery, limit: "30" });
-        if (activeFolderId) search.set("folderId", activeFolderId);
-        const response = await fetch(`/api/notes/search?${search}`, { signal: controller.signal });
-        const body = (await response.json()) as { results?: NoteListItem[]; error?: string };
-        if (!response.ok) throw new Error(body.error);
-        if (!controller.signal.aborted) {
-          setRemoteSearch({ key: searchKey, results: body.results ?? [], state: "idle" });
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          setRemoteSearch({ key: searchKey, results: [], state: "error" });
-        }
-      }
-    }, 160);
-    return () => {
-      controller.abort();
-      window.clearTimeout(timer);
-    };
-  }, [activeFolderId, normalizedQuery, searchKey]);
+    if (params.get("focusSearch") !== "1") return;
+    searchInput.current?.focus({ preventScroll: true });
+    const url = new URL(window.location.href);
+    url.searchParams.delete("focusSearch");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [params]);
+
+  const resultLinks = () => Array.from(resultsRef.current?.querySelectorAll<HTMLAnchorElement>("a[data-note-result]") ?? []);
+  const rememberList = () => {
+    const href = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    saveWorkspaceSession(lastNotesListSessionKey, { href }, lastNotesListTtlMs);
+    saveWorkspaceSession(`scroll:notes:list:${window.location.pathname}${window.location.search}`, { scrollTop: listScrollRef.current?.scrollTop ?? 0 });
+  };
 
   const syncSearchUrl = (nextQuery: string, nextScope: "context" | "all") => {
+    // Next copies its internal history state itself. Passing __NA would bypass
+    // its useSearchParams synchronization and leave the controlled input stale.
     const url = new URL(window.location.href);
     if (nextQuery.trim()) url.searchParams.set("q", nextQuery);
     else url.searchParams.delete("q");
     if (nextScope === "all") url.searchParams.set("scope", "all");
     else url.searchParams.delete("scope");
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   };
   const updateQuery = (value: string) => {
-    setQuery(value);
+    setSearchDraft({ routeQuery, value });
     syncSearchUrl(value, scope);
   };
 
@@ -349,17 +352,31 @@ export function NotesWorkspace({
             <span className="sr-only">搜索内容</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]" aria-hidden="true" />
             <input
+              id="notes-library-search"
+              ref={searchInput}
               autoComplete="off"
+              maxLength={200}
+              title="搜索笔记（/）"
+              aria-keyshortcuts="/"
               value={query}
               onChange={(event) => updateQuery(event.target.value)}
-              onKeyDown={(event) => { if (event.key === "Escape" && query) updateQuery(""); }}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+                if (event.key === "Escape" && query) { event.preventDefault(); updateQuery(""); }
+                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  const links = resultLinks();
+                  if (links.length) { event.preventDefault(); links[event.key === "ArrowDown" ? 0 : links.length - 1].focus(); }
+                }
+                if (event.key === "Enter" && normalizedQuery) { event.preventDefault(); resultLinks()[0]?.click(); }
+              }}
               placeholder={selectedFolder && scope === "context" ? `搜索内容 · ${selectedFolder.name}` : "搜索内容 · 标题、正文或文件夹"}
-              className="h-9 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] pl-8 pr-16 text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+              className="h-11 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] pl-8 pr-16 text-[16px] md:h-9 md:text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
             />
             <span className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+              {!query ? <kbd aria-hidden="true" className="mr-2 hidden text-[12px] text-[var(--text-tertiary)] md:inline">/</kbd> : null}
               {searchState === "loading" ? <LoaderCircle className="size-3.5 animate-spin text-[var(--text-tertiary)]" aria-label="正在补充全文搜索结果" /> : null}
               {query ? (
-                <button type="button" onClick={() => updateQuery("")} className="pressable inline-flex size-7 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" aria-label="清空搜索">
+                <button type="button" onClick={() => { updateQuery(""); searchInput.current?.focus(); }} className="pressable inline-flex size-11 md:size-7 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" aria-label="清空搜索">
                   <X className="size-3.5" aria-hidden="true" />
                 </button>
               ) : null}
@@ -370,10 +387,9 @@ export function NotesWorkspace({
               type="button"
               onClick={() => {
                 const next = scope === "context" ? "all" : "context";
-                setScope(next);
                 syncSearchUrl(query, next);
               }}
-              className="pressable h-9 shrink-0 rounded-[9px] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-control)] hover:text-[var(--text-primary)]"
+              className="pressable h-11 md:h-9 shrink-0 rounded-[9px] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-control)] hover:text-[var(--text-primary)]"
             >
               {scope === "context" ? "当前文件夹" : "全部笔记"}
             </button>
@@ -382,16 +398,27 @@ export function NotesWorkspace({
         {normalizedQuery ? (
           <p role={searchState === "error" ? "status" : undefined} className={`mt-1.5 min-h-4 text-[10.5px] leading-4 ${searchState === "error" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>
             {searchState === "error"
-              ? "全文搜索暂时不可用，当前仍显示已加载内容中的标题和文件夹匹配。"
+              ? "搜索暂未更新，已保留可用结果。"
               : searchState === "loading"
                 ? "已先显示本地匹配，正在补充正文全文结果…"
-                : "标题匹配优先，正文命中随后补充。"}
-            {searchState === "error" ? <button type="button" onClick={() => setSearchAttempt((value) => value + 1)} className="pressable ml-2 min-h-8 rounded-[6px] px-1 text-[var(--accent)] underline underline-offset-2">重试全文搜索</button> : null}
+                : null}
+            {searchState === "error" ? <button type="button" onClick={retrySearch} className="pressable ml-2 min-h-8 rounded-[6px] px-1 text-[var(--accent)] underline underline-offset-2">重试全文搜索</button> : null}
           </p>
         ) : null}
 
         {visible.length ? (
-          <section className="mt-4.5">
+          <section ref={resultsRef} aria-label={normalizedQuery ? "搜索结果" : "笔记列表"} className="mt-4.5" onKeyDown={(event) => {
+            if ((event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) || !(event.target instanceof HTMLAnchorElement) || !event.target.hasAttribute("data-note-result")) return;
+            const links = resultLinks();
+            const current = links.indexOf(event.target);
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              const next = current + (event.key === "ArrowDown" ? 1 : -1);
+              if (next < 0) searchInput.current?.focus();
+              else links[Math.min(next, links.length - 1)]?.focus();
+            }
+            if (event.key === "Escape") { event.preventDefault(); searchInput.current?.focus(); }
+          }}>
             {visible.map((note) => (
               <NoteRow
                 key={note.id}
@@ -429,6 +456,8 @@ export function NotesWorkspace({
                   form.set("note_id", item.id);
                   mutate(trashNote, form, "已移到回收站");
                 }}
+                searchQuery={normalizedQuery}
+                onOpen={rememberList}
                 showExcerpt={Boolean(normalizedQuery)}
                 pending={pending}
               />

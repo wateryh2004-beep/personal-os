@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { apiAuthenticationFailure } from "@/lib/auth/require-owner";
+import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-owner";
 import { searchNotesWorkspace } from "@/features/notes/queries";
 
 const schema = z.object({
@@ -18,8 +18,9 @@ export async function GET(request: Request) {
       limit: url.searchParams.get("limit") ?? undefined,
     });
     if (!parsed.success) return NextResponse.json({ error: "搜索参数无效。" }, { status: 400 });
+    const owner = await requireOwnerApi();
     return NextResponse.json(
-      { results: await searchNotesWorkspace(parsed.data.q, parsed.data.folderId ?? null, parsed.data.limit) },
+      { results: await searchNotesWorkspace(parsed.data.q, parsed.data.folderId ?? null, parsed.data.limit, owner) },
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {

@@ -11,6 +11,9 @@ import { createFolder, createNoteInFolder, moveFolder, moveNote, renameFolder } 
 import { openDailyNote } from "@/features/notes/actions";
 import { notesDragAutoScrollDelta } from "@/features/notes/drag-auto-scroll";
 import { canMoveFolderTo, expandedFolderPath, visibleExpandedFolders } from "@/features/notes/folder-tree";
+import { isNotesSearchShortcut } from "@/features/notes/search-shortcut";
+import { lastNotesListSessionKey, notesListHref } from "@/features/notes/navigation";
+import { loadWorkspaceSession } from "@/lib/workspace-session";
 import { filterNotesByMetadata, createNoteFolderPathResolver } from "@/features/notes/local-search";
 
 export type NotesNavigatorFolder = { id: string; name: string; parent_id: string | null };
@@ -246,6 +249,21 @@ export function NotesWorkspaceShell({ folders, notes, children, documentView }: 
   const navigatorWidthRef = useRef(272);
   const pathname = usePathname();
   const isEditorRoute = documentView ?? /^\/notes\/[0-9a-f-]{36}$/i.test(pathname);
+  const router = useRouter();
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      if (!isNotesSearchShortcut(event) || document.querySelector('[role="dialog"], [role="menu"]')) return;
+      event.preventDefault();
+      const input = document.getElementById("notes-library-search");
+      if (input instanceof HTMLInputElement) { input.focus(); return; }
+      const href = notesListHref(loadWorkspaceSession(lastNotesListSessionKey));
+      const url = new URL(href, window.location.origin);
+      url.searchParams.set("focusSearch", "1");
+      router.push(`${url.pathname}${url.search}`);
+    };
+    window.addEventListener("keydown", focusSearch);
+    return () => window.removeEventListener("keydown", focusSearch);
+  }, [router]);
   useEffect(() => {
     const restore = window.setTimeout(() => {
       try {

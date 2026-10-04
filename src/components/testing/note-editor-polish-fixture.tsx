@@ -17,6 +17,6 @@ const note = {
 // Browser checks must not edit text or submit forms / Server Actions.
 export function NoteEditorPolishFixture({ pdf = false }: { pdf?: boolean } = {}) {
   return <NotesWorkspaceShell documentView folders={[]} notes={[{ ...note, folder_id: null, updated_at: note.last_saved_at }]}>
-    <NoteDocumentShell attachments={pdf ? [{ id: "10000000-0000-4000-8000-000000000002", title: "示例 PDF", original_filename: "synthetic-fixture.pdf", mime_type: "application/pdf", file_size: 1024, role: "pdf_snapshot" }] : []} noteId={note.id} editor={<NoteEditor note={note} noteAiDefaultModel="deepseek-v4-flash" />} inspector={<p className="text-[13px] leading-6">Synthetic fixture · 示例笔记详情，仅用于布局验证。</p>} />
+    <NoteDocumentShell location={{ href: "/notes", label: "示例资料 / 阅读与思考" }} attachments={pdf ? [{ id: "10000000-0000-4000-8000-000000000002", title: "示例 PDF", original_filename: "synthetic-fixture.pdf", mime_type: "application/pdf", file_size: 1024, role: "pdf_snapshot" }] : []} noteId={note.id} editor={<NoteEditor note={note} noteAiDefaultModel="deepseek-v4-flash" />} inspector={<p className="text-[13px] leading-6">Synthetic fixture · 示例笔记详情，仅用于布局验证。</p>} />
   </NotesWorkspaceShell>;
 }
