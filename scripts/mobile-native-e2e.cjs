@@ -195,6 +195,8 @@ async function backCloses(page, trigger, visibleTarget) {
     assert.equal(await detail.isVisible(), true);
     assert.ok((await detail.innerText()).includes("E2E English reference answer"));
     assert.equal(await detail.locator("textarea").count(), 0);
+    const listBox = await questionList.boundingBox();
+    assert.ok(listBox && listBox.height < 300, "filtered sidebar stays content-sized instead of stretching into an empty card beside a long answer");
     assert.equal(await detail.getByRole("link", { name: "练习这道题 →", exact: true }).getAttribute("href"), "/career/interview/practice/e2e-prep-1");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
     await capture(page, "interview-desktop-1440");

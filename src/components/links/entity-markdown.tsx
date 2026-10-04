@@ -27,6 +27,8 @@ export function EntityMarkdown({ body, className }: { body: string; className?: 
           li: ({ children }) => <li className="pl-1 leading-6">{children}</li>,
           blockquote: ({ children }) => <blockquote className="mb-3 border-l-2 border-zinc-300 pl-3 italic text-zinc-600">{children}</blockquote>,
           a: ({ children, href }) => {
+            // Sanitized/empty destinations are text, not misleading inert links.
+            if (!href) return <span>{children}</span>;
             if (isInternalEntityHref(href)) {
               return (
                 <Link href={href!} className="text-[var(--accent)] underline underline-offset-2 hover:bg-[var(--accent-soft)]">

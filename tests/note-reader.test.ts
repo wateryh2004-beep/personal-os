@@ -21,6 +21,7 @@ describe("saved content reader", () => {
     expect(html).not.toContain("<form");
     expect(html).not.toContain("<script");
     expect(html).not.toContain('href="javascript:');
+    expect(html).not.toContain(">unsafe</a>");
     expect(note.bodyMarkdown).toContain("<script>alert(1)</script>");
   });
   it("does not render unsafe source URLs", () => {

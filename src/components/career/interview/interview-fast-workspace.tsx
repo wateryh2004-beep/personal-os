@@ -147,12 +147,12 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
       <div className="px-2 sm:px-3">
         <div className="flex min-h-9 flex-wrap items-center justify-between gap-2.5">
           <div className="flex min-w-0 max-w-full items-center gap-2.5">
-            <Link href="/career" prefetch className="pressable rounded-[8px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">← 目标岗位</Link>
+            <Link href="/career" prefetch className="pressable inline-flex min-h-11 items-center rounded-[8px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">← 目标岗位</Link>
             <select
               aria-label="面试岗位"
               value={contextId}
               onChange={(event) => handleContextChange(event.target.value)}
-              className="min-w-0 max-w-[min(320px,65vw)] rounded-[9px] bg-[var(--surface-control)] px-2.5 py-1.5 text-[13px] font-medium tracking-[-0.006em] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+              className="min-h-11 min-w-0 max-w-[min(320px,65vw)] rounded-[9px] bg-[var(--surface-control)] px-2.5 py-1.5 text-[13px] font-medium tracking-[-0.006em] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
             >
               <option value="">通用面试</option>
               {targets.map((target) => (
@@ -165,8 +165,8 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
 
           <div className="flex items-center gap-1">
             <Link href="/career/materials" className="pressable inline-flex min-h-11 items-center rounded-[8px] px-2 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">我的材料</Link>
-            <Link href={`/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`} className="pressable rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">练习</Link>
-            <Link href={`/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`} className="pressable rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">复盘</Link>
+            <Link href={`/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`} className="pressable inline-flex min-h-11 items-center rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">练习</Link>
+            <Link href={`/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`} className="pressable inline-flex min-h-11 items-center rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">复盘</Link>
 
           </div>
         </div>
@@ -190,13 +190,13 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
       </div>
 
       <div className="mt-4 grid min-h-[680px] gap-5 md:grid-cols-[286px_minmax(0,1fr)] md:gap-8">
-        <aside data-testid="interview-question-list" className={`${mobileDetailOpen ? "hidden md:block" : ""} min-h-0 rounded-[16px] bg-[color-mix(in_srgb,var(--surface-control)_48%,transparent)] p-2.5 ring-1 ring-inset ring-black/[0.022]`}>
+        <aside data-testid="interview-question-list" className={`${mobileDetailOpen ? "hidden md:block" : ""} min-h-0 self-start md:sticky md:top-[calc(var(--toolbar-height)+1rem)] rounded-[16px] bg-[color-mix(in_srgb,var(--surface-control)_48%,transparent)] p-2.5 ring-1 ring-inset ring-black/[0.022]`}>
           <div className="mb-1.5 flex items-center justify-between px-2">
             <span className="text-[12px] font-medium text-[var(--text-tertiary)]">{category === "all" ? "全部问题" : questionTypeLabels[category] ?? "问题"}</span>
             <span className="text-[12px] tabular-nums text-[var(--text-tertiary)]">{visibleItems.length} / {contextItems.length}</span>
           </div>
 
-          <nav aria-label="面试题目" className="space-y-px pr-0.5 md:max-h-[600px] md:overflow-y-auto">
+          <nav aria-label="面试题目" className="space-y-px pr-0.5 md:max-h-[min(600px,calc(100dvh_-_var(--toolbar-height)_-_5rem))] md:overflow-y-auto">
             <QuestionOptions items={visibleItems} questionId={questionId} onSelect={handleQuestionChange} />
             {!visibleItems.length ? <div className="px-2 py-5 text-[13px] leading-6 text-[var(--text-tertiary)]"><p>{contextItems.length ? "没有找到匹配的问题" : "这个题库还没有问题"}</p><p className="text-xs">{contextItems.length ? "试试其他关键词，或清除筛选。" : "AI 整理的题目会在这里显示，也可以切换面试目标。"}</p>{contextItems.length ? <button type="button" onClick={() => handleFiltersChange(emptyLibraryFilters)} className="mt-2 min-h-11 text-[var(--accent)]">清除筛选</button> : null}</div> : null}
           </nav>
