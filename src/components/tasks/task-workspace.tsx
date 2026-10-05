@@ -224,14 +224,17 @@ function QuickAdd({
   listLabel,
   onCreated,
   onUnconfirmed,
+  onReveal,
 }: {
   listId: string;
   listLabel: string;
   onCreated: (task: TodoTask | null, temporaryId?: string) => void;
   onUnconfirmed: () => void;
+  onReveal: (task: TodoTask) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
+  const [createdTask, setCreatedTask] = useState<TodoTask | null>(null);
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
   const submittingRef = useRef(false);
@@ -243,6 +246,7 @@ function QuickAdd({
     if (!title || submittingRef.current) return;
     submittingRef.current = true;
     setMessage("");
+    setCreatedTask(null);
 
     const temporaryId = `optimistic-${crypto.randomUUID()}`;
     onCreated({
@@ -266,21 +270,21 @@ function QuickAdd({
         setMessage(result.message);
         if (result.status === "success" && result.taskId) {
           setDraftTitle("");
-          onCreated(
-            {
-              id: result.taskId,
-              providerTaskId: result.taskId,
-              todoListId: listId,
-              title,
-              bodyText: null,
-              status: "notStarted",
-              importance: "normal",
-              dueAt: null,
-              completedAt: null,
-              lastModifiedAt: null,
-            },
-            temporaryId,
-          );
+          const created: TodoTask = {
+            id: result.taskId,
+            providerTaskId: result.taskId,
+            todoListId: listId,
+            title,
+            bodyText: null,
+            status: "notStarted",
+            importance: "normal",
+            dueAt: null,
+            completedAt: null,
+            lastModifiedAt: null,
+          };
+          onCreated(created, temporaryId);
+          setCreatedTask(created);
+          setMessage("已添加，未设截止时间");
         } else {
           onCreated(null, temporaryId);
           setDraftTitle(title);
@@ -344,6 +348,7 @@ function QuickAdd({
       {message ? (
         <p role="status" className="mt-1 pl-8 text-[10.5px] text-[var(--text-tertiary)]">
           {message}
+          {createdTask ? <button type="button" onClick={() => onReveal(createdTask)} className="pressable ml-2 inline-flex min-h-11 items-center rounded-md px-1 text-[12px] font-medium text-[var(--accent)]">查看任务</button> : null}
         </p>
       ) : null}
     </div>
@@ -1008,6 +1013,11 @@ export function TaskWorkspace({
                   listId={quickAddTarget.id}
                   listLabel={quickAddTarget.displayName}
                   onCreated={onCreated}
+                  onReveal={(task) => {
+                    setView("all");
+                    if (listId && listId !== task.todoListId) setListId(task.todoListId);
+                    openTask(task);
+                  }}
                   onUnconfirmed={() => setTaskError("添加结果尚未确认，请重新读取后检查，避免重复创建。")}
                 />
               ) : null}

@@ -42,6 +42,23 @@ describe("Today presents one primary action per task", () => {
     expect(result.commitments.map((item) => item.id)).toEqual(["reminder-6"]);
   });
 
+  it("keeps Inbox in the workspace without treating its backlog as urgent work", () => {
+    const inbox = { id: "inbox", kind: "inbox", title: "整理 Inbox", href: "/inbox", source: { domain: "inbox", entityId: null, label: "Inbox" } };
+    const workspace = {
+      commitments: [inbox, commitment(due)],
+      inboxCount: 3,
+      tasks: { overdue: [], today: [due], upcoming: [] },
+      calendar: { today: [] },
+      nextAction: { kind: "inbox" },
+      attention: [],
+    } as unknown as NowWorkspace;
+    const result = todayPresentation(workspace);
+    expect(result.commitments).toEqual([commitment(due)]);
+    expect(result.remainingWorkspace.inboxCount).toBe(3);
+    expect(workspace.commitments).toEqual([inbox, commitment(due)]);
+    expect(workspace.nextAction.kind).toBe("inbox");
+  });
+
   it("describes due status using the owner's calendar date", () => {
     expect(priorityDueLabel(task("one", "2026-09-30T20:00:00Z"), "2026-10-01", "Asia/Shanghai")).toBe("今天到期");
     expect(priorityDueLabel(task("one", "2026-09-29T20:00:00Z"), "2026-10-01", "Asia/Shanghai")).toContain("已逾期");

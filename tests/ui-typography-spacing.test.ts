@@ -34,8 +34,9 @@ describe("readable typography and workspace rhythm", () => {
   });
 
   it("aligns Today columns and removes stale spacing overrides", () => {
-    const columns = "lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12";
-    for (const path of ["src/components/today/now-workspace.tsx", "src/components/today/today-secondary.tsx", "src/app/(app)/today/loading.tsx"]) { expect(read(path)).toContain(columns); expect(read(path)).toContain("grid-cols-1"); }
+    const columns = "lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:gap-12";
+    for (const path of ["src/components/today/now-workspace.tsx", "src/components/today/today-secondary.tsx"]) { expect(read(path)).toContain(columns); }
+    expect(read("src/app/(app)/today/loading.tsx")).toContain("<TodayShell />");
     expect(read("src/app/responsive.css")).not.toContain(".now-workspace > div.mt-16");
     for (const path of ["src/components/today/today-schedule.tsx", "src/components/today/today-focus-stack.tsx", "src/components/today/today-secondary.tsx"]) expect(read(path)).not.toContain("leading-[22px] leading-5");
   });

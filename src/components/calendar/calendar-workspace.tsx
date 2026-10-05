@@ -58,6 +58,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   const [selected, setSelected] = useState<CalendarEventRecord | null>(null);
   const [draft, setDraft] = useState<Draft | null>(() => initialCreateOpen ? initialDraft(timezone) : null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [hideInternship, setHideInternship] = useState(false);
   const [syncing, startSync] = useTransition();
@@ -502,7 +503,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
                   </label>
                 </PopoverContent>
               </Popover>
-              <button onClick={() => setCursor(new Date())} className="pressable ml-1 hidden rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] sm:block">今天</button>
+              <button onClick={() => setCursor(new Date())} aria-label="回到今天" className="pressable ml-1 shrink-0 rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">今天</button>
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
@@ -514,23 +515,40 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
                 ))}
               </div>
               <span title={`下次近期待办同步：${syncStatus?.nextHourlyAt ? new Date(syncStatus.nextHourlyAt).toLocaleString("zh-CN") : "未计划"}\n下次全量对账：${syncStatus?.nextFullAt ? new Date(syncStatus.nextFullAt).toLocaleString("zh-CN") : "未计划"}`} className="ml-1 hidden items-center gap-1.5 whitespace-nowrap px-1.5 text-[10.5px] text-[var(--text-tertiary)] lg:inline-flex"><span className={`size-1.5 rounded-full ${syncTone}`} />{syncStatus?.subscriptionExpiring ? "订阅即将到期" : syncLabel(syncStatus)}</span>
-              <button type="button" onClick={ai.toggle} aria-label="Calendar AI" className="pressable inline-flex size-8 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><Bot size={15} /></button>
-              <Popover>
+              <button type="button" onClick={ai.toggle} aria-label="Calendar AI" className="pressable hidden sm:inline-flex size-8 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><Bot size={15} /></button>
+              <Popover open={moreOpen} onOpenChange={setMoreOpen}>
                 <PopoverTrigger asChild><button aria-label="更多日历操作" className="pressable inline-flex size-8 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><MoreHorizontal size={17} /></button></PopoverTrigger>
                 <PopoverContent align="end" className="w-64 p-1.5">
-                  <div className="sm:hidden px-1 pb-1.5"><p className="px-2 pb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-tertiary)]">视图</p><div className="grid grid-cols-2 gap-1">{availableViews.map((item) => <button key={item} onClick={() => setView(item)} className={`rounded-[7px] px-2 py-1.5 text-xs ${view === item ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>{item === "day" ? "日" : item === "week" ? "周" : "月"}</button>)}</div></div>
-                  <button type="button" onClick={() => setCursor(new Date())} className="flex w-full items-center rounded-[8px] px-2.5 py-2 text-left text-[12.5px] text-[var(--text-primary)] hover:bg-[var(--surface-hover)] sm:hidden">回到今天</button>
+                  <div className="sm:hidden border-b border-[var(--separator)] pb-1.5 mb-1.5">
+                    <button type="button" onClick={() => { setMoreOpen(false); openDraft(initialDraft(timezone)); }} className="flex min-h-11 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-[13px] text-[var(--text-primary)]"><Plus size={15} />新建日程</button>
+                    <button type="button" onClick={() => { setMoreOpen(false); ai.toggle(); }} className="flex min-h-11 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-[13px] text-[var(--text-primary)]"><Bot size={15} />Calendar AI</button>
+                    <button type="button" onClick={() => { setMoreOpen(false); setSettingsOpen(true); }} className="flex min-h-11 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-[13px] text-[var(--text-primary)]"><Settings2 size={15} />管理分类</button>
+                  </div>
                   <button onClick={sync} disabled={syncing} className="flex w-full items-center gap-2 rounded-[7px] px-2 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"><RefreshCw size={14} className={syncing ? "animate-spin" : ""}/>{syncing ? "正在同步…" : "立即同步 Outlook"}</button>
                   <button type="button" onClick={() => setHideInternship((current) => !current)} className="flex w-full items-center gap-2 rounded-[7px] px-2 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"><EyeOff size={14}/>{hideInternship ? "显示实习日程" : "隐藏实习日程"}</button>
                   <div className="my-1 border-t border-[var(--border-subtle)]" />
                   <p className="px-2 py-1.5 text-[10.5px] leading-5 text-[var(--text-tertiary)]">状态：{syncStatus?.state ?? "unavailable"}{syncStatus?.errorCode ? ` · ${syncStatus.errorCode}` : ""}<br/>最后成功：{syncStatus?.lastSyncAt ? new Date(syncStatus.lastSyncAt).toLocaleString("zh-CN") : "从未"}<br/>全量对账：{syncStatus?.nextFullAt ? new Date(syncStatus.nextFullAt).toLocaleString("zh-CN") : "等待调度"}</p>
                 </PopoverContent>
               </Popover>
-              <button onClick={() => openDraft(initialDraft(timezone))} className="pressable ml-1 inline-flex h-8 items-center gap-1 rounded-[9px] bg-[var(--accent)] px-2.5 text-[12px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,.06)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]"><Plus size={14} />新建</button>
+              <button onClick={() => openDraft(initialDraft(timezone))} className="pressable ml-1 hidden sm:inline-flex h-8 items-center gap-1 rounded-[9px] bg-[var(--accent)] px-2.5 text-[12px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,.06)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]"><Plus size={14} />新建</button>
             </div>
           </div>
 
-          <div className="flex min-h-[34px] items-center gap-0.5 overflow-x-auto border-t border-[rgba(60,60,67,.06)] px-3 py-1 [scrollbar-width:none] md:px-4">
+          <div className="flex items-center justify-between gap-2 border-t border-[var(--separator)] px-3 py-1 sm:hidden">
+            <div className="flex items-center gap-1" role="group" aria-label="日历视图">
+              {availableViews.map((item) => <button key={item} type="button" onClick={() => setView(item)} aria-pressed={view === item} className={`pressable min-h-11 min-w-11 rounded-[8px] px-3 text-[13px] ${view === item ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>{item === "day" ? "日" : item === "week" ? "周" : "月"}</button>)}
+            </div>
+            <Popover>
+              <PopoverTrigger asChild><button type="button" className="pressable inline-flex min-h-11 items-center gap-1 rounded-[8px] px-2 text-[12px] text-[var(--text-secondary)]">筛选{selectedCategories.size ? ` · ${selectedCategories.size}` : ""}{hideInternship ? " · 已隐藏实习" : ""}<ChevronDown size={13} /></button></PopoverTrigger>
+              <PopoverContent align="end" className="w-60 p-2">
+                <p className="px-2 py-1 text-[11px] text-[var(--text-tertiary)]">按分类筛选 · 可多选</p>
+                {primaryCalendarCategories.map((category) => <button key={category.key} type="button" onClick={() => toggleCategory(category.displayName)} aria-pressed={selectedCategories.has(category.displayName)} className={`flex min-h-11 w-full items-center gap-2 rounded-[8px] px-2 text-left text-[13px] ${selectedCategories.has(category.displayName) ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}><span className="size-2 rounded-full" style={{ backgroundColor: outlookCategoryDot(category.color) }} />{category.shortName}</button>)}
+                {selectedCategories.size ? <button type="button" onClick={() => setSelectedCategories(new Set())} className="min-h-11 px-2 text-[12px] text-[var(--accent)]">清除分类筛选</button> : null}
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className="hidden sm:flex min-h-[34px] items-center gap-0.5 overflow-x-auto border-t border-[rgba(60,60,67,.06)] px-3 py-1 [scrollbar-width:none] md:px-4">
             {primaryCalendarCategories.map((category) => {
               const dot = outlookCategoryDot(category.color);
               const active = selectedCategories.has(category.displayName);

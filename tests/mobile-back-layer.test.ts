@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseMobileBackLayerForNavigation, useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
 
-function Layer({ open, name, onDismiss }: { open: boolean; name: string; onDismiss: () => void }) {
+function Layer({ open, name, onDismiss }: { open: boolean; name: string; onDismiss: () => void | boolean }) {
   useMobileBackLayer(open, onDismiss, name);
   return null;
 }
@@ -69,5 +69,36 @@ describe("mobile overlay history ownership", () => {
     expect(back).not.toHaveBeenCalled();
     expect(window.history.state).toEqual(state);
     expect(window.location.search).toBe("?task=b");
+  });
+
+  it("restores a blocked layer for repeated Back without dismissing its parent", async () => {
+    let saving = true;
+    const inspector = vi.fn();
+    const dialog = vi.fn(() => !saving);
+    const render = (inner: boolean) => root.render(createElement("div", null,
+      createElement(Layer, { open: true, name: "side-panel:inspector", onDismiss: inspector }),
+      createElement(Layer, { open: inner, name: "sheet", onDismiss: dialog }),
+    ));
+    await act(async () => { render(false); });
+    const inspectorState = window.history.state;
+    await act(async () => { render(true); });
+    const sheetState = window.history.state;
+    const length = window.history.length;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      await flushBack();
+      expect(dialog).toHaveBeenCalledTimes(attempt);
+      expect(inspector).not.toHaveBeenCalled();
+      expect(window.history.state).toEqual(sheetState);
+      expect(window.history.length).toBe(length);
+      expect(window.location.pathname + window.location.search).toBe("/tasks?task=a");
+    }
+    saving = false;
+    await flushBack();
+    expect(dialog).toHaveBeenCalledTimes(3);
+    expect(window.history.state).toEqual(inspectorState);
+    await act(async () => { render(false); });
+    await flushBack();
+    expect(inspector).toHaveBeenCalledOnce();
+    expect(window.history.state).toEqual(state);
   });
 });

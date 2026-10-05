@@ -1,32 +1,17 @@
 import type { NowWorkspace } from "@/features/today/types";
 import { formatTodayDate } from "@/features/today/utils";
-import { NowClock } from "./now-clock";
-import { QuickCapture } from "./quick-capture";
 
 export function NowHeader({ workspace }: { workspace: NowWorkspace }) {
-  return (
-    <header>
-      <div className="flex items-start justify-between gap-5">
-        <div className="min-w-0">
-          <p className="text-[12px] font-medium leading-5 text-[var(--text-tertiary)]">
-            {formatTodayDate(new Date(), workspace.timezone)}
-          </p>
-          <h1 className="mt-1 text-[30px] font-semibold leading-[1.2] tracking-[-0.015em] text-[var(--text-primary)] sm:text-[34px]">
-            现在
-          </h1>
-          <p className="mt-2 text-[13px] leading-[22px] text-[var(--text-secondary)]">
-            {workspace.summary.todayEventCount} 项日程 · {workspace.summary.todayTaskCount} 项今日待办
-            {workspace.summary.attentionCount ? ` · ${workspace.summary.attentionCount} 项需关注` : ""}
-          </p>
-        </div>
-        <div className="pt-px text-[var(--text-secondary)]">
-          <NowClock timezone={workspace.timezone} />
-        </div>
-      </div>
-
-      <div className="mt-6 max-w-[680px]">
-        <QuickCapture />
-      </div>
-    </header>
-  );
+  const dateLabel = workspace.generatedAt ? formatTodayDate(new Date(workspace.generatedAt), workspace.timezone) : workspace.focus?.date ? formatTodayDate(new Date(`${workspace.focus.date}T12:00:00Z`), "UTC") : "今日概览";
+  return <header className="flex items-end justify-between gap-4">
+    <div>
+      <p className="text-[13px] leading-5 text-[var(--text-secondary)]">{dateLabel}</p>
+      <h1 className="mt-1 text-[28px] font-semibold leading-tight tracking-[-0.025em] sm:text-[32px]">今天</h1>
+    </div>
+    <p className="pb-0.5 text-right text-[13px] leading-5 text-[var(--text-secondary)]">
+      {workspace.availability.calendar === "ready" ? `${workspace.summary.todayEventCount} 项日程` : "日程待更新"}
+      {workspace.summary.todayTaskCount > 0 ? <span className="block sm:ml-2 sm:inline">{workspace.summary.todayTaskCount} 项今日待办</span> : null}
+      {workspace.tasks.overdue.length > 0 ? <span className="block text-[var(--danger)]">{workspace.tasks.overdue.length} 项逾期</span> : null}
+    </p>
+  </header>;
 }

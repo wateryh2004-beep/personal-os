@@ -104,6 +104,8 @@ export type TodayFocus = {
   available: boolean;
 };
 export type NowWorkspace = {
+  /** Server read timestamp shared by deterministic Today presentation helpers. */
+  generatedAt?: string;
   focus?: TodayFocus;
   timezone: string;
   calendar: {

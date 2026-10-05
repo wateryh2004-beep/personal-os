@@ -2,20 +2,20 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
 import type { getCareerHome } from "@/features/career/queries";
-import { getCareerNextActions } from "@/features/career/next-actions";
+import { getCareerNextActions, getCareerPreparationCounts } from "@/features/career/next-actions";
 import { CareerContinue } from "@/components/career/career-continue";
-import { formatDateTime } from "@/features/interview/utils";
 
 export type CareerHomeData = Awaited<ReturnType<typeof getCareerHome>>;
 
 export function CareerHomeView({ data, showContinue = true }: { data: CareerHomeData; showContinue?: boolean }) {
   const p = data.profile;
   const now = data.now;
+  const formatDateTime = (value: string) => new Date(value).toLocaleString("zh-CN", { timeZone: data.timezone, dateStyle: "medium", timeStyle: "short" });
 
   const activeApplications = data.applications.filter((item) => !["rejected", "withdrawn", "closed"].includes(item.status));
   const activeDirections = data.directions.filter((item) => ["active", "exploring"].includes(item.status));
   const targets = data.interviewTargets.filter((item) => item.status === "active").slice(0, 3);
-  const nextActions = getCareerNextActions(data.interviewTargets, data.interviewPreparations, data.milestones, now);
+  const nextActions = getCareerNextActions(data.interviewTargets, data.interviewPreparations, data.milestones, now, data.timezone);
 
   return (
     <>
@@ -47,9 +47,14 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
           ))}
 
           {!nextActions.length ? (
-            <p className="py-3 text-sm text-[var(--text-tertiary)]">目前没有需要立即处理的职业事项。</p>
+            <p className="py-3 text-sm text-[var(--text-tertiary)]">目前没有待推进的职业事项。</p>
           ) : null}
         </div>
+        {data.pastMilestoneCount > 0 ? (
+          <Link href="/career/roadmap" className="mt-3 inline-flex min-h-11 items-center rounded-[7px] px-2.5 py-1 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]">
+            {data.pastMilestoneCount} 项历史路线计划状态待确认 →
+          </Link>
+        ) : null}
       </section>
 
       <section className="mb-12">
@@ -61,8 +66,7 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
         <div className="mt-4 space-y-1">
           {targets.map((target) => {
             const preparations = data.interviewPreparations.filter((prep) => prep.context_id === target.id);
-            const ready = preparations.filter((prep) => prep.status === "ready").length;
-            const due = preparations.filter((prep) => prep.status !== "paused" && (!prep.next_practice_at || Date.parse(prep.next_practice_at) <= now)).length;
+            const { ready, due, unscheduled } = getCareerPreparationCounts(preparations, now);
             return (
               <Link key={target.id} href={`/career/interview?context=${target.id}`} className="group grid min-h-12 gap-1 pressable rounded-[10px] px-2.5 py-2.5 hover:bg-[var(--surface-hover)] sm:grid-cols-[1fr_auto] sm:items-center">
                 <div className="min-w-0">
@@ -71,7 +75,8 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] tabular-nums text-[var(--text-tertiary)]">
                   <span>{preparations.length ? `${ready}/${preparations.length} 已准备` : "尚未开始"}</span>
-                  {due ? <span className="text-amber-700">{due} 待练</span> : null}
+                  {due ? <span className="text-amber-700">{due} 到期练习</span> : null}
+                  {unscheduled ? <span>{unscheduled} 待安排练习</span> : null}
                   {target.next_interview_at ? <span className="w-full sm:w-auto">{formatDateTime(target.next_interview_at)}</span> : null}
                 </div>
               </Link>

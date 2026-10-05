@@ -35,7 +35,7 @@ export type NavigationRegistryItem = {
 };
 
 export const navigationRegistry: readonly NavigationRegistryItem[] = [
-  { name: "今日", href: "/today", icon: LayoutDashboard, group: "frequent", desktopMain: true, mobileTab: true, commandPalette: true },
+  { name: "今日", href: "/today", icon: LayoutDashboard, group: "frequent", desktopMain: true, mobileTab: true, commandPalette: true, contextualCreate: { kind: "inbox" } },
   { name: "笔记", href: "/notes", icon: FileText, group: "frequent", desktopMain: true, mobileTab: true, commandPalette: true, contextualCreate: { kind: "note", descendants: true } },
   { name: "职业", href: "/career", icon: BriefcaseBusiness, group: "frequent", desktopMain: true, mobileTab: true, commandPalette: true },
   { name: "收集箱", href: "/inbox", icon: Inbox, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "inbox" } },

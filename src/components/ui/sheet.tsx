@@ -8,13 +8,17 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer"
 
-function Sheet({ open: controlledOpen, defaultOpen, onOpenChange, ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
+function Sheet({ open: controlledOpen, defaultOpen, onOpenChange, canDismiss, ...props }: React.ComponentProps<typeof SheetPrimitive.Root> & {
+  canDismiss?: () => boolean
+}) {
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false)
   const open = controlledOpen ?? internalOpen
   const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+    if (!nextOpen && canDismiss?.() === false) return false
     if (controlledOpen === undefined) setInternalOpen(nextOpen)
     onOpenChange?.(nextOpen)
-  }, [controlledOpen, onOpenChange])
+    return true
+  }, [canDismiss, controlledOpen, onOpenChange])
   useMobileBackLayer(open, () => handleOpenChange(false), "sheet")
   return <SheetPrimitive.Root data-slot="sheet" open={open} onOpenChange={handleOpenChange} {...props} />
 }

@@ -14,7 +14,7 @@ export function TodayFocusStack({ workspace }: { workspace: NowWorkspace }) {
   return (
     <section aria-labelledby="today-focus-heading" className="min-w-0">
       <TodaySectionHeader href="/tasks" label="任务">
-        <span id="today-focus-heading">其他待办与关注</span>
+        <span id="today-focus-heading">其他关注</span>
       </TodaySectionHeader>
 
       <div className="mt-2 border-t border-[var(--separator)] pt-2">
@@ -30,7 +30,7 @@ export function TodayFocusStack({ workspace }: { workspace: NowWorkspace }) {
               <li key={task.id} className="flex min-h-[42px] items-center gap-1.5">
                 <CompleteTaskControl taskId={task.id} title={task.title} compact />
                 <Link href={taskRecordHref(task.id)} className="min-w-0 flex-1 py-2 group">
-                  <span className="block truncate text-[14px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
+                  <span className="block line-clamp-2 text-[15px] leading-6 font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                     {task.title || "未命名任务"}
                   </span>
                 </Link>
@@ -50,11 +50,11 @@ export function TodayFocusStack({ workspace }: { workspace: NowWorkspace }) {
                 <Link href={item.href} className="group flex gap-2.5 py-2">
                   <CircleAlert className="mt-0.5 size-3.5 shrink-0 text-[var(--warning)]" aria-hidden="true" />
                   <span className="min-w-0">
-                    <span className="block truncate text-[13px] font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
+                    <span className="block line-clamp-2 text-[15px] leading-6 font-medium text-[var(--text-primary)] transition-colors ui-transition group-hover:text-[var(--accent)]">
                       {item.title}
                     </span>
                     {item.description ? (
-                      <span className="mt-0.5 block truncate text-[12px] leading-5 text-[var(--text-secondary)]">
+                      <span className="mt-0.5 block line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">
                         {item.description}
                       </span>
                     ) : null}

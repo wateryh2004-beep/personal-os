@@ -6,42 +6,13 @@ import { useWorkspaceResource } from "@/lib/workspace-resource-cache";
 import { WorkspaceReadError } from "@/components/shared/workspace-read-error";
 import { WorkspaceSyncStatus } from "@/components/shared/workspace-sync-status";
 
-function TodayShell() {
-  return (
-    <div aria-busy="true" className="now-workspace mx-auto w-full max-w-[1080px] px-4 py-[30px] sm:px-6 sm:py-[38px] lg:px-8 lg:py-[46px]">
-      <div className="ui-skeleton-shimmer h-3 w-28 rounded-full" />
-      <div className="ui-skeleton-shimmer mt-3 h-8 w-24 rounded-[7px]" />
-      <div className="ui-skeleton-shimmer mt-4 h-3 w-56 max-w-[70%] rounded-full" />
-      <div className="ui-skeleton-shimmer mt-7 h-9 w-full max-w-[680px] rounded-[var(--radius-md)]" />
-
-      <div className="mt-8 sm:mt-10 border-y border-[var(--separator)] py-5">
-        <div className="ui-skeleton-shimmer h-2.5 w-20 rounded-full" />
-        <div className="mt-5 space-y-4">
-          <div className="ui-skeleton-shimmer h-4 w-[min(440px,76%)] rounded-full" />
-          <div className="ui-skeleton-shimmer h-3 w-[min(320px,58%)] rounded-full" />
-        </div>
-      </div>
-
-      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.32fr)_minmax(300px,.82fr)] lg:gap-12">
-        {[0, 1].map((column) => (
-          <div key={column}>
-            <div className="ui-skeleton-shimmer h-3 w-24 rounded-full" />
-            <div className="mt-5 space-y-5 border-t border-[var(--separator)] pt-5">
-              {[0, 1, 2].map((row) => (
-                <div key={row} className="grid grid-cols-[52px_minmax(0,1fr)] gap-4">
-                  <div className="ui-skeleton-shimmer h-3 w-10 rounded-full" />
-                  <div className="space-y-2">
-                    <div className="ui-skeleton-shimmer h-3.5 w-[min(340px,82%)] rounded-full" />
-                    <div className="ui-skeleton-shimmer h-2.5 w-24 rounded-full" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+export function TodayShell() {
+  return <div aria-busy="true" aria-label="正在载入今天" className="now-workspace mx-auto max-w-[1040px] px-5 py-6 sm:px-8 sm:py-9 lg:px-10 lg:py-11">
+    <div className="ui-skeleton-shimmer h-3 w-28 rounded-full" />
+    <div className="ui-skeleton-shimmer mt-3 h-8 w-20 rounded-lg" />
+    <div className="mt-7 rounded-2xl bg-[var(--surface-control)] p-5"><div className="ui-skeleton-shimmer h-4 w-20 rounded" /><div className="ui-skeleton-shimmer mt-5 h-5 w-3/4 rounded" /><div className="ui-skeleton-shimmer mt-3 h-3 w-1/3 rounded" /></div>
+    <div className="mt-8 grid gap-8 lg:grid-cols-2">{[0, 1].map((section) => <div key={section}><div className="ui-skeleton-shimmer h-4 w-24 rounded" />{[0,1].map((row) => <div key={row} className="mt-5 flex gap-4"><div className="ui-skeleton-shimmer h-3 w-12 rounded" /><div className="ui-skeleton-shimmer h-4 w-2/3 rounded" /></div>)}</div>)}</div>
+  </div>;
 }
 
 export function TodayWorkspaceLoader() {

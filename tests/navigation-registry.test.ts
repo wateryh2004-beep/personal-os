@@ -45,6 +45,7 @@ describe("navigation registry", () => {
   });
 
   it("derives contextual create behavior from the same registry", () => {
+    expect(contextualCreateKindForPath("/today")).toBe("inbox");
     expect(contextualCreateKindForPath("/notes/123")).toBe("note");
     expect(contextualCreateKindForPath("/travel/ideas")).toBe("travel");
     expect(contextualCreateKindForPath("/calendar")).toBe("calendar");

@@ -338,6 +338,7 @@ export async function getTodayWorkspace(
       );
 
       return {
+        generatedAt: now.toISOString(),
         focus,
         timezone,
         calendar: {

@@ -12,13 +12,13 @@ export function TodaySectionHeader({
 }) {
   return (
     <div className="flex min-h-6 items-center justify-between gap-3">
-      <h2 className="text-[14px] font-semibold leading-6 text-[var(--text-primary)]">
+      <h2 className="text-[16px] font-semibold leading-6 text-[var(--text-primary)]">
         {children}
       </h2>
       {href ? (
         <Link
           href={href}
-          className="pressable -mr-1 inline-flex shrink-0 items-center gap-0.5 rounded-[7px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
+          className="pressable -mr-1 inline-flex shrink-0 items-center gap-0.5 rounded-[7px] min-h-11 px-1 py-1 text-[13px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
         >
           {label}
           <ChevronRight className="size-3.5" aria-hidden="true" />

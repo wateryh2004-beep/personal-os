@@ -218,6 +218,40 @@ describe("Tasks mounted workspace state", () => {
 });
 
 describe("Task creation and dismissal", () => {
+  it.each(["today", "upcoming", "completed"])("reveals an undated successful quick-add from %s without changing dates or jumping on response", async (view) => {
+    saveWorkspaceSession("tasks:workspace", { view, listId: "list" });
+    const request = deferred<{ status: string; message: string; taskId: string }>();
+    mocks.create.mockReturnValue(request.promise);
+    await renderTasks([]); await flushTimers();
+    await act(async () => { textButton("新建任务").click(); });
+    const input = container.querySelector<HTMLInputElement>('input[name="title"]')!;
+    await act(async () => {
+      input.value = "A confirmed undated task";
+      input.form!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect((mocks.create.mock.calls[0][1] as FormData).get("due_at")).toBe("");
+    await act(async () => { request.resolve({ status: "success", message: "Created", taskId: "new-task" }); await request.promise; });
+    expect(container.textContent).toContain("已添加，未设截止时间");
+    expect(loadWorkspaceSession<{ view: string }>("tasks:workspace")?.view).toBe(view);
+    await act(async () => { textButton("查看任务").click(); });
+    expect(loadWorkspaceSession<{ view: string; listId: string }>("tasks:workspace")).toMatchObject({ view: "all", listId: "list" });
+    expect(container.querySelector('[aria-label="打开任务：A confirmed undated task"]')).not.toBeNull();
+    expect(container.querySelector('aside[aria-label="任务详情"]')).not.toBeNull();
+    expect(mocks.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps newer task-view navigation when an older create succeeds", async () => {
+    const request = deferred<{ status: string; message: string; taskId: string }>();
+    mocks.create.mockReturnValue(request.promise);
+    await renderTasks([]); await flushTimers();
+    await act(async () => { textButton("新建任务").click(); });
+    const input = container.querySelector<HTMLInputElement>('input[name="title"]')!;
+    await act(async () => { input.value = "Later result"; input.form!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    await act(async () => { textButton("已完成").click(); });
+    await act(async () => { request.resolve({ status: "success", message: "Created", taskId: "late" }); await request.promise; });
+    expect(loadWorkspaceSession<{ view: string }>("tasks:workspace")?.view).toBe("completed");
+    expect(textButton("查看任务")).toBeDefined();
+  });
   it("retains failed Quick Add text and never sends a repeated pending submission", async () => {
     const request = deferred<{ status: string; message: string }>();
     mocks.create.mockReturnValue(request.promise);
@@ -247,6 +281,29 @@ describe("Task creation and dismissal", () => {
 });
 
 describe("Calendar exact-record navigation", () => {
+  it("closes the mobile overflow menu before opening a new calendar draft", async () => {
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })) });
+    await renderCalendar(); await flushTimers();
+    await click('[aria-label="更多日历操作"]');
+    const create = [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].find((button) => button.textContent === "新建日程")!;
+    expect(create).toBeDefined();
+    await act(async () => { create.click(); });
+    expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
+    expect(container.querySelector('[data-draft-start]')).not.toBeNull();
+    expect(mocks.updateCalendar).not.toHaveBeenCalled();
+  });
+  it("offers direct mobile day/month and today navigation outside the overflow menu", async () => {
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })) });
+    await renderCalendar(); await flushTimers();
+    const group = container.querySelector('[role="group"][aria-label="日历视图"]')!;
+    expect(group.textContent).toBe("日月");
+    await act(async () => { [...group.querySelectorAll("button")].find((button) => button.textContent === "月")!.click(); });
+    expect(mocks.fullView?.initialView).toBe("dayGridMonth");
+    await click('[aria-label="下一段日期"]');
+    await click('[aria-label="回到今天"]');
+    expect(mocks.fullView?.initialDate.toDateString()).toBe(new Date().toDateString());
+    expect(container.querySelector('[aria-label="回到今天"]')?.closest('[data-slot="popover-content"]')).toBeNull();
+  });
   it("opens the requested event and moves the visible calendar to its date", async () => {
     const event = calendarEvent("target");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ event }) }));

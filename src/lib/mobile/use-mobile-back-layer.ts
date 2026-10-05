@@ -21,8 +21,9 @@ export function releaseMobileBackLayerForNavigation(layerName: string) {
 /**
  * Makes Android/browser Back dismiss the top mobile overlay before leaving the route.
  * Each open layer owns one same-URL history entry, so nested overlays unwind in order.
+ * Return false from onDismiss to keep a busy layer open and restore its Back entry.
  */
-export function useMobileBackLayer(open: boolean, onDismiss: () => void, layerName: string) {
+export function useMobileBackLayer(open: boolean, onDismiss: () => void | boolean, layerName: string) {
   const dismissRef = useRef(onDismiss);
   const activeRef = useRef(false);
   const markerRef = useRef<string | null>(null);
@@ -48,9 +49,17 @@ export function useMobileBackLayer(open: boolean, onDismiss: () => void, layerNa
         : undefined;
       if (nextMarker === marker) return;
 
+      if (dismissRef.current() === false) {
+        // Back has already consumed our entry. Restore that same layer over the
+        // current route so another Back cannot escape an in-flight operation.
+        const restoredState = window.history.state && typeof window.history.state === "object"
+          ? window.history.state
+          : {};
+        window.history.pushState({ ...restoredState, [historyMarkerKey]: marker }, "", window.location.href);
+        return;
+      }
       activeRef.current = false;
       markerRef.current = null;
-      dismissRef.current();
     };
 
     window.addEventListener("popstate", onPopState);

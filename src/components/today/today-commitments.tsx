@@ -107,16 +107,16 @@ export function TodayCommitments({ commitments, timezone, priorityReminderCount 
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? commitments : commitments.slice(0, DEFAULT_VISIBLE);
 
+  if (!commitments.length) return null;
+
   return (
-    <section aria-labelledby="today-commitments-heading" className="border-y border-[var(--separator)]">
-      <div className="flex min-h-12 flex-wrap items-end justify-between gap-2.5 py-3">
+    <section aria-labelledby="today-commitments-heading" className="min-w-0">
+      <div className="flex min-h-11 items-center justify-between gap-3">
         <div>
-          <h2 id="today-commitments-heading" className="text-[14px] font-semibold leading-6">
-            到期与临近提醒
+          <h2 id="today-commitments-heading" className="text-[16px] font-semibold leading-6">
+            需要处理
           </h2>
-          <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">
-            {priorityReminderCount || scheduleReminderCount ? [priorityReminderCount ? `${priorityReminderCount} 项到期任务已在重点中显示` : "", scheduleReminderCount ? `${scheduleReminderCount} 项日程提醒已在时间轴显示` : ""].filter(Boolean).join(" · ") : "来自截止时间、日程和职业节点"}
-          </p>
+
         </div>
         {commitments.length ? (
           <span className="text-[12px] tabular-nums text-[var(--text-tertiary)]">
@@ -126,31 +126,29 @@ export function TodayCommitments({ commitments, timezone, priorityReminderCount 
       </div>
 
       {visible.length ? (
-        <ul className="divide-y divide-[var(--separator)] border-t border-[var(--separator)]">
+        <ul className="divide-y divide-[var(--separator)]">
           {visible.map((item) => (
-            <li key={item.id} className="grid gap-2 py-[13px] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-5">
+            <li key={item.id} className="grid gap-1 py-3">
               <div className="min-w-0">
                 <Link
                   href={item.href}
-                  className="block truncate text-[14px] font-medium text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)]"
+                  className="block line-clamp-2 text-[16px] leading-6 font-medium text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)]"
                 >
                   {item.title}
                 </Link>
-                <p className="mt-1 line-clamp-2 text-[12px] leading-[1.55] text-[var(--text-secondary)]">
+                <p className="mt-1 line-clamp-2 text-[13px] leading-[1.55] text-[var(--text-secondary)]">
                   {item.whyNow} · {item.constraint}
                 </p>
-                <p className="mt-1 text-[12px] text-[var(--text-tertiary)]">{item.source.label}</p>
+
               </div>
-              <div className="-ml-1 shrink-0 sm:ml-0">
-                <CommitmentActions item={item} timezone={timezone} />
-              </div>
+              {item.kind === "task" && item.task ? <div className="flex items-center justify-between gap-2"><details><summary className="min-h-11 cursor-pointer py-2.5 text-[13px] text-[var(--text-secondary)]">更多操作</summary><DeferTaskControl task={item.task} timezone={timezone} /><p className="pb-2 text-[12px] text-[var(--text-secondary)]">{item.source.label}</p></details><CompleteTaskControl taskId={item.task.id} title={item.task.title} compact /></div> : <details><summary className="min-h-11 cursor-pointer py-2.5 text-[13px] text-[var(--text-secondary)]">更多操作</summary><CommitmentActions item={item} timezone={timezone} /><p className="pb-2 text-[12px] text-[var(--text-secondary)]">{item.source.label}</p></details>}
             </li>
           ))}
         </ul>
       ) : (
         <div className="flex items-center gap-2 border-t border-[var(--separator)] py-3 text-[13px] leading-[22px] text-[var(--text-secondary)]">
           <Check className="size-4 shrink-0 text-[var(--success)]" aria-hidden="true" />
-          {priorityReminderCount || scheduleReminderCount ? "其余事项暂无到期或临近提醒。" : "暂无到期与临近提醒。"}
+          {priorityReminderCount || scheduleReminderCount ? "其余事项暂无到期或临近提醒。" : "暂无需要处理。"}
         </div>
       )}
 
@@ -159,7 +157,7 @@ export function TodayCommitments({ commitments, timezone, priorityReminderCount 
           <button
             type="button"
             onClick={() => setExpanded((value) => !value)}
-            className="pressable inline-flex items-center gap-1 rounded-[8px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+            className="pressable inline-flex items-center gap-1 rounded-[8px] min-h-11 px-1 py-1 text-[13px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
           >
             {expanded ? "收起" : `还有 ${commitments.length - DEFAULT_VISIBLE} 项`}
             <ChevronDown className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />

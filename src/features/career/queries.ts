@@ -1,4 +1,5 @@
 import { requireOwner } from "@/lib/auth/require-owner";
+import { getDateKeyInTimeZone } from "@/lib/date-keys";
 
 export async function getCareerOverview() {
   const { supabase, userId } = await requireOwner();
@@ -63,6 +64,32 @@ export async function getExperience(id: string) {
 
 export async function getCareerHome() {
   const { supabase, userId } = await requireOwner();
+  const now = Date.now();
+  // Only the date-scoped reads wait for the timezone; other home reads stay parallel.
+  const roadmapPromise = (async () => {
+    const profile = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
+    const timezone = profile.data?.timezone || "Asia/Shanghai";
+    const today = getDateKeyInTimeZone(new Date(now), timezone)!;
+    const [milestones, pastMilestones] = await Promise.all([
+      supabase
+        .from("career_milestones")
+        .select("id,title,target_date,status")
+        .eq("user_id", userId)
+        .is("archived_at", null)
+        .in("status", ["planned", "in_progress"])
+        .gte("target_date", today)
+        .order("target_date")
+        .limit(5),
+      supabase
+        .from("career_milestones")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .is("archived_at", null)
+        .in("status", ["planned", "in_progress"])
+        .lt("target_date", today),
+    ]);
+    return { timezone, milestones, pastMilestones, unavailable: Boolean(profile.error || milestones.error || pastMilestones.error) };
+  })();
 
   const [
     profile,
@@ -71,7 +98,7 @@ export async function getCareerHome() {
     skillsCount,
     resumesCount,
     applications,
-    milestones,
+    roadmap,
     interviewTargets,
     interviewPreparations,
   ] = await Promise.all([
@@ -103,12 +130,7 @@ export async function getCareerHome() {
       .from("career_applications")
       .select("id,status")
       .is("archived_at", null),
-    supabase
-      .from("career_milestones")
-      .select("id,title,target_date,status")
-      .is("archived_at", null)
-      .order("target_date")
-      .limit(5),
+    roadmapPromise,
     supabase
       .from("interview_contexts")
       .select("id,title,organization_snapshot,role_title_snapshot,status,next_interview_at")
@@ -126,14 +148,16 @@ export async function getCareerHome() {
   ]);
 
   return {
-    now: Date.now(),
+    now,
+    timezone: roadmap.timezone,
     profile: profile.data,
     directions: directions.data ?? [],
     experienceCount: experiencesCount.count ?? 0,
     skillCount: skillsCount.count ?? 0,
     resumeCount: resumesCount.count ?? 0,
     applications: applications.data ?? [],
-    milestones: milestones.data ?? [],
+    milestones: roadmap.milestones.data ?? [],
+    pastMilestoneCount: roadmap.pastMilestones.count ?? 0,
     interviewTargets: interviewTargets.data ?? [],
     interviewPreparations: interviewPreparations.data ?? [],
     unavailable: Boolean(
@@ -143,7 +167,7 @@ export async function getCareerHome() {
       || skillsCount.error
       || resumesCount.error
       || applications.error
-      || milestones.error
+      || roadmap.unavailable
       || interviewTargets.error
       || interviewPreparations.error
     ),

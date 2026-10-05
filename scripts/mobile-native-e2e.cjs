@@ -73,13 +73,15 @@ async function backCloses(page, trigger, visibleTarget) {
       await page.getByTestId("mobile-native-harness").waitFor();
       const focus = page.locator('[aria-labelledby="today-priorities-heading"]');
       await focus.getByRole("button", { name: "选择重点" }).click();
-      for (const n of [1,2,3]) await focus.getByRole("button", { name: new RegExp(`E2E 未定期任务 ${n}`) }).click();
-      assert.equal(await focus.getByRole("button", { name: /E2E 未定期任务 4/ }).isDisabled(), true, `${width}px limits priorities to three`);
-      assert.equal(await focus.locator('a[href^="/tasks?task="]').count(), 3, `${width}px uses exact task links`);
+      const focusEditor = page.getByRole("dialog", { name: "选择今日重点", exact: true });
+      for (const n of [1,2,3]) await focusEditor.getByRole("button", { name: new RegExp(`选择重点 E2E 未定期任务 ${n}`) }).click();
+      assert.equal(await focusEditor.getByRole("button", { name: /选择重点 E2E 未定期任务 4/ }).isDisabled(), true, `${width}px limits priorities to three`);
+      assert.equal(await focusEditor.getByRole("list", { name: "待保存的今日重点" }).locator("li").count(), 3);
       await capture(page, `priorities-selected-${width}`);
-      await focus.getByRole("button", { name: /移除重点 E2E 未定期任务 2/ }).click();
-      assert.equal(await focus.getByRole("button", { name: /E2E 未定期任务 4/ }).isEnabled(), true);
-      await focus.getByRole("button", { name: "取消", exact: true }).click();
+      await focusEditor.getByRole("button", { name: /移除重点 E2E 未定期任务 2/ }).click();
+      assert.equal(await focusEditor.getByRole("button", { name: /选择重点 E2E 未定期任务 4/ }).isEnabled(), true);
+      await focusEditor.getByRole("button", { name: "取消", exact: true }).click();
+      await focusEditor.waitFor({ state: "hidden" });
       assert.equal(await focus.locator('a[href^="/tasks?task="]').count(), 0, "cancel does not save selections");
       await page.locator('[name="duration_seconds"]').fill("90");
       const issue = page.locator('[name="issue_tags"]').first();
@@ -222,41 +224,34 @@ async function backCloses(page, trigger, visibleTarget) {
         const selected = page.locator('nav [aria-current="page"]:visible');
         assert.equal(await selected.count(), 1, `${scene} ${width}px should identify one active navigation destination`);
         if (scene === "today") {
-          const heading = await page.getByRole("heading", { name: "现在", exact: true }).boundingBox();
+          const heading = await page.getByRole("heading", { name: "今天", exact: true }).boundingBox();
           const main = await page.locator("#main-content").boundingBox();
           assert.ok(heading && main);
           const inset = heading.x - main.x;
-          const expectedInset = Math.max(0, main.width - 1080) / 2 + (width < 768 ? 16 : 32);
+          const expectedInset = Math.max(0, main.width - 1040) / 2 + (width < 768 ? 16 : width < 1024 ? 32 : 40);
           assert.ok(Math.abs(inset - expectedInset) <= 1, `Today ${width}px has one responsive gutter: ${inset}, expected ${expectedInset}`);
           todayOrigin = await page.locator(".now-workspace > header").boundingBox();
         }
         if (scene === "today" || scene === "today-filled") {
-          const captureButton = await page.getByRole("button", { name: "加入 Inbox", exact: true }).boundingBox();
-          assert.ok(captureButton);
-          assert.ok(Math.abs(captureButton.width - captureButton.height) <= 1, "quick capture keeps a circular hit target");
-          if (width < 768) assert.ok(captureButton.width >= 44, "quick capture is touch sized");
+          assert.equal(await page.getByRole("button", { name: "加入 Inbox", exact: true }).count(), 0, "capture has one global entry point");
           const schedule = await page.locator('[aria-labelledby="today-schedule-heading"]').boundingBox();
-          const context = await page.locator('[aria-labelledby="today-context-heading"]').boundingBox();
+          const context = await page.getByTestId("today-background").boundingBox();
           const future = await page.locator('[aria-labelledby="today-future-heading"]').boundingBox();
           const priorities = await page.locator('[aria-labelledby="today-priorities-heading"]').boundingBox();
-          const reminders = await page.locator('[aria-labelledby="today-commitments-heading"]').boundingBox();
-          assert.ok(schedule && context && future && priorities && reminders);
-          assert.equal(await page.locator('[aria-labelledby="today-focus-heading"]').count(), 0, "empty or already-prioritized tasks do not repeat in another section");
+          assert.ok(schedule && context && future && priorities);
+          assert.equal(await page.locator('[aria-labelledby="today-focus-heading"]').count(), 0, "empty or already-prioritized tasks do not repeat");
+          assert.equal(await page.locator('[aria-labelledby="today-commitments-heading"]').count(), 0, "empty reminders do not become another module");
+          assert.equal(await page.getByTestId("today-background").getAttribute("open"), null);
           const contentBounds = await page.locator(".now-workspace").evaluate((node) => {
-            const box = node.getBoundingClientRect();
-            const style = getComputedStyle(node);
+            const box = node.getBoundingClientRect(); const style = getComputedStyle(node);
             return { left: box.left + parseFloat(style.paddingLeft), right: box.right - parseFloat(style.paddingRight) };
           });
-          for (const box of [schedule, context, future, priorities, reminders]) {
-            assert.ok(box.x >= contentBounds.left - 1 && box.x + box.width <= contentBounds.right + 1, `${scene} ${width}px sections must stay inside content gutters, even when body overflow is clipped`);
-          }
-          assert.ok(Math.abs(priorities.x - reminders.x) <= 1, "Today priorities and reminders align");
-          if (width >= 1024) assert.ok(schedule.x >= priorities.x + priorities.width, "Today schedule sits beside priorities on desktop");
-          else assert.ok(schedule.y >= priorities.y + priorities.height, "Today schedule follows priorities on smaller screens");
-          const body = await textMetrics(page.locator('[aria-labelledby="today-priorities-heading"] > div p').first());
-          assert.ok(body.fontSize >= 12 && body.lineHeight >= 20, "Today supporting copy stays readable");
-          visualMetrics.push({ scene, width, captureButton, schedule, context, future, priorities, reminders, body });
+          for (const box of [schedule, context, future, priorities]) assert.ok(box.x >= contentBounds.left - 1 && box.x + box.width <= contentBounds.right + 1);
+          assert.ok(schedule.y >= priorities.y + priorities.height, "schedule follows the full-width priorities");
+          if (width < 1024) assert.ok(context.y > future.y, "future arrangements precede background");
+          visualMetrics.push({ scene, width, schedule, context, future, priorities });
         }
+
         if (scene === "heading" || scene === "tasks" || scene === "notes") {
           const title = await textMetrics(page.locator("#main-content h1").first());
           assert.equal(title.fontSize, width < 768 ? 24 : 28, "workspace titles share a responsive scale");
@@ -281,7 +276,7 @@ async function backCloses(page, trigger, visibleTarget) {
           assert.ok(title && title.x + title.width <= menu.x, "Notes text and menu hit areas stay separate");
         }
         if (scene === "today-loading") {
-          const skeletonOrigin = await page.locator(".now-workspace > header").boundingBox();
+          const skeletonOrigin = await page.locator(".now-workspace > div").first().boundingBox();
           assert.ok(todayOrigin && skeletonOrigin);
           assert.ok(Math.abs(todayOrigin.x - skeletonOrigin.x) <= 1 && Math.abs(todayOrigin.y - skeletonOrigin.y) <= 1, `Today ${width}px loading and content share an origin`);
         }

@@ -60,11 +60,12 @@ const events: [] = [];
 const categories: [] = [];
 
 const career: CareerHomeData = {
-  now: Date.parse("2026-10-03T08:00:00Z"), profile: null, directions: [], experienceCount: 0,
+  now: Date.parse("2026-10-03T08:00:00Z"), timezone: "Asia/Shanghai", pastMilestoneCount: 0, profile: null, directions: [], experienceCount: 0,
   skillCount: 0, resumeCount: 0, applications: [], milestones: [], interviewTargets: [], interviewPreparations: [], unavailable: false,
 };
 const filledCareer: CareerHomeData = {
   ...career,
+  pastMilestoneCount: 3,
   profile: { professional_headline: "Synthetic fixture · 仅用于职业工作台布局验证", current_stage: null },
   interviewTargets: [{ id: "e2e-target", title: "示例面试准备", organization_snapshot: "布局测试组织", role_title_snapshot: "Synthetic fixture / 示例岗位", status: "active", next_interview_at: "2026-10-04T06:00:00Z" }],
   interviewPreparations: [{ id: "e2e-prep", context_id: "e2e-target", status: "draft", next_practice_at: null }],

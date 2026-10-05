@@ -5,7 +5,7 @@ import { ArrowRight, LoaderCircle, Sparkles } from "lucide-react";
 import { useState } from "react";
 import type { TodayBriefItem } from "@/features/today/types";
 
-function askAgent(prompt: string) {
+export function askTodayAgent(prompt: string) {
   window.dispatchEvent(new CustomEvent("personal-os:agent-open"));
   window.setTimeout(() => {
     window.dispatchEvent(new CustomEvent("personal-os:agent-submit", { detail: { query: prompt } }));
@@ -61,8 +61,8 @@ export function TodayBrief({ items }: { items: TodayBriefItem[] }) {
         {items.slice(0, 2).map((item) => (
           <li key={item.id} className="grid gap-2.5 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4">
             <div className="min-w-0">
-              <p className="text-[13px] font-medium leading-5 text-[var(--text-primary)]">{item.title}</p>
-              <p className="mt-0.5 text-[12px] leading-5 text-[var(--text-secondary)]">{item.reason}</p>
+              <p className="text-[15px] font-medium leading-6 text-[var(--text-primary)]">{item.title}</p>
+              <p className="mt-0.5 text-[13px] leading-6 text-[var(--text-secondary)]">{item.reason}</p>
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
                 {item.sourceRefs.map((source) => (
                   <Link
@@ -79,8 +79,8 @@ export function TodayBrief({ items }: { items: TodayBriefItem[] }) {
             {item.suggestedAction ? (
               <button
                 type="button"
-                onClick={() => askAgent(item.suggestedAction!.agentPrompt)}
-                className="h-7 self-center rounded-[var(--radius-sm)] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]"
+                onClick={() => askTodayAgent(item.suggestedAction!.agentPrompt)}
+                className="min-h-11 justify-self-start rounded-[var(--radius-sm)] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]"
               >
                 {item.suggestedAction.label}
               </button>
@@ -90,4 +90,8 @@ export function TodayBrief({ items }: { items: TodayBriefItem[] }) {
       </ol>
     </section>
   );
+}
+
+export function TodayBriefAction({ item }: { item: TodayBriefItem }) {
+  return item.suggestedAction ? <button type="button" onClick={() => askTodayAgent(item.suggestedAction!.agentPrompt)} className="min-h-11 text-[13px] text-[var(--accent)]">{item.suggestedAction.label}</button> : null;
 }
