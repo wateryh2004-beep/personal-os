@@ -1,3 +1,5 @@
+import { InterviewStudyView } from "@/components/career/interview/interview-study-view";
+import { selectWorkspaceAnswer, workspaceAnswerMetadata } from "@/features/interview/workspace-answers";
 import { InterviewPrompt } from "@/components/career/interview/interview-prompt";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -18,7 +20,8 @@ export default async function PracticeDetailPage({ params, searchParams }: {
   const question = Array.isArray(prep.interview_questions) ? prep.interview_questions[0] : prep.interview_questions;
   const context = Array.isArray(prep.interview_contexts) ? prep.interview_contexts[0] : prep.interview_contexts;
   const prompt = prep.prompt_override || question?.canonical_prompt || "未命名问题";
-  const currentAnswer = data.answers[0] ?? null;
+  const currentAnswer = selectWorkspaceAnswer(data.answers, prep.target_language);
+  const thoughts = prep.working_thoughts_markdown || [prep.key_message, prep.answer_logic_markdown].filter(Boolean).join("\n\n");
   const primaryStory = data.linkedStories[0] ?? null;
   const savedAttempt = data.attempts.find((attempt: { id: string }) => attempt.id === saved);
   const questionHref = prep.context_id ? `/career/interview/questions/${prep.question_id}?context=${prep.context_id}` : `/career/interview/questions/${prep.question_id}`;
@@ -87,10 +90,23 @@ export default async function PracticeDetailPage({ params, searchParams }: {
       </PracticeAttemptForm>
 
       <div className="mt-12 max-w-3xl space-y-5">
-        {currentAnswer ? (
+        {currentAnswer || thoughts || prep.risk_markdown ? (
           <details>
-            <summary className="cursor-pointer text-sm text-zinc-400 hover:text-zinc-700">查看当前答案</summary>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-zinc-600">{currentAnswer.body_markdown}</p>
+            <summary className="cursor-pointer text-sm text-zinc-400 hover:text-zinc-700">查看标准答案与讲解</summary>
+            <InterviewStudyView
+              key={currentAnswer?.id ?? prep.id}
+              answer={currentAnswer?.body_markdown ?? ""}
+              thoughts={thoughts}
+              isDraft={currentAnswer?.status === "draft"}
+              answerMeta={workspaceAnswerMetadata(currentAnswer) ?? undefined}
+              learning={{
+                keyMessage: prep.key_message && !thoughts.includes(prep.key_message) ? prep.key_message : "",
+                logic: prep.answer_logic_markdown && !thoughts.includes(prep.answer_logic_markdown) ? prep.answer_logic_markdown : "",
+                pitfalls: prep.risk_markdown ?? "", nextFocus: prep.next_focus ?? "",
+              }}
+              showRecall={false}
+              versionHref={`${questionHref}#answer-versions`}
+            />
           </details>
         ) : null}
 

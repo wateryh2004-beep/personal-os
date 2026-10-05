@@ -13,7 +13,15 @@ Search matches the title, prompt, concepts/notes, reasoning, pitfalls, reference
 
 ## Read, personalize, practice
 
-Reading renders sanitized Markdown without saving or confirming anything. Existing learning fields appear as concepts/notes, key judgment, reasoning, pitfalls, and next-practice guidance. Full reference answers and embedded follow-up explanations remain readable, including bilingual answers.
+Reading renders sanitized Markdown without saving or confirming anything. Existing learning fields appear as concepts/notes, key judgment, reasoning, pitfalls, and next-practice guidance. The same reader is used by the workspace, question detail, and the folded practice reference. The complete standard answer is first; explanation is a separately labelled native disclosure after it. Opening/closing explanation or using chapter navigation never saves, adopts, or records practice. Practice selects spoken answers with the same language/status rules as the workspace and includes draft fallback, visibly marked for review.
+
+### Answer and explanation authoring contract
+
+Use `## 标准答案` for a complete examiner-facing response, then `## 思路拆解讲解` for the lesson in the existing versioned `body_markdown`. Use level-three subheadings within either section. This keeps a rewrite together in the append-only answer history without a database migration. Existing preparation thoughts, reasoning, and pitfalls remain additional explanation; provenance stays separately accessible.
+
+The presentation adapter recognizes those explicit full-answer headings and the observed legacy headings `完整参考答案`, `完整参考答案（AI原创未确认草稿）`, and `可口述答案`, plus the observed full Chinese/English spoken-answer headings. Both languages retain their labels when displayed together. It never substitutes a short recap for a complete response. Legacy sectioned lessons without an explicit full answer show an honest incomplete-answer message and a one-click “阅读现有讲解” control; all their original prose remains available under explanation and exact original text. Unknown JSON remains available verbatim. Complex Markdown requiring document-wide context is preserved, not guessed apart.
+
+This is only a presentation boundary, not a semantic content rewrite or correctness review. Coaching embedded inside a legacy full-answer section, unsectioned mixed prose, incomplete responses, and stale factual explanations still require editorial rewriting. Current/draft/source labels do not certify correctness. The code does not alter stored Markdown, questions, metadata, preparation state, or answer history on read.
 
 Editing is explicit and preserves the existing append-only answer-version workflow. AI provenance, draft/current status, language, and version are visible. Adoption remains a separate explicit action in the full question page. Reading is never counted as mastery or practice.
 

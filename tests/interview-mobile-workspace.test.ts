@@ -33,6 +33,8 @@ it("starts on the general list and opens even the initially selected question", 
   expect(list().classList.contains("hidden")).toBe(true);
   expect(detail().classList.contains("hidden")).toBe(false);
   expect(detail().querySelector('[data-testid="interview-prompt-text"]')!.textContent).toBe("Question general1");
+  expect(detail().textContent).not.toContain("Logic general1");
+  await act(async () => button("思路拆解讲解").click());
   expect(detail().textContent).toContain("Logic general1");
   expect(detail().querySelector("textarea")).toBeNull();
   expect(document.activeElement).toBe(detail());
@@ -103,7 +105,7 @@ it("searches reference bodies and restores filters after mobile Back/Forward wit
   await act(async () => button("Question general2").click());
   expect(new URLSearchParams(window.location.search).get("q")).toBe("Answer general2");
   const length = history.length;
-  await act(async () => button("参考表达").click());
+  await act(async () => button("标准答案").click());
   expect(history.length).toBe(length);
   expect(history.state?.interviewDetail).toBe(true);
   await act(async () => { history.back(); await new Promise((resolve) => setTimeout(resolve, 30)); });
@@ -136,7 +138,7 @@ it("keeps the primary workspace free of manual authoring controls", async () => 
 it("keeps exact draft and target context on the compatibility version link", async () => {
   const item = { ...makeItem("swire1", "swire"), answerId: "draft-2", answerMeta: draftMeta };
   await render({ items: [item], initialContextId: "swire", initialQuestionId: "swire1" });
-  const metadata = detail().querySelector<HTMLDetailsElement>('[data-testid="interview-study-view"] details')!;
+  const metadata = detail().querySelector<HTMLDetailsElement>('[data-testid="interview-study-view"] footer details')!;
   await act(async () => { metadata.open = true; metadata.dispatchEvent(new Event("toggle")); });
   const versions = [...detail().querySelectorAll("a")].find((node) => node.textContent?.includes("查看答案版本"))!;
   expect(versions.getAttribute("href")).toBe("/career/interview/questions/swire1?context=swire&answer=draft-2#answer-versions");

@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ owner: vi.fn() }));
 vi.mock("@/lib/auth/require-owner", () => ({ requireOwner: mocks.owner }));
-import { getInterviewWorkspaceData } from "@/features/interview/queries";
+import { getInterviewWorkspaceData, getPracticeDetail } from "@/features/interview/queries";
 it("paginates answer history beyond the server row cap without losing late preparations", async () => {
   const rows = Array.from({ length: 1205 }, (_, index) => ({ id: `answer-${String(index).padStart(4, "0")}`, preparation_id: index < 1200 ? "early" : "late", status: index === 1204 ? "current" : "draft" }));
   const ranges: number[][] = [];
@@ -34,4 +34,22 @@ it("paginates preparations and competency links without silently truncating disc
   expect(data.preparations).toHaveLength(1101);
   expect(data.competencyLinks).toHaveLength(1307);
   expect(data.unavailable).toBe(false);
+});
+it("loads current and draft practice references under the same authenticated preparation", async () => {
+  const calls: unknown[][] = [];
+  const supabase = { from(table: string) {
+    const query = {
+      select: () => query, eq: (field: string, value: unknown) => { calls.push([table, "eq", field, value]); return query; },
+      in: (field: string, value: unknown) => { calls.push([table, "in", field, value]); return query; },
+      is: (field: string, value: unknown) => { calls.push([table, "is", field, value]); return query; },
+      order: () => query, limit: () => query,
+      maybeSingle: () => Promise.resolve({ data: { id: "prep", interview_questions: { archetype_id: "archetype" } } }),
+      then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
+    }; return query;
+  } };
+  mocks.owner.mockResolvedValue({ supabase });
+  await getPracticeDetail("prep");
+  expect(calls).toContainEqual(["interview_answer_versions", "in", "status", ["current", "draft"]]);
+  expect(calls).toContainEqual(["interview_answer_versions", "eq", "preparation_id", "prep"]);
+  expect(calls).toContainEqual(["interview_answer_versions", "is", "archived_at", null]);
 });

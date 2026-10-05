@@ -72,7 +72,7 @@ it("does not read unrelated long bodies when selecting a question without a text
 
 it("does not reparse unchanged study Markdown when opening the selected mobile detail", async () => {
   await render([makeItem(0), makeItem(1)]);
-  expect(mocks.markdown).toHaveBeenCalledTimes(2);
+  expect(mocks.markdown).toHaveBeenCalledTimes(1);
   mocks.markdown.mockClear();
   await act(async () => button("Question 0").click());
   expect(mocks.markdown.mock.calls.length).toBe(0);
@@ -81,7 +81,7 @@ it("does not reparse unchanged study Markdown when opening the selected mobile d
 
 it("opens version metadata without reparsing the displayed reading bodies", async () => {
   await render([{ ...makeItem(0), answerMeta: { status: "draft", source: "ai_draft", language: "bilingual", confirmed_at: null, version_number: 2 } }]);
-  const metadata = host.querySelector<HTMLDetailsElement>('[data-testid="interview-study-view"] details')!;
+  const metadata = host.querySelector<HTMLDetailsElement>('[data-testid="interview-study-view"] footer details')!;
   mocks.markdown.mockClear();
   await act(async () => { metadata.open = true; metadata.dispatchEvent(new Event("toggle")); });
   expect(host.textContent).toContain("参考答案 · 待确认");

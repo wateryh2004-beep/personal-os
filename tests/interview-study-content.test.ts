@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { prepareStudyContent } from "@/features/interview/study-content";
+import { prepareInterviewAnswer, prepareStudyContent } from "@/features/interview/study-content";
 
 describe("read-only interview section presentation", () => {
   it("folds only observed source headings and preserves every original byte", () => {
@@ -53,4 +53,77 @@ describe("read-only interview section presentation", () => {
     expect(prepareStudyContent(original)).toMatchObject({ format: "structured-original", original, reading: "", references: "" });
     expect(prepareStudyContent('{"incomplete":').reading).toBe('{"incomplete":');
   });
+});
+
+describe("answer and explanation boundary", () => {
+  it("separates canonical full answer from teaching without truncating the answer", () => {
+    const raw = "## 标准答案\r\n我的结论是65。\r\n### 限制条件\r\n只有这些条件成立才适用。\r\n\r\n## 思路拆解讲解\r\n先算100−20−15。\r\n\r\n## 参考资料\r\nhttps://example.com";
+    const result = prepareInterviewAnswer(raw);
+    expect(result.answer).toContain("我的结论是65。");
+    expect(result.answer).toContain("只有这些条件成立才适用。");
+    expect(result.answer).not.toContain("先算");
+    expect(result.explanation).toContain("先算100−20−15。");
+    expect(result.references).toContain("https://example.com");
+    expect(result.segments.map((segment) => segment.markdown).join("")).toBe(raw);
+    expect(result.original).toBe(raw);
+  });
+
+  it("keeps follow-ups and recaps out of a recognized complete answer", () => {
+    const result = prepareInterviewAnswer("## 来源与适用边界\n原创。\n## 完整参考答案（AI原创未确认草稿）\nA full spoken answer.\n## 简洁口述版\nShort recap.\n## 模拟追问与原创参考应答\nTeach the extension.");
+    expect(result.answer.trim()).toBe("A full spoken answer.");
+    expect(result.explanation).toContain("Short recap.");
+    expect(result.explanation).toContain("Teach the extension.");
+    expect(result.references).toContain("原创。");
+  });
+
+  it("does not promote a reasoning walkthrough or brief recap into a complete answer", () => {
+    const raw = "## 完整推理与参考解析\nWorked reasoning.\n## 简洁复述版\nShort recap.";
+    expect(prepareInterviewAnswer(raw)).toMatchObject({ answer: "", explanation: raw, separation: "needs-answer" });
+  });
+
+  it("does not split on example headings within a fence or mistake nested headings for boundaries", () => {
+    const result = prepareInterviewAnswer("## 标准答案\nAnswer.\n```md\n## 思路拆解讲解\nLiteral example.\n```\n### 思路拆解讲解\nPart of the answer.\n## 思路拆解讲解\nReal teaching.");
+    expect(result.answer).toContain("Literal example.");
+    expect(result.answer).toContain("Part of the answer.");
+    expect(result.answer).not.toContain("Real teaching.");
+    expect(result.explanation).toContain("Real teaching.");
+  });
+
+  it("retains prose and every uncertain original without claiming a semantic rewrite", () => {
+    expect(prepareInterviewAnswer("A plain authored answer.")).toMatchObject({ answer: "A plain authored answer.", explanation: "", separation: "unsectioned" });
+    expect(prepareInterviewAnswer('{"answer":"unknown contract"}')).toMatchObject({ answer: "", separation: "structured-original" });
+    const raw = "## 标准答案\n[Linked][source]\n## 思路拆解讲解\n[source]: https://example.com";
+    expect(prepareInterviewAnswer(raw)).toMatchObject({ original: raw, answer: "", explanation: raw, separation: "needs-answer" });
+  });
+});
+
+it("preserves both languages of observed bilingual answers and keeps verification notes separate", () => {
+  const result = prepareInterviewAnswer("## 中文口述参考（约120秒）\n中文完整回答。\n## English spoken answer\nComplete English answer.\n## 核实边界与依据（不属于口述内容）\nDo not invent facts.");
+  expect(result.answer).toContain("### 中文口述参考（约120秒）");
+  expect(result.answer).toContain("### English spoken answer");
+  expect(result.answer).toContain("Complete English answer.");
+  expect(result.answer).not.toContain("Do not invent facts.");
+  expect(result.references).toContain("Do not invent facts.");
+});
+
+it.each([
+  "\n\n## 标准答案\nFull answer.\n\n---\n\n## 思路拆解讲解\nTeaching only.",
+  "Preamble.\n## 标准答案\n[Answer][source]\n## 思路拆解讲解\nTeaching only.\n[source]: https://example.com",
+  "Preamble.\n## 标准答案\nFull answer.\n<div>Block</div>\n## 思路拆解讲解\nTeaching only.",
+])("never mislabels an intact complex document after a preamble as an unsectioned answer", (raw) => {
+  expect(prepareInterviewAnswer(raw)).toMatchObject({ answer: "", explanation: raw, separation: "needs-answer", original: raw });
+});
+
+it("does not treat literal fenced headings as a semantic boundary in preserved Markdown", () => {
+  const raw = "My answer includes this literal sample.\n```md\n## 思路拆解讲解\n```\n\n---\nEnd of my answer.";
+  expect(prepareInterviewAnswer(raw)).toMatchObject({ answer: raw, explanation: "", separation: "unsectioned" });
+});
+
+it("keeps a plain authored answer visible when only provenance uses section headings", () => {
+  const raw = "A complete plain authored answer.\n\n## 参考资料\nhttps://example.com";
+  const result = prepareInterviewAnswer(raw);
+  expect(result.separation).toBe("unsectioned");
+  expect(result.answer.trim()).toBe("A complete plain authored answer.");
+  expect(result.explanation).toBe("");
+  expect(result.references).toContain("https://example.com");
 });

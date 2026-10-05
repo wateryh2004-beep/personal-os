@@ -24,7 +24,7 @@ async function render(overrides: Partial<React.ComponentProps<typeof InterviewSt
   })));
 }
 async function expand(index: number) {
-  const details = host.querySelectorAll("details")[index];
+  const details = host.querySelectorAll<HTMLDetailsElement>("footer details")[index];
   await act(async () => { details.open = true; details.dispatchEvent(new Event("toggle")); });
 }
 
@@ -33,11 +33,16 @@ it("shows useful answers and reasoning before folded provenance without losing t
   const answer = "## 完整参考答案\nStart with the calculation.\n\n## 深入追问与参考应答\nExplain deductions.\n\n## 参考资料\n[Example source](https://example.com/reference)\n\n## 使用边界\nThis is hypothetical.";
   await render({ thoughts, answer });
   expect(host.querySelector("section")!.id).toBe("study-answer");
+  expect(host.textContent).not.toContain("100−20−15=65，不是90。");
+  expect(host.querySelector("#study-answer")!.textContent).not.toContain("Explain deductions.");
+  const explanation = host.querySelector<HTMLDetailsElement>("#study-thinking")!;
+  expect(explanation.open).toBe(false);
+  await act(async () => { explanation.open = true; explanation.dispatchEvent(new Event("toggle")); });
   expect(host.textContent).toContain("100−20−15=65，不是90。");
   expect(host.textContent).toContain("Explain deductions.");
   expect(host.textContent).not.toContain("primary_reference");
   expect(host.textContent).not.toContain("未披露");
-  expect(host.querySelectorAll("details")[0].open).toBe(false);
+  expect(host.querySelectorAll<HTMLDetailsElement>("footer details")[0].open).toBe(false);
   await expand(0);
   expect(host.querySelector('[data-testid="study-provenance"]')!.textContent).toContain("primary_reference");
   expect(host.textContent).toContain("来源标签用于追溯，不代表内容或个人经历已经核实");
@@ -82,6 +87,40 @@ it("sanitizes Markdown links and HTML in both reading and folded source content"
 it("leaves unrecognized prose and disclaimer text intact", async () => {
   const original = "Unstructured source note.\n\n免责声明：数字100、20、15和65都仅为算例。\n\n## 不认识的标题\nRetain all of this.";
   await render({ thoughts: original });
+  const explanation = host.querySelector<HTMLDetailsElement>("#study-thinking")!;
+  await act(async () => { explanation.open = true; explanation.dispatchEvent(new Event("toggle")); });
   expect(host.querySelector("#study-thinking")!.textContent).toContain("免责声明：数字100、20、15和65都仅为算例。");
   expect(host.querySelector("#study-thinking")!.textContent).toContain("Retain all of this.");
+});
+
+it("opens explanation from the section button, closes it repeatedly, and keeps the full answer unchanged", async () => {
+  Element.prototype.scrollIntoView = vi.fn();
+  await render({ answer: "## 标准答案\n完整回答。\n## 思路拆解讲解\n教学解释。", thoughts: "" });
+  const answer = host.querySelector("#study-answer")!.textContent;
+  const explanation = host.querySelector<HTMLDetailsElement>("#study-thinking")!;
+  const jump = [...host.querySelectorAll("nav button")].find((node) => node.textContent === "思路拆解讲解") as HTMLButtonElement;
+  expect(explanation.open).toBe(false);
+  expect(host.textContent).not.toContain("教学解释。");
+  for (let i = 0; i < 2; i++) {
+    await act(async () => jump.click());
+    expect(explanation.open).toBe(true);
+    expect(explanation.textContent).toContain("教学解释。");
+    expect(host.querySelector("#study-answer")!.textContent).toBe(answer);
+    await act(async () => { explanation.open = false; explanation.dispatchEvent(new Event("toggle")); });
+    expect(host.textContent).not.toContain("教学解释。");
+  }
+});
+
+it("shows a missing complete answer honestly while making legacy lessons available", async () => {
+  await render({ answer: "## 完整推理与参考解析\nLegacy lesson.\n## 简洁复述版\nOnly a recap.", thoughts: "" });
+  expect(host.querySelector("#study-answer")!.textContent).toContain("还未整理出完整的标准答案");
+  expect(host.querySelector("#study-answer")!.textContent).not.toContain("Only a recap.");
+  const explanation = host.querySelector<HTMLDetailsElement>("#study-thinking")!;
+  const reveal = host.querySelector<HTMLButtonElement>("#study-answer button")!;
+  expect(reveal.textContent).toBe("阅读现有讲解 →");
+  await act(async () => reveal.click());
+  expect(explanation.open).toBe(true);
+  expect(reveal.getAttribute("aria-expanded")).toBe("true");
+  expect(explanation.textContent).toContain("Legacy lesson.");
+  expect(explanation.textContent).toContain("Only a recap.");
 });

@@ -1,3 +1,4 @@
+import { InterviewStudyView } from "@/components/career/interview/interview-study-view";
 import { InterviewPrompt } from "@/components/career/interview/interview-prompt";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -30,7 +31,7 @@ import {
   variantKindLabels,
 } from "@/features/interview/constants";
 import { formatDateTime } from "@/features/interview/utils";
-import { selectWorkspaceAnswer } from "@/features/interview/workspace-answers";
+import { selectWorkspaceAnswer, workspaceAnswerMetadata } from "@/features/interview/workspace-answers";
 
 export default async function InterviewQuestionPage({
   params,
@@ -88,23 +89,25 @@ export default async function InterviewQuestionPage({
         </form>
       ) : (
         <>
-          <section className="mb-10">
-            <h2 className="text-[15px] font-medium text-zinc-950">思路</h2>
-            <form action={updateInterviewPreparation} className="mt-3">
-              <PreparationStateFields prep={prep} questionId={questionId} />
-              <textarea
-                name="working_thoughts_markdown"
-                defaultValue={thoughtValue}
-                rows={8}
-                placeholder="先把你真实的想法写下来。"
-                className="w-full resize-y bg-transparent px-0 py-2 text-[15px] leading-7 text-zinc-800 outline-none placeholder:text-zinc-300"
-              />
-              <button className="mt-2 text-xs text-zinc-400 hover:text-zinc-700">保存思路</button>
-            </form>
-          </section>
-
+          <InterviewStudyView
+            key={primaryAnswer?.id ?? prep.id}
+            answer={primaryAnswer?.body_markdown ?? ""}
+            thoughts={thoughtValue}
+            isDraft={primaryAnswer?.status === "draft"}
+            answerMeta={workspaceAnswerMetadata(primaryAnswer) ?? undefined}
+            learning={{
+              keyMessage: prep.key_message && !thoughtValue.includes(prep.key_message) ? prep.key_message : "",
+              logic: prep.answer_logic_markdown && !thoughtValue.includes(prep.answer_logic_markdown) ? prep.answer_logic_markdown : "",
+              pitfalls: prep.risk_markdown ?? "", nextFocus: prep.next_focus ?? "",
+            }}
+            showRecall={false}
+            versionHref="#answer-versions"
+          />
+          <details className="my-10">
+            <summary className="min-h-11 cursor-pointer text-sm text-zinc-500">编辑答案与讲解</summary>
+            <p className="my-3 text-xs leading-6 text-zinc-500">答案版本可用“## 标准答案”和“## 思路拆解讲解”分开保存；前者只写完整的面试回答。下方思路用于补充笔记。原文保留原有章节，保存答案会创建新版本。</p>
           <section className="mb-12">
-            <h2 className="text-[15px] font-medium text-zinc-950">{primaryAnswer?.status === "draft" ? "参考答案 · 待确认" : "答案"}</h2>
+            <h3 className="text-[15px] font-medium text-zinc-950">答案版本原文</h3>
             {primaryAnswer?.status === "draft" ? <p className="mt-2 text-xs leading-5 text-zinc-500">可直接阅读。请核对答案依据与适用条件；保存并确认后才会成为当前答案。</p> : null}
             <form action={createInterviewAnswerVersion} className="mt-3">
               <input type="hidden" name="preparation_id" value={prep.id} />
@@ -117,6 +120,7 @@ export default async function InterviewQuestionPage({
               <input type="hidden" name="make_current" value="1" />
               <textarea
                 required
+                aria-label="答案版本原文"
                 name="body_markdown"
                 defaultValue={primaryAnswer?.body_markdown ?? ""}
                 rows={10}
@@ -130,7 +134,25 @@ export default async function InterviewQuestionPage({
             </form>
           </section>
 
-          <details id="answer-versions" className="mb-10 scroll-mt-6" open={primaryAnswer?.status === "draft"}>
+          <section className="mb-10">
+            <h2 className="text-[15px] font-medium text-zinc-950">思路拆解讲解</h2>
+            <form action={updateInterviewPreparation} className="mt-3">
+              <PreparationStateFields prep={prep} questionId={questionId} />
+              <textarea
+                aria-label="思路拆解讲解"
+                name="working_thoughts_markdown"
+                defaultValue={thoughtValue}
+                rows={8}
+                placeholder="解释推导过程、易错点与追问；不要写入标准答案。"
+                className="w-full resize-y bg-transparent px-0 py-2 text-[15px] leading-7 text-zinc-800 outline-none placeholder:text-zinc-300"
+              />
+              <button className="mt-2 text-xs text-zinc-400 hover:text-zinc-700">保存思路</button>
+            </form>
+          </section>
+
+          </details>
+
+          <details id="answer-versions" className="mb-10 scroll-mt-6" open={Boolean(pinnedAnswer)}>
             <summary className="cursor-pointer text-sm text-zinc-500">全部答案版本（{data.answers.length}）</summary>
             <div className="mt-4 space-y-4">
               {data.answers.map((answer: any) => (

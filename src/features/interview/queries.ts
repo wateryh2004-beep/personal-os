@@ -503,7 +503,7 @@ export async function getPracticeDetail(preparationId: string) {
     : (preparation as any).interview_questions;
 
   const [answers, attempts, links, archetypeLinks, stories] = await Promise.all([
-    supabase.from("interview_answer_versions").select("*").eq("preparation_id", preparationId).eq("status", "current").is("archived_at", null).order("answer_mode").order("target_seconds", { ascending: true, nullsFirst: true }),
+    supabase.from("interview_answer_versions").select("*").eq("preparation_id", preparationId).in("status", ["current", "draft"]).is("archived_at", null).order("answer_mode").order("target_seconds", { ascending: true, nullsFirst: true }),
     supabase.from("interview_practice_attempts").select("*").eq("preparation_id", preparationId).is("archived_at", null).order("practiced_at", { ascending: false }).limit(8),
     supabase.from("entity_links").select("id").eq("source_type", "interview_preparation").eq("source_id", preparationId).is("archived_at", null),
     supabase.from("interview_archetype_stories").select("story_id,evidence_role,fit_note").eq("archetype_id", question.archetype_id).is("archived_at", null),

@@ -21,3 +21,14 @@ it("rejects unknown version pins and defaults to the adopted answer", async () =
   const markup = renderToStaticMarkup(await Page({ params: Promise.resolve({ questionId: "question" }), searchParams: Promise.resolve({ answer: "foreign" }) }));
   expect(markup).toMatch(/<textarea[^>]*name="body_markdown"[^>]*>ADOPTED_CURRENT_BODY<\/textarea>/);
 });
+it("reads standard answer before folded explanation and keeps original version editing separate", async () => {
+  const data = await mocks.detail();
+  mocks.detail.mockResolvedValue({ ...data, selectedPreparation: { ...data.selectedPreparation, working_thoughts_markdown: "Supporting lesson." }, answers: [{ ...current, body_markdown: "## 标准答案\nFull spoken answer.\n## 思路拆解讲解\nEmbedded lesson." }] });
+  const markup = renderToStaticMarkup(await Page({ params: Promise.resolve({ questionId: "question" }), searchParams: Promise.resolve({}) }));
+  expect(markup).toContain('data-testid="interview-study-view"');
+  expect(markup).toMatch(/id="study-answer"[\s\S]*Full spoken answer\.[\s\S]*id="study-thinking"/);
+  expect(markup).toMatch(/<details[^>]*id="study-thinking"/);
+  expect(markup).not.toMatch(/<details[^>]*id="study-thinking"[^>]*open/);
+  expect(markup.indexOf('name="body_markdown"')).toBeLessThan(markup.indexOf('name="working_thoughts_markdown"'));
+  expect(markup).toContain("编辑答案与讲解");
+});
