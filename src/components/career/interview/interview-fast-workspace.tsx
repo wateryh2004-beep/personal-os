@@ -1,5 +1,6 @@
 "use client";
 
+import { DisclosureSummary } from "@/components/ui/disclosure";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -167,9 +168,9 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
           <h2 className="text-[16px] font-semibold tracking-tight">面试学习</h2>
         </div>
         <nav aria-label="面试学习导航" className="flex items-center gap-1 text-[12px]">
-          <span aria-current="page" className="inline-flex min-h-11 items-center px-3 font-medium text-[var(--text-primary)]">学习库</span>
-          <Link href={`/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`} className="inline-flex min-h-11 items-center rounded-lg px-3 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]">练习</Link>
-          <Link href={`/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`} className="inline-flex min-h-11 items-center rounded-lg px-3 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]">复盘</Link>
+          <span aria-current="page" className="ui-navigation-item">学习库</span>
+          <Link href={`/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`} className="ui-navigation-item">练习</Link>
+          <Link href={`/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`} className="ui-navigation-item">复盘</Link>
         </nav>
       </header>
       {unavailable ? <div role="alert" className="mx-3 mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-[var(--surface-control)] p-3 text-[13px] text-[var(--danger)]">部分题库数据加载失败，当前结果可能不完整。<button type="button" onClick={() => startRefresh(() => router.refresh())} disabled={refreshing} className="min-h-11 underline">{refreshing ? "重新加载中…" : "重新加载"}</button></div> : null}
@@ -182,9 +183,9 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
               {targets.map((target) => <option key={target.id} value={target.id}>{target.organization ? target.organization + " · " : ""}{target.role || target.title}</option>)}
             </select>
           </label>
-          <label className="mt-3 block"><span className="sr-only">搜索题库</span><input type="search" aria-label="搜索题库" value={q} onChange={(event) => handleFiltersChange({ q: event.target.value })} placeholder="搜索题目、知识或答案" className="min-h-11 w-full min-w-0 rounded-lg bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" /></label>
+          <label className="mt-3 block"><span className="sr-only">搜索题库</span><input type="search" aria-label="搜索题库" value={q} onChange={(event) => handleFiltersChange({ q: event.target.value })} placeholder="搜索题目、知识或答案" className="ui-field min-h-11 w-full min-w-0 rounded-lg border border-[var(--control-border)] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" /></label>
           <details className="mt-2 border-b border-[var(--separator)]" data-testid="interview-filters" open={filterCount > 0 || undefined}>
-            <summary className="min-h-11 cursor-pointer select-none py-3 text-[12px] text-[var(--text-secondary)]">筛选题库{filterCount ? ` · ${filterCount} 项` : ""}</summary>
+            <DisclosureSummary className="min-h-11 cursor-pointer select-none py-3 text-[12px] text-[var(--text-secondary)]">筛选题库{filterCount ? ` · ${filterCount} 项` : ""}</DisclosureSummary>
             <div className="space-y-3 pb-4">
               <div className="flex flex-wrap gap-1" aria-label="问题类型筛选">
                 <CategoryButton label="全部题型" count={counts.all ?? 0} active={category === "all"} onClick={() => handleFiltersChange({ category: "all" })} />
@@ -195,13 +196,17 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
               {filterCount ? <button type="button" onClick={() => handleFiltersChange({ ...emptyLibraryFilters, q })} className="min-h-11 text-[12px] text-[var(--accent)]">重置筛选</button> : null}
             </div>
           </details>
+          {filterCount ? <div className="ui-active-filters" aria-label="已生效的题库筛选">
+            <p>已筛选：{[category !== "all" ? categoryShortLabels[category] ?? category : null, domain !== "all" ? domain : null, style !== "all" ? style === "stress" ? "压力追问" : "标准提问" : null].filter(Boolean).join(" · ")}</p>
+            <button type="button" className="ui-link" onClick={() => handleFiltersChange({ ...emptyLibraryFilters, q })}>清除筛选</button>
+          </div> : null}
           <div className="flex min-h-12 items-center justify-between gap-2 text-[11px] text-[var(--text-tertiary)]">
             <span>{q ? "搜索结果" : category === "all" ? "全部问题" : questionTypeLabels[category] ?? "问题"}</span>
             <span aria-live="polite" className="tabular-nums">{visibleItems.length} 道题</span>
           </div>
           <nav ref={questionListRef} aria-label="面试题目" className="space-y-1 pr-1 lg:max-h-[calc(100dvh_-_var(--toolbar-height)_-_20rem)] lg:min-h-40 lg:overflow-y-auto lg:overscroll-contain">
             <QuestionOptions items={visibleItems} questionId={questionId} onSelect={handleQuestionChange} />
-            {!visibleItems.length ? <div className="px-2 py-5 text-[13px] leading-6 text-[var(--text-tertiary)]"><p>{contextItems.length ? "没有找到匹配的问题" : "这个题库还没有问题"}</p><p className="text-xs">{contextItems.length ? "试试其他关键词，或清除筛选。" : "AI 整理的题目会在这里显示，也可以切换面试目标。"}</p>{contextItems.length ? <button type="button" onClick={() => handleFiltersChange(emptyLibraryFilters)} className="mt-2 min-h-11 text-[var(--accent)]">清除筛选</button> : null}</div> : null}
+            {!visibleItems.length ? <div className="px-2 py-5 text-[13px] leading-6 text-[var(--text-tertiary)]"><p>{contextItems.length ? "没有找到匹配的问题" : "这个题库还没有问题"}</p><p className="text-xs">{contextItems.length ? "试试其他关键词，或清除筛选。" : "AI 整理的题目会在这里显示，也可以切换面试目标。"}</p>{contextItems.length ? <button type="button" onClick={() => handleFiltersChange(emptyLibraryFilters)} className="ui-link mt-2 min-h-11 text-[var(--accent)]">清除搜索与筛选</button> : null}</div> : null}
           </nav>
         </aside>
 
@@ -262,7 +267,7 @@ const QuestionOption = memo(function QuestionOption({ item, active, onSelect }: 
       onClick={() => onSelect(item.questionId)}
       aria-label={display.question}
       aria-current={active ? "true" : undefined}
-      className={`pressable block min-h-16 w-full rounded-lg border-l-2 px-3 py-3 text-left text-[13px] leading-[1.6] focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${active ? "border-[var(--accent)] bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
+      className={`ui-selectable-row pressable block min-h-16 w-full rounded-lg border-l-2 px-3 py-3 text-left text-[13px] leading-[1.6] focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${active ? "border-[var(--accent)] bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
     >
       <span className="line-clamp-2">{display.title === "面试题" ? display.question : display.title}</span>
       <span className="mt-1 block truncate text-[12px] font-normal text-[var(--text-tertiary)]">{workspaceDomain(item) === "未分类" ? item.categoryLabel : workspaceDomain(item)}</span>

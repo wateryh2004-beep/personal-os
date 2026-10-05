@@ -16,11 +16,11 @@ export function perfMark(name: string, detail?: Record<string, unknown>) {
 }
 
 /** Measure an interaction and emit timing-only telemetry for the private reporter. */
-export function perfMeasure(name: string, start: string, detail?: Record<string, unknown>) {
+export function perfMeasure(name: string, start: string | number, detail?: Record<string, unknown>) {
   const measure = `personal-os:${name}`;
-  const startMark = `personal-os:${start}`;
+  const startMark = typeof start === "number" ? start : `personal-os:${start}`;
   try {
-    performance.measure(measure, startMark);
+    performance.measure(measure, { start: startMark });
     const duration = performance.getEntriesByName(measure).at(-1)?.duration;
     if (typeof duration === "number") {
       window.dispatchEvent(new CustomEvent("personal-os:perf-measure", {
@@ -32,5 +32,18 @@ export function perfMeasure(name: string, start: string, detail?: Record<string,
     }
   } catch {
     // A measurement is diagnostic only; a missing prior mark must never affect UX.
+  }
+}
+
+/** Full document loads have no click mark. Measure real first-data readiness
+ * separately from in-app navigation, without calling either a platform cold start.
+ */
+export function perfMeasureWorkspaceReady(detail: { workspace: string; href?: string }) {
+  try {
+    const hasNavigation = performance.getEntriesByName("personal-os:navigation-click", "mark").length > 0;
+    perfMeasure(hasNavigation ? "workspace-data-ready" : "initial-workspace-ready",
+      hasNavigation ? "navigation-click" : 0, detail);
+  } catch {
+    // Unsupported timing APIs must not affect the workspace.
   }
 }

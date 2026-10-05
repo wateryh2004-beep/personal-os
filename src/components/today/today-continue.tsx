@@ -27,7 +27,7 @@ export function TodayContinue() {
   if (!recent?.noteHref && !recent?.career) return null;
   return <nav aria-label="继续工作" className="today-continue">
     <span>继续上次</span>
-    {recent.noteHref ? <Link href={recent.noteHref}><span className="today-continue-title">最近笔记</span><ArrowUpRight className="size-3.5" aria-hidden="true" /></Link> : null}
-    {recent.career ? <Link href={recent.career.href}><span className="today-continue-title">{recent.career.label}</span><ArrowUpRight className="size-3.5" aria-hidden="true" /></Link> : null}
+    {recent.noteHref ? <Link href={recent.noteHref} className="ui-link"><span className="today-continue-title">最近笔记</span><ArrowUpRight className="size-3.5" aria-hidden="true" /></Link> : null}
+    {recent.career ? <Link href={recent.career.href} className="ui-link"><span className="today-continue-title">{recent.career.label}</span><ArrowUpRight className="size-3.5" aria-hidden="true" /></Link> : null}
   </nav>;
 }

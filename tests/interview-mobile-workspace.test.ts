@@ -121,7 +121,7 @@ it("clears unmatched filters and never mistakes a filter conflict for a differen
   expect(new URLSearchParams(window.location.search).get("q")).toBeNull();
   await changeFilter("搜索题库", "nothingmatches");
   expect(list().textContent).toContain("没有找到匹配的问题");
-  await act(async () => button("清除筛选").click());
+  await act(async () => button("清除搜索与筛选").click());
   expect(list().textContent).toContain("Question general1");
   expect(mocks.save).not.toHaveBeenCalled();
 });
@@ -204,4 +204,18 @@ it("scrolls the desktop reader to the new question after next/previous navigatio
   await act(async () => button("下一题 →").click());
   expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: "start" });
   expect(document.activeElement).toBe(detail());
+});
+
+it("keeps effective filters and clearing visible while advanced controls stay folded", async () => {
+  await render({ initialCategory: "knowledge" });
+  const advanced = host.querySelector<HTMLDetailsElement>('[data-testid="interview-filters"]')!;
+  await act(async () => { advanced.open = false; advanced.dispatchEvent(new Event("toggle")); });
+  expect(advanced.open).toBe(false);
+  const summary = list().querySelector<HTMLElement>('[aria-label="已生效的题库筛选"]')!;
+  expect(summary.closest("details")).toBeNull();
+  expect(summary.textContent).toContain("已筛选：");
+  await act(async () => summary.querySelector<HTMLButtonElement>("button")!.click());
+  expect(list().querySelector('[aria-label="已生效的题库筛选"]')).toBeNull();
+  expect(list().textContent).toContain("Question general1");
+  expect(list().textContent).toContain("Question general2");
 });

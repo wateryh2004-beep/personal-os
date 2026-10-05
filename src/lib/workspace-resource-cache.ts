@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { perfMark, perfMeasure } from "@/lib/perf";
+import { perfMark, perfMeasureWorkspaceReady } from "@/lib/perf";
 import { clearWorkspaceSessions, reconcileWorkspaceSessionOwner } from "@/lib/workspace-session";
 
 /** Authorized read models live in this tab only, never in storage or a CDN. */
@@ -156,7 +156,7 @@ export function useWorkspaceResource<T>(resource: WorkspaceResource<T>, name: st
     if (snapshot.data === undefined || visible.current) return;
     visible.current = true;
     perfMark("workspace-visible", { workspace: name, source: "tab-resource" });
-    perfMeasure("workspace-data-ready", "navigation-click", { workspace: name });
+    perfMeasureWorkspaceReady({ workspace: name });
   }, [name, snapshot.data]);
   return snapshot;
 }

@@ -40,8 +40,6 @@
 .today-future-link {display:block;padding:8px 0;min-height:44px;font-size:.875rem;font-weight:400;line-height:1.75;overflow-wrap:anywhere}
 .today-future-detail {display:block;font-size:.75rem;color:var(--today-muted);line-height:1.7}
 .today-disclosure-trigger {width:100%;min-height:48px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:.8125rem;color:var(--today-muted);padding:8px 0}
-.today-disclosure-symbol {display:inline-block;font-size:1.125rem;font-weight:300;transition:transform 200ms;flex-shrink:0}
-.today-disclosure[data-expanded=true]>.today-disclosure-trigger .today-disclosure-symbol {transform:rotate(45deg)}
 .today-disclosure-grid {display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows 200ms cubic-bezier(.22,1,.36,1),opacity 180ms}
 .today-disclosure[data-expanded=true]>.today-disclosure-grid {grid-template-rows:1fr;opacity:1}
 .today-disclosure-clip {min-height:0;overflow:hidden}
@@ -139,3 +137,12 @@
 .today-calm button[aria-label^="更多操作："],
 .today-calm .today-focus-row-actions .today-completion-control {width:44px;min-width:44px;height:44px;min-height:44px}
 @media(max-width:767px){.today-calm {padding-bottom:calc(var(--tab-bar-height) + 24px)!important}}
+/* The same interaction grammar, with Today's warm palette and reading surface. */
+.today-shell,.today-calm,.today-calm-sheet { --control-border:#788575; --focus-ring:var(--today-action); }
+.today-empty-focus { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem; }
+.today-focus-adjust.ui-action-secondary { padding:.5rem .75rem; color:var(--today-ink); }
+.today-disclosure-trigger { color:var(--today-ink); }
+.today-more-future>.today-disclosure-trigger { padding-left:3.5rem; }
+.today-continue a.ui-link { color:var(--today-action); }
+@media(prefers-color-scheme:dark){.today-shell,.today-calm,.today-calm-sheet { --control-border:#879787; }}
+.today-shell,.today-calm,.today-calm-sheet { --surface-control-hover:var(--surface-hover); }

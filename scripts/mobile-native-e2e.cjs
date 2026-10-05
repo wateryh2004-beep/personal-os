@@ -118,14 +118,14 @@ async function backCloses(page, trigger, visibleTarget) {
       assert.equal(await interview.getByLabel("搜索题库", { exact: true }).inputValue(), "English reference");
       assert.equal(await interview.getByLabel("学习模块", { exact: true }).inputValue(), "SQL与数据分析");
       await interview.getByLabel("搜索题库", { exact: true }).fill("no-matching-question");
-      await questionList.getByRole("button", { name: "清除筛选", exact: true }).tap();
+      await questionList.getByRole("button", { name: "清除搜索与筛选", exact: true }).tap();
       assert.equal(await interview.getByLabel("搜索题库", { exact: true }).inputValue(), "");
       await capture(page, `interview-library-${width}`);
       await questionList.getByRole("button", { name: "E2E 面试问题 0", exact: true }).tap();
       await questionDetail.waitFor({ state: "visible" });
       assert.equal(await questionList.isVisible(), false);
       assert.ok(!(await questionDetail.innerText()).includes("E2E 思路 0"));
-      await questionDetail.getByRole("button", { name: "思路拆解讲解", exact: true }).tap();
+      await questionDetail.getByRole("navigation", { name: "题目学习章节", exact: true }).getByRole("button", { name: "思路拆解讲解", exact: true }).tap();
       assert.ok((await questionDetail.locator("#study-thinking").innerText()).includes("E2E 思路 0"));
       await questionDetail.locator("#study-thinking summary").click();
       assert.equal(await questionDetail.locator("textarea").count(), 0);
@@ -162,7 +162,7 @@ async function backCloses(page, trigger, visibleTarget) {
       await questionList.getByRole("button", { name: "E2E 面试问题 2", exact: true }).tap();
       await questionDetail.waitFor({ state: "visible" });
       assert.equal(await questionDetail.locator("#study-thinking").getAttribute("open"), null);
-      await questionDetail.getByRole("button", { name: "思路拆解讲解", exact: true }).tap();
+      await questionDetail.getByRole("navigation", { name: "题目学习章节", exact: true }).getByRole("button", { name: "思路拆解讲解", exact: true }).tap();
       assert.ok((await questionDetail.locator("#study-thinking").innerText()).includes("E2E 思路 2"));
       await capture(page, `interview-target-${width}`);
       await page.goto(`${baseURL}/mobile-native-e2e`, { waitUntil: "networkidle" });

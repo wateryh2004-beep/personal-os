@@ -226,8 +226,24 @@ it("offers one useful empty-focus row below the evening lead", async () => {
   await act(async () => root.render(createElement(TodayPriorities, { focus, header: createElement("h1", null, "今日"), leadBefore: createElement("p", null, "Tomorrow event"), compactAll: true })));
   expect(host.querySelector(".today-heading-row button")).toBeNull();
   const trigger = host.querySelector<HTMLButtonElement>('[aria-label="选择重点"]')!;
-  expect(trigger.textContent).toBe("为今天留一个重点");
-  expect(host.textContent!.indexOf("Tomorrow event")).toBeLessThan(host.textContent!.indexOf("为今天留一个重点"));
+  expect(trigger.textContent).toBe("选择重点");
+  expect(host.textContent!.indexOf("Tomorrow event")).toBeLessThan(host.textContent!.indexOf("选择重点"));
   await act(async () => trigger.click());
   expect(dialog()).not.toBeNull();
+});
+
+it("separates the empty focus heading from its visible choose action", async () => {
+  await act(async () => root.render(createElement(TodayPriorities, { focus, header: createElement("h1", null, "今天") })));
+  const heading = host.querySelector("#today-priorities-heading")!;
+  expect(heading.textContent).toBe("今日重点");
+  expect(heading.classList.contains("sr-only")).toBe(false);
+  const trigger = host.querySelector<HTMLButtonElement>('[aria-label="选择重点"]')!;
+  expect(trigger.textContent).toBe("选择重点");
+  expect(trigger.classList.contains("ui-action-secondary")).toBe(true);
+  trigger.focus();
+  await act(async () => trigger.click());
+  expect(dialog()).not.toBeNull();
+  await act(async () => button("取消").click());
+  expect(mocks.save).not.toHaveBeenCalled();
+  expect(document.activeElement).toBe(trigger);
 });

@@ -5,6 +5,7 @@ describe("private workspace performance metrics", () => {
   it("separates route commit from usable workspace data", () => {
     expect(isClientMetricName("route-commit")).toBe(true);
     expect(isClientMetricName("workspace-data-ready")).toBe(true);
+    expect(isClientMetricName("initial-workspace-ready")).toBe(true);
     expect(isClientMetricName("navigation-ready")).toBe(false);
   });
 

@@ -1,3 +1,4 @@
+import { DisclosureSummary } from "@/components/ui/disclosure";
 import { presentInterviewPrompt } from "@/features/interview/prompt-presentation";
 
 /** Shared by the library, practice and question detail. Never writes to storage. */
@@ -11,10 +12,10 @@ export function InterviewPrompt({ prompt, shortTitle }: { prompt: string; shortT
       {content.conditions.map((body, index) => <p key={index} className="whitespace-pre-wrap text-[14px] leading-7 text-[var(--text-secondary)]">{body}</p>)}
     </section> : null}
     <details className="mt-2 text-[12px] leading-6 text-[var(--text-tertiary)]" data-testid="interview-prompt-notes">
-      <summary className="inline-flex min-h-11 cursor-pointer items-center">{content.notes.length ? "补充说明与原始题干" : "查看原始题干"}</summary>
+      <DisclosureSummary className="inline-flex min-h-11 cursor-pointer items-center">{content.notes.length ? "补充说明与原始题干" : "查看原始题干"}</DisclosureSummary>
       <div className="space-y-3 border-t border-[var(--separator)] py-3">
         {content.notes.map((note, index) => <div key={index}><p className="font-medium">{note.label}</p><p className="whitespace-pre-wrap">{note.text}</p></div>)}
-        <details><summary className="min-h-11 cursor-pointer py-2">原始题干 · 完整保留</summary><pre data-testid="interview-prompt-original" className="whitespace-pre-wrap font-sans text-[12px] leading-6 [overflow-wrap:anywhere]">{content.original}</pre></details>
+        <details><DisclosureSummary className="min-h-11 cursor-pointer py-2">原始题干 · 完整保留</DisclosureSummary><pre data-testid="interview-prompt-original" className="whitespace-pre-wrap font-sans text-[12px] leading-6 [overflow-wrap:anywhere]">{content.original}</pre></details>
       </div>
     </details>
   </div>;

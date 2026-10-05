@@ -37,5 +37,7 @@ describe("navigation transition feedback", () => {
     expect(appShell).toContain("router.prefetch(href)");
     expect(appShell).toContain("backgroundWorkspacePrefetchTargets(pathname)");
     expect(appShell).toContain("prefetch={false}");
+    expect(appShell).not.toContain('prefetch={href === "/career"}');
+    expect(appShell).toContain("afterActiveWorkspaceRead(activeResource, schedule)");
   });
 });

@@ -113,7 +113,8 @@ function TaskRow({
       role="button"
       aria-label={`打开任务：${task.title}`}
       data-selected={selected || undefined}
-      className={`group relative -mx-2 grid cursor-pointer grid-cols-[26px_minmax(0,1fr)_auto] items-start gap-2.5 rounded-[10px] px-2 py-[13px] pr-2 transition-[background-color,box-shadow] ui-transition after:absolute after:bottom-0 after:left-[36px] after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)] ${
+      aria-current={selected ? "true" : undefined}
+      className={`ui-selectable-row group relative -mx-2 grid cursor-pointer grid-cols-[26px_minmax(0,1fr)_auto] items-start gap-2.5 rounded-[10px] px-2 py-[13px] pr-2 transition-[background-color,box-shadow] ui-transition after:absolute after:bottom-0 after:left-[36px] after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)] ${
         selected ? "bg-[var(--surface-selected)] after:opacity-0" : "hover:bg-[var(--surface-hover)]"
       }`}
     >
@@ -175,9 +176,7 @@ function TaskRow({
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
-            className={`pressable -my-2 inline-flex size-10 items-center justify-center rounded-[9px] text-[var(--text-tertiary)] hover:bg-[var(--surface-control)] hover:text-[var(--text-secondary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)] md:my-0 md:size-8 md:focus:opacity-100 md:data-[state=open]:opacity-100 ${
-              selected ? "md:opacity-70" : "md:opacity-0 md:group-hover:opacity-60"
-            }`}
+            className={`pressable -my-2 inline-flex size-10 items-center justify-center rounded-[9px] text-[var(--text-tertiary)] hover:bg-[var(--surface-control)] hover:text-[var(--text-secondary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)] md:my-0 md:size-8 ui-more-action`}
           >
             <MoreHorizontal className="size-4" aria-hidden="true" />
           </button>
@@ -508,7 +507,7 @@ function TaskInspector({
                     dueAt: event.target.value ? new Date(event.target.value).toISOString() : null,
                   })
                 }
-                className="h-8 max-w-full rounded-[9px] border-0 bg-[var(--surface-control)] px-2 text-[12px] text-[var(--text-primary)] outline-none"
+                className="ui-field h-8 max-w-full rounded-[9px] border-0 bg-[var(--surface-control)] px-2 text-[12px] text-[var(--text-primary)] outline-none"
               />
             </dd>
           </div>
@@ -521,7 +520,7 @@ function TaskInspector({
                 onChange={(event) =>
                   void save({ importance: event.target.value as TodoTask["importance"] })
                 }
-                className="h-8 rounded-[9px] border-0 bg-[var(--surface-control)] px-2 text-[12px] text-[var(--text-primary)] outline-none"
+                className="ui-field h-8 rounded-[9px] border-0 bg-[var(--surface-control)] px-2 text-[12px] text-[var(--text-primary)] outline-none"
               >
                 <option value="low">低</option>
                 <option value="normal">普通</option>

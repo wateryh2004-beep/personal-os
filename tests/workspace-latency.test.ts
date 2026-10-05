@@ -16,6 +16,7 @@ describe("workspace latency profiling", () => {
     const profiler = createWorkspaceLatencyProfiler("today", "api", "trace_12345678");
     await profiler.time("auth", async () => undefined);
     await profiler.time("supabase", async () => undefined);
+    await profiler.time("focus_wait", async () => undefined);
     profiler.timeSync("assemble", () => undefined);
 
     const response = applyWorkspaceLatencyHeaders(new Response(null), profiler);
@@ -23,6 +24,8 @@ describe("workspace latency profiling", () => {
 
     expect(timing).toContain("auth;dur=");
     expect(timing).toContain("supabase;dur=");
+    expect(timing).toContain("focus_wait;dur=");
+    expect(profiler.finish(200).focusWaitMs).toBeTypeOf("number");
     expect(timing).toContain("assemble;dur=");
     expect(timing).toContain("total;dur=");
     expect(response.headers.get("X-Personal-OS-Trace-Id")).toBe("trace_12345678");

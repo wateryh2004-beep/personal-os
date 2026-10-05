@@ -1,5 +1,5 @@
 import { taskRecordHref, eventRecordHref, milestoneRecordHref } from "./record-links";
-import { getTodayFocus, getTodayFocusCandidates } from "./focus-queries";
+import { getTodayFocus, getTodayFocusCandidates, getTodayFocusPriorities } from "./focus-queries";
 import { after } from "next/server";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { withPerfSpan } from "@/lib/performance/server-perf";
@@ -294,8 +294,11 @@ export async function getTodayWorkspace(
     const { supabase, userId } = resolvedOwner;
     const sourcesRead = getTodayWorkspaceSources(now, resolvedOwner, latency);
     const candidatesRead = getTodayFocusCandidates(resolvedOwner);
+    const prioritiesRead = getTodayFocusPriorities(resolvedOwner, now);
     const sources = await sourcesRead;
-    const focus = await getTodayFocus(resolvedOwner, now, sources.timezone, candidatesRead);
+    const focus = await latency.time("focus_wait", () =>
+      getTodayFocus(resolvedOwner, now, sources.timezone, candidatesRead, prioritiesRead),
+    );
     const workspace = latency.timeSync("assemble", () => {
       const {
         timezone,

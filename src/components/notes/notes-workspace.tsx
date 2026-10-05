@@ -145,7 +145,7 @@ function NoteRow({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="absolute right-0 top-2 z-10 max-md:size-11 text-[var(--text-tertiary)] md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 focus-visible:opacity-100"
+            className="absolute right-0 top-2 z-10 max-md:size-11 text-[var(--text-tertiary)] ui-more-action"
             aria-label={`管理 ${note.title || "无标题笔记"}`}
             disabled={pending}
           >

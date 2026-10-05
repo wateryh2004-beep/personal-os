@@ -47,6 +47,8 @@ import { GlobalCreateLayer } from "@/components/shared/global-create-layer";
 import { matchesShortcut } from "@/features/shortcuts/registry";
 import { ActionFeedbackProvider } from "@/components/shared/action-feedback";
 import {
+  activeWorkspacePrefetchHref,
+  afterActiveWorkspaceRead,
   backgroundWorkspacePrefetchTargets,
   isWorkspacePrefetchHref,
   shouldBackgroundWarmData,
@@ -86,7 +88,7 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent, gr
       const selected = pendingPathname ? pending : active;
       const link = <Link
         href={href}
-        prefetch={href === "/career"}
+        prefetch={false}
         onNavigate={(event) => onNavigate?.(href, event)}
         onPointerEnter={() => onIntent?.(href)}
         onFocus={() => onIntent?.(href)}
@@ -123,7 +125,8 @@ function shellContentClass(pathname: string) {
 }
 
 type PrefetchableWorkspaceResource = {
-  get: () => { data?: unknown };
+  get: () => { data?: unknown; promise?: Promise<unknown>; error?: Error };
+  subscribe: (listener: () => void) => () => void;
   prefetch: () => Promise<unknown>;
 };
 
@@ -259,10 +262,14 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
     if (!targets.length) return;
 
     let cancelled = false;
+    const activeHref = activeWorkspacePrefetchHref(pathname);
+    const activeResource = activeHref ? workspaceResourceForHref(activeHref) : undefined;
     const prefetch = () => {
       if (cancelled || document.visibilityState !== "visible" || shouldAvoidSpeculativePrefetch()) return;
       void (async () => {
         for (const href of targets) {
+          // A foreground refresh can begin between background reads too.
+          await activeResource?.get().promise?.catch(() => {});
           if (cancelled || document.visibilityState !== "visible" || shouldAvoidSpeculativePrefetch()) return;
           backgroundPrefetched.current.add(href);
           router.prefetch(href);
@@ -276,17 +283,25 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
       requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
       cancelIdleCallback?: (handle: number) => void;
     };
-    if (idleWindow.requestIdleCallback) {
-      const handle = idleWindow.requestIdleCallback(prefetch, { timeout: 1_800 });
-      return () => {
-        cancelled = true;
-        idleWindow.cancelIdleCallback?.(handle);
-      };
-    }
-    const timer = window.setTimeout(prefetch, 1_200);
+    let cancelScheduled = () => {};
+    const schedule = () => {
+      if (cancelled) return;
+      if (idleWindow.requestIdleCallback) {
+        const handle = idleWindow.requestIdleCallback(prefetch, { timeout: 1_800 });
+        cancelScheduled = () => idleWindow.cancelIdleCallback?.(handle);
+      } else {
+        const timer = window.setTimeout(prefetch, 1_200);
+        cancelScheduled = () => window.clearTimeout(timer);
+      }
+    };
+    // Subscribe before a cold resource starts so an early idle callback cannot
+    // race its mount effect. Existing warm snapshots retain idle warming.
+    const stopWaiting = activeResource ? afterActiveWorkspaceRead(activeResource, schedule) : undefined;
+    if (!activeResource) schedule();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      stopWaiting?.();
+      cancelScheduled();
     };
   }, [pathname, router]);
 

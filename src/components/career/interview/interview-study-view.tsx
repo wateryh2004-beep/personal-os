@@ -1,5 +1,6 @@
 "use client";
 
+import { DisclosureSummary } from "@/components/ui/disclosure";
 import Link from "next/link";
 import { memo, useMemo, useRef, useState } from "react";
 import { EntityMarkdown } from "@/components/links/entity-markdown";
@@ -35,16 +36,16 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
   return (
     <article data-testid="interview-study-view" className="mt-5 min-w-0 max-w-3xl">
       <nav aria-label="题目学习章节" className="mb-6 flex flex-wrap gap-x-5 gap-y-2 border-b border-[var(--separator)] pb-3 text-[12px] text-[var(--accent)]">
-        <button type="button" onClick={() => document.getElementById("study-answer")?.scrollIntoView({ block: "start" })} className="inline-flex min-h-8 items-center">标准答案</button>
-        {hasThinking ? <button type="button" onClick={openExplanation} aria-controls="study-thinking" aria-expanded={explanationOpen} className="inline-flex min-h-8 items-center">思路拆解讲解</button> : null}
-        {showRecall ? <button type="button" onClick={() => document.getElementById("study-recall")?.scrollIntoView({ block: "start" })} className="inline-flex min-h-8 items-center">自测与追问</button> : null}
+        <button type="button" onClick={() => document.getElementById("study-answer")?.scrollIntoView({ block: "start" })} className="ui-link inline-flex min-h-11 items-center">标准答案</button>
+        {hasThinking ? <button type="button" onClick={openExplanation} aria-controls="study-thinking" aria-expanded={explanationOpen} className="ui-link inline-flex min-h-11 items-center">思路拆解讲解</button> : null}
+        {showRecall ? <button type="button" onClick={() => document.getElementById("study-recall")?.scrollIntoView({ block: "start" })} className="ui-link inline-flex min-h-11 items-center">自测与追问</button> : null}
       </nav>
       <section id="study-answer" className="scroll-mt-[calc(var(--toolbar-height)+1rem)]">
         <h2 className="mb-4 text-[14px] font-semibold leading-6 text-[var(--text-primary)]">标准答案{isDraft ? <span className="ml-2 text-xs font-normal text-[var(--text-tertiary)]">待核对</span> : null}</h2>
         {expression.answer.trim() ? <StudyMarkdown body={expression.answer} /> : <p className="text-sm leading-6 text-[var(--text-tertiary)]">{expression.format === "structured-original" ? "这份答案是结构化原文，可在下方展开查看。" : expression.separation === "needs-answer" ? "这份旧内容还未整理出完整的标准答案，可先展开下方讲解查看。" : "还没有标准答案。"}{expression.separation === "needs-answer" ? <button type="button" onClick={openExplanation} aria-controls="study-thinking" aria-expanded={explanationOpen} className="mt-2 block min-h-11 text-[var(--accent)]">阅读现有讲解 →</button> : null}</p>}
       </section>
       {hasThinking ? <details ref={explanationRef} onToggle={(event) => setExplanationOpen(event.currentTarget.open)} id="study-thinking" className="mt-8 scroll-mt-[calc(var(--toolbar-height)+1rem)] border-t border-[var(--separator)] pt-6">
-        <summary className="min-h-11 cursor-pointer text-[14px] font-semibold leading-6 text-[var(--text-primary)]">思路拆解讲解<span className="ml-3 text-[12px] font-normal text-[var(--accent)]">{explanationOpen ? "收起" : "展开"}</span></summary>
+        <DisclosureSummary expanded={explanationOpen} className="min-h-11 cursor-pointer text-[14px] font-semibold leading-6 text-[var(--text-primary)]">思路拆解讲解</DisclosureSummary>
         {explanationOpen ? <div className="space-y-5 pt-3">
         {expression.explanation.trim() ? <StudyMarkdown body={expression.explanation} /> : null}
         {thinking.reading.trim() ? <StudyMarkdown body={thinking.reading} /> : null}
@@ -61,7 +62,7 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
       </section> : null}
       <footer className="mt-8 border-t border-[var(--separator)] text-[12px] leading-6 text-[var(--text-tertiary)]">
         <details onToggle={(event) => setSourcesOpen(event.currentTarget.open)}>
-          <summary className="min-h-11 cursor-pointer py-3 font-medium">来源、使用边界与版本</summary>
+          <DisclosureSummary className="min-h-11 cursor-pointer py-3 font-medium">来源、使用边界与版本</DisclosureSummary>
           {sourcesOpen ? <div data-testid="study-provenance" className="pb-4">
             <p className="mb-3">来源标签用于追溯，不代表内容或个人经历已经核实。标准答案仍需核对依据，并结合实际情况使用。</p>
             {answerMeta ? <p className="mb-3">{answerMeta.status === "current" ? "当前选用版本" : "参考草稿"} · V{answerMeta.version_number} · {answerMeta.source === "ai_draft" ? "AI 起草" : answerMeta.source === "ai_edited" ? "AI 起草后编辑" : answerMeta.source === "imported" ? "导入" : "人工编辑"}</p> : null}
@@ -71,7 +72,7 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
           </div> : null}
         </details>
         <details onToggle={(event) => setOriginalOpen(event.currentTarget.open)} className="border-t border-[var(--separator)]">
-          <summary className="min-h-11 cursor-pointer py-3 font-medium">{structuredOriginal ? "查看原始内容 · 结构化格式暂未识别" : "查看原始内容"}</summary>
+          <DisclosureSummary className="min-h-11 cursor-pointer py-3 font-medium">{structuredOriginal ? "查看原始内容 · 结构化格式暂未识别" : "查看原始内容"}</DisclosureSummary>
           {originalOpen ? <div className="space-y-4 pb-4">
             <OriginalText title="答案原文" body={answer} />
             <OriginalText title="思路原文" body={thoughts} />

@@ -10,7 +10,7 @@ const items = [
 function active(current: string, href: string) {
   if (href === "/career/interview") return current === href || current.startsWith("/career/interview/targets/");
   if (href === "/career/interview/questions") return current === href || current.startsWith("/career/interview/questions/");
-  return current === href || current.startsWith(`${href}/`) || current.startsWith("/career/interview/sessions");
+  return current === href || current.startsWith(`${href}/`) || (href === "/career/interview/practice" && current.startsWith("/career/interview/sessions"));
 }
 
 export function InterviewNav({ current, context }: { current: string; context?: string }) {
@@ -23,7 +23,7 @@ export function InterviewNav({ current, context }: { current: string; context?: 
             key={href}
             href={context && href !== "/career/interview/questions" && !(context === "general" && href === "/career/interview") ? `${href}?context=${encodeURIComponent(context)}` : href}
             aria-current={isCurrent ? "page" : undefined}
-            className={`relative inline-flex h-7 shrink-0 items-center transition-colors ui-transition after:absolute after:inset-x-0 after:bottom-0 after:h-px after:rounded-full after:transition-opacity after:duration-[var(--motion-fast)] ${isCurrent ? "font-medium text-[var(--text-primary)] after:bg-[var(--accent)] after:opacity-100" : "text-[var(--text-tertiary)] after:opacity-0 hover:text-[var(--text-primary)]"}`}
+            className="ui-navigation-item"
           >
             {label}
           </Link>

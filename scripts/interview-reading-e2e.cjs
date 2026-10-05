@@ -51,14 +51,14 @@ exports.verifyInterviewReading = async (browser, baseURL, output) => {
     assert.ok(!(await answerSection.innerText()).includes("使用记录能说明工具被采用"));
     assert.equal(await explanation.getAttribute("open"), null);
     const historyLength = await page.evaluate(() => history.length);
-    await detail.getByRole("button", { name: "思路拆解讲解", exact: true }).click();
+    await detail.getByRole("navigation", { name: "题目学习章节", exact: true }).getByRole("button", { name: "思路拆解讲解", exact: true }).click();
     assert.ok((await explanation.innerText()).includes("使用记录能说明工具被采用"));
     assert.equal(await page.evaluate(() => history.length), historyLength);
     await page.screenshot({ path: `${output}/interview-answer-explanation-${width}.png` });
     await explanation.locator("summary").focus();
     await page.keyboard.press("Enter");
     assert.equal(await explanation.getAttribute("open"), null);
-    await detail.getByRole("button", { name: "思路拆解讲解", exact: true }).click();
+    await detail.getByRole("navigation", { name: "题目学习章节", exact: true }).getByRole("button", { name: "思路拆解讲解", exact: true }).click();
     assert.equal(await explanation.getAttribute("open"), "");
     await detail.getByRole("button", { name: "下一题 →", exact: true }).click();
     assert.equal(await detail.locator("#study-thinking").getAttribute("open"), null);
@@ -75,7 +75,7 @@ exports.verifyInterviewReading = async (browser, baseURL, output) => {
     }
     await list.getByLabel("搜索题库", { exact: true }).fill("不存在的测试关键词");
     await list.getByText("没有找到匹配的问题", { exact: true }).waitFor();
-    await list.getByRole("button", { name: "清除筛选", exact: true }).click();
+    await list.getByRole("button", { name: "清除搜索与筛选", exact: true }).click();
     await list.getByLabel("搜索题库", { exact: true }).fill("旧版讲解");
     await list.getByRole("button").filter({ hasText: "推理题：旧版讲解" }).first().click();
     await detail.waitFor({ state: "visible" });

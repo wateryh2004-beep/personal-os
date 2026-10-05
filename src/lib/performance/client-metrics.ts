@@ -6,6 +6,7 @@ export const clientMetricNames = [
   "TTFB",
   "route-commit",
   "workspace-data-ready",
+  "initial-workspace-ready",
 ] as const;
 
 export type ClientMetricName = (typeof clientMetricNames)[number];

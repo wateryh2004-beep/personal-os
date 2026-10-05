@@ -11,14 +11,14 @@ const buttonVariants = cva(
       variant: {
         default: "bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]",
         outline:
-          "border-[var(--separator)] bg-[var(--material-thick)] text-foreground shadow-[var(--shadow-control)] hover:bg-[var(--surface-hover)] aria-expanded:bg-[var(--surface-hover)]",
+          "border-[var(--control-border)] bg-[var(--material-thick)] text-foreground shadow-[var(--shadow-control)] hover:bg-[var(--surface-hover)] aria-expanded:bg-[var(--surface-hover)]",
         secondary:
-          "bg-[var(--surface-control)] text-secondary-foreground hover:bg-[var(--surface-control-hover)] aria-expanded:bg-[var(--surface-control-hover)]",
+          "border-[var(--control-border)] bg-[var(--surface-control)] text-secondary-foreground hover:bg-[var(--surface-control-hover)] aria-expanded:bg-[var(--surface-control-hover)]",
         ghost:
           "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-foreground active:bg-[var(--surface-selected)] aria-expanded:bg-[var(--surface-selected)] aria-expanded:text-foreground",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/15 focus-visible:border-destructive/40 focus-visible:ring-destructive/15",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-primary underline decoration-from-font underline-offset-4 hover:decoration-2",
       },
       size: {
         default:
@@ -54,6 +54,7 @@ function Button({
   return (
     <Comp
       data-slot="button"
+      data-ui-button=""
       data-variant={variant}
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}

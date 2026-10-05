@@ -1,0 +1,30 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import postcss, { type Rule, type AnyNode } from "postcss";
+import tailwindcss from "@tailwindcss/postcss";
+import { expect, it } from "vitest";
+
+it("keeps functional control borders above the unlayered reset in compiled CSS", async () => {
+  const from = resolve("src/app/globals.css");
+  const result = await postcss([tailwindcss({ base: process.cwd() })]).process(readFileSync(from, "utf8"), { from });
+  const rules: Rule[] = [];
+  result.root.walkRules(rule => { rules.push(rule); });
+  const ruleFor = (fragment: string) => rules.find(rule => rule.selector.includes(fragment))!;
+  const layer = (rule: Rule) => { let parent: AnyNode | undefined = rule.parent; while (parent) { if (parent.type === "atrule" && parent.name === "layer") return parent.name; parent = parent.parent; } return null; };
+  const controls = ruleFor('[data-ui-button][data-variant="outline"]') ?? ruleFor("[data-ui-button][data-variant=outline]");
+  expect(controls).toBeDefined();
+  expect(layer(controls)).toBeNull();
+  expect(controls.nodes.some(node => node.type === "decl" && node.prop === "border" && node.value === "1px solid var(--control-border)")).toBe(true);
+  const reset = rules.find(rule => rule.selector === "*" && rule.nodes.some(node => node.type === "decl" && node.prop === "border-color" && node.value === "var(--border-subtle)"))!;
+  expect(layer(reset)).toBeNull();
+  expect(rules.indexOf(controls)).toBeGreaterThan(rules.indexOf(reset));
+  const invalid = ruleFor('[data-slot=input][aria-invalid=true]');
+  expect(layer(invalid)).toBeNull();
+  expect(rules.indexOf(invalid)).toBeGreaterThan(rules.indexOf(controls));
+  const disabled = ruleFor(".ui-more-action:disabled");
+  expect(layer(disabled)).toBeNull();
+  expect(rules.indexOf(disabled)).toBeGreaterThan(rules.indexOf(ruleFor(".ui-more-action")));
+  const touch = ruleFor("[data-ui-button][data-size^=icon]");
+  expect(touch.parent?.type).toBe("atrule");
+  if (touch.parent?.type === "atrule") expect(touch.parent.params).toContain("pointer:coarse");
+}, 20000);

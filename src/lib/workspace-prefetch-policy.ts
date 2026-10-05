@@ -42,3 +42,29 @@ export function shouldSkipBackgroundPrefetch(connection?: NetworkInformationLike
 export function shouldBackgroundWarmData(data: unknown) {
   return data === undefined;
 }
+
+/** CPU-idle does not mean the active workspace's network request has finished. */
+export function afterActiveWorkspaceRead(
+  resource: {
+    get: () => { data?: unknown; promise?: Promise<unknown>; error?: Error };
+    subscribe: (listener: () => void) => () => void;
+  },
+  ready: () => void,
+) {
+  let finished = false;
+  let unsubscribe = () => {};
+  const inspect = () => {
+    const snapshot = resource.get();
+    if (finished || snapshot.promise || (snapshot.data === undefined && !snapshot.error)) return;
+    finished = true;
+    unsubscribe();
+    ready();
+  };
+  unsubscribe = resource.subscribe(inspect);
+  inspect();
+  return () => { finished = true; unsubscribe(); };
+}
+
+export function activeWorkspacePrefetchHref(pathname: string): WorkspacePrefetchHref | undefined {
+  return workspacePrefetchHrefs.find((href) => pathname === href || pathname.startsWith(`${href}/`));
+}

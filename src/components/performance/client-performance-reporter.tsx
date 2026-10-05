@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useReportWebVitals } from "next/web-vitals";
 import {
@@ -65,11 +65,13 @@ export function ClientPerformanceReporter() {
     });
   });
 
-  useEffect(() => {
+  // Install before data-backed children emit their passive mount effect,
+  // including the first render of server-backed pages.
+  useLayoutEffect(() => {
     const onNavigationMetric = (event: Event) => {
       const detail = (event as CustomEvent<{ name?: string; durationMs?: number; href?: string; workspace?: string }>).detail;
       if (!detail || !detail.name || !isClientMetricName(detail.name) || typeof detail.durationMs !== "number") return;
-      const route = detail.name === "workspace-data-ready"
+      const route = (detail.name === "workspace-data-ready" || detail.name === "initial-workspace-ready")
         ? (detail.href ? normalizeMetricRoute(detail.href) : workspaceMetricRoute(detail.workspace))
         : normalizeMetricRoute(detail.href ?? pathname);
       if (!route) return;

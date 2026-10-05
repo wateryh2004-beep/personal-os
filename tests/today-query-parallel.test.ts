@@ -73,7 +73,7 @@ function harness(options: { fallback?: boolean } = {}) {
   const focusReads = () => reads.filter((read) => read.table === "microsoft_todo_tasks" && hasStep(read, "neq", "status", "completed"));
   const priorityReads = () => reads.filter((read) => read.table === "today_task_priorities");
   const selectedReads = () => reads.filter((read) => read.table === "microsoft_todo_tasks" && hasStep(read, "in", "id"));
-  const run = (explicitOwner?: Owner) => getTodayWorkspace(now, explicitOwner, createWorkspaceLatencyProfiler("today", "api"));
+  const run = (explicitOwner?: Owner, instant = now) => getTodayWorkspace(instant, explicitOwner, createWorkspaceLatencyProfiler("today", "api"));
   return { source, candidates, priorities, profile, selected, reads, rpc, owner, focusReads, priorityReads, selectedReads, run };
 }
 
@@ -85,21 +85,22 @@ async function flush() {
 beforeEach(() => { vi.resetAllMocks(); });
 
 describe("Today workspace read concurrency", () => {
-  it("starts candidates with the compact read, then starts date-scoped priorities without waiting for candidates", async () => {
+  it("starts candidates and bounded priorities alongside the compact read", async () => {
     const h = harness();
     const workspaceRead = h.run();
     await flush();
     expect(h.rpc).toHaveBeenCalledExactlyOnceWith("get_today_workspace_read_model", { p_now: now.toISOString() });
     expect(h.focusReads()).toHaveLength(1);
-    expect(h.priorityReads()).toHaveLength(0);
+    expect(h.priorityReads()).toHaveLength(1);
     expect(mocks.owner).toHaveBeenCalledTimes(1);
 
     h.source.resolve(compact());
     await flush();
     expect(h.priorityReads()).toHaveLength(1);
-    expect(hasStep(h.priorityReads()[0], "eq", "focus_date", "2026-10-01")).toBe(true);
+    expect(hasStep(h.priorityReads()[0], "gte", "focus_date", "2026-10-01")).toBe(true);
+    expect(hasStep(h.priorityReads()[0], "lte", "focus_date", "2026-10-03")).toBe(true);
     expect(h.selectedReads()).toHaveLength(0);
-    h.priorities.resolve(result([{ task_id: "older", position: 0 }, { task_id: "candidate", position: 1 }]));
+    h.priorities.resolve(result([{ focus_date: "2026-10-01", task_id: "older", position: 0 }, { focus_date: "2026-10-01", task_id: "candidate", position: 1 }]));
     await flush();
     expect(h.selectedReads()).toHaveLength(0);
     h.candidates.resolve(result([candidate]));
@@ -127,15 +128,52 @@ describe("Today workspace read concurrency", () => {
     expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["Etc/GMT+12", "2026-10-01"],
+    ["Pacific/Kiritimati", "2026-10-02"],
+    ["Asia/Shanghai", "2026-10-02"],
+  ])("filters preloaded adjacent dates to the exact %s date", async (timezone, date) => {
+    const h = harness();
+    const workspaceRead = h.run();
+    h.priorities.resolve(result([
+      { focus_date: "2026-10-01", task_id: "yesterday", position: 0 },
+      { focus_date: "2026-10-02", task_id: "today", position: 0 },
+      { focus_date: "2026-10-03", task_id: "tomorrow", position: 0 },
+    ]));
+    const tasks = ["yesterday", "today", "tomorrow"].map((id) => ({ ...candidate, id }));
+    h.candidates.resolve(result(tasks));
+    h.source.resolve(compact(timezone));
+    const workspace = await workspaceRead;
+    expect(workspace.focus?.date).toBe(date);
+    expect(workspace.focus?.selectedIds).toEqual([date === "2026-10-01" ? "yesterday" : "today"]);
+    expect(h.priorityReads()).toHaveLength(1);
+    expect(h.selectedReads()).toHaveLength(0);
+    expect(mocks.after).toHaveBeenCalledTimes(1);
+  });
+
+  it("includes the next UTC date for UTC+14 late in the UTC day", async () => {
+    const h = harness();
+    const workspaceRead = h.run(undefined, new Date("2026-10-02T23:30:00Z"));
+    h.priorities.resolve(result([
+      { focus_date: "2026-10-02", task_id: "wrong-day", position: 1 },
+      { focus_date: "2026-10-03", task_id: candidate.id, position: 1 },
+    ]));
+    h.candidates.resolve(result([candidate]));
+    h.source.resolve(compact("Pacific/Kiritimati"));
+    expect((await workspaceRead).focus).toMatchObject({ date: "2026-10-03", selectedIds: [candidate.id] });
+    expect(hasStep(h.priorityReads()[0], "lte", "focus_date", "2026-10-03")).toBe(true);
+    expect(h.selectedReads()).toHaveLength(0);
+  });
+
   it("reuses an early candidate result and an explicit owner without another query or auth read", async () => {
     const h = harness();
     const workspaceRead = h.run(h.owner);
     h.candidates.resolve(result([candidate]));
     await flush();
     expect(h.focusReads()).toHaveLength(1);
-    expect(h.priorityReads()).toHaveLength(0);
+    expect(h.priorityReads()).toHaveLength(1);
     h.source.resolve(compact("Asia/Shanghai"));
-    h.priorities.resolve(result([{ task_id: candidate.id, position: 0 }]));
+    h.priorities.resolve(result([{ focus_date: "2026-10-02", task_id: candidate.id, position: 0 }]));
     const workspace = await workspaceRead;
     expect(workspace.focus).toMatchObject({ date: "2026-10-02", selectedTasks: [candidate], available: true });
     expect(h.focusReads()).toHaveLength(1);
@@ -151,10 +189,11 @@ describe("Today workspace read concurrency", () => {
     h.source.resolve({ data: null, error: { message: "RPC unavailable" } });
     await flush();
     expect(h.reads.filter((read) => read.table === "profiles")).toHaveLength(1);
-    expect(h.priorityReads()).toHaveLength(0);
+    expect(h.priorityReads()).toHaveLength(1);
     h.profile.resolve(result({ timezone: "Pacific/Honolulu" }));
     await flush();
-    expect(hasStep(h.priorityReads()[0], "eq", "focus_date", "2026-10-01")).toBe(true);
+    expect(hasStep(h.priorityReads()[0], "gte", "focus_date", "2026-10-01")).toBe(true);
+    expect(hasStep(h.priorityReads()[0], "lte", "focus_date", "2026-10-03")).toBe(true);
     h.priorities.resolve(result([]));
     h.candidates.resolve(result([candidate]));
     const workspace = await workspaceRead;
@@ -200,7 +239,7 @@ describe("Today workspace read concurrency", () => {
     const h = harness();
     h.source.resolve(compact());
     h.candidates.resolve({ data: null, error: { message: "unavailable" } });
-    h.priorities.resolve(result([{ task_id: "older", position: 0 }]));
+    h.priorities.resolve(result([{ focus_date: "2026-10-01", task_id: "older", position: 0 }]));
     h.selected.resolve(result([olderSelection]));
     const workspace = await h.run();
     expect(workspace.focus).toEqual({ date: "2026-10-01", selectedIds: ["older"], selectedTasks: [olderSelection], candidates: [], available: false });
@@ -221,7 +260,7 @@ describe("Today workspace read concurrency", () => {
     const h = harness();
     h.source.resolve(compact());
     h.candidates.resolve(result([candidate]));
-    h.priorities.resolve(result([{ task_id: "older", position: 0 }, { task_id: "candidate", position: 1 }]));
+    h.priorities.resolve(result([{ focus_date: "2026-10-01", task_id: "older", position: 0 }, { focus_date: "2026-10-01", task_id: "candidate", position: 1 }]));
     h.selected.resolve({ data: null, error: { message: "unavailable" } });
     const workspace = await h.run();
     expect(workspace.focus).toEqual({ date: "2026-10-01", selectedIds: ["older", "candidate"], selectedTasks: [candidate], candidates: [candidate], available: false });
@@ -235,8 +274,9 @@ describe("Today workspace read concurrency", () => {
     h.source.reject(new Error("source offline"));
     await failedWorkspace;
     h.candidates.reject(new Error("candidate offline"));
+    h.priorities.reject(new Error("priorities offline"));
     await flush();
-    expect(h.priorityReads()).toHaveLength(0);
+    expect(h.priorityReads()).toHaveLength(1);
     expect(mocks.after).not.toHaveBeenCalled();
   });
 

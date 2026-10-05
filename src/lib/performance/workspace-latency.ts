@@ -11,6 +11,7 @@ type WorkspaceLatencySnapshot = {
   authMs?: number;
   supabaseMs?: number;
   assembleMs?: number;
+  focusWaitMs?: number;
   fallbackMs?: number;
   fallback: boolean;
   region: string | null;
@@ -93,6 +94,7 @@ export class WorkspaceLatencyProfiler {
       authMs: rounded(this.spans.get("auth")),
       supabaseMs: rounded(this.spans.get("supabase")),
       assembleMs: rounded(this.spans.get("assemble")),
+      focusWaitMs: rounded(this.spans.get("focus_wait")),
       fallbackMs: rounded(this.spans.get("fallback")),
       fallback: this.fallback,
       region: process.env.VERCEL_REGION ?? null,

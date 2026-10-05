@@ -1,4 +1,5 @@
 "use client";
+import { DisclosureTrigger } from "@/components/ui/disclosure";
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 const enteredDates = new Set<string>();
@@ -19,7 +20,7 @@ export function TodayDisclosure({ label, children, className = "", testId }: { l
   const [expanded, setExpanded] = useState(false);
   const id = useId();
   return <div className={`today-disclosure ${className}`} data-expanded={expanded} data-testid={testId}>
-    <button type="button" className="today-disclosure-trigger" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(value => !value)}>{label}<span className="today-disclosure-symbol" aria-hidden="true">+</span></button>
+    <DisclosureTrigger className="today-disclosure-trigger" expanded={expanded} aria-controls={id} onClick={() => setExpanded(value => !value)}>{label}</DisclosureTrigger>
     <div id={id} className="today-disclosure-grid" inert={!expanded} aria-hidden={!expanded}><div className="today-disclosure-clip"><div className="today-disclosure-content">{children}</div></div></div>
   </div>;
 }

@@ -3,7 +3,7 @@
 import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
 
 import Link from "next/link";
-import { useRef, useState, useTransition, type ReactNode } from "react";
+import { useRef, useState, useTransition, type ReactNode, type MouseEvent } from "react";
 import { ArrowUpRight, CheckCircle2, Plus, Search, X } from "lucide-react";
 import type { NowTask, TodayFocus } from "@/features/today/types";
 import { selectFocusCandidates } from "@/features/today/focus";
@@ -37,6 +37,8 @@ export function TodayPriorities({ focus, timezone = "Asia/Shanghai", header, lea
   const [pending, startTransition] = useTransition();
   const saving = useRef(false);
   const editorTitle = useRef<HTMLHeadingElement>(null);
+  const opener = useRef<HTMLButtonElement | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   const all = [...focus.selectedTasks, ...focus.candidates];
   const resolveTasks = (ids: string[]) => ids.map((id) =>
     all.find((task) => task.id === id) ?? { id, title: "任务已不可用", status: "unavailable", due_at: null, importance: null } as NowTask);
@@ -44,7 +46,8 @@ export function TodayPriorities({ focus, timezone = "Asia/Shanghai", header, lea
   const selected = resolveTasks(selectedIds);
   const candidates = selectFocusCandidates(focus.candidates, query, selectedIds);
 
-  function begin() {
+  function begin(event: MouseEvent<HTMLButtonElement>) {
+    opener.current = event.currentTarget;
     setSelectedIds(focus.selectedIds);
     setPreviousIds(focus.selectedIds);
     setQuery(""); setMessage(""); setFailed(false); setEditing(true);
@@ -91,14 +94,14 @@ export function TodayPriorities({ focus, timezone = "Asia/Shanghai", header, lea
 
   const activeTaskId = compactAll ? undefined : primaryTaskId ?? savedSelected.find((task) => task.status !== "completed" && task.status !== "unavailable")?.id;
   const emptyPrompt = Boolean(header && !savedSelected.length && focus.available);
-  const editButton = focus.available ? <button type="button" onClick={begin} aria-haspopup="dialog" aria-expanded={editing} className="today-focus-adjust today-calm-press min-h-11 shrink-0 rounded-lg px-2 text-[var(--text-secondary)] hover:text-[var(--accent)]">{savedSelected.length ? header ? "调整重点" : "调整" : "选择重点"}</button> : null;
+  const editButton = focus.available ? <button type="button" onClick={begin} aria-haspopup="dialog" aria-expanded={editing} className="ui-action-secondary today-focus-adjust today-calm-press min-h-11 shrink-0 rounded-lg px-2 text-[var(--text-secondary)] hover:text-[var(--accent)]">{savedSelected.length ? header ? "调整重点" : "调整" : "选择重点"}</button> : null;
 
-  return <section aria-labelledby="today-priorities-heading" className="today-priorities min-w-0">
+  return <section ref={sectionRef} aria-labelledby="today-priorities-heading" className="today-priorities min-w-0">
     {header ? <div className="today-heading-row flex items-end justify-between gap-3">{header}{savedSelected.length ? editButton : null}</div> : null}
     {leadBefore}
     {emptyPrompt ? <div className="today-empty-focus">
-      <h2 id="today-priorities-heading" className="sr-only">今日重点</h2>
-      <button type="button" onClick={begin} aria-label="选择重点" aria-haspopup="dialog" aria-expanded={editing} className="today-empty-focus-trigger today-calm-press flex min-h-11 w-full items-center justify-between gap-3 text-left text-[var(--text-primary)]"><span>为今天留一个重点</span><Plus className="size-[18px] shrink-0 text-[var(--accent)]" aria-hidden="true" /></button>
+      <h2 id="today-priorities-heading" className="today-focus-section-label">今日重点</h2>
+      <button type="button" onClick={begin} aria-label="选择重点" aria-haspopup="dialog" aria-expanded={editing} className="ui-action-secondary today-empty-focus-trigger today-calm-press"><Plus className="size-[18px] shrink-0" aria-hidden="true" /><span>选择重点</span></button>
     </div> : <div className={header && savedSelected.length && !compactAll ? "sr-only" : "today-focus-heading flex min-h-11 items-center justify-between gap-3"}>
       <h2 id="today-priorities-heading" className="today-focus-section-label">{savedSelected.length || !focus.available ? "今日重点" : "今天想推进什么？"}</h2>
       {!header ? editButton : null}
@@ -140,6 +143,7 @@ export function TodayPriorities({ focus, timezone = "Asia/Shanghai", header, lea
         className="today-calm-sheet mx-auto max-h-[85dvh] min-h-0 w-full max-w-xl gap-0 overflow-hidden"
         style={{ maxHeight: "min(85dvh, var(--app-viewport-height, 100dvh))", bottom: "max(0px, calc(100dvh - var(--app-viewport-height, 100dvh)))" }}
         onOpenAutoFocus={(event) => { event.preventDefault(); editorTitle.current?.focus({ preventScroll: true }); }}
+        onCloseAutoFocus={(event) => { event.preventDefault(); (opener.current?.isConnected ? opener.current : sectionRef.current?.querySelector<HTMLButtonElement>('[aria-haspopup="dialog"]'))?.focus({ preventScroll: true }); }}
         onEscapeKeyDown={(event) => { if (saving.current) event.preventDefault(); }}
         onPointerDownOutside={(event) => { if (saving.current) event.preventDefault(); }}
       >
