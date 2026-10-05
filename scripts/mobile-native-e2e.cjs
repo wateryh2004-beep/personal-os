@@ -161,7 +161,9 @@ async function backCloses(page, trigger, visibleTarget) {
       await interview.getByLabel("面试岗位").selectOption("e2e-target");
       await questionList.getByRole("button", { name: "E2E 面试问题 2", exact: true }).tap();
       await questionDetail.waitFor({ state: "visible" });
-      assert.ok((await questionDetail.innerText()).includes("E2E 思路 2"));
+      assert.equal(await questionDetail.locator("#study-thinking").getAttribute("open"), null);
+      await questionDetail.getByRole("button", { name: "思路拆解讲解", exact: true }).tap();
+      assert.ok((await questionDetail.locator("#study-thinking").innerText()).includes("E2E 思路 2"));
       await capture(page, `interview-target-${width}`);
       await page.goto(`${baseURL}/mobile-native-e2e`, { waitUntil: "networkidle" });
 
