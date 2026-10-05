@@ -110,6 +110,7 @@ async function capture(page, name) {
       await page.waitForFunction(() => document.querySelector('[data-artwork-state="ready"]'));
       await capture(page, `leisure-artwork-detail-${width}`);
       await page.getByRole("link", { name: "← 回到闲暇", exact: true }).click();
+      await page.getByRole("heading", { name: "此刻可选", exact: true }).waitFor();
       assert.equal(await page.locator("#leisure-collection li").count(), 16);
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.getByRole("button", { name: "换个灵感", exact: true }).click();
