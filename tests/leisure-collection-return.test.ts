@@ -2,7 +2,7 @@
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
-vi.mock("next/link", () => ({ default: ({ onNavigate, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { onNavigate?: (event: { preventDefault: () => void }) => void }) => createElement("a", { ...props, onClick: (event: React.MouseEvent) => { if (!event.metaKey && !event.ctrlKey) onNavigate?.(event); event.preventDefault(); } }) }));
+vi.mock("next/link", () => ({ default: ({ onNavigate, scroll, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { onNavigate?: (event: { preventDefault: () => void }) => void; scroll?: boolean }) => { void scroll; return createElement("a", { ...props, onClick: (event: React.MouseEvent) => { if (!event.metaKey && !event.ctrlKey) onNavigate?.(event); event.preventDefault(); } }); } }));
 import { LeisureCollectionLink, collectionReturnHref, focusCollectionReturn, markCollectionReturn } from "@/components/leisure/leisure-collection-link";
 import { LeisureDetailLink } from "@/components/leisure/leisure-detail-link";
 it("restores only the matching same-tab collection card and preserves navigation guards", async () => {
@@ -27,9 +27,10 @@ it("restores only the matching same-tab collection card and preserves navigation
     expect(collectionReturnHref("/leisure?kind=game&minutes=60")).toContain("#leisure-item-a");
     // Only an explicit, accepted return restores focus, and missing cards fall back.
     window.history.replaceState(null, "", "/leisure?kind=game&minutes=60#leisure-item-a");
-    const card = document.createElement("a"); card.id = "leisure-item-a"; card.href = "/leisure/a"; host.append(card);
+    const card = document.createElement("a"); card.id = "leisure-item-a"; card.href = "/leisure/a"; card.scrollIntoView = vi.fn(); host.append(card);
     markCollectionReturn(window.location.href); focusCollectionReturn();
     expect(document.activeElement).toBe(card);
+    expect(card.scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "instant" });
     card.remove();
     const heading = document.createElement("h2"); heading.id = "leisure-collection-heading"; heading.tabIndex = -1; heading.scrollIntoView = vi.fn(); host.append(heading);
     markCollectionReturn(window.location.href); focusCollectionReturn();

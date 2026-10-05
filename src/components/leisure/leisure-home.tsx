@@ -29,7 +29,7 @@ function Poster({ item, href, index }: { item: LeisureSummary; href: string; ind
 export function LeisureHome({ experiences, unavailable = false, hasMore = false, detailBase = "/leisure/" }: { experiences: LeisureSummary[]; unavailable?: boolean; hasMore?: boolean; detailBase?: string }) {
   const router = useRouter();
   useEffect(() => {
-    // Next owns hash scrolling. Restore keyboard continuity only for an explicit return.
+    // Restore the card only for an explicit return; leave native history untouched.
     const frame = requestAnimationFrame(focusCollectionReturn);
     return () => cancelAnimationFrame(frame);
   }, []);

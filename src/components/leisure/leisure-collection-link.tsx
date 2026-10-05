@@ -24,7 +24,7 @@ export function focusCollectionReturn() {
   returning = undefined;
   if (!anchor || !origin || collectionKey(window.location.href) !== origin.url || window.location.hash !== `#${anchor}`) return;
   const card = document.getElementById(anchor);
-  if (card) { card.focus({ preventScroll: true }); return; }
+  if (card) { card.scrollIntoView({ block: "start", behavior: "instant" }); card.focus({ preventScroll: true }); return; }
   // The item may have been archived or moved out of this filtered collection.
   const heading = document.getElementById("leisure-collection-heading");
   heading?.scrollIntoView({ block: "start", behavior: "instant" });
