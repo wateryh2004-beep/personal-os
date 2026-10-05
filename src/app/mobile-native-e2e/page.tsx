@@ -1,3 +1,4 @@
+import { InterviewReadingFixture } from "@/components/testing/interview-reading-fixture";
 import { LeisureFixture } from "@/components/testing/leisure-fixture";
 import { NotesSearchFixture } from "@/components/testing/notes-search-fixture";
 import { cookies } from "next/headers";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string; item?: string }> }) {
   if (process.env.E2E_MOBILE_HARNESS !== "1") notFound();
   const { scene, workspace, mode, item, delay: rawDelay } = await searchParams;
+  if (scene === "interview-reading") return <InterviewReadingFixture />;
   if (scene === "leisure") return <LeisureFixture item={item} mode={mode} />;
   if (scene === "notes-search") return <NotesSearchFixture />;
   if (scene === "latency") {

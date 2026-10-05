@@ -21,6 +21,7 @@ beforeEach(() => {
   window.history.replaceState(null, "", "/career/interview");
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
   Element.prototype.scrollIntoView = vi.fn();
+  window.scrollTo = vi.fn();
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   host = document.createElement("div");
   document.body.append(host);
@@ -50,12 +51,12 @@ async function render(items: WorkspaceItem[]) {
   })));
 }
 
-it("keeps unrelated question bodies and labels out of the answer typing path", async () => {
+it("does not read unrelated long bodies when selecting a question without a text search", async () => {
   const unrelatedReads = vi.fn();
   const items = Array.from({ length: 153 }, (_, index) => {
     const item = makeItem(index);
-    if (index) {
-      for (const key of ["thoughts", "answer", "shortTitle", "subcategory"] as const) {
+    if (index > 1) {
+      for (const key of ["thoughts", "answer"] as const) {
         const value = item[key];
         Object.defineProperty(item, key, { enumerable: true, get: () => { unrelatedReads(); return value; } });
       }
@@ -63,19 +64,10 @@ it("keeps unrelated question bodies and labels out of the answer typing path", a
     return item;
   });
   await render(items);
-  await act(async () => button("Question 0").click());
-  await act(async () => button("编辑思路与答案").click());
-  unrelatedReads.mockClear();
-  const input = host.querySelector<HTMLTextAreaElement>('[aria-label="答案"]')!;
-  for (let index = 0; index < 10; index += 1) {
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(input, `${items[0].answer} ${index}`);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-  }
-  // Counts actual work instead of relying on a noisy wall-clock threshold.
-  expect(unrelatedReads.mock.calls.length).toBe(0);
-  expect(input.value).toBe(`${items[0].answer} 9`);
+  expect(unrelatedReads).not.toHaveBeenCalled();
+  await act(async () => button("Question 1").click());
+  expect(unrelatedReads).not.toHaveBeenCalled();
+  expect(host.textContent).toContain("Answer 1");
 });
 
 it("does not reparse unchanged study Markdown when opening the selected mobile detail", async () => {
@@ -87,23 +79,13 @@ it("does not reparse unchanged study Markdown when opening the selected mobile d
   expect(host.querySelector<HTMLElement>('[data-testid="interview-question-detail"]')!.classList.contains("hidden")).toBe(false);
 });
 
-it("updates save metadata without reparsing the displayed reference bodies", async () => {
-  let finishSave!: (value: unknown) => void;
-  mocks.save.mockImplementationOnce(() => new Promise((resolve) => { finishSave = resolve; }));
-  await render([makeItem(0)]);
-  await act(async () => button("Question 0").click());
-  await act(async () => button("编辑思路与答案").click());
-  const input = host.querySelector<HTMLTextAreaElement>('[aria-label="答案"]')!;
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(input, "An edited reference answer");
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  await act(async () => button("阅读学习").click());
-  expect(mocks.save).toHaveBeenCalledTimes(1);
-  expect(host.textContent).toContain("An edited reference answer");
+it("opens version metadata without reparsing the displayed reading bodies", async () => {
+  await render([{ ...makeItem(0), answerMeta: { status: "draft", source: "ai_draft", language: "bilingual", confirmed_at: null, version_number: 2 } }]);
+  const metadata = host.querySelector<HTMLDetailsElement>('[data-testid="interview-study-view"] details')!;
   mocks.markdown.mockClear();
-  await act(async () => finishSave({ answerId: "draft-2", answerMeta: { status: "draft", source: "ai_edited", language: "bilingual", confirmed_at: null, version_number: 2 } }));
+  await act(async () => { metadata.open = true; metadata.dispatchEvent(new Event("toggle")); });
   expect(host.textContent).toContain("参考答案 · 待确认");
-  expect(host.textContent).toContain("已保存");
+  expect(host.textContent).toContain("V2");
   expect(mocks.markdown.mock.calls.length).toBe(0);
+  expect(mocks.save).not.toHaveBeenCalled();
 });

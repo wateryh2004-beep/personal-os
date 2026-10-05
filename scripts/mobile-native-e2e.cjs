@@ -104,6 +104,7 @@ async function backCloses(page, trigger, visibleTarget) {
       assert.equal(await interview.getByLabel("面试岗位").inputValue(), "");
       assert.equal(await questionDetail.isVisible(), false);
       await interview.getByLabel("搜索题库", { exact: true }).fill("English reference");
+      await interview.getByTestId("interview-filters").locator("summary").click();
       await interview.getByLabel("学习模块", { exact: true }).selectOption("SQL与数据分析");
       await interview.getByLabel("提问风格", { exact: true }).selectOption("stress");
       assert.equal(await questionList.getByRole("button", { name: "E2E 面试问题 0", exact: true }).count(), 0);
@@ -124,11 +125,10 @@ async function backCloses(page, trigger, visibleTarget) {
       assert.ok((await questionDetail.innerText()).includes("E2E 思路 0"));
       assert.equal(await questionDetail.locator("textarea").count(), 0);
       assert.ok((await questionDetail.innerText()).includes("E2E 答案 0"));
-      await questionDetail.getByRole("button", { name: "编辑思路与答案", exact: true }).tap();
-      assert.ok((await questionDetail.getByLabel("思路", { exact: true }).inputValue()).includes("E2E 思路 0"));
-      assert.equal(await questionDetail.getByLabel("答案", { exact: true }).inputValue(), "E2E 答案 0");
-      await questionDetail.getByRole("button", { name: "阅读学习", exact: true }).tap();
-      assert.equal(await questionDetail.locator("textarea").count(), 0);
+      assert.equal(await questionDetail.getByRole("button", { name: "编辑思路与答案", exact: true }).count(), 0);
+      await questionDetail.locator("details").first().locator("summary").click();
+      assert.ok((await questionDetail.innerText()).includes("不代表内容或个人经历已经核实"));
+      await questionDetail.locator("details").first().locator("summary").click();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
       await capture(page, `interview-detail-${width}`);
       await captureElement(questionDetail, `interview-detail-crop-${width}`);
@@ -201,6 +201,7 @@ async function backCloses(page, trigger, visibleTarget) {
     assert.deepEqual(errors, [], "desktop learning view should not have uncaught errors");
     await desktop.close();
     console.log("mobile-native-e2e: 1440px desktop passed");
+    await require("./interview-reading-e2e.cjs").verifyInterviewReading(browser, baseURL, process.env.E2E_SCREENSHOT_DIR || "test-results/mobile");
 
     // Shared shell screenshots use real workspace components with synthetic
     // fixtures. Route stubs supply only fixture reads; no form is submitted.
