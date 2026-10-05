@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ArrowDown, ArrowRight, ArrowUpRight, MoveUpRight, Shuffle, Sparkles } from "lucide-react";
+import { leisureDetailHref, readLeisureBrowse, leisureBrowseQuery } from "@/features/leisure/browse";
 import type { LeisureKind, LeisureSummary } from "@/features/leisure/types";
 import { emptyLeisureContext, formatLeisureDuration, hasLeisureMemory, leisureKindLabels, leisureStatusLabels, matchesLeisureContext, type LeisureContext } from "@/features/leisure/presentation";
 import { getLeisureArtwork } from "@/features/leisure/artwork";
@@ -26,8 +27,16 @@ function Poster({ item, href, index }: { item: LeisureSummary; href: string; ind
 
 export function LeisureHome({ experiences, unavailable = false, hasMore = false, detailBase = "/leisure/" }: { experiences: LeisureSummary[]; unavailable?: boolean; hasMore?: boolean; detailBase?: string }) {
   const router = useRouter();
-  const [context, setContext] = useState<LeisureContext>(emptyLeisureContext);
-  const [kind, setKind] = useState<LeisureKind | "all">("all");
+  const searchParams = useSearchParams();
+  const browse = readLeisureBrowse(searchParams);
+  const { context, kind } = browse;
+  const changeBrowse = (nextKind: LeisureKind | "all", nextContext: LeisureContext) => {
+    const url = new URL(window.location.href);
+    for (const key of ["kind", "minutes", "setting", "company", "budget"]) url.searchParams.delete(key);
+    new URLSearchParams(leisureBrowseQuery({ kind: nextKind, context: nextContext })).forEach((value, key) => url.searchParams.set(key, value));
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+  const detailHref = (id: string) => leisureDetailHref(detailBase, id, browse);
   const [featureIndex, setFeatureIndex] = useState(0);
   const [browseRevision, setBrowseRevision] = useState(0);
   const activeContext = Object.values(context).some(Boolean);
@@ -37,8 +46,8 @@ export function LeisureHome({ experiences, unavailable = false, hasMore = false,
   const kinds = [...new Set(experiences.map((item) => item.kind))];
   const remembered = experiences.filter((item) => item.feedback?.status && ["interested", "planned", "current"].includes(item.feedback.status) && item.feedback.reaction !== "not_for_me");
   const memories = experiences.filter(hasLeisureMemory);
-  const updateContext = (name: keyof LeisureContext, value: string) => { setContext((previous) => ({ ...previous, [name]: value })); setFeatureIndex(0); setBrowseRevision((value) => value + 1); };
-  const resetContext = () => { setContext(emptyLeisureContext); setFeatureIndex(0); setBrowseRevision((value) => value + 1); };
+  const updateContext = (name: keyof LeisureContext, value: string) => { changeBrowse(kind, { ...context, [name]: value }); setFeatureIndex(0); setBrowseRevision((value) => value + 1); };
+  const resetContext = () => { changeBrowse(kind, emptyLeisureContext); setFeatureIndex(0); setBrowseRevision((value) => value + 1); };
   return <div className={styles.page}>
     <header className={styles.homeHeader}>
       <div className={styles.masthead}><span className={styles.wordmark}>闲暇<span aria-hidden="true">/</span></span><span className={styles.eyebrow}>THE GOOD HOURS</span><span className={styles.mastheadNote}>没有待办，只有喜欢</span></div>
@@ -53,7 +62,7 @@ export function LeisureHome({ experiences, unavailable = false, hasMore = false,
           <article className={styles.feature} key={feature.id}>
             <div className={styles.featureImage}><LeisureArtwork item={feature} cinematic priority sizes="(max-width: 767px) 100vw, 1000px" /></div>
             <div className={styles.featureShade} aria-hidden="true" />
-            <div className={styles.featureContent}><span className={styles.featureKicker}><span className={styles.featureDot} />A MOMENT FOR YOU</span><div className={styles.featureText}><div className={styles.featureMeta}>{leisureKindLabels[feature.kind]}{feature.duration_minutes ? ` / ${formatLeisureDuration(feature.duration_minutes)}` : ""}</div><h3><Link href={`${detailBase}${feature.id}`}>{feature.title}</Link></h3>{feature.why ? <p>{feature.why}</p> : null}<Link href={`${detailBase}${feature.id}`} className={styles.featureCta}>走进这个世界 <ArrowUpRight size={18} aria-hidden="true" /></Link></div></div>
+            <div className={styles.featureContent}><span className={styles.featureKicker}><span className={styles.featureDot} />A MOMENT FOR YOU</span><div className={styles.featureText}><div className={styles.featureMeta}>{leisureKindLabels[feature.kind]}{feature.duration_minutes ? ` / ${formatLeisureDuration(feature.duration_minutes)}` : ""}</div><h3><Link href={detailHref(feature.id)}>{feature.title}</Link></h3>{feature.why ? <p>{feature.why}</p> : null}<Link href={detailHref(feature.id)} className={styles.featureCta}>走进这个世界 <ArrowUpRight size={18} aria-hidden="true" /></Link></div></div>
           </article>
           <div className={styles.featureControls}><span aria-hidden="true">{String(featureIndex % eligible.length + 1).padStart(2, "0")} <span>/ {String(eligible.length).padStart(2, "0")}</span></span>{eligible.length > 1 ? <button type="button" onClick={() => setFeatureIndex((index) => index + 1)}><Shuffle size={16} aria-hidden="true" />换个灵感</button> : null}</div>
           <span className={styles.srOnly} role="status" aria-live="polite">此刻可选：{feature.title}</span>
@@ -61,7 +70,7 @@ export function LeisureHome({ experiences, unavailable = false, hasMore = false,
       </section>
       <section className={styles.collection} aria-labelledby="leisure-collection-heading" id="leisure-collection">
         <div className={styles.collectionHeading}><div><span className={styles.eyebrow}>THE COLLECTION</span><h2 id="leisure-collection-heading">慢慢挑，<em>都在这里。</em></h2></div><span className={styles.collectionCount}>{experiences.length}<span>{hasMore ? "+" : ""} 个念头</span></span></div>
-        <div className={styles.browseToolbar}><div className={styles.categoryTabs} role="group" aria-label="按体验类型浏览"><button type="button" aria-pressed={kind === "all"} onClick={() => { setKind("all"); setBrowseRevision((value) => value + 1); }}>全部</button>{kinds.map((value) => <button type="button" key={value} aria-pressed={kind === value} onClick={() => { setKind(value); setBrowseRevision((value) => value + 1); }}>{leisureKindLabels[value]}</button>)}</div>
+        <div className={styles.browseToolbar}><div className={styles.categoryTabs} role="group" aria-label="按体验类型浏览"><button type="button" aria-pressed={kind === "all"} onClick={() => { changeBrowse("all", context); setBrowseRevision((value) => value + 1); }}>全部</button>{kinds.map((value) => <button type="button" key={value} aria-pressed={kind === value} onClick={() => { changeBrowse(value, context); setBrowseRevision((value) => value + 1); }}>{leisureKindLabels[value]}</button>)}</div>
           <details className={styles.context}><summary>换个情境{activeContext ? " · 已选择" : ""}</summary><div className={styles.contextPanel}><div className={styles.contextFields}>
             <label>有多少时间<select value={context.minutes} onChange={(event) => updateContext("minutes", event.target.value)}><option value="">都可以</option><option value="30">半小时以内</option><option value="60">一小时以内</option><option value="120">两小时以内</option><option value="240">一个下午</option></select></label>
             <label>在哪里<select value={context.setting} onChange={(event) => updateContext("setting", event.target.value)}><option value="">都可以</option><option value="home">在家</option><option value="out">出门</option></select></label>
@@ -70,12 +79,12 @@ export function LeisureHome({ experiences, unavailable = false, hasMore = false,
           </div><p className={styles.caption}>只影响这次浏览。条件不明的体验不会被当成符合条件。</p>{activeContext ? <button type="button" className={styles.quietButton} onClick={resetContext}>清除选择</button> : null}</div></details>
         </div>
         <p className={styles.srOnly} role="status" aria-live="polite">显示 {gallery.length} 个体验</p>
-        {gallery.length ? <ul className={styles.posterGrid} key={browseRevision}>{gallery.map((item, index) => <Poster key={item.id} item={item} href={`${detailBase}${item.id}`} index={index} />)}</ul> : <div className={styles.noChoices}><p>这个角落还没有符合条件的体验。</p><button type="button" className={styles.quietButton} onClick={() => { setKind("all"); resetContext(); }}>重新看看全部</button></div>}
+        {gallery.length ? <ul className={styles.posterGrid} key={browseRevision}>{gallery.map((item, index) => <Poster key={item.id} item={item} href={detailHref(item.id)} index={index} />)}</ul> : <div className={styles.noChoices}><p>这个角落还没有符合条件的体验。</p><button type="button" className={styles.quietButton} onClick={() => { changeBrowse("all", emptyLeisureContext); setFeatureIndex(0); setBrowseRevision((value) => value + 1); }}>重新看看全部</button></div>}
         {hasMore ? <p className={styles.caption}>这里只显示最近更新的 100 条；更早的体验仍然保留，可通过原有详情链接打开。</p> : null}
       </section>
       {remembered.length || memories.length ? <div className={styles.split}>
-        {remembered.length ? <section className={styles.section} aria-labelledby="leisure-remembered"><div className={styles.sectionHeading}><h2 id="leisure-remembered"><span className={styles.sectionNumber} aria-hidden="true">02 /</span>还惦记着</h2><span aria-hidden="true">↗</span></div><ul className={styles.list}>{remembered.slice(0, 6).map((item) => <li key={item.id} className={styles.keepsake}><Link href={`${detailBase}${item.id}`} className={styles.keepsakeLink}><div className={styles.keepsakeArt}><LeisureArtwork item={item} sizes="64px" /></div><div><span className={styles.kind}>{leisureStatusLabels[item.feedback!.status!]}</span><h3>{item.title}</h3></div><MoveUpRight size={16} aria-hidden="true" /></Link></li>)}</ul></section> : null}
-        {memories.length ? <section className={styles.section} aria-labelledby="leisure-memories"><div className={styles.sectionHeading}><h2 id="leisure-memories"><span className={styles.sectionNumber} aria-hidden="true">03 /</span>留下来的</h2><span className={styles.caption}>自己的感受</span></div><ul className={styles.list}>{memories.slice(0, 4).map((item) => <li key={item.id} className={styles.memory}><span className={styles.memoryQuote} aria-hidden="true">“</span><h3><Link href={`${detailBase}${item.id}`}>{item.title}</Link></h3>{item.feedback?.personal_note ? <p>{item.feedback.personal_note.length > 160 ? `${item.feedback.personal_note.slice(0, 160)}…` : item.feedback.personal_note}</p> : item.feedback?.reaction === "liked" ? <p>喜欢，想留在这里</p> : null}{item.feedback?.linked_note_id && item.feedback.linked_note_available ? <Link className={styles.link} href={`/notes/${item.feedback.linked_note_id}`}>读那篇笔记 <ArrowRight size={14} aria-hidden="true" /></Link> : null}</li>)}</ul></section> : null}
+        {remembered.length ? <section className={styles.section} aria-labelledby="leisure-remembered"><div className={styles.sectionHeading}><h2 id="leisure-remembered"><span className={styles.sectionNumber} aria-hidden="true">02 /</span>还惦记着</h2><span aria-hidden="true">↗</span></div><ul className={styles.list}>{remembered.slice(0, 6).map((item) => <li key={item.id} className={styles.keepsake}><Link href={detailHref(item.id)} className={styles.keepsakeLink}><div className={styles.keepsakeArt}><LeisureArtwork item={item} sizes="64px" /></div><div><span className={styles.kind}>{leisureStatusLabels[item.feedback!.status!]}</span><h3>{item.title}</h3></div><MoveUpRight size={16} aria-hidden="true" /></Link></li>)}</ul></section> : null}
+        {memories.length ? <section className={styles.section} aria-labelledby="leisure-memories"><div className={styles.sectionHeading}><h2 id="leisure-memories"><span className={styles.sectionNumber} aria-hidden="true">03 /</span>留下来的</h2><span className={styles.caption}>自己的感受</span></div><ul className={styles.list}>{memories.slice(0, 4).map((item) => <li key={item.id} className={styles.memory}><span className={styles.memoryQuote} aria-hidden="true">“</span><h3><Link href={detailHref(item.id)}>{item.title}</Link></h3>{item.feedback?.personal_note ? <p>{item.feedback.personal_note.length > 160 ? `${item.feedback.personal_note.slice(0, 160)}…` : item.feedback.personal_note}</p> : item.feedback?.reaction === "liked" ? <p>喜欢，想留在这里</p> : null}{item.feedback?.linked_note_id && item.feedback.linked_note_available ? <Link className={styles.link} href={`/notes/${item.feedback.linked_note_id}`}>读那篇笔记 <ArrowRight size={14} aria-hidden="true" /></Link> : null}</li>)}</ul></section> : null}
       </div> : null}
     </>}
     <footer className={styles.footer}><span className={styles.footerSignature}>Enjoy the little things.</span><div><Link href="/travel" className={styles.link}>旅行计划 <ArrowUpRight size={13} aria-hidden="true" /></Link><Link href="/shopping" className={styles.link}>购物清单 <ArrowUpRight size={13} aria-hidden="true" /></Link><Link href="/notes" className={styles.link}>回到笔记 <ArrowUpRight size={13} aria-hidden="true" /></Link></div></footer>

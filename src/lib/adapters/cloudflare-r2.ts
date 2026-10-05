@@ -117,3 +117,58 @@ export async function checkR2Health(): Promise<R2Health> {
     return sanitizeR2Health({ configured: true, endpointValid: true, bucket: config.bucketName, credentialsReachR2: false });
   }
 }
+
+/** Narrow immutable writes for artwork. Never overwrites or cleans up other files. */
+export async function createImmutableR2Artwork(key: string, bytes: Uint8Array, contentType: string) {
+  assertArtworkKey(key);
+  const config = requiredConfiguration();
+  try {
+    await client(config).send(new PutObjectCommand({
+      Bucket: config.bucketName, Key: key, Body: bytes, ContentType: contentType,
+      CacheControl: "private, no-store, max-age=0", IfNoneMatch: "*",
+    }), { abortSignal: AbortSignal.timeout(15_000) });
+  } catch (error) {
+    // Another identical request may win. The caller must read back and verify.
+    if (r2Status(error) !== 412) throw error;
+  }
+}
+
+function assertArtworkKey(key: string) {
+  if (!/^[0-9a-f-]{36}\/leisure-artwork\/v1\/[a-z0-9-]+\/[0-9a-f]{64}\.(?:json|jpg|png|webp)$/.test(key))
+    throw new Error("invalid_artwork_key");
+}
+function r2Status(error: unknown) {
+  return typeof error === "object" && error && "$metadata" in error
+    ? (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode : undefined;
+}
+
+/** Bounded private read. Only an actual missing object returns null. */
+export async function readR2Artwork(key: string, maxBytes: number) {
+  assertArtworkKey(key);
+  const config = requiredConfiguration();
+  try {
+    const object = await client(config).send(new GetObjectCommand({ Bucket: config.bucketName, Key: key }),
+      { abortSignal: AbortSignal.timeout(15_000) });
+    if (!object.Body || !Number.isSafeInteger(object.ContentLength) || object.ContentLength! < 1 || object.ContentLength! > maxBytes) {
+      await object.Body?.transformToWebStream().cancel().catch(() => {});
+      throw new Error("invalid_artwork_size");
+    }
+    const reader = object.Body.transformToWebStream().getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > maxBytes) throw new Error("artwork_too_large");
+        chunks.push(value);
+      }
+    } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+    if (size !== object.ContentLength) throw new Error("artwork_size_mismatch");
+    return { bytes: Buffer.concat(chunks), contentType: object.ContentType ?? "application/octet-stream" };
+  } catch (error) {
+    if (r2Status(error) === 404) return null;
+    throw error;
+  }
+}

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { LeisureSummary } from "@/features/leisure/types";
 import { getLeisureArtwork, leisureArtwork } from "@/features/leisure/artwork";
 vi.mock("next/link", () => ({ default: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => createElement("a", props) }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }), useSearchParams: () => new URLSearchParams(window.location.search) }));
 vi.mock("next/image", () => ({ default: ({ fill, preload, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean; preload?: boolean }) => { void fill; void preload; return createElement("img", props); } }));
 import { LeisureHome } from "@/components/leisure/leisure-home";
 import { LeisureArtwork } from "@/components/leisure/leisure-artwork";
@@ -13,7 +13,7 @@ const base: LeisureSummary = { id: "1", title: "Synthetic film", kind: "film", w
 const items: LeisureSummary[] = [base, { ...base, id: "2", title: "Synthetic game", kind: "game", duration_minutes: 25, budget: "free" }, { ...base, id: "3", title: "Synthetic disliked", feedback: { status: "completed", reaction: "not_for_me", personal_note: "", linked_note_id: null, linked_note_title: null, linked_note_available: false, revision: 1, updated_at: base.updated_at } }, { ...base, id: "4", title: "Synthetic liked", feedback: { status: "completed", reaction: "liked", personal_note: "", linked_note_id: null, linked_note_title: null, linked_note_available: false, revision: 1, updated_at: base.updated_at } }];
 let host: HTMLDivElement, root: Root;
 const button = (text: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find((node) => node.textContent?.trim() === text)!;
-beforeEach(() => { (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; host = document.createElement("div"); document.body.append(host); root = createRoot(host); });
+beforeEach(() => { window.history.replaceState(null, "", "/leisure"); (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; host = document.createElement("div"); document.body.append(host); root = createRoot(host); });
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT; });
 async function render() { await act(async () => root.render(createElement(LeisureHome, { experiences: items }))); }
 it("keeps all titles browseable, filters locally and never mutates input feedback", async () => {
@@ -53,7 +53,7 @@ it("retains both personal status and reaction in the complete collection", async
   expect(liked.textContent).toContain("喜欢");
 });
 it("matches only curated titles/kinds, including a display continuation suffix", () => {
-  expect(leisureArtwork).toHaveLength(16);
+  expect(leisureArtwork).toHaveLength(28);
   for (const art of leisureArtwork) expect(getLeisureArtwork(art)?.src).toBe(art.src);
   expect(getLeisureArtwork({ title: "无耻之徒（美版）· 继续看", kind: "series" })?.src).toBe(leisureArtwork[0].src);
   expect(getLeisureArtwork({ title: leisureArtwork[0].title, kind: "game" })).toBeUndefined();
@@ -69,4 +69,14 @@ it("reveals a decoded image and degrades to a text-safe fallback on failure", as
   expect(host.querySelector("[data-artwork-state]")?.getAttribute("data-artwork-state")).toBe("fallback");
   expect(host.querySelector("img")).toBeNull();
   expect(host.textContent).toContain(art.title);
+});
+it("initializes the collection from validated URL filters and preserves them in detail links", async () => {
+  window.history.replaceState(null, "", "/leisure?kind=game&minutes=30&setting=home");
+  await render();
+  expect(button("游戏").getAttribute("aria-pressed")).toBe("true");
+  expect(host.querySelectorAll("#leisure-collection li")).toHaveLength(1);
+  expect(host.querySelector("#leisure-collection a")?.getAttribute("href")).toBe("/leisure/2?from=kind%3Dgame%26minutes%3D30%26setting%3Dhome");
+  await act(async () => button("全部").click());
+  expect(new URLSearchParams(window.location.search).get("kind")).toBeNull();
+  expect(new URLSearchParams(window.location.search).get("minutes")).toBe("30");
 });

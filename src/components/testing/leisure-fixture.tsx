@@ -2,10 +2,12 @@
 
 import { AppShell } from "@/components/layout/app-shell";
 import { leisureArtwork } from "@/features/leisure/artwork";
-import { useRef } from "react";
+import { useSearchParams } from "next/navigation";
+import { leisureBackHref } from "@/features/leisure/browse";
+import { useRef, useState } from "react";
 import { LeisureHome } from "@/components/leisure/leisure-home";
 import { LeisureDetail } from "@/components/leisure/leisure-detail";
-import type { LeisureExperience, LeisureFeedbackInput, LeisureFeedbackResult } from "@/features/leisure/types";
+import type { LeisureExperience, LeisureFeedbackInput, LeisureFeedbackResult, LeisureFeedback } from "@/features/leisure/types";
 
 /** Explicit synthetic data, reachable only through the opt-in E2E route. */
 export const leisureFixtureNow = Date.parse("2026-10-04T12:00:00Z");
@@ -35,17 +37,22 @@ const artworkFixtures: LeisureExperience[] = leisureArtwork.map((art, index) => 
 }));
 
 export function LeisureFixture({ item, mode }: { item?: string; mode?: string }) {
-  const latestRevision = useRef(0);
+  const from = useSearchParams().get("from") ?? undefined;
+  const latestRevisions = useRef(new Map<string, number>());
+  const [savedFeedback, setSavedFeedback] = useState<Record<string, LeisureFeedback>>({});
   async function save(input: LeisureFeedbackInput): Promise<LeisureFeedbackResult> {
     await new Promise((resolve) => setTimeout(resolve, 150));
     if (mode === "conflict") return { ok: false, error: "conflict" };
     if (mode === "failure") return { ok: false, error: "unavailable" };
-    if (input.expected_revision !== latestRevision.current) return { ok: false, error: "conflict" };
-    latestRevision.current += 1;
-    return { ok: true, feedback: { status: input.status, reaction: input.reaction, personal_note: input.personal_note, linked_note_id: null, linked_note_title: null, linked_note_available: false, revision: latestRevision.current, updated_at: new Date(leisureFixtureNow).toISOString() } };
+    const revision = latestRevisions.current.get(input.experience_id) ?? leisureFixtureExperiences.find((entry) => entry.id === input.experience_id)?.feedback?.revision ?? 0;
+    if (input.expected_revision !== revision) return { ok: false, error: "conflict" };
+    latestRevisions.current.set(input.experience_id, revision + 1);
+    const feedback: LeisureFeedback = { status: input.status, reaction: input.reaction, personal_note: input.personal_note, linked_note_id: null, linked_note_title: null, linked_note_available: false, revision: revision + 1, updated_at: new Date(leisureFixtureNow).toISOString() };
+    setSavedFeedback((previous) => ({ ...previous, [input.experience_id]: feedback }));
+    return { ok: true, feedback };
   }
-  const fixtures = mode === "gallery" ? artworkFixtures : leisureFixtureExperiences;
+  const fixtures = (mode === "gallery" ? artworkFixtures : leisureFixtureExperiences).map((entry) => savedFeedback[entry.id] ? { ...entry, feedback: savedFeedback[entry.id] } : entry);
   const experience = fixtures.find((entry) => entry.id === item);
   const shownExperience = experience && mode === "long" ? { ...experience, title: "很长的体验标题用于验证窄屏阅读与自然换行".repeat(5), body_markdown: `${experience.body_markdown}\n\n${"一段很长的中文内容，保留正常阅读的行距与段落。".repeat(150)}\n\n| 字段 | 内容 |\n| --- | --- |\n| 链接 | ${"unbrokentext".repeat(70)} |` } : experience;
-  return <AppShell presentationPathname={shownExperience ? `/leisure/${shownExperience.id}` : "/leisure"}><p className="border-b px-5 py-2 text-xs text-[var(--text-tertiary)]">Synthetic fixture · 仅供测试，不包含真实推荐、评分或个人记录</p>{shownExperience ? <LeisureDetail experience={shownExperience} now={leisureFixtureNow} onSave={save} backHref={`/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}`} /> : <LeisureHome experiences={mode === "empty" || mode === "error" ? [] : fixtures} unavailable={mode === "error"} detailBase={`/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}&item=`} />}</AppShell>;
+  return <AppShell presentationPathname={shownExperience ? `/leisure/${shownExperience.id}` : "/leisure"}><p className="border-b px-5 py-2 text-xs text-[var(--text-tertiary)]">Synthetic fixture · 仅供测试，不包含真实推荐、评分或个人记录</p>{shownExperience ? <LeisureDetail experience={shownExperience} now={leisureFixtureNow} onSave={save} neighbors={fixtures} from={from} detailBase={`/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}&item=`} backHref={leisureBackHref(from, `/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}`)} /> : <LeisureHome experiences={mode === "empty" || mode === "error" ? [] : fixtures} unavailable={mode === "error"} detailBase={`/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}&item=`} />}</AppShell>;
 }

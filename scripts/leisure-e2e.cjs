@@ -84,6 +84,7 @@ async function capture(page, name) {
       assert.equal(await note.inputValue(), "Keep this unsaved reflection");
       assert.equal(await page.getByRole("button", { name: "保存感想", exact: true }).isDisabled(), true);
       await capture(page, `leisure-conflict-${width}`);
+      page.once("dialog", async (dialog) => { assert.equal(dialog.type(), "beforeunload"); await dialog.accept(); });
       await page.goto(`${fixture}&item=${id}&mode=long`);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1, `${width}px long content has no horizontal overflow`);
       await capture(page, `leisure-long-${width}`);
@@ -93,14 +94,14 @@ async function capture(page, name) {
       }
       await page.goto(`${fixture}&mode=gallery`);
       await page.getByRole("heading", { name: "此刻可选", exact: true }).waitFor();
-      assert.equal(await page.locator("#leisure-collection li").count(), 16, "all public title fixtures are visible without a disclosure");
+      assert.equal(await page.locator("#leisure-collection li").count(), 28, "all public title fixtures are visible without a disclosure");
       const images = page.locator("#leisure-collection [data-artwork-state]");
       for (let i = 0; i < await images.count(); i++) {
         await images.nth(i).scrollIntoViewIfNeeded();
         await images.nth(i).locator("img").waitFor();
         await page.waitForFunction((index) => document.querySelectorAll("#leisure-collection [data-artwork-state]")[index]?.getAttribute("data-artwork-state") === "ready", i, { timeout: 30000 });
       }
-      assert.equal(await page.locator('#leisure-collection [data-artwork-state="ready"]').count(), 16, "every official cover really decoded");
+      assert.equal(await page.locator('#leisure-collection [data-artwork-state="ready"]').count(), 28, "every official cover really decoded");
       await capture(page, `leisure-artwork-gallery-${width}`);
       const before = await page.locator("article h3").first().textContent();
       await page.getByRole("button", { name: "换个灵感", exact: true }).focus();
@@ -108,8 +109,21 @@ async function capture(page, name) {
       assert.notEqual(await page.locator("article h3").first().textContent(), before, "keyboard shuffle changes the featured work");
       assert.equal(await page.evaluate(() => document.activeElement?.textContent?.includes("换个灵感")), true, "shuffle keeps focus");
       await page.getByRole("button", { name: "游戏", exact: true }).click();
-      assert.equal(await page.locator("#leisure-collection li").count(), 8, "category reveals all eight games");
+      assert.equal(await page.locator("#leisure-collection li").count(), 12, "category reveals all twelve games");
       await capture(page, `leisure-games-${width}`);
+      // Detail return and browser history keep the selected collection context.
+      await page.locator("#leisure-collection a").first().click();
+      await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
+      assert.ok(page.url().includes("from=kind%3Dgame"), "detail carries bounded collection context");
+      await page.getByRole("link", { name: "← 回到闲暇", exact: true }).click();
+      await page.getByRole("button", { name: "游戏", exact: true }).waitFor();
+      assert.equal(await page.getByRole("button", { name: "游戏", exact: true }).getAttribute("aria-pressed"), "true");
+      assert.equal(await page.locator("#leisure-collection li").count(), 12);
+      await page.goBack();
+      await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
+      await page.goForward();
+      await page.getByRole("button", { name: "游戏", exact: true }).waitFor();
+      assert.equal(await page.getByRole("button", { name: "游戏", exact: true }).getAttribute("aria-pressed"), "true");
       await page.getByRole("button", { name: "全部", exact: true }).click();
       await page.getByRole("link", { name: "走进这个世界", exact: true }).click();
       await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
@@ -117,7 +131,34 @@ async function capture(page, name) {
       await capture(page, `leisure-artwork-detail-${width}`);
       await page.getByRole("link", { name: "← 回到闲暇", exact: true }).click();
       await page.getByRole("heading", { name: "此刻可选", exact: true }).waitFor();
-      assert.equal(await page.locator("#leisure-collection li").count(), 16);
+      assert.equal(await page.locator("#leisure-collection li").count(), 28);
+      // Inspect intact portrait/landscape/square assets with the real shell, plus the new sleeve edition.
+      for (const [index, edition] of [[0, "series"], [4, "film"], [8, "game-landscape"], [12, "game-square"], [26, "music"]]) {
+        await page.goto(`${fixture}&mode=gallery&item=artwork-${index}`);
+        await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
+        await page.waitForFunction(() => document.querySelector('header [data-artwork-state="ready"]'), null, { timeout: 30000 });
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1, `${width}px ${edition} detail has no horizontal overflow`);
+        await page.getByRole("navigation", { name: "这一页", exact: true }).getByRole("link", { name: "从这里开始" }).click();
+        await page.locator("#leisure-start").waitFor();
+        await capture(page, `leisure-edition-${edition}-${width}`);
+      }
+      await page.goto(`${fixture}&mode=gallery&item=artwork-26`);
+      const nextInspiration = page.getByRole("navigation", { name: "继续逛逛", exact: true }).getByRole("link").last();
+      await nextInspiration.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("heading", { name: "Random Access Memories — Daft Punk", exact: true }).waitFor();
+      // A new route must start with its own feedback component and draft, not the last title's state.
+      await page.locator("summary").filter({ hasText: "留一句自己的感想" }).click();
+      await page.getByLabel("这一刻的感受").fill("Do not lose this synthetic note");
+      page.once("dialog", (dialog) => dialog.dismiss());
+      await page.getByRole("navigation", { name: "继续逛逛", exact: true }).getByRole("link").last().click();
+      assert.equal(await page.getByLabel("这一刻的感受").inputValue(), "Do not lose this synthetic note");
+      // Save then navigate, so the explicit draft protection is also exercised in its allowed state.
+      await page.getByRole("button", { name: "保存感想", exact: true }).click();
+      await page.getByText("已保存", { exact: true }).waitFor();
+      await page.getByRole("navigation", { name: "继续逛逛", exact: true }).getByRole("link").last().click();
+      await page.getByRole("heading", { name: "无耻之徒（美版）", exact: true }).waitFor();
+      await page.goto(`${fixture}&mode=gallery`);
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.getByRole("button", { name: "换个灵感", exact: true }).click();
       assert.equal(await page.locator("article").first().evaluate((node) => getComputedStyle(node).animationName), "none", "reduced motion disables feature animation");

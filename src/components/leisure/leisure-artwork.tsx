@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { isPrivateLeisureArtworkSource, privateLeisureArtworkLoader, usePrivateLeisureArtworkSource } from "@/features/leisure/use-private-artwork";
 import { getLeisureArtwork } from "@/features/leisure/artwork";
 import { leisureKindLabels } from "@/features/leisure/presentation";
 import type { LeisureKind } from "@/features/leisure/types";
@@ -16,11 +17,14 @@ export function LeisureArtwork({ item, priority = false, sizes, className = "", 
   cinematic?: boolean;
 }) {
   const art = getLeisureArtwork(item);
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const preferredSrc = usePrivateLeisureArtworkSource(art?.src);
+  const [failedSources, setFailedSources] = useState<string[]>([]);
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
-  const showImage = art && failedSrc !== art.src;
-  return <div className={`${styles.artwork} ${className}`} data-kind={item.kind} data-orientation={art && art.width > art.height ? "landscape" : "portrait"} data-cinematic={cinematic} data-artwork-state={!showImage ? "fallback" : loadedSrc === art.src ? "ready" : "loading"}>
+  const src = preferredSrc && !failedSources.includes(preferredSrc) ? preferredSrc
+    : art && !failedSources.includes(art.src) ? art.src : undefined;
+  const privateSource = src ? isPrivateLeisureArtworkSource(src) : false;
+  return <div className={`${styles.artwork} ${className}`} data-kind={item.kind} data-orientation={art && art.width > art.height ? "landscape" : "portrait"} data-cinematic={cinematic} data-artwork-state={!src ? "fallback" : loadedSrc === src ? "ready" : "loading"}>
     <div className={styles.artworkFallback} aria-hidden="true"><span className={styles.orbit} /><span className={styles.fallbackKind}>{leisureKindLabels[item.kind]}</span><span className={styles.fallbackTitle}>{item.title}</span><span className={styles.fallbackFoot}>A LITTLE TIME, WELL SPENT</span></div>
-    {showImage ? <Image src={art.src} alt="" fill sizes={sizes} preload={priority} loading={priority ? undefined : "lazy"} onLoad={() => setLoadedSrc(art.src)} onError={() => setFailedSrc(art.src)} style={{ objectPosition: art.position ?? "center" }} /> : null}
+    {src && art ? <Image key={src} src={src} loader={privateSource ? privateLeisureArtworkLoader : undefined} alt="" fill sizes={sizes} preload={priority} loading={priority ? undefined : "lazy"} onLoad={() => setLoadedSrc(src)} onError={() => setFailedSources((previous) => previous.includes(src) ? previous : [...previous, src])} style={{ objectPosition: art.position ?? "center" }} /> : null}
   </div>;
 }
