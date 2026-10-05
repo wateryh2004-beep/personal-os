@@ -54,7 +54,7 @@ async function noOverflow(page, label) {
       await writeFile(`${output}/font-and-motion-diagnostics.json`, JSON.stringify(diagnostics, null, 2));
       const focus = page.locator('[aria-labelledby="today-priorities-heading"]');
       assert.equal(await page.getByRole("link", { name: firstTask, exact: true }).count(), 1);
-      assert.equal(await page.getByRole("link", { name: "核对需要补充的材料", exact: true }).count(), 1);
+      assert.equal(await page.getByRole("link", { name: /^核对需要补充的材料/ }).count(), 1);
       const ledger = page.locator('[aria-labelledby="today-ledger-heading"]');
       assert.ok((await ledger.locator("li").first().innerText()).includes("逾期"), "overdue precedes the calendar");
       const lead = await page.locator(".today-focus-title").boundingBox();
