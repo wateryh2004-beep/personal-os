@@ -1,4 +1,4 @@
--- REVIEW CANDIDATE ONLY. Not in supabase/migrations and not applied anywhere.
+-- REVIEW CANDIDATE ONLY. Not in supabase/migrations and not applied to production.
 -- Production approval is required before creating the final CLI-generated migration.
 -- New owner-scoped records only; no changes to existing policies or credentials.
 begin;

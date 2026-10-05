@@ -30,7 +30,7 @@ const output = "test-results/investment";
       for(const tab of ["holdings","strategies","research"]){
         await page.goto(`${base}/?fixture=populated&tab=${tab}`,{waitUntil:"networkidle"});
         if(tab==="holdings") {assert.ok((await page.locator("body").innerText()).includes("成本未知"));assert.ok((await page.locator("body").innerText()).includes("暂无估值"));}
-        if(tab!=="holdings") await page.locator("details").first().locator("summary").click();
+        if(tab!=="holdings") await page.locator("details").first().locator(":scope > summary").click();
         await capture(tab);
       }
       await page.goto(`${base}/?fixture=unavailable`,{waitUntil:"networkidle"});

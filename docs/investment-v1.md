@@ -26,7 +26,7 @@ Research opinions cannot include performance metrics. Backtests additionally req
 
 ## Storage rollout and approval gate
 
-`docs/sql/investment-v1-candidate.sql` is a review candidate, deliberately outside the automatic migration directory. It has not been applied to production or any database. There is no policy change, secret creation, credential transmission, brokerage access, or production data write in this local work.
+`docs/sql/investment-v1-candidate.sql` is a review candidate, deliberately outside the automatic migration directory. It has not been applied to production. The isolated CI PostgreSQL fixture is the only database where this candidate has been executed. There is no policy change, secret creation, credential transmission, brokerage access, or production data write in this local work.
 
 Before deployment:
 1. Review the four tables, owner isolation, limited grants and invoker functions; obtain required production database/access approval
@@ -37,9 +37,9 @@ Before deployment:
 
 Until storage is provisioned, the new page deliberately reports unavailable storage and disables forms rather than presenting a false empty portfolio. No automatic setup or migration runs from a web request.
 
-## Isolated CI SQL test route (prepared, not yet run)
+## Isolated CI SQL test route
 
-The `investment-sql` workflow job starts an ephemeral official PostgreSQL 16 service with a test-only database and no Supabase/Vercel secrets. `tests/fixtures/investment-sql/bootstrap.sql` creates synthetic `auth.users` and an `auth.uid()` test stub; the actual PostgreSQL `anon` and `authenticated` roles exercise the candidate's RLS and privileges. It then runs the candidate and regression script. A two-process Python check verifies only one writer can commit against a shared revision. These files are never to be run against a connected/production Supabase project. Workflow publication and execution remain pending authorization.
+The `investment-sql` workflow job starts an ephemeral official PostgreSQL 16 service with a test-only database and no Supabase/Vercel secrets. `tests/fixtures/investment-sql/bootstrap.sql` creates synthetic `auth.users` and an `auth.uid()` test stub; the actual PostgreSQL `anon` and `authenticated` roles exercise the candidate's RLS and privileges. It then runs the candidate and regression script. A two-process Python check verifies only one writer can commit against a shared revision. These files are never to be run against a connected/production Supabase project. The user authorized the draft testing PR and isolated CI run. PostgreSQL 16.15 execution passed for candidate commit 5807e839, including observed overlapping row-lock contention; production schema application and release still need separate approval.
 
 The independent browser job starts the Vite fixture under `tests/fixtures/investment-browser`. It mocks all writes, has no session/database connector, and rejects external/API requests. It captures empty, populated, unavailable and modal views at 390/1440px for visual review. There is no production fixture route or authentication exception.
 
