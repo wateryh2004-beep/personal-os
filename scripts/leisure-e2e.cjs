@@ -47,6 +47,10 @@ async function capture(page, name) {
       await page.waitForFunction(() => [...document.querySelectorAll("button")].find((node) => node.textContent === "感兴趣")?.getAttribute("aria-pressed") === "true");
       await page.locator("summary").filter({ hasText: "留一句自己的感想" }).click();
       await page.getByLabel("这一刻的感受").fill("Synthetic personal reaction only");
+      await page.getByRole("button", { name: "进行中", exact: true }).click();
+      await page.getByText("选择已保存，感想尚未保存", { exact: true }).waitFor();
+      assert.equal(await page.getByLabel("这一刻的感受").inputValue(), "Synthetic personal reaction only");
+      await capture(page, `leisure-dirty-reflection-${width}`);
       await page.getByRole("button", { name: "保存感想", exact: true }).click();
       await page.getByText("已保存", { exact: true }).waitFor();
       assert.equal(await page.locator('a[href="https://example.com/old"]').count(), 0);
@@ -70,7 +74,7 @@ async function capture(page, name) {
       const note = page.getByLabel("这一刻的感受");
       await note.fill("Keep this unsaved reflection");
       await page.getByRole("button", { name: "保存感想", exact: true }).click();
-      await page.getByRole("alert").waitFor();
+      await page.getByRole("alert").filter({ hasText: "内容已在别处更新。这次修改没有覆盖它。" }).waitFor();
       assert.equal(await note.inputValue(), "Keep this unsaved reflection");
       assert.equal(await page.getByRole("button", { name: "保存感想", exact: true }).isDisabled(), true);
       await capture(page, `leisure-conflict-${width}`);
