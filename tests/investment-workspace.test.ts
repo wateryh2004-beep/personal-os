@@ -65,6 +65,7 @@ describe("investment view and data honesty", () => {
     await render({ ...empty, accounts: [account, paperAccount] }, "holdings", "real", [{ accountId: account.id, accountName: account.name, currency: "CNY", symbol: "TEST", quantity: "0.00000001", costBasis: null, realizedPnl: null }]);
     expect(host.textContent).toContain(account.name);
     expect(host.textContent).not.toContain(paperAccount.name);
+    expect(host.textContent).toContain("左右滑动查看完整持仓");
     expect(host.textContent).toContain("成本未知");
     expect(host.textContent).toContain("无法计算");
     expect(host.textContent).toContain("暂无估值");

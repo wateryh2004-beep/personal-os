@@ -29,10 +29,29 @@ const output = "test-results/investment";
       await page.waitForFunction(()=>document.activeElement?.textContent?.includes("添加账户"));
       for(const tab of ["holdings","strategies","research"]){
         await page.goto(`${base}/?fixture=populated&tab=${tab}`,{waitUntil:"networkidle"});
-        if(tab==="holdings") {assert.ok((await page.locator("body").innerText()).includes("成本未知"));assert.ok((await page.locator("body").innerText()).includes("暂无估值"));}
+        if(tab==="holdings") {if(width<768) assert.ok(await page.getByText("左右滑动查看完整持仓",{exact:true}).isVisible());assert.ok((await page.locator("body").innerText()).includes("成本未知"));assert.ok((await page.locator("body").innerText()).includes("暂无估值"));}
         if(tab!=="holdings") await page.locator("details").first().locator(":scope > summary").click();
         await capture(tab);
       }
+      await page.goto(`${base}/?fixture=populated&tab=holdings`,{waitUntil:"networkidle"});
+      await page.getByRole("button",{name:"记录持仓",exact:true}).click();
+      const entryDialog=page.getByRole("dialog");
+      await entryDialog.getByLabel("市场与标的代码",{exact:true}).fill("TEST:EXAMPLE");
+      await entryDialog.getByLabel("数量",{exact:true}).fill("1");
+      await entryDialog.getByLabel("记录来源",{exact:true}).fill("Isolated synthetic UI test");
+      await entryDialog.locator('[name="confirmed"]').check();
+      await entryDialog.getByRole("button",{name:"确认记录",exact:true}).click();
+      await entryDialog.getByRole("alert").waitFor();
+      assert.equal(await entryDialog.getByLabel("数量",{exact:true}).inputValue(),"1","failed write must preserve inputs");
+      await capture("entry-error");
+      await entryDialog.getByRole("button",{name:"取消",exact:true}).click();
+      await entryDialog.waitFor({state:"hidden"});
+      await page.locator("details").first().locator(":scope > summary").click();
+      await page.getByRole("button",{name:/^作废 .* 记录$/}).click();
+      await page.getByRole("dialog").waitFor();
+      await capture("void-dialog");
+      await page.getByRole("dialog").getByRole("button",{name:"取消",exact:true}).click();
+      await page.getByRole("dialog").waitFor({state:"hidden"});
       await page.goto(`${base}/?fixture=unavailable`,{waitUntil:"networkidle"});
       assert.ok(await page.getByRole("button",{name:"添加账户",exact:true}).isDisabled());
       assert.ok((await page.getByRole("alert").innerText()).includes("无法读取"));await capture("unavailable");

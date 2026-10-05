@@ -66,3 +66,7 @@
   .table { min-width:550px; }
   .table th,.table td { padding-left:10px; padding-right:10px; }
 }
+
+.openHint { display: none; }
+.document[open] > summary .closedHint { display: none; }
+.document[open] > summary .openHint { display: inline; }
