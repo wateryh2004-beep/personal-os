@@ -127,6 +127,7 @@ async function backCloses(page, trigger, visibleTarget) {
       assert.ok((await questionDetail.innerText()).includes("E2E 答案 0"));
       assert.equal(await questionDetail.getByRole("button", { name: "编辑思路与答案", exact: true }).count(), 0);
       await questionDetail.locator("details").first().locator("summary").click();
+      await questionDetail.getByTestId("study-provenance").waitFor({ state: "visible" });
       assert.ok((await questionDetail.innerText()).includes("不代表内容或个人经历已经核实"));
       await questionDetail.locator("details").first().locator("summary").click();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
