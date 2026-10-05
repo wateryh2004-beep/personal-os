@@ -38,6 +38,7 @@ describe("readable typography and workspace rhythm", () => {
     expect(todayCss).toContain("--today-paper:#f8f7f3");
     expect(todayCss).toContain("--today-muted:#687068");
     expect(todayCss).toContain("font-size:1.625rem");
+    expect(todayCss).toContain("width:44px;min-width:44px;height:44px;min-height:44px");
     expect(todayCss).toContain("prefers-reduced-motion:reduce");
     expect(read("src/components/today/now-workspace.tsx")).toContain("TodayLedger");
     expect(read("src/components/today/now-workspace.tsx")).not.toContain("TodayCommitments");

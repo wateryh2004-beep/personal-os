@@ -19,7 +19,12 @@ async function isolate(context) {
     if (actions.failNext) { actions.failNext = false; return route.fulfill({ status: 500, contentType: "text/plain", body: "Synthetic action failure" }); }
     return route.fulfill({ contentType: "text/x-component", body: '0:{"a":"$undefined","f":""}\n' });
   });
-  await context.route("**/api/**", route => route.fulfill({ json: {} }));
+  await context.route("**/api/**", route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/tasks/workspace") return route.fulfill({ json: { connection: null, lists: [], tasks: [], unavailable: false, schemaMissing: false } });
+    if (path === "/api/today/workspace") return route.fulfill({ status: 503, json: { error: "Synthetic fixture owns its data; no live Today backend is used" } });
+    return route.fulfill({ json: {} });
+  });
   return actions;
 }
 async function fontEvidence(page, width) {
@@ -35,7 +40,9 @@ async function fontEvidence(page, width) {
   await cdp.detach();
 }
 async function noOverflow(page, label) {
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${label}: horizontal overflow`);
+  const expectedWidth = page.viewportSize().width;
+  const measured = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, layoutWidth: innerWidth }));
+  assert.ok(measured.scrollWidth <= expectedWidth + 1 && measured.layoutWidth <= expectedWidth + 1, `${label}: horizontal overflow ${JSON.stringify(measured)} vs ${expectedWidth}`);
 }
 (async () => {
   await mkdir(output, { recursive: true });
@@ -126,7 +133,7 @@ async function noOverflow(page, label) {
     await page.getByRole("button", { name: `已完成 ${firstTask}`, exact: true }).waitFor();
     await page.getByText(`已完成：${firstTask}`, { exact: true }).waitFor();
     assert.equal(actions.count, 1);
-    await page.getByRole("button", { name: "撤销", exact: true }).click();
+    await page.getByRole("button", { name: "撤回", exact: true }).click();
     await page.getByRole("button", { name: `完成 ${firstTask}`, exact: true }).waitFor();
     await page.getByRole("button", { name: "调整重点", exact: true }).click();
     await page.getByRole("dialog", { name: "选择今日重点", exact: true }).waitFor();
@@ -146,5 +153,9 @@ async function noOverflow(page, label) {
     if (activePage && !activePage.isClosed()) await activePage.screenshot({ path: `${output}/failure.png`, fullPage: true }).catch(() => {});
     await writeFile(`${output}/font-and-motion-diagnostics.json`, JSON.stringify(diagnostics, null, 2));
     throw error;
-  } finally { await browser.close(); }
+  } finally {
+    // Finalize recording containers even when an assertion fails.
+    for (const context of browser.contexts()) await context.close().catch(() => {});
+    await browser.close();
+  }
 })().catch(error => { console.error(error); process.exit(1); });
