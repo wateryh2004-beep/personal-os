@@ -24,6 +24,9 @@ async function capture(page, name) {
       const context = await browser.newContext({ viewport: { width, height: 1000 }, isMobile: width < 768, hasTouch: width < 768 });
       const page = await context.newPage();
       const errors = [];
+      const imageRequests = [];
+      page.on("response", (response) => { if (response.url().includes("/_next/image?") && response.status() >= 400) imageRequests.push({ status: response.status(), url: response.url() }); });
+      page.on("requestfailed", (request) => { if (request.url().includes("/_next/image?")) imageRequests.push({ error: request.failure()?.errorText, url: request.url() }); });
       try {
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(fixture);
@@ -95,13 +98,30 @@ async function capture(page, name) {
       await page.goto(`${fixture}&mode=gallery`);
       await page.getByRole("heading", { name: "此刻可选", exact: true }).waitFor();
       assert.equal(await page.locator("#leisure-collection li").count(), 28, "all public title fixtures are visible without a disclosure");
-      const images = page.locator("#leisure-collection [data-artwork-state]");
-      for (let i = 0; i < await images.count(); i++) {
-        await images.nth(i).scrollIntoViewIfNeeded();
-        await images.nth(i).locator("img").waitFor();
-        await page.waitForFunction((index) => document.querySelectorAll("#leisure-collection [data-artwork-state]")[index]?.getAttribute("data-artwork-state") === "ready", i, { timeout: 30000 });
+      // External CDNs can transiently reject the first optimizer request. Keep the
+      // all-images-must-decode assertion, but allow one fresh mount, with evidence.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const images = page.locator("#leisure-collection [data-artwork-state]");
+          for (let i = 0; i < await images.count(); i++) {
+            await images.nth(i).scrollIntoViewIfNeeded();
+            await page.waitForFunction((index) => {
+              const state = document.querySelectorAll("#leisure-collection [data-artwork-state]")[index]?.getAttribute("data-artwork-state");
+              return state === "ready" || state === "fallback";
+            }, i, { timeout: 30000 });
+            assert.equal(await images.nth(i).getAttribute("data-artwork-state"), "ready", `official artwork ${i} must decode`);
+            assert.ok(await images.nth(i).locator("img").evaluate((img) => img.complete && img.naturalWidth > 0), `official artwork ${i} has actual decoded pixels`);
+          }
+          assert.equal(await page.locator('#leisure-collection [data-artwork-state="ready"]').count(), 28, "every official cover really decoded");
+          break;
+        } catch (error) {
+          console.warn(`leisure-e2e: ${width}px real-image attempt ${attempt + 1}`, error.message, JSON.stringify(imageRequests));
+          await capture(page, `leisure-image-attempt-${attempt + 1}-${width}`);
+          if (attempt === 1) throw error;
+          await page.reload({ waitUntil: "domcontentloaded" });
+          await page.getByRole("heading", { name: "此刻可选", exact: true }).waitFor();
+        }
       }
-      assert.equal(await page.locator('#leisure-collection [data-artwork-state="ready"]').count(), 28, "every official cover really decoded");
       await capture(page, `leisure-artwork-gallery-${width}`);
       const before = await page.locator("article h3").first().textContent();
       await page.getByRole("button", { name: "换个灵感", exact: true }).focus();

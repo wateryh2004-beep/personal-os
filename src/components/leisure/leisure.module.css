@@ -221,7 +221,7 @@
   .featureControls { left: 28px; }
 }
 /* Detail editions: an editorial spread, with artwork intact and controls in the flow. */
-.detail { --detail-tint: #eee4d5; max-width: 1260px; }
+.detail { --detail-tint: #eee4d5; --leisure-muted: #625d54; max-width: 1260px; }
 .detail[data-edition="series"] { --detail-tint: #e4e8e0; --leisure-accent: #45634c; }
 .detail[data-edition="game"] { --detail-tint: #e5e9ee; --leisure-accent: #3d597a; }
 .detail[data-edition="music"] { --detail-tint: #eee0dd; --leisure-accent: #874b54; }

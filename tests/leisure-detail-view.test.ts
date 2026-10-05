@@ -42,3 +42,13 @@ it("keeps unsaved notes on a canceled adjacent navigation and protects reload", 
   window.dispatchEvent(event);
   expect(event.defaultPrevented).toBe(true);
 });
+it("keeps secondary text readable against every detail edition tint", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync("src/components/leisure/leisure.module.css", "utf8");
+  const color = css.match(/\.detail \{[^}]*--leisure-muted: (#[0-9a-f]{6})/)![1];
+  const luminance = (hex: string) => [1, 3, 5].map((index) => parseInt(hex.slice(index, index + 2), 16) / 255).map((value) => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4).reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+  for (const [, tint] of css.matchAll(/--detail-tint: (#[0-9a-f]{6})/g)) {
+    const [dark, light] = [luminance(color), luminance(tint)].sort((a, b) => a - b);
+    expect((light + .05) / (dark + .05)).toBeGreaterThanOrEqual(4.5);
+  }
+});
