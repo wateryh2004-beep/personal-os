@@ -354,3 +354,27 @@
 @media (prefers-reduced-motion: reduce) {
   .primaryLink:hover svg, .adjacentLink:hover > svg { transform: none; }
 }
+
+/* Tactile, interruptible feedback. Navigation never waits for an animation. */
+.page { --leisure-ease-out: cubic-bezier(.16, 1, .3, 1); }
+.posterLink { scroll-margin-block: 32px; }
+.posterLink:active .posterFrame { transform: translateY(1px) scale(.985); box-shadow: 0 2px 5px #38302520; transition-duration: 85ms; }
+.posterLink:active .posterOpen { background: var(--leisure-accent); }
+.featureCta, .primaryLink, .quietButton, .categoryTabs button, .feedbackButtons button, .featureControls button, .adjacentLink {
+  transition: transform 180ms var(--leisure-ease-out), background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+:is(.featureCta, .primaryLink, .quietButton, .categoryTabs button, .feedbackButtons button, .featureControls button, .adjacentLink):active:not(:disabled) { transform: translateY(1px) scale(.985); transition-duration: 80ms; }
+.featureControls button svg { transition: transform 220ms var(--leisure-ease-out); }
+.feature { animation-duration: 320ms; animation-timing-function: var(--leisure-ease-out); }
+.detailVisual { animation: leisureDetailEnter 300ms var(--leisure-ease-out) both; }
+.detailHeroText { animation: leisureDetailEnter 300ms 45ms var(--leisure-ease-out) both; }
+.sources[open] .sourceContent { animation: leisureDetailEnter 180ms var(--leisure-ease-out) both; }
+@keyframes leisureDetailEnter { from { opacity: .65; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+@media (hover: hover) and (pointer: fine) {
+  .adjacentLink:hover { background-color: #e9e1d54d; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .posterLink:active .posterFrame,
+  :is(.featureCta, .primaryLink, .quietButton, .categoryTabs button, .feedbackButtons button, .featureControls button, .adjacentLink):active:not(:disabled),
+  .featureControls button:active svg { transform: none; }
+}

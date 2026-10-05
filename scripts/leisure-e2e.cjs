@@ -132,13 +132,19 @@ async function capture(page, name) {
       assert.equal(await page.locator("#leisure-collection li").count(), 12, "category reveals all twelve games");
       await capture(page, `leisure-games-${width}`);
       // Detail return and browser history keep the selected collection context.
-      await page.locator("#leisure-collection a").first().click();
+      const originCard = page.locator("#leisure-collection a").nth(5);
+      const originId = await originCard.getAttribute("id");
+      await originCard.click();
       await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
       assert.ok(page.url().includes("from=kind%3Dgame"), "detail carries bounded collection context");
       await page.getByRole("link", { name: "← 回到闲暇", exact: true }).click();
       await page.getByRole("button", { name: "游戏", exact: true }).waitFor();
       assert.equal(await page.getByRole("button", { name: "游戏", exact: true }).getAttribute("aria-pressed"), "true");
       assert.equal(await page.locator("#leisure-collection li").count(), 12);
+      await page.waitForFunction((id) => document.activeElement?.id === id, originId);
+      assert.equal(new URL(page.url()).hash, `#${originId}`, "explicit return targets the original card");
+      const returnBounds = await page.locator(`[id="${originId}"]`).boundingBox();
+      assert.ok(returnBounds.y >= 0 && returnBounds.y < 1000, "returned card is in view");
       await page.goBack();
       await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
       await page.goForward();
@@ -183,6 +189,9 @@ async function capture(page, name) {
       await page.getByRole("button", { name: "换个灵感", exact: true }).click();
       assert.equal(await page.locator("article").first().evaluate((node) => getComputedStyle(node).animationName), "none", "reduced motion disables feature animation");
       await capture(page, `leisure-reduced-motion-${width}`);
+      await page.getByRole("link", { name: "走进这个世界", exact: true }).click();
+      await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
+      assert.deepEqual(await page.locator("article > header > div").evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).animationName)), ["none", "none"], "reduced motion disables both detail entrance layers");
       await page.emulateMedia({ reducedMotion: "no-preference" });
       // Fail an actual optimized image request; the artwork must degrade without losing its title/link.
       await page.route("**/_next/image?**", (route) => route.abort());

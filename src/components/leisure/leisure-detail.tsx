@@ -31,8 +31,8 @@ export function LeisureDetail({ experience: item, now, backHref = "/leisure", ne
   const hasStory = Boolean(item.body_markdown.trim());
   const official = item.sources.find((source) => source.kind === "official" && sourceAvailability(source, now) === "verified");
   return <article className={`${styles.page} ${styles.detail}`} data-edition={item.kind}>
-    <nav aria-label="闲暇位置" className={styles.back}><Link href={backHref} className={styles.link}>← 回到闲暇</Link><span className={styles.eyebrow}>THE GOOD HOURS / 闲暇</span></nav>
-    <header className={styles.detailHero} data-orientation={art && art.width > art.height ? "landscape" : art && art.width === art.height ? "square" : "portrait"}>
+    <nav aria-label="闲暇位置" className={styles.back}><Link returnToCollection href={backHref} className={styles.link}>← 回到闲暇</Link><span className={styles.eyebrow}>THE GOOD HOURS / 闲暇</span></nav>
+    <header key={item.id} className={styles.detailHero} data-orientation={art && art.width > art.height ? "landscape" : art && art.width === art.height ? "square" : "portrait"}>
       <div className={styles.detailVisual}>
         <div className={styles.detailImprint} aria-hidden="true"><span>{edition.label}</span><span>闲暇 / {edition.mark}</span></div>
         <div className={styles.detailCover} style={art ? { aspectRatio: `${art.width} / ${art.height}` } : undefined}><LeisureArtwork item={item} priority sizes="(max-width: 599px) 82vw, (max-width: 1000px) 76vw, 560px" /></div>
@@ -73,7 +73,7 @@ export function LeisureDetail({ experience: item, now, backHref = "/leisure", ne
       </div>
     </div>
     <footer className={styles.detailEnd}>
-      <div className={styles.detailEndHeading}><div><span className={styles.eyebrow}>STAY A LITTLE LONGER</span><p>{edition.invitation}</p></div><Link href={backHref} className={styles.link}>回到收藏集 <ArrowUpRight size={15} aria-hidden="true" /></Link></div>
+      <div className={styles.detailEndHeading}><div><span className={styles.eyebrow}>STAY A LITTLE LONGER</span><p>{edition.invitation}</p></div><Link returnToCollection href={backHref} className={styles.link}>回到收藏集 <ArrowUpRight size={15} aria-hidden="true" /></Link></div>
       {adjacent.length ? <nav className={styles.adjacent} aria-label="继续逛逛">{adjacent.map(({ item: neighbor, direction }) => <Link key={neighbor.id} className={styles.adjacentLink} href={leisureDetailHref(detailBase, neighbor.id, readLeisureBrowse(new URLSearchParams(from)))}><div className={styles.adjacentArt}><LeisureArtwork item={neighbor} sizes="100px" /></div><div><span className={styles.kind}>{direction === "previous" ? "上一份灵感" : "下一份灵感"} · {leisureKindLabels[neighbor.kind]}</span><h2>{neighbor.title}</h2></div>{direction === "previous" ? <ArrowLeft size={18} aria-hidden="true" /> : <ArrowRight size={18} aria-hidden="true" />}</Link>)}</nav> : null}
       <span className={styles.footerSignature}>Enjoy the little things.</span>
     </footer>

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { LeisureCollectionLink, focusCollectionReturn } from "./leisure-collection-link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowDown, ArrowRight, ArrowUpRight, MoveUpRight, Shuffle, Sparkles } from "lucide-react";
 import { leisureDetailHref, readLeisureBrowse, leisureBrowseQuery } from "@/features/leisure/browse";
 import type { LeisureKind, LeisureSummary } from "@/features/leisure/types";
@@ -14,19 +15,24 @@ import styles from "./leisure.module.css";
 function Poster({ item, href, index }: { item: LeisureSummary; href: string; index: number }) {
   const art = getLeisureArtwork(item);
   return <li className={styles.posterCard}>
-    <Link href={href} className={styles.posterLink}>
+    <LeisureCollectionLink itemId={item.id} id={`leisure-item-${item.id}`} href={href} className={styles.posterLink}>
       <div className={styles.posterFrame} style={{ aspectRatio: art ? `${art.width} / ${art.height}` : "3 / 4" }}>
         <LeisureArtwork item={item} sizes="(max-width: 599px) 46vw, (max-width: 767px) 30vw, (max-width: 1200px) 27vw, 365px" />
         <span className={styles.posterNumber} aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
         <span className={styles.posterOpen} aria-hidden="true"><ArrowUpRight size={21} /></span>
       </div>
       <div className={styles.posterText}><span className={styles.kind}>{leisureKindLabels[item.kind]}{item.duration_minutes ? ` · ${formatLeisureDuration(item.duration_minutes)}` : ""}</span><h3>{item.title}</h3>{item.feedback?.status || item.feedback?.reaction !== undefined && item.feedback.reaction !== "none" ? <span className={styles.posterPersonal}>{item.feedback?.status ? <span>{leisureStatusLabels[item.feedback.status]}</span> : null}{item.feedback?.reaction === "liked" ? <span>♡ 喜欢</span> : item.feedback?.reaction === "not_for_me" ? <span>不太适合我</span> : null}</span> : null}{item.why ? <p>{item.why}</p> : null}</div>
-    </Link>
+    </LeisureCollectionLink>
   </li>;
 }
 
 export function LeisureHome({ experiences, unavailable = false, hasMore = false, detailBase = "/leisure/" }: { experiences: LeisureSummary[]; unavailable?: boolean; hasMore?: boolean; detailBase?: string }) {
   const router = useRouter();
+  useEffect(() => {
+    // Next owns hash scrolling. Restore keyboard continuity only for an explicit return.
+    const frame = requestAnimationFrame(focusCollectionReturn);
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const searchParams = useSearchParams();
   const browse = readLeisureBrowse(searchParams);
   const { context, kind } = browse;
@@ -62,14 +68,14 @@ export function LeisureHome({ experiences, unavailable = false, hasMore = false,
           <article className={styles.feature} key={feature.id}>
             <div className={styles.featureImage}><LeisureArtwork item={feature} cinematic priority sizes="(max-width: 767px) 100vw, 1000px" /></div>
             <div className={styles.featureShade} aria-hidden="true" />
-            <div className={styles.featureContent}><span className={styles.featureKicker}><span className={styles.featureDot} />A MOMENT FOR YOU</span><div className={styles.featureText}><div className={styles.featureMeta}>{leisureKindLabels[feature.kind]}{feature.duration_minutes ? ` / ${formatLeisureDuration(feature.duration_minutes)}` : ""}</div><h3><Link href={detailHref(feature.id)}>{feature.title}</Link></h3>{feature.why ? <p>{feature.why}</p> : null}<Link href={detailHref(feature.id)} className={styles.featureCta}>走进这个世界 <ArrowUpRight size={18} aria-hidden="true" /></Link></div></div>
+            <div className={styles.featureContent}><span className={styles.featureKicker}><span className={styles.featureDot} />A MOMENT FOR YOU</span><div className={styles.featureText}><div className={styles.featureMeta}>{leisureKindLabels[feature.kind]}{feature.duration_minutes ? ` / ${formatLeisureDuration(feature.duration_minutes)}` : ""}</div><h3><LeisureCollectionLink href={detailHref(feature.id)}>{feature.title}</LeisureCollectionLink></h3>{feature.why ? <p>{feature.why}</p> : null}<LeisureCollectionLink href={detailHref(feature.id)} className={styles.featureCta}>走进这个世界 <ArrowUpRight size={18} aria-hidden="true" /></LeisureCollectionLink></div></div>
           </article>
           <div className={styles.featureControls}><span aria-hidden="true">{String(featureIndex % eligible.length + 1).padStart(2, "0")} <span>/ {String(eligible.length).padStart(2, "0")}</span></span>{eligible.length > 1 ? <button type="button" onClick={() => setFeatureIndex((index) => index + 1)}><Shuffle size={16} aria-hidden="true" />换个灵感</button> : null}</div>
           <span className={styles.srOnly} role="status" aria-live="polite">此刻可选：{feature.title}</span>
         </div> : <div className={styles.noChoices} role="status"><Sparkles size={24} aria-hidden="true" /><p>{activeContext ? "暂时没有符合这个情境的选项。试试放宽一点条件。" : "这一轮暂时没有新的选项。还可以翻翻之前留下的体验。"}</p>{activeContext ? <button type="button" className={styles.quietButton} onClick={resetContext}>看看所有情境</button> : null}</div>}
       </section>
       <section className={styles.collection} aria-labelledby="leisure-collection-heading" id="leisure-collection">
-        <div className={styles.collectionHeading}><div><span className={styles.eyebrow}>THE COLLECTION</span><h2 id="leisure-collection-heading">慢慢挑，<em>都在这里。</em></h2></div><span className={styles.collectionCount}>{experiences.length}<span>{hasMore ? "+" : ""} 个念头</span></span></div>
+        <div className={styles.collectionHeading}><div><span className={styles.eyebrow}>THE COLLECTION</span><h2 id="leisure-collection-heading" tabIndex={-1}>慢慢挑，<em>都在这里。</em></h2></div><span className={styles.collectionCount}>{experiences.length}<span>{hasMore ? "+" : ""} 个念头</span></span></div>
         <div className={styles.browseToolbar}><div className={styles.categoryTabs} role="group" aria-label="按体验类型浏览"><button type="button" aria-pressed={kind === "all"} onClick={() => { changeBrowse("all", context); setBrowseRevision((value) => value + 1); }}>全部</button>{kinds.map((value) => <button type="button" key={value} aria-pressed={kind === value} onClick={() => { changeBrowse(value, context); setBrowseRevision((value) => value + 1); }}>{leisureKindLabels[value]}</button>)}</div>
           <details className={styles.context}><summary>换个情境{activeContext ? " · 已选择" : ""}</summary><div className={styles.contextPanel}><div className={styles.contextFields}>
             <label>有多少时间<select value={context.minutes} onChange={(event) => updateContext("minutes", event.target.value)}><option value="">都可以</option><option value="30">半小时以内</option><option value="60">一小时以内</option><option value="120">两小时以内</option><option value="240">一个下午</option></select></label>
@@ -83,8 +89,8 @@ export function LeisureHome({ experiences, unavailable = false, hasMore = false,
         {hasMore ? <p className={styles.caption}>这里只显示最近更新的 100 条；更早的体验仍然保留，可通过原有详情链接打开。</p> : null}
       </section>
       {remembered.length || memories.length ? <div className={styles.split}>
-        {remembered.length ? <section className={styles.section} aria-labelledby="leisure-remembered"><div className={styles.sectionHeading}><h2 id="leisure-remembered"><span className={styles.sectionNumber} aria-hidden="true">02 /</span>还惦记着</h2><span aria-hidden="true">↗</span></div><ul className={styles.list}>{remembered.slice(0, 6).map((item) => <li key={item.id} className={styles.keepsake}><Link href={detailHref(item.id)} className={styles.keepsakeLink}><div className={styles.keepsakeArt}><LeisureArtwork item={item} sizes="64px" /></div><div><span className={styles.kind}>{leisureStatusLabels[item.feedback!.status!]}</span><h3>{item.title}</h3></div><MoveUpRight size={16} aria-hidden="true" /></Link></li>)}</ul></section> : null}
-        {memories.length ? <section className={styles.section} aria-labelledby="leisure-memories"><div className={styles.sectionHeading}><h2 id="leisure-memories"><span className={styles.sectionNumber} aria-hidden="true">03 /</span>留下来的</h2><span className={styles.caption}>自己的感受</span></div><ul className={styles.list}>{memories.slice(0, 4).map((item) => <li key={item.id} className={styles.memory}><span className={styles.memoryQuote} aria-hidden="true">“</span><h3><Link href={detailHref(item.id)}>{item.title}</Link></h3>{item.feedback?.personal_note ? <p>{item.feedback.personal_note.length > 160 ? `${item.feedback.personal_note.slice(0, 160)}…` : item.feedback.personal_note}</p> : item.feedback?.reaction === "liked" ? <p>喜欢，想留在这里</p> : null}{item.feedback?.linked_note_id && item.feedback.linked_note_available ? <Link className={styles.link} href={`/notes/${item.feedback.linked_note_id}`}>读那篇笔记 <ArrowRight size={14} aria-hidden="true" /></Link> : null}</li>)}</ul></section> : null}
+        {remembered.length ? <section className={styles.section} aria-labelledby="leisure-remembered"><div className={styles.sectionHeading}><h2 id="leisure-remembered"><span className={styles.sectionNumber} aria-hidden="true">02 /</span>还惦记着</h2><span aria-hidden="true">↗</span></div><ul className={styles.list}>{remembered.slice(0, 6).map((item) => <li key={item.id} className={styles.keepsake}><LeisureCollectionLink href={detailHref(item.id)} className={styles.keepsakeLink}><div className={styles.keepsakeArt}><LeisureArtwork item={item} sizes="64px" /></div><div><span className={styles.kind}>{leisureStatusLabels[item.feedback!.status!]}</span><h3>{item.title}</h3></div><MoveUpRight size={16} aria-hidden="true" /></LeisureCollectionLink></li>)}</ul></section> : null}
+        {memories.length ? <section className={styles.section} aria-labelledby="leisure-memories"><div className={styles.sectionHeading}><h2 id="leisure-memories"><span className={styles.sectionNumber} aria-hidden="true">03 /</span>留下来的</h2><span className={styles.caption}>自己的感受</span></div><ul className={styles.list}>{memories.slice(0, 4).map((item) => <li key={item.id} className={styles.memory}><span className={styles.memoryQuote} aria-hidden="true">“</span><h3><LeisureCollectionLink href={detailHref(item.id)}>{item.title}</LeisureCollectionLink></h3>{item.feedback?.personal_note ? <p>{item.feedback.personal_note.length > 160 ? `${item.feedback.personal_note.slice(0, 160)}…` : item.feedback.personal_note}</p> : item.feedback?.reaction === "liked" ? <p>喜欢，想留在这里</p> : null}{item.feedback?.linked_note_id && item.feedback.linked_note_available ? <Link className={styles.link} href={`/notes/${item.feedback.linked_note_id}`}>读那篇笔记 <ArrowRight size={14} aria-hidden="true" /></Link> : null}</li>)}</ul></section> : null}
       </div> : null}
     </>}
     <footer className={styles.footer}><span className={styles.footerSignature}>Enjoy the little things.</span><div><Link href="/travel" className={styles.link}>旅行计划 <ArrowUpRight size={13} aria-hidden="true" /></Link><Link href="/shopping" className={styles.link}>购物清单 <ArrowUpRight size={13} aria-hidden="true" /></Link><Link href="/notes" className={styles.link}>回到笔记 <ArrowUpRight size={13} aria-hidden="true" /></Link></div></footer>
