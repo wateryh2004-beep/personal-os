@@ -138,3 +138,4 @@
 /* Icon hit targets stay 44px when text is enlarged; the text itself still scales. */
 .today-calm button[aria-label^="更多操作："],
 .today-calm .today-focus-row-actions .today-completion-control {width:44px;min-width:44px;height:44px;min-height:44px}
+@media(max-width:767px){.today-calm {padding-bottom:calc(var(--tab-bar-height) + 24px)!important}}

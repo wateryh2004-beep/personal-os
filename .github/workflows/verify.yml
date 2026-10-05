@@ -38,9 +38,9 @@ jobs:
         env:
           E2E_MOBILE_HARNESS: "1"
         run: |
-          npm run start -- -p 3000 > /tmp/personal-os-today-e2e.log 2>&1 &
+          node node_modules/next/dist/bin/next start -p 3000 > /tmp/personal-os-today-e2e.log 2>&1 &
           SERVER_PID=$!
-          trap 'kill $SERVER_PID' EXIT
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
           for attempt in {1..30}; do
             if curl -fsS http://127.0.0.1:3000/mobile-native-e2e > /dev/null; then break; fi
             sleep 1
@@ -59,9 +59,9 @@ jobs:
           E2E_MOBILE_HARNESS: "1"
           E2E_SCREENSHOT_DIR: test-results/mobile
         run: |
-          npm run start -- -p 3000 > /tmp/personal-os-e2e.log 2>&1 &
+          node node_modules/next/dist/bin/next start -p 3000 > /tmp/personal-os-e2e.log 2>&1 &
           SERVER_PID=$!
-          trap 'kill $SERVER_PID' EXIT
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
           for attempt in {1..30}; do
             if curl -fsS http://127.0.0.1:3000/mobile-native-e2e > /dev/null; then break; fi
             sleep 1

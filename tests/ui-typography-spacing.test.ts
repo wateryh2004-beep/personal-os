@@ -40,6 +40,7 @@ describe("readable typography and workspace rhythm", () => {
     expect(todayCss).toContain("font-size:1.625rem");
     expect(todayCss).toContain("width:44px;min-width:44px;height:44px;min-height:44px");
     expect(todayCss).toContain("prefers-reduced-motion:reduce");
+    expect(todayCss).toContain("padding-bottom:calc(var(--tab-bar-height) + 24px)");
     expect(read("src/components/today/now-workspace.tsx")).toContain("TodayLedger");
     expect(read("src/components/today/now-workspace.tsx")).not.toContain("TodayCommitments");
     expect(read("src/app/(app)/today/loading.tsx")).toContain("<TodayShell />");

@@ -72,6 +72,18 @@ async function noOverflow(page, label) {
       assert.equal(await page.locator('[data-motion-group="lead"]').evaluate(node => getComputedStyle(node).animationName), "none");
       assert.equal(await page.getByTestId("today-background").getAttribute("data-expanded"), "false");
       await capture("filled");
+      if (width < 768) {
+        // Remove the explanatory fixture footer before checking production clearance.
+        await page.getByTestId("today-fixture-caption").evaluate(node => { node.style.display = "none"; });
+        const last = page.getByTestId("today-background").getByRole("button", { name: "背景与简报", exact: true });
+        await last.scrollIntoViewIfNeeded();
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        const lastBox = await last.boundingBox();
+        const navBox = await page.getByRole("navigation", { name: "底部导航", exact: true }).boundingBox();
+        assert.ok(lastBox.y + lastBox.height <= navBox.y - 12, "the final control must fully clear the fixed navigation without the fixture caption");
+        await page.screenshot({ path: `${output}/bottom-clearance-${width}.png` });
+        await page.getByTestId("today-fixture-caption").evaluate(node => { node.style.display = ""; });
+      }
       const background = page.getByTestId("today-background");
       const disclosure = background.getByRole("button", { name: "背景与简报", exact: true });
       await disclosure.click(); await page.getByRole("button", { name: "帮助整理", exact: true }).waitFor();
@@ -135,6 +147,12 @@ async function noOverflow(page, label) {
     assert.equal(actions.count, 1);
     await page.getByRole("button", { name: "撤回", exact: true }).click();
     await page.getByRole("button", { name: `完成 ${firstTask}`, exact: true }).waitFor();
+    const overdue = "核对需要补充的材料";
+    await page.getByRole("button", { name: `完成 ${overdue}`, exact: true }).click();
+    await page.getByRole("link", { name: new RegExp(`^${overdue}`) }).waitFor({ state: "hidden" });
+    const moving = await page.locator(".today-ledger-row").first().evaluate(node => node.getAnimations().some(animation => animation.effect?.getTiming().duration === 220));
+    assert.ok(moving, "confirmed removal animates the surviving ledger row into place");
+    await page.waitForTimeout(260); // Capture the intentional 220ms settle in the video.
     await page.getByRole("button", { name: "调整重点", exact: true }).click();
     await page.getByRole("dialog", { name: "选择今日重点", exact: true }).waitFor();
     await page.evaluate(() => history.back());
