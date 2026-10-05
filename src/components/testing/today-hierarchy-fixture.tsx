@@ -1,4 +1,6 @@
 "use client";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { TodayShell } from "@/components/today/today-workspace-loader";
 import { AppShell } from "@/components/layout/app-shell";
 import { NowWorkspaceView } from "@/components/today/now-workspace";
 import type { NowWorkspace, NowTask } from "@/features/today/types";
@@ -33,10 +35,31 @@ const workspace: NowWorkspace = {
   summary: { todayEventCount: 2, todayTaskCount: 1, attentionCount: 1 },
   focus: { date: "2026-10-05", selectedIds: tasks.slice(0, 2).map(t => t.id), selectedTasks: tasks.slice(0, 2), candidates: tasks.slice(2), available: true },
 };
+const subscribeHydration = () => () => {};
+
 export function TodayHierarchyFixture({ mode }: { mode?: string }) {
-  const data: NowWorkspace = mode === "empty" ? { ...workspace, calendar: { ...workspace.calendar, today: [] }, tasks: { overdue: [], today: [], upcoming: [] }, commitments: workspace.commitments.filter(item => item.kind === "inbox"), summary: { todayEventCount: 0, todayTaskCount: 0, attentionCount: 0 }, focus: { ...workspace.focus!, selectedIds: [], selectedTasks: [], candidates: tasks } }
+  const hydrated = useSyncExternalStore(subscribeHydration, () => true, () => false);
+  const [completed, setCompleted] = useState<string[]>([]);
+  useEffect(() => {
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const update = (event: Event) => {
+      const detail = (event as CustomEvent<{ actionType?: string; proposal?: { taskId?: string } }>).detail;
+      const id = detail?.proposal?.taskId;
+      if (!id) return;
+      const timer = setTimeout(() => { setCompleted(ids => detail.actionType === "tasks.complete" ? [...new Set([...ids, id])] : detail.actionType === "tasks.reopen" ? ids.filter(value => value !== id) : ids); timers.delete(timer); }, 260);
+      timers.add(timer);
+    };
+    window.addEventListener("personal-os:tasks-mutated", update);
+    return () => { window.removeEventListener("personal-os:tasks-mutated", update); timers.forEach(clearTimeout); };
+  }, []);
+  const longTasks = tasks.slice(0, 3).map((task, index) => ({ ...task, title: `${index + 1} · 面试准备与项目复盘：在信息不完整时说明你的判断、证据和下一步，并核对不能遗漏的限制条件` }));
+  const manyOverdue = Array.from({ length: 12 }, (_, index) => ({ ...tasks[2], id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, "0")}`, title: `待处理事项 ${index + 1}：核对材料与真实截止时间` }));
+  const initial: NowWorkspace = mode === "empty" ? { ...workspace, calendar: { ...workspace.calendar, today: [] }, tasks: { overdue: [], today: [], upcoming: [] }, commitments: workspace.commitments.filter(item => item.kind === "inbox"), summary: { todayEventCount: 0, todayTaskCount: 0, attentionCount: 0 }, focus: { ...workspace.focus!, selectedIds: [], selectedTasks: [], candidates: tasks } }
     : mode === "tomorrow" ? { ...workspace, generatedAt: "2026-10-05T11:31:00Z", tasks: { overdue: [], today: [], upcoming: [] }, commitments: workspace.commitments.filter(item => item.kind === "inbox"), summary: { todayEventCount: 2, todayTaskCount: 0, attentionCount: 0 }, focus: { ...workspace.focus!, selectedIds: [], selectedTasks: [], candidates: tasks } }
     : mode === "unavailable" ? { ...workspace, availability: { ...workspace.availability, calendar: "unavailable", inbox: "unavailable", briefing: "unavailable" }, inboxCount: 0 }
+    : mode === "long" ? { ...workspace, focus: { ...workspace.focus!, selectedIds: longTasks.map(task => task.id), selectedTasks: longTasks, candidates: [] }, tasks: { ...workspace.tasks, overdue: manyOverdue }, commitments: manyOverdue.slice(0, 8).map(taskCommitment) }
+    : mode === "obligations" ? { ...workspace, generatedAt: "2026-10-05T11:31:00Z", focus: { ...workspace.focus!, selectedIds: [], selectedTasks: [], candidates: tasks }, tasks: { ...workspace.tasks, overdue: manyOverdue }, commitments: manyOverdue.slice(0, 8).map(taskCommitment) }
     : workspace;
-  return <AppShell presentationPathname="/today"><div data-testid="today-hierarchy-fixture"><NowWorkspaceView workspace={data} /><p className="px-5 pb-5 text-[11px] text-[var(--text-tertiary)]">合成数据 · 仅用于界面验证</p></div></AppShell>;
+  const data: NowWorkspace = { ...initial, focus: initial.focus ? { ...initial.focus, selectedTasks: initial.focus.selectedTasks.map(task => completed.includes(task.id) ? { ...task, status: "completed" } : task) } : undefined, tasks: { ...initial.tasks, overdue: initial.tasks.overdue.filter(task => !completed.includes(task.id)), today: initial.tasks.today.filter(task => !completed.includes(task.id)) }, commitments: initial.commitments.filter(item => !item.task || !completed.includes(item.task.id)) };
+  return <AppShell presentationPathname="/today"><div data-testid="today-hierarchy-fixture">{hydrated ? <NowWorkspaceView workspace={data} /> : <TodayShell />}<p className="px-5 pb-5 text-[11px] text-[var(--text-tertiary)]">合成数据 · 仅用于界面验证</p></div></AppShell>;
 }

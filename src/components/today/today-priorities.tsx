@@ -3,8 +3,8 @@
 import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
 
 import Link from "next/link";
-import { useRef, useState, useTransition } from "react";
-import { CheckCircle2, Plus, Search, X } from "lucide-react";
+import { useRef, useState, useTransition, type ReactNode } from "react";
+import { ArrowUpRight, CheckCircle2, Plus, Search, X } from "lucide-react";
 import type { NowTask, TodayFocus } from "@/features/today/types";
 import { selectFocusCandidates } from "@/features/today/focus";
 import { saveTodayFocusAction } from "@/features/today/focus-actions";
@@ -13,9 +13,20 @@ import { taskRecordHref } from "@/features/today/record-links";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { CompleteTaskControl } from "./complete-task-control";
 import { priorityDueLabel } from "@/features/today/presentation";
-import { DeferTaskControl } from "./today-commitments";
+import { TodayTaskActions } from "./today-task-actions";
+import { getDateKeyInTimeZone } from "@/lib/date-keys";
 
-export function TodayPriorities({ focus, timezone = "Asia/Shanghai" }: { focus: TodayFocus; timezone?: string }) {
+type TodayPrioritiesProps = {
+  focus: TodayFocus;
+  timezone?: string;
+  header?: ReactNode;
+  leadBefore?: ReactNode;
+  compactAll?: boolean;
+  primaryTaskId?: string;
+  onCompleted?: (taskId: string) => void;
+};
+
+export function TodayPriorities({ focus, timezone = "Asia/Shanghai", header, leadBefore, compactAll = false, primaryTaskId, onCompleted }: TodayPrioritiesProps) {
   const todayWorkspaceResource = useWorkspaceResourceLease(todayResource);
   const [editing, setEditing] = useState(false);
   const [selectedIds, setSelectedIds] = useState(focus.selectedIds);
@@ -78,32 +89,55 @@ export function TodayPriorities({ focus, timezone = "Asia/Shanghai" }: { focus: 
     });
   }
 
-  return <section aria-labelledby="today-priorities-heading" className={`today-priorities min-w-0 ${savedSelected.length ? "rounded-[20px] bg-[var(--accent-soft)] px-4 pb-1 pt-3 sm:px-5" : "border-b border-[var(--separator)] py-1"}`}>
-    <div className="flex min-h-12 items-center justify-between gap-3">
-      <h2 id="today-priorities-heading" className={savedSelected.length ? "text-[14px] font-semibold text-[var(--accent)]" : "text-[15px] font-medium"}>
-        {savedSelected.length || !focus.available ? "今日重点" : "今天想推进什么？"}
-      </h2>
-      {focus.available ? <button type="button" onClick={begin} aria-haspopup="dialog" aria-expanded={editing} className="min-h-11 shrink-0 rounded-lg px-2 text-[13px] font-medium text-[var(--accent)] hover:bg-[var(--surface-hover)]">{savedSelected.length ? "调整" : "选择重点"}</button> : null}
-    </div>
-    {!focus.available ? <div className="pb-3 text-[13px] text-[var(--text-secondary)]" role="status">今日重点暂不可用，其他日程和到期提醒仍可查看。<button type="button" onClick={() => { void todayWorkspaceResource.revalidate({ force: true }).catch(() => {}); }} className="ml-2 min-h-11 text-[var(--accent)]">重试</button></div> : null}
-    {savedSelected.length ? <ol aria-label="已保存的今日重点" className="divide-y divide-[var(--separator)]">
-      {savedSelected.map((task, index) => <li key={task.id} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2.5 py-3">
-        <span className="pt-1 text-[12px] tabular-nums text-[var(--accent)] opacity-65" aria-hidden="true">{index + 1}</span>
-        <div className="min-w-0">
-          <Link href={taskRecordHref(task.id)} className={`block break-words text-[18px] font-semibold leading-[1.5] tracking-[-0.02em] hover:text-[var(--accent)] sm:text-[20px] ${task.status === "completed" ? "text-[var(--text-tertiary)] line-through" : "text-[var(--text-primary)]"}`}>{task.title || "未命名任务"}</Link>
-          <div className="mt-1 flex min-h-11 items-center justify-between gap-2">
-            <span className="text-[12px] leading-5 text-[var(--text-secondary)]">{priorityDueLabel(task, focus.date, timezone)}</span>
-            {task.status === "completed" ? <CheckCircle2 className="mr-3 size-4 shrink-0 text-[var(--success)]" aria-label="已完成" />
-              : task.status !== "unavailable" ? <div className="flex shrink-0 items-center gap-0.5">{task.due_at ? <DeferTaskControl task={task} timezone={timezone} /> : null}<CompleteTaskControl taskId={task.id} title={task.title} compact /></div> : null}
-          </div>
-        </div>
-      </li>)}
+  const activeTaskId = compactAll ? undefined : primaryTaskId ?? savedSelected.find((task) => task.status !== "completed" && task.status !== "unavailable")?.id;
+  const emptyPrompt = Boolean(header && !savedSelected.length && focus.available);
+  const editButton = focus.available ? <button type="button" onClick={begin} aria-haspopup="dialog" aria-expanded={editing} className="today-focus-adjust today-calm-press min-h-11 shrink-0 rounded-lg px-2 text-[var(--text-secondary)] hover:text-[var(--accent)]">{savedSelected.length ? header ? "调整重点" : "调整" : "选择重点"}</button> : null;
+
+  return <section aria-labelledby="today-priorities-heading" className="today-priorities min-w-0">
+    {header ? <div className="today-heading-row flex items-end justify-between gap-3">{header}{savedSelected.length ? editButton : null}</div> : null}
+    {leadBefore}
+    {emptyPrompt ? <div className="today-empty-focus">
+      <h2 id="today-priorities-heading" className="sr-only">今日重点</h2>
+      <button type="button" onClick={begin} aria-label="选择重点" aria-haspopup="dialog" aria-expanded={editing} className="today-empty-focus-trigger today-calm-press flex min-h-11 w-full items-center justify-between gap-3 text-left text-[var(--text-primary)]"><span>为今天留一个重点</span><Plus className="size-[18px] shrink-0 text-[var(--accent)]" aria-hidden="true" /></button>
+    </div> : <div className={header && savedSelected.length && !compactAll ? "sr-only" : "today-focus-heading flex min-h-11 items-center justify-between gap-3"}>
+      <h2 id="today-priorities-heading" className="today-focus-section-label">{savedSelected.length || !focus.available ? "今日重点" : "今天想推进什么？"}</h2>
+      {!header ? editButton : null}
+    </div>}
+    {!focus.available ? <div className="pb-3 text-[13px] leading-6 text-[var(--text-secondary)]" role="status">今日重点暂不可用，其他日程和到期提醒仍可查看。<button type="button" onClick={() => { void todayWorkspaceResource.revalidate({ force: true }).catch(() => {}); }} className="ml-2 min-h-11 text-[var(--accent)]">重试</button></div> : null}
+    {savedSelected.length ? <ol aria-label="已保存的今日重点" className="today-focus-list">
+      {savedSelected.map((task, index) => {
+        const lead = task.id === activeTaskId;
+        const due = task.due_at ? getDateKeyInTimeZone(task.due_at, timezone) : null;
+        const urgent = task.status !== "completed" && !!due && due <= focus.date;
+        const available = task.status !== "unavailable";
+        const completion = task.status === "completed" ? <span className="flex size-11 shrink-0 items-center justify-center text-[var(--accent)]" aria-label="已完成"><CheckCircle2 className="size-[21px]" aria-hidden="true" /></span>
+          : available ? <CompleteTaskControl taskId={task.id} title={task.title} status={task.status} calm compact={!lead} onCompleted={onCompleted} /> : null;
+        const dueLabel = <span className={`today-focus-due ${urgent ? "text-[var(--today-urgent,var(--danger))]" : "text-[var(--text-secondary)]"}`}>{available ? priorityDueLabel(task, focus.date, timezone) : "任务暂不可用"}</span>;
+        return <li key={task.id} data-task-id={task.id} data-completed={task.status === "completed" || undefined} className={`today-focus-item ${lead ? "today-focus-lead" : "today-focus-row"}`}>
+          {lead ? <>
+            <p className="today-focus-label text-[var(--accent)]">当前重点 <span aria-hidden="true">/ {String(index + 1).padStart(2, "0")}</span></p>
+            <h2 className="today-focus-title"><Link href={taskRecordHref(task.id)} className="block break-words text-[var(--text-primary)] hover:text-[var(--accent)]">{task.title || "未命名任务"}</Link></h2>
+            <div className="today-focus-deadline">{dueLabel}</div>
+            <div className="today-focus-actions flex min-h-11 items-center justify-between gap-2">
+              <Link href={taskRecordHref(task.id)} aria-label={`打开任务：${task.title || "未命名任务"}`} className="today-primary-action today-calm-press inline-flex min-h-11 shrink-0 items-center gap-5 rounded-full bg-[var(--accent)] px-5 text-[var(--accent-contrast,#fff)]">打开任务<ArrowUpRight className="size-4" aria-hidden="true" /></Link>
+              <div className="flex shrink-0 items-center gap-1"><TodayTaskActions task={task} timezone={timezone} />{completion}</div>
+            </div>
+          </> : <>
+            <span className="today-focus-number tabular-nums text-[var(--text-secondary)]" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+            <div className="min-w-0">
+              {available ? <Link href={taskRecordHref(task.id)} className={`today-focus-row-title block break-words hover:text-[var(--accent)] ${task.status === "completed" ? "text-[var(--text-secondary)] line-through" : "text-[var(--text-primary)]"}`}>{task.title || "未命名任务"}</Link> : <span className="today-focus-row-title block break-words text-[var(--text-secondary)]">{task.title || "任务已不可用"}</span>}
+              {task.due_at || task.status === "completed" || !available ? dueLabel : null}
+            </div>
+            <div className="today-focus-row-actions flex shrink-0 items-center">{available ? <TodayTaskActions task={task} timezone={timezone} /> : null}{completion}</div>
+          </>}
+        </li>;
+      })}
     </ol> : null}
     <Sheet open={editing} canDismiss={() => !saving.current} onOpenChange={(open) => { if (!open) cancel(); }}>
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="mx-auto max-h-[85dvh] min-h-0 w-full max-w-xl gap-0 overflow-hidden"
+        className="today-calm-sheet mx-auto max-h-[85dvh] min-h-0 w-full max-w-xl gap-0 overflow-hidden"
         style={{ maxHeight: "min(85dvh, var(--app-viewport-height, 100dvh))", bottom: "max(0px, calc(100dvh - var(--app-viewport-height, 100dvh)))" }}
         onOpenAutoFocus={(event) => { event.preventDefault(); editorTitle.current?.focus({ preventScroll: true }); }}
         onEscapeKeyDown={(event) => { if (saving.current) event.preventDefault(); }}

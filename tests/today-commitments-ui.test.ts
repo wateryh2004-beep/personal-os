@@ -13,7 +13,9 @@ describe("Today commitment interaction contract", () => {
   });
 
   it("keeps all landing actions behind existing task, calendar, or Inbox boundaries", () => {
-    expect(source).toContain("deferMicrosoftTodoTaskAction");
+    expect(source).toContain('from "./today-task-actions"');
+    const taskActions = readFileSync("src/components/today/today-task-actions.tsx", "utf8");
+    expect(taskActions).toContain("deferMicrosoftTodoTaskAction");
     expect(source).toContain('openCreate("task"');
     expect(source).toContain('openCreate("calendar"');
     expect(source).toContain('openCreate("inbox"');

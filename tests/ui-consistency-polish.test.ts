@@ -57,7 +57,8 @@ describe("core UI consistency polish", () => {
     expect(read("src/app/workspaces.css")).toContain(".notes-list-workspace");
     expect(read("src/app/workspaces.css")).not.toContain(':has(article');
     expect(read("src/app/responsive.css")).toContain("var(--tab-bar-height)");
-    expect(now).toContain('className="now-workspace');
+    expect(now).toContain("TodayMotion");
+    expect(read("src/components/today/today-motion.tsx")).toContain('className="today-calm now-workspace');
     expect(header).toContain('page-title');
     expect(header).toContain('text-[14px]');
   });

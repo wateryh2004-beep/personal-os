@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./workspaces.css";
 import "./responsive.css";
+import "./today-calm.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PwaLifecycle } from "@/components/pwa/pwa-lifecycle";
 import { ClientPerformanceReporter } from "@/components/performance/client-performance-reporter";

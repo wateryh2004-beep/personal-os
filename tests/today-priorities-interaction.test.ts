@@ -8,7 +8,7 @@ vi.mock("next/link", () => ({ default: ({ children, ...props }: React.AnchorHTML
 vi.mock("@/features/today/focus-actions", () => ({ saveTodayFocusAction: mocks.save }));
 vi.mock("@/features/today/workspace-resource", () => ({ todayWorkspaceResource: { revalidate: mocks.revalidate, mutate: mocks.mutate, invalidate: mocks.invalidate } }));
 vi.mock("@/components/today/complete-task-control", () => ({ CompleteTaskControl: ({ title }: { title: string }) => createElement("button", { "aria-label": `完成 ${title}` }, "完成") }));
-vi.mock("@/components/today/today-commitments", () => ({ DeferTaskControl: () => createElement("button", null, "明天") }));
+vi.mock("@/components/today/today-task-actions", () => ({ TodayTaskActions: ({ task }: { task: { title: string } }) => createElement("button", { "aria-label": `更多操作：${task.title}` }, "更多") }));
 import { TodayPriorities } from "@/components/today/today-priorities";
 let host: HTMLDivElement, root: Root;
 const focus: TodayFocus = { date: "2026-10-01", available: true, selectedIds: [], selectedTasks: [], candidates: [1,2,3,4].map((n) => ({ id: `c0000000-0000-4000-8000-00000000000${n}`, title: `Task ${n}`, status: "notStarted", due_at: null, importance: "normal" })) };
@@ -127,16 +127,17 @@ it("keeps the draft available after an unconfirmed save or failed reload", async
   expect(dialog().querySelector('[role="alert"]')?.textContent).toContain("当前选择仍保留");
   expect(draftRows().map((row) => row.textContent)).toEqual(["1Task 1"]);
 });
-it("keeps saved completion and defer controls outside the editor", async () => {
+it("keeps direct completion and task actions outside the editor", async () => {
   const tasks = [
     { ...focus.candidates[1], due_at: "2026-10-01T08:00:00Z" },
     { ...focus.candidates[0], status: "completed" },
   ];
   await render({ ...focus, selectedIds: tasks.map((task) => task.id), selectedTasks: tasks });
-  expect([...host.querySelectorAll('a[href^="/tasks?task="]')].map((link) => link.textContent)).toEqual(["Task 2", "Task 1"]);
+  expect([...host.querySelectorAll('a[href^="/tasks?task="]')].map((link) => link.textContent)).toEqual(["Task 2", "打开任务", "Task 1"]);
   expect(host.querySelector('[aria-label="完成 Task 2"]')).not.toBeNull();
   expect(host.querySelector('[aria-label="已完成"]')).not.toBeNull();
-  expect(button("明天")).toBeDefined();
+  expect(host.querySelector('[aria-label="更多操作：Task 2"]')).not.toBeNull();
+  expect(button("明天")).toBeUndefined();
   await act(async () => button("调整").click());
   await remove(2);
   expect(host.querySelector('[aria-label="完成 Task 2"]')).not.toBeNull();
@@ -189,4 +190,44 @@ it("keeps the sheet and its history marker through repeated Back while saving", 
   expect(window.history.state).toEqual(previousState);
   expect(window.location.pathname).toBe("/today");
   expect(mocks.save).toHaveBeenCalledOnce();
+});
+
+it("keeps all three long focuses and due states visible with only one typographic lead", async () => {
+  const tasks = focus.candidates.slice(0, 3).map((task, index) => ({ ...task, title: `${task.title} 很长的任务标题，需要完整换行展示而不是截断`, due_at: index === 0 ? "2026-09-30T08:00:00Z" : index === 1 ? "2026-10-01T08:00:00Z" : null }));
+  await render({ ...focus, selectedIds: tasks.map((task) => task.id), selectedTasks: tasks });
+  expect(host.querySelectorAll(".today-focus-lead")).toHaveLength(1);
+  expect(host.querySelectorAll(".today-focus-row")).toHaveLength(2);
+  expect(host.querySelectorAll(".today-focus-item")).toHaveLength(3);
+  expect(host.querySelector(".today-priorities")?.className).not.toMatch(/rounded|bg-/);
+  expect(host.querySelector(".today-focus-title")?.className).not.toContain("line-clamp");
+  expect([...host.querySelectorAll(".today-focus-due")].map((row) => row.textContent)).toEqual(["已逾期 · 09/30", "今天到期"]);
+});
+it("embeds a shared heading and event lead while keeping all selected focuses compact", async () => {
+  const tasks = focus.candidates.slice(0, 3);
+  await act(async () => root.render(createElement(TodayPriorities, { focus: { ...focus, selectedIds: tasks.map((task) => task.id), selectedTasks: tasks }, header: createElement("h1", null, "今日"), leadBefore: createElement("p", null, "Next real event"), compactAll: true })));
+  expect(host.querySelector(".today-heading-row h1")?.textContent).toBe("今日");
+  expect(button("调整重点")).toBeDefined();
+  expect(host.querySelectorAll(".today-focus-lead")).toHaveLength(0);
+  expect(host.querySelectorAll(".today-focus-row")).toHaveLength(3);
+  expect(host.textContent!.indexOf("Next real event")).toBeLessThan(host.textContent!.indexOf("Task 1"));
+  await act(async () => button("调整重点").click());
+  expect(dialog()).not.toBeNull();
+});
+it("uses the first unfinished selection as the lead without reordering saved choices", async () => {
+  const tasks = focus.candidates.slice(0, 3).map((task, index) => ({ ...task, status: index === 0 ? "completed" : "notStarted" }));
+  await render({ ...focus, selectedIds: tasks.map((task) => task.id), selectedTasks: tasks });
+  expect(host.querySelector(".today-focus-lead")?.getAttribute("data-task-id")).toBe(tasks[1].id);
+  expect([...host.querySelectorAll(".today-focus-item")].map((row) => row.getAttribute("data-task-id"))).toEqual(tasks.map((task) => task.id));
+  await render({ ...focus, selectedIds: tasks.map((task) => task.id), selectedTasks: tasks.map((task) => ({ ...task, status: "completed" })) });
+  expect(host.querySelector(".today-focus-lead")).toBeNull();
+});
+
+it("offers one useful empty-focus row below the evening lead", async () => {
+  await act(async () => root.render(createElement(TodayPriorities, { focus, header: createElement("h1", null, "今日"), leadBefore: createElement("p", null, "Tomorrow event"), compactAll: true })));
+  expect(host.querySelector(".today-heading-row button")).toBeNull();
+  const trigger = host.querySelector<HTMLButtonElement>('[aria-label="选择重点"]')!;
+  expect(trigger.textContent).toBe("为今天留一个重点");
+  expect(host.textContent!.indexOf("Tomorrow event")).toBeLessThan(host.textContent!.indexOf("为今天留一个重点"));
+  await act(async () => trigger.click());
+  expect(dialog()).not.toBeNull();
 });

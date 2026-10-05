@@ -1,17 +1,13 @@
 "use client";
 
-import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
+import { DeferTaskControl } from "./today-task-actions";
+export { DeferTaskControl } from "./today-task-actions";
 
 import Link from "next/link";
-import { useRef, useState, useTransition } from "react";
-import { CalendarPlus, Check, CheckSquare2, ChevronDown, Inbox, TimerReset } from "lucide-react";
+import { useState } from "react";
+import { CalendarPlus, Check, CheckSquare2, ChevronDown, Inbox } from "lucide-react";
 import type { NowCommitment } from "@/features/today/types";
 import { CompleteTaskControl } from "./complete-task-control";
-import { shiftCalendarCursor } from "@/features/calendar/timezone";
-import { tasksWorkspaceResource as tasksResource } from "@/features/tasks/workspace-resource";
-import { todayWorkspaceResource as todayResource } from "@/features/today/workspace-resource";
-import { useActionFeedback } from "@/components/shared/action-feedback";
-import { deferMicrosoftTodoTaskAction } from "@/features/tasks/microsoft-todo";
 
 const DEFAULT_VISIBLE = 5;
 
@@ -21,47 +17,6 @@ function openCreate(kind: "task" | "calendar" | "inbox", title: string) {
 
 const actionClass =
   "pressable inline-flex min-h-11 sm:min-h-8 items-center gap-1 rounded-[8px] px-1.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50";
-
-export function DeferTaskControl({ task, timezone }: { task: NonNullable<NowCommitment["task"]>; timezone: string }) {
-  const tasksWorkspaceResource = useWorkspaceResourceLease(tasksResource);
-  const todayWorkspaceResource = useWorkspaceResourceLease(todayResource);
-  const [pending, startTransition] = useTransition();
-  const [failed, setFailed] = useState(false);
-  const inFlight = useRef(false);
-  const { show } = useActionFeedback();
-  return (
-    <button
-      type="button"
-      disabled={pending}
-      onClick={() => {
-        if (inFlight.current) return;
-        inFlight.current = true;
-        startTransition(async () => {
-          setFailed(false);
-          try {
-          const form = new FormData();
-          form.set("task_id", task.id);
-          const dueAt = shiftCalendarCursor(new Date(), timezone, 1).toISOString();
-          form.set("due_at", dueAt);
-          await deferMicrosoftTodoTaskAction(form);
-          tasksWorkspaceResource.mutate((workspace) => workspace ? { ...workspace, tasks: workspace.tasks.map((row) => row.id === task.id ? { ...row, dueAt } : row) } : workspace);
-          tasksWorkspaceResource.invalidate();
-          show({ message: "已延后到明天", tone: "success" });
-          todayWorkspaceResource.invalidate();
-          void todayWorkspaceResource.revalidate({ force: true }).catch(() => {});
-          } catch {
-            setFailed(true);
-            show({ message: "未能确认延后结果，请刷新核对后重试。", tone: "error" });
-          } finally { inFlight.current = false; }
-        });
-      }}
-      className={actionClass}
-    >
-      <TimerReset className="size-3.5" aria-hidden="true" />
-      {pending ? "延后中…" : failed ? "重试延后" : "明天"}
-    </button>
-  );
-}
 
 export function CommitmentActions({ item, timezone }: { item: NowCommitment; timezone: string }) {
   if (item.kind === "task" && item.task) {

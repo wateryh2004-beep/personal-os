@@ -228,28 +228,25 @@ async function backCloses(page, trigger, visibleTarget) {
           const main = await page.locator("#main-content").boundingBox();
           assert.ok(heading && main);
           const inset = heading.x - main.x;
-          const expectedInset = Math.max(0, main.width - 1040) / 2 + (width < 768 ? 16 : width < 1024 ? 32 : 40);
+          const expectedInset = Math.max(0, main.width - (width < 1024 ? 760 : 820)) / 2 + (width < 375 ? 20 : width < 768 ? 24 : width < 1024 ? 32 : 48);
           assert.ok(Math.abs(inset - expectedInset) <= 1, `Today ${width}px has one responsive gutter: ${inset}, expected ${expectedInset}`);
-          todayOrigin = await page.locator(".now-workspace > header").boundingBox();
+          todayOrigin = await page.locator(".today-header").boundingBox();
         }
         if (scene === "today" || scene === "today-filled") {
           assert.equal(await page.getByRole("button", { name: "加入 Inbox", exact: true }).count(), 0, "capture has one global entry point");
-          const schedule = await page.locator('[aria-labelledby="today-schedule-heading"]').boundingBox();
           const context = await page.getByTestId("today-background").boundingBox();
-          const future = await page.locator('[aria-labelledby="today-future-heading"]').boundingBox();
           const priorities = await page.locator('[aria-labelledby="today-priorities-heading"]').boundingBox();
-          assert.ok(schedule && context && future && priorities);
-          assert.equal(await page.locator('[aria-labelledby="today-focus-heading"]').count(), 0, "empty or already-prioritized tasks do not repeat");
-          assert.equal(await page.locator('[aria-labelledby="today-commitments-heading"]').count(), 0, "empty reminders do not become another module");
-          assert.equal(await page.getByTestId("today-background").getAttribute("open"), null);
+          assert.ok(context && priorities);
+          assert.equal(await page.locator('[aria-labelledby="today-focus-heading"]').count(), 0, "legacy focus-stack does not compete with the ledger");
+          assert.equal(await page.locator('[aria-labelledby="today-commitments-heading"]').count(), 0, "legacy reminders no longer repeat a module");
+          assert.equal(await page.getByTestId("today-background").getAttribute("data-expanded"), "false");
           const contentBounds = await page.locator(".now-workspace").evaluate((node) => {
             const box = node.getBoundingClientRect(); const style = getComputedStyle(node);
             return { left: box.left + parseFloat(style.paddingLeft), right: box.right - parseFloat(style.paddingRight) };
           });
-          for (const box of [schedule, context, future, priorities]) assert.ok(box.x >= contentBounds.left - 1 && box.x + box.width <= contentBounds.right + 1);
-          assert.ok(schedule.y >= priorities.y + priorities.height, "schedule follows the full-width priorities");
-          if (width < 1024) assert.ok(context.y > future.y, "future arrangements precede background");
-          visualMetrics.push({ scene, width, schedule, context, future, priorities });
+          for (const box of [context, priorities]) assert.ok(box.x >= contentBounds.left - 1 && box.x + box.width <= contentBounds.right + 1);
+          if (scene === "today-filled") await page.getByRole("heading", { name: "今日安排", exact: true }).waitFor();
+          visualMetrics.push({ scene, width, context, priorities });
         }
 
         if (scene === "heading" || scene === "tasks" || scene === "notes") {
@@ -276,7 +273,7 @@ async function backCloses(page, trigger, visibleTarget) {
           assert.ok(title && title.x + title.width <= menu.x, "Notes text and menu hit areas stay separate");
         }
         if (scene === "today-loading") {
-          const skeletonOrigin = await page.locator(".now-workspace > div").first().boundingBox();
+          const skeletonOrigin = await page.locator(".now-workspace > header").boundingBox();
           assert.ok(todayOrigin && skeletonOrigin);
           assert.ok(Math.abs(todayOrigin.x - skeletonOrigin.x) <= 1 && Math.abs(todayOrigin.y - skeletonOrigin.y) <= 1, `Today ${width}px loading and content share an origin`);
         }

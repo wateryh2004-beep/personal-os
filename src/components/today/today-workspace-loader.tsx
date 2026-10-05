@@ -7,11 +7,10 @@ import { WorkspaceReadError } from "@/components/shared/workspace-read-error";
 import { WorkspaceSyncStatus } from "@/components/shared/workspace-sync-status";
 
 export function TodayShell() {
-  return <div aria-busy="true" aria-label="正在载入今天" className="now-workspace mx-auto max-w-[1040px] px-5 py-6 sm:px-8 sm:py-9 lg:px-10 lg:py-11">
-    <div className="ui-skeleton-shimmer h-3 w-28 rounded-full" />
-    <div className="ui-skeleton-shimmer mt-3 h-8 w-20 rounded-lg" />
-    <div className="mt-7 rounded-2xl bg-[var(--surface-control)] p-5"><div className="ui-skeleton-shimmer h-4 w-20 rounded" /><div className="ui-skeleton-shimmer mt-5 h-5 w-3/4 rounded" /><div className="ui-skeleton-shimmer mt-3 h-3 w-1/3 rounded" /></div>
-    <div className="mt-8 grid gap-8 lg:grid-cols-2">{[0, 1].map((section) => <div key={section}><div className="ui-skeleton-shimmer h-4 w-24 rounded" />{[0,1].map((row) => <div key={row} className="mt-5 flex gap-4"><div className="ui-skeleton-shimmer h-3 w-12 rounded" /><div className="ui-skeleton-shimmer h-4 w-2/3 rounded" /></div>)}</div>)}</div>
+  return <div aria-busy="true" aria-label="正在载入今天" className="today-calm now-workspace">
+    <header><div className="ui-skeleton-shimmer h-3 w-28 rounded-full" /><div className="ui-skeleton-shimmer mt-3 h-10 w-20 rounded" /></header>
+    <div className="mt-8"><div className="ui-skeleton-shimmer h-3 w-20 rounded" /><div className="ui-skeleton-shimmer mt-4 h-8 w-4/5 rounded" /><div className="ui-skeleton-shimmer mt-3 h-8 w-3/5 rounded" /><div className="ui-skeleton-shimmer mt-6 h-11 w-28 rounded-full" /></div>
+    <div className="mt-8 border-t border-[var(--separator)] pt-7">{[0,1].map(row => <div key={row} className="mb-6 flex gap-4"><div className="ui-skeleton-shimmer h-3 w-10 rounded" /><div className="ui-skeleton-shimmer h-4 w-2/3 rounded" /></div>)}</div>
   </div>;
 }
 
