@@ -112,7 +112,7 @@ async function backCloses(page, trigger, visibleTarget) {
       assert.equal(await questionList.getByRole("button", { name: "E2E 面试问题 0", exact: true }).count(), 0);
       await questionList.getByRole("button", { name: "E2E 面试问题 1", exact: true }).tap();
       await questionDetail.waitFor({ state: "visible" });
-      await questionDetail.getByRole("button", { name: "参考表达", exact: true }).tap();
+      await questionDetail.getByRole("button", { name: "标准答案", exact: true }).tap();
       await page.evaluate(() => history.back());
       await questionList.waitFor({ state: "visible" });
       assert.equal(await interview.getByLabel("搜索题库", { exact: true }).inputValue(), "English reference");
@@ -124,14 +124,17 @@ async function backCloses(page, trigger, visibleTarget) {
       await questionList.getByRole("button", { name: "E2E 面试问题 0", exact: true }).tap();
       await questionDetail.waitFor({ state: "visible" });
       assert.equal(await questionList.isVisible(), false);
-      assert.ok((await questionDetail.innerText()).includes("E2E 思路 0"));
+      assert.ok(!(await questionDetail.innerText()).includes("E2E 思路 0"));
+      await questionDetail.getByRole("button", { name: "思路拆解讲解", exact: true }).tap();
+      assert.ok((await questionDetail.locator("#study-thinking").innerText()).includes("E2E 思路 0"));
+      await questionDetail.locator("#study-thinking summary").click();
       assert.equal(await questionDetail.locator("textarea").count(), 0);
       assert.ok((await questionDetail.innerText()).includes("E2E 答案 0"));
       assert.equal(await questionDetail.getByRole("button", { name: "编辑思路与答案", exact: true }).count(), 0);
-      await questionDetail.getByTestId("interview-study-view").locator("details").first().locator("summary").click();
+      await questionDetail.getByTestId("interview-study-view").locator("footer details").first().locator("summary").click();
       await questionDetail.getByTestId("study-provenance").waitFor({ state: "visible" });
       assert.ok((await questionDetail.innerText()).includes("不代表内容或个人经历已经核实"));
-      await questionDetail.getByTestId("interview-study-view").locator("details").first().locator("summary").click();
+      await questionDetail.getByTestId("interview-study-view").locator("footer details").first().locator("summary").click();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
       await capture(page, `interview-detail-${width}`);
       await captureElement(questionDetail, `interview-detail-crop-${width}`);
@@ -149,7 +152,7 @@ async function backCloses(page, trigger, visibleTarget) {
       assert.ok((await reference.innerText()).includes("E2E English reference answer"));
       assert.equal(await questionDetail.locator("textarea").count(), 0, "reading never opens an editor");
       const detailHistoryLength = await page.evaluate(() => history.length);
-      await questionDetail.getByRole("button", { name: "参考表达", exact: true }).tap();
+      await questionDetail.getByRole("button", { name: "标准答案", exact: true }).tap();
       assert.equal(await page.evaluate(() => history.length), detailHistoryLength);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1);
       await capture(page, `interview-reference-${width}`);
