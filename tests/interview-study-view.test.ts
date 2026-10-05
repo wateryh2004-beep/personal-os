@@ -100,10 +100,13 @@ it("opens explanation from the section button, closes it repeatedly, and keeps t
   const explanation = host.querySelector<HTMLDetailsElement>("#study-thinking")!;
   const jump = [...host.querySelectorAll("nav button")].find((node) => node.textContent === "思路拆解讲解") as HTMLButtonElement;
   expect(explanation.open).toBe(false);
+  expect(explanation.querySelector("summary")!.textContent).toBe("思路拆解讲解展开");
   expect(host.textContent).not.toContain("教学解释。");
   for (let i = 0; i < 2; i++) {
     await act(async () => jump.click());
     expect(explanation.open).toBe(true);
+    expect(explanation.querySelector("summary")!.textContent).toBe("思路拆解讲解收起");
+    expect(explanation.querySelectorAll("h2")).toHaveLength(0);
     expect(explanation.textContent).toContain("教学解释。");
     expect(host.querySelector("#study-answer")!.textContent).toBe(answer);
     await act(async () => { explanation.open = false; explanation.dispatchEvent(new Event("toggle")); });

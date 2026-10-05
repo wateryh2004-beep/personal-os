@@ -63,6 +63,7 @@ describe("answer and explanation boundary", () => {
     expect(result.answer).toContain("只有这些条件成立才适用。");
     expect(result.answer).not.toContain("先算");
     expect(result.explanation).toContain("先算100−20−15。");
+    expect(result.explanation).not.toContain("## 思路拆解讲解");
     expect(result.references).toContain("https://example.com");
     expect(result.segments.map((segment) => segment.markdown).join("")).toBe(raw);
     expect(result.original).toBe(raw);

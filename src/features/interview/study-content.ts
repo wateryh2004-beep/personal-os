@@ -111,7 +111,7 @@ export function prepareInterviewAnswer(original: string): InterviewAnswerContent
     return {
       ...content,
       answer: fullAnswers.map((segment) => fullAnswers.length > 1 ? segment.markdown.replace(/^##/, "###") : segment.markdown.replace(/^##[^\n]*(?:\n|$)/, "")).join("\n\n"),
-      explanation: reading.filter((segment) => !fullAnswers.includes(segment)).map((segment) => segment.markdown).join("\n\n"),
+      explanation: reading.filter((segment) => !fullAnswers.includes(segment)).map((segment) => headingOf(segment.markdown) === "思路拆解讲解" ? segment.markdown.replace(/^##[^\n]*(?:\n|$)/, "") : segment.markdown).join("\n\n"),
       separation: "explicit",
     };
   }

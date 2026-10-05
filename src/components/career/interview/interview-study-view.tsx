@@ -44,7 +44,7 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
         {expression.answer.trim() ? <StudyMarkdown body={expression.answer} /> : <p className="text-sm leading-6 text-[var(--text-tertiary)]">{expression.format === "structured-original" ? "这份答案是结构化原文，可在下方展开查看。" : expression.separation === "needs-answer" ? "这份旧内容还未整理出完整的标准答案，可先展开下方讲解查看。" : "还没有标准答案。"}{expression.separation === "needs-answer" ? <button type="button" onClick={openExplanation} aria-controls="study-thinking" aria-expanded={explanationOpen} className="mt-2 block min-h-11 text-[var(--accent)]">阅读现有讲解 →</button> : null}</p>}
       </section>
       {hasThinking ? <details ref={explanationRef} onToggle={(event) => setExplanationOpen(event.currentTarget.open)} id="study-thinking" className="mt-8 scroll-mt-[calc(var(--toolbar-height)+1rem)] border-t border-[var(--separator)] pt-6">
-        <summary className="min-h-11 cursor-pointer text-[14px] font-semibold leading-6 text-[var(--text-primary)]">思路拆解讲解</summary>
+        <summary className="min-h-11 cursor-pointer text-[14px] font-semibold leading-6 text-[var(--text-primary)]">思路拆解讲解<span className="ml-3 text-[12px] font-normal text-[var(--accent)]">{explanationOpen ? "收起" : "展开"}</span></summary>
         {explanationOpen ? <div className="space-y-5 pt-3">
         {expression.explanation.trim() ? <StudyMarkdown body={expression.explanation} /> : null}
         {thinking.reading.trim() ? <StudyMarkdown body={thinking.reading} /> : null}
