@@ -1,3 +1,4 @@
+import { presentInterviewPrompt } from "@/features/interview/prompt-presentation";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
@@ -60,7 +61,7 @@ function PracticeRow({ item }: { item: any }) {
       className="group grid min-h-14 gap-1 rounded-[10px] px-2.5 py-3 transition-colors ui-transition hover:bg-[var(--surface-hover)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
     >
       <div className="min-w-0">
-        <p className="text-[13.5px] leading-5.5 text-[var(--text-primary)]">{item.prompt_override || question?.canonical_prompt}</p>
+        <p className="text-[13.5px] leading-5.5 text-[var(--text-primary)]">{presentInterviewPrompt(item.prompt_override || question?.canonical_prompt || "").question}</p>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] text-[var(--text-tertiary)]">
           {interviewContext?.title ? <span>{interviewContext.title}</span> : null}
           {(item.practice_reasons ?? []).map((reason: string) => <span key={reason}>· {reason}</span>)}

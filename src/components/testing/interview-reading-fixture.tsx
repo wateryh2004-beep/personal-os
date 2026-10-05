@@ -1,12 +1,13 @@
+import { promptFixtures } from "./interview-prompt-fixtures";
 import { AppShell } from "@/components/layout/app-shell";
 import { InterviewFastWorkspace } from "@/components/career/interview/interview-fast-workspace";
 
 /** Synthetic layout/interaction fixtures only; unavailable in normal deployments. */
 export function InterviewReadingFixture() {
-  const titles = ["系统有人用，如何证明有价值", "AI 代写代码后，你的贡献是什么", "SQL：平均空置率为什么算错了", "Case：产品怎么定价，多少客户能回本", "项目推进遇到分歧怎么办", "如何解释一次失败与改进"];
+  const titles = ["自我介绍", "现金流与折现率", "车辆总拥有成本", "Case：产品怎么定价，多少客户能回本", "项目推进遇到分歧怎么办", "如何解释一次失败与改进"];
   return <AppShell presentationPathname="/career/interview"><InterviewFastWorkspace targets={[{ id: "fixture-target", title: "模拟岗位", organization: "测试公司", role: "分析岗" }]} initialContextId="" initialQuestionId="" initialCategory="all" items={Array.from({ length: 42 }, (_, index) => ({
     preparationId: `fixture-prep-${index}`, questionId: `fixture-question-${index}`, contextId: index === 41 ? "fixture-target" : null,
-    shortTitle: titles[index % titles.length], prompt: index === 0 ? "你提到内部系统已有同事使用。如何证明它改善了业务，而不只是把 Excel 搬到网页？如果没有可靠的节省工时数据，你会怎么回答？" : `布局测试 ${index}：${titles[index % titles.length]}？`,
+    shortTitle: index === 39 ? "产品保修与预计负债" : titles[index % titles.length], prompt: index === 0 ? promptFixtures.intro : index === 1 ? promptFixtures.cashflow + promptFixtures.cashflowMeta : index === 2 ? promptFixtures.talbot : index === 39 ? promptFixtures.warranty : `布局测试 ${index}：${titles[index % titles.length]}？`,
     category: index % 3 === 0 ? "resume" : "knowledge", categoryLabel: index % 3 === 0 ? "简历" : "专业", style: index % 4 === 0 ? "stress" : "standard", subcategory: index % 3 === 0 ? null : "SQL与数据分析", competencies: [],
     answerId: `fixture-answer-${index}`, answerMeta: { status: "draft", source: "ai_draft", language: "zh", version_number: 2, confirmed_at: null },
     thoughts: "## 思考顺序\n\n这是界面测试内容，不代表用户经历。先区分观察、解释和证据，再明确结论的适用条件。\n\n1. 明确问题\n2. 检查证据\n3. 说明边界\n\n## 参考资料\n[测试来源](https://example.com)",

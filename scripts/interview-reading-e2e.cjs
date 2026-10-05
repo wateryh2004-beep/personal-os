@@ -22,6 +22,23 @@ exports.verifyInterviewReading = async (browser, baseURL, output) => {
       const top = await detail.locator("#study-answer").boundingBox();
       assert.ok(top.y < 650, "reference answer should begin in the first viewport");
     }
+    // The exact reported prompts must show actual questions, not job metadata.
+    if (width >= 1024) {
+      assert.equal(await detail.getByTestId("interview-prompt-text").innerText(), "用约90秒介绍自己，并说明哪些真实经历支持你胜任当前岗位。");
+      assert.equal(await detail.locator("h1").innerText(), "自我介绍");
+    }
+    await list.getByRole("button").filter({ hasText: "现金流与折现率" }).first().click();
+    const cashflow = await detail.getByTestId("interview-prompt-text").innerText();
+    assert.equal(cashflow, "面试官给你两套现金流：一套在债务偿付前，另一套已扣利息并考虑净借款。你分别用什么折现率？算出来是企业价值还是股权价值？");
+    assert.equal(await detail.locator("h1").innerText(), "现金流与折现率");
+    assert.ok(!(await detail.innerText()).includes("2028届条件准备目标"));
+    await page.screenshot({ path: `${output}/interview-prompt-cashflow-${width}.png` });
+    if (width < 1024) { await detail.getByRole("button", { name: "← 返回题目列表", exact: true }).click(); await list.waitFor({ state: "visible" }); }
+    await list.getByRole("button").filter({ hasText: "车辆总拥有成本" }).first().click();
+    const assumptions = await detail.getByTestId("interview-prompt-text").innerText();
+    for (const text of ["电车也无残值", "忽略融资、折现", "充电设施投入", "0.15欧元"]) assert.ok(assumptions.includes(text));
+    await page.screenshot({ path: `${output}/interview-prompt-assumptions-${width}.png` });
+    if (width < 1024) { await detail.getByRole("button", { name: "← 返回题目列表", exact: true }).click(); await list.waitFor({ state: "visible" }); }
     const question = list.getByRole("button").filter({ hasText: "Case：产品怎么定价" }).first();
     await question.click();
     await detail.waitFor({ state: "visible" });
@@ -29,15 +46,15 @@ exports.verifyInterviewReading = async (browser, baseURL, output) => {
     assert.equal(await detail.locator("textarea").count(), 0);
     assert.ok((await detail.innerText()).includes("这是用于验证排版的模拟文本"));
     await detail.getByRole("button", { name: "下一题 →", exact: true }).click();
-    assert.ok((await detail.locator("h1").innerText()).includes("布局测试 4"));
+    assert.ok((await detail.getByTestId("interview-prompt-text").innerText()).includes("布局测试 4"));
     await detail.getByRole("button", { name: "← 上一题", exact: true }).click();
-    assert.ok((await detail.locator("h1").innerText()).includes("布局测试 3"));
+    assert.ok((await detail.getByTestId("interview-prompt-text").innerText()).includes("布局测试 3"));
     if (width < 1024) {
       await detail.getByRole("button", { name: "← 返回题目列表", exact: true }).click();
       await list.waitFor({ state: "visible" });
       await page.goForward();
       await detail.waitFor({ state: "visible" });
-      assert.ok((await detail.locator("h1").innerText()).includes("布局测试 3"));
+      assert.ok((await detail.getByTestId("interview-prompt-text").innerText()).includes("布局测试 3"));
       await detail.getByRole("button", { name: "← 返回题目列表", exact: true }).click();
     }
     await list.getByLabel("搜索题库", { exact: true }).fill("不存在的测试关键词");

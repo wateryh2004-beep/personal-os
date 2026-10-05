@@ -7,6 +7,8 @@ import { saveWorkspaceSession } from "@/lib/workspace-session";
 import { CAREER_CONTINUE_KEY } from "@/components/career/career-continue";
 import { questionTypeLabels } from "@/features/interview/constants";
 import { emptyLibraryFilters, filterWorkspaceItems, normalizeLibraryFilters, workspaceDomain, workspaceUrl, type LibraryFilters, type WorkspaceItem, type WorkspaceSearchIndex } from "@/features/interview/workspace-library";
+import { InterviewPrompt } from "./interview-prompt";
+import { presentInterviewPrompt } from "@/features/interview/prompt-presentation";
 import { InterviewStudyView } from "./interview-study-view";
 
 type Target = { id: string; title: string; organization: string | null; role: string | null };
@@ -150,7 +152,7 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
   }, [mobileDetailOpen, questionId]);
 
   useEffect(() => {
-    if (selected) saveWorkspaceSession(CAREER_CONTINUE_KEY, { href: workspaceUrl(contextId, selected.questionId, filters, selected.answerId), label: selected.shortTitle || selected.prompt });
+    if (selected) saveWorkspaceSession(CAREER_CONTINUE_KEY, { href: workspaceUrl(contextId, selected.questionId, filters, selected.answerId), label: selected.shortTitle || presentInterviewPrompt(selected.prompt).question });
   }, [selected, contextId, filters]);
 
   const filterCount = Number(category !== "all") + Number(domain !== "all") + Number(style !== "all");
@@ -214,12 +216,12 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
                     {selected.style === "stress" ? <span>· 压力</span> : null}
                     {selected.competencies.slice(0, 2).map((competency) => <span key={competency.key}>· {competency.label}</span>)}
                   </div>
-                  <h1 className="max-w-3xl text-[20px] font-semibold leading-[1.65] tracking-[-0.015em] sm:text-[22px] text-[var(--text-primary)]">{selected.prompt}</h1>
+                  <InterviewPrompt prompt={selected.prompt} shortTitle={selected.shortTitle} />
                 </div>
               </div>
 
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--separator)] pb-5">
-                <span className="text-[11px] leading-6 text-[var(--text-tertiary)]">{selected.answerMeta?.status === "draft" ? "参考草稿 · 个人事实待核对" : "先理解，再用自己的话表达"}{selected.answerMeta?.language === "bilingual" ? " · 中英双语" : selected.answerMeta?.language === "en" ? " · 英文" : ""}</span>
+                <span className="text-[11px] leading-6 text-[var(--text-tertiary)]">{selected.answerMeta?.status === "draft" ? "参考答案 · 待确认" : "先理解，再用自己的话表达"}{selected.answerMeta?.language === "bilingual" ? " · 中英双语" : selected.answerMeta?.language === "en" ? " · 英文" : ""}</span>
                 <Link href={`/career/interview/practice/${selected.preparationId}`} className="inline-flex min-h-11 items-center rounded-lg bg-[var(--accent)] px-4 text-[12px] font-medium text-white">练习这道题 →</Link>
               </div>
               <InterviewStudyView key={selected.preparationId} thoughts={selected.thoughts} answer={selected.answer} isDraft={selected.answerMeta?.status === "draft"} learning={selected.learning} related={relatedItems} onSelect={handleQuestionChange} answerMeta={selected.answerMeta} versionHref={`${detailHref}#answer-versions`} />
@@ -253,15 +255,16 @@ const QuestionOption = memo(function QuestionOption({ item, active, onSelect }: 
   active: boolean;
   onSelect: (questionId: string) => void;
 }) {
+  const display = presentInterviewPrompt(item.prompt, item.shortTitle);
   return (
     <button
       type="button"
       onClick={() => onSelect(item.questionId)}
-      aria-label={item.prompt}
+      aria-label={display.question}
       aria-current={active ? "true" : undefined}
       className={`pressable block min-h-16 w-full rounded-lg border-l-2 px-3 py-3 text-left text-[13px] leading-[1.6] focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${active ? "border-[var(--accent)] bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
     >
-      <span className="line-clamp-2">{item.shortTitle || item.prompt}</span>
+      <span className="line-clamp-2">{display.title === "面试题" ? display.question : display.title}</span>
       <span className="mt-1 block truncate text-[12px] font-normal text-[var(--text-tertiary)]">{workspaceDomain(item) === "未分类" ? item.categoryLabel : workspaceDomain(item)}</span>
     </button>
   );

@@ -1,3 +1,4 @@
+import { presentInterviewPrompt } from "@/features/interview/prompt-presentation";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
@@ -74,7 +75,7 @@ export default async function InterviewTargetPage({ params }: { params: Promise<
               href={`/career/interview/questions/${row.question.id}?context=${contextId}`}
               className="group flex items-center justify-between gap-4 rounded-lg px-2 py-3.5 hover:bg-white/70"
             >
-              <span className="min-w-0 flex-1 text-sm leading-6 text-zinc-800">{row.preparation.prompt_override || row.question.canonical_prompt}</span>
+              <span className="min-w-0 flex-1 text-sm leading-6 text-zinc-800">{presentInterviewPrompt(row.preparation.prompt_override || row.question.canonical_prompt).question}</span>
               {row.needsPractice ? <span className="shrink-0 text-xs text-amber-700">待练</span> : null}
             </Link>
           ))}
@@ -87,7 +88,7 @@ export default async function InterviewTargetPage({ params }: { params: Promise<
         <div className="mt-3 space-y-1">
           {unpreparedQuestions.map((question: any) => (
             <div key={question.id} className="flex items-center justify-between gap-4 rounded-lg px-2 py-3 hover:bg-white/70">
-              <p className="min-w-0 flex-1 text-sm leading-6 text-zinc-700">{question.canonical_prompt}</p>
+              <p className="min-w-0 flex-1 text-sm leading-6 text-zinc-700">{presentInterviewPrompt(question.canonical_prompt).question}</p>
               <form action={ensureInterviewPreparation}>
                 <input type="hidden" name="question_id" value={question.id} />
                 <input type="hidden" name="context_id" value={contextId} />

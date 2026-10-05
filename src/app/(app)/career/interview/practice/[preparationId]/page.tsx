@@ -1,3 +1,4 @@
+import { InterviewPrompt } from "@/components/career/interview/interview-prompt";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PracticeAttemptForm } from "@/components/career/interview/practice-attempt-form";
@@ -28,7 +29,7 @@ export default async function PracticeDetailPage({ params, searchParams }: {
     <>
       <header className="mb-2">
         <Link href={learningHref} className="text-xs text-zinc-400 hover:text-zinc-700">← 返回学习题目</Link>
-        <h1 className="mt-4 max-w-3xl text-2xl font-semibold leading-9 tracking-[-0.025em] text-zinc-950">{prompt}</h1>
+        <div className="mt-4 max-w-3xl"><InterviewPrompt prompt={prompt} shortTitle={question?.short_title} /></div>
         {context?.title ? <p className="mt-2 text-xs text-zinc-400">{context.title}</p> : null}
       </header>
 

@@ -32,7 +32,7 @@ it("starts on the general list and opens even the initially selected question", 
   await act(async () => button("Question general1").click());
   expect(list().classList.contains("hidden")).toBe(true);
   expect(detail().classList.contains("hidden")).toBe(false);
-  expect(detail().querySelector("h1")!.textContent).toBe("Question general1");
+  expect(detail().querySelector('[data-testid="interview-prompt-text"]')!.textContent).toBe("Question general1");
   expect(detail().textContent).toContain("Logic general1");
   expect(detail().querySelector("textarea")).toBeNull();
   expect(document.activeElement).toBe(detail());
@@ -45,7 +45,7 @@ it("restores the list and selected question with browser Back and Forward", asyn
   expect(detail().classList.contains("hidden")).toBe(true);
   await act(async () => { window.history.forward(); await new Promise((resolve) => setTimeout(resolve, 30)); });
   expect(detail().classList.contains("hidden")).toBe(false);
-  expect(detail().querySelector("h1")!.textContent).toBe("Question general2");
+  expect(detail().querySelector('[data-testid="interview-prompt-text"]')!.textContent).toBe("Question general2");
 });
 it("closes a direct-linked detail without leaving the workspace", async () => {
   window.history.replaceState(null, "", "/career/interview?question=general2");
@@ -57,7 +57,7 @@ it("closes a direct-linked detail without leaving the workspace", async () => {
 });
 it("keeps explicit targets and returns to the list when changing target", async () => {
   await render({ initialContextId: "swire", initialQuestionId: "swire1" });
-  expect(detail().querySelector("h1")!.textContent).toBe("Question swire1");
+  expect(detail().querySelector('[data-testid="interview-prompt-text"]')!.textContent).toBe("Question swire1");
   const select = host.querySelector<HTMLSelectElement>('[aria-label="面试岗位"]')!;
   await act(async () => { select.value = ""; select.dispatchEvent(new Event("change", { bubbles: true })); });
   expect(list().textContent).toContain("Question general1");
@@ -67,7 +67,7 @@ it("keeps explicit targets and returns to the list when changing target", async 
 });
 it("respects a category on entry instead of selecting a hidden first item", async () => {
   await render({ initialCategory: "knowledge" });
-  expect(detail().querySelector("h1")!.textContent).toBe("Question general2");
+  expect(detail().querySelector('[data-testid="interview-prompt-text"]')!.textContent).toBe("Question general2");
   expect(list().textContent).not.toContain("Question general1");
 });
 it("keeps desktop selection inline without adding a mobile history entry", async () => {
@@ -76,7 +76,7 @@ it("keeps desktop selection inline without adding a mobile history entry", async
   await act(async () => button("Question general2").click());
   expect(window.history.length).toBe(length);
   expect(list().className).toContain("lg:block");
-  expect(detail().querySelector("h1")!.textContent).toBe("Question general2");
+  expect(detail().querySelector('[data-testid="interview-prompt-text"]')!.textContent).toBe("Question general2");
 });
 
 const draftMeta = { status: "draft", source: "ai_draft", language: "bilingual", confirmed_at: null, version_number: 1 };
@@ -115,7 +115,7 @@ it("searches reference bodies and restores filters after mobile Back/Forward wit
 });
 it("clears unmatched filters and never mistakes a filter conflict for a different deep-linked question", async () => {
   await render({ initialQuestionId: "general2", initialQuery: "general1" });
-  expect(detail().querySelector("h1")!.textContent).toBe("Question general2");
+  expect(detail().querySelector('[data-testid="interview-prompt-text"]')!.textContent).toBe("Question general2");
   expect(new URLSearchParams(window.location.search).get("q")).toBeNull();
   await changeFilter("搜索题库", "nothingmatches");
   expect(list().textContent).toContain("没有找到匹配的问题");
@@ -136,7 +136,7 @@ it("keeps the primary workspace free of manual authoring controls", async () => 
 it("keeps exact draft and target context on the compatibility version link", async () => {
   const item = { ...makeItem("swire1", "swire"), answerId: "draft-2", answerMeta: draftMeta };
   await render({ items: [item], initialContextId: "swire", initialQuestionId: "swire1" });
-  const metadata = detail().querySelector("details")!;
+  const metadata = detail().querySelector<HTMLDetailsElement>('[data-testid="interview-study-view"] details')!;
   await act(async () => { metadata.open = true; metadata.dispatchEvent(new Event("toggle")); });
   const versions = [...detail().querySelectorAll("a")].find((node) => node.textContent?.includes("查看答案版本"))!;
   expect(versions.getAttribute("href")).toBe("/career/interview/questions/swire1?context=swire&answer=draft-2#answer-versions");
@@ -176,10 +176,10 @@ it("offers bounded next/previous reading without adding history entries", async 
   const length = history.length;
   expect(button("← 上一题").disabled).toBe(true);
   await act(async () => button("下一题 →").click());
-  expect(detail().querySelector("h1")!.textContent).toBe("Question general2");
+  expect(detail().querySelector('[data-testid="interview-prompt-text"]')!.textContent).toBe("Question general2");
   expect(button("下一题 →").disabled).toBe(true);
   await act(async () => button("← 上一题").click());
-  expect(detail().querySelector("h1")!.textContent).toBe("Question general1");
+  expect(detail().querySelector('[data-testid="interview-prompt-text"]')!.textContent).toBe("Question general1");
   expect(history.length).toBe(length);
   expect(mocks.save).not.toHaveBeenCalled();
 });

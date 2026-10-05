@@ -1,3 +1,4 @@
+import { InterviewPrompt } from "@/components/career/interview/interview-prompt";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -67,7 +68,7 @@ export default async function InterviewQuestionPage({
           {question.question_style === "stress" ? <span>· 压力风格</span> : null}
           {normalizedCompetencies.slice(0, 3).map((item: any) => <span key={item.competency_id}>· {item.competency.label}</span>)}
         </div>
-        <h1 className="mt-2 max-w-3xl text-2xl font-semibold leading-9 tracking-[-0.025em] text-zinc-950">{question.canonical_prompt}</h1>
+        <div className="mt-3 max-w-3xl"><InterviewPrompt prompt={prep?.prompt_override || question.canonical_prompt} shortTitle={question.short_title} /></div>
       </header>
 
 
@@ -104,7 +105,7 @@ export default async function InterviewQuestionPage({
 
           <section className="mb-12">
             <h2 className="text-[15px] font-medium text-zinc-950">{primaryAnswer?.status === "draft" ? "参考答案 · 待确认" : "答案"}</h2>
-            {primaryAnswer?.status === "draft" ? <p className="mt-2 text-xs leading-5 text-zinc-500">可直接阅读。请核对个人事实；保存并确认后才会成为当前答案。</p> : null}
+            {primaryAnswer?.status === "draft" ? <p className="mt-2 text-xs leading-5 text-zinc-500">可直接阅读。请核对答案依据与适用条件；保存并确认后才会成为当前答案。</p> : null}
             <form action={createInterviewAnswerVersion} className="mt-3">
               <input type="hidden" name="preparation_id" value={prep.id} />
               <input type="hidden" name="answer_mode" value="spoken" />

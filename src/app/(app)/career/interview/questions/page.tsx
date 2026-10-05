@@ -1,3 +1,4 @@
+import { presentInterviewPrompt } from "@/features/interview/prompt-presentation";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
@@ -61,7 +62,7 @@ export default async function InterviewQuestionLibraryPage({ searchParams }: { s
             href={`/career/interview/questions/${question.id}`}
             className="block rounded-lg px-2 py-3.5 text-sm leading-6 text-zinc-800 hover:bg-white/70"
           >
-            {question.canonical_prompt}
+            {presentInterviewPrompt(question.canonical_prompt).question}
           </Link>
         ))}
       </div>

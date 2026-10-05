@@ -7,7 +7,8 @@ vi.mock("@/features/interview/queries", () => ({
     preparation: {
       id: "preparation",
       question_id: "question",
-      interview_questions: { canonical_prompt: "既有题目" },
+      interview_questions: { canonical_prompt: "请做一个简洁的自我介绍。", short_title: "自我介绍" },
+      prompt_override: "题干：用约90秒介绍自己，并说明哪些真实经历支持你胜任当前岗位。类型：简历/动机；难度：中。",
       interview_contexts: null,
       target_language: "zh",
       next_focus: "先说结论",
@@ -35,6 +36,13 @@ async function renderPage(searchParams: { saved?: string; review?: string }) {
 }
 
 describe("Interview practice receipt", () => {
+  it("uses the same clean prompt in practice while preserving the raw attempt snapshot", async () => {
+    const html = await renderPage({});
+    expect(html).toMatch(/<h1[^>]*>自我介绍<\/h1>/);
+    expect(html).toMatch(/data-testid="interview-prompt-text"[^>]*>用约90秒介绍自己，并说明哪些真实经历支持你胜任当前岗位。<\/p>/);
+    expect(html).toContain('name="prompt_snapshot" value="题干：用约90秒介绍自己，并说明哪些真实经历支持你胜任当前岗位。类型：简历/动机；难度：中。"');
+  });
+
   it("confirms only a saved attempt present in the user's retrieved history", async () => {
     expect(await renderPage({ saved: "saved-attempt" })).toContain("这次练习已保存");
     expect(await renderPage({ saved: "unrelated-attempt" })).not.toContain("这次练习已保存");
