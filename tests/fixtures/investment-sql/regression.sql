@@ -1,6 +1,10 @@
 -- Synthetic-only contract regression. Run bootstrap + candidate first in disposable Postgres.
 \set ON_ERROR_STOP on
 begin;
+do $$ begin
+  assert not has_function_privilege('authenticated','public.validate_investment_entry()','EXECUTE'),'trigger-only validator must not retain default client EXECUTE';
+  assert not has_function_privilege('authenticated','public.audit_investment_insert()','EXECUTE'),'trigger-only audit must not retain default client EXECUTE';
+end $$;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
 insert into investment_accounts(id,user_id,name,mode,currency) values('11111111-1111-4111-8111-111111111111',auth.uid(),'CI synthetic real','real','CNY');

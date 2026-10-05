@@ -1,6 +1,5 @@
--- Reviewed reference SQL; formal CLI-generated migrations live in supabase/migrations.
--- Production setup was explicitly approved; see the formal migration history and rollout notes.
--- New owner-scoped records only; no changes to existing policies or credentials.
+-- Investment journal V1: private owner-scoped append-only records.
+-- Additive migration; existing application data and policies are unchanged.
 begin;
 create table public.investment_accounts (
   id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id),

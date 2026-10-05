@@ -3,6 +3,8 @@
 create role anon nologin;
 create role authenticated nologin;
 create schema auth;
+-- Mirror Supabase default function grants so explicit helper boundaries are tested.
+alter default privileges in schema public grant execute on functions to anon, authenticated;
 create table auth.users(id uuid primary key);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
 grant usage on schema public,auth to authenticated,anon;

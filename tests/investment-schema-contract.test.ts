@@ -9,6 +9,13 @@ describe("investment migration candidate security contract", () => {
     const statements = (value: string) => value.split("\n").filter((line) => !line.trimStart().startsWith("--")).join("\n").trim();
     expect(statements(readFileSync(`supabase/migrations/${names[0]}`, "utf8"))).toBe(statements(sql));
   });
+  it("removes inherited client execution from the trigger-only validator", () => {
+    const names = readdirSync("supabase/migrations").filter((name) => name.endsWith("_investment_trigger_execute_boundary.sql"));
+    expect(names).toHaveLength(1);
+    const boundary = readFileSync(`supabase/migrations/${names[0]}`, "utf8");
+    expect(boundary).toContain("revoke all on function public.validate_investment_entry() from authenticated;");
+    expect(boundary).toContain("create index investment_ledger_account_owner on public.investment_ledger(account_id,user_id);");
+  });
   it("enables RLS and removes anonymous grants for each dedicated table", () => { for (const table of ["investment_accounts","investment_ledger","investment_strategy_versions","investment_research_runs"]) expect(sql).toContain(`alter table public.${table} enable row level security`); expect(sql).toContain("from anon, authenticated;"); expect(sql).not.toContain("security definer"); });
   it("makes ledger and strategy/research records append-only to the application", () => { expect(sql).not.toMatch(/grant\s+(?:[^;]*,)?(?:update|delete)[^;]*on\s+public\.investment_(?:ledger|strategy|research)/i); expect(sql).toContain("foreign key (account_id,user_id)"); expect(sql).toContain("foreign key (strategy_version_id,user_id)"); });
   it("locks account revisions and refuses changed retries", () => { expect(sql).toContain("for update;"); expect(sql).toContain("current_revision<>p_expected_revision"); expect(sql).toContain("prior.payload_hash<>p_payload_hash"); expect(sql).toContain("unique (user_id,import_key)"); });
