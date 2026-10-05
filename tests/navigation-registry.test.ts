@@ -17,7 +17,7 @@ describe("navigation registry", () => {
     const hrefs = navigationRegistry.map((item) => item.href);
     expect(new Set(hrefs).size).toBe(hrefs.length);
     expect(desktopNavigationGroups.flatMap((group) => group.items).map((item) => item.href)).toEqual([
-      "/today", "/notes", "/career", "/inbox", "/calendar", "/tasks", "/projects", "/reviews", "/files", "/briefing", "/shopping", "/travel",
+      "/today", "/notes", "/career", "/inbox", "/calendar", "/tasks", "/projects", "/reviews", "/files", "/briefing", "/leisure", "/shopping", "/travel",
     ]);
     expect(mobileTabNavigation.map((item) => item.href)).toEqual(["/today", "/notes", "/career"]);
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/settings");
@@ -32,6 +32,7 @@ describe("navigation registry", () => {
     expect(more).not.toContain("/career");
     expect(more).not.toContain("/notes");
     expect(more).toContain("/tasks");
+    expect(more).toContain("/leisure");
     expect(mobileTabNavigation.map((item) => item.href)).toContain("/career");
     expect(new Set([...more, ...mobileTabNavigation.map((item) => item.href)])).toEqual(new Set(desktopNavigationGroups.flatMap((group) => group.items).map((item) => item.href)));
   });
@@ -39,6 +40,7 @@ describe("navigation registry", () => {
   it("resolves descendants to their owning navigation module", () => {
     expect(navigationItemForPath("/career/roadmap")?.href).toBe("/career");
     expect(navigationItemForPath("/notes/123")?.href).toBe("/notes");
+    expect(navigationItemForPath("/leisure/123")?.href).toBe("/leisure");
     expect(navigationItemForPath("/today")?.href).toBe("/today");
   });
 

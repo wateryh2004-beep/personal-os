@@ -1,3 +1,4 @@
+import { LeisureFixture } from "@/components/testing/leisure-fixture";
 import { NotesSearchFixture } from "@/components/testing/notes-search-fixture";
 import { cookies } from "next/headers";
 import { workspaceRevisionCookie } from "@/lib/workspace-revalidation";
@@ -8,9 +9,10 @@ import { WorkspacePolishHarness, type PolishScene } from "@/components/testing/w
 
 export const dynamic = "force-dynamic";
 
-export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string }> }) {
+export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string; item?: string }> }) {
   if (process.env.E2E_MOBILE_HARNESS !== "1") notFound();
-  const { scene, workspace, mode, delay: rawDelay } = await searchParams;
+  const { scene, workspace, mode, item, delay: rawDelay } = await searchParams;
+  if (scene === "leisure") return <LeisureFixture item={item} mode={mode} />;
   if (scene === "notes-search") return <NotesSearchFixture />;
   if (scene === "latency") {
     const delay = Math.min(1500, Math.max(0, Number(rawDelay) || 0));
