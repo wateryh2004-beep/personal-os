@@ -1,8 +1,14 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 const sql = readFileSync("docs/sql/investment-v1-candidate.sql", "utf8");
 // Static contract checks only: these do NOT replace execution in a local PostgreSQL instance.
 describe("investment migration candidate security contract", () => {
+  it("keeps the CLI-generated production migration identical to reviewed SQL", () => {
+    const names = readdirSync("supabase/migrations").filter((name) => name.endsWith("_investment_journal_v1.sql"));
+    expect(names).toHaveLength(1);
+    const statements = (value: string) => value.split("\n").filter((line) => !line.trimStart().startsWith("--")).join("\n").trim();
+    expect(statements(readFileSync(`supabase/migrations/${names[0]}`, "utf8"))).toBe(statements(sql));
+  });
   it("enables RLS and removes anonymous grants for each dedicated table", () => { for (const table of ["investment_accounts","investment_ledger","investment_strategy_versions","investment_research_runs"]) expect(sql).toContain(`alter table public.${table} enable row level security`); expect(sql).toContain("from anon, authenticated;"); expect(sql).not.toContain("security definer"); });
   it("makes ledger and strategy/research records append-only to the application", () => { expect(sql).not.toMatch(/grant\s+(?:[^;]*,)?(?:update|delete)[^;]*on\s+public\.investment_(?:ledger|strategy|research)/i); expect(sql).toContain("foreign key (account_id,user_id)"); expect(sql).toContain("foreign key (strategy_version_id,user_id)"); });
   it("locks account revisions and refuses changed retries", () => { expect(sql).toContain("for update;"); expect(sql).toContain("current_revision<>p_expected_revision"); expect(sql).toContain("prior.payload_hash<>p_payload_hash"); expect(sql).toContain("unique (user_id,import_key)"); });

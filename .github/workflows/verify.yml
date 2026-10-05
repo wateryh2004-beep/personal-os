@@ -130,11 +130,14 @@ jobs:
           retention-days: 7
 
   investment-sql:
+    strategy:
+      matrix:
+        postgres: ["16", "17"]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     services:
       postgres:
-        image: postgres:16
+        image: postgres:${{ matrix.postgres }}
         env:
           POSTGRES_PASSWORD: ephemeral-fixture-only
           POSTGRES_DB: investment_fixture
@@ -156,6 +159,8 @@ jobs:
       - name: Verify SQL in an isolated synthetic database
         run: |
           psql -v ON_ERROR_STOP=1 -f tests/fixtures/investment-sql/bootstrap.sql
-          psql -v ON_ERROR_STOP=1 -f docs/sql/investment-v1-candidate.sql
+          MIGRATION=$(find supabase/migrations -maxdepth 1 -name "*_investment_journal_v1.sql")
+          test -n "$MIGRATION"
+          psql -v ON_ERROR_STOP=1 -f "$MIGRATION"
           psql -v ON_ERROR_STOP=1 -f tests/fixtures/investment-sql/regression.sql
           python3 scripts/investment-sql-concurrency.py

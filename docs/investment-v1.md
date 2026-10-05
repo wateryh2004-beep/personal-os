@@ -46,3 +46,11 @@ The independent browser job starts the Vite fixture under `tests/fixtures/invest
 ## Verification
 
 Unit fixtures use synthetic TEST symbols only. Calculator and schema tests cover exact decimals, weighted costs, unknown basis, completed lots, mode isolation, backdated oversells, provenance, future/malformed dates and hash stability. Auth-action mocks test session ownership, missing accounts, confirmation, stale revisions and retry outcomes. SQL tests are static contract checks, not a substitute for live RLS or transactional database tests. See task completion report for actual lint/type/build/browser results.
+
+## Approved production rollout
+
+After isolated verification, the user explicitly approved production setup and release. A narrowly scoped catalog preflight confirmed the intended PersonalOS Supabase project uses PostgreSQL 17.6, all four investment tables and six helper/RPC names are absent, and the existing audit_logs columns plus owner policies support invoker-mode audit inserts. No existing application rows were read or changed.
+
+The Supabase CLI generated the formal `*_investment_journal_v1.sql` migration under `supabase/migrations`. A regression test requires its SQL statements to exactly match the reviewed candidate. Isolated CI now executes that formal file on PostgreSQL 16 and 17 before production application.
+
+Rollback is additive and non-destructive: a failed migration transaction rolls back automatically. After a successful commit, a release failure should keep the private investment schema in place and retain or restore the prior app deployment; do not drop populated tables or delete history. Any destructive schema rollback requires separate review and permission. Applying this migration does not populate real or simulated holdings.

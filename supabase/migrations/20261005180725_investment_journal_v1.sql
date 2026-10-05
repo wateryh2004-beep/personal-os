@@ -1,6 +1,5 @@
--- REVIEW CANDIDATE ONLY. Not in supabase/migrations and not applied to production.
--- Production approval is required before creating the final CLI-generated migration.
--- New owner-scoped records only; no changes to existing policies or credentials.
+-- Investment journal V1: private owner-scoped append-only records.
+-- Additive migration; existing application data and policies are unchanged.
 begin;
 create table public.investment_accounts (
   id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id),
