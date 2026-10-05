@@ -1,6 +1,7 @@
 import {
   BriefcaseBusiness,
   CalendarDays,
+  ChartNoAxesCombined,
   CheckSquare2,
   Compass,
   FileText,
@@ -45,6 +46,7 @@ export const navigationRegistry: readonly NavigationRegistryItem[] = [
   { name: "回顾", href: "/reviews", icon: Star, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true },
   { name: "文件", href: "/files", icon: FolderClosed, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true },
   { name: "简报", href: "/briefing", icon: Newspaper, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true },
+  { name: "投资", href: "/investments", icon: ChartNoAxesCombined, group: "life", desktopMain: true, mobileTab: false, commandPalette: true },
   { name: "闲暇", href: "/leisure", icon: Compass, group: "life", desktopMain: true, mobileTab: false, commandPalette: true },
   { name: "购物", href: "/shopping", icon: ShoppingBag, group: "life", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "shopping" } },
   { name: "旅行", href: "/travel", icon: Plane, group: "life", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "travel", descendants: true } },

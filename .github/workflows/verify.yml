@@ -34,6 +34,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y fonts-noto-cjk
           fc-cache -f
+      - name: Verify isolated investment workspace
+        run: |
+          node scripts/investment-preview.mjs > /tmp/personal-os-investment-e2e.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:4179 > /dev/null; then break; fi
+            sleep 1
+          done
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/investment-e2e.cjs
+      - name: Save focused investment screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: investment-workspace-screenshots
+          path: test-results/investment
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Verify approved Today composition first
         env:
           E2E_MOBILE_HARNESS: "1"
@@ -110,3 +128,34 @@ jobs:
           path: test-results/affordance
           if-no-files-found: ignore
           retention-days: 7
+
+  investment-sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ephemeral-fixture-only
+          POSTGRES_DB: investment_fixture
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: ephemeral-fixture-only
+      PGDATABASE: investment_fixture
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify SQL in an isolated synthetic database
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/fixtures/investment-sql/bootstrap.sql
+          psql -v ON_ERROR_STOP=1 -f docs/sql/investment-v1-candidate.sql
+          psql -v ON_ERROR_STOP=1 -f tests/fixtures/investment-sql/regression.sql
+          python3 scripts/investment-sql-concurrency.py
