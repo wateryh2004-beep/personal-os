@@ -37,7 +37,7 @@
 .featureCta svg { transition: transform .25s; }
 .featureCta:hover { background: #f7cfb5; }
 .featureCta:hover svg { transform: translate(2px,-2px); }
-.featureControls { position: absolute; inset: auto 28px 18px 40px; display: flex; align-items: center; justify-content: space-between; color: #fffaf0; font: 14px Georgia, serif; }
+.featureControls { position: absolute; z-index: 2; inset: auto 28px 18px 40px; display: flex; align-items: center; justify-content: space-between; color: #fffaf0; font: 14px Georgia, serif; }
 .featureControls > span > span { color: #d0cec3; font-size: 11px; margin-left: 4px; }
 .featureControls button { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 13px; border: 1px solid #ffffff55; border-radius: 24px; background: #17201bbb; color: #fffaf0; font: 12px system-ui, sans-serif; cursor: pointer; transition: background .2s; }
 .featureControls button:hover { background: #ffffff24; }

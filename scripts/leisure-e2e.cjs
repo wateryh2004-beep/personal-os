@@ -8,17 +8,23 @@ const fixture = `${baseURL}/mobile-native-e2e?scene=leisure`;
 const id = "10000000-0000-4000-8000-000000000001";
 async function capture(page, name) {
   await page.evaluate(() => { document.activeElement?.blur?.(); window.scrollTo(0, 0); });
-  await page.screenshot({ path: `${output}/${name}-viewport.png` });
-  await page.screenshot({ path: `${output}/${name}.png`, fullPage: true });
+  await page.waitForFunction(() => [...document.querySelectorAll('[data-artwork-state="loading"]')].every((node) => {
+    const rect = node.getBoundingClientRect();
+    return rect.bottom <= 0 || rect.top >= innerHeight;
+  }), null, { timeout: 15000 });
+  await page.screenshot({ path: `${output}/${name}-viewport.png`, animations: "disabled" });
+  await page.screenshot({ path: `${output}/${name}.png`, fullPage: true, animations: "disabled" });
 }
 (async () => {
   const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
   try {
     await mkdir(output, { recursive: true });
+    const failures = [];
     for (const width of [360, 390, 768, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 1000 }, isMobile: width < 768, hasTouch: width < 768 });
       const page = await context.newPage();
       const errors = [];
+      try {
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(fixture);
       await page.getByRole("heading", { name: "此刻可选", exact: true }).waitFor();
@@ -120,7 +126,7 @@ async function capture(page, name) {
       // Fail an actual optimized image request; the artwork must degrade without losing its title/link.
       await page.route("**/_next/image?**", (route) => route.abort());
       await page.goto(`${fixture}&mode=gallery`);
-      await page.waitForFunction(() => document.querySelector('[data-artwork-state="fallback"]'));
+      await page.waitForFunction(() => document.querySelector('article [data-artwork-state="fallback"]'));
       assert.equal(await page.getByRole("link", { name: "走进这个世界", exact: true }).count(), 1);
       await capture(page, `leisure-artwork-failure-${width}`);
       await page.unroute("**/_next/image?**");
@@ -129,8 +135,13 @@ async function capture(page, name) {
       await page.keyboard.press("Tab");
       assert.ok(await page.evaluate(() => document.activeElement?.tagName !== "BODY"), "keyboard focus reaches an interactive element");
       assert.deepEqual(errors, [], `${width}px has no uncaught client errors`);
-      await context.close();
       console.log(`leisure-e2e: ${width}px passed`);
+      } catch (error) {
+        failures.push({ width, message: error.message });
+        console.error(`leisure-e2e: ${width}px failed`, error);
+        await capture(page, `leisure-failure-${width}`).catch(() => {});
+      } finally { await context.close(); }
     }
+    assert.deepEqual(failures, [], "all leisure viewports pass");
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exitCode = 1; });
