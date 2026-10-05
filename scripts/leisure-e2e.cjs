@@ -30,12 +30,12 @@ async function capture(page, name) {
       await contextToggle.focus();
       await page.keyboard.press("Enter");
       await page.getByLabel("有多少时间").selectOption("30");
-      assert.equal(await page.getByRole("link", { name: "看看详情" }).count(), 1);
+      assert.equal(await page.locator("#leisure-collection li").count(), 1);
       await page.getByLabel("在哪里").selectOption("out");
       await page.getByText("暂时没有符合这个情境的选项。").waitFor();
       await page.getByRole("button", { name: "清除选择", exact: true }).click();
-      assert.equal(await page.getByRole("link", { name: "看看详情" }).count(), 4);
-      await page.getByRole("link", { name: "看看详情" }).first().click();
+      assert.equal(await page.locator("#leisure-collection li").count(), 5);
+      await page.getByRole("link", { name: "走进这个世界", exact: true }).click();
       await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
       const like = page.getByRole("button", { name: "喜欢，留着", exact: true });
       await like.click();
@@ -85,6 +85,45 @@ async function capture(page, name) {
         const box = await page.getByRole("button", { name: "喜欢，留着", exact: true }).boundingBox();
         assert.ok(box.height >= 44, "feedback is touch sized");
       }
+      await page.goto(`${fixture}&mode=gallery`);
+      await page.getByRole("heading", { name: "此刻可选", exact: true }).waitFor();
+      assert.equal(await page.locator("#leisure-collection li").count(), 16, "all public title fixtures are visible without a disclosure");
+      const images = page.locator("#leisure-collection [data-artwork-state]");
+      for (let i = 0; i < await images.count(); i++) {
+        await images.nth(i).scrollIntoViewIfNeeded();
+        await images.nth(i).locator("img").waitFor();
+        await page.waitForFunction((index) => document.querySelectorAll("#leisure-collection [data-artwork-state]")[index]?.getAttribute("data-artwork-state") === "ready", i, { timeout: 30000 });
+      }
+      assert.equal(await page.locator('#leisure-collection [data-artwork-state="ready"]').count(), 16, "every official cover really decoded");
+      await capture(page, `leisure-artwork-gallery-${width}`);
+      const before = await page.locator("article h3").first().textContent();
+      await page.getByRole("button", { name: "换个灵感", exact: true }).focus();
+      await page.keyboard.press("Enter");
+      assert.notEqual(await page.locator("article h3").first().textContent(), before, "keyboard shuffle changes the featured work");
+      assert.equal(await page.evaluate(() => document.activeElement?.textContent?.includes("换个灵感")), true, "shuffle keeps focus");
+      await page.getByRole("button", { name: "游戏", exact: true }).click();
+      assert.equal(await page.locator("#leisure-collection li").count(), 8, "category reveals all eight games");
+      await capture(page, `leisure-games-${width}`);
+      await page.getByRole("button", { name: "全部", exact: true }).click();
+      await page.getByRole("link", { name: "走进这个世界", exact: true }).click();
+      await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
+      await page.waitForFunction(() => document.querySelector('[data-artwork-state="ready"]'));
+      await capture(page, `leisure-artwork-detail-${width}`);
+      await page.getByRole("link", { name: "← 回到闲暇", exact: true }).click();
+      assert.equal(await page.locator("#leisure-collection li").count(), 16);
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.getByRole("button", { name: "换个灵感", exact: true }).click();
+      assert.equal(await page.locator("article").first().evaluate((node) => getComputedStyle(node).animationName), "none", "reduced motion disables feature animation");
+      await capture(page, `leisure-reduced-motion-${width}`);
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      // Fail an actual optimized image request; the artwork must degrade without losing its title/link.
+      await page.route("**/_next/image?**", (route) => route.abort());
+      await page.goto(`${fixture}&mode=gallery`);
+      await page.waitForFunction(() => document.querySelector('[data-artwork-state="fallback"]'));
+      assert.equal(await page.getByRole("link", { name: "走进这个世界", exact: true }).count(), 1);
+      await capture(page, `leisure-artwork-failure-${width}`);
+      await page.unroute("**/_next/image?**");
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1, `${width}px gallery has no horizontal overflow`);
       await page.goto(fixture);
       await page.keyboard.press("Tab");
       assert.ok(await page.evaluate(() => document.activeElement?.tagName !== "BODY"), "keyboard focus reaches an interactive element");

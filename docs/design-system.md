@@ -76,3 +76,7 @@ Career 延续同一应用壳：二级导航使用细底线，不另建仪表盘�
 - Inspector 与 AI 使用 `SidePanelShell`：共享遮罩、surface、边框、header 高度、关闭按钮、body scroll 与 180ms panel motion；仅宽度通过 inspector / assistant variant 区分。
 - Loading 应保持真实 page/workspace 的几何结构，使用 semantic skeleton，不使用闪白文本或泛化 dashboard 卡片。异步成功优先按钮状态、局部 status 或乐观 UI；错误必须可见。高频 status 不应通过插入文档流造成 layout shift。
 - Empty state 由小图标（可选）、标题、简短解释与一个主要 action 组成；不使用巨大插画。移动端不能隐藏唯一操作在 hover-only 控件后；触控设备上管理操作默认可达。
+
+## 闲暇的视觉例外
+
+闲暇使用独立的影像画廊与轻量交互语言；不沿用办公模块的纯列表呈现。此例外只作用于闲暇，不改全局样式。范围、素材出处与验证见 `leisure-cinematic-redesign.md`。

@@ -1,5 +1,7 @@
 "use client";
 
+import { AppShell } from "@/components/layout/app-shell";
+import { leisureArtwork } from "@/features/leisure/artwork";
 import { useRef } from "react";
 import { LeisureHome } from "@/components/leisure/leisure-home";
 import { LeisureDetail } from "@/components/leisure/leisure-detail";
@@ -17,6 +19,21 @@ export const leisureFixtureExperiences: LeisureExperience[] = [base,
   { ...base, id: "10000000-0000-4000-8000-000000000005", title: "合成回忆 · 仅用于排版测试", kind: "book", feedback: { status: "completed", reaction: "liked", personal_note: "这不是用户的真实感受，只是测试较长中文段落在不同屏幕下的换行。", linked_note_id: null, linked_note_title: null, linked_note_available: false, revision: 1, updated_at: base.updated_at }, sources: [], ratings: [] },
 ];
 
+/** Public title/artwork QA only: no real personal feedback, source claims or notes. */
+const artworkFixtures: LeisureExperience[] = leisureArtwork.map((art, index) => ({
+  ...base,
+  id: `artwork-${index}`,
+  title: art.title,
+  kind: art.kind,
+  why: "图片与排版预览。这里是公开作品信息的测试展示，不是用户的私人推荐、观看记录或感想。",
+  how_to_start: "仅用于核对封面加载、键盘浏览和响应式布局。",
+  duration_minutes: index % 3 === 0 ? 30 : 120,
+  platform: null,
+  feedback: null,
+  sources: [],
+  ratings: [],
+}));
+
 export function LeisureFixture({ item, mode }: { item?: string; mode?: string }) {
   const latestRevision = useRef(0);
   async function save(input: LeisureFeedbackInput): Promise<LeisureFeedbackResult> {
@@ -27,7 +44,8 @@ export function LeisureFixture({ item, mode }: { item?: string; mode?: string })
     latestRevision.current += 1;
     return { ok: true, feedback: { status: input.status, reaction: input.reaction, personal_note: input.personal_note, linked_note_id: null, linked_note_title: null, linked_note_available: false, revision: latestRevision.current, updated_at: new Date(leisureFixtureNow).toISOString() } };
   }
-  const experience = leisureFixtureExperiences.find((entry) => entry.id === item);
+  const fixtures = mode === "gallery" ? artworkFixtures : leisureFixtureExperiences;
+  const experience = fixtures.find((entry) => entry.id === item);
   const shownExperience = experience && mode === "long" ? { ...experience, title: "很长的体验标题用于验证窄屏阅读与自然换行".repeat(5), body_markdown: `${experience.body_markdown}\n\n${"一段很长的中文内容，保留正常阅读的行距与段落。".repeat(150)}\n\n| 字段 | 内容 |\n| --- | --- |\n| 链接 | ${"unbrokentext".repeat(70)} |` } : experience;
-  return <><p className="border-b px-5 py-2 text-xs text-[var(--text-tertiary)]">Synthetic fixture · 仅供测试，不包含真实推荐、评分或个人记录</p>{shownExperience ? <LeisureDetail experience={shownExperience} now={leisureFixtureNow} onSave={save} backHref="/mobile-native-e2e?scene=leisure" /> : <LeisureHome experiences={mode === "empty" || mode === "error" ? [] : leisureFixtureExperiences} unavailable={mode === "error"} detailBase="/mobile-native-e2e?scene=leisure&item=" />}</>;
+  return <AppShell presentationPathname={shownExperience ? `/leisure/${shownExperience.id}` : "/leisure"}><p className="border-b px-5 py-2 text-xs text-[var(--text-tertiary)]">Synthetic fixture · 仅供测试，不包含真实推荐、评分或个人记录</p>{shownExperience ? <LeisureDetail experience={shownExperience} now={leisureFixtureNow} onSave={save} backHref={`/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}`} /> : <LeisureHome experiences={mode === "empty" || mode === "error" ? [] : fixtures} unavailable={mode === "error"} detailBase={`/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}&item=`} />}</AppShell>;
 }

@@ -115,6 +115,7 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent, gr
 }
 
 function shellContentClass(pathname: string) {
+  if (pathname === "/leisure" || pathname.startsWith("/leisure/")) return "w-full p-0 pb-[calc(var(--tab-bar-height)+1rem)] md:pb-0";
   if (pathname === "/today" || pathname === "/calendar" || pathname === "/tasks" || pathname === "/files" || pathname === "/career/roadmap") return "p-0";
   if (pathname === "/notes" || /^\/notes\/[0-9a-f-]{36}$/.test(pathname)) return "p-0";
   if (pathname.startsWith("/career")) return "career-surface mx-auto w-full max-w-[980px] px-4 py-7 pb-[calc(var(--tab-bar-height)+1rem)] sm:px-6 md:pb-8 lg:px-8";
