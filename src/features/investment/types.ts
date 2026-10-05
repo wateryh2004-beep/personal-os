@@ -1,0 +1,9 @@
+export type InvestmentMode = "real" | "paper";
+export type InvestmentTab = "holdings" | "strategies" | "research";
+export type InvestmentAccount = { id: string; name: string; mode: InvestmentMode; currency: "CNY" | "USD" | "HKD"; revision: number };
+export type LedgerEntry = { id: string; account_id: string; sequence?: number; kind: "opening" | "buy" | "sell" | "void"; void_entry_id?: string | null; symbol: string; occurred_on: string; quantity: string; price: string | null; fees: string; source: string; import_key: string; created_at: string };
+export type StrategyVersion = { id: string; strategy_key: string; version: number; title: string; body_markdown: string; created_at: string };
+export type ResearchRun = { id: string; import_key: string; title: string; kind: "research" | "backtest"; body_markdown: string; as_of: string; source_urls: string[]; strategy_version_id: string | null; provenance: Record<string, string>; metrics: { total_return_pct: string; max_drawdown_pct: string } | null; created_at: string };
+export type InvestmentWorkspaceData = { accounts: InvestmentAccount[]; entries: LedgerEntry[]; strategies: StrategyVersion[]; research: ResearchRun[]; unavailable: boolean };
+export type InvestmentActionResult = { ok: boolean; error?: string; duplicate?: boolean };
+export type Holding = { accountId: string; accountName: string; currency: string; symbol: string; quantity: string; costBasis: string | null; realizedPnl: string | null };
