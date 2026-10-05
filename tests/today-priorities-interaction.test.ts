@@ -47,7 +47,8 @@ it("keeps the empty state compact and opens a named bottom sheet without focusin
   expect(dialog().style.maxHeight).toContain("85dvh");
   await act(async () => button("取消").click());
   expect(dialog()).toBeNull();
-  expect(document.activeElement).toBe(trigger);
+  // Radix FocusScope restores focus in a deferred unmount callback.
+  await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
 });
 it("limits explicit choices to three and cancel never writes", async () => {
   await act(async () => button("选择重点").click());
@@ -245,5 +246,6 @@ it("separates the empty focus heading from its visible choose action", async () 
   expect(dialog()).not.toBeNull();
   await act(async () => button("取消").click());
   expect(mocks.save).not.toHaveBeenCalled();
-  expect(document.activeElement).toBe(trigger);
+  // Radix FocusScope restores focus in a deferred unmount callback.
+  await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
 });

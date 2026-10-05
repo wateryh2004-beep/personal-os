@@ -44,6 +44,7 @@ const output = process.env.E2E_AFFORDANCE_SCREENSHOT_DIR || "test-results/afford
       await choose.focus(); await page.keyboard.press("Enter");
       const dialog = page.getByRole("dialog", { name: "选择今日重点" });
       await dialog.waitFor(); await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
+      await page.waitForFunction(() => document.activeElement?.matches('[aria-label="选择重点"][aria-expanded="false"]'));
       assert.equal(await choose.evaluate(node => node === document.activeElement), true);
       await capture("today");
       if (width === 390) {
