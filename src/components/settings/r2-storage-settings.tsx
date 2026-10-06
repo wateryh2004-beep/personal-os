@@ -62,7 +62,7 @@ export function R2StorageSettings() {
   const availableUsage = usage && usage.status !== "unavailable" ? usage : null;
   const budget = storageBudget(availableUsage?.objectBytes ?? null, budgetGiB, usage?.status === "complete");
   const logicalTotal = logical?.status === "complete" ? logical.activeBytes + logical.archivedBytes : 0;
-  const buttonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--separator)] px-3 py-2 text-xs font-medium hover:bg-[var(--surface-control)] disabled:opacity-50";
+  const buttonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--separator)] px-3 py-2 text-xs font-medium disabled:opacity-50";
   return <section aria-labelledby="r2-storage-title">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <header><p className="text-xs font-medium tracking-wide text-[var(--accent)]">STORAGE</p><h2 id="r2-storage-title" className="mt-2 text-xl font-semibold tracking-tight">存储空间</h2><p className="mt-2 text-sm text-[var(--text-secondary)]">Cloudflare R2 · 私有文件与容量规划</p></header>
@@ -94,7 +94,7 @@ export function R2StorageSettings() {
       </section>
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--separator)] pt-5">
         <div><p className={"flex items-center gap-2 text-xs font-medium " + (snapshot?.health.status === "ok" && !error && !stale ? "text-[var(--success)]" : "text-[var(--text-secondary)]")}><ShieldCheck aria-hidden="true" size={15} />{snapshot ? (error ? "上次连接检查：" : "") + healthSummary(snapshot.health) : "连接尚未检查"}</p><p className="mt-1 text-[11px] text-[var(--text-tertiary)]">{snapshot ? new Date(snapshot.checkedAt).toLocaleString("zh-CN") + (stale ? " · 超过 5 分钟，建议重新检查" : " · 非实时快照") : "打开设置不会自动扫描存储桶"}</p></div>
-        <button type="button" disabled={Boolean(busy)} onClick={() => void inspect(false)} className={buttonClass}>{busy === "health" ? "检查中…" : "检查连接"}</button>
+        <button type="button" disabled={Boolean(busy)} onClick={() => void inspect(false)} className={buttonClass + " hover:bg-[var(--surface-control)]"}>{busy === "health" ? "检查中…" : "检查连接"}</button>
       </div>
       <details className="mt-5 text-xs text-[var(--text-secondary)]"><summary className="cursor-pointer py-2 font-medium">统计口径与技术详情</summary><div className="mt-2 space-y-3 rounded-lg bg-[var(--surface-control)] p-4 text-[11px] leading-5">
         <p>仅点击时请求；用量统计最多列举 20,000 个对象 / 20 页，检测限时 45 秒。同一服务实例内 60 秒复用结果。不会下载内容、写入或清理文件。</p>
