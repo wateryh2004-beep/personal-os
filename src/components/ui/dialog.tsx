@@ -8,12 +8,17 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer"
 
-function Dialog({ open: controlledOpen, defaultOpen, onOpenChange, ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
+type DialogProps = Omit<React.ComponentProps<typeof DialogPrimitive.Root>, "onOpenChange"> & {
+  onOpenChange?: (open: boolean) => void | boolean
+}
+
+function Dialog({ open: controlledOpen, defaultOpen, onOpenChange, ...props }: DialogProps) {
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false)
   const open = controlledOpen ?? internalOpen
   const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+    // Busy forms can veto dismissal, including an Android/browser Back step.
+    if (onOpenChange?.(nextOpen) === false) return false
     if (controlledOpen === undefined) setInternalOpen(nextOpen)
-    onOpenChange?.(nextOpen)
   }, [controlledOpen, onOpenChange])
   useMobileBackLayer(open, () => handleOpenChange(false), "dialog")
   return <DialogPrimitive.Root data-slot="dialog" open={open} onOpenChange={handleOpenChange} {...props} />

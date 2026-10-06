@@ -1,3 +1,4 @@
+import { NotesFolderFixture } from "@/components/testing/notes-folder-fixture";
 import { TodayHierarchyFixture } from "@/components/testing/today-hierarchy-fixture";
 import { InterviewReadingFixture } from "@/components/testing/interview-reading-fixture";
 import { LeisureFixture } from "@/components/testing/leisure-fixture";
@@ -17,6 +18,7 @@ export default async function MobileNativeE2EPage({ searchParams }: { searchPara
   if (scene === "today-hierarchy") return <TodayHierarchyFixture mode={mode} />;
   if (scene === "interview-reading") return <InterviewReadingFixture />;
   if (scene === "leisure") return <LeisureFixture item={item} mode={mode} />;
+  if (scene === "notes-folders") return <NotesFolderFixture />;
   if (scene === "notes-search") return <NotesSearchFixture />;
   if (scene === "latency") {
     const delay = Math.min(1500, Math.max(0, Number(rawDelay) || 0));
@@ -25,7 +27,7 @@ export default async function MobileNativeE2EPage({ searchParams }: { searchPara
     if (mode === "baseline" && workspace !== "home") await new Promise((resolve) => setTimeout(resolve, delay));
     return <NavigationLatencyHarness workspace={workspace ?? "home"} mode={mode ?? "resource"} delay={delay} revision={(await cookies()).get(workspaceRevisionCookie)?.value ?? "fixture-v1"} />;
   }
-  if (scene && ["heading", "career", "career-filled", "today", "today-filled", "tasks", "calendar", "notes", "note-editor", "note-pdf", "files", "today-loading", "tasks-loading", "calendar-loading"].includes(scene)) {
+  if (scene && ["projects", "calendar-edit", "heading", "career", "career-filled", "today", "today-filled", "tasks", "calendar", "notes", "note-editor", "note-pdf", "files", "today-loading", "tasks-loading", "calendar-loading"].includes(scene)) {
     return <WorkspacePolishHarness scene={scene as PolishScene} />;
   }
   return <MobileNativeHarness />;

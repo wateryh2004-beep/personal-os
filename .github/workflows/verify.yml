@@ -85,6 +85,7 @@ jobs:
             sleep 1
           done
           curl -fsS http://127.0.0.1:3000/mobile-native-e2e > /dev/null
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/core-flows-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/ui-affordance-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 540s node scripts/leisure-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/notes-search-e2e.cjs
@@ -126,6 +127,15 @@ jobs:
         with:
           name: ui-affordance-screenshots
           path: test-results/affordance
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Save focused core-flow screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-flow-screenshots
+          path: test-results/core-flows
           if-no-files-found: ignore
           retention-days: 7
 

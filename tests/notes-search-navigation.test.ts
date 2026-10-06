@@ -487,3 +487,49 @@ describe("Notes shell shortcut integration", () => {
     expect(mocks.search).toHaveBeenLastCalledWith("Alpha", null);
   });
 });
+
+describe("Notes parent folder navigation", () => {
+  const child = { id: "fixture-child", name: "用于窄屏验证的很长子文件夹名称LongUnbrokenFolderName", parent_id: folder.id };
+  const grandchild = { id: "fixture-grandchild", name: "下一层", parent_id: child.id };
+  it("shows child folders for an empty parent without claiming its contents are empty", async () => {
+    await renderWorkspace({ notes: [], folders: [folder, child, grandchild] });
+    const navigation = container.querySelector('section[aria-label="子文件夹"]')!;
+    expect(navigation.textContent).toContain(child.name);
+    expect(navigation.textContent).not.toContain(grandchild.name);
+    expect(navigation.querySelector("a")?.getAttribute("href")).toBe("/notes?folder=fixture-child");
+    expect(container.textContent).toContain("1 个子文件夹 · 当前层级 0 篇笔记");
+    expect(container.textContent).toContain("当前层级没有直接存放的笔记");
+    expect(container.textContent).not.toContain("这里还没有笔记");
+    await act(async () => navigation.querySelector<HTMLAnchorElement>("a")!.click());
+    expect(mocks.navigateLink).toHaveBeenLastCalledWith("/notes?folder=fixture-child");
+    expect(container.querySelector('input[name="folder_id"]')?.getAttribute("value")).toBe(folder.id);
+  });
+  it("provides a parent trail and retains direct-note counts without inferring descendant counts", async () => {
+    await setUrl("/notes?folder=fixture-child");
+    await renderWorkspace({ notes: [{ ...note, folder_id: child.id }], selectedFolder: child, folders: [folder, child, grandchild] });
+    const crumbs = container.querySelector('nav[aria-label="文件夹路径"]')!;
+    expect([...crumbs.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual(["/notes", "/notes?folder=fixture-folder"]);
+    expect(crumbs.querySelector('[aria-current="page"]')?.textContent).toBe(child.name);
+    expect(container.textContent).toContain("1 个子文件夹 · 当前层级 1 篇笔记");
+    expect(container.textContent).toContain("当前层级的笔记");
+  });
+  it("keeps folder navigation out of search results and restores it when search clears", async () => {
+    await renderWorkspace({ folders: [folder, child] });
+    await changeInput("Alpha");
+    expect(container.querySelector('section[aria-label="子文件夹"]')).toBeNull();
+    expect(resultLinks()).toHaveLength(2);
+    await changeInput("");
+    expect(container.querySelector('section[aria-label="子文件夹"]')).not.toBeNull();
+  });
+  it("keeps a saved parent scroll position when returning from a child", async () => {
+    await renderWorkspace({ folders: [folder, child] });
+    const list = container.querySelector<HTMLElement>(".notes-list-workspace")!;
+    list.scrollTop = 240;
+    list.dispatchEvent(new Event("scroll"));
+    await setUrl("/notes?folder=fixture-child");
+    await renderWorkspace({ selectedFolder: child, folders: [folder, child] });
+    await setUrl("/notes?folder=fixture-folder");
+    await renderWorkspace({ folders: [folder, child] });
+    expect(list.scrollTop).toBe(240);
+  });
+});

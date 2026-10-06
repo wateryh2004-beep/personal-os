@@ -44,7 +44,8 @@ describe("investment view and data honesty", () => {
     await render(empty, "strategies", "paper");
     expect(host.querySelector('[aria-label="投资视图"] a[aria-current="page"]')?.textContent).toBe("策略");
     expect([...host.querySelectorAll('a')].map((item) => item.getAttribute('href'))).toContain('/investments?tab=research&mode=paper');
-    expect([...host.querySelectorAll('a')].map((item) => item.getAttribute('href'))).toContain('/investments?tab=strategies&mode=real');
+    expect(host.querySelector('[aria-label="账户模式"]')).toBeNull();
+    expect(host.textContent).toContain("实盘与模拟共享");
     expect(host.textContent).toContain("共享策略库");
   });
 
@@ -65,13 +66,32 @@ describe("investment view and data honesty", () => {
     await render({ ...empty, accounts: [account, paperAccount] }, "holdings", "real", [{ accountId: account.id, accountName: account.name, currency: "CNY", symbol: "TEST", quantity: "0.00000001", costBasis: null, realizedPnl: null }]);
     expect(host.textContent).toContain(account.name);
     expect(host.textContent).not.toContain(paperAccount.name);
-    expect(host.textContent).toContain("左右滑动查看完整持仓");
+    expect(host.querySelector('ul[aria-label*="持仓明细"]')?.textContent).toContain("成本未知");
+    expect(host.querySelector('ul[aria-label*="持仓明细"]')?.textContent).toContain("已实现盈亏 · CNY");
+    expect(host.textContent).toContain("不跨币种合计");
     expect(host.textContent).toContain("成本未知");
     expect(host.textContent).toContain("无法计算");
     expect(host.textContent).toContain("暂无估值");
     expect(host.textContent).toContain("0.00000001");
     expect(formatInvestmentDecimal("123456.12000000")).toBe("123,456.12");
     expect(formatInvestmentDecimal("-1234.00000001")).toBe("-1,234.00000001");
+  });
+
+  it("keeps complete, exact values and closed-position status in the mobile holdings layout", async () => {
+    await render({ ...empty, accounts: [account] }, "holdings", "real", [
+      { accountId: account.id, accountName: account.name, currency: "CNY", symbol: "TEST:CLOSED", quantity: "0", costBasis: "0", realizedPnl: "-1234.00000001" },
+      { accountId: account.id, accountName: account.name, currency: "CNY", symbol: "TEST:PRECISE", quantity: "0.00000001", costBasis: null, realizedPnl: null },
+    ]);
+    const cards = host.querySelector('ul[aria-label*="持仓明细"]')!;
+    expect(cards.querySelectorAll("li")).toHaveLength(2);
+    expect(cards.textContent).toContain("已清仓");
+    expect(cards.textContent).toContain("-1,234.00000001");
+    expect(cards.textContent).toContain("0.00000001");
+    for (const card of cards.querySelectorAll("li")) {
+      expect([...card.querySelectorAll("dt")].map((item) => item.textContent)).toEqual(["数量", "剩余成本 · CNY", "已实现盈亏 · CNY", "市值 · CNY"]);
+      expect(card.textContent).toContain("暂无估值");
+    }
+    expect(host.querySelector('[aria-label="账户模式"] a[aria-current="true"]')?.textContent).toBe("实盘");
   });
 
   it("never renders quant results for research opinions and sanitizes source links", async () => {

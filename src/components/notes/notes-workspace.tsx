@@ -33,6 +33,7 @@ import { useNotesSearch } from "@/features/notes/use-notes-search";
 import { lastNotesListSessionKey, lastNotesListTtlMs } from "@/features/notes/navigation";
 import { saveWorkspaceSession } from "@/lib/workspace-session";
 import { useNotesListing } from "@/features/notes/use-notes-listing";
+import { NotesChildFolders, NotesFolderBreadcrumbs } from "@/components/notes/notes-folder-navigation";
 
 type Folder = { id: string; name: string; parent_id: string | null };
 type WorkspaceState = "ready" | "base" | "unavailable";
@@ -231,6 +232,7 @@ export function NotesWorkspace({
   }, [allNotes, combinedSearchResults, normalizedQuery]);
 
   const title = selectedFolder?.name ?? (initialView === "favorites" ? "收藏" : initialView === "recent" ? "最近编辑" : "全部笔记");
+  const childFolders = selectedFolder ? folders.filter((folder) => folder.parent_id === selectedFolder.id) : [];
 
   useEffect(() => {
     if (params.get("focusSearch") !== "1") return;
@@ -332,13 +334,14 @@ export function NotesWorkspace({
         </div> : null}
         {pending ? <p role="status" className="mb-2 text-[11px] text-[var(--text-tertiary)]">正在处理，请稍候…</p> : null}
 
+        {selectedFolder ? <NotesFolderBreadcrumbs folder={selectedFolder} folders={folders} /> : null}
         <header className="flex min-h-11 flex-wrap items-end gap-2.5">
           <div className="mr-auto min-w-0">
             <h1 className="page-title break-words">
               {title}
             </h1>
             <p className="mt-1 text-[12px] leading-5 tabular-nums text-[var(--text-tertiary)]">
-              {normalizedQuery ? `${visible.length} 个搜索结果` : !listing.loaded ? "正在读取当前范围…" : `${listing.hasMore ? "已加载 " : ""}${visible.length} 篇笔记`}
+              {normalizedQuery ? `${visible.length} 个搜索结果` : <>{childFolders.length ? `${childFolders.length} 个子文件夹 · ` : ""}{!listing.loaded ? "正在读取当前层级…" : `${selectedFolder ? "当前层级 " : ""}${listing.hasMore ? "已加载 " : ""}${visible.length} 篇笔记`}</>}
             </p>
           </div>
           <AskNotesButton onClick={() => router.push("/notes/ask")} />
@@ -407,6 +410,8 @@ export function NotesWorkspace({
           </p>
         ) : null}
 
+        {!normalizedQuery ? <NotesChildFolders folders={childFolders} /> : null}
+        {selectedFolder && !normalizedQuery && visible.length ? <h2 className="mt-5 text-[12px] font-medium text-[var(--text-secondary)]">当前层级的笔记</h2> : null}
         {visible.length ? (
           <section ref={resultsRef} aria-label={normalizedQuery ? "搜索结果" : "笔记列表"} className="mt-4.5" onKeyDown={(event) => {
             if ((event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) || !(event.target instanceof HTMLAnchorElement) || !event.target.hasAttribute("data-note-result")) return;
@@ -469,14 +474,14 @@ export function NotesWorkspace({
             {listing.error ? <>当前范围暂时无法读取，已有笔记仍保留。<div className="mt-2"><Button variant="outline" onClick={listing.retry}>重试读取</Button></div></> : "正在读取笔记…"}
           </div>
         ) : (
-          <div className="py-16 text-center">
+          <div className={childFolders.length && !normalizedQuery ? "py-7 text-left" : "py-16 text-center"}>
             <p className="text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">
-              {normalizedQuery ? "没有找到匹配的笔记" : "这里还没有笔记"}
+              {normalizedQuery ? "没有找到匹配的笔记" : childFolders.length ? "当前层级没有直接存放的笔记" : "这里还没有笔记"}
             </p>
-            <p className="mx-auto mt-1 max-w-sm text-[11.5px] leading-5 text-[var(--text-secondary)]">
-              {normalizedQuery ? "换一个关键词，或切换搜索范围。" : "新建一篇笔记，直接开始写。"}
+            <p className={`${childFolders.length && !normalizedQuery ? "" : "mx-auto "}mt-1 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]`}>
+              {normalizedQuery ? "换一个关键词，或切换搜索范围。" : childFolders.length ? "打开上方子文件夹继续浏览，也可以在此新建笔记。" : "新建一篇笔记，直接开始写。"}
             </p>
-            <div className="mt-3.5 flex justify-center">
+            <div className={`mt-3.5 flex ${childFolders.length && !normalizedQuery ? "" : "justify-center"}`}>
               {normalizedQuery ? <Button variant="outline" size="sm" onClick={() => updateQuery("")}>清空搜索</Button> : newNoteForm()}
             </div>
           </div>

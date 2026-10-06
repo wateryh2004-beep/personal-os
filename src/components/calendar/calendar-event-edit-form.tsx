@@ -13,8 +13,22 @@ type EditableEvent = { provider_event_id: string; subject: string; body_text: st
 const initial: CalendarCreateState = { status: "idle", message: "" };
 const control = "h-9 min-w-0 rounded-[9px] border-0 bg-[var(--surface-control)] px-2.5 text-[12.5px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]";
 
-export function CalendarEventEditForm({ event, timezone, calendarCategories, categoriesEnabled = true, onReconcile }: { event: EditableEvent; timezone: string; calendarCategories: CalendarCategory[]; categoriesEnabled?: boolean; onReconcile?: (kind: "update" | "delete") => Promise<void> | void }) {
-  const [editing, setEditing] = useState(false);
+type CalendarEventEditProps = { event: EditableEvent; timezone: string; calendarCategories: CalendarCategory[]; categoriesEnabled?: boolean; onReconcile?: (kind: "update" | "delete") => Promise<void> | void };
+
+export function CalendarEventEditForm(props: CalendarEventEditProps) {
+  const [session, setSession] = useState({ revision: 0, editing: false, eventId: props.event.provider_event_id });
+  return <CalendarEventEditSession
+    key={`${props.event.provider_event_id}:${session.revision}`}
+    {...props}
+    editing={session.eventId === props.event.provider_event_id && session.editing}
+    onEditingChange={(editing) => setSession((current) => ({ revision: current.revision + 1, editing, eventId: props.event.provider_event_id }))}
+  />;
+}
+
+// Each Edit/Cancel boundary starts a fresh draft from the latest event. Remount
+// both the controlled fields and action receipts, while preserving parent-owned
+// reconciliation (a successful save still closes the workspace inspector).
+function CalendarEventEditSession({ event, timezone, calendarCategories, categoriesEnabled = true, onReconcile, editing, onEditingChange }: CalendarEventEditProps & { editing: boolean; onEditingChange: (editing: boolean) => void }) {
   const [allDay, setAllDay] = useState(event.is_all_day);
   const [description, setDescription] = useState(event.body_text ?? "");
   const subjectInputRef = useRef<HTMLInputElement>(null);
@@ -87,7 +101,7 @@ export function CalendarEventEditForm({ event, timezone, calendarCategories, cat
         </section>
 
         <div className="flex items-center justify-between py-3.5">
-          {state.status === "success" ? <p role="status" className="text-[11px] text-[var(--success)]">{state.message}</p> : <button onClick={() => { setDescription(event.body_text ?? ""); setEditing(true); }} className="pressable rounded-[8px] px-2 py-1.5 text-[11.5px] font-medium text-[var(--accent)] transition-colors ui-transition hover:bg-[var(--accent-soft)]">编辑日程</button>}
+          {state.status === "success" ? <p role="status" className="text-[11px] text-[var(--success)]">{state.message}</p> : <button disabled={deleting} onClick={() => onEditingChange(true)} className="pressable rounded-[8px] px-2 py-1.5 text-[11.5px] font-medium text-[var(--accent)] transition-colors ui-transition hover:bg-[var(--accent-soft)]">编辑日程</button>}
           <form action={deleteAction} onSubmit={(submitEvent) => { if (!window.confirm("确认从 Outlook 删除这条日程？")) submitEvent.preventDefault(); }}>
             <input type="hidden" name="provider_event_id" value={event.provider_event_id}/><input type="hidden" name="subject" value={event.subject}/><input type="hidden" name="starts_at" value={event.starts_at}/><input type="hidden" name="ends_at" value={event.ends_at}/><input type="hidden" name="is_all_day" value={event.is_all_day ? "on" : ""}/>
             <button disabled={deleting} className="pressable rounded-[8px] px-2 py-1.5 text-[10.5px] text-[var(--danger)] transition-colors ui-transition hover:bg-[rgba(215,0,21,.06)] disabled:opacity-50">{deleting ? "正在删除…" : "删除"}</button>
@@ -137,7 +151,7 @@ export function CalendarEventEditForm({ event, timezone, calendarCategories, cat
       </details>
 
       <div className="flex items-center justify-end gap-2 pt-3.5">
-        <button type="button" onClick={() => setEditing(false)} className="pressable h-9 rounded-[8px] px-3 text-[11.5px] font-medium text-[var(--text-secondary)] transition-colors ui-transition hover:bg-[var(--surface-hover)]">取消</button>
+        <button type="button" disabled={pending} onClick={() => onEditingChange(false)} className="pressable h-9 rounded-[8px] px-3 text-[11.5px] font-medium text-[var(--text-secondary)] transition-colors ui-transition hover:bg-[var(--surface-hover)]">取消</button>
         <button disabled={pending} className="pressable h-9 rounded-[9px] bg-[var(--accent)] px-3.5 text-[12px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] disabled:opacity-60">{pending ? "正在保存…" : "保存"}</button>
       </div>
       {state.status === "error" ? <p role="status" className="mt-1.5 text-[10.5px] text-[var(--danger)]">{state.message}</p> : null}

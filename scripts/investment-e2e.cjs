@@ -29,7 +29,7 @@ const output = "test-results/investment";
       await page.waitForFunction(()=>document.activeElement?.textContent?.includes("添加账户"));
       for(const tab of ["holdings","strategies","research"]){
         await page.goto(`${base}/?fixture=populated&tab=${tab}`,{waitUntil:"networkidle"});
-        if(tab==="holdings") {if(width<768) assert.ok(await page.getByText("左右滑动查看完整持仓",{exact:true}).isVisible());assert.ok((await page.locator("body").innerText()).includes("成本未知"));assert.ok((await page.locator("body").innerText()).includes("暂无估值"));}
+        if(tab==="holdings") {if(width<640) {assert.ok(await page.getByRole("list",{name:/持仓明细/}).isVisible());assert.ok(!(await page.getByRole("table").isVisible()));}assert.ok((await page.locator("body").innerText()).includes("成本未知"));assert.ok((await page.locator("body").innerText()).includes("暂无估值"));}
         if(tab!=="holdings") await page.locator("details").first().locator(":scope > summary").click();
         await capture(tab);
       }

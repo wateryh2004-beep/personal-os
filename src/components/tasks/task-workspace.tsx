@@ -47,6 +47,8 @@ import {
   type TaskDayBounds,
   type TaskView,
 } from "@/features/tasks/task-view";
+import { taskDueInputToIso, taskDueInputValue } from "@/features/tasks/due-time";
+import type { TasksWorkspaceData } from "@/features/tasks/workspace-resource";
 import type { TodoList, TodoTask, UpdateTaskPatch } from "@/features/tasks/types";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
 import { EntityBacklinks } from "@/components/links/entity-backlinks";
@@ -501,12 +503,12 @@ function TaskInspector({
               <input
                 type="datetime-local"
                 disabled={pending}
-                value={task.dueAt?.slice(0, 16) ?? ""}
-                onChange={(event) =>
-                  void save({
-                    dueAt: event.target.value ? new Date(event.target.value).toISOString() : null,
-                  })
-                }
+                aria-label="截止日期"
+                value={taskDueInputValue(task.dueAt)}
+                onChange={(event) => {
+                  try { void save({ dueAt: taskDueInputToIso(event.target.value) }); }
+                  catch { setMessage("截止时间无效或处于夏令时切换时段，请选择另一个时间。"); }
+                }}
                 className="ui-field h-8 max-w-full rounded-[9px] border-0 bg-[var(--surface-control)] px-2 text-[12px] text-[var(--text-primary)] outline-none"
               />
             </dd>
@@ -585,6 +587,11 @@ export function TaskWorkspace({
 
   const tasksWorkspaceResource = useWorkspaceResourceLease(tasksResource);
   const router = useRouter();
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const [rows, setRows] = useState(tasks);
   const rowsRef = useRef(tasks);
   const pendingPatches = useRef(new Map<string, Partial<TodoTask>>());
@@ -593,12 +600,15 @@ export function TaskWorkspace({
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [sessionReady, setSessionReady] = useState(false);
   const linkedTaskRef = useRef(initialTaskId);
+  const selectionEpoch = useRef(0);
   // undefined: route owns selection; string/null: a local replace is pending.
   const taskNavigationIntent = useRef<string | null | undefined>(undefined);
   const supersededTaskTargets = useRef(new Set<string | null>());
   const [taskNavigationVersion, setTaskNavigationVersion] = useState(0);
   const [retrying, setRetrying] = useState(false);
   const retryingRef = useRef(false);
+  const createdTaskAwaitingRead = useRef<string | null>(null);
+  const [createdTaskNotice, setCreatedTaskNotice] = useState<TodoTask | null>(null);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [view, setView] = useState<TaskView>(initialTaskId ? "all" : "today");
   const [listId, setListId] = useState<string | null>(null);
@@ -669,6 +679,7 @@ export function TaskWorkspace({
       taskNavigationIntent.current = undefined;
       supersededTaskTargets.current.clear();
     }
+    selectionEpoch.current += 1;
     if (!initialTaskId) {
       // URL selection is external navigation state, including browser Back.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -682,6 +693,7 @@ export function TaskWorkspace({
 
   useEffect(() => {
     const acceptTarget = (target: string | null) => {
+      selectionEpoch.current += 1;
       supersededTaskTargets.current.clear();
       supersededTaskTargets.current.add(initialTaskId ?? null);
       taskNavigationIntent.current = target;
@@ -717,6 +729,7 @@ export function TaskWorkspace({
   }, [initialTaskId]);
 
   const closeTask = (id = selectedId) => {
+    selectionEpoch.current += 1;
     setSelectedId((current) => current === id ? null : current);
     const intent = taskNavigationIntent.current;
     // A completed older mutation must not dismiss a newer pending selection.
@@ -742,6 +755,7 @@ export function TaskWorkspace({
   });
 
   const openTask = (task: TodoTask) => {
+    selectionEpoch.current += 1;
     setSelectedId(task.id);
     if ((initialTaskId && initialTaskId !== task.id) || taskNavigationIntent.current !== undefined) {
       supersededTaskTargets.current.add(initialTaskId ?? null);
@@ -757,7 +771,12 @@ export function TaskWorkspace({
     if (retryingRef.current) return;
     retryingRef.current = true;
     setRetrying(true);
-    try { await tasksWorkspaceResource.revalidate({ force: true }); setTaskError(null); }
+    const readSelectionEpoch = selectionEpoch.current;
+    try {
+      const workspace = await tasksWorkspaceResource.revalidate({ force: true });
+      if (createdTaskAwaitingRead.current) acceptCreatedTask(workspace, createdTaskAwaitingRead.current, readSelectionEpoch);
+      setTaskError(null);
+    }
     catch { show({ message: "暂时无法读取任务，请稍后重试。", tone: "error" }); }
     finally { retryingRef.current = false; setRetrying(false); }
   };
@@ -890,8 +909,52 @@ export function TaskWorkspace({
         ? task?.id
           ? [...current.filter((row) => row.id !== temporaryId && row.id !== task.id), current.find((row) => row.id === task.id) ?? task]
           : current.filter((row) => row.id !== temporaryId)
-        : task ? [...current, task] : current,
+        : task ? [...current.filter((row) => row.id !== task.id), task] : current,
     );
+
+  const onReveal = (task: TodoTask) => {
+    setView(task.status === "completed" ? "completed" : "all");
+    if (listId && listId !== task.todoListId) setListId(task.todoListId);
+    openTask(task);
+  };
+
+  const acceptCreatedTask = (workspace: TasksWorkspaceData, taskId: string, readSelectionEpoch: number) => {
+    if (!mountedRef.current) return;
+    const task = workspace.tasks.find((row) => row.id === taskId);
+    if (!task) throw new Error("created_task_not_readable");
+    // The resource notifies before React commits new props. Start with the fresh
+    // read, retaining in-flight edits, so adding one row cannot overwrite it.
+    const next = workspace.tasks.map((row) => ({ ...row, ...pendingPatches.current.get(row.id) }));
+    for (const row of rowsRef.current) {
+      if (!next.some((item) => item.id === row.id) && (row.id.startsWith("optimistic-") || pendingPatches.current.has(row.id))) next.push(row);
+    }
+    rowsRef.current = next;
+    onCreated(task);
+    createdTaskAwaitingRead.current = null;
+    setTaskError(null);
+    setCreatedTaskNotice(task);
+    // Let the dialog dismiss its own mobile Back entry. Opening an inspector
+    // here would stack a new entry before that asynchronous dismissal settles.
+    // A late read also must not replace a newer selection or route intent.
+    if (selectionEpoch.current === readSelectionEpoch) {
+      setView(task.status === "completed" ? "completed" : "all");
+      if (listId && listId !== task.todoListId) setListId(task.todoListId);
+    }
+  };
+
+  const readCreatedTask = async (taskId: string) => {
+    createdTaskAwaitingRead.current = taskId;
+    const readSelectionEpoch = selectionEpoch.current;
+    try {
+      // A read already in flight may predate the write, even with force=true.
+      tasksWorkspaceResource.invalidate();
+      const workspace = await tasksWorkspaceResource.revalidate({ force: true });
+      acceptCreatedTask(workspace, taskId, readSelectionEpoch);
+    } catch (error) {
+      setTaskError("任务已创建，但暂时无法读取详情。请重新读取，不要重复创建。");
+      throw error;
+    }
+  };
 
   const updateFromRow = (task: TodoTask, patch: UpdateTaskPatch) => {
     void mutate(
@@ -999,7 +1062,12 @@ export function TaskWorkspace({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <MicrosoftTodoCreateDialog lists={lists} initialOpen={initialCreateOpen} />
+              <MicrosoftTodoCreateDialog
+                lists={lists}
+                selectedListId={listId}
+                initialOpen={initialCreateOpen}
+                onCreated={readCreatedTask}
+              />
             </div>
           </div>
         </header>
@@ -1012,13 +1080,21 @@ export function TaskWorkspace({
                   listId={quickAddTarget.id}
                   listLabel={quickAddTarget.displayName}
                   onCreated={onCreated}
-                  onReveal={(task) => {
-                    setView("all");
-                    if (listId && listId !== task.todoListId) setListId(task.todoListId);
-                    openTask(task);
-                  }}
+                  onReveal={onReveal}
                   onUnconfirmed={() => setTaskError("添加结果尚未确认，请重新读取后检查，避免重复创建。")}
                 />
+              ) : null}
+              {createdTaskNotice ? (
+                <p role="status" className="mb-3 text-xs leading-5 text-[var(--text-secondary)]">
+                  任务已创建
+                  <button
+                    type="button"
+                    onClick={() => onReveal(rowsRef.current.find((task) => task.id === createdTaskNotice.id) ?? createdTaskNotice)}
+                    className="pressable ml-2 inline-flex min-h-11 items-center rounded-md px-1 text-[12px] font-medium text-[var(--accent)]"
+                  >
+                    查看任务
+                  </button>
+                </p>
               ) : null}
               {taskError ? <p role="status" className="mb-3 text-xs leading-5 text-[var(--warning)]">{taskError} <button type="button" disabled={retrying} onClick={() => void retryTasks()} className="ml-2 font-medium underline">{retrying ? "读取中…" : "重新读取"}</button></p> : null}
               <div className="border-t border-[var(--separator)]">
