@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
+import { useDialogReturnFocus } from "@/components/shared/use-dialog-return-focus";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -29,6 +30,7 @@ export function MicrosoftTodoCreateDialog({
   initialOpen?: boolean;
   onCreated: (taskId: string) => Promise<void>;
 }) {
+  const { rememberTrigger, restoreFocus } = useDialogReturnFocus();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<TodoCreateState>(initialState);
   const [pending, setPending] = useState(false);
@@ -119,12 +121,12 @@ export function MicrosoftTodoCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <Button type="button" size="sm" onClick={() => changeOpen(true)} aria-label="新建任务">
+      <Button type="button" size="sm" onClick={(event) => { rememberTrigger(event.currentTarget); changeOpen(true); }} aria-label="新建任务">
         <Plus aria-hidden="true" />
         <span className="hidden sm:inline">新建</span>
       </Button>
 
-      <DialogContent className="sm:max-w-[460px]" showCloseButton={!pending}>
+      <DialogContent onCloseAutoFocus={restoreFocus} className="sm:max-w-[460px]" showCloseButton={!pending}>
         <div className="pb-1">
           <DialogTitle className="text-[20px] font-semibold tracking-[-0.025em] text-[var(--text-primary)]">
             新建任务

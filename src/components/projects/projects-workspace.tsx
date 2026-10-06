@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, useTransition, type FormEvent } from "react";
 import { unstable_rethrow, useSearchParams } from "next/navigation";
 import { Plus, SquareKanban } from "lucide-react";
+import { useDialogReturnFocus } from "@/components/shared/use-dialog-return-focus";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ type Project = { id: string; name: string; description: string | null; status: s
 const statusLabel: Record<string,string> = { active:"进行中", completed:"已完成", paused:"已暂停" };
 
 export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { projects: Project[]; initialCreateOpen?: boolean }) {
+  const { rememberTrigger, restoreFocus } = useDialogReturnFocus();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -70,7 +72,7 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
   };
   return (
     <div>
-      <PageHeader title="项目" description="聚合真正需要持续推进的长期工作。" action={<Button onClick={() => changeOpen(true)}><Plus aria-hidden="true" />新建项目</Button>} />
+      <PageHeader title="项目" description="聚合真正需要持续推进的长期工作。" action={<Button onClick={(event) => { rememberTrigger(event.currentTarget); changeOpen(true); }}><Plus aria-hidden="true" />新建项目</Button>} />
 
       {success ? <p role="status" className="mt-3 text-[12px] text-[var(--success)]">{success}</p> : null}
 
@@ -97,12 +99,12 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
           <SquareKanban className="size-6 text-[var(--text-tertiary)]" aria-hidden="true" />
           <h2 className="mt-3 text-[13.5px] font-medium text-[var(--text-primary)]">还没有进行中的项目</h2>
           <p className="mt-1 text-[11.5px] text-[var(--text-secondary)]">只在确实需要持续推进与聚合时创建项目。</p>
-          <Button size="sm" className="mt-3.5" onClick={() => changeOpen(true)}>新建项目</Button>
+          <Button size="sm" className="mt-3.5" onClick={(event) => { rememberTrigger(event.currentTarget); changeOpen(true); }}>新建项目</Button>
         </div>
       )}
 
       <Dialog open={open} onOpenChange={changeOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent onCloseAutoFocus={restoreFocus} className="sm:max-w-lg">
           <DialogHeader><DialogTitle>新建项目</DialogTitle><DialogDescription>建立项目容器；具体行动继续进入任务。</DialogDescription></DialogHeader>
           <form onSubmit={submit} aria-busy={pending} aria-describedby={error ? errorId : undefined} className="grid gap-3">
             <fieldset disabled={pending} className="grid min-w-0 gap-3 disabled:opacity-70">
