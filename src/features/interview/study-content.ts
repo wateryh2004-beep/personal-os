@@ -12,6 +12,11 @@ const referenceHeadings = new Set([
   "原题出处与方法参考",
   "事实来源与使用边界",
   "核实边界与依据（不属于口述内容）",
+  "参考资料与证据边界",
+  "参考来源",
+  "来源与使用边界",
+  "参考资料与来源边界",
+  "参考资料与使用边界",
 ]);
 
 type StudySegment = { kind: "reading" | "reference"; markdown: string };
@@ -91,6 +96,7 @@ const answerHeadings = new Set([
 export type InterviewAnswerContent = StudyContent & {
   answer: string;
   explanation: string;
+  hasExplicitExplanation: boolean;
   separation: "explicit" | "unsectioned" | "needs-answer" | "structured-original";
 };
 
@@ -102,7 +108,7 @@ export type InterviewAnswerContent = StudyContent & {
 export function prepareInterviewAnswer(original: string): InterviewAnswerContent {
   const content = segmentStudyContent(original);
   if (content.format === "structured-original") {
-    return { ...content, answer: "", explanation: "", separation: "structured-original" };
+    return { ...content, answer: "", explanation: "", hasExplicitExplanation: false, separation: "structured-original" };
   }
   const reading = content.segments.filter((segment) => segment.kind === "reading");
   const headingOf = (markdown: string) => /^##[\t ]+(.+?)[\t ]*(?:\r?\n|$)/.exec(markdown)?.[1].replace(/[\t ]+#+$/, "");
@@ -112,6 +118,9 @@ export function prepareInterviewAnswer(original: string): InterviewAnswerContent
       ...content,
       answer: fullAnswers.map((segment) => fullAnswers.length > 1 ? segment.markdown.replace(/^##/, "###") : segment.markdown.replace(/^##[^\n]*(?:\n|$)/, "")).join("\n\n"),
       explanation: reading.filter((segment) => !fullAnswers.includes(segment)).map((segment) => headingOf(segment.markdown) === "思路拆解讲解" ? segment.markdown.replace(/^##[^\n]*(?:\n|$)/, "") : segment.markdown).join("\n\n"),
+      // Only a non-empty, explicitly authored lesson belongs to this answer
+      // version. Metadata and arbitrary leftover prose cannot replace prep notes.
+      hasExplicitExplanation: reading.some((segment) => headingOf(segment.markdown) === "思路拆解讲解" && Boolean(segment.markdown.replace(/^##[^\n]*(?:\n|$)/, "").trim())),
       separation: "explicit",
     };
   }
@@ -124,6 +133,7 @@ export function prepareInterviewAnswer(original: string): InterviewAnswerContent
     ...content,
     answer: sectioned ? "" : content.reading,
     explanation: sectioned ? content.reading : "",
+    hasExplicitExplanation: false,
     separation: sectioned ? "needs-answer" : "unsectioned",
   };
 }

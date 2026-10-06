@@ -128,3 +128,43 @@ it("keeps a plain authored answer visible when only provenance uses section head
   expect(result.explanation).toBe("");
   expect(result.references).toContain("https://example.com");
 });
+
+describe("version-owned explanation detection", () => {
+  it("recognizes only a nonempty explicit explanation alongside a full answer", () => {
+    const body = "## 标准答案\nSynthetic answer.\n## 思路拆解讲解\nSynthetic lesson.\n## 来源与适用边界\nUnverified.";
+    expect(prepareInterviewAnswer(body).hasExplicitExplanation).toBe(true);
+    expect(prepareInterviewAnswer(body.replace("Synthetic lesson.", "")).hasExplicitExplanation).toBe(false);
+    expect(prepareInterviewAnswer(body.replace("## 标准答案", "## 摘要")).hasExplicitExplanation).toBe(false);
+    expect(prepareInterviewAnswer(body.replace("## 思路拆解讲解", "## 其他补充")).hasExplicitExplanation).toBe(false);
+  });
+
+  it.each([
+    "## 标准答案\nSynthetic answer.\n```md\n## 思路拆解讲解\nNot a real section.\n```",
+    ' {"body":"## 思路拆解讲解"}',
+    "## 标准答案\nSynthetic answer.\n### 思路拆解讲解\nNested answer text.",
+  ])("does not hide preparation notes for unrecognized boundaries", (body) => {
+    expect(prepareInterviewAnswer(body).hasExplicitExplanation).toBe(false);
+  });
+});
+
+describe("observed reference heading aliases", () => {
+  const aliases = ["参考资料与证据边界", "参考来源", "来源与使用边界", "参考资料与来源边界", "参考资料与使用边界"];
+  it.each(aliases)("folds the exact %s source section while preserving answer, lesson, and original", (heading) => {
+    const raw = `## 标准答案\r\nSynthetic answer.\r\n## 思路拆解讲解\r\nSynthetic lesson.\r\n## ${heading}\r\nSynthetic citation and uncertainty boundary.\r\n`;
+    const result = prepareInterviewAnswer(raw);
+    expect(result.answer).toContain("Synthetic answer.");
+    expect(result.explanation).toContain("Synthetic lesson.");
+    expect(result.explanation).not.toContain("Synthetic citation");
+    expect(result.references).toBe(`## ${heading}\r\nSynthetic citation and uncertainty boundary.\r\n`);
+    expect(result.original).toBe(raw);
+    expect(result.segments.map(segment => segment.markdown).join("")).toBe(raw);
+  });
+  it.each(aliases)("does not broadly infer boundaries from nested, fenced, or unknown variants of %s", (heading) => {
+    const raw = `## 标准答案\nSynthetic answer.\n## 思路拆解讲解\nSynthetic lesson.\n### ${heading}\nNested caveat.\n\n\`\`\`md\n## ${heading}\nLiteral example.\n\`\`\`\n\n## ${heading}（其他补充）\nUnknown-heading caveat.`;
+    const result = prepareInterviewAnswer(raw);
+    expect(result.references).toBe("");
+    for (const text of ["Nested caveat.", "Literal example.", "Unknown-heading caveat."]) expect(result.explanation).toContain(text);
+    expect(result.original).toBe(raw);
+    expect(result.segments.map(segment => segment.markdown).join("")).toBe(raw);
+  });
+});

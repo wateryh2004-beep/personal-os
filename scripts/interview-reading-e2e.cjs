@@ -54,6 +54,17 @@ exports.verifyInterviewReading = async (browser, baseURL, output) => {
     await detail.getByRole("navigation", { name: "题目学习章节", exact: true }).getByRole("button", { name: "思路拆解讲解", exact: true }).click();
     assert.ok((await explanation.innerText()).includes("使用记录能说明工具被采用"));
     assert.equal(await page.evaluate(() => history.length), historyLength);
+    assert.ok(!(await explanation.innerText()).includes("先区分观察、解释和证据"));
+    const supplement = detail.getByTestId("study-history");
+    assert.equal(await supplement.getAttribute("open"), null);
+    await supplement.locator("summary").click();
+    assert.ok((await supplement.innerText()).includes("未随所选答案版本同步修订"));
+    assert.ok((await supplement.innerText()).includes("先区分观察、解释和证据"));
+    assert.equal(await page.evaluate(() => history.length), historyLength);
+    await page.screenshot({ path: `${output}/interview-history-supplement-${width}.png` });
+    await supplement.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    assert.equal(await supplement.getAttribute("open"), null);
     await page.screenshot({ path: `${output}/interview-answer-explanation-${width}.png` });
     await explanation.locator("summary").focus();
     await page.keyboard.press("Enter");
@@ -82,6 +93,8 @@ exports.verifyInterviewReading = async (browser, baseURL, output) => {
     assert.ok((await detail.locator("#study-answer").innerText()).includes("还未整理出完整的标准答案"));
     assert.ok(!(await detail.locator("#study-answer").innerText()).includes("短摘要"));
     await detail.getByRole("button", { name: "阅读现有讲解 →", exact: true }).click();
+    assert.equal(await detail.getByTestId("study-history").count(), 0);
+    assert.ok((await detail.locator("#study-thinking").innerText()).includes("先区分观察、解释和证据"));
     assert.ok((await detail.locator("#study-thinking").innerText()).includes("先构造两个满足题设的世界"));
     assert.ok((await detail.locator("#study-thinking").innerText()).includes("这个短摘要不能替代完整的考官回答"));
     await page.screenshot({ path: `${output}/interview-legacy-explanation-${width}.png` });

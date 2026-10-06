@@ -24,8 +24,9 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
   const [explanationOpen, setExplanationOpen] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [originalOpen, setOriginalOpen] = useState(false);
-  const thinkingBody = [expression.explanation, thinking.reading, learning?.keyMessage, learning?.logic, learning?.pitfalls].filter((body): body is string => Boolean(body?.trim())).join("\n\n");
-  const hasThinking = Boolean(thinkingBody.trim());
+  const separatePreparation = expression.hasExplicitExplanation;
+  const hasPreparation = [thoughts, learning?.keyMessage, learning?.logic, learning?.pitfalls, learning?.nextFocus].some((body) => Boolean(body?.trim()));
+  const hasThinking = Boolean(expression.explanation.trim() || (!separatePreparation && [thinking.reading, learning?.keyMessage, learning?.logic, learning?.pitfalls].some((body) => Boolean(body?.trim()))));
   const openExplanation = () => {
     if (explanationRef.current) explanationRef.current.open = true;
     setExplanationOpen(true);
@@ -48,15 +49,13 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
         <DisclosureSummary expanded={explanationOpen} className="min-h-11 cursor-pointer text-[14px] font-semibold leading-6 text-[var(--text-primary)]">思路拆解讲解</DisclosureSummary>
         {explanationOpen ? <div className="space-y-5 pt-3">
         {expression.explanation.trim() ? <StudyMarkdown body={expression.explanation} /> : null}
-        {thinking.reading.trim() ? <StudyMarkdown body={thinking.reading} /> : null}
-        {learning?.keyMessage ? <div className="mt-5"><h3 className="mb-2 text-[13px] font-semibold">核心判断</h3><StudyMarkdown body={learning.keyMessage} /></div> : null}
-        {learning?.logic ? <div className="mt-5"><h3 className="mb-2 text-[13px] font-semibold">推导路径</h3><StudyMarkdown body={learning.logic} /></div> : null}
-        {learning?.pitfalls ? <div className="mt-5 border-l-2 border-[var(--separator)] pl-4"><h3 className="mb-2 text-[13px] font-semibold">易错点与边界</h3><StudyMarkdown body={learning.pitfalls} /></div> : null}
+        {!separatePreparation ? <PreparationNotes reading={thinking.reading} learning={learning} /> : null}
         </div> : null}
       </details> : null}
+      {separatePreparation && hasPreparation ? <HistoricalSupplement key={answer} reading={thinking.reading} references={thinking.references} learning={learning} /> : null}
       {showRecall ? <section id="study-recall" className="mt-8 scroll-mt-[calc(var(--toolbar-height)+1rem)] border-t border-[var(--separator)] pt-6">
         <h2 className="text-[14px] font-semibold leading-6 text-[var(--text-primary)]">自测与追问</h2>
-        {learning?.nextFocus ? <div className="mt-3"><StudyMarkdown body={learning.nextFocus} /></div> : <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">合上标准答案，试着用自己的话讲清结论、依据，以及条件变化后的判断。</p>}
+        {!separatePreparation && learning?.nextFocus ? <div className="mt-3"><StudyMarkdown body={learning.nextFocus} /></div> : <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">合上标准答案，试着用自己的话讲清结论、依据，以及条件变化后的判断。</p>}
         {related.length ? <div className="mt-3 space-y-1">{related.map((item) => <button type="button" key={item.preparationId} onClick={() => onSelect?.(item.questionId)} className="block min-h-11 w-full rounded-[8px] px-2 py-2 text-left text-[13px] leading-6 text-[var(--accent)] hover:bg-[var(--surface-hover)]">{item.shortTitle || item.prompt} →</button>)}</div> : null}
         <p className="mt-3 text-[12px] leading-5 text-[var(--text-tertiary)]">阅读不会标记掌握。练习记录以实际表现为准。</p>
       </section> : null}
@@ -67,7 +66,7 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
             <p className="mb-3">来源标签用于追溯，不代表内容或个人经历已经核实。标准答案仍需核对依据，并结合实际情况使用。</p>
             {answerMeta ? <p className="mb-3">{answerMeta.status === "current" ? "当前选用版本" : "参考草稿"} · V{answerMeta.version_number} · {answerMeta.source === "ai_draft" ? "AI 起草" : answerMeta.source === "ai_edited" ? "AI 起草后编辑" : answerMeta.source === "imported" ? "导入" : "人工编辑"}</p> : null}
             {expression.references ? <StudyMarkdown body={expression.references} /> : null}
-            {thinking.references ? <StudyMarkdown body={thinking.references} /> : null}
+            {!separatePreparation && thinking.references ? <StudyMarkdown body={thinking.references} /> : null}
             {versionHref ? <Link href={versionHref} prefetch={false} className="inline-flex min-h-11 items-center text-[var(--accent)]">查看答案版本 →</Link> : null}
           </div> : null}
         </details>
@@ -76,12 +75,39 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
           {originalOpen ? <div className="space-y-4 pb-4">
             <OriginalText title="答案原文" body={answer} />
             <OriginalText title="思路原文" body={thoughts} />
+            <OriginalText title="核心判断原文" body={learning?.keyMessage ?? ""} />
+            <OriginalText title="推导路径原文" body={learning?.logic ?? ""} />
+            <OriginalText title="易错点与边界原文" body={learning?.pitfalls ?? ""} />
+            <OriginalText title="下一步练习原文" body={learning?.nextFocus ?? ""} />
           </div> : null}
         </details>
       </footer>
     </article>
   );
 });
+
+function PreparationNotes({ reading, learning }: { reading: string; learning?: WorkspaceItem["learning"] }) {
+  return <>
+    {reading.trim() ? <StudyMarkdown body={reading} /> : null}
+    {learning?.keyMessage ? <div className="mt-5"><h3 className="mb-2 text-[13px] font-semibold">核心判断</h3><StudyMarkdown body={learning.keyMessage} /></div> : null}
+    {learning?.logic ? <div className="mt-5"><h3 className="mb-2 text-[13px] font-semibold">推导路径</h3><StudyMarkdown body={learning.logic} /></div> : null}
+    {learning?.pitfalls ? <div className="mt-5 border-l-2 border-[var(--separator)] pl-4"><h3 className="mb-2 text-[13px] font-semibold">易错点与边界</h3><StudyMarkdown body={learning.pitfalls} /></div> : null}
+  </>;
+}
+
+function HistoricalSupplement({ reading, references, learning }: { reading: string; references: string; learning?: WorkspaceItem["learning"] }) {
+  const [open, setOpen] = useState(false);
+  return <details data-testid="study-history" onToggle={(event) => setOpen(event.currentTarget.open)} className="mt-6 border-t border-[var(--separator)] pt-4">
+    <DisclosureSummary expanded={open} className="min-h-11 cursor-pointer text-[13px] font-medium text-[var(--text-secondary)]">历史补充 · 准备笔记</DisclosureSummary>
+    {open ? <div className="space-y-5 pt-3">
+      <p className="text-[13px] leading-6 text-[var(--text-tertiary)]">这些准备笔记独立保存，未随所选答案版本同步修订，可能包含旧说法或待核实的个人经历。请与上方答案及讲解分别核对；这里不代表当前事实。</p>
+      <PreparationNotes reading={reading} learning={learning} />
+      {learning?.nextFocus ? <div><h3 className="mb-2 text-[13px] font-semibold">原有练习方向</h3><StudyMarkdown body={learning.nextFocus} /></div> : null}
+      {references ? <div><h3 className="mb-2 text-[13px] font-semibold">准备笔记来源与边界</h3><StudyMarkdown body={references} /></div> : null}
+      <p className="text-[12px] leading-6 text-[var(--text-tertiary)]">完整内容保留在下方「查看原始内容」中。</p>
+    </div> : null}
+  </details>;
+}
 
 function OriginalText({ title, body }: { title: string; body: string }) {
   if (!body) return null;

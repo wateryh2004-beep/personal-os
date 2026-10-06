@@ -127,3 +127,75 @@ it("shows a missing complete answer honestly while making legacy lessons availab
   expect(explanation.textContent).toContain("Legacy lesson.");
   expect(explanation.textContent).toContain("Only a recap.");
 });
+
+it("keeps version-owned explanation separate from contradictory preparation history and preserves raw fields", async () => {
+  const answer = "## 标准答案\nThe synthetic experiment is only proposed.\n## 思路拆解讲解\nDo not claim a measured result.\n## 来源与适用边界\nSelected version boundary.";
+  const thoughts = "## 旧笔记\nThe synthetic experiment already succeeded.\n## 参考资料\nOld preparation source.";
+  const learning = { keyMessage: "Old key message.", logic: "Old logic.", pitfalls: "Old pitfalls.", nextFocus: "Old practice focus." };
+  await render({ answer, thoughts, learning });
+  const explanation = host.querySelector<HTMLDetailsElement>("#study-thinking")!;
+  await act(async () => { explanation.open = true; explanation.dispatchEvent(new Event("toggle")); });
+  expect(explanation.textContent).toContain("Do not claim a measured result.");
+  expect(explanation.textContent).not.toContain("already succeeded");
+  expect(explanation.textContent).not.toContain("Old key message.");
+  expect(host.querySelector("#study-recall")!.textContent).not.toContain("Old practice focus.");
+  const history = host.querySelector<HTMLDetailsElement>('[data-testid="study-history"]')!;
+  expect(history.open).toBe(false);
+  expect(host.textContent).not.toContain("already succeeded");
+  for (let i = 0; i < 2; i++) {
+    await act(async () => { history.open = true; history.dispatchEvent(new Event("toggle")); });
+    expect(history.textContent).toContain("未随所选答案版本同步修订");
+    expect(history.textContent).toContain("already succeeded");
+    for (const value of Object.values(learning)) expect(history.textContent).toContain(value);
+    expect(history.textContent).toContain("Old preparation source.");
+    await act(async () => { history.open = false; history.dispatchEvent(new Event("toggle")); });
+    expect(history.textContent).not.toContain("already succeeded");
+  }
+  await expand(0);
+  expect(host.querySelector('[data-testid="study-provenance"]')!.textContent).toContain("Selected version boundary.");
+  expect(host.querySelector('[data-testid="study-provenance"]')!.textContent).not.toContain("Old preparation source.");
+  await expand(1);
+  expect([...host.querySelectorAll("pre")].map((node) => node.textContent)).toEqual([answer, thoughts, ...Object.values(learning)]);
+});
+
+it.each(["Synthetic answer.", "## 标准答案\nSynthetic answer.\n## 思路拆解讲解\n\n## 来源与适用边界\nBoundary."])("keeps necessary preparation notes primary without a complete new explanation", async (answer) => {
+  await render({ answer, thoughts: "Necessary current note.", learning: { keyMessage: "Key.", logic: "Logic.", pitfalls: "Pitfall.", nextFocus: "Practice." } });
+  expect(host.querySelector('[data-testid="study-history"]')).toBeNull();
+  const explanation = host.querySelector<HTMLDetailsElement>("#study-thinking")!;
+  await act(async () => { explanation.open = true; explanation.dispatchEvent(new Event("toggle")); });
+  expect(explanation.textContent).toContain("Necessary current note.");
+  expect(explanation.textContent).toContain("Key.");
+  expect(host.querySelector("#study-recall")!.textContent).toContain("Practice.");
+});
+
+it("resets expanded history when changing selected answer versions and restores legacy fallback", async () => {
+  const first = "## 标准答案\nVersion one.\n## 思路拆解讲解\nExplanation one.";
+  const second = first.replaceAll("one", "two");
+  await render({ answer: first });
+  const history = host.querySelector<HTMLDetailsElement>('[data-testid="study-history"]')!;
+  await act(async () => { history.open = true; history.dispatchEvent(new Event("toggle")); });
+  await render({ answer: second });
+  expect(host.querySelector<HTMLDetailsElement>('[data-testid="study-history"]')!.open).toBe(false);
+  expect(host.textContent).not.toContain("Synthetic reasoning.");
+  expect(host.querySelector("#study-answer")!.textContent).toContain("Version two.");
+  await render({ answer: "Legacy answer." });
+  expect(host.querySelector('[data-testid="study-history"]')).toBeNull();
+  const explanation = host.querySelector<HTMLDetailsElement>("#study-thinking")!;
+  await act(async () => { explanation.open = true; explanation.dispatchEvent(new Event("toggle")); });
+  expect(explanation.textContent).toContain("Synthetic reasoning.");
+});
+
+it.each(["参考资料与证据边界", "参考来源", "来源与使用边界", "参考资料与来源边界", "参考资料与使用边界"])("keeps %s accessible in provenance and exact raw content without mixing it into the lesson", async (heading) => {
+  const answer = `## 标准答案\nSynthetic answer.\n## 思路拆解讲解\nSynthetic lesson.\n## ${heading}\nSynthetic source boundary.`;
+  await render({ answer, thoughts: "" });
+  const explanation = host.querySelector<HTMLDetailsElement>("#study-thinking")!;
+  await act(async () => { explanation.open = true; explanation.dispatchEvent(new Event("toggle")); });
+  expect(explanation.textContent).toContain("Synthetic lesson.");
+  expect(explanation.textContent).not.toContain("Synthetic source boundary.");
+  expect(host.textContent).not.toContain("Synthetic source boundary.");
+  await expand(0);
+  expect(host.querySelector('[data-testid="study-provenance"]')!.textContent).toContain(heading);
+  expect(host.querySelector('[data-testid="study-provenance"]')!.textContent).toContain("Synthetic source boundary.");
+  await expand(1);
+  expect(host.querySelector("pre")!.textContent).toBe(answer);
+});
