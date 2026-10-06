@@ -9,7 +9,7 @@ type ThumbnailTicket = {
 };
 
 /** FIFO admission only: no image bytes, URLs, promises, or cache are retained. */
-export function createThumbnailLoadQueue() {
+export function createThumbnailLoadQueue(concurrency = maxConcurrentPhotoThumbnails) {
   const waiting: ThumbnailTicket[] = [];
   let active = 0;
   let draining = false;
@@ -18,7 +18,7 @@ export function createThumbnailLoadQueue() {
     if (draining) return;
     draining = true;
     try {
-      while (active < maxConcurrentPhotoThumbnails && waiting.length) {
+      while (active < concurrency && waiting.length) {
         const ticket = waiting.shift()!;
         ticket.started = true;
         active++;
