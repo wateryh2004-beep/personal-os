@@ -1,3 +1,4 @@
+import { parseFileBrowserState } from "@/features/files/browser-state";
 import { FilesWorkspace } from "@/components/files/files-workspace";
 import { getFilesWorkspace } from "@/features/files/queries";
 
@@ -12,9 +13,9 @@ function FilesUnavailable({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function Files({ searchParams }: { searchParams: Promise<{ upload?: string; file?: string }> }) {
+export default async function Files({ searchParams }: { searchParams: Promise<{ upload?: string; file?: string; q?: string; folder?: string; type?: string; sort?: string; view?: string; page?: string }> }) {
   const [data, params] = await Promise.all([getFilesWorkspace(), searchParams]);
   if (!data.configured) return <FilesUnavailable>云端存储尚未配置，暂时无法上传文件。</FilesUnavailable>;
   if (data.unavailable) return <FilesUnavailable>文件数据暂时无法读取。</FilesUnavailable>;
-  return <FilesWorkspace folders={data.folders} files={data.files} archivedFiles={data.archivedFiles} initialUpload={params.upload === "1"} initialFileId={params.file} />;
+  return <FilesWorkspace folders={data.folders} files={data.files} archivedFiles={data.archivedFiles} initialUpload={params.upload === "1"} initialFileId={params.file} initialBrowserState={parseFileBrowserState(params)} />;
 }

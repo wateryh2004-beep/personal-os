@@ -1,1 +1,6 @@
-export default function Photos(){return <section className="max-w-xl"><h1 className="text-[27px] font-semibold tracking-[-0.042em] text-[var(--text-primary)]">照片</h1><p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">此模块尚未启用。</p></section>}
+import { redirect } from "next/navigation";
+
+/** Photos share Files ownership, originals and recovery; no duplicate library. */
+export default function Photos() {
+  redirect("/files?type=photo&view=grid");
+}

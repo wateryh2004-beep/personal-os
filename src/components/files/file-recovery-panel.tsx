@@ -58,7 +58,7 @@ export function FileRecoveryPanel({ disabled = false }: { disabled?: boolean }) 
   }
   return <details className="mt-3 rounded-[9px] border border-[var(--separator)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
     <summary className="cursor-pointer font-medium">导出与恢复副本</summary>
-    <p className="mt-2 leading-5">包含 Files 原件、归档中的文件、笔记附件及目录关系，可能含敏感资料。仅保存到你控制的位置。未完成上传只列入清单，不算已备份。</p>
+    <p className="mt-2 leading-5">包含全部 Files 原件（不受当前筛选影响）、归档中的文件、笔记附件及目录关系，可能含敏感资料。仅保存到你控制的位置。未完成上传只列入清单，不算已备份。</p>
     <p className="mt-1 leading-5">大文件集合可分包下载，失败时重试相同分包。单文件仍限 100 MiB；这不是完整数据库备份，也不会自动清理原件。</p>
     <div className="mt-2 flex flex-wrap gap-2">
       <button type="button" disabled={disabled || pending} onClick={() => void preparePlan()} className="pressable rounded-[8px] bg-[var(--surface-control)] px-3 py-2 font-medium text-[var(--accent)] disabled:opacity-50">{pending ? "正在读取清单…" : plan ? "重新生成分包计划" : "准备分包导出"}</button>

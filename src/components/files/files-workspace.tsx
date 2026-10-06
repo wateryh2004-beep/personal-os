@@ -1,5 +1,8 @@
 "use client";
 
+import { FilePhoto } from "./file-photo";
+import { classifyFile, defaultFileBrowserState, fileBrowserUrl, filesPerPage, revealFileState, fileSortLabels, fileSorts, fileTypeLabels, fileTypes, parseFileBrowserState, selectFiles, type FileBrowserState } from "@/features/files/browser-state";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileRecoveryPanel } from "./file-recovery-panel";
 import { FileMutationForm } from "./file-mutation-form";
 import { useFileRows } from "./use-file-rows";
@@ -75,10 +78,25 @@ function FileOperations({ file, folders, onArchive }: { file: FileRecord; folder
   </Popover>;
 }
 
-export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, initialUpload = false, initialFileId }: { folders: FileFolder[]; files: FileRecord[]; archivedFiles?: FileRecord[]; initialUpload?: boolean; initialFileId?: string }) {
+export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, initialUpload = false, initialFileId, initialBrowserState = defaultFileBrowserState }: { folders: FileFolder[]; files: FileRecord[]; archivedFiles?: FileRecord[]; initialUpload?: boolean; initialFileId?: string; initialBrowserState?: FileBrowserState }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadInFlight = useRef(false);
-  const [folderId, setFolderId] = useState<string | null>(() => initialFileId ? files.find((item) => item.id === initialFileId)?.folder_id ?? null : null);
+  const [browser, setBrowser] = useState<FileBrowserState>(() => initialFileId ? revealFileState(files, initialBrowserState, initialFileId) : initialBrowserState);
+  const [folderId, setFolderId] = useState<string | null>(browser.folderId);
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [archivedLimit, setArchivedLimit] = useState(filesPerPage);
+  const [highlightId, setHighlightId] = useState<string | null>(initialFileId && files.some((item) => item.id === initialFileId) ? initialFileId : null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewLauncher = useRef<HTMLElement | null>(null);
+  function changeBrowser(patch: Partial<FileBrowserState>, replace = false) {
+    const resetPage = patch.folderId !== undefined || patch.query !== undefined || patch.type !== undefined || patch.sort !== undefined;
+    const next = { ...browser, folderId, ...(resetPage ? { page: 1 } : {}), ...patch };
+    setBrowser(next); setFolderId(next.folderId);
+    const url = fileBrowserUrl(window.location.href, next);
+    if (replace) window.history.replaceState(window.history.state, "", url);
+    else window.history.pushState(window.history.state, "", url);
+    if (patch.page !== undefined) sectionRef.current?.scrollTo?.({ top: 0 });
+  }
   const [stage, setStage] = useState<UploadStage>("idle");
   const uploadBusy = ["preparing", "uploading", "verifying", "extracting"].includes(stage);
   const [fileRows, setFileRows] = useFileRows(files, uploadBusy);
@@ -90,7 +108,26 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const { show } = useActionFeedback();
   const sortedFolders = useMemo(() => [...folders].sort((a, b) => folderDepth(a, folders) - folderDepth(b, folders) || a.name.localeCompare(b.name, "zh-CN")), [folders]);
-  const visibleFiles = folderId === null ? fileRows : fileRows.filter((file) => file.folder_id === folderId);
+  const selection = useMemo(() => selectFiles(fileRows, { ...browser, folderId }), [fileRows, browser, folderId]);
+  const visibleFiles = selection.visible;
+  const totalPages = Math.max(1, Math.ceil(visibleFiles.length / filesPerPage));
+  const currentPage = Math.min(browser.page, totalPages);
+  const displayedFiles = visibleFiles.slice((currentPage - 1) * filesPerPage, currentPage * filesPerPage);
+  const visibleArchived = useMemo(() => selectFiles(archivedRows, { ...browser, folderId: null }).visible, [archivedRows, browser]);
+  const previewFile = fileRows.find(file => file.id === previewId) ?? null;
+  const filtering = Boolean(browser.query || browser.type !== "all");
+  useEffect(() => {
+    const restoreBrowser = () => {
+      const params = new URLSearchParams(window.location.search);
+      let next = parseFileBrowserState(params);
+      const linked = fileRows.find(file => file.id === params.get("file"));
+      if (linked) next = revealFileState(fileRows, next, linked.id);
+      setBrowser(next); setFolderId(next.folderId);
+      if (linked) setHighlightId(linked.id);
+    };
+    window.addEventListener("popstate", restoreBrowser);
+    return () => window.removeEventListener("popstate", restoreBrowser);
+  }, [fileRows]);
   const activeFolder = folders.find((folder) => folder.id === folderId);
   useEffect(() => { if (initialUpload) inputRef.current?.click(); }, [initialUpload]);
   useEffect(() => {
@@ -100,12 +137,11 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
     return () => window.removeEventListener("beforeunload", protectUpload);
   }, [uploadBusy]);
   // 跨实体内链跳转：/files?file={id}。初始即切到文件所在文件夹，短暂高亮定位。
-  const [highlightId, setHighlightId] = useState<string | null>(initialFileId && files.some((item) => item.id === initialFileId) ? initialFileId : null);
   const [selectionSource, setSelectionSource] = useState(initialFileId);
   if (selectionSource !== initialFileId) {
     setSelectionSource(initialFileId);
     const selected = files.find((file) => file.id === initialFileId);
-    if (selected) { setFolderId(selected.folder_id); setHighlightId(selected.id); }
+    if (selected) { setFolderId(selected.folder_id); setBrowser(revealFileState(files, browser, selected.id)); setHighlightId(selected.id); }
   }
   useEffect(() => {
     if (!highlightId) return;
@@ -208,6 +244,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
   }
 
   const archive = (file: FileRecord) => {
+    if (previewId === file.id) setPreviewId(null);
     const archived = { ...file, archived_at: new Date().toISOString() };
     setFileRows((current) => current.filter((item) => item.id !== file.id));
     setArchivedRows((current) => [archived, ...current.filter((item) => item.id !== file.id)]);
@@ -234,7 +271,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           </FileMutationForm>
         ) : null}
 
-        <button onClick={() => setFolderId(null)} className={`pressable mt-2 flex h-[30px] w-full items-center gap-2 rounded-[8px] px-2 text-left text-[12.5px] ${folderId === null ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}>
+        <button onClick={() => changeBrowser({ folderId: null })} className={`pressable mt-2 flex h-[30px] w-full items-center gap-2 rounded-[8px] px-2 text-left text-[12.5px] ${folderId === null ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}>
           <Folder size={14} />
           <span className="truncate">全部文件</span>
           <span className="ml-auto font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]">{fileRows.length}</span>
@@ -243,7 +280,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           {sortedFolders.map((folder) => (
             <button
               key={folder.id}
-              onClick={() => setFolderId(folder.id)}
+              onClick={() => changeBrowser({ folderId: folder.id })}
               style={{ paddingLeft: `${8 + folderDepth(folder, folders) * 14}px` }}
               className={`pressable flex h-[30px] w-full items-center gap-2 rounded-[8px] pr-2 text-left text-[12.5px] ${folder.id === folderId ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
             >
@@ -254,11 +291,11 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
         <p className="mt-4 px-1 text-[10.5px] leading-5 text-[var(--text-tertiary)]">可在当前文件夹中新建子文件夹，或移动已有文件。</p>
       </aside>
 
-      <section className="workspace-scroll min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+      <section ref={sectionRef} className="workspace-scroll min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
         <div className="flex min-h-12 flex-wrap items-start justify-between gap-3 border-b border-[var(--separator)] pb-3.5">
           <div>
             <h1 className="text-[27px] font-semibold leading-[1.08] tracking-[-0.042em] text-[var(--text-primary)]">{activeFolder?.name ?? "全部文件"}</h1>
-            <p className="mt-0.5 text-[10.5px] tabular-nums text-[var(--text-tertiary)]">{activeFolder ? `${visibleFiles.length} 个文件` : `${fileRows.length} 个文件`}</p>
+            <p className="mt-0.5 text-[10.5px] tabular-nums text-[var(--text-tertiary)]">{`${visibleFiles.length} 个文件${filtering ? ` · 当前目录共 ${fileRows.filter(file => folderId === null || file.folder_id === folderId).length} 个` : ""}`}</p>
           </div>
           <div>
             <input ref={inputRef} className="hidden" type="file" multiple onChange={(event) => void upload(event.target.files)} />
@@ -269,6 +306,16 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           </div>
         </div>
 
+        <div className="my-3 space-y-2" role="region" aria-label="文件筛选与排序">
+          <div className="flex flex-wrap items-center gap-2">
+            <input aria-label="搜索文件名称" type="search" maxLength={200} value={browser.query} onChange={event => changeBrowser({ query: event.target.value }, true)} placeholder="搜索名称或原始文件名" className="h-10 w-full min-w-0 rounded-[9px] sm:w-auto sm:flex-1 border border-[var(--separator)] bg-[var(--surface-control)] px-3 text-[13px] outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+            <select aria-label="文件排序" value={browser.sort} onChange={event => changeBrowser({ sort: event.target.value as FileBrowserState["sort"] })} className="h-10 max-w-full rounded-[9px] border border-[var(--separator)] bg-[var(--surface-control)] px-2 text-[12px]">{fileSorts.map(sort => <option key={sort} value={sort}>{fileSortLabels[sort]}</option>)}</select>
+            <div role="group" aria-label="文件显示方式" className="flex rounded-[9px] bg-[var(--surface-control)] p-1">{(["list", "grid"] as const).map(view => <button type="button" key={view} aria-pressed={browser.view === view} onClick={() => changeBrowser({ view })} className={`pressable min-h-8 rounded-[7px] px-2 text-[12px] ${browser.view === view ? "bg-[var(--surface-selected)] text-[var(--accent)]" : ""}`}>{view === "list" ? "列表" : "网格"}</button>)}</div>
+          </div>
+          <div role="group" aria-label="文件类型" className="flex flex-wrap gap-1.5">{fileTypes.map(type => <button type="button" key={type} aria-pressed={browser.type === type} onClick={() => changeBrowser({ type, ...(type === "photo" ? { view: "grid" as const } : {}) })} className={`pressable min-h-9 rounded-full border px-3 text-[12px] ${browser.type === type ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--separator)] text-[var(--text-secondary)]"}`}>{fileTypeLabels[type]} <span className="font-mono text-[10px]">{selection.counts[type]}</span></button>)}</div>
+          {browser.type === "photo" ? <p className="text-[11px] leading-5 text-[var(--text-tertiary)]">按上传时间管理；不是拍摄时间。预览仅生成受限缩略图，不会自动下载原件。</p> : null}
+        </div>
+
         <FileRecoveryPanel disabled={uploadBusy} />
 
         {message ? <p role="status" className={`mt-2.5 text-[11px] ${messageTone === "error" ? "text-[var(--danger)]" : messageTone === "success" ? "text-[var(--success)]" : "text-[var(--text-secondary)]"}`}>{message}</p> : null}
@@ -276,18 +323,28 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
         {!visibleFiles.length ? (
           <div className="flex min-h-56 flex-col items-center justify-center text-center">
             <FilePlus2 size={24} className="text-[var(--text-tertiary)]" />
-            <h2 className="mt-3 text-[13.5px] font-medium text-[var(--text-primary)]">这里还没有文件</h2>
-            <p className="mt-1 text-[11.5px] text-[var(--text-secondary)]">上传文件，或切换到其他文件夹。</p>
+            <h2 className="mt-3 text-[13.5px] font-medium text-[var(--text-primary)]">{filtering ? "没有符合条件的文件" : "这里还没有文件"}</h2>
+            <p className="mt-1 text-[11.5px] text-[var(--text-secondary)]">{filtering ? "调整类型或搜索条件，不会删除任何文件。" : "上传文件，或切换到其他文件夹。"}</p>
+            {filtering ? <button type="button" onClick={() => changeBrowser({ query: "", type: "all" })} className="mt-3 min-h-9 px-3 text-[12px] text-[var(--accent)]">清除筛选</button> : null}
           </div>
+        ) : browser.view === "grid" ? (
+          <ul aria-label="文件网格" className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
+            {displayedFiles.map(file => <li id={`file-${file.id}`} key={file.id} className={`min-w-0 overflow-hidden rounded-[12px] border border-[var(--separator)] bg-[var(--surface-canvas)] ${file.id === highlightId ? "ring-2 ring-[var(--accent)]" : ""}`}>
+              {classifyFile(file) === "photo" ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="block w-full"><FilePhoto file={file} className="aspect-square w-full" /></button> : <div className="flex aspect-square items-center justify-center bg-[var(--surface-control)] text-[var(--text-tertiary)]"><File size={36} /></div>}
+              <div className="min-w-0 p-2.5"><p className="truncate text-[12.5px] font-medium" title={file.title}>{file.title}</p><p className="mt-1 text-[10px] text-[var(--text-tertiary)]">{fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)}</p><p className="mt-1 text-[10px] text-[var(--text-tertiary)]">上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}</p>
+                <div className="mt-1 flex justify-end gap-1"><a href={`/api/files/${file.id}/download`} aria-label={`下载 ${file.title}`} className="pressable flex size-9 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Download size={14} /></a><FileOperations file={file} folders={sortedFolders} onArchive={archive} /></div>
+              </div>
+            </li>)}
+          </ul>
         ) : (
-          <ul className="divide-y divide-[var(--separator)]">
-            {visibleFiles.map((file) => (
+          <ul aria-label="文件列表" className="divide-y divide-[var(--separator)]">
+            {displayedFiles.map((file) => (
               <li id={`file-${file.id}`} className={`flex min-h-[52px] items-center gap-2.5 px-2 py-2.5 transition-colors ui-transition ${file.id === highlightId ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]"}`} key={file.id}>
                 <File size={16} className="shrink-0 text-[var(--text-tertiary)]" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium text-[var(--text-primary)]">{file.title}</p>
                   <p className="mt-0.5 font-mono text-[10px] leading-4 tabular-nums text-[var(--text-tertiary)]">
-                    {formatBytes(file.file_size)} · {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}
+                    {fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)} · 上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}
                     {file.text_extraction_status === "completed" ? ` · 已索引 ${file.extracted_character_count.toLocaleString("zh-CN")} 字` : file.text_extraction_status === "processing" || file.text_extraction_status === "pending" ? " · 正在建立全文索引" : file.text_extraction_status === "too_large" ? " · 文件过大，暂不解析" : file.text_extraction_status === "unsupported" ? " · 此类型暂不解析" : file.text_extraction_status === "failed" ? " · 文本解析失败" : ""}
                   </p>
                 </div>
@@ -299,24 +356,38 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           </ul>
         )}
 
-        {archivedRows.length > 0 ? (
+        {totalPages > 1 ? <nav aria-label="文件分页" className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--separator)] pt-3 text-[12px]">
+          <span>第 {currentPage} / {totalPages} 页 · 本页 {displayedFiles.length} 个</span>
+          <div className="flex gap-2"><button type="button" disabled={currentPage <= 1} onClick={() => changeBrowser({ page: currentPage - 1 })} className="pressable min-h-9 rounded-[8px] bg-[var(--surface-control)] px-3 disabled:opacity-40">上一页</button><button type="button" disabled={currentPage >= totalPages} onClick={() => changeBrowser({ page: currentPage + 1 })} className="pressable min-h-9 rounded-[8px] bg-[var(--surface-control)] px-3 disabled:opacity-40">下一页</button></div>
+        </nav> : null}
+
+        {visibleArchived.length > 0 ? (
           <details className="mt-5 border-t border-[var(--separator)] pt-3">
             <summary className="pressable inline-flex cursor-pointer list-none items-center gap-2 rounded-[7px] px-1 py-0.5 text-[11px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">
-              <Archive size={13} />已归档 <span className="font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]">{archivedRows.length}</span>
+              <Archive size={13} />已归档（全部文件夹） <span className="font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]">{visibleArchived.length}</span>
             </summary>
             <ul className="mt-2 divide-y divide-[var(--separator)]">
-              {archivedRows.map((file) => (
+              {visibleArchived.slice(0, archivedLimit).map((file) => (
                 <li className="flex min-h-11 items-center gap-2.5 px-2 py-2" key={file.id}>
                   <File size={14} className="shrink-0 text-[var(--text-tertiary)]" />
                   <div className="min-w-0 flex-1"><p className="truncate text-[12.5px] text-[var(--text-primary)]">{file.title}</p><p className="mt-0.5 font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]">{formatBytes(file.file_size)} · 归档于 {new Date(file.archived_at ?? file.uploaded_at).toLocaleDateString("zh-CN")}</p></div>
-                  <a href={`/api/files/${file.id}/download`} className="pressable flex size-8 items-center justify-center rounded-[8px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]" aria-label={`下载 ${file.title}`}><Download size={14} /></a>
+                  <span className="text-[10px] text-[var(--text-tertiary)]">恢复后下载</span>
                   <FileMutationForm action={restoreFile}><input type="hidden" name="document_id" value={file.id} /><button className="pressable h-8 rounded-[8px] px-2 text-[10.5px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">恢复</button></FileMutationForm>
                 </li>
               ))}
             </ul>
+            {visibleArchived.length > archivedLimit ? <button type="button" onClick={() => setArchivedLimit(limit => limit + filesPerPage)} className="mt-2 min-h-10 px-3 text-[12px] text-[var(--accent)]">显示更多归档（{archivedLimit} / {visibleArchived.length}）</button> : null}
           </details>
         ) : null}
       </section>
+      <Dialog open={Boolean(previewFile)} onOpenChange={open => { if (!open) setPreviewId(null); }}>
+        {previewFile ? <DialogContent className="sm:max-w-2xl" onCloseAutoFocus={event => { event.preventDefault(); if (previewLauncher.current?.isConnected) previewLauncher.current.focus(); else sectionRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus(); }}>
+          <DialogHeader><DialogTitle className="break-words pr-8">{previewFile.title}</DialogTitle><DialogDescription>受限缩略图预览 · 上传于 {new Date(previewFile.uploaded_at).toLocaleDateString("zh-CN")} · {formatBytes(previewFile.file_size)}</DialogDescription></DialogHeader>
+          <FilePhoto file={previewFile} className="max-h-[50dvh] min-h-40 w-full rounded-[10px]" />
+          <p className="break-all text-[12px] text-[var(--text-secondary)]">原始文件名：{previewFile.original_filename}</p>
+          <a href={`/api/files/${previewFile.id}/download`} className="pressable inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] bg-[var(--accent)] px-3 text-[13px] text-white"><Download size={15} />下载原件</a>
+        </DialogContent> : null}
+      </Dialog>
     </div>
   );
 }
