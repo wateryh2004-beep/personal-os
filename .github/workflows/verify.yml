@@ -86,6 +86,7 @@ jobs:
           done
           curl -fsS http://127.0.0.1:3000/mobile-native-e2e > /dev/null
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/core-flows-e2e.cjs
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/files-recovery-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/ui-affordance-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 540s node scripts/leisure-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/notes-search-e2e.cjs
@@ -93,6 +94,15 @@ jobs:
           NODE_PATH="$(npm root -g)" node scripts/mobile-native-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/navigation-latency-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/workspace-reliability-e2e.cjs
+      - name: Save Files recovery screenshots and synthetic packages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: files-recovery-evidence
+          path: test-results/files-recovery
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Save mobile QA screenshots
         if: always()
         uses: actions/upload-artifact@v4

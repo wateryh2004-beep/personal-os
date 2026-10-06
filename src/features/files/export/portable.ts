@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { exportPartFormat, type ExportCollectionDescriptor } from "./contract";
 
 /** Portable v1 is an uncompressed ustar archive. No provider SDK or credentials here. */
 export const exportFormat = "personal-os-files/v1";
@@ -17,7 +18,7 @@ export type ExportSource = {
 };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const zeroBlock = Buffer.alloc(512);
-const maxOriginalBytes = 100 * 1024 * 1024;
+export const maxOriginalBytes = 100 * 1024 * 1024;
 const maxMetadataBytes = 2 * 1024 * 1024;
 
 function hash() { return createHash("sha256"); }
@@ -88,7 +89,17 @@ async function sourceDigest(source: ExportSource, signal: AbortSignal) {
 }
 
 /** One object/page at a time; no archive-sized array, Blob, or buffer. */
-export async function* exportArchive(source: ExportSource, signal: AbortSignal, startedAt = new Date().toISOString()): AsyncGenerator<Uint8Array> {
+export type ExportArchiveOptions = {
+  collection?: ExportCollectionDescriptor;
+  maxBytes?: number;
+  /** Recheck the entire collection, including documents outside this part. */
+  verifyCollection?: (signal: AbortSignal) => Promise<boolean>;
+};
+export async function* exportArchive(source: ExportSource, signal: AbortSignal, startedAt = new Date().toISOString(), options: ExportArchiveOptions = {}): AsyncGenerator<Uint8Array> {
+  const format = options.collection ? exportPartFormat : exportFormat;
+  const byteLimit = options.maxBytes ?? maxExportBytes;
+  if (!Number.isSafeInteger(byteLimit) || byteLimit < 4096 || byteLimit > maxExportBytes) throw new Error("files_export_invalid_part_budget");
+  if (options.collection && !options.verifyCollection) throw new Error("files_export_collection_check_required");
   const entries = hash();
   const initialRows = hash();
   let reservedBytes = 4096;
@@ -96,7 +107,7 @@ export async function* exportArchive(source: ExportSource, signal: AbortSignal, 
   function reserve(size: number, metadata = false) {
     reservedBytes += 512 + size + ((512 - size % 512) % 512);
     if (metadata) rowCount++;
-    if (reservedBytes > maxExportBytes || rowCount > maxExportRows) throw new Error("files_export_budget_exceeded");
+    if (reservedBytes > byteLimit || rowCount > maxExportRows) throw new Error("files_export_budget_exceeded");
   }
   const counts = { folders: 0, documents: 0, relationships: 0, objects: 0, objectBytes: 0, pending: 0, failed: 0 };
   function* metadataEntry(path: string, value: unknown) {
@@ -106,8 +117,9 @@ export async function* exportArchive(source: ExportSource, signal: AbortSignal, 
     yield tarHeader(path, bytes.length); yield bytes; yield padding(bytes.length);
   }
   yield* metadataEntry("export.json", {
-    format: exportFormat, startedAt,
-    scope: "owner_r2_documents_including_archived_and_note_attachments_pending_metadata_only",
+    format, startedAt,
+    ...(options.collection ? { collection: options.collection } : {}),
+    scope: options.collection ? "owner_r2_document_partition_including_archived_and_note_attachments_pending_metadata_only" : "owner_r2_documents_including_archived_and_note_attachments_pending_metadata_only",
     consistency: "live_read_with_second_metadata_scan_not_database_snapshot",
     relationships: "owner_entity_links_involving_documents_external_entities_not_exported",
     excluded: ["pending_upload_originals", "non_r2_originals", "other_domain_records", "auth", "credentials", "audit_history", "database_schema"],
@@ -169,11 +181,15 @@ export async function* exportArchive(source: ExportSource, signal: AbortSignal, 
     signal.throwIfAborted(); assertId(relationship.id); rowDigest(initialRows, "relationship", relationship);
     yield* metadataEntry(`relationships/${relationship.id}.json`, relationship); counts.relationships++;
   }
-  const metadataStable = initialRows.digest("hex") === await sourceDigest(source, signal);
+  const partMetadataStable = initialRows.digest("hex") === await sourceDigest(source, signal);
+  const collectionMetadataStable = options.verifyCollection ? await options.verifyCollection(signal) : true;
+  const metadataStable = partMetadataStable && collectionMetadataStable;
   signal.throwIfAborted();
   const complete = counts.failed === 0 && metadataStable;
   const manifest = jsonBytes({
-    format: exportFormat, status: complete ? "complete" : "incomplete", startedAt, finishedAt: new Date().toISOString(),
+    format, status: complete ? "complete" : "incomplete",
+    ...(options.collection ? { collection: options.collection, collectionComplete: complete && options.collection.partCount === 1 } : {}),
+    startedAt, finishedAt: new Date().toISOString(),
     counts, exclusions: { pendingUploadOriginals: counts.pending }, metadataStable, entriesSha256: entries.digest("hex"),
     issues: [...(counts.failed ? ["unverified_objects"] : []), ...(!metadataStable ? ["metadata_changed_during_export"] : [])],
     assurance: "Transport integrity only. SHA256 is not a signature, and this is not an atomic database backup.",
@@ -183,10 +199,10 @@ export async function* exportArchive(source: ExportSource, signal: AbortSignal, 
 }
 
 /** Cancellation propagates to the provider rather than finishing a disconnected download. */
-export function archiveStream(source: ExportSource | ((signal: AbortSignal) => ExportSource), requestSignal: AbortSignal) {
+export function archiveStream(source: ExportSource | ((signal: AbortSignal) => ExportSource), requestSignal: AbortSignal, options: ExportArchiveOptions = {}) {
   const controller = new AbortController();
   const signal = AbortSignal.any([controller.signal, requestSignal]);
-  const iterator = exportArchive(typeof source === "function" ? source(signal) : source, signal);
+  const iterator = exportArchive(typeof source === "function" ? source(signal) : source, signal, undefined, options);
   return new ReadableStream<Uint8Array>({
     async pull(stream) {
       try { const next = await iterator.next(); if (next.done) stream.close(); else stream.enqueue(next.value); }

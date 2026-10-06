@@ -1,5 +1,6 @@
 "use client";
 
+import { FileRecoveryPanel } from "./file-recovery-panel";
 import { FileMutationForm } from "./file-mutation-form";
 import { useFileRows } from "./use-file-rows";
 import { createUploadProgress } from "@/features/files/upload-progress";
@@ -268,14 +269,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           </div>
         </div>
 
-        <details className="mt-3 rounded-[9px] border border-[var(--separator)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
-          <summary className="cursor-pointer font-medium">导出可验证的原文件副本</summary>
-          <p className="mt-2 leading-5">包含全部 Files 原件、已归档文件、笔记附件及目录关系，可能含敏感资料。仅保存到你控制的位置。未完成上传只列入清单，不算已备份。</p>
-          <p className="mt-1 leading-5">下载完成不等于恢复验证成功：请使用仓库中的校验工具确认数量和 SHA-256 后再作为备份。此包不包含笔记正文或完整数据库。单包上限 512 MiB。</p>
-          <form action="/api/files/export" method="post" className="mt-2">
-            <button disabled={uploadBusy} className="pressable rounded-[8px] bg-[var(--surface-control)] px-3 py-2 font-medium text-[var(--accent)] disabled:opacity-50">下载 Files 恢复包（.tar）</button>
-          </form>
-        </details>
+        <FileRecoveryPanel disabled={uploadBusy} />
 
         {message ? <p role="status" className={`mt-2.5 text-[11px] ${messageTone === "error" ? "text-[var(--danger)]" : messageTone === "success" ? "text-[var(--success)]" : "text-[var(--text-secondary)]"}`}>{message}</p> : null}
 
