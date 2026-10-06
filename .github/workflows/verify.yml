@@ -52,6 +52,24 @@ jobs:
           path: test-results/investment
           if-no-files-found: ignore
           retention-days: 7
+      - name: Verify isolated Settings workspace
+        run: |
+          node scripts/settings-preview.mjs > /tmp/personal-os-settings-e2e.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:4183 > /dev/null; then break; fi
+            sleep 1
+          done
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/settings-workspace-e2e.cjs
+      - name: Save focused Settings screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: settings-workspace-evidence
+          path: test-results/settings-workspace
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Verify approved Today composition first
         env:
           E2E_MOBILE_HARNESS: "1"

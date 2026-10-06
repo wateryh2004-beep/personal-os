@@ -72,3 +72,23 @@ describe("R2 Settings inspection UI", () => {
     expect(storageBytes(0)).toBe("0 B"); expect(storageBytes(1024 ** 3)).toBe("1 GiB");
   });
 });
+
+it("never treats account free allowance as bucket remaining capacity", async () => {
+  await click();
+  expect(host.textContent).toContain("账户免费额度余量暂无法确认");
+  expect(host.querySelector('[role="meter"]')).toBeNull();
+  const input = host.querySelector('input[type="number"]')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "1");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  expect(host.querySelector('[role="meter"]')).not.toBeNull();
+  expect(host.textContent).toContain("预算内余量");
+});
+it("does not render a green latest-success claim after 401", async () => {
+  await click();
+  fetcher.mockResolvedValueOnce(Response.json({}, { status: 401 }));
+  await click();
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain("会话已失效");
+  expect(host.textContent).toContain("上次连接检查");
+});
