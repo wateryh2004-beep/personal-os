@@ -1,3 +1,4 @@
+import { readAllFilePages } from "./read-all-pages";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { isR2Configured } from "@/lib/adapters/cloudflare-r2";
 
@@ -11,20 +12,38 @@ export async function getFilesWorkspace() {
   // 因此用关联关系排除，而不是靠 storage_path 前缀（大图直传的路径是 files/ 开头）。
   // 注：supabase-js 的 .in()/.not() 不支持查询构建器子查询（会把 builder 拼成 [object Object]），
   // 所以这里并行查关联 ID，再在客户端过滤。
-  const [folders, files, archivedFiles, noteLinks] = await Promise.all([
-    supabase.from("file_folders").select("id,name,parent_id").is("archived_at", null).order("position").order("name"),
-    supabase.from("documents").select("id,title,original_filename,mime_type,file_size,folder_id,uploaded_at,created_at,archived_at,ai_visibility,text_extraction_status,extracted_character_count").eq("storage_provider", "cloudflare_r2").eq("storage_state", "available").is("archived_at", null).order("uploaded_at", { ascending: false }),
-    supabase.from("documents").select("id,title,original_filename,mime_type,file_size,folder_id,uploaded_at,created_at,archived_at,ai_visibility,text_extraction_status,extracted_character_count").eq("storage_provider", "cloudflare_r2").not("archived_at", "is", null).order("archived_at", { ascending: false }).limit(50),
-    supabase.from("entity_links").select("target_id").eq("source_type", "note").eq("target_type", "document").eq("relationship_type", "attachment").is("archived_at", null),
-  ]);
-  const noteLinkedIds = new Set((noteLinks.data ?? []).map((link) => link.target_id));
-  const visibleFiles = (files.data ?? []).filter((file) => !noteLinkedIds.has(file.id));
-  const visibleArchived = (archivedFiles.data ?? []).filter((file) => !noteLinkedIds.has(file.id));
-  return {
-    configured: isR2Configured(),
-    unavailable: Boolean(folders.error || files.error),
-    folders: (folders.data ?? []) as FileFolder[],
-    files: visibleFiles as FileRecord[],
-    archivedFiles: visibleArchived as FileRecord[],
-  };
+  try {
+    const columns = "id,title,original_filename,mime_type,file_size,folder_id,uploaded_at,created_at,archived_at,ai_visibility,text_extraction_status,extracted_character_count";
+    const [folders, files, archivedFiles, noteLinks] = await Promise.all([
+      readAllFilePages<FileFolder>((after, limit) => {
+        let query = supabase.from("file_folders").select("id,name,parent_id").is("archived_at", null).order("id").limit(limit);
+        if (after) query = query.gt("id", after);
+        return query;
+      }),
+      readAllFilePages<FileRecord>((after, limit) => {
+        let query = supabase.from("documents").select(columns).eq("storage_provider", "cloudflare_r2").eq("storage_state", "available").is("archived_at", null).order("id").limit(limit);
+        if (after) query = query.gt("id", after);
+        return query;
+      }),
+      readAllFilePages<FileRecord>((after, limit) => {
+        let query = supabase.from("documents").select(columns).eq("storage_provider", "cloudflare_r2").not("archived_at", "is", null).order("id").limit(limit);
+        if (after) query = query.gt("id", after);
+        return query;
+      }),
+      readAllFilePages<{ id: string; target_id: string }>((after, limit) => {
+        let query = supabase.from("entity_links").select("id,target_id").eq("source_type", "note").eq("target_type", "document").eq("relationship_type", "attachment").is("archived_at", null).order("id").limit(limit);
+        if (after) query = query.gt("id", after);
+        return query;
+      }),
+    ]);
+    const noteLinkedIds = new Set(noteLinks.map((link) => link.target_id));
+    return {
+      configured: isR2Configured(), unavailable: false,
+      folders: folders.sort((a, b) => a.name.localeCompare(b.name)),
+      files: files.filter((file) => !noteLinkedIds.has(file.id)).sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at)),
+      archivedFiles: archivedFiles.filter((file) => !noteLinkedIds.has(file.id)).sort((a, b) => (b.archived_at ?? "").localeCompare(a.archived_at ?? "")),
+    };
+  } catch {
+    return { configured: isR2Configured(), unavailable: true, folders: [], files: [], archivedFiles: [] };
+  }
 }

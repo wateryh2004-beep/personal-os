@@ -51,7 +51,7 @@ describe("file workspace refreshes", () => {
     expect(host.textContent).toContain("已归档");
     await renderFiles([{ ...file, title: "已恢复", folder_id: "folder-a" }], []);
     expect(host.querySelector("#file-file-a")?.textContent).toContain("已恢复");
-    expect(host.textContent).not.toContain("已归档");
+    expect(Array.from(host.querySelectorAll("summary")).some(node => node.textContent?.startsWith("已归档"))).toBe(false);
   });
 
   it("follows another file link in the same route and shows all folders under all files", async () => {
@@ -82,6 +82,18 @@ describe("file workspace refreshes", () => {
 });
 
 describe("file mutations", () => {
+  it("shows confirmed-save audit warnings without treating them as failed writes", async () => {
+    const success = vi.fn();
+    const action = vi.fn(async () => ({ saved: true as const, warning: "文件变更已保存，但操作日志未记录。" }));
+    await act(async () => root.render(createElement(FileMutationForm, { action, onSuccess: success }, createElement("button", { type: "submit" }, "保存"))));
+    await act(async () => host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain("已保存");
+    expect(success).not.toHaveBeenCalled();
+    expect(host.querySelector("fieldset")?.disabled).toBe(true);
+    await act(async () => host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+
   it("prevents repeated submissions, preserves input on failure, and permits a successful retry", async () => {
     let reject!: (reason: Error) => void;
     const action = vi.fn<(data: FormData) => Promise<void>>(() => new Promise<void>((_, fail) => { reject = fail; }));

@@ -3,6 +3,7 @@
 import { FileMutationForm } from "./file-mutation-form";
 import { useFileRows } from "./use-file-rows";
 import { createUploadProgress } from "@/features/files/upload-progress";
+import { completeFileUpload } from "@/features/files/complete-upload";
 import { canUpload, maxFileSize } from "@/features/files/schemas";
 import { runUploadBatch } from "@/features/files/upload-batch";
 
@@ -123,6 +124,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
     const calculateProgress = createUploadProgress(batch.map((file) => file.size));
     let uploadedCount = 0;
     let extractionDeferred = false;
+    let auditWarning = false;
     const updateProgress = (index: number, value: number) => {
       // Uploaded bytes still need a successful server confirmation.
       setProgress(Math.min(99, calculateProgress(index, value)));
@@ -143,9 +145,10 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
         if (status === null) { if (!payload.resumed) void fetch(`/api/files/upload-url?documentId=${encodeURIComponent(payload.documentId)}`, { method: "DELETE" }).catch(() => {}); throw new Error(await browserR2NetworkMessage()); }
         if (status < 200 || status >= 300) { if (!payload.resumed) void fetch(`/api/files/upload-url?documentId=${encodeURIComponent(payload.documentId)}`, { method: "DELETE" }).catch(() => {}); throw new Error(directUploadFailureMessage(status)); }
         if (batch.length === 1) setStage("verifying");
-        const completed = await fetch("/api/files/upload-url", { method: "PATCH", signal: AbortSignal.timeout(60_000), headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: payload.documentId }) });
+        const completed = await completeFileUpload(payload.documentId);
         if (!completed.ok) throw new Error(await responseError(completed, "文件上传后未能确认。"));
-        const verification = await completed.json() as { extractionStatus?: FileRecord["text_extraction_status"] };
+        const verification = await completed.json() as { extractionStatus?: FileRecord["text_extraction_status"]; warning?: string };
+        if (verification.warning) auditWarning = true;
         if (payload.file) {
           const now = new Date().toISOString();
           const localFile: FileRecord = {
@@ -181,10 +184,10 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
         setMessage(`已完成 ${uploadedCount} / ${batch.length} 个文件。请保持此页面打开。`);
       });
       setStage(result.errors.length ? "error" : "complete");
-      setMessageTone(result.errors.length ? "error" : "success");
+      setMessageTone(result.errors.length || auditWarning ? "error" : "success");
       if (!result.errors.length) setProgress(100);
       const errorMessage = result.errors[0]?.message;
-      setMessage(result.errors.length ? `已上传 ${result.uploaded} 个，${result.errors.length} 个未完成。${errorMessage}` : `已上传 ${result.uploaded} 个文件。${batch.length > 1 || extractionDeferred ? "文本索引将由后台逐步完成，也可点击解析文本重试。" : ""}`);
+      setMessage(result.errors.length ? `已上传 ${result.uploaded} 个，${result.errors.length} 个未完成。${errorMessage}` : `已上传 ${result.uploaded} 个文件。${auditWarning ? "部分操作日志未记录，请刷新确认。" : ""}${batch.length > 1 || extractionDeferred ? "文本索引将由后台逐步完成，也可点击解析文本重试。" : ""}`);
     } catch (error) { setMessageTone("error"); const raw = error instanceof Error ? error.message : "上传失败，请重试。"; setStage("error"); setMessage(/failed to fetch/i.test(raw) ? "无法连接应用服务器，暂时无法准备上传。请检查网络后重试。" : raw); }
     finally { uploadInFlight.current = false; if (inputRef.current) inputRef.current.value = ""; }
   }
@@ -208,10 +211,10 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
     setFileRows((current) => current.filter((item) => item.id !== file.id));
     setArchivedRows((current) => [archived, ...current.filter((item) => item.id !== file.id)]);
     const form = new FormData(); form.set("document_id", file.id);
-    void archiveFile(form).then(() => show({ message: "文件已归档", tone: "success", undo: () => {
+    void archiveFile(form).then((result) => show({ message: result?.warning ?? "文件已归档", tone: result?.warning ? "error" : "success", undo: () => {
       const restore = new FormData(); restore.set("document_id", file.id);
-      void restoreFile(restore).then(() => { setArchivedRows((current) => current.filter((item) => item.id !== file.id)); setFileRows((current) => [file, ...current]); }).catch(() => show({ message: "恢复失败，文件仍在归档区。", tone: "error" }));
-    } })).catch(() => { setArchivedRows((current) => current.filter((item) => item.id !== file.id)); setFileRows((current) => [file, ...current]); show({ message: "归档失败，文件仍保留在原位置。", tone: "error" }); });
+      void restoreFile(restore).then((result) => { if (result?.warning) show({ message: result.warning, tone: "error" }); setArchivedRows((current) => current.filter((item) => item.id !== file.id)); setFileRows((current) => [file, ...current]); }).catch(() => show({ message: "恢复结果未确认，请刷新后检查文件状态。", tone: "error" }));
+    } })).catch(() => { setArchivedRows((current) => current.filter((item) => item.id !== file.id)); setFileRows((current) => [file, ...current]); show({ message: "归档结果未确认，请刷新后检查文件状态。", tone: "error" }); });
   };
 
   return (
@@ -264,6 +267,15 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
             </button>
           </div>
         </div>
+
+        <details className="mt-3 rounded-[9px] border border-[var(--separator)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+          <summary className="cursor-pointer font-medium">导出可验证的原文件副本</summary>
+          <p className="mt-2 leading-5">包含全部 Files 原件、已归档文件、笔记附件及目录关系，可能含敏感资料。仅保存到你控制的位置。未完成上传只列入清单，不算已备份。</p>
+          <p className="mt-1 leading-5">下载完成不等于恢复验证成功：请使用仓库中的校验工具确认数量和 SHA-256 后再作为备份。此包不包含笔记正文或完整数据库。单包上限 512 MiB。</p>
+          <form action="/api/files/export" method="post" className="mt-2">
+            <button disabled={uploadBusy} className="pressable rounded-[8px] bg-[var(--surface-control)] px-3 py-2 font-medium text-[var(--accent)] disabled:opacity-50">下载 Files 恢复包（.tar）</button>
+          </form>
+        </details>
 
         {message ? <p role="status" className={`mt-2.5 text-[11px] ${messageTone === "error" ? "text-[var(--danger)]" : messageTone === "success" ? "text-[var(--success)]" : "text-[var(--text-secondary)]"}`}>{message}</p> : null}
 

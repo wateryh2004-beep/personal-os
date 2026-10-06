@@ -1,6 +1,6 @@
 import "server-only";
 
-import { DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 export { r2FailureMessage } from "@/features/files/r2-errors";
 
@@ -171,4 +171,36 @@ export async function readR2Artwork(key: string, maxBytes: number) {
     if (r2Status(error) === 404) return null;
     throw error;
   }
+}
+
+/** A private GET with no buffering. Consumers must enforce their byte budget. */
+export async function readR2ObjectStream(key: string, signal?: AbortSignal) {
+  const config = requiredConfiguration();
+  const timeout = AbortSignal.timeout(120_000);
+  const result = await client(config).send(new GetObjectCommand({ Bucket: config.bucketName, Key: key }),
+    { abortSignal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+  if (!result.Body) throw new Error("r2_object_empty");
+  const body = result.Body.transformToWebStream();
+  if (!Number.isSafeInteger(result.ContentLength) || result.ContentLength! < 0) {
+    await body.cancel().catch(() => {});
+    throw new Error("r2_invalid_size");
+  }
+  return { body, size: result.ContentLength!, etag: result.ETag ?? null };
+}
+
+/** Seal the exact version just verified into a fresh, never-browser-signed key. */
+export async function copyVerifiedR2Object(source: string, destination: string, etag: string) {
+  const config = requiredConfiguration();
+  const sourceParts = source.split("/");
+  const destinationParts = destination.split("/");
+  if (!etag || source === destination || sourceParts[1] !== "files" ||
+      sourceParts[0] !== destinationParts[0] || sourceParts[2] !== destinationParts[2] ||
+      destinationParts[1] !== "files" || !destinationParts[3]?.startsWith("sealed-")) {
+    throw new Error("invalid_seal_target");
+  }
+  await client(config).send(new CopyObjectCommand({
+    Bucket: config.bucketName, Key: destination,
+    CopySource: [config.bucketName, ...sourceParts].map(encodeURIComponent).join("/"),
+    CopySourceIfMatch: etag,
+  }), { abortSignal: AbortSignal.timeout(60_000) });
 }
