@@ -58,6 +58,12 @@ describe("private Files photo thumbnail route", () => {
     expect(mocks.read).not.toHaveBeenCalled();
   });
 
+  it("supports generic legacy PNG metadata only after validating the raster bytes", async () => {
+    record.mime_type = "application/octet-stream"; record.original_filename = "legacy.PNG";
+    const response = await GET(request(), context);
+    expect(response.status).toBe(200); expect(response.headers.get("content-type")).toBe("image/webp");
+  });
+
   it("serves only a transformed, owner-scoped WebP with private response headers", async () => {
     const response = await GET(request(), context);
     expect(response.status).toBe(200);

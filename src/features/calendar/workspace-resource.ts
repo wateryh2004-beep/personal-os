@@ -9,7 +9,7 @@ export type CalendarWorkspaceData = {
   categories: CalendarCategory[];
   timezone: string;
   unavailable: boolean;
-  sync: { state: "fresh" | "syncing" | "stale" | "failed" | "unavailable"; lastSyncAt: string | null; nextHourlyAt: string | null; nextFullAt: string | null; subscriptionExpiresAt: string | null; webhookLastReceivedAt: string | null; errorCode: string | null; subscriptionExpiring: boolean } | null;
+  sync: { state: "fresh" | "syncing" | "stale" | "failed" | "unavailable"; lastSyncAt: string | null; nextHourlyAt: string | null; nextFullAt: string | null; subscriptionExpiresAt: string | null; webhookLastReceivedAt: string | null; errorCode: string | null; subscriptionExpiring: boolean; backgroundSyncLabel?: string; nextBackgroundAt?: string | null } | null;
 };
 
 async function readCalendarWorkspace(signal?: AbortSignal): Promise<CalendarWorkspaceData> {

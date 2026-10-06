@@ -5,9 +5,9 @@ import { canPreviewPhoto } from "@/features/files/browser-state";
 import type { FileRecord } from "@/features/files/queries";
 import { enqueuePhotoThumbnail, photoThumbnailLoadTimeoutMs } from "@/features/files/thumbnail-load-queue";
 
-function PhotoPlaceholder({ className, waiting = false, elementRef }: { className: string; waiting?: boolean; elementRef?: Ref<HTMLDivElement> }) {
+function PhotoPlaceholder({ className, waiting = false, elementRef, reason }: { className: string; waiting?: boolean; elementRef?: Ref<HTMLDivElement>; reason?: string }) {
   return <div ref={elementRef} className={`flex flex-col items-center justify-center gap-2 bg-[var(--surface-control)] text-[var(--text-tertiary)] ${className}`}>
-    <ImageIcon size={28} aria-hidden="true" /><span className="px-2 text-center text-[11px]">{waiting ? "照片缩略图" : <>缩略图暂不可用<br />可下载原件查看</>}</span>
+    <ImageIcon size={28} aria-hidden="true" /><span className="px-2 text-center text-[11px]">{waiting ? "照片缩略图" : <>{reason ?? "缩略图暂不可用"}<br />可下载原件查看</>}</span>
   </div>;
 }
 
@@ -111,7 +111,7 @@ function ScheduledPhoto({ source, title, className }: { source: string; title: s
 
 /** Browser-native same-origin thumbnails, viewport gated and three at a time. */
 export function FilePhoto({ file, className = "" }: { file: FileRecord; className?: string }) {
-  if (!canPreviewPhoto(file)) return <PhotoPlaceholder className={className} />;
+  if (!canPreviewPhoto(file)) return <PhotoPlaceholder className={className} reason={file.file_size > 12 * 1024 * 1024 ? "原件超过 12 MiB 预览上限" : "此格式暂不支持缩略图"} />;
   const source = `/api/files/${file.id}/thumbnail`;
   return <ScheduledPhoto key={source} source={source} title={file.title} className={className} />;
 }

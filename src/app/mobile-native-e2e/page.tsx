@@ -1,3 +1,4 @@
+import { R2StorageSettings } from "@/components/settings/r2-storage-settings";
 import { NotesFolderFixture } from "@/components/testing/notes-folder-fixture";
 import { TodayHierarchyFixture } from "@/components/testing/today-hierarchy-fixture";
 import { InterviewReadingFixture } from "@/components/testing/interview-reading-fixture";
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string; item?: string }> }) {
   if (process.env.E2E_MOBILE_HARNESS !== "1") notFound();
   const { scene, workspace, mode, item, delay: rawDelay } = await searchParams;
+  if (scene === "storage-settings") return <main className="mx-auto max-w-5xl p-4 sm:p-6"><h1 className="mb-5 text-2xl font-semibold">存储设置 · Synthetic fixture</h1><R2StorageSettings /></main>;
   if (scene === "today-hierarchy") return <TodayHierarchyFixture mode={mode} />;
   if (scene === "interview-reading") return <InterviewReadingFixture />;
   if (scene === "leisure") return <LeisureFixture item={item} mode={mode} />;

@@ -1,0 +1,26 @@
+# Files 私有 PDF / 图片预览
+
+## 入口与范围
+
+列表中的文件名称和预览图标可打开 PDF 或图片；网格卡片也支持。照片预览仍使用有上限的私有缩略图，原件仅在点击下载时读取。针对历史导入，generic MIME（application/octet-stream）配合受支持扩展名可进入预览候选，服务端仍验证实际格式签名，不仅信任文件名。
+
+PDF 在打开时先发同源 HEAD 预检，成功后才挂载浏览器原生阅读器。关闭会取消预检并移除阅读器。失败保留清楚提示和原件下载入口；没有把服务错误 JSON 当作成功阅读器。
+
+## PDF HTTP 边界
+
+- GET /api/files/{documentId}/preview 与 HEAD 都需要当前 owner，匹配配置的桶/文档路径、available、未归档状态
+- PDF MIME 或 generic MIME + .pdf 文件名；用受限8字节读取验证PDF头，并用ETag条件读取保持同一对象版本
+- GET支持完整流以及一个合法byte range，HEAD不返回正文；不把整份PDF读进应用内存
+- 固定 application/pdf、inline文件名、nosniff、private/no-store、same-origin资源策略
+- 多段/无效/越界Range返回416；字节流中断或长度不符不会伪装成完整响应
+- 单个PDF仍遵守100MiB上限；不创建R2副本，不公开桶，不生成对外阅读服务链接
+
+## 浏览器限制
+
+原生PDF阅读器的支持和工具栏依浏览器而异。嵌入页面不显示时，可在同源新窗口预览或下载原件；iframe的load事件不被当作内容已正确渲染的证明。没有加入会普遍阻断原生PDF阅读器的iframe sandbox属性。
+
+JPEG/PNG/WebP/AVIF/GIF缩略图沿用12MiB原件、2400万像素、640px边长、512KiB输出限制；HEIC/SVG等不支持格式及超限图片有明确占位说明，原件保留。该功能不提供PDF编辑、OCR、照片原图放大处理或EXIF拍摄日期整理。
+
+## 测试与隐私
+
+HTTP解析、范围响应、签名、取消和UI错误状态使用合成PDF、图片及mock存储。浏览器回归使用内存中的合成PDF和图片，检查列表入口、原生阅读器、手机/桌面显示及原件不被自动下载。真实用户文件不作为测试素材，不发送到第三方阅读或AI服务。

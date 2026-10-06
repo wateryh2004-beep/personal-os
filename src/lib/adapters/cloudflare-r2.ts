@@ -1,11 +1,13 @@
 import "server-only";
 
+import { ListObjectsV2Command } from "@aws-sdk/client-s3";
+
 import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 export { r2FailureMessage } from "@/features/files/r2-errors";
 
 type R2Configuration = { endpoint: string; accessKeyId: string; secretAccessKey: string; bucketName: string };
-export type R2Health = { configured: boolean; endpointValid: boolean; bucket: string | null; credentialsReachR2: boolean; status: "ok" | "misconfigured" | "unreachable" };
+export type R2Health = { configured: boolean; endpointValid: boolean; bucket: string | null; credentialsReachR2: boolean; status: "ok" | "misconfigured" | "unreachable"; reason?: "not_configured" | "access_denied" | "not_found" | "network_or_service" };
 
 /** Accept only the account-level S3 endpoint. Public/custom R2 URLs cannot presign S3 operations. */
 export function normalizeR2Endpoint(input: string) {
@@ -107,14 +109,16 @@ export function sanitizeR2Health(input: { configured: boolean; endpointValid: bo
 }
 
 /** Server-to-R2 diagnostic: no credentials, endpoint, signed URL, or provider body is returned. */
-export async function checkR2Health(): Promise<R2Health> {
+export async function checkR2Health(signal?: AbortSignal): Promise<R2Health> {
   const config = configuration();
   if (!config) return sanitizeR2Health({ configured: false, endpointValid: isR2EndpointValid(), bucket: null, credentialsReachR2: false });
   try {
-    await client(config).send(new HeadBucketCommand({ Bucket: config.bucketName }));
+    await client(config).send(new HeadBucketCommand({ Bucket: config.bucketName }), { abortSignal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000) });
     return sanitizeR2Health({ configured: true, endpointValid: true, bucket: config.bucketName, credentialsReachR2: true });
-  } catch {
-    return sanitizeR2Health({ configured: true, endpointValid: true, bucket: config.bucketName, credentialsReachR2: false });
+  } catch (error) {
+    const status = r2Status(error);
+    return { ...sanitizeR2Health({ configured: true, endpointValid: true, bucket: config.bucketName, credentialsReachR2: false }),
+      reason: status === 401 || status === 403 ? "access_denied" : status === 404 ? "not_found" : "network_or_service" };
   }
 }
 
@@ -203,4 +207,66 @@ export async function copyVerifiedR2Object(source: string, destination: string, 
     CopySource: [config.bucketName, ...sourceParts].map(encodeURIComponent).join("/"),
     CopySourceIfMatch: etag,
   }), { abortSignal: AbortSignal.timeout(60_000) });
+}
+
+/** Private preview read: a normalized range and optional exact-object condition. */
+export async function readR2ObjectSlice(key: string, options: {
+  range?: { start: number; end: number }; ifMatch?: string; signal?: AbortSignal;
+}) {
+  const { range, ifMatch, signal } = options;
+  if (range && (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) || range.start < 0 || range.end < range.start))
+    throw new Error("r2_invalid_range");
+  if (ifMatch !== undefined && !/^"[\x21\x23-\x7e]{1,256}"$/.test(ifMatch))
+    throw new Error("r2_invalid_etag");
+  const config = requiredConfiguration();
+  const timeout = AbortSignal.timeout(120_000);
+  const result = await client(config).send(new GetObjectCommand({
+    Bucket: config.bucketName, Key: key,
+    ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
+    ...(ifMatch ? { IfMatch: ifMatch } : {}),
+  }), { abortSignal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+  if (!result.Body) throw new Error("r2_object_empty");
+  const body = result.Body.transformToWebStream();
+  if (!Number.isSafeInteger(result.ContentLength) || result.ContentLength! < 1) {
+    await body.cancel().catch(() => {});
+    throw new Error("r2_invalid_size");
+  }
+  return { body, size: result.ContentLength!, etag: result.ETag ?? null, contentRange: result.ContentRange ?? null };
+}
+
+export type R2UsageScan = { status: "complete" | "partial" | "unavailable"; objectCount: number; objectBytes: number; pagesScanned: number; reason?: "limit" | "not_configured" | "access_denied" | "network_or_service" };
+
+/** Aggregate only. Never returns keys, URLs, credentials or provider error bodies. */
+export async function inspectR2ObjectUsage(signal: AbortSignal, pageLimit = 20): Promise<R2UsageScan> {
+  const result: R2UsageScan = { status: "unavailable", objectCount: 0, objectBytes: 0, pagesScanned: 0 };
+  const config = configuration();
+  if (!config) return { ...result, reason: "not_configured" };
+  const limit = Number.isFinite(pageLimit) ? Math.min(20, Math.max(1, Math.floor(pageLimit))) : 20;
+  let token: string | undefined;
+  const seenTokens = new Set<string>();
+  try {
+    const r2 = client(config);
+    for (let page = 0; page < limit; page++) {
+      signal.throwIfAborted();
+      const response = await r2.send(new ListObjectsV2Command({ Bucket: config.bucketName, MaxKeys: 1000, ContinuationToken: token }), { abortSignal: signal });
+      if (typeof response.IsTruncated !== "boolean") throw new Error("invalid_storage_page");
+      const objects = response.Contents ?? [];
+      if (objects.length > 1000) throw new Error("invalid_storage_page");
+      let pageBytes = 0;
+      for (const object of objects) {
+        if (!Number.isSafeInteger(object.Size) || object.Size! < 0) throw new Error("invalid_storage_size");
+        pageBytes += object.Size!;
+      }
+      if (!Number.isSafeInteger(result.objectBytes + pageBytes)) throw new Error("invalid_storage_total");
+      result.objectCount += objects.length; result.objectBytes += pageBytes; result.pagesScanned++;
+      if (!response.IsTruncated) return { ...result, status: "complete" };
+      if (!response.NextContinuationToken || seenTokens.has(response.NextContinuationToken)) throw new Error("invalid_storage_cursor");
+      token = response.NextContinuationToken;
+      seenTokens.add(token);
+    }
+    return { ...result, status: "partial", reason: "limit" };
+  } catch (error) {
+    const status = r2Status(error);
+    return { ...result, status: result.pagesScanned ? "partial" : "unavailable", reason: status === 401 || status === 403 ? "access_denied" : "network_or_service" };
+  }
 }

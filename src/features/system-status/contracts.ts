@@ -24,7 +24,7 @@ export type SystemStatusAdapter<TInput = unknown, TResult = unknown> = {
 
 export const domainContracts: Record<SystemDomain, DomainContract> = {
   tasks: { authoritySource: "Microsoft To Do", replicaRole: "Supabase 同步缓存", syncDirection: "bidirectional", refreshIntervalSeconds: 900 },
-  calendar: { authoritySource: "Outlook Calendar", replicaRole: "Supabase 同步缓存", syncDirection: "bidirectional", refreshIntervalSeconds: 900 },
+  calendar: { authoritySource: "Outlook Calendar", replicaRole: "Supabase 同步缓存", syncDirection: "bidirectional", refreshIntervalSeconds: 93600 },
   notes: { authoritySource: "Supabase Notes", replicaRole: "无", syncDirection: "none", refreshIntervalSeconds: null },
   files: { authoritySource: "Cloudflare R2 对象", replicaRole: "Supabase 文档元数据", syncDirection: "push", refreshIntervalSeconds: null },
   briefing: { authoritySource: "Supabase Briefing 运行记录", replicaRole: "RSS 信源缓存", syncDirection: "pull", refreshIntervalSeconds: 3600 },

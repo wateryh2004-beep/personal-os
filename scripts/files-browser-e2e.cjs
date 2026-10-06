@@ -5,6 +5,15 @@ const sharp = require("sharp");
 const { chromium } = require("playwright");
 const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
 const output = "test-results/files-browser";
+function syntheticPdf() {
+  const stream = "BT /F1 22 Tf 50 730 Td (Synthetic private PDF preview) Tj ET\n";
+  const objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>", `<< /Length ${stream.length} >>\nstream\n${stream}endstream`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  let body = "%PDF-1.4\n"; const offsets = [0];
+  for (const [index, object] of objects.entries()) { offsets.push(Buffer.byteLength(body)); body += `${index + 1} 0 obj\n${object}\nendobj\n`; }
+  const start = Buffer.byteLength(body); body += `xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`;
+  return Buffer.from(body);
+}
+const pdf = syntheticPdf();
 (async () => {
   await mkdir(output, { recursive: true });
   const preview = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="#bce1e4"/><circle cx="480" cy="120" r="55" fill="#ffd185"/><path d="M0 430L180 130L380 430Z" fill="#4d8582"/><path d="M180 430L410 200L640 430Z" fill="#77aaa0"/><rect y="430" width="640" height="50" fill="#396e79"/></svg>')).webp().toBuffer();
@@ -13,10 +22,22 @@ const output = "test-results/files-browser";
   try {
     for (const width of [360, 390, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: "reduce" });
-      let originals = 0, writes = 0, thumbs = 0, active = 0, maximum = 0;
+      let originals = 0, writes = 0, thumbs = 0, active = 0, maximum = 0, pdfHeads = 0, pdfGets = 0;
       await context.route("**/*", async route => {
         const request = route.request(), url = new URL(request.url());
         if (url.origin !== new URL(baseURL).origin) return route.abort();
+        if (/\/api\/files\/[^/]+\/preview$/.test(url.pathname)) {
+          const headers = { "Content-Type": "application/pdf", "Content-Disposition": "inline", "Content-Length": String(pdf.length), "Accept-Ranges": "bytes", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
+          if (request.method() === "HEAD") { pdfHeads++; return route.fulfill({ status: 200, headers }); }
+          pdfGets++;
+          const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers().range || "");
+          if (range) {
+            const start = Number(range[1]), end = range[2] ? Math.min(Number(range[2]), pdf.length - 1) : pdf.length - 1;
+            const chunk = pdf.subarray(start, end + 1);
+            return route.fulfill({ status: 206, body: chunk, headers: { ...headers, "Content-Length": String(chunk.length), "Content-Range": `bytes ${start}-${end}/${pdf.length}` } });
+          }
+          return route.fulfill({ status: 200, headers, body: pdf });
+        }
         if (request.method() !== "GET") { writes++; return route.abort(); }
         if (/\/api\/files\/[^/]+\/download/.test(url.pathname)) { originals++; return route.abort(); }
         if (/\/api\/files\/[^/]+\/thumbnail/.test(url.pathname)) {
@@ -33,6 +54,20 @@ const output = "test-results/files-browser";
       const capture = async name => { assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "no horizontal overflow"); await page.screenshot({ path: `${output}/${name}-${width}.png` }); };
       await page.goto(`${baseURL}/mobile-native-e2e?scene=files`, { waitUntil: "networkidle" });
       assert.equal(thumbs, 0, "default list does not prefetch photos");
+      await page.getByRole("button", { name: "预览 示例资料 1 · Synthetic fixture", exact: true }).click();
+      const pdfDialog = page.getByRole("dialog");
+      await pdfDialog.locator('iframe[title^="PDF 预览"]').waitFor();
+      await page.waitForTimeout(500); // Allow the native PDF renderer to paint this tiny synthetic page.
+      await capture("pdf-preview");
+      assert.ok(pdfHeads > 0 && pdfGets > 0, "native PDF preview uses explicit HEAD and GET");
+      await pdfDialog.getByRole("button", { name: "关闭", exact: true }).click();
+      await pdfDialog.waitFor({ state: "hidden" });
+      await page.getByRole("button", { name: "预览 示例资料 2 · Synthetic fixture", exact: true }).click();
+      const listPhotoDialog = page.getByRole("dialog"); await listPhotoDialog.waitFor();
+      await page.waitForFunction(() => Array.from(document.querySelectorAll('[role="dialog"] img')).some(image => image.complete && image.naturalWidth > 0));
+      await capture("list-photo-preview");
+      await listPhotoDialog.getByRole("button", { name: "关闭", exact: true }).click();
+      await listPhotoDialog.waitFor({ state: "hidden" });
       const types = page.getByRole("group", { name: "文件类型", exact: true });
       await types.getByRole("button", { name: /^照片 / }).click();
       const grid = page.getByRole("list", { name: "文件网格", exact: true }); await grid.waitFor();
@@ -59,7 +94,7 @@ const output = "test-results/files-browser";
       await capture("filtered-file");
       assert.ok(maximum <= 3, `thumbnail concurrency ${maximum}`);
       assert.equal(originals, 0); assert.equal(writes, 0); assert.deepEqual(errors, []);
-      evidence.push({ width, thumbnails: thumbs, maxConcurrentThumbnails: maximum, originalDownloads: originals, writes, errors });
+      evidence.push({ width, thumbnails: thumbs, maxConcurrentThumbnails: maximum, originalDownloads: originals, pdfHeads, pdfGets, writes, errors });
       await context.close();
     }
     await writeFile(`${output}/evidence.json`, JSON.stringify(evidence, null, 2));

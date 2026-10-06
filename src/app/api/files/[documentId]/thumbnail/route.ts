@@ -1,3 +1,4 @@
+import { photoPreviewMime } from "@/features/files/preview-format";
 import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-owner";
 import { isR2Configured, r2BucketName, readR2ObjectStream } from "@/lib/adapters/cloudflare-r2";
 import {
@@ -21,13 +22,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ docu
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(documentId)) return unavailable(404);
     if (!isR2Configured()) return unavailable(503);
     const { data: file, error } = await supabase.from("documents")
-      .select("storage_path,mime_type,file_size")
+      .select("storage_path,mime_type,file_size,original_filename")
       .eq("id", documentId).eq("user_id", userId)
       .eq("storage_provider", "cloudflare_r2").eq("storage_bucket", r2BucketName()).eq("storage_state", "available")
       .is("archived_at", null).maybeSingle();
     if (error || !file || typeof file.storage_path !== "string" || !file.storage_path.startsWith(`${userId}/files/${documentId}/`))
       return unavailable(404);
-    if (!supportsPhotoPreview(file.mime_type)) return unavailable(415);
+    const mime = photoPreviewMime(file.mime_type, file.original_filename);
+    if (!mime || !supportsPhotoPreview(mime)) return unavailable(415);
     const expectedSize = Number(file.file_size);
     checkPhotoPreviewSize(expectedSize);
 
@@ -39,7 +41,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ docu
       return unavailable(422);
     }
     const input = await readPhotoPreviewInput(object.body, expectedSize, signal);
-    const thumbnail = await createPhotoThumbnail(input, file.mime_type, signal);
+    const thumbnail = await createPhotoThumbnail(input, mime, signal);
     return new Response(new Uint8Array(thumbnail), {
       headers: {
         ...photoPreviewHeaders, "Content-Type": "image/webp",

@@ -210,6 +210,7 @@ export async function graph(accessToken: string, path: string, init?: RequestIni
       const graphCode = payload && typeof payload === "object" && "error" in payload
         && payload.error && typeof payload.error === "object" && "code" in payload.error
         ? String(payload.error.code) : "";
+      if (response.status === 410 || graphCode === "SyncStateNotFound") throw new MicrosoftGraphError("calendar_delta_expired");
       if (graphCode === "ErrorAccessDenied" || graphCode === "Authorization_RequestDenied") throw new MicrosoftGraphError("graph_access_denied");
       if (graphCode === "ErrorInvalidRequest" || graphCode === "ErrorInvalidTimeZone") throw new MicrosoftGraphError("graph_invalid_request");
       if (isRead && attempt + 1 < maxAttempts && (response.status === 429 || response.status >= 500)) {
@@ -393,7 +394,7 @@ type ExistingMirrorEvent = { provider_event_id: string; subject: string | null; 
  * （subject/location/categories/body 为空）时回退保留。镜像里 App 打好的分类、
  * 标题必须跨全量重同步存活，否则「同步一次、分类全没」。
  */
-async function existingCalendarEvents(admin: ReturnType<typeof createAdminClient>, userId: string, start: string, end: string) {
+export async function existingCalendarEvents(admin: ReturnType<typeof createAdminClient>, userId: string, start: string, end: string) {
   const rows: ExistingMirrorEvent[] = [];
   let offset = 0;
   for (;;) {

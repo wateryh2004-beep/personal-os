@@ -1,3 +1,5 @@
+import { createAdminClient } from "@/lib/supabase/admin";
+import { calendarSchedulerStatus } from "./scheduler-status";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { withPerfSpan } from "@/lib/performance/server-perf";
 import {
@@ -45,11 +47,13 @@ function buildCalendarWorkspace(
 ): CalendarWorkspaceData {
   const normalizedConnection = connection ?? null;
   const sync = normalizedConnection ? (() => {
-    const lastSyncAt = normalizedConnection.calendar_last_delta_sync_at ?? normalizedConnection.last_sync_at;
-    const nextHourlyAt = lastSyncAt ? new Date(Date.parse(lastSyncAt) + 3600_000).toISOString() : null;
+    const lastSyncAt = [normalizedConnection.calendar_last_delta_sync_at, normalizedConnection.last_sync_at]
+      .filter((value): value is string => Boolean(value) && Number.isFinite(Date.parse(value!)))
+      .sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
+    const nextHourlyAt = null;
     const nextFullAt = normalizedConnection.calendar_last_full_reconcile_at ? new Date(Date.parse(normalizedConnection.calendar_last_full_reconcile_at) + 172800_000).toISOString() : null;
     const ageMs = lastSyncAt ? Date.now() - Date.parse(lastSyncAt) : Number.POSITIVE_INFINITY;
-    const state: "fresh" | "syncing" | "stale" | "failed" = runningSync ? "syncing" : normalizedConnection.last_error_code ? "failed" : ageMs <= 3600_000 ? "fresh" : "stale";
+    const state: "fresh" | "syncing" | "stale" | "failed" = runningSync && Date.now() - Date.parse(runningSync.started_at) < 30 * 60_000 ? "syncing" : normalizedConnection.last_error_code ? "failed" : ageMs <= 3600_000 ? "fresh" : "stale";
     const subscriptionExpiring = Boolean(normalizedConnection.calendar_subscription_expires_at && Date.parse(normalizedConnection.calendar_subscription_expires_at) - Date.now() < 24 * 3600_000);
     return {
       state,
@@ -73,6 +77,20 @@ function buildCalendarWorkspace(
     timezone: timezone || "Asia/Shanghai",
     unavailable,
   };
+}
+
+async function withSchedulerEvidence(workspace: CalendarWorkspaceData): Promise<CalendarWorkspaceData> {
+  if (!workspace.sync) return workspace;
+  try {
+    const { data, error } = await createAdminClient().from("calendar_sync_cron_runs")
+      .select("trigger_source,completed_at,next_scheduled_at,failed_count,error_code")
+      .is("archived_at", null).order("started_at", { ascending: false }).limit(10);
+    const evidence = calendarSchedulerStatus(error ? [] : data ?? []);
+    const fresh = workspace.sync.lastSyncAt && Date.now() - Date.parse(workspace.sync.lastSyncAt) <= evidence.freshnessWindowMs;
+    return { ...workspace, sync: { ...workspace.sync, ...evidence, state: workspace.sync.state === "stale" && fresh ? "fresh" : workspace.sync.state } };
+  } catch {
+    return { ...workspace, sync: { ...workspace.sync, ...calendarSchedulerStatus([]) } };
+  }
 }
 
 async function getCalendarWorkspaceLegacy(owner: Owner) {
@@ -115,7 +133,7 @@ export async function getCalendarWorkspace(
         compact.data.running_sync,
       ));
       status = 200;
-      return workspace;
+      return withSchedulerEvidence(workspace);
     }
 
     latency.noteFallback();
@@ -123,7 +141,7 @@ export async function getCalendarWorkspace(
       getCalendarWorkspaceLegacy(resolvedOwner),
     );
     status = 200;
-    return workspace;
+    return withSchedulerEvidence(workspace);
   } finally {
     if (ownsProfiler) latency.finish(status);
   }

@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { drainCalendarSyncQueue, syncNearCalendar } from "@/lib/services/calendar-near-sync";
-import { ensureCalendarWebhookSubscription } from "@/lib/adapters/microsoft-graph/calendar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /** Hourly endpoint for Vercel Pro or any external scheduler. Hobby plans can
  * keep the daily Vercel cron and invoke this endpoint externally with CRON_SECRET. */
@@ -25,11 +24,12 @@ export async function GET(request: NextRequest) {
   const deltaStartedAt = Date.now();
   const results = await Promise.allSettled((connections ?? []).map(async (connection) => {
     const result = await syncNearCalendar(connection.id, connection.user_id, "external_scheduler");
-    if (env.appUrl) await ensureCalendarWebhookSubscription(connection.id, connection.user_id, `${env.appUrl}/api/webhooks/microsoft/calendar`);
+    // Polling needs only the existing calendar read grant; subscription
+    // provisioning and renewal remain separate from this dependable fallback.
     return result;
   }));
   const deltaDurationMs = Date.now() - deltaStartedAt;
   const failed = queued.failed + results.filter((result) => result.status === "rejected").length;
-  if (cronRun) await admin.from("calendar_sync_cron_runs").update({ completed_at: new Date().toISOString(), connection_count: (connections ?? []).length, succeeded_count: Math.max(0, results.length - failed), failed_count: failed, duration_ms: Date.now() - started.getTime(), stage_durations_ms: { queue: queueDurationMs, near_delta: deltaDurationMs }, next_scheduled_at: new Date(Date.now() + 3600000).toISOString(), error_code: failed ? "partial_failure" : null }).eq("id", cronRun.id);
-  return NextResponse.json({ processed: results.length, queuedProcessed: queued.processed, failed }, { status: failed ? 207 : 200, headers: { "Cache-Control": "private, no-store" } });
+  if (cronRun) await admin.from("calendar_sync_cron_runs").update({ completed_at: new Date().toISOString(), connection_count: (connections ?? []).length, succeeded_count: results.filter((result) => result.status === "fulfilled" && !result.value.skipped).length, failed_count: failed, duration_ms: Date.now() - started.getTime(), stage_durations_ms: { queue: queueDurationMs, near_delta: deltaDurationMs }, next_scheduled_at: new Date(Date.now() + 3600000).toISOString(), error_code: failed ? "partial_failure" : null }).eq("id", cronRun.id);
+  return NextResponse.json({ processed: results.filter((result) => result.status === "fulfilled" && !result.value.skipped).length, skipped: results.filter((result) => result.status === "fulfilled" && result.value.skipped).length, queuedProcessed: queued.processed, failed }, { status: failed ? 207 : 200, headers: { "Cache-Control": "private, no-store" } });
 }

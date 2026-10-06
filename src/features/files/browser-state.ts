@@ -1,3 +1,4 @@
+import { photoPreviewMime } from "./preview-format";
 import type { FileRecord } from "./queries";
 
 export const fileTypes = ["all", "photo", "document", "spreadsheet", "presentation", "audio", "video", "archive", "other"] as const;
@@ -28,8 +29,8 @@ export function classifyFile(file: Pick<FileRecord, "mime_type" | "original_file
   if (mime.startsWith("text/") || /pdf|word|opendocument.text/.test(mime)) return "document";
   return "other";
 }
-export function canPreviewPhoto(file: Pick<FileRecord, "mime_type" | "file_size">) {
-  return ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"].includes(file.mime_type.toLowerCase()) && file.file_size > 0 && file.file_size <= 12 * 1024 * 1024;
+export function canPreviewPhoto(file: Pick<FileRecord, "mime_type" | "file_size"> & Partial<Pick<FileRecord, "original_filename">>) {
+  return Boolean(photoPreviewMime(file.mime_type, file.original_filename)) && file.file_size > 0 && file.file_size <= 12 * 1024 * 1024;
 }
 export function parseFileBrowserState(params: URLSearchParams | Record<string, string | string[] | undefined>): FileBrowserState {
   const get = (key: string) => { const value = params instanceof URLSearchParams ? params.get(key) : params[key]; return typeof value === "string" ? value : ""; };

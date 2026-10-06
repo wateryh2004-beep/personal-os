@@ -1,3 +1,4 @@
+import { R2StorageSettings } from "@/components/settings/r2-storage-settings";
 import { DeepSeekSettingsForm } from "@/components/settings/deepseek-settings-form";
 import { AiPromptSettings } from "@/components/settings/ai-prompt-settings";
 import { PageHeader } from "@/components/shared/page-header";
@@ -29,6 +30,7 @@ export default async function Settings() {
         />
         <AiGovernanceSettings settings={governance} />
         <SystemHealth rows={systemHealth.rows} controlPlane={systemHealth.controlPlane} />
+        <R2StorageSettings />
         <section className="border-t border-[var(--separator)] pt-4.5">
           <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">快捷键</h2>
           <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">常用操作保持一致；编辑文本时不会抢占输入快捷键。</p>

@@ -88,6 +88,7 @@ jobs:
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/core-flows-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/files-recovery-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/files-browser-e2e.cjs
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/r2-storage-settings-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/ui-affordance-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 540s node scripts/leisure-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/notes-search-e2e.cjs
@@ -95,6 +96,15 @@ jobs:
           NODE_PATH="$(npm root -g)" node scripts/mobile-native-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/navigation-latency-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/workspace-reliability-e2e.cjs
+      - name: Save R2 storage settings screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r2-storage-settings-evidence
+          path: test-results/r2-storage-settings
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Save Files browser screenshots
         if: always()
         uses: actions/upload-artifact@v4

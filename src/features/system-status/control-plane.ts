@@ -60,7 +60,7 @@ export async function getSystemControlPlane(userId: string): Promise<SystemContr
   try {
     const admin = createAdminClient();
     const [latestRun, latestHourlyRun, connection] = await Promise.all([
-      admin.from("calendar_sync_cron_runs").select("started_at,completed_at,failed_count,error_code,next_scheduled_at").is("archived_at", null).order("started_at", { ascending: false }).limit(1).maybeSingle(),
+      admin.from("calendar_sync_cron_runs").select("started_at,completed_at,failed_count,error_code,next_scheduled_at").eq("trigger_source", "scheduled").is("archived_at", null).order("started_at", { ascending: false }).limit(1).maybeSingle(),
       admin.from("calendar_sync_cron_runs").select("started_at,completed_at,failed_count,error_code").eq("trigger_source", "external_scheduler").is("archived_at", null).order("started_at", { ascending: false }).limit(1).maybeSingle(),
       admin
         .from("calendar_connections")
@@ -70,6 +70,7 @@ export async function getSystemControlPlane(userId: string): Promise<SystemContr
         .is("archived_at", null)
         .maybeSingle(),
     ]);
+    if (latestRun.error || latestHourlyRun.error || connection.error) throw new Error("calendar_telemetry_unavailable");
     const latest = latestRun.data;
     const hourly = latestHourlyRun.data;
     const hourlyState = !hourly?.completed_at
@@ -93,13 +94,13 @@ export async function getSystemControlPlane(userId: string): Promise<SystemContr
         nextScheduledAt: latest?.next_scheduled_at ?? null,
         hourlyDeltaState: hourlyState,
         hourlyDeltaLastRunAt: hourly?.completed_at ?? hourly?.started_at ?? null,
-        detail: hourlyState === "fresh" ? "最近两小时内已观察到小时 delta 同步。" : "尚未观察到最近两小时内成功的外部小时 delta 同步。",
+        detail: !latest?.completed_at ? "每日后台同步尚未验证；等待首次成功运行。" : latest.error_code || (latest.failed_count ?? 0) > 0 ? "最近每日同步存在失败，请检查错误记录。" : olderThan(latest.completed_at, 26 * 3_600_000) ? "每日同步已超过预期窗口，请检查调度日志。" : "已观察到每日后台同步；北京时间约 07:00–08:00 执行，无需打开页面。",
       },
       webhook: {
         lastReceivedAt: webhookLastReceivedAt,
         subscriptionExpiresAt,
         state: webhookState,
-        detail: webhookState === "fresh" ? "Outlook Webhook 订阅有效，且近期收到通知。" : "Webhook 尚未验证；低频全量对账仍是兜底。",
+        detail: webhookState === "fresh" ? "Outlook Webhook 订阅有效，且近期收到通知。" : "Webhook 为可选增强；每日同步不依赖它。",
       },
     };
   } catch {
