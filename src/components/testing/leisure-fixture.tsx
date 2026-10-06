@@ -4,7 +4,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { leisureArtwork } from "@/features/leisure/artwork";
 import { useSearchParams } from "next/navigation";
 import { leisureBackHref } from "@/features/leisure/browse";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LeisureHome } from "@/components/leisure/leisure-home";
 import { LeisureDetail } from "@/components/leisure/leisure-detail";
 import type { LeisureExperience, LeisureFeedbackInput, LeisureFeedbackResult, LeisureFeedback } from "@/features/leisure/types";
@@ -37,6 +37,8 @@ const artworkFixtures: LeisureExperience[] = leisureArtwork.map((art, index) => 
 }));
 
 export function LeisureFixture({ item, mode }: { item?: string; mode?: string }) {
+  const readyMarker = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { readyMarker.current?.setAttribute("data-fixture-ready", "true"); }, []);
   const from = useSearchParams().get("from") ?? undefined;
   const latestRevisions = useRef(new Map<string, number>());
   const [savedFeedback, setSavedFeedback] = useState<Record<string, LeisureFeedback>>({});
@@ -54,5 +56,5 @@ export function LeisureFixture({ item, mode }: { item?: string; mode?: string })
   const fixtures = (mode === "gallery" ? artworkFixtures : leisureFixtureExperiences).map((entry) => savedFeedback[entry.id] ? { ...entry, feedback: savedFeedback[entry.id] } : entry);
   const experience = fixtures.find((entry) => entry.id === item);
   const shownExperience = experience && mode === "long" ? { ...experience, title: "很长的体验标题用于验证窄屏阅读与自然换行".repeat(5), body_markdown: `${experience.body_markdown}\n\n${"一段很长的中文内容，保留正常阅读的行距与段落。".repeat(150)}\n\n| 字段 | 内容 |\n| --- | --- |\n| 链接 | ${"unbrokentext".repeat(70)} |` } : experience;
-  return <AppShell presentationPathname={shownExperience ? `/leisure/${shownExperience.id}` : "/leisure"}><p className="border-b px-5 py-2 text-xs text-[var(--text-tertiary)]">Synthetic fixture · 仅供测试，不包含真实推荐、评分或个人记录</p>{shownExperience ? <LeisureDetail experience={shownExperience} now={leisureFixtureNow} onSave={save} neighbors={fixtures} from={from} detailBase={`/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}&item=`} backHref={leisureBackHref(from, `/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}`)} /> : <LeisureHome experiences={mode === "empty" || mode === "error" ? [] : fixtures} unavailable={mode === "error"} detailBase={`/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}&item=`} />}</AppShell>;
+  return <AppShell presentationPathname={shownExperience ? `/leisure/${shownExperience.id}` : "/leisure"}><p ref={readyMarker} data-fixture-ready="false" className="border-b px-5 py-2 text-xs text-[var(--text-tertiary)]">Synthetic fixture · 仅供测试，不包含真实推荐、评分或个人记录</p>{shownExperience ? <LeisureDetail experience={shownExperience} now={leisureFixtureNow} onSave={save} neighbors={fixtures} from={from} detailBase={`/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}&item=`} backHref={leisureBackHref(from, `/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}`)} /> : <LeisureHome experiences={mode === "empty" || mode === "error" ? [] : fixtures} unavailable={mode === "error"} detailBase={`/mobile-native-e2e?scene=leisure${mode === "gallery" ? "&mode=gallery" : ""}&item=`} />}</AppShell>;
 }

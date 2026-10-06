@@ -6,11 +6,19 @@ const { chromium } = require("playwright");
 const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
 const output = "test-results/files-browser";
 function syntheticPdf() {
-  const stream = "BT /F1 22 Tf 50 730 Td (Synthetic private PDF preview) Tj ET\n";
-  const objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>", `<< /Length ${stream.length} >>\nstream\n${stream}endstream`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  const streams = [1, 2].map(page => `BT /F1 22 Tf 50 730 Td (Synthetic private PDF preview - page ${page}) Tj ET\n`);
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+    `<< /Length ${streams[0].length} >>\nstream\n${streams[0]}endstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>",
+    `<< /Length ${streams[1].length} >>\nstream\n${streams[1]}endstream`,
+  ];
   let body = "%PDF-1.4\n"; const offsets = [0];
   for (const [index, object] of objects.entries()) { offsets.push(Buffer.byteLength(body)); body += `${index + 1} 0 obj\n${object}\nendobj\n`; }
-  const start = Buffer.byteLength(body); body += `xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`;
+  const start = Buffer.byteLength(body); body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`;
   return Buffer.from(body);
 }
 const pdf = syntheticPdf();
@@ -56,10 +64,28 @@ const pdf = syntheticPdf();
       assert.equal(thumbs, 0, "default list does not prefetch photos");
       await page.getByRole("button", { name: "预览 示例资料 1 · Synthetic fixture", exact: true }).click();
       const pdfDialog = page.getByRole("dialog");
-      await pdfDialog.locator('iframe[title^="PDF 预览"]').waitFor();
-      await page.waitForTimeout(500); // Allow the native PDF renderer to paint this tiny synthetic page.
+      const pdfCanvas = pdfDialog.locator('canvas[data-pdf-rendered="true"]');
+      await pdfCanvas.waitFor({ timeout: 30000 });
+      const paintedPixels = await pdfCanvas.evaluate((canvas) => {
+        const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+        let painted = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          if (pixels[i + 3] > 0 && Math.min(pixels[i], pixels[i + 1], pixels[i + 2]) < 220) painted++;
+        }
+        return painted;
+      });
+      assert.ok(paintedPixels > 100, "PDF canvas contains rendered fixture text, not a blank frame");
       await capture("pdf-preview");
-      assert.ok(pdfHeads > 0 && pdfGets > 0, "native PDF preview uses explicit HEAD and GET");
+      await pdfDialog.getByRole("button", { name: "下一页", exact: true }).click();
+      await pdfDialog.locator('canvas[data-pdf-page="2"][data-pdf-rendered="true"]').waitFor();
+      assert.equal(await pdfDialog.getByRole("button", { name: "下一页", exact: true }).isDisabled(), true);
+      await pdfDialog.getByRole("button", { name: "放大 PDF", exact: true }).click();
+      await pdfDialog.getByText("125%", { exact: true }).waitFor();
+      await pdfDialog.locator('canvas[data-pdf-page="2"][data-pdf-rendered="true"]').waitFor();
+      await capture("pdf-preview-page2-zoom");
+      await pdfDialog.getByRole("button", { name: "上一页", exact: true }).click();
+      await pdfDialog.locator('canvas[data-pdf-page="1"][data-pdf-rendered="true"]').waitFor();
+      assert.ok(pdfHeads > 0 && pdfGets > 0, "canvas PDF preview uses explicit HEAD and GET");
       await pdfDialog.getByRole("button", { name: "关闭", exact: true }).click();
       await pdfDialog.waitFor({ state: "hidden" });
       await page.getByRole("button", { name: "预览 示例资料 2 · Synthetic fixture", exact: true }).click();
@@ -94,7 +120,7 @@ const pdf = syntheticPdf();
       await capture("filtered-file");
       assert.ok(maximum <= 3, `thumbnail concurrency ${maximum}`);
       assert.equal(originals, 0); assert.equal(writes, 0); assert.deepEqual(errors, []);
-      evidence.push({ width, thumbnails: thumbs, maxConcurrentThumbnails: maximum, originalDownloads: originals, pdfHeads, pdfGets, writes, errors });
+      evidence.push({ width, thumbnails: thumbs, maxConcurrentThumbnails: maximum, originalDownloads: originals, pdfHeads, pdfGets, paintedPixels, writes, errors });
       await context.close();
     }
     await writeFile(`${output}/evidence.json`, JSON.stringify(evidence, null, 2));

@@ -30,6 +30,7 @@ async function capture(page, name) {
       try {
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(fixture);
+      await page.locator('[data-fixture-ready="true"]').waitFor();
       await page.getByRole("heading", { name: "此刻可选", exact: true }).waitFor();
       assert.equal(await page.getByRole("heading", { name: "还惦记着", exact: true }).count(), 1);
       assert.equal(await page.getByRole("heading", { name: "留下来的", exact: true }).count(), 1);
@@ -39,10 +40,12 @@ async function capture(page, name) {
       await contextToggle.focus();
       await page.keyboard.press("Enter");
       await page.getByLabel("有多少时间").selectOption("30");
+      await page.waitForFunction(() => document.querySelectorAll("#leisure-collection li").length === 1);
       assert.equal(await page.locator("#leisure-collection li").count(), 1);
       await page.getByLabel("在哪里").selectOption("out");
       await page.getByText("暂时没有符合这个情境的选项。").waitFor();
       await page.getByRole("button", { name: "清除选择", exact: true }).click();
+      await page.waitForFunction(() => document.querySelectorAll("#leisure-collection li").length === 5);
       assert.equal(await page.locator("#leisure-collection li").count(), 5);
       await page.getByRole("link", { name: "走进这个世界", exact: true }).click();
       await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
