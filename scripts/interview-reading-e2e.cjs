@@ -58,6 +58,8 @@ exports.verifyInterviewReading = async (browser, baseURL, output) => {
     const supplement = detail.getByTestId("study-history");
     assert.equal(await supplement.getAttribute("open"), null);
     await supplement.locator("summary").click();
+    // Native details toggles before the queued React onToggle renders lazy content.
+    await supplement.getByText("这些准备笔记独立保存", { exact: false }).waitFor({ state: "visible" });
     assert.ok((await supplement.innerText()).includes("未随所选答案版本同步修订"));
     assert.ok((await supplement.innerText()).includes("先区分观察、解释和证据"));
     assert.equal(await page.evaluate(() => history.length), historyLength);
