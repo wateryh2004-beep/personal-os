@@ -13,6 +13,7 @@ const server = await createServer({
   plugins: [react()],
   resolve: { alias: [
     { find: "@/features/investment/actions", replacement: mock },
+    { find: "@/features/investment/daily-actions", replacement: mock },
     { find: "next/navigation", replacement: mock },
     { find: "next/link", replacement: mock },
     { find: "@", replacement: path.join(project, "src") },

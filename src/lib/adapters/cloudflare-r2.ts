@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { AbortMultipartUploadCommand, CompleteMultipartUploadCommand, CreateMultipartUploadCommand, ListPartsCommand, UploadPartCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 
 import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -330,4 +330,37 @@ export async function readR2PdfCover(key: string, signal?: AbortSignal) {
     if (r2Status(error) === 404) return null;
     throw error;
   }
+}
+
+
+/** Private resumable uploads. Provider identities never come from the browser. */
+export async function beginR2Multipart(key: string, contentType: string) {
+  const config = requiredConfiguration();
+  const result = await client(config).send(new CreateMultipartUploadCommand({ Bucket: config.bucketName, Key: key, ContentType: contentType, CacheControl: "private, no-store" }), { abortSignal: AbortSignal.timeout(30_000) });
+  if (!result.UploadId) throw new Error("multipart_unavailable");
+  return result.UploadId;
+}
+export async function signR2MultipartPart(key: string, uploadId: string, partNumber: number, size: number) {
+  if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 13 || !Number.isInteger(size) || size < 1 || size > 8 * 1024 * 1024) throw new Error("invalid_multipart_part");
+  const config = requiredConfiguration();
+  return getSignedUrl(client(config), new UploadPartCommand({ Bucket: config.bucketName, Key: key, UploadId: uploadId, PartNumber: partNumber, ContentLength: size }), { expiresIn: 300 });
+}
+export async function listR2MultipartParts(key: string, uploadId: string) {
+  const config = requiredConfiguration();
+  const result = await client(config).send(new ListPartsCommand({ Bucket: config.bucketName, Key: key, UploadId: uploadId, MaxParts: 14 }), { abortSignal: AbortSignal.timeout(30_000) });
+  if (result.IsTruncated || (result.Parts?.length ?? 0) > 13) throw new Error("invalid_multipart_parts");
+  return (result.Parts ?? []).map(part => ({ partNumber: part.PartNumber ?? 0, size: part.Size ?? -1, etag: part.ETag ?? "" }));
+}
+export async function completeR2Multipart(key: string, uploadId: string, parts: { partNumber: number; etag: string }[]) {
+  const config = requiredConfiguration();
+  await client(config).send(new CompleteMultipartUploadCommand({ Bucket: config.bucketName, Key: key, UploadId: uploadId,
+    MultipartUpload: { Parts: parts.map(part => ({ PartNumber: part.partNumber, ETag: part.etag })) } }), { abortSignal: AbortSignal.timeout(120_000) });
+}
+export async function abortR2Multipart(key: string, uploadId: string) {
+  const config = requiredConfiguration();
+  try { await client(config).send(new AbortMultipartUploadCommand({ Bucket: config.bucketName, Key: key, UploadId: uploadId }), { abortSignal: AbortSignal.timeout(30_000) }); }
+  catch (error) { if (!isMissingR2Multipart(error)) throw error; }
+}
+export function isMissingR2Multipart(error: unknown) {
+  return error instanceof Error && error.name === "NoSuchUpload";
 }

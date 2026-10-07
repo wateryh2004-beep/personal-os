@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { InvestmentWorkspace } from "@/components/investment/investment-workspace";
-import { parseInvestmentView } from "@/components/investment/presentation";
+import { parseInvestmentView, parseInvestmentItem } from "@/components/investment/presentation";
 import "@/app/globals.css";
 
 // Isolated browser fixture only. These synthetic values are never app defaults.
@@ -9,7 +9,8 @@ import "@/app/globals.css";
 // mode=real|paper. Navigation preserves fixture while changing tab or mode.
 const params = new URLSearchParams(window.location.search);
 const { tab, mode } = parseInvestmentView({ tab: params.get("tab"), mode: params.get("mode") });
-const populated = params.get("fixture") === "populated";
+const daily = params.get("fixture") === "daily";
+const populated = params.get("fixture") === "populated" || daily;
 const accounts = [
   { id: "10000000-0000-4000-8000-000000000001", name: "UI 测试账户（实盘）", mode: "real", currency: "CNY", revision: 1 },
   { id: "10000000-0000-4000-8000-000000000002", name: "UI 测试账户（模拟）", mode: "paper", currency: "USD", revision: 1 },
@@ -26,11 +27,19 @@ const data = {
   ] : [],
   unavailable: params.get("fixture") === "unavailable",
 };
+const dailyData = daily ? {
+  unavailable: false, checkedAt: "2026-10-07T12:00:00Z",
+  cashEntries: accounts.flatMap((account, index) => [
+    { id: `cash-${index}`, account_id: account.id, sequence: 2, kind: "opening", void_entry_id: null, symbol: null, occurred_on: "2026-10-01", amount: "1000", tax: "0", fees: "0", source: "合成测试期初现金", import_key: `cash-opening-${index}`, created_at: "2026-10-01T00:00:00Z" },
+    { id: `dividend-${index}`, account_id: account.id, sequence: 3, kind: "dividend", void_entry_id: null, symbol: index ? "TEST:PAPER" : "TEST:REAL", occurred_on: "2026-10-02", amount: "20", tax: "2", fees: "1", source: "合成测试分红凭证", import_key: `cash-dividend-${index}`, created_at: "2026-10-02T00:00:00Z" },
+  ]),
+  quotes: accounts.map((account, index) => ({ id: `quote-${index}`, account_id: account.id, sequence: 4, symbol: index ? "TEST:PAPER" : "TEST:REAL", currency: account.currency, price: "120", as_of: index ? "2026-10-07T09:00:00Z" : "2026-10-01T09:00:00Z", source_kind: index ? "imported" : "manual", source: "合成测试报价凭证", import_key: `quote-${index}`, created_at: "2026-10-07T09:00:00Z" })),
+} : undefined;
 const importExample = JSON.stringify({ schema_version: 1, import_key: "replace-with-unique-id", title: "填写研究标题", kind: "research", body_markdown: "填写研究观点", as_of: "2026-10-01", source_urls: ["https://example.com/replace-with-real-source"], provenance: { producer: "填写分析工具或作者", limitations: "填写局限" }, metrics: null }, null, 2);
 
 createRoot(document.getElementById("root")).render(
   <main className="mx-auto max-w-[1240px] px-5 py-8">
     <p className="mb-7 text-[12px] text-[var(--text-tertiary)]">隔离 UI 预览 · 合成测试数据 · 不连接任何数据库</p>
-    <InvestmentWorkspace data={data} holdings={populated ? holdings.filter((holding) => accounts.find((account) => account.id === holding.accountId)?.mode === mode) : []} tab={tab} mode={mode} importExample={importExample} />
+    <InvestmentWorkspace data={data} dailyData={dailyData} selectedItem={parseInvestmentItem(params.get("item"))} holdings={populated ? holdings.filter((holding) => accounts.find((account) => account.id === holding.accountId)?.mode === mode) : []} tab={tab} mode={mode} importExample={importExample} />
   </main>,
 );

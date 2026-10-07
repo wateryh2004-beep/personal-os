@@ -46,6 +46,7 @@ jobs:
             sleep 1
           done
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/investment-e2e.cjs
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/investment-daily-e2e.cjs
       - name: Save focused investment screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -324,12 +325,14 @@ jobs:
       - name: Verify SQL in an isolated synthetic database
         run: |
           psql -v ON_ERROR_STOP=1 -f tests/fixtures/investment-sql/bootstrap.sql
-          for MIGRATION in supabase/migrations/*_investment_journal_v1.sql supabase/migrations/*_investment_trigger_execute_boundary.sql; do
+          for MIGRATION in supabase/migrations/*_investment_journal_v1.sql supabase/migrations/*_investment_trigger_execute_boundary.sql supabase/migrations/*_investment_daily_overview.sql; do
             test -f "$MIGRATION"
             psql -v ON_ERROR_STOP=1 -f "$MIGRATION"
           done
           psql -v ON_ERROR_STOP=1 -f tests/fixtures/investment-sql/regression.sql
+          psql -v ON_ERROR_STOP=1 -f tests/fixtures/investment-sql/daily-regression.sql
           python3 scripts/investment-sql-concurrency.py
+          python3 scripts/investment-daily-sql-concurrency.py
 
   complete-module-search-sql:
     name: Complete module search / PostgreSQL
@@ -358,3 +361,29 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/fixtures/module-search/bootstrap.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261007093000_complete_module_search.sql
           psql -v ON_ERROR_STOP=1 -f tests/fixtures/module-search/regression.sql
+
+  file-search-availability-sql:
+    name: File publication / search visibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ephemeral-fixture-only
+          POSTGRES_DB: file_search_visibility_test
+        ports: [5432:5432]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: ephemeral-fixture-only
+      PGDATABASE: file_search_visibility_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify pending, cancelled, committed and archived visibility
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/fixtures/file-search-availability/bootstrap.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261007102000_file_search_availability.sql
+          psql -v ON_ERROR_STOP=1 -f tests/fixtures/file-search-availability/regression.sql

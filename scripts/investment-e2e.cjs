@@ -6,7 +6,7 @@ const base = "http://127.0.0.1:4179";
 const output = "test-results/investment";
 (async () => {
   await mkdir(output,{recursive:true});
-  const browser = await chromium.launch({headless:true});
+  const browser = await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH});
   const evidence=[];
   try {
     for (const width of [390,1440]) {

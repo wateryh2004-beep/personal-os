@@ -151,7 +151,7 @@ const emptyServerSnapshot = {};
 export type WorkspaceBootstrap<T> = { ownerId: string; generatedAt: number; data: T };
 
 /** A streamed, owner-checked read can remove the hydration→API waterfall. */
-export function useWorkspaceResource<T>(resource: WorkspaceResource<T>, name: string, bootstrap?: WorkspaceBootstrap<T>, deferInitialRead = false) {
+export function useWorkspaceResource<T>(resource: WorkspaceResource<T>, name: string | null, bootstrap?: WorkspaceBootstrap<T>, deferInitialRead = false) {
   useEffect(() => {
     if (!bootstrap || ownerScope !== bootstrap.ownerId) return;
     const age = Date.now() - bootstrap.generatedAt;
@@ -164,7 +164,7 @@ export function useWorkspaceResource<T>(resource: WorkspaceResource<T>, name: st
   const visible = useRef(false);
   useWorkspaceResourceLifecycle(resource, deferInitialRead);
   useEffect(() => {
-    if (snapshot.data === undefined || visible.current) return;
+    if (!name || snapshot.data === undefined || visible.current) return;
     visible.current = true;
     perfMark("workspace-visible", { workspace: name, source: "tab-resource" });
     perfMeasureWorkspaceReady({ workspace: name });

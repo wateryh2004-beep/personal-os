@@ -1,3 +1,4 @@
+import { multipartIsReady, publishMultipartFile } from "@/features/files/multipart-service";
 import { randomUUID } from "crypto";
 import { scheduleUploadedPdfCover } from "@/features/files/pdf-cover-service";
 import { NextResponse } from "next/server";
@@ -22,9 +23,9 @@ async function audit(supabase: Awaited<ReturnType<typeof requireOwnerApi>>["supa
 
 async function cleanStalePendingUploads(supabase: Awaited<ReturnType<typeof requireOwnerApi>>["supabase"], userId: string) {
   const cutoff = stalePendingCutoff();
-  const { data } = await supabase.from("documents").select("id,storage_path").eq("user_id", userId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending").lt("created_at", cutoff);
+  const { data } = await supabase.from("documents").select("id,storage_path").eq("user_id", userId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending").eq("upload_mode", "single").lt("created_at", cutoff);
   for (const document of data ?? []) {
-    const removed = await supabase.from("documents").delete().eq("id", document.id).eq("user_id", userId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending").select("id");
+    const removed = await supabase.from("documents").delete().eq("id", document.id).eq("user_id", userId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending").eq("upload_mode", "single").select("id");
     if (removed.error || !removed.data?.length) continue;
     try { await deleteR2Object(document.storage_path); } catch { /* A private orphan is safer than surfacing R2 details; retry on later cleanup. */ }
   }
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
       .eq("user_id", userId).eq("checksum", parsed.data.checksum)
       .eq("mime_type", parsed.data.contentType).eq("file_size", parsed.data.size)
       .eq("storage_provider", "cloudflare_r2").eq("storage_bucket", r2BucketName())
-      .eq("storage_state", "pending").is("archived_at", null);
+      .eq("storage_state", "pending").eq("upload_mode", "single").is("archived_at", null);
     pendingQuery = parsed.data.folderId ? pendingQuery.eq("folder_id", parsed.data.folderId) : pendingQuery.is("folder_id", null);
     const { data: pending, error: lookupError } = await pendingQuery.order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (lookupError) return fail("暂时无法检查未完成的上传，请稍后重试。", 500);
@@ -117,7 +118,7 @@ export async function PATCH(request: Request) {
   try { raw = await request.json(); } catch { return fail("请求格式无效。"); }
   const parsed = completeUploadSchema.safeParse(raw); if (!parsed.success) return fail("文件标识无效。");
   const { supabase, userId } = owner;
-  const select = "id,storage_path,file_size,mime_type,original_filename,text_extraction_status,checksum,storage_state,archived_at";
+  const select = "id,storage_path,file_size,mime_type,original_filename,text_extraction_status,checksum,storage_state,archived_at,upload_mode";
   const readDocument = () => supabase.from("documents").select(select).eq("id", parsed.data.documentId).eq("user_id", userId).eq("storage_provider", "cloudflare_r2").maybeSingle();
   const { data: document, error: readError } = await readDocument();
   if (readError) return fail("暂时无法确认上传状态，请稍后重试。", 503);
@@ -133,6 +134,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true, alreadyCompleted: true, extractionStatus: document.text_extraction_status }, { headers });
   }
   if (document.storage_state !== "pending" || !document.storage_path.startsWith(`${userId}/files/${document.id}/`)) return fail("上传状态无效。", 409);
+  if (document.upload_mode === "multipart" && !(await multipartIsReady(userId, document.id))) return fail("请先完成全部分片上传。", 409);
   let noteId: string | null = null;
   if (parsed.data.noteId) {
     const { data: note } = await supabase.from("notes").select("id").eq("id", parsed.data.noteId).eq("user_id", userId).is("deleted_at", null).maybeSingle();
@@ -170,7 +172,9 @@ export async function PATCH(request: Request) {
   }
   // Compare-and-set prevents concurrent completion or archival from being
   // overwritten. Unreferenced copies are retained for conservative later cleanup.
-  const { data: completed, error } = await supabase.from("documents").update({ storage_state: "available", storage_path: finalPath, checksum, uploaded_at: new Date().toISOString() }).eq("id", document.id).eq("user_id", userId).eq("storage_state", "pending").eq("storage_path", document.storage_path).is("archived_at", null).select("id").maybeSingle();
+  const { data: completed, error } = document.upload_mode === "multipart"
+    ? await publishMultipartFile(userId, document.id, document.storage_path, finalPath, checksum)
+    : await supabase.from("documents").update({ storage_state: "available", storage_path: finalPath, checksum, uploaded_at: new Date().toISOString() }).eq("id", document.id).eq("user_id", userId).eq("storage_state", "pending").eq("storage_path", document.storage_path).is("archived_at", null).select("id").maybeSingle();
   if (error) return fail("文件确认结果暂不明确，请重试确认。", 503);
   if (!completed) {
     const current = await readDocument();
@@ -191,9 +195,9 @@ export async function DELETE(request: Request) {
   const parsed = fileIdSchema.safeParse({ documentId: new URL(request.url).searchParams.get("documentId") });
   if (!parsed.success) return fail("文件标识无效。");
   const { supabase, userId } = owner;
-  const { data: document } = await supabase.from("documents").select("id,storage_path,storage_provider,storage_state").eq("id", parsed.data.documentId).eq("user_id", userId).maybeSingle();
-  if (!document || !canAbortPendingUpload(document)) return fail("只有尚未完成的上传可以取消。", 409);
-  const { data: removed, error } = await supabase.from("documents").delete().eq("id", document.id).eq("user_id", userId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending").select("id");
+  const { data: document } = await supabase.from("documents").select("id,storage_path,storage_provider,storage_state,upload_mode").eq("id", parsed.data.documentId).eq("user_id", userId).maybeSingle();
+  if (!document || !canAbortPendingUpload(document) || document.upload_mode === "multipart") return fail("只有尚未完成的上传可以取消。", 409);
+  const { data: removed, error } = await supabase.from("documents").delete().eq("id", document.id).eq("user_id", userId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "pending").eq("upload_mode", "single").select("id");
   if (error) return fail("未能清理上传记录。", 500);
   if (!removed?.length) return fail("文件状态已变化，未删除文件。", 409);
   try { await deleteR2Object(document.storage_path); } catch { /* Object cleanup is best-effort and deliberately opaque. */ }

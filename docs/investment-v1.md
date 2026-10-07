@@ -60,3 +60,7 @@ Production application succeeded as migration `20261005181404_investment_journal
 The boundary follow-up also adds an account_id/user_id covering index identified by the production performance advisor. Expected unused-index notices on empty new tables are not a reason to remove their lookup indexes. Existing unrelated advisories remain out of scope.
 
 The follow-up applied successfully as `20261005182442_investment_trigger_execute_boundary`. Catalog verification confirms both anon and authenticated cannot execute the trigger-only validator directly, authenticated can still execute the append RPC, the covering index exists, and all four investment tables remain empty. Formal filenames match the two authoritative production migration-history versions.
+
+## Daily overview extension
+
+The next additive phase adds manual/imported quote valuation and an immutable cash/dividend book. See [investment daily overview](investment-daily-overview.md) for current accounting, missing/stale states, owner boundaries, migration review and verification gates. The V1 description above records the original release scope; this extension does not replace or rewrite its trade history.

@@ -28,12 +28,12 @@ export function NotesShell() {
   );
 }
 
-export function NotesWorkspaceLoader({ folderId, initialView, dailyError, bootstrap }: { bootstrap?: WorkspaceBootstrap<NotesWorkspaceData>; folderId?: string; initialView: "all" | "favorites" | "recent"; dailyError: boolean }) {
+export function NotesWorkspaceLoader({ folderId, initialView, dailyError, bootstrap, deferInitialRead = false }: { deferInitialRead?: boolean; bootstrap?: WorkspaceBootstrap<NotesWorkspaceData>; folderId?: string; initialView: "all" | "favorites" | "recent"; dailyError: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const search = searchParams.toString();
   const listHref = useMemo(() => `${pathname}${search ? `?${search}` : ""}`, [pathname, search]);
-  const snapshot = useWorkspaceResource(notesWorkspaceResource, "notes", bootstrap);
+  const snapshot = useWorkspaceResource(notesWorkspaceResource, "notes", bootstrap, deferInitialRead);
   useEffect(() => {
     saveWorkspaceSession(lastNotesListSessionKey, { href: listHref }, lastNotesListTtlMs);
   }, [listHref]);

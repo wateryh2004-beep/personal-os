@@ -1,0 +1,13 @@
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',false);
+insert into documents values('10000000-0000-4000-8000-000000000001',auth.uid(),'pending',null);
+do $$ begin if exists(select 1 from search_documents) then raise exception 'pending indexed';end if;end $$;
+update documents set storage_state='available';
+do $$ begin if (select count(*) from search_documents)<>1 then raise exception 'available lost';end if;end $$;
+update documents set storage_state='cancelled';
+do $$ begin if exists(select 1 from search_documents) then raise exception 'cancelled indexed';end if;end $$;
+update documents set storage_state='available';update documents set archived_at=now();
+do $$ begin if exists(select 1 from search_documents) then raise exception 'archived indexed';end if;end $$;
+update documents set archived_at=null;delete from documents;
+do $$ begin if exists(select 1 from search_documents) then raise exception 'deleted indexed';end if;end $$;
+reset role;

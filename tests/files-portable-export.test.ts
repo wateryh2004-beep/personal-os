@@ -71,6 +71,19 @@ describe("Portable Files archive", () => {
     } finally { await rm(fixture.dir, { recursive: true, force: true }); }
   });
 
+  it("exports and restores a cancelled multipart as terminal metadata, without fetching or claiming bytes", async () => {
+    const value = source({ documents: [{ ...document, storage_state: "cancelled", upload_mode: "multipart" }], openObject: async () => { throw new Error("must not fetch cancelled bytes"); } });
+    const fixture = await verify(await archive(value), true);
+    try {
+      expect(fixture.result.status, fixture.result.stdout + fixture.result.stderr).toBe(0);
+      expect(JSON.parse(fixture.result.stdout)).toMatchObject({ status: "verified", cancelledDocuments: 1, counts: { pending: 0, failed: 0, objects: 0 } });
+      const metadata = JSON.parse(await readFile(join(fixture.target, "documents", `${document.id}.json`), "utf8"));
+      expect(metadata.storage_state).toBe("cancelled");
+      expect(metadata.object).toMatchObject({ status: "cancelled_upload", path: null, sha256: null, bytes: null });
+      await expect(access(join(fixture.target, "objects", document.id))).rejects.toThrow();
+    } finally { await rm(fixture.dir, { recursive: true, force: true }); }
+  });
+
   it("preserves legacy originals with an observed hash without claiming a recorded baseline", async () => {
     const buffer = await archive(source({ documents: [{ ...document, checksum: null }] }));
     const meta = JSON.parse(entries(buffer).find((entry) => entry.name.startsWith("documents/"))!.content.toString());

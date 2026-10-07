@@ -11,6 +11,8 @@ export async function readLogicalStorage(supabase: SupabaseClient, userId: strin
     });
     const result: LogicalStorage = { status: "complete", records: rows.length, activeBytes: 0, archivedBytes: 0, pendingBytes: 0 };
     for (const row of rows) {
+      // Cancelled uploads are retained audit metadata, never stored originals.
+      if (row.storage_state === "cancelled") { result.records--; continue; }
       if (row.file_size === null || (typeof row.file_size !== "number" && (typeof row.file_size !== "string" || !/^\d+$/.test(row.file_size)))) throw new Error("invalid_size");
       const bytes = Number(row.file_size);
       if (!Number.isSafeInteger(bytes) || bytes < 0) throw new Error("invalid_size");

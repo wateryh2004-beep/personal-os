@@ -331,7 +331,8 @@ create policy interview_evidence_links_insert_own on public.interview_evidence_l
 create policy interview_evidence_links_update_own on public.interview_evidence_links for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 create policy interview_evidence_links_delete_own on public.interview_evidence_links for delete to authenticated using ((select auth.uid()) = user_id);
 grant select, insert, update, delete on public.interview_evidence_links to authenticated;
-create index interview_evidence_links_preparation_idx on public.interview_evidence_links(user_id,preparation_id) where archived_at is null;\ncreate index interview_evidence_links_entity_link_idx on public.interview_evidence_links(user_id,entity_link_id);
+create index interview_evidence_links_preparation_idx on public.interview_evidence_links(user_id,preparation_id) where archived_at is null;
+create index interview_evidence_links_entity_link_idx on public.interview_evidence_links(user_id,entity_link_id);
 
 insert into public.interview_evidence_links(user_id,preparation_id,entity_link_id,evidence_role)
 select el.user_id,el.source_id,el.id,

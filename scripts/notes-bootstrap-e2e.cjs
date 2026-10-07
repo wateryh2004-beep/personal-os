@@ -22,7 +22,7 @@ const fixture={notes:[{id:'10000000-0000-4000-8000-000000000001',title:'流式�
   results.push({width,mode,sample,...cold,warmMs:warm,apiCalls});await ctx.close();
  }
  await writeFile(`${out}/measurements.json`,JSON.stringify({scope:'Actual Next production-build synthetic Notes loader; baseline API delay 400ms, streamed server read delay150ms; cloud CI browser, no private auth/database or China network measurement',results},null,2));
- for(const width of [390,1440]){const avg=mode=>results.filter(x=>x.width===width&&x.mode===mode).reduce((n,x)=>n+x.readyMs,0)/3;assert.ok(avg('streamed')<avg('baseline'),'streamed sample should beat serialized API sample');}
+ for(const width of [390,1440]){const avg=mode=>results.filter(x=>x.width===width&&x.mode===mode).reduce((n,x)=>n+x.readyMs,0)/3;assert.ok(avg('streamed')<avg('baseline'),'streamed sample should beat serialized API sample');const warmAvg=mode=>results.filter(x=>x.width===width&&x.mode===mode).reduce((n,x)=>n+x.warmMs,0)/3;assert.ok(warmAvg('streamed')<100,'warm route must not wait for the 150ms streamed read');}
  console.log(JSON.stringify(results));
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1)});

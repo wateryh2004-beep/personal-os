@@ -64,7 +64,7 @@ export async function checkExportBudget(source: ExportSource, signal: AbortSigna
     for await (const row of records) {
       signal.throwIfAborted();
       bytes += jsonBytes(row).length + 3072;
-      if (kind === "document" && row.storage_state !== "pending") {
+      if (kind === "document" && !["pending", "cancelled"].includes(String(row.storage_state))) {
         const size = row.file_size;
         if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 0 || size > maxOriginalBytes) throw new Error("export_invalid_size");
         bytes += size;
@@ -109,6 +109,7 @@ export async function* exportArchive(source: ExportSource, signal: AbortSignal, 
     if (metadata) rowCount++;
     if (reservedBytes > byteLimit || rowCount > maxExportRows) throw new Error("files_export_budget_exceeded");
   }
+  let cancelledDocuments = 0;
   const counts = { folders: 0, documents: 0, relationships: 0, objects: 0, objectBytes: 0, pending: 0, failed: 0 };
   function* metadataEntry(path: string, value: unknown) {
     const bytes = jsonBytes(value);
@@ -122,7 +123,7 @@ export async function* exportArchive(source: ExportSource, signal: AbortSignal, 
     scope: options.collection ? "owner_r2_document_partition_including_archived_and_note_attachments_pending_metadata_only" : "owner_r2_documents_including_archived_and_note_attachments_pending_metadata_only",
     consistency: "live_read_with_second_metadata_scan_not_database_snapshot",
     relationships: "owner_entity_links_involving_documents_external_entities_not_exported",
-    excluded: ["pending_upload_originals", "non_r2_originals", "other_domain_records", "auth", "credentials", "audit_history", "database_schema"],
+    excluded: ["pending_upload_originals", "cancelled_upload_originals", "non_r2_originals", "other_domain_records", "auth", "credentials", "audit_history", "database_schema"],
   });
   for await (const folder of source.folders()) {
     signal.throwIfAborted(); assertId(folder.id); rowDigest(initialRows, "folder", folder);
@@ -133,10 +134,12 @@ export async function* exportArchive(source: ExportSource, signal: AbortSignal, 
     if (!Number.isSafeInteger(document.file_size) || document.file_size < 0 || document.file_size > maxOriginalBytes) throw new Error("export_invalid_size");
     counts.documents++;
     const pending = document.storage_state === "pending";
+    const cancelled = document.storage_state === "cancelled";
+    if (cancelled) cancelledDocuments++;
     if (pending) counts.pending++;
     let object: Awaited<ReturnType<ExportSource["openObject"]>> | undefined;
     let failure: string | null = null;
-    if (!pending) {
+    if (!pending && !cancelled) {
       try { object = await source.openObject(document, signal); } catch { signal.throwIfAborted(); failure = "object_unreadable"; }
     }
     let digest: string | null = null;
@@ -173,7 +176,7 @@ export async function* exportArchive(source: ExportSource, signal: AbortSignal, 
     yield* metadataEntry(`documents/${document.id}.json`, {
       ...publicDocument(document),
       object: { path: digest ? `objects/${document.id}` : null, bytes: digest ? observedSize : null, sha256: digest,
-        status: failure ?? (pending ? "pending_upload" : "verified"),
+        status: failure ?? (pending ? "pending_upload" : cancelled ? "cancelled_upload" : "verified"),
         integrity: digest ? document.checksum ? "compared_with_recorded_sha256" : "observed_sha256_only" : "unavailable" },
     });
   }
@@ -190,7 +193,7 @@ export async function* exportArchive(source: ExportSource, signal: AbortSignal, 
     format, status: complete ? "complete" : "incomplete",
     ...(options.collection ? { collection: options.collection, collectionComplete: complete && options.collection.partCount === 1 } : {}),
     startedAt, finishedAt: new Date().toISOString(),
-    counts, exclusions: { pendingUploadOriginals: counts.pending }, metadataStable, entriesSha256: entries.digest("hex"),
+    counts, cancelledDocuments, exclusions: { pendingUploadOriginals: counts.pending, ...(cancelledDocuments ? { cancelledUploadOriginals: cancelledDocuments } : {}) }, metadataStable, entriesSha256: entries.digest("hex"),
     issues: [...(counts.failed ? ["unverified_objects"] : []), ...(!metadataStable ? ["metadata_changed_during_export"] : [])],
     assurance: "Transport integrity only. SHA256 is not a signature, and this is not an atomic database backup.",
   });

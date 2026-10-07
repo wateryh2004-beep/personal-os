@@ -1,0 +1,22 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Loopback synthetic multipart browser regression. */
+const assert=require('node:assert/strict');const {mkdir}=require('node:fs/promises');const {chromium}=require('playwright');
+(async()=>{const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,args:['--no-sandbox']}:{})});
+ try{const page=await browser.newPage({viewport:{width:390,height:900}});await page.goto('http://127.0.0.1:4192');
+ const file={name:'synthetic.pdf',mimeType:'application/pdf',buffer:Buffer.alloc(17*1024*1024,7)};
+ await page.getByLabel('新上传',{exact:true}).setInputFiles(file);await page.getByText('分片上传中断；已完成的分片已保留，可重新选择原文件继续。',{exact:true}).waitFor();
+ const first=await (await page.request.get('http://127.0.0.1:4192/fixture/stats')).json();assert.ok(first.sessions[0].parts.some(p=>p.partNumber===1));
+ await page.reload();await page.getByRole('button',{name:'选择原文件继续',exact:true}).waitFor();
+ let chooserPromise=page.waitForEvent('filechooser');await page.getByRole('button',{name:'选择原文件继续',exact:true}).click();await(await chooserPromise).setFiles([]);
+ assert.equal(await page.getByRole('button',{name:'选择原文件继续',exact:true}).count(),1);
+ chooserPromise=page.waitForEvent('filechooser');await page.getByRole('button',{name:'选择原文件继续',exact:true}).click();await(await chooserPromise).setFiles({...file,buffer:Buffer.from('wrong')});
+ await page.getByText('所选文件与未完成上传不一致，请重新选择同一份原文件。',{exact:true}).waitFor();
+ chooserPromise=page.waitForEvent('filechooser');await page.getByRole('button',{name:'选择原文件继续',exact:true}).click();await(await chooserPromise).setFiles(file);
+ await page.getByText('上传完成',{exact:true}).waitFor();const resumed=await(await page.request.get('http://127.0.0.1:4192/fixture/stats')).json();
+ assert.equal(resumed.attempts['synthetic.pdf:1'],1);assert.equal(resumed.attempts['synthetic.pdf:2'],2);assert.equal(resumed.sessions.length,1);
+ await page.request.get('http://127.0.0.1:4192/fixture/reset-failure');await page.getByLabel('新上传',{exact:true}).setInputFiles({...file,name:'cancel-fixture.pdf'});
+ await page.getByRole('button',{name:'选择原文件继续',exact:true}).waitFor();await page.getByRole('button',{name:'取消上传',exact:true}).dblclick();
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="未完成上传"]'));const cancelled=await(await page.request.get('http://127.0.0.1:4192/fixture/stats')).json();
+ assert.equal(cancelled.sessions.find(s=>s.filename==='cancel-fixture.pdf').status,'aborted');assert.equal(cancelled.sessions.find(s=>s.filename==='synthetic.pdf').status,'uploaded');
+ await mkdir('test-results/multipart',{recursive:true});await page.screenshot({path:'test-results/multipart/resumed-and-cancelled.png'});
+ console.log('PASS refresh interruption, file-picker cancellation, wrong-file denial, resumed missing parts only, stable session identity, repeated cancel and saved upload unaffected');
+ }finally{await browser.close();}})().catch(error=>{console.error(error);process.exit(1);});

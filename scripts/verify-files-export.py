@@ -160,7 +160,7 @@ def collection_result(results, document_ids, relationship_endpoints):
     if complete:
         require(counts["documents"] == first["totalDocuments"] and counts["objectBytes"] == first["totalOriginalBytes"] and counts["pending"] == first["totalPendingUploadOriginals"], "Complete collection counts or original bytes do not match totals")
     external = sum(kind != "document" or identifier not in document_ids for kind, identifier in relationship_endpoints)
-    return {"status": "verified", "format": PART_FORMAT, "scope": "complete_collection" if complete else "verified_parts_only", "collectionComplete": complete, "counts": counts, "integrity": {key: sum(result["integrity"][key] for result in ordered) for key in ("comparedWithRecordedSha256", "observedSha256Only")}, "archivedDocuments": sum(result["archivedDocuments"] for result in ordered), "externalRelationshipEndpoints": external, "collection": {**{key: first[key] for key in global_fields}, "verifiedParts": sorted(indexes), "missingParts": missing, "verifiedDocuments": counts["documents"], "unprovidedDocuments": first["totalDocuments"] - counts["documents"]}, "assurance": "Each supplied part passed local integrity checks. Collection completeness requires every part; hashes are not signatures or a full database backup."}
+    return {"status": "verified", "format": PART_FORMAT, "scope": "complete_collection" if complete else "verified_parts_only", "collectionComplete": complete, "counts": counts, "integrity": {key: sum(result["integrity"][key] for result in ordered) for key in ("comparedWithRecordedSha256", "observedSha256Only")}, "archivedDocuments": sum(result["archivedDocuments"] for result in ordered), "cancelledDocuments": sum(result.get("cancelledDocuments", 0) for result in ordered), "externalRelationshipEndpoints": external, "collection": {**{key: first[key] for key in global_fields}, "verifiedParts": sorted(indexes), "missingParts": missing, "verifiedDocuments": counts["documents"], "unprovidedDocuments": first["totalDocuments"] - counts["documents"]}, "assurance": "Each supplied part passed local integrity checks. Collection completeness requires every part; hashes are not signatures or a full database backup."}
 
 
 def validate_collection(export, manifest, counts, documents):
@@ -306,6 +306,7 @@ def inspect_archive(archive_path, staging):
     referenced_objects = set()
     integrity = {"comparedWithRecordedSha256": 0, "observedSha256Only": 0}
     archived_documents = 0
+    cancelled_documents = 0
     for identifier, document in documents.items():
         if document.get("archived_at") is not None or document.get("storage_state") == "archived":
             archived_documents += 1
@@ -314,9 +315,13 @@ def inspect_archive(archive_path, staging):
         obj = document.get("object")
         require(isinstance(obj, dict), "Missing object integrity record")
         pending = document.get("storage_state") == "pending"
+        cancelled = document.get("storage_state") == "cancelled"
         if pending:
             counts["pending"] += 1
             require(obj.get("status") == "pending_upload" and obj.get("path") is None, "Pending upload must be metadata-only")
+        elif cancelled:
+            cancelled_documents += 1
+            require(obj.get("status") == "cancelled_upload" and obj.get("path") is None, "Cancelled upload must retain metadata without a recovered original")
         elif obj.get("status") != "verified":
             counts["failed"] += 1
         path = obj.get("path")
@@ -353,10 +358,14 @@ def inspect_archive(archive_path, staging):
             if kind != "document" or identifier not in documents:
                 external_refs.add((kind, identifier))
     require(counts == manifest.get("counts"), "Manifest counts mismatch")
-    require(manifest.get("exclusions") == {"pendingUploadOriginals": counts["pending"]}, "Pending exclusion counts mismatch")
+    expected_exclusions = {"pendingUploadOriginals": counts["pending"]}
+    if cancelled_documents:
+        expected_exclusions["cancelledUploadOriginals"] = cancelled_documents
+    require(manifest.get("cancelledDocuments", 0) == cancelled_documents, "Cancelled metadata count mismatch")
+    require(manifest.get("exclusions") == expected_exclusions, "Upload exclusion counts mismatch")
     require(manifest.get("status") == "complete" and manifest.get("metadataStable") is True and counts["failed"] == 0, "Export reports incomplete originals or changed metadata; retry after resolving issues", "incomplete")
     collection = validate_collection(export, manifest, counts, documents) if export["format"] == PART_FORMAT else None
-    return {"status": "verified", "format": export["format"], "counts": counts, "integrity": integrity, "archivedDocuments": archived_documents, "externalRelationshipEndpoints": len(external_refs), **({"collection": collection} if collection else {}), "_documentIds": set(documents), "_sharedDigest": shared.hexdigest(), "_relationshipEndpoints": relationship_endpoints, "assurance": "Local byte integrity and relationships checked; not proof of authenticity or a full database backup"}
+    return {"status": "verified", "format": export["format"], "counts": counts, "integrity": integrity, "archivedDocuments": archived_documents, "cancelledDocuments": cancelled_documents, "externalRelationshipEndpoints": len(external_refs), **({"collection": collection} if collection else {}), "_documentIds": set(documents), "_sharedDigest": shared.hexdigest(), "_relationshipEndpoints": relationship_endpoints, "assurance": "Local byte integrity and relationships checked; not proof of authenticity or a full database backup"}
 
 
 def readable_component(name, identifier, file_name=False):
@@ -431,6 +440,7 @@ def human_bytes(value):
 def human_summary(result):
     counts = result["counts"]
     lines = ["Files export: verified" if result.get("collectionComplete", True) else "Files export: supplied parts verified; COLLECTION INCOMPLETE", f"Originals: {counts['objects']:,} files, {human_bytes(counts['objectBytes'])}", f"Metadata: {counts['documents']:,} documents, {counts['folders']:,} folders, {counts['relationships']:,} relationships", f"Pending uploads: {counts['pending']:,} metadata records only; their original bytes are excluded", f"External relationship endpoints: {result['externalRelationshipEndpoints']:,}; these entities are not restored"]
+    lines.append(f"Cancelled uploads: {result.get('cancelledDocuments', 0):,} terminal metadata records; no original bytes claimed or recovered")
     integrity = result.get("integrity", {})
     lines.append(f"Recorded SHA-256 compared: {integrity.get('comparedWithRecordedSha256', 0):,}; observed-only SHA-256: {integrity.get('observedSha256Only', 0):,} (no historical integrity baseline)")
     lines.append(f"Archived documents retained: {result.get('archivedDocuments', 0):,}")

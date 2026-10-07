@@ -32,3 +32,9 @@ describe("owner-scoped logical storage records", () => {
     expect(await readLogicalStorage(supabase, "fixture-owner", "fixture-private", AbortSignal.timeout(5_000))).toMatchObject({ status: "unavailable" });
   });
 });
+
+it("does not count cancelled upload metadata as an original or make totals unavailable", async () => {
+  let page=0;
+  query.then.mockImplementation(resolve=>Promise.resolve(resolve({data:page++?[]:[...rows,{id:"d",file_size:99,storage_state:"cancelled",archived_at:null}],error:null})));
+  expect(await readLogicalStorage(supabase,"fixture-owner","fixture-private",AbortSignal.timeout(5000))).toEqual({status:"complete",records:3,activeBytes:10,archivedBytes:20,pendingBytes:30});
+});

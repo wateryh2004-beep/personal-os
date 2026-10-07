@@ -14,7 +14,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  // Versioned OCR runtime assets contain only public engine/model/license files.
   // Service worker and generic offline fallback contain no user data and must be
   // fetchable before an authenticated app page can be controlled offline.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest\\.webmanifest|sw\\.js|offline\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|ocr/v1/|favicon.ico|manifest\\.webmanifest|sw\\.js|offline\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
