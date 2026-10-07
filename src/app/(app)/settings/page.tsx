@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { readStorageBudget } from "@/features/files/storage-inspection/budget-actions";
 import { ArrowUpRight, Brain, Keyboard } from "lucide-react";
 import { R2StorageSettings } from "@/components/settings/r2-storage-settings";
 import { DeepSeekSettingsForm } from "@/components/settings/deepseek-settings-form";
@@ -12,13 +13,13 @@ import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 import { shortcuts } from "@/features/shortcuts/registry";
 
 export default async function Settings() {
-  const [ai, promptSettings, systemHealth, governance] = await Promise.all([
-    getAiSettings(), getNoteAiPromptSettings(), getSystemHealth(), getAiGovernanceSettings(),
+  const [ai, promptSettings, systemHealth, governance, storageBudget] = await Promise.all([
+    getAiSettings(), getNoteAiPromptSettings(), getSystemHealth(), getAiGovernanceSettings(), readStorageBudget(),
   ]);
   return <>
     <PageHeader title="设置" description="让你的工作空间，按你的方式运转。" eyebrow="PERSONAL OS / PREFERENCES" />
     <SettingsWorkspace
-      storage={<R2StorageSettings />}
+      storage={<R2StorageSettings initialBudget={storageBudget} />}
       connections={<SystemHealth rows={systemHealth.rows} controlPlane={systemHealth.controlPlane} />}
       ai={<div className="space-y-7">
         <header><p className="text-xs font-medium text-[var(--accent)]">AI & PRIVACY</p><h2 className="mt-2 text-xl font-semibold tracking-tight">你的 AI，你的边界</h2><p className="mt-2 text-sm text-[var(--text-secondary)]">管理模型连接、上下文权限和使用预算。</p></header>

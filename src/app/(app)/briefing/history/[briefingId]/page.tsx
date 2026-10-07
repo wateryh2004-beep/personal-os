@@ -29,7 +29,7 @@ export default async function BriefingHistoryRunPage({ params }: { params: Promi
           const summary = typeof entry.summary === "string" && entry.summary ? entry.summary : null;
           const judgment = entry.judgment;
           return (
-            <article key={entry.id} className="py-4.5">
+            <article key={entry.id} id={`entry-${entry.id}`} tabIndex={-1} className="scroll-mt-24 rounded-lg py-4.5 target:bg-[var(--accent-soft)] target:px-3">
               <p className="text-[10.5px] text-[var(--text-tertiary)]">{feed?.title ?? "未知来源"}{topic ? ` · ${topic}` : ""}</p>
               <h3 className="mt-1 text-[13.5px] font-medium text-[var(--text-primary)]">{item?.title ?? "未命名资讯"}</h3>
               {summary ? <p className="mt-1.5 text-[12.5px] leading-5.5 text-[var(--text-secondary)]">{summary}</p> : null}

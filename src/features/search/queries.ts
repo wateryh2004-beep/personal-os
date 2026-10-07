@@ -9,6 +9,15 @@ import {
 const row = z.object({ domain: z.enum(searchDomains), entity_type: z.string(), entity_id: z.string().uuid(), title: z.string(), subtitle: z.string(), snippet: z.string(), metadata: z.record(z.string(), z.unknown()), source_updated_at: z.string().nullable(), score: z.number() });
 
 export function entityHref(entityType: string, entityId: string, domain: string, metadata: Record<string, unknown>) {
+  const uuid = z.string().uuid();
+  if (entityType === "leisure_experience") return `/leisure/${entityId}`;
+  if (entityType === "briefing_entry" && uuid.safeParse(metadata.briefing_id).success) return `/briefing/history/${metadata.briefing_id}#entry-${entityId}`;
+  if (entityType === "investment_account") return `/investments?tab=holdings&mode=${metadata.mode === "paper" ? "paper" : "real"}&item=${entityId}`;
+  if (entityType === "investment_strategy_version") return `/investments?tab=strategies&item=${entityId}`;
+  if (entityType === "investment_research_run") return `/investments?tab=research&item=${entityId}`;
+  if (domain === "leisure") return "/leisure";
+  if (domain === "briefing") return "/briefing";
+  if (domain === "investment") return "/investments";
   if (entityType === "note") return `/notes/${entityId}`;
   if (entityType === "experience") return `/career/experiences/${entityId}`;
   if (["experience_fact", "experience_output", "experience_bullet"].includes(entityType) && typeof metadata.experience_id === "string") return `/career/experiences/${metadata.experience_id}`;

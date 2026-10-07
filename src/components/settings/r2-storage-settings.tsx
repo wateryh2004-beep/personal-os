@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Database, HardDrive, RefreshCw, ShieldCheck } from "lucide-react";
+import { saveStorageBudget } from "@/features/files/storage-inspection/budget-actions";
+import { storageBudgetInput } from "@/features/files/storage-inspection/budget-schema";
 import { storageBudget } from "@/features/files/storage-inspection/presentation";
 import { isStorageInspection, type StorageInspection } from "@/features/files/storage-inspection/contract";
 
@@ -22,12 +24,25 @@ function healthSummary(health: StorageInspection["health"]) {
   return "网络或服务异常，暂无法确认连接";
 }
 
-export function R2StorageSettings() {
+export function R2StorageSettings({ initialBudget = { value: "", available: true } }: { initialBudget?: { value: string; available: boolean } }) {
   const [snapshot, setSnapshot] = useState<StorageInspection | null>(null);
   const [busy, setBusy] = useState<"health" | "scan" | null>(null);
   const [error, setError] = useState("");
   const [now, setNow] = useState(0);
-  const [budgetGiB, setBudgetGiB] = useState("");
+  const [budgetGiB, setBudgetGiB] = useState(initialBudget.value);
+  const [savedBudget, setSavedBudget] = useState(initialBudget.value);
+  const [budgetSaving, setBudgetSaving] = useState(false);
+  const [budgetMessage, setBudgetMessage] = useState(initialBudget.available ? "" : "已保存预算暂不可读；重试保存前请核对数值。");
+  async function persistBudget() {
+    if (budgetSaving) return;
+    setBudgetSaving(true); setBudgetMessage("");
+    try {
+      const result = await saveStorageBudget(budgetGiB);
+      if (result.ok) { setSavedBudget(result.value ?? ""); setBudgetGiB(result.value ?? ""); setBudgetMessage("已保存，可在其他设备继续使用"); }
+      else setBudgetMessage(result.error ?? "预算未保存，请重试。");
+    } catch { setBudgetMessage("预算未保存，请检查连接后重试。"); }
+    finally { setBudgetSaving(false); }
+  }
   const active = useRef<AbortController | null>(null);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -76,15 +91,16 @@ export function R2StorageSettings() {
           <p className="mt-2 text-xs text-[var(--text-tertiary)]">{availableUsage ? <>{usage?.status === "partial" ? "已统计部分：" : "合计："}{storageBytes(availableUsage.objectBytes)} · {availableUsage.objectCount.toLocaleString("zh-CN")} 个对象</> : usage?.reason === "access_denied" ? "列举权限被拒绝，实际用量未知" : snapshot ? "尚未取得实际用量" : "尚未检查 · 点击上方按钮获取快照"}</p>
           {usage?.status === "partial" ? <p className="mt-2 text-xs text-[var(--warning)]">未完成，不是总量 · {usage.reason === "limit" ? "达到本次扫描上限" : usage.reason === "access_denied" ? "后续页面权限被拒绝" : "后续页面读取中断"}</p> : null}
         </div>
-        <div className="rounded-xl bg-[var(--surface-control)] p-4"><p className="text-xs text-[var(--text-secondary)]">账户免费额度余量</p><p className="mt-2 text-lg font-semibold">暂无法确认</p><p className="mt-2 text-xs leading-5 text-[var(--text-tertiary)]">当前只读取一个桶的瞬时存量；账户本月 GB-month 用量尚未接入。</p><a href="https://dash.cloudflare.com/" target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)]">在 Cloudflare 查看账户用量<ArrowUpRight size={13} aria-hidden="true" /></a></div>
+        <div className="rounded-xl bg-[var(--surface-control)] p-4"><p className="text-xs text-[var(--text-secondary)]">Standard 每月免费用量</p><p className="mt-2 text-lg font-semibold">10 GB-month</p><p className="mt-2 text-xs leading-5 text-[var(--text-tertiary)]">账户本月计费用量：未知 · 免费余量：暂无法确认<br />这是整月用量额度，不是 10 GB 固定空间。当前桶存量不能直接相减。</p><a href="https://dash.cloudflare.com/" target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)]">在 Cloudflare 查看账户用量<ArrowUpRight size={13} aria-hidden="true" /></a></div>
       </div>
       <div className="mt-6">
         <div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-sm font-semibold">容量规划</h3><p className="mt-1 text-xs text-[var(--text-tertiary)]">设置当前桶的个人预算，查看可用空间</p></div>
-          <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span>预算</span><input type="number" min="0.001" step="any" inputMode="decimal" value={budgetGiB} onChange={event => setBudgetGiB(event.target.value)} placeholder="未设置" aria-label="当前桶个人容量预算（GiB）" className="h-9 w-24 rounded-lg border border-[var(--separator)] bg-[var(--surface-canvas)] px-2 text-sm outline-offset-2 focus:outline-[var(--accent)]" /><span>GiB</span></label>
+          <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span>预算</span><input type="number" min="0.001" step="any" inputMode="decimal" disabled={budgetSaving} value={budgetGiB} onChange={event => setBudgetGiB(event.target.value)} placeholder="未设置" aria-label="当前桶个人容量预算（GiB）" className="h-9 w-24 rounded-lg border border-[var(--separator)] bg-[var(--surface-canvas)] px-2 text-sm outline-offset-2 focus:outline-[var(--accent)]" /><span>GiB</span></label><button type="button" onClick={() => void persistBudget()} disabled={budgetSaving || !storageBudgetInput.safeParse(budgetGiB).success || (initialBudget.available && budgetGiB === savedBudget)} className={buttonClass}>{budgetSaving ? "保存中…" : "保存预算"}</button>
         </div>
         {budget ? <div className="mt-5"><div className="flex flex-wrap justify-between gap-2 text-xs"><span className="text-[var(--text-secondary)]">已用 {storageBytes(availableUsage!.objectBytes)}</span><span className={budget.excess ? "font-medium text-[var(--danger)]" : "font-medium text-[var(--accent)]"}>{budget.excess ? "超出预算 " + storageBytes(budget.excess) : "预算内余量 " + storageBytes(budget.remaining)}</span></div><div role="meter" aria-label="当前桶个人容量预算使用率" aria-valuemin={0} aria-valuemax={100} aria-valuenow={budget.percent} aria-valuetext={budget.excess ? "超出个人预算 " + storageBytes(budget.excess) : "预算内余量 " + storageBytes(budget.remaining)} className="mt-3 h-3 overflow-hidden rounded-full bg-[var(--surface-control)]"><div className={budget.excess ? "h-full bg-[var(--danger)]" : "h-full bg-[var(--accent)]"} style={{ width: budget.percent + "%" }} /></div><p className="mt-2 text-right text-xs tabular-nums text-[var(--text-tertiary)]">个人预算 {storageBytes(budget.total)} · 基于完整列举快照</p></div> : <div className="mt-4 rounded-lg border border-dashed border-[var(--separator-strong)] px-4 py-5 text-xs leading-5 text-[var(--text-tertiary)]">{budgetGiB && usage?.status !== "complete" ? "取得完整桶快照后才能计算预算内余量。" : budgetGiB ? "请输入有效的正数容量预算。" : "尚未设置个人预算，不推算剩余容量。R2 按量计费，没有固定的 10 GB 硬容量。"}</div>}
-        <p className="mt-3 text-[11px] leading-5 text-[var(--text-tertiary)]">预算仅用于本页规划，离开或刷新页面后重置；不是账户配额、免费额度或费用预测。</p>
+        <p className="mt-3 text-[11px] leading-5 text-[var(--text-tertiary)]">个人预算保存在你的账户，刷新或换设备可继续使用；不是账户配额、免费额度或费用预测。</p>
       </div>
+      {budgetMessage ? <p role="status" className="mt-2 text-xs text-[var(--text-secondary)]">{budgetMessage}</p> : null}
       <section className="mt-7 border-t border-[var(--separator)] pt-6" aria-labelledby="logical-storage-title">
         <div className="flex items-center justify-between gap-3"><h3 id="logical-storage-title" className="flex items-center gap-2 text-sm font-semibold"><Database size={16} aria-hidden="true" />Files 文件构成</h3><span className="text-[11px] text-[var(--text-tertiary)]">逻辑用量</span></div>
         {logical?.status === "complete" ? <>

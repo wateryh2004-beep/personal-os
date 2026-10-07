@@ -10,6 +10,9 @@ export const searchDomains = [
   "projects",
   "shopping",
   "travel",
+  "leisure",
+  "briefing",
+  "investment",
 ] as const;
 
 export const searchInputSchema = z.object({

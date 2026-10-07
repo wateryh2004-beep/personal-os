@@ -1,0 +1,21 @@
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',false);
+do $$ begin
+ if (select count(*) from search_personal_os('共同关键词'))<>6 then raise exception 'coverage or owner isolation'; end if;
+ if (select count(*) from search_personal_os('共同关键词',30,array['investment']))<>3 then raise exception 'domain filter'; end if;
+ if (select count(*) from search_personal_os('100%_'))<>1 then raise exception 'literal wildcard'; end if;
+ if (select count(*) from search_personal_os('不存在'))<>0 then raise exception 'empty results'; end if;
+ if (select count(*) from search_personal_os('共同关键词',1))<>1 then raise exception 'limit'; end if;
+ if (select count(*) from search_personal_os(repeat('x',201)))<>0 then raise exception 'query bound'; end if;
+ if (select count(*) from search_personal_os('总结机制'))<>1 then raise exception 'briefing summary'; end if;
+ if (select count(*) from search_personal_os('SYNTH'))<>1 then raise exception 'account symbols'; end if;
+ if (select metadata->>'mode' from search_personal_os('共同关键词账户'))<>'paper' then raise exception 'paper metadata'; end if;
+end $$;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',false);
+do $$ begin if (select count(*) from search_personal_os('共同关键词'))<>1 then raise exception 'other owner'; end if; end $$;
+reset role;
+update feeds set archived_at=now(); update leisure_experiences set archived_at=now(); update investment_accounts set archived_at=now();
+set role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',false);
+do $$ begin if (select count(*) from search_personal_os('共同关键词'))<>3 then raise exception 'parent archival freshness'; end if; end $$;
+reset role;

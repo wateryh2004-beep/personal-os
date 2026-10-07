@@ -312,3 +312,31 @@ jobs:
           done
           psql -v ON_ERROR_STOP=1 -f tests/fixtures/investment-sql/regression.sql
           python3 scripts/investment-sql-concurrency.py
+
+  complete-module-search-sql:
+    name: Complete module search / PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ephemeral-fixture-only
+          POSTGRES_DB: module_search_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: ephemeral-fixture-only
+      PGDATABASE: module_search_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify coverage, RLS, archives, literal queries and stable ranking
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/fixtures/module-search/bootstrap.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261007093000_complete_module_search.sql
+          psql -v ON_ERROR_STOP=1 -f tests/fixtures/module-search/regression.sql

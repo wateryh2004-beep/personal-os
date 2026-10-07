@@ -1,0 +1,30 @@
+create role anon; create role authenticated;
+create schema auth;
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+create table public.search_documents(user_id uuid,domain text,entity_type text,entity_id uuid,title text,subtitle text,content_text text,metadata jsonb,source_updated_at timestamptz,search_vector tsvector);
+create table public.leisure_experiences(id uuid,user_id uuid,title text,kind text,platform text,why text,body_markdown text,how_to_start text,location text,updated_at timestamptz,archived_at timestamptz);
+create table public.feeds(id uuid,user_id uuid,archived_at timestamptz,status text);
+create table public.feed_items(id uuid,user_id uuid,feed_id uuid,title text,excerpt text,content_text text,updated_at timestamptz,archived_at timestamptz);
+create table public.briefings(id uuid,user_id uuid,briefing_date date,status text,updated_at timestamptz);
+create table public.briefing_entries(id uuid,user_id uuid,briefing_id uuid,representative_item_id uuid,summary text,relevance_reason text,ranking_metadata jsonb);
+create table public.investment_accounts(id uuid,user_id uuid,name text,mode text,currency text,updated_at timestamptz,archived_at timestamptz);
+create table public.investment_ledger(account_id uuid,user_id uuid,symbol text);
+create table public.investment_strategy_versions(id uuid,user_id uuid,title text,version integer,body_markdown text,updated_at timestamptz,archived_at timestamptz);
+create table public.investment_research_runs(id uuid,user_id uuid,title text,kind text,as_of date,body_markdown text,updated_at timestamptz,archived_at timestamptz);
+grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated;
+grant select on all tables in schema public to authenticated;
+do $$ declare t text; begin
+foreach t in array array['search_documents','leisure_experiences','feeds','feed_items','briefings','briefing_entries','investment_accounts','investment_ledger','investment_strategy_versions','investment_research_runs'] loop
+execute format('alter table public.%I enable row level security',t);
+execute format('create policy owner_read on public.%I for select to authenticated using (user_id=auth.uid())',t);
+end loop; end $$;
+insert into leisure_experiences values ('10000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','共同关键词','book',null,'学习资料','100%_精确',null,null,now(),null),('10000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000002','共同关键词秘密','book',null,'private','秘密',null,null,now(),null);
+insert into feeds values ('20000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001',null,'active');
+insert into feed_items values ('30000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','共同关键词资讯','摘录','全文',now(),null);
+insert into briefings values ('40000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','2026-10-07','completed',now());
+insert into briefing_entries values ('50000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001','总结机制','why','{}');
+insert into investment_accounts values ('60000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','共同关键词账户','paper','CNY',now(),null);
+insert into investment_ledger values ('60000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','SYNTH');
+insert into investment_strategy_versions values ('70000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','共同关键词策略',1,'风险边界',now(),null);
+insert into investment_research_runs values ('80000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','共同关键词研究','research','2026-10-07','估值条件',now(),null);
+insert into search_documents values('00000000-0000-4000-8000-000000000001','notes','note','90000000-0000-4000-8000-000000000001','共同关键词笔记','','笔记正文','{}',now(),to_tsvector('simple','共同关键词笔记'));
