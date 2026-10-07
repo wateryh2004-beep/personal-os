@@ -54,3 +54,8 @@ next-env.d.ts
 # fallback and must remain outside Git even if the data directory is overridden.
 /tools/microsoft-calendar-companion/.local/
 /tools/microsoft-calendar-companion/node_modules/
+
+# Generated test evidence and Python bytecode (synthetic fixtures stay tracked).
+/test-results/
+__pycache__/
+*.pyc

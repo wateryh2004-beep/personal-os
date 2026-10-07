@@ -270,3 +270,64 @@ export async function inspectR2ObjectUsage(signal: AbortSignal, pageLimit = 20):
     return { ...result, status: result.pagesScanned ? "partial" : "unavailable", reason: status === 401 || status === 403 ? "access_denied" : "network_or_service" };
   }
 }
+
+/** Derivatives have a separate narrow keyspace, in the existing private bucket. */
+function assertPdfCoverKey(key: string) {
+  if (!/^[0-9a-f-]{36}\/pdf-covers\/[0-9a-f-]{36}\/[a-z0-9][a-z0-9.-]{0,63}\/[0-9a-f]{64}\.webp$/.test(key))
+    throw new Error("pdf_cover_invalid_identity");
+}
+
+export async function createImmutableR2PdfCover(key: string, bytes: Uint8Array, signal?: AbortSignal) {
+  assertPdfCoverKey(key);
+  if (bytes.byteLength < 1 || bytes.byteLength > 128 * 1024) throw new Error("pdf_cover_invalid_output");
+  const config = requiredConfiguration();
+  try {
+    await client(config).send(new PutObjectCommand({
+      Bucket: config.bucketName, Key: key, Body: bytes, ContentType: "image/webp",
+      CacheControl: "private, max-age=0, must-revalidate", IfNoneMatch: "*",
+    }), { abortSignal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000) });
+  } catch (error) {
+    // Never overwrite: the caller verifies a competing immutable object's digest.
+    if (r2Status(error) !== 412) throw error;
+  }
+}
+
+export async function readR2PdfCover(key: string, signal?: AbortSignal) {
+  assertPdfCoverKey(key);
+  const config = requiredConfiguration();
+  try {
+    const timeout = AbortSignal.timeout(10_000);
+    const abortSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    const result = await client(config).send(new GetObjectCommand({ Bucket: config.bucketName, Key: key }), { abortSignal });
+    if (!result.Body) throw new Error("pdf_cover_invalid_output");
+    const body = result.Body.transformToWebStream();
+    if (result.ContentType !== "image/webp" || !Number.isSafeInteger(result.ContentLength) || result.ContentLength! < 1 || result.ContentLength! > 128 * 1024) {
+      await body.cancel().catch(() => {});
+      throw new Error("pdf_cover_invalid_output");
+    }
+    const reader = body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    const abort = () => { void reader.cancel().catch(() => {}); };
+    abortSignal.addEventListener("abort", abort, { once: true });
+    try {
+      abortSignal.throwIfAborted();
+      while (true) {
+        const { value, done } = await reader.read();
+        abortSignal.throwIfAborted();
+        if (done) break;
+        size += value.byteLength;
+        if (size > result.ContentLength!) throw new Error("pdf_cover_invalid_output");
+        chunks.push(value);
+      }
+      if (size !== result.ContentLength) throw new Error("pdf_cover_invalid_output");
+      return Buffer.concat(chunks);
+    } finally {
+      abortSignal.removeEventListener("abort", abort);
+      await reader.cancel().catch(() => {}); reader.releaseLock();
+    }
+  } catch (error) {
+    if (r2Status(error) === 404) return null;
+    throw error;
+  }
+}

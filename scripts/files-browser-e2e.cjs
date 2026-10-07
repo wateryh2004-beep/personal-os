@@ -5,35 +5,27 @@ const sharp = require("sharp");
 const { chromium } = require("playwright");
 const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
 const output = "test-results/files-browser";
-function syntheticPdf() {
-  const streams = [1, 2].map(page => `0.12 0.35 0.40 rg 0 540 612 252 re f 0.92 0.96 0.95 rg 40 80 532 410 re f 1 1 1 rg BT /F1 28 Tf 44 725 Td (PERSONAL OS) Tj 0 -45 Td /F1 20 Tf (Document cover - page ${page}) Tj ET 0.15 0.22 0.25 rg BT /F1 16 Tf 60 450 Td (Synthetic private PDF preview) Tj 0 -38 Td (First page is the cover.) Tj ET\n`);
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
-    `<< /Length ${streams[0].length} >>\nstream\n${streams[0]}endstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>",
-    `<< /Length ${streams[1].length} >>\nstream\n${streams[1]}endstream`,
-  ];
-  let body = "%PDF-1.4\n"; const offsets = [0];
-  for (const [index, object] of objects.entries()) { offsets.push(Buffer.byteLength(body)); body += `${index + 1} 0 obj\n${object}\nendobj\n`; }
-  const start = Buffer.byteLength(body); body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`;
-  return Buffer.from(body);
-}
+const { syntheticPdf, syntheticCover } = require("./fixtures/pdf-cover-fixtures.cjs");
 const pdf = syntheticPdf();
 (async () => {
   await mkdir(output, { recursive: true });
   const preview = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="#bce1e4"/><circle cx="480" cy="120" r="55" fill="#ffd185"/><path d="M0 430L180 130L380 430Z" fill="#4d8582"/><path d="M180 430L410 200L640 430Z" fill="#77aaa0"/><rect y="430" width="640" height="50" fill="#396e79"/></svg>')).webp().toBuffer();
+  const cover = await syntheticCover();
   const browser = await chromium.launch({ headless: true });
   const evidence = [];
   try {
     for (const width of [360, 390, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: "reduce" });
-      let originals = 0, writes = 0, thumbs = 0, active = 0, maximum = 0, pdfHeads = 0, pdfGets = 0;
+      let originals = 0, writes = 0, thumbs = 0, active = 0, maximum = 0, pdfHeads = 0, pdfGets = 0, pdfCovers = 0, pdfCoverBytes = 0;
       await context.route("**/*", async route => {
         const request = route.request(), url = new URL(request.url());
         if (url.origin !== new URL(baseURL).origin) return route.abort();
+        if (/\/api\/files\/[^/]+\/pdf-cover$/.test(url.pathname)) {
+          assert.equal(request.method(), "GET", "covers need one small image GET, no PDF HEAD");
+          assert.equal(request.headers().range, undefined, "covers never request PDF byte ranges");
+          pdfCovers++; pdfCoverBytes += cover.length;
+          return route.fulfill({ body: cover, contentType: "image/webp", headers: { "Cache-Control": "private, max-age=0, must-revalidate", ETag: '"synthetic-cover-v1"' } });
+        }
         if (/\/api\/files\/[^/]+\/preview$/.test(url.pathname)) {
           const headers = { "Content-Type": "application/pdf", "Content-Disposition": "inline", "Content-Length": String(pdf.length), "Accept-Ranges": "bytes", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
           if (request.method() === "HEAD") { pdfHeads++; return route.fulfill({ status: 200, headers }); }
@@ -64,6 +56,7 @@ const pdf = syntheticPdf();
       assert.equal(thumbs, 0, "default list does not prefetch photos");
       assert.equal(pdfHeads, 0, "default list does not preflight PDF covers");
       assert.equal(pdfGets, 0, "default list does not download PDFs");
+      assert.equal(pdfCovers, 0, "default list does not fetch cover images");
       await page.getByRole("button", { name: "预览 示例资料 1 · Synthetic fixture", exact: true }).click();
       const pdfDialog = page.getByRole("dialog");
       const pdfCanvas = pdfDialog.locator('canvas[data-pdf-rendered="true"]');
@@ -98,21 +91,16 @@ const pdf = syntheticPdf();
       await listPhotoDialog.waitFor({ state: "hidden" });
       // List stays lightweight. PDF covers are only admitted in the visible grid.
       await page.getByRole("group", { name: "文件显示方式" }).getByRole("button", { name: "网格", exact: true }).click();
-      const pdfCover = page.locator('canvas[data-pdf-cover-rendered="true"]').first();
+      const pdfCover = page.locator('img[data-pdf-cover-rendered="true"]').first();
       await pdfCover.waitFor({ state: "visible", timeout: 30000 });
-      const coverPixels = await pdfCover.evaluate(canvas => {
-        const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
-        let painted = 0;
-        for (let i = 0; i < pixels.length; i += 4) if (pixels[i + 3] && Math.min(pixels[i], pixels[i + 1], pixels[i + 2]) < 220) painted++;
-        return { painted, area: canvas.width * canvas.height };
-      });
-      assert.ok(coverPixels.painted > 1000, "first-page cover has actual synthetic PDF artwork");
-      assert.ok(coverPixels.area <= 512 * 512, "cover canvas has a bounded pixel budget");
-      const coverLayout = await pdfCover.evaluate(canvas => {
-        const page = canvas.getBoundingClientRect(), card = canvas.parentElement.getBoundingClientRect();
-        return { ratio: page.width / page.height, fits: page.left >= card.left && page.right <= card.right && page.top >= card.top && page.bottom <= card.bottom };
+      const coverPixels = await pdfCover.evaluate(image => ({ width: image.naturalWidth, height: image.naturalHeight, area: image.naturalWidth * image.naturalHeight }));
+      assert.ok(coverPixels.width > 100 && coverPixels.area <= 512 * 512, "cached first-page image is nonempty and bounded");
+      const coverLayout = await pdfCover.evaluate(image => {
+        const page = image.getBoundingClientRect(), card = image.parentElement.getBoundingClientRect();
+        return { ratio: image.naturalWidth / image.naturalHeight, objectFit: getComputedStyle(image).objectFit, fits: page.left >= card.left && page.right <= card.right && page.top >= card.top && page.bottom <= card.bottom };
       });
       assert.ok(coverLayout.fits, "complete first page fits inside its cover area");
+      assert.equal(coverLayout.objectFit, "contain", "portrait page is fully contained rather than cropped");
       assert.ok(Math.abs(coverLayout.ratio - 612 / 792) < 0.02, "portrait page is not stretched");
       await capture("pdf-first-page-covers");
       const coverButton = page.getByRole("button", { name: "预览 示例资料 1 · Synthetic fixture", exact: true });
@@ -147,7 +135,7 @@ const pdf = syntheticPdf();
       await capture("filtered-file");
       assert.ok(maximum <= 3, `thumbnail concurrency ${maximum}`);
       assert.equal(originals, 0); assert.equal(writes, 0); assert.deepEqual(errors, []);
-      evidence.push({ width, thumbnails: thumbs, maxConcurrentThumbnails: maximum, originalDownloads: originals, pdfHeads, pdfGets, paintedPixels, coverPixels, coverLayout, writes, errors });
+      evidence.push({ width, thumbnails: thumbs, maxConcurrentThumbnails: maximum, originalDownloads: originals, pdfHeads, pdfGets, pdfCovers, pdfCoverBytes, paintedPixels, coverPixels, coverLayout, writes, errors });
       await context.close();
     }
     await writeFile(`${output}/evidence.json`, JSON.stringify(evidence, null, 2));

@@ -19,3 +19,14 @@ const files: FileRecord[] = Array.from({ length: 80 }, (_, index) => ({
 export function FilesPolishFixture() {
   return <FilesWorkspace folders={folders} files={files} />;
 }
+
+const coverCases = ["ready", "pending", "failed", "landscape", "unsupported", "disabled"] as const;
+const cachedCoverFiles: FileRecord[] = coverCases.map((kind, index) => ({
+  ...files[0], id: `e2e-cached-cover-${index}`, title: `${index + 1}. ${kind} · Synthetic PDF`,
+  original_filename: `synthetic-${kind}.pdf`, folder_id: null, file_size: 1024 * 1024 * (index + 1),
+}));
+
+/** No account data. API bytes are supplied by the isolated CI fixture proxy. */
+export function FilesCachedCoversFixture() {
+  return <FilesWorkspace folders={[]} files={cachedCoverFiles} />;
+}

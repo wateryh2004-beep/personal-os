@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { scheduleUploadedPdfCover } from "@/features/files/pdf-cover-service";
 import { NextResponse } from "next/server";
 import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-owner";
 import { createUploadUrl, deleteR2Object, isR2Configured, readR2ObjectStream, copyVerifiedR2Object, r2BucketName } from "@/lib/adapters/cloudflare-r2";
@@ -128,6 +129,7 @@ export async function PATCH(request: Request) {
       const link = await supabase.from("entity_links").select("id").eq("source_type", "note").eq("source_id", parsed.data.noteId).eq("target_type", "document").eq("target_id", document.id).eq("relationship_type", "attachment").eq("user_id", userId).is("archived_at", null).maybeSingle();
       if (link.error || !link.data) return fail("文件已保存，但此笔记关联未确认。", 409);
     }
+    scheduleUploadedPdfCover(userId, document.id);
     return NextResponse.json({ ok: true, alreadyCompleted: true, extractionStatus: document.text_extraction_status }, { headers });
   }
   if (document.storage_state !== "pending" || !document.storage_path.startsWith(`${userId}/files/${document.id}/`)) return fail("上传状态无效。", 409);
@@ -173,10 +175,12 @@ export async function PATCH(request: Request) {
   if (!completed) {
     const current = await readDocument();
     if (current.error || current.data?.storage_state !== "available" || current.data.archived_at) return fail("文件状态已变化，请刷新后检查。", 409);
+    scheduleUploadedPdfCover(userId, document.id);
     return NextResponse.json({ ok: true, alreadyCompleted: true, extractionStatus: current.data.text_extraction_status }, { headers });
   }
   // Audit failure must not turn a confirmed stored file into a false upload failure.
   const audited = await audit(supabase, userId, "upload_completed", document.id, { size: document.file_size, content_type: document.mime_type, checksum, note_id: noteId });
+  scheduleUploadedPdfCover(userId, document.id);
   return NextResponse.json({ ok: true, extractionStatus: document.text_extraction_status, warning: audited ? undefined : "文件已保存，但操作日志未记录。" }, { headers });
 }
 

@@ -29,7 +29,7 @@ export default async function MobileNativeE2EPage({ searchParams }: { searchPara
     if (mode === "baseline" && workspace !== "home") await new Promise((resolve) => setTimeout(resolve, delay));
     return <NavigationLatencyHarness workspace={workspace ?? "home"} mode={mode ?? "resource"} delay={delay} revision={(await cookies()).get(workspaceRevisionCookie)?.value ?? "fixture-v1"} />;
   }
-  if (scene && ["projects", "calendar-edit", "heading", "career", "career-filled", "today", "today-filled", "tasks", "calendar", "notes", "note-editor", "note-pdf", "files", "today-loading", "tasks-loading", "calendar-loading"].includes(scene)) {
+  if (scene && ["projects", "calendar-edit", "heading", "career", "career-filled", "today", "today-filled", "tasks", "calendar", "notes", "note-editor", "note-pdf", "files", "files-cached-covers", "today-loading", "tasks-loading", "calendar-loading"].includes(scene)) {
     return <WorkspacePolishHarness scene={scene as PolishScene} />;
   }
   return <MobileNativeHarness />;
