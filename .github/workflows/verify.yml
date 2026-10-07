@@ -36,6 +36,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y fonts-noto-cjk
           fc-cache -f
+      - name: Verify patched MapLibre source attribution in Chromium
+        run: NODE_PATH="$(npm root -g)" timeout 90s node scripts/map-attribution-security-e2e.cjs
+      - name: Save map attribution security evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: map-attribution-security
+          path: test-results/map-attribution-security
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Verify isolated investment workspace
         run: |
           node scripts/investment-preview.mjs > /tmp/personal-os-investment-e2e.log 2>&1 &

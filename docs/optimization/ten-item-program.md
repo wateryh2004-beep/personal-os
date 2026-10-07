@@ -44,3 +44,15 @@ Code head before this documentation update: `7f616c340c5b4c97dc4dd308b8f69054cd2
 Remote draft PR 62 remains at `1919a2f2858fcfe51e9553c3be3a026cc6fe82e5`. Its PDF continuity browser/concurrency, new module-search PostgreSQL, cached covers and Settings persistence checks passed. Its old navigation fixture needed adaptation to explicit warming after Notes route-owned prefetch; the new warm-path performance correction still requires a fresh browser run.
 
 Publication was paused after the dependency-lock upload was cancelled. The user explicitly approved retry on 2026-10-07; the identical retry succeeded and its returned blob SHA matched the local file. Test-branch publication and exact-head CI are resuming. Main remains unchanged. Final exact-head aggregate CI, native PostgreSQL recovery/concurrency, actual-browser/cold-OCR checks, content-owner item 3 acceptance and reviewed live deployment/migration gates remain open. No item is reported as production-complete.
+
+## Staging acceptance checkpoint — 720cbdb
+
+All four workflows passed on `720cbdba33b6d55a5d848232faadf9c5963def9b`:
+- Verify: https://github.com/wateryh2004-beep/personal-os/actions/runs/37609744995
+- Reading/multipart browser and native SQL: https://github.com/wateryh2004-beep/personal-os/actions/runs/37609745021
+- Actual browser OCR and native SQL: https://github.com/wateryh2004-beep/personal-os/actions/runs/37609745038
+- Native full-system recovery: https://github.com/wateryh2004-beep/personal-os/actions/runs/37609744934
+
+Responsive investment/multipart and OCR screenshots were inspected. The corrected Notes fixture recorded median first readiness 259.4ms versus 679.4ms at 390px, with warm return 19.4ms versus 18.6ms and zero additional workspace API calls in the streamed path. These are controlled synthetic CI results with modeled delays, not live user-network improvements.
+
+The nine code-focused items have staging evidence. This is not permission to merge: item 3 remains open under private substantive review, production/live-R2 activation remains separately gated, and a bounded correction of four verified pre-existing dependency vulnerabilities is now being prepared. All 26 audit-flagged package versions predate this program; no new OCR/hash package was flagged. The approved patch scope is Next plus matching eslint-config-next, Sharp, MapLibre and xmldom only, with primary-advisory verification and fresh aggregate regression. No blanket audit fix or unrelated downgrade is authorized.

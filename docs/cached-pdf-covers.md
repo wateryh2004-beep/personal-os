@@ -56,7 +56,11 @@ path can resolve incomplete content; the renderer instead captures recoverable
 warnings privately and rejects content-loss cases before storing an image.
 
 Exact dependency pins are `pdfjs-dist@6.4.299` (Apache-2.0) and
-`@napi-rs/canvas@1.0.10` (MIT), alongside existing `sharp@0.35.3` (Apache-2.0).
+`@napi-rs/canvas@1.0.10` (MIT), alongside `sharp@0.35.5` (Apache-2.0).
+The application and matching ESLint package are pinned to Next 16.3.6. The
+[bounded 2026-10-07 security patch](security/runtime-dependencies-2026-10-07.md)
+replaces the previously measured Sharp 0.35.3 / Next 16.3.0 installation while
+preserving renderer limits and all existing package license identifiers.
 PDF.js requires Node >=22.13; local verification uses Node 24.19.0 and the
 existing project selects Node 24.x. No project runtime setting is changed.
 PDF.js's CMaps, standard fonts, WASM decoders and ICC profiles retain their
@@ -86,11 +90,24 @@ portrait, 3.9 KiB embedded-Chinese and 110 KiB noisy scanned covers. These are
 small synthetic fixtures on this executor, not production latency guarantees.
 Backend/network tests remain synthetic, and no private production PDF was read.
 
-Local production build and all three cold-copy trace checks passed. Each trace
+Historical pre-hardening production build and all three cold-copy trace checks
+passed with Sharp 0.35.3 / Next 16.3.0. Each trace
 packaged 361 renderer runtime files (about 124.6 MiB), including the optional
 native library variants installed by npm; the complete route traces were about
 128.5–130.5 MiB. Isolated packaged Chinese rendering took about 0.52–0.55 seconds.
 These are build/packaging checks, not a deployed production smoke test.
+
+With Sharp 0.35.5 / Next 16.3.6, the 2026-10-07 clean build and all three cold
+route-package copies also pass: **361 runtime files / 131,984,695 bytes
+(125.9 MiB)** per copy, with embedded-Chinese rendering at 584, 578 and 604 ms.
+The actually loaded native libraries are libheif 1.23.5 and librsvg 2.63.2.
+Portrait, rotated, embedded-Chinese and noisy-scan output SHA-256 hashes match
+the previous installation exactly; WebP remains 1.6.0. The existing
+`pdfjs-6.4.299-webp-v1` cache key is therefore retained, without rewriting or
+invalidating stored covers. Exact hashes and package evidence are in
+[the security evidence JSON](security/runtime-dependencies-2026-10-07-evidence.json).
+Final-commit Chromium/CI and separately authorized deployed-runtime acceptance
+remain required; local Chromium is blocked by this executor's socket restriction.
 
 ## Backend operation and recovery
 

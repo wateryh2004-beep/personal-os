@@ -10,6 +10,7 @@ No production action is authorized by this checklist alone. The ten-item program
 - Private OCR workflow: genuine bilingual scan/blank-page recognition, same-origin cold assets/browser cancellation and native SQL concurrency
 - System backup workflow: official disposable PostgreSQL container, complete schema replay, fixture export/restore/re-export with true foreign keys
 - Inspect actual responsive screenshots, not just pass labels
+- Review the [bounded runtime security patch](../security/runtime-dependencies-2026-10-07.md), remaining triaged advisories, patched native-binary checks, and exact-head Chromium attribution evidence
 - Re-read remote head and exact-commit checks; never infer that earlier green CI covers later integration
 - Item 3: private content owner's explicit verified scope and acceptance; no answer bodies in repository
 
