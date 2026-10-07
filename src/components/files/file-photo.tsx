@@ -1,4 +1,5 @@
 "use client";
+import { observeThumbnailVisibility } from "@/features/files/observe-thumbnail-visibility";
 import { ImageIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import { canPreviewPhoto } from "@/features/files/browser-state";
@@ -11,32 +12,6 @@ function PhotoPlaceholder({ className, waiting = false, elementRef, reason }: { 
   </div>;
 }
 
-function observeVisibility(element: HTMLElement, change: (visible: boolean) => void) {
-  if (typeof IntersectionObserver !== "undefined") {
-    const observer = new IntersectionObserver(entries => {
-      for (const entry of entries) if (entry.target === element) change(entry.isIntersecting);
-    }, { rootMargin: "0px", threshold: 0 });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }
-  // Older browsers and non-layout test environments still use bounded eager
-  // admission. Native lazy images must not occupy a slot while remaining idle.
-  let frame: number | undefined;
-  const check = () => {
-    frame = undefined;
-    const box = element.getBoundingClientRect();
-    change(box.bottom >= 0 && box.right >= 0 && box.top <= window.innerHeight && box.left <= window.innerWidth);
-  };
-  const schedule = () => { if (frame === undefined) frame = window.requestAnimationFrame(check); };
-  window.addEventListener("scroll", schedule, { capture: true, passive: true });
-  window.addEventListener("resize", schedule, { passive: true });
-  check();
-  return () => {
-    window.removeEventListener("scroll", schedule, true);
-    window.removeEventListener("resize", schedule);
-    if (frame !== undefined) window.cancelAnimationFrame(frame);
-  };
-}
 
 function ScheduledPhoto({ source, title, className }: { source: string; title: string; className: string }) {
   const [phase, setPhase] = useState<"waiting" | "loading" | "ready" | "failed">("waiting");
@@ -68,7 +43,7 @@ function ScheduledPhoto({ source, title, className }: { source: string; title: s
       release = undefined;
     };
     settleRef.current = settle;
-    observation.stop = observeVisibility(element, visible => {
+    observation.stop = observeThumbnailVisibility(element, visible => {
       if (disposed || started || settled) return;
       if (!visible) {
         release?.();
