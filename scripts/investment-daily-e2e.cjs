@@ -4,12 +4,12 @@ const { mkdir, writeFile } = require("node:fs/promises");
 const { chromium } = require("playwright");
 const base = "http://127.0.0.1:4179", output = "test-results/investment";
 (async()=>{
-  await mkdir(output,{recursive:true});const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH});const evidence=[];
+  await mkdir(output,{recursive:true});const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH});const evidence=[], diagnostics=[];
   try {
     for(const width of [360,390,1440]) {
       const context=await browser.newContext({viewport:{width,height:960},reducedMotion:"reduce",hasTouch:width<768});
       await context.route("**/*",route=>{const url=new URL(route.request().url());return url.origin===base && route.request().method()==="GET" && !url.pathname.startsWith("/api/") ? route.continue() : route.abort();});
-      const page=await context.newPage(),errors=[];page.on("pageerror",error=>errors.push(error.message));
+      const page=await context.newPage(),errors=[];page.on("pageerror",error=>{errors.push(error.message);diagnostics.push({kind:"pageerror",message:error.message});});
       const capture=async(name)=>{assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`overflow: ${name}`);await page.screenshot({path:`${output}/daily-${name}-${width}.png`,fullPage:true});};
       await page.goto(`${base}/?fixture=daily`,{waitUntil:"networkidle"});await page.getByRole("heading",{name:"投资",exact:true}).waitFor();
       let text=await page.locator("body").innerText();assert.ok(text.includes("1,017"));assert.ok(text.includes("1,440"));assert.ok(text.includes("超过 72 小时"));assert.ok(text.includes("成本未知"));assert.ok(!text.includes("UI 测试账户（模拟）"));await capture("real-overview");

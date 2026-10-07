@@ -28,6 +28,14 @@ jobs:
         run: node scripts/verify-private-ocr-runtime.mjs
       - name: Verify cold browser assets, privacy, cancellation and navigation
         run: NODE_PATH="$(npm root -g)" timeout 240s node scripts/private-ocr-e2e.cjs
+      - name: Save OCR screenshots and network evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-ocr-browser-evidence
+          path: test-results/private-ocr
+          if-no-files-found: warn
+          retention-days: 7
   owner-isolation:
     runs-on: ubuntu-latest
     timeout-minutes: 5

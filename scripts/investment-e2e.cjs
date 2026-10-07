@@ -7,7 +7,7 @@ const output = "test-results/investment";
 (async () => {
   await mkdir(output,{recursive:true});
   const browser = await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH});
-  const evidence=[];
+  const evidence=[], diagnostics=[];
   try {
     for (const width of [390,1440]) {
       const context=await browser.newContext({viewport:{width,height:960},reducedMotion:"reduce",hasTouch:width<768});
@@ -17,7 +17,7 @@ const output = "test-results/investment";
         if(url.origin!==base || route.request().method()!=="GET" || url.pathname.startsWith("/api/")) return route.abort();
         return route.continue();
       });
-      const page=await context.newPage();const errors=[];page.on("pageerror",error=>errors.push(error.message));
+      const page=await context.newPage();const errors=[];page.on("pageerror",error=>{errors.push(error.message);diagnostics.push({kind:"pageerror",message:error.message});});
       const capture=async name=>{assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${name}: horizontal overflow`);await page.screenshot({path:`${output}/${name}-${width}.png`});};
       await page.goto(base,{waitUntil:"networkidle"});
       await page.getByRole("heading",{name:"投资",exact:true}).waitFor();
@@ -58,5 +58,12 @@ const output = "test-results/investment";
       assert.deepEqual(errors,[]);evidence.push({width,passed:true});await context.close();
     }
     await writeFile(`${output}/result.json`,JSON.stringify({fixture:"isolated synthetic, no database",evidence},null,2));
+  }catch(error){
+    for(const [index,page] of browser.contexts().flatMap(context=>context.pages()).entries()) {
+      diagnostics.push({kind:"failure",url:page.url(),message:String(error)});
+      await page.screenshot({path:`${output}/failure-investment-e2e-${index}.png`,fullPage:true}).catch(()=>{});
+    }
+    await writeFile(`${output}/failure-investment-e2e.json`,JSON.stringify(diagnostics,null,2));
+    throw error;
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
