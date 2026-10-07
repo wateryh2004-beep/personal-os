@@ -7,6 +7,12 @@ assert.equal(new URL(baseURL).hostname, "127.0.0.1", "cached-cover QA must use t
 assert.equal(new URL(baseURL).protocol, "http:");
 const output = "test-results/pdf-cached-covers";
 const fixtureURL = `${baseURL}/mobile-native-e2e?scene=files-cached-covers`;
+async function openFixture(page) {
+  // App-shell prefetches may stay active after this screen is already usable.
+  // Wait for this fixture's actual hydration rather than unrelated networkidle.
+  await page.goto(fixtureURL, { waitUntil: "domcontentloaded" });
+  await page.locator('[data-cached-covers-hydrated="true"]').waitFor({ state: "attached" });
+}
 const id = index => `e2e-cached-cover-${index}`;
 const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const coverRequests = stats => stats.requests.filter(request => request.path.endsWith("/pdf-cover"));
@@ -43,11 +49,15 @@ const coverFor = (stats, index) => coverRequests(stats).filter(request => reques
       });
       const page = await context.newPage();
       const errors = [], network = [], pdfJsChunks = [], scriptReads = [];
+      const inflight = new Set();
       page.on("pageerror", error => errors.push(error.message));
       page.on("request", request => {
+        inflight.add(request);
         const url = new URL(request.url());
         if (["http:", "https:"].includes(url.protocol)) network.push({ url: request.url(), method: request.method(), type: request.resourceType() });
       });
+      page.on("requestfinished", request => inflight.delete(request));
+      page.on("requestfailed", request => inflight.delete(request));
       page.on("response", response => {
         if (response.request().resourceType() !== "script") return;
         scriptReads.push(response.text().then(body => {
@@ -74,7 +84,7 @@ const coverFor = (stats, index) => coverRequests(stats).filter(request => reques
       const row = { width, run, screenshots: [], stages: {} };
       evidence.push(row);
       try {
-        await page.goto(fixtureURL, { waitUntil: "networkidle" });
+        await openFixture(page);
         await Promise.all(scriptReads);
         row.stages.list = await stats();
         assert.equal(coverRequests(row.stages.list).length, 0, "list loads no cover images");
@@ -178,7 +188,7 @@ const coverFor = (stats, index) => coverRequests(stats).filter(request => reques
 
         // A new page document retains only HTTP cache, not component/module
         // state. Reauthentication/revalidation still happens on the next grid.
-        await page.goto(fixtureURL, { waitUntil: "networkidle" });
+        await openFixture(page);
         assert.equal(await page.getByRole("list", { name: "文件列表" }).count(), 1);
         await display("网格").click(); await ready(0);
         row.stages.newDocument = await stats();
@@ -225,7 +235,7 @@ const coverFor = (stats, index) => coverRequests(stats).filter(request => reques
             const interruptedStats = async () => (await fetch(`${baseURL}/__fixture/stats?run=${interruptedRun}`)).json();
             const pendingResponse = () => interruptedPage.waitForResponse(response => response.url().endsWith(`/${id(1)}/pdf-cover`) && response.status() === 202);
             const interruptedDisplay = view => interruptedPage.getByRole("group", { name: "文件显示方式" }).getByRole("button", { name: view, exact: true });
-            await interruptedPage.goto(fixtureURL, { waitUntil: "networkidle" });
+            await openFixture(interruptedPage);
             let pending = pendingResponse();
             await interruptedDisplay("网格").click(); await pending;
             await interruptedDisplay("列表").click();
@@ -234,7 +244,7 @@ const coverFor = (stats, index) => coverRequests(stats).filter(request => reques
             assert.equal(coverFor(await interruptedStats(), 1).length, first, "switching to list cancels a pending cover retry");
             pending = pendingResponse();
             await interruptedDisplay("网格").click(); await pending;
-            await interruptedPage.goto(fixtureURL, { waitUntil: "networkidle" });
+            await openFixture(interruptedPage);
             const second = coverFor(await interruptedStats(), 1).length;
             await pause(1500);
             assert.equal(coverFor(await interruptedStats(), 1).length, second, "leaving the page cancels a pending cover retry");
@@ -253,6 +263,7 @@ const coverFor = (stats, index) => coverRequests(stats).filter(request => reques
       } finally {
         row.errors = errors;
         row.network = network;
+        row.inflightAtEnd = [...inflight].map(request => ({ url: request.url(), type: request.resourceType(), method: request.method() }));
         row.server = await stats().catch(error => ({ unavailable: error.message }));
         await writeFile(`${output}/evidence.json`, JSON.stringify(evidence, null, 2));
         await context.close();

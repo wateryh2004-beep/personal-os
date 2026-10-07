@@ -55,7 +55,11 @@ const output = "test-results/settings-workspace";
         await page.getByRole("button", { name: "检查并统计用量", exact: true }).click();
         await page.getByLabel("当前桶个人容量预算（GiB）").fill("2");
         if (fixture === "partial" || fixture === "unavailable") assert.equal(await page.getByRole("meter").count(), 0);
-        if (fixture === "partial") assert.ok((await page.locator("body").innerText()).includes("未完成，不是总量"));
+        if (fixture === "partial") {
+          // Scan is asynchronous; wait for its actual result before asserting.
+          await page.getByText("未完成，不是总量", { exact: false }).waitFor();
+          assert.ok((await page.locator("body").innerText()).includes("未完成，不是总量"));
+        }
         if (fixture === "empty") assert.equal(await page.getByRole("meter").getAttribute("aria-valuenow"), "0");
         if (fixture === "error") {
           await page.getByRole("button", { name: "检查并统计用量", exact: true }).click();

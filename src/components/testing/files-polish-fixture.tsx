@@ -2,6 +2,7 @@
 
 import { FilesWorkspace } from "@/components/files/files-workspace";
 import type { FileRecord } from "@/features/files/queries";
+import { useEffect, useRef } from "react";
 
 const folders = Array.from({ length: 36 }, (_, index) => ({ id: `e2e-file-folder-${index}`, name: `示例文件夹 ${index + 1}`, parent_id: null }));
 const fixtureTypes = [
@@ -28,5 +29,7 @@ const cachedCoverFiles: FileRecord[] = coverCases.map((kind, index) => ({
 
 /** No account data. API bytes are supplied by the isolated CI fixture proxy. */
 export function FilesCachedCoversFixture() {
-  return <FilesWorkspace folders={[]} files={cachedCoverFiles} />;
+  const marker = useRef<HTMLDivElement>(null);
+  useEffect(() => { marker.current?.setAttribute("data-cached-covers-hydrated", "true"); }, []);
+  return <div ref={marker} className="contents" data-cached-covers-hydrated="false"><FilesWorkspace folders={[]} files={cachedCoverFiles} /></div>;
 }
