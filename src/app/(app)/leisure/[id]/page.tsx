@@ -1,3 +1,4 @@
+import { WorkspaceReadyMetric } from "@/components/performance/workspace-ready-metric";
 import { notFound } from "next/navigation";
 import { LeisureDetail } from "@/components/leisure/leisure-detail";
 import { LeisureHome } from "@/components/leisure/leisure-home";
@@ -14,5 +15,5 @@ export default async function LeisureDetailPage({ params, searchParams }: { para
   if (!experience) notFound();
   // Request-time source freshness is intentionally computed on this dynamic server route.
   // eslint-disable-next-line react-hooks/purity
-  return <LeisureDetail experience={experience} now={Date.now()} neighbors={collection.experiences} from={from} backHref={leisureBackHref(from)} />;
+  return <><WorkspaceReadyMetric workspace="leisure" /><LeisureDetail experience={experience} now={Date.now()} neighbors={collection.experiences} from={from} backHref={leisureBackHref(from)} /></>;
 }

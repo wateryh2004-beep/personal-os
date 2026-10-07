@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getReadingProgress, saveReadingProgress } from "@/features/files/reading-progress-actions";
+import { createReadingProgressQueue, type ReadingProgress } from "@/features/files/reading-progress";
 import type { OnProgressParameters, PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, RenderTask } from "unpdf/pdfjs";
 
 export const maxInlinePdfBytes = 25 * 1024 * 1024;
@@ -29,6 +31,15 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
   const [error, setError] = useState("");
   const [nativeAvailable, setNativeAvailable] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
+  const [readingMessage, setReadingMessage] = useState("");
+  const [conflict, setConflict] = useState<ReadingProgress | null>(null);
+  const progressQueue = useRef<ReturnType<typeof createReadingProgressQueue> | null>(null);
+  const initialPage = useRef(1);
+  const userNavigated = useRef(false);
+  const onRendered = useCallback((page: number) => {
+    if (userNavigated.current) progressQueue.current?.record(page);
+  }, []);
+  const navigate = (page: number) => { userNavigated.current = true; setPageNumber(page); };
   const [zoom, setZoom] = useState(1);
   const [width, setWidth] = useState(640);
   const container = useRef<HTMLDivElement>(null);
@@ -59,6 +70,7 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
         if (!active) return;
         if (!response.ok) { fail(preflightMessage(response.status)); return; }
         setNativeAvailable(true);
+        const sourceVersion = response.headers.get("X-Reading-Source-Version");
         const size = Number(response.headers.get("content-length"));
         if (response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/pdf" ||
             !Number.isSafeInteger(size) || size < 8) { fail(fallbackMessage); return; }
@@ -68,7 +80,7 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
         const { getDocument } = await import("unpdf/pdfjs");
         if (!active) return;
         const options = {
-          url, withCredentials: true, disableStream: true, disableAutoFetch: true, rangeChunkSize: 65_536,
+          url, ...(sourceVersion ? { httpHeaders: { "X-Reading-Source-Version": sourceVersion } } : {}), withCredentials: true, disableStream: true, disableAutoFetch: true, rangeChunkSize: 65_536,
           useSystemFonts: true, enableXfa: false, maxImageSize: maxPdfCanvasPixels,
           canvasMaxAreaInBytes: maxPdfCanvasPixels * 4, useWorkerFetch: false, useWasm: false,
           isImageDecoderSupported: false, stopAtErrors: true, verbosity: 0,
@@ -88,6 +100,26 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
           fail("此 PDF 页数超出页内预览范围，可在新窗口打开或下载原件。");
           return;
         }
+        // Old deployments remain readable without pretending progress was saved.
+        const snapshot = sourceVersion ? await getReadingProgress(documentId) : null;
+        if (!active) return;
+        if (snapshot && snapshot.sourceVersion === sourceVersion &&
+            (!snapshot.progress || snapshot.progress.totalPages === document.numPages)) {
+          const saved = snapshot.progress;
+          initialPage.current = saved?.page ?? 1;
+          setPageNumber(initialPage.current);
+          if (saved && saved.page > 1) setReadingMessage(`已接续第 ${saved.page} 页`);
+          progressQueue.current = createReadingProgressQueue({
+            documentId, sourceVersion, totalPages: document.numPages, revision: saved?.revision ?? 0,
+            save: saveReadingProgress,
+            report(result) {
+              if (!active) return;
+              if (result.status === "saved") setReadingMessage("阅读进度已同步");
+              else if (result.status === "conflict") { setConflict(result.progress); setReadingMessage(`另一设备已更新到第 ${result.progress.page} 页`); }
+              else setReadingMessage(result.status === "source_changed" ? "原文件已变化，请重新打开后继续" : "阅读进度暂未同步，请重新打开后重试");
+            },
+          });
+        } else setReadingMessage("阅读进度暂不可用；本次仍可阅读");
         setPdf(document);
       } catch (error) {
         if (active) fail(error instanceof Error && error.name === "PasswordException"
@@ -100,7 +132,7 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
       controller.abort();
       destroy();
     };
-  }, [url, destroy, fail]);
+  }, [url, documentId, destroy, fail]);
 
   useEffect(() => {
     const element = container.current;
@@ -121,18 +153,31 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
 
   return <div className="min-w-0 space-y-2">
     {pdf ? <div className="flex flex-wrap items-center gap-1 text-[12px]" aria-label="PDF 阅读控制">
-      <button type="button" className={buttonClass} disabled={pageNumber <= 1} onClick={() => setPageNumber(page => Math.max(1, page - 1))}>上一页</button>
+      <button type="button" className={buttonClass} disabled={pageNumber <= 1} onClick={() => navigate(Math.max(1, pageNumber - 1))}>上一页</button>
       <span className="px-1 tabular-nums" aria-live="polite">第 {pageNumber} / {pdf.numPages} 页</span>
-      <button type="button" className={buttonClass} disabled={pageNumber >= pdf.numPages} onClick={() => setPageNumber(page => Math.min(pdf.numPages, page + 1))}>下一页</button>
+      <button type="button" className={buttonClass} disabled={pageNumber >= pdf.numPages} onClick={() => navigate(Math.min(pdf.numPages, pageNumber + 1))}>下一页</button>
       <span className="flex-1" />
       <button type="button" className={buttonClass} aria-label="缩小 PDF" disabled={zoom <= 0.5} onClick={() => setZoom(value => Math.max(0.5, value - 0.25))}>−</button>
       <button type="button" className={buttonClass} onClick={() => setZoom(1)}>适合宽度</button>
       <span className="tabular-nums">{Math.round(zoom * 100)}%</span>
       <button type="button" className={buttonClass} aria-label="放大 PDF" disabled={zoom >= 2} onClick={() => setZoom(value => Math.min(2, value + 0.25))}>+</button>
     </div> : null}
+    {pdf && readingMessage ? <div className="flex flex-wrap items-center gap-x-3 text-[11px] text-[var(--text-secondary)]" role="status">
+      <span>{readingMessage}</span>
+      {conflict ? <>
+        <button type="button" className={buttonClass} onClick={() => {
+          progressQueue.current?.resolve(conflict.revision); userNavigated.current = false;
+          setPageNumber(Math.min(pdf.numPages, conflict.page)); setConflict(null); setReadingMessage("已接续另一设备的进度");
+        }}>接续最新进度</button>
+        <button type="button" className={buttonClass} onClick={() => {
+          progressQueue.current?.resolve(conflict.revision); progressQueue.current?.record(pageNumber);
+          setConflict(null); setReadingMessage("正在同步阅读进度…");
+        }}>以本页继续</button>
+      </> : pageNumber > 1 ? <button type="button" className={buttonClass} onClick={() => navigate(1)}>从头阅读</button> : null}
+    </div> : null}
     <div ref={container} className="max-h-[60dvh] min-h-64 overflow-auto rounded-[10px] border border-[var(--separator)] bg-[var(--surface-control)] p-3">
       {error ? <p role="alert" className="text-[12px] leading-5">{error}</p> : pdf ?
-        <PdfCanvasPage key={`${pageNumber}:${zoom}:${width}`} pdf={pdf} pageNumber={pageNumber} title={title} width={width * zoom} onFailure={fail} /> :
+        <PdfCanvasPage key={`${pageNumber}:${zoom}:${width}`} pdf={pdf} pageNumber={pageNumber} title={title} width={width * zoom} onFailure={fail} onRendered={onRendered} /> :
         <p role="status" className="flex min-h-56 items-center justify-center text-[13px] text-[var(--text-secondary)]">正在准备 PDF 预览…</p>}
     </div>
     <p className="text-[11px] leading-5 text-[var(--text-secondary)]">逐页显示 PDF；页内预览上限为 25 MiB。文件通过当前登录会话读取，不会发送给第三方阅读服务。</p>
@@ -143,8 +188,8 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
   </div>;
 }
 
-function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure }: {
-  pdf: PDFDocumentProxy; pageNumber: number; title: string; width: number; onFailure: (message: string) => void;
+function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure, onRendered }: {
+  pdf: PDFDocumentProxy; pageNumber: number; title: string; width: number; onFailure: (message: string) => void; onRendered: (page: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const generationRef = useRef(0);
@@ -199,12 +244,13 @@ function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure }: {
         // never a successful HEAD request or a native iframe load event.
         canvas.dataset.pdfRendered = "true";
         setRendered(true);
+        onRendered(pageNumber);
       } catch {
         if (active) onFailure(fallbackMessage);
       } finally { clearTimeout(timer); }
     })();
     return () => { active = false; clearTimeout(timer); release(); };
-  }, [pdf, pageNumber, width, onFailure]);
+  }, [pdf, pageNumber, width, onFailure, onRendered]);
   return <div className="w-max min-w-full">
     {!rendered ? <p role="status" className="py-3 text-[12px] text-[var(--text-secondary)]">正在绘制第 {pageNumber} 页…</p> : null}
     <canvas ref={canvasRef} role="img" aria-label={`${title}，第 ${pageNumber} 页`} data-pdf-page={pageNumber}

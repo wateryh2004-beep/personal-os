@@ -54,6 +54,24 @@ jobs:
           path: test-results/investment
           if-no-files-found: ignore
           retention-days: 7
+      - name: Measure streamed Notes startup and warm navigation
+        run: |
+          E2E_MOBILE_HARNESS=1 node node_modules/next/dist/bin/next start -p 3000 > /tmp/notes-bootstrap-app.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..45}; do
+            if curl -fsS 'http://127.0.0.1:3000/mobile-native-e2e?scene=notes-bootstrap&workspace=home' > /dev/null; then break; fi
+            sleep 1
+          done
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/notes-bootstrap-e2e.cjs
+      - name: Save Notes startup measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notes-bootstrap-evidence
+          path: test-results/notes-bootstrap
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Verify isolated Settings workspace
         run: |
           node scripts/settings-preview.mjs > /tmp/personal-os-settings-e2e.log 2>&1 &

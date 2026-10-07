@@ -133,25 +133,36 @@ export function reconcileWorkspaceScope(ownerId: string, revision: string) {
   }
 }
 
-export function useWorkspaceResourceLifecycle<T>(resource: WorkspaceResource<T>) {
+export function useWorkspaceResourceLifecycle<T>(resource: WorkspaceResource<T>, deferInitialRead = false) {
   useEffect(() => {
     const revalidate = () => { void resource.revalidate().catch(() => {}); };
-    revalidate();
+    if (!deferInitialRead) revalidate();
     window.addEventListener("focus", revalidate);
     window.addEventListener("online", revalidate);
     return () => {
       window.removeEventListener("focus", revalidate);
       window.removeEventListener("online", revalidate);
     };
-  }, [resource]);
+  }, [resource, deferInitialRead]);
 }
 
 const emptyServerSnapshot = {};
 /** SSR must never observe a browser's module-level in-memory data. */
-export function useWorkspaceResource<T>(resource: WorkspaceResource<T>, name: string) {
+export type WorkspaceBootstrap<T> = { ownerId: string; generatedAt: number; data: T };
+
+/** A streamed, owner-checked read can remove the hydration→API waterfall. */
+export function useWorkspaceResource<T>(resource: WorkspaceResource<T>, name: string, bootstrap?: WorkspaceBootstrap<T>, deferInitialRead = false) {
+  useEffect(() => {
+    if (!bootstrap || ownerScope !== bootstrap.ownerId) return;
+    const age = Date.now() - bootstrap.generatedAt;
+    if (age < -60_000 || age > 45_000) return;
+    const current = resource.get();
+    // Never overwrite a newer mutation, active fetch or another identity.
+    if (current.data === undefined && !current.promise) resource.set(bootstrap.data);
+  }, [resource, bootstrap]);
   const snapshot = useSyncExternalStore(resource.subscribe, resource.get, () => emptyServerSnapshot as WorkspaceCacheEntry<T>);
   const visible = useRef(false);
-  useWorkspaceResourceLifecycle(resource);
+  useWorkspaceResourceLifecycle(resource, deferInitialRead);
   useEffect(() => {
     if (snapshot.data === undefined || visible.current) return;
     visible.current = true;

@@ -3,7 +3,8 @@ import { act, createElement, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ getDocument: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getDocument: vi.fn(), getProgress: vi.fn(), saveProgress: vi.fn() }));
+vi.mock("@/features/files/reading-progress-actions", () => ({ getReadingProgress: mocks.getProgress, saveReadingProgress: mocks.saveProgress }));
 vi.mock("unpdf/pdfjs", () => ({ getDocument: mocks.getDocument }));
 import {
   FilePdfPreview, maxInlinePdfBytes, maxInlinePdfPages, maxPdfCanvasPixels, pdfLoadTimeoutMs, pdfRenderTimeoutMs,
@@ -46,6 +47,8 @@ beforeEach(() => {
   firstPage = page();
   documentProxy = { numPages: 3, getPage: vi.fn(async () => firstPage) };
   task = { promise: Promise.resolve(documentProxy), destroy: vi.fn(async () => {}) };
+  mocks.getProgress.mockReset().mockResolvedValue(null);
+  mocks.saveProgress.mockReset().mockResolvedValue({ status: "saved", progress: { page: 2, totalPages: 3, revision: 2, updatedAt: "now" } });
   mocks.getDocument.mockReset().mockImplementation(() => task);
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
@@ -267,5 +270,49 @@ describe("private PDF canvas preview UI", () => {
     expect(photoPreviewMime("text/html", "image.jpg")).toBeNull();
     expect(isPdfFile({ mime_type: "application/octet-stream", original_filename: "Document.PDF" })).toBe(true);
     expect(isPdfFile({ mime_type: "text/html", original_filename: "Document.pdf" })).toBe(false);
+  });
+});
+
+
+describe("durable reading continuity", () => {
+  const sourceVersion = "11111111-1111-4111-8111-111111111111";
+  function prepare(page = 2) {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { headers: {
+      "content-type": "application/pdf", "content-length": "1000", "X-Reading-Source-Version": sourceVersion,
+    } })));
+    mocks.getProgress.mockResolvedValue({ sourceVersion, progress: { page, totalPages: 3, revision: 1, updatedAt: "now" } });
+  }
+  it("reopens on the persisted page without overwriting it during load or zoom", async () => {
+    prepare(); await show();
+    expect(renderedCanvas()?.dataset.pdfPage).toBe("2");
+    expect(host.textContent).toContain("已接续第 2 页");
+    expect(mocks.saveProgress).not.toHaveBeenCalled();
+    await click("放大 PDF"); expect(mocks.saveProgress).not.toHaveBeenCalled();
+    await click("从头阅读");
+    expect(mocks.saveProgress).toHaveBeenCalledWith(expect.objectContaining({ page: 1, expectedRevision: 1, sourceVersion }));
+  });
+  it("does not write an unrendered page and keeps latest device position on conflict", async () => {
+    prepare(1); await show();
+    mocks.saveProgress.mockResolvedValue({ status: "conflict", progress: { page: 3, totalPages: 3, revision: 8, updatedAt: "now" } });
+    const paint = deferred<void>(); firstPage.render.mockReturnValue({ promise: paint.promise, cancel: vi.fn() });
+    await click("下一页"); expect(mocks.saveProgress).not.toHaveBeenCalled();
+    await act(async () => paint.resolve());
+    expect(host.textContent).toContain("另一设备已更新到第 3 页");
+    await click("接续最新进度"); expect(renderedCanvas()?.dataset.pdfPage).toBe("3");
+    expect(mocks.saveProgress).toHaveBeenCalledTimes(1);
+    mocks.saveProgress.mockResolvedValue({ status: "saved", progress: { page: 2, totalPages: 3, revision: 9, updatedAt: "now" } });
+    await click("上一页");
+    expect(mocks.saveProgress).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, expectedRevision: 8 }));
+  });
+  it("will not restore or write a stale source or mismatched page count", async () => {
+    prepare(); mocks.getProgress.mockResolvedValue({ sourceVersion: "stale", progress: { page: 2, totalPages: 3, revision: 1 } });
+    await show(); await click("下一页");
+    expect(host.textContent).toContain("阅读进度暂不可用"); expect(mocks.saveProgress).not.toHaveBeenCalled();
+  });
+  it("finishes an already issued save across close, without updating an unmounted reader", async () => {
+    prepare(); await show(); const saved = deferred<unknown>(); mocks.saveProgress.mockReturnValue(saved.promise);
+    await click("下一页"); await act(async () => root.render(null));
+    await act(async () => saved.resolve({ status: "saved", progress: { page: 3, revision: 2 } }));
+    expect(host.textContent).toBe(""); expect(task.destroy).toHaveBeenCalled();
   });
 });
