@@ -41,10 +41,11 @@ export async function createExportPlan(source: ExportSource, signal: AbortSignal
       const document = row as ExportDocument;
       if (!Number.isSafeInteger(document.file_size) || document.file_size < 0 || document.file_size > maxOriginalBytes) throw new Error("export_invalid_size");
       const pending = document.storage_state === "pending";
+      const cancelled = document.storage_state === "cancelled";
       counts.documents++;
-      storage.totalLogicalBytes += document.file_size;
+      if (!cancelled) storage.totalLogicalBytes += document.file_size;
       if (pending) { counts.pending++; storage.pendingBytes += document.file_size; }
-      else {
+      else if (!cancelled) {
         counts.objects++;
         counts.objectBytes += document.file_size;
         storage[document.archived_at || document.storage_state === "archived" ? "archivedBytes" : "availableBytes"] += document.file_size;
@@ -55,7 +56,7 @@ export async function createExportPlan(source: ExportSource, signal: AbortSignal
           checksums.set(key, entry);
         }
       }
-      documents.push({ id: document.id, bytes: rowBytes + (pending ? 0 : document.file_size), originalBytes: pending ? 0 : document.file_size, pending });
+      documents.push({ id: document.id, bytes: rowBytes + (pending || cancelled ? 0 : document.file_size), originalBytes: pending || cancelled ? 0 : document.file_size, pending });
     }
   }
   signal.throwIfAborted();

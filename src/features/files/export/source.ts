@@ -5,7 +5,7 @@ import { exportPageSize, type ExportDocument, type ExportRow, type ExportSource 
 
 const columns = {
   file_folders: "id,name,parent_id,position,created_at,updated_at,archived_at",
-  documents: "id,title,document_type,original_filename,mime_type,file_size,checksum,confidentiality_level,uploaded_at,created_at,updated_at,archived_at,folder_id,storage_provider,storage_state,storage_path,ai_visibility,text_extraction_status,extracted_text,extracted_character_count,text_extraction_error_code,text_extracted_at",
+  documents: "id,title,document_type,original_filename,mime_type,file_size,checksum,confidentiality_level,uploaded_at,created_at,updated_at,archived_at,folder_id,storage_provider,storage_state,storage_path,ai_visibility,text_extraction_status,extracted_text,extracted_character_count,text_extraction_error_code,text_extracted_at,text_extraction_method,text_extraction_engine_version,text_extraction_model_version,text_extraction_source_sha256,text_extraction_page_count,text_extraction_empty_pages",
   entity_links: "id,source_type,source_id,target_type,target_id,relationship_type,created_via,metadata,created_at,updated_at,archived_at",
 } as const;
 

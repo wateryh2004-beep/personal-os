@@ -12,6 +12,9 @@ describe("private workspace performance metrics", () => {
   it("normalizes Career destinations without reporting record ids or search text", () => {
     for (const [href, expected] of [
       ["/career", "/career"],
+      ["/files?file=private-id", "/files"],
+      ["/investments?item=private-id", "/investments"],
+      ["/leisure/12345678-1234-1234-1234-123456789012?q=private", "/leisure/[id]"],
       ["/career/experiences/private-id?search=private", "/career"],
       ["/career/interview/practice/private-id#answer", "/career/interview"],
       ["/notes/12345678-1234-1234-1234-123456789012?q=private", "/notes/[id]"],

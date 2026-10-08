@@ -23,13 +23,19 @@ const output = "test-results/settings-workspace";
       await budget.fill("2");
       await page.getByRole("meter").waitFor();
       assert.ok((await page.getByRole("meter").getAttribute("aria-valuetext")).includes("预算内余量"));
-      assert.ok(await page.getByText("暂无法确认", { exact: true }).isVisible());
+      assert.ok(await page.getByText(/账户本月计费用量：未知/).isVisible());
       const scanButton = page.getByRole("button", { name: "检查并统计用量", exact: true });
       await scanButton.hover();
       const background = await scanButton.evaluate(element => getComputedStyle(element).backgroundColor);
       const channels = background.match(/[0-9.]+/g).slice(0, 3).map(Number).map(value => value / 255).map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
       const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
       assert.ok(1.05 / (luminance + 0.05) >= 4.5, "primary button keeps readable white text on hover");
+      await page.getByRole("button", { name: "保存预算", exact: true }).click();
+      await page.getByText("已保存，可在其他设备继续使用", { exact: true }).waitFor();
+      await page.reload({ waitUntil: "networkidle" });
+      assert.equal(await page.getByLabel("当前桶个人容量预算（GiB）").inputValue(), "2");
+      await page.getByRole("button", { name: "检查并统计用量", exact: true }).click();
+      await page.getByRole("meter").waitFor();
       await page.screenshot({ path: `${output}/storage-${width}.png`, fullPage: true });
       await page.getByRole("link", { name: /连接与同步/ }).click();
       assert.ok(await page.getByText("尚未验证自动同步", { exact: true }).isVisible());
@@ -55,7 +61,11 @@ const output = "test-results/settings-workspace";
         await page.getByRole("button", { name: "检查并统计用量", exact: true }).click();
         await page.getByLabel("当前桶个人容量预算（GiB）").fill("2");
         if (fixture === "partial" || fixture === "unavailable") assert.equal(await page.getByRole("meter").count(), 0);
-        if (fixture === "partial") assert.ok((await page.locator("body").innerText()).includes("未完成，不是总量"));
+        if (fixture === "partial") {
+          // Scan is asynchronous; wait for its actual result before asserting.
+          await page.getByText("未完成，不是总量", { exact: false }).waitFor();
+          assert.ok((await page.locator("body").innerText()).includes("未完成，不是总量"));
+        }
         if (fixture === "empty") assert.equal(await page.getByRole("meter").getAttribute("aria-valuenow"), "0");
         if (fixture === "error") {
           await page.getByRole("button", { name: "检查并统计用量", exact: true }).click();

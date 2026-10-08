@@ -12,3 +12,7 @@ export const getSystemHealth = async () => ({
   rows: ["tasks", "calendar", "notes", "files", "briefing", "ai"].map((domain, i) => ({ domain, state: i < 2 ? "stale" : "fresh", authoritySource: "服务记录", replicaRole: "缓存", syncDirection: "服务 → 本地", lastSuccessAt: "2026-09-30T01:00:00Z", lastAttemptAt: null, retryAfter: null, retryAttempt: 0, errorCode: null, errorSummary: null, conflictSummary: null, nextStep: i < 2 ? "请检查同步记录。" : "按需更新。" })),
   controlPlane: { deployment: { environment: "development", commit: "ui-fixture", deploymentId: null, appUrl: null }, telemetry: { available: true, detail: "合成测试数据" }, scheduler: { lastRunAt: null, lastRunFailed: false, nextScheduledAt: null, hourlyDeltaState: "unavailable", hourlyDeltaLastRunAt: null, detail: "每日后台同步尚未验证；等待首次成功运行。" }, webhook: { lastReceivedAt: null, subscriptionExpiresAt: null, state: "unavailable", detail: "Webhook 为可选增强；每日同步不依赖它。" } },
 });
+
+// Fixture-only persistence: no server action or private account is contacted.
+export async function readStorageBudget() { return { value: sessionStorage.getItem("synthetic-storage-budget") ?? "", available: true }; }
+export async function saveStorageBudget(value) { sessionStorage.setItem("synthetic-storage-budget", value); return { ok: true, value }; }

@@ -246,14 +246,16 @@ declare
   questions_without_archetype int;
   active_archetypes int;
   learning_archetypes int;
+  learning_questions int;
 begin
   select count(*) into active_questions from public.interview_questions where archived_at is null;
   select count(*) into questions_without_archetype from public.interview_questions where archetype_id is null;
   select count(*) into active_archetypes from public.interview_question_archetypes where archived_at is null;
-  select count(distinct archetype_id) into learning_archetypes
+  select count(*), count(distinct archetype_id) into learning_questions, learning_archetypes
     from public.interview_questions
     where id in ('d921296e-e7da-4ff3-b939-d353e49ff9c1','97a2fb5e-b19f-48da-9d68-c00504451370');
   if questions_without_archetype<>0 then raise exception 'missing archetype links: %',questions_without_archetype; end if;
-  if learning_archetypes<>1 then raise exception 'learning duplicate not merged'; end if;
-  if active_archetypes>=active_questions then raise exception 'archetype normalization did not reduce question roots'; end if;
+  -- The seeded duplicate pair may be absent on a fresh install or another owner.
+  if learning_questions=2 and learning_archetypes<>1 then raise exception 'learning duplicate not merged'; end if;
+  if learning_questions=2 and active_archetypes>=active_questions then raise exception 'archetype normalization did not reduce question roots'; end if;
 end $$;

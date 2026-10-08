@@ -1,0 +1,75 @@
+name: Private document OCR
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  local-recognition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run assets:ocr
+      - name: Install synthetic test browser and Chinese fonts
+        run: |
+          npm install --global playwright@1.62.1
+          playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Recognize actual Chinese and English images and scanned PDF
+        run: node scripts/verify-private-ocr-runtime.mjs
+      - name: Verify cold browser assets, privacy, cancellation and navigation
+        run: NODE_PATH="$(npm root -g)" timeout 240s node scripts/private-ocr-e2e.cjs
+      - name: Save OCR screenshots and network evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-ocr-browser-evidence
+          path: test-results/private-ocr
+          if-no-files-found: warn
+          retention-days: 7
+  owner-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ephemeral-fixture-only
+          POSTGRES_DB: private_ocr_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: ephemeral-fixture-only
+      PGDATABASE: private_ocr_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install 'psycopg[binary]>=3.2,<4'
+      - name: Verify atomic publication, owner access and search invalidation
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/fixtures/private-ocr-sql/bootstrap.sql
+          python3 - <<'PY' > /tmp/ocr-search-trigger.sql
+          from pathlib import Path
+          source = Path('supabase/migrations/20260808181955_agent_layer_completion.sql').read_text()
+          print(source[source.index('create or replace function public.sync_search_document()'):source.index('-- Postgres Changes')])
+          print('create trigger documents_search after insert or update on public.documents for each row execute function public.sync_search_document();')
+          PY
+          psql -v ON_ERROR_STOP=1 -f /tmp/ocr-search-trigger.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261007093341_private_document_ocr.sql
+          psql -v ON_ERROR_STOP=1 -f tests/fixtures/private-ocr-sql/regression.sql
+          python scripts/private-ocr-sql-concurrency.py

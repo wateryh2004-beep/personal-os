@@ -1,0 +1,486 @@
+{
+  "date": "2026-10-07",
+  "baseCommit": "720cbdba33b6d55a5d848232faadf9c5963def9b",
+  "earlierIdenticalVulnerableLockEntries": [
+    "247976e390bccd7b81bdcbe412843bc1f4bd7864",
+    "038017352e28e18e0cbca081afade2ec3cef5407"
+  ],
+  "changedPackageEntries": [
+    {
+      "package": "@img/sharp-darwin-arm64",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-darwin-x64",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-freebsd-wasm32",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-libvips-darwin-arm64",
+      "before": "1.3.2",
+      "after": "1.3.4",
+      "license": "LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-libvips-darwin-x64",
+      "before": "1.3.2",
+      "after": "1.3.4",
+      "license": "LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-libvips-linux-arm",
+      "before": "1.3.2",
+      "after": "1.3.4",
+      "license": "LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-libvips-linux-arm64",
+      "before": "1.3.2",
+      "after": "1.3.4",
+      "license": "LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-libvips-linux-ppc64",
+      "before": "1.3.2",
+      "after": "1.3.4",
+      "license": "LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-libvips-linux-riscv64",
+      "before": "1.3.2",
+      "after": "1.3.4",
+      "license": "LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-libvips-linux-s390x",
+      "before": "1.3.2",
+      "after": "1.3.4",
+      "license": "LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-libvips-linux-x64",
+      "before": "1.3.2",
+      "after": "1.3.4",
+      "license": "LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-libvips-linuxmusl-arm64",
+      "before": "1.3.2",
+      "after": "1.3.4",
+      "license": "LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-libvips-linuxmusl-x64",
+      "before": "1.3.2",
+      "after": "1.3.4",
+      "license": "LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-linux-arm",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-linux-arm64",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-linux-ppc64",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-linux-riscv64",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-linux-s390x",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-linux-x64",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-linuxmusl-arm64",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-linuxmusl-x64",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-wasm32",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-webcontainers-wasm32",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-win32-arm64",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-win32-ia32",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@img/sharp-win32-x64",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@next/env",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@next/eslint-plugin-next",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@next/swc-darwin-arm64",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@next/swc-darwin-x64",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@next/swc-linux-arm64-gnu",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@next/swc-linux-arm64-musl",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@next/swc-linux-x64-gnu",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@next/swc-linux-x64-musl",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@next/swc-win32-arm64-msvc",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@next/swc-win32-x64-msvc",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@swc/helpers",
+      "before": "0.5.15",
+      "after": "0.5.23",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "@xmldom/xmldom",
+      "before": "0.8.13",
+      "after": "0.8.15",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "eslint-config-next",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "maplibre-gl",
+      "before": "6.3.0",
+      "after": "6.4.1",
+      "license": "BSD-3-Clause",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "next",
+      "before": "16.3.0",
+      "after": "16.3.6",
+      "license": "MIT",
+      "licenseUnchanged": true
+    },
+    {
+      "package": "sharp",
+      "before": "0.35.3",
+      "after": "0.35.5",
+      "license": "Apache-2.0",
+      "licenseUnchanged": true
+    }
+  ],
+  "packagesAdded": [],
+  "packagesRemoved": [],
+  "licenseFileComparison": [
+    {
+      "package": "next",
+      "file": "license.md",
+      "byteIdentical": true,
+      "sha256": "ee765244e2d59f5234d474f62e0766fa0c8b99af967fdd4c0cb8dcb0c76ea224"
+    },
+    {
+      "package": "sharp",
+      "file": "LICENSE",
+      "byteIdentical": true,
+      "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68"
+    },
+    {
+      "package": "maplibre-gl",
+      "file": "LICENSE.txt",
+      "byteIdentical": true,
+      "sha256": "ee5fc05a0677eaf69601d2c7db0d9ecd6cc27c3abc1d0733bc9ed34707cf8ef2"
+    },
+    {
+      "package": "@xmldom/xmldom",
+      "file": "LICENSE",
+      "byteIdentical": true,
+      "sha256": "4da724fc305d81606b245b324d4d2586916b9d248b23d82183df753ace0fdf71"
+    }
+  ],
+  "auditBefore": {
+    "packages": {
+      "info": 0,
+      "low": 1,
+      "moderate": 7,
+      "high": 15,
+      "critical": 3,
+      "total": 26
+    },
+    "uniqueAdvisories": 55
+  },
+  "auditAfter": {
+    "packages": {
+      "info": 0,
+      "low": 1,
+      "moderate": 7,
+      "high": 13,
+      "critical": 1,
+      "total": 22
+    },
+    "uniqueAdvisories": 39,
+    "remainingPackages": [
+      "@modelcontextprotocol/sdk",
+      "@ts-morph/common",
+      "argparse",
+      "brace-expansion",
+      "braces",
+      "dompurify",
+      "fast-glob",
+      "fast-uri",
+      "hono",
+      "ip-address",
+      "js-yaml",
+      "mammoth",
+      "micromatch",
+      "nanoid",
+      "postcss-selector-parser",
+      "proxy-addr",
+      "qs",
+      "shadcn",
+      "source-map-js",
+      "sprintf-js",
+      "ts-morph",
+      "undici"
+    ]
+  },
+  "mapAttribution": [
+    {
+      "version": "6.3.0",
+      "remainingHandlers": [
+        "ontoggle"
+      ],
+      "preservedCredit": true
+    },
+    {
+      "version": "6.4.1",
+      "remainingHandlers": [],
+      "preservedCredit": true
+    }
+  ],
+  "loadedNativeVersions": {
+    "before": {
+      "sharp": "0.35.3",
+      "heif": "1.23.1",
+      "rsvg": "2.62.90"
+    },
+    "after": {
+      "sharp": "0.35.5",
+      "heif": "1.23.5",
+      "rsvg": "2.63.2"
+    }
+  },
+  "rendererVersion": "pdfjs-6.4.299-webp-v1",
+  "rendererVersionChanged": false,
+  "representativeOutputComparison": [
+    {
+      "fixture": "portrait.webp",
+      "beforeBytes": 1546,
+      "afterBytes": 1546,
+      "beforeSha256": "f891248de402536dd6e882c46e40953d643e33032f547bf67929516797b78a27",
+      "afterSha256": "f891248de402536dd6e882c46e40953d643e33032f547bf67929516797b78a27",
+      "identical": true
+    },
+    {
+      "fixture": "rotated.webp",
+      "beforeBytes": 1818,
+      "afterBytes": 1818,
+      "beforeSha256": "1639435dc0d3da0454effaa0c74e33fc134455183ed975f3f5b57bd129dcc93f",
+      "afterSha256": "1639435dc0d3da0454effaa0c74e33fc134455183ed975f3f5b57bd129dcc93f",
+      "identical": true
+    },
+    {
+      "fixture": "chinese-embedded.webp",
+      "beforeBytes": 3952,
+      "afterBytes": 3952,
+      "beforeSha256": "dbe64e326a0b638797078628b416db0d8265620c99700a7196acb732e8e2b6a4",
+      "afterSha256": "dbe64e326a0b638797078628b416db0d8265620c99700a7196acb732e8e2b6a4",
+      "identical": true
+    },
+    {
+      "fixture": "scanned.webp",
+      "beforeBytes": 112830,
+      "afterBytes": 112830,
+      "beforeSha256": "cb72aae66f08fabf783bcdea23ce54c45edb494c9a27faa65e395550f8ec6d49",
+      "afterSha256": "cb72aae66f08fabf783bcdea23ce54c45edb494c9a27faa65e395550f8ec6d49",
+      "identical": true
+    }
+  ],
+  "coldPackages": {
+    "node": "v24.19.0",
+    "results": [
+      {
+        "trace": ".next/server/app/api/files/[documentId]/pdf-cover/route.js.nft.json",
+        "runtimeFiles": 361,
+        "assetBytes": 131984695,
+        "durationMs": 584,
+        "outputBytes": 3952,
+        "completeTraceBytes": 136061055
+      },
+      {
+        "trace": ".next/server/app/api/files/upload-url/route.js.nft.json",
+        "runtimeFiles": 361,
+        "assetBytes": 131984695,
+        "durationMs": 578,
+        "outputBytes": 3952,
+        "completeTraceBytes": 138188591
+      },
+      {
+        "trace": ".next/server/app/api/cron/files-extraction/route.js.nft.json",
+        "runtimeFiles": 361,
+        "assetBytes": 131984695,
+        "durationMs": 604,
+        "outputBytes": 3952,
+        "completeTraceBytes": 138129811
+      }
+    ]
+  },
+  "checks": {
+    "cleanInstall": "passed",
+    "fullTestFiles": 280,
+    "fullTests": 1892,
+    "typecheck": "passed",
+    "changedFileLint": "passed",
+    "build": "passed with E2E_MOBILE_HARNESS=1",
+    "fullLint": {
+      "beforeErrors": 147,
+      "afterErrors": 147,
+      "beforeWarnings": 4,
+      "afterWarnings": 4,
+      "normalizedDiagnosticsIdentical": true
+    },
+    "chromium": "blocked: process-singleton socket EPERM; final-commit CI required",
+    "productionSmoke": "not run"
+  }
+}

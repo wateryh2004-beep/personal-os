@@ -24,12 +24,13 @@ async function preview(request: Request, { params }: Context, head: boolean) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(documentId)) return unavailable(404, head);
     if (!isR2Configured()) return unavailable(503, head);
     const { data: file, error } = await supabase.from("documents")
-      .select("storage_path,mime_type,file_size,original_filename")
+      .select("storage_path,mime_type,file_size,original_filename,reading_source_version")
       .eq("id", documentId).eq("user_id", userId)
       .eq("storage_provider", "cloudflare_r2").eq("storage_bucket", r2BucketName()).eq("storage_state", "available")
       .is("archived_at", null).maybeSingle();
     if (error || !file || typeof file.storage_path !== "string" || !file.storage_path.startsWith(`${userId}/files/${documentId}/`))
       return unavailable(404, head);
+    if (request.headers.has("X-Reading-Source-Version") && request.headers.get("X-Reading-Source-Version") !== file.reading_source_version) return unavailable(409, head);
     if (!supportsPdfPreview(file.mime_type ?? "", file.original_filename ?? "")) return unavailable(415, head);
     const total = Number(file.file_size);
     checkPdfPreviewSize(total);
@@ -51,6 +52,7 @@ async function preview(request: Request, { params }: Context, head: boolean) {
     if (range && request.headers.has("if-range") && request.headers.get("if-range") !== etag) range = null;
     const headers = {
       ...pdfPreviewHeaders, "Content-Type": "application/pdf", "Accept-Ranges": "bytes", ETag: etag,
+      ...(file.reading_source_version ? { "X-Reading-Source-Version": file.reading_source_version } : {}),
       "Content-Length": String(range ? range.end - range.start + 1 : total),
       "Content-Disposition": pdfInlineDisposition(file.original_filename ?? "document.pdf"),
       ...(range ? { "Content-Range": pdfContentRange(range, total) } : {}),

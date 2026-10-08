@@ -1,0 +1,3 @@
+
+# PDF fixtures contain byte offsets and must never be normalized as text.
+tests/fixtures/pdf-covers/*.pdf binary

@@ -112,7 +112,8 @@ it("keeps postpone in a named task sheet with close and focus restoration", asyn
   expect(dialog.textContent).toContain("延后到明天");
   await act(async () => dialog.querySelector<HTMLButtonElement>('[aria-label="关闭任务操作"]')!.click());
   expect(document.querySelector('[role="dialog"]')).toBeNull();
-  expect(document.activeElement).toBe(trigger);
+  // Radix schedules unmount autofocus on the next task; wait for the real callback.
+  await vi.waitFor(() => expect(document.activeElement).toBe(trigger), { timeout: 1000, interval: 10 });
   expect(mocks.defer).not.toHaveBeenCalled();
 });
 it("blocks dismissal and repeated postpone writes until the result is known", async () => {

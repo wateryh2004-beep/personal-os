@@ -20,3 +20,9 @@ export const addInvestmentEntry = previewWrite;
 export const voidInvestmentEntry = previewWrite;
 export const importInvestmentResearch = previewWrite;
 export const saveInvestmentStrategy = previewWrite;
+
+export const addInvestmentCash = previewWrite;
+export const saveInvestmentQuotes = previewWrite;
+export const voidInvestmentCash = previewWrite;
+
+export const usePathname = () => window.location.pathname;

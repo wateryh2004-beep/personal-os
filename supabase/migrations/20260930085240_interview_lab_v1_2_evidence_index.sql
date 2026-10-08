@@ -1,1 +1,1 @@
-create index interview_evidence_links_entity_link_idx on public.interview_evidence_links(user_id,entity_link_id);
+create index if not exists interview_evidence_links_entity_link_idx on public.interview_evidence_links(user_id,entity_link_id);

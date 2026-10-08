@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { AbortMultipartUploadCommand, CompleteMultipartUploadCommand, CreateMultipartUploadCommand, ListPartsCommand, UploadPartCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 
 import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -269,4 +269,98 @@ export async function inspectR2ObjectUsage(signal: AbortSignal, pageLimit = 20):
     const status = r2Status(error);
     return { ...result, status: result.pagesScanned ? "partial" : "unavailable", reason: status === 401 || status === 403 ? "access_denied" : "network_or_service" };
   }
+}
+
+/** Derivatives have a separate narrow keyspace, in the existing private bucket. */
+function assertPdfCoverKey(key: string) {
+  if (!/^[0-9a-f-]{36}\/pdf-covers\/[0-9a-f-]{36}\/[a-z0-9][a-z0-9.-]{0,63}\/[0-9a-f]{64}\.webp$/.test(key))
+    throw new Error("pdf_cover_invalid_identity");
+}
+
+export async function createImmutableR2PdfCover(key: string, bytes: Uint8Array, signal?: AbortSignal) {
+  assertPdfCoverKey(key);
+  if (bytes.byteLength < 1 || bytes.byteLength > 128 * 1024) throw new Error("pdf_cover_invalid_output");
+  const config = requiredConfiguration();
+  try {
+    await client(config).send(new PutObjectCommand({
+      Bucket: config.bucketName, Key: key, Body: bytes, ContentType: "image/webp",
+      CacheControl: "private, max-age=0, must-revalidate", IfNoneMatch: "*",
+    }), { abortSignal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000) });
+  } catch (error) {
+    // Never overwrite: the caller verifies a competing immutable object's digest.
+    if (r2Status(error) !== 412) throw error;
+  }
+}
+
+export async function readR2PdfCover(key: string, signal?: AbortSignal) {
+  assertPdfCoverKey(key);
+  const config = requiredConfiguration();
+  try {
+    const timeout = AbortSignal.timeout(10_000);
+    const abortSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    const result = await client(config).send(new GetObjectCommand({ Bucket: config.bucketName, Key: key }), { abortSignal });
+    if (!result.Body) throw new Error("pdf_cover_invalid_output");
+    const body = result.Body.transformToWebStream();
+    if (result.ContentType !== "image/webp" || !Number.isSafeInteger(result.ContentLength) || result.ContentLength! < 1 || result.ContentLength! > 128 * 1024) {
+      await body.cancel().catch(() => {});
+      throw new Error("pdf_cover_invalid_output");
+    }
+    const reader = body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    const abort = () => { void reader.cancel().catch(() => {}); };
+    abortSignal.addEventListener("abort", abort, { once: true });
+    try {
+      abortSignal.throwIfAborted();
+      while (true) {
+        const { value, done } = await reader.read();
+        abortSignal.throwIfAborted();
+        if (done) break;
+        size += value.byteLength;
+        if (size > result.ContentLength!) throw new Error("pdf_cover_invalid_output");
+        chunks.push(value);
+      }
+      if (size !== result.ContentLength) throw new Error("pdf_cover_invalid_output");
+      return Buffer.concat(chunks);
+    } finally {
+      abortSignal.removeEventListener("abort", abort);
+      await reader.cancel().catch(() => {}); reader.releaseLock();
+    }
+  } catch (error) {
+    if (r2Status(error) === 404) return null;
+    throw error;
+  }
+}
+
+
+/** Private resumable uploads. Provider identities never come from the browser. */
+export async function beginR2Multipart(key: string, contentType: string) {
+  const config = requiredConfiguration();
+  const result = await client(config).send(new CreateMultipartUploadCommand({ Bucket: config.bucketName, Key: key, ContentType: contentType, CacheControl: "private, no-store" }), { abortSignal: AbortSignal.timeout(30_000) });
+  if (!result.UploadId) throw new Error("multipart_unavailable");
+  return result.UploadId;
+}
+export async function signR2MultipartPart(key: string, uploadId: string, partNumber: number, size: number) {
+  if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 13 || !Number.isInteger(size) || size < 1 || size > 8 * 1024 * 1024) throw new Error("invalid_multipart_part");
+  const config = requiredConfiguration();
+  return getSignedUrl(client(config), new UploadPartCommand({ Bucket: config.bucketName, Key: key, UploadId: uploadId, PartNumber: partNumber, ContentLength: size }), { expiresIn: 300 });
+}
+export async function listR2MultipartParts(key: string, uploadId: string) {
+  const config = requiredConfiguration();
+  const result = await client(config).send(new ListPartsCommand({ Bucket: config.bucketName, Key: key, UploadId: uploadId, MaxParts: 14 }), { abortSignal: AbortSignal.timeout(30_000) });
+  if (result.IsTruncated || (result.Parts?.length ?? 0) > 13) throw new Error("invalid_multipart_parts");
+  return (result.Parts ?? []).map(part => ({ partNumber: part.PartNumber ?? 0, size: part.Size ?? -1, etag: part.ETag ?? "" }));
+}
+export async function completeR2Multipart(key: string, uploadId: string, parts: { partNumber: number; etag: string }[]) {
+  const config = requiredConfiguration();
+  await client(config).send(new CompleteMultipartUploadCommand({ Bucket: config.bucketName, Key: key, UploadId: uploadId,
+    MultipartUpload: { Parts: parts.map(part => ({ PartNumber: part.partNumber, ETag: part.etag })) } }), { abortSignal: AbortSignal.timeout(120_000) });
+}
+export async function abortR2Multipart(key: string, uploadId: string) {
+  const config = requiredConfiguration();
+  try { await client(config).send(new AbortMultipartUploadCommand({ Bucket: config.bucketName, Key: key, UploadId: uploadId }), { abortSignal: AbortSignal.timeout(30_000) }); }
+  catch (error) { if (!isMissingR2Multipart(error)) throw error; }
+}
+export function isMissingR2Multipart(error: unknown) {
+  return error instanceof Error && error.name === "NoSuchUpload";
 }

@@ -12,6 +12,7 @@ const server = await createServer({
   root,
   plugins: [react()],
   resolve: { alias: [
+    { find: "@/features/files/storage-inspection/budget-actions", replacement: mock },
     { find: "@/features/ai/actions", replacement: mock },
     { find: "@/features/ai/queries", replacement: mock },
     { find: "@/features/system-status/queries", replacement: mock },

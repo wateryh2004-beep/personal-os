@@ -17,10 +17,10 @@ import { CalendarShell } from "@/components/calendar/calendar-workspace-skeleton
 import TodayLoading from "@/app/(app)/today/loading";
 import type { NowWorkspace } from "@/features/today/types";
 import type { TodoTask } from "@/features/tasks/types";
-import { FilesPolishFixture } from "./files-polish-fixture";
+import { FilesCachedCoversFixture, FilesPolishFixture } from "./files-polish-fixture";
 import { NoteEditorPolishFixture } from "./note-editor-polish-fixture";
 
-export type PolishScene = "projects" | "calendar-edit" | "heading" | "career" | "career-filled" | "today" | "today-filled" | "tasks" | "calendar" | "notes" | "note-editor" | "note-pdf" | "files" | "today-loading" | "tasks-loading" | "calendar-loading";
+export type PolishScene = "projects" | "calendar-edit" | "heading" | "career" | "career-filled" | "today" | "today-filled" | "tasks" | "calendar" | "notes" | "note-editor" | "note-pdf" | "files" | "files-cached-covers" | "today-loading" | "tasks-loading" | "calendar-loading";
 
 // Fixture-only, reached through the existing explicitly gated E2E route. Never
 // populated from an account, and the browser test never submits these forms.
@@ -75,7 +75,7 @@ const filledCareer: CareerHomeData = {
 };
 
 export function WorkspacePolishHarness({ scene }: { scene: PolishScene }) {
-  const pathname = scene === "heading" ? "/today" : (scene === "note-editor" || scene === "note-pdf") ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
+  const pathname = scene === "files-cached-covers" ? "/files" : scene === "heading" ? "/today" : (scene === "note-editor" || scene === "note-pdf") ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
   return <div data-testid="workspace-polish-harness" data-scene={scene}>
     <AppShell presentationPathname={pathname}>
       {scene === "projects" ? <ProjectsWorkspace projects={[]} /> : null}
@@ -88,6 +88,7 @@ export function WorkspacePolishHarness({ scene }: { scene: PolishScene }) {
       {scene === "notes" ? <NotesWorkspaceShell folders={folders} notes={notes}><NotesWorkspace notes={notes} folders={folders} timezone="Asia/Shanghai" state="ready" selectedFolder={null} initialView="all" dailyError={false} initialHasMore={false} /></NotesWorkspaceShell> : null}
       {scene === "note-editor" || scene === "note-pdf" ? <NoteEditorPolishFixture pdf={scene === "note-pdf"} /> : null}
       {scene === "files" ? <FilesPolishFixture /> : null}
+      {scene === "files-cached-covers" ? <FilesCachedCoversFixture /> : null}
       {scene === "today-loading" ? <TodayLoading /> : null}
       {scene === "tasks-loading" ? <TasksShell /> : null}
       {scene === "calendar-loading" ? <CalendarShell /> : null}

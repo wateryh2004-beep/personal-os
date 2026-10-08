@@ -10,7 +10,7 @@ export const clientMetricNames = [
 ] as const;
 
 export type ClientMetricName = (typeof clientMetricNames)[number];
-export const clientMetricRoutes = ["/today", "/calendar", "/tasks", "/notes", "/notes/[id]", "/briefing", "/career", "/career/interview"] as const;
+export const clientMetricRoutes = ["/today", "/calendar", "/tasks", "/notes", "/notes/[id]", "/briefing", "/career", "/career/interview", "/files", "/leisure", "/leisure/[id]", "/investments", "/settings", "/projects", "/shopping", "/travel", "/reviews"] as const;
 export type ClientMetricRoute = (typeof clientMetricRoutes)[number];
 export type ViewportBucket = "360" | "390" | "412" | "430" | "wide";
 
@@ -19,6 +19,8 @@ export function normalizeMetricRoute(pathname: string): ClientMetricRoute | null
   if (route === "/today" || route === "/calendar" || route === "/tasks" || route === "/notes" || route === "/briefing") {
     return route;
   }
+  if (["/files", "/leisure", "/investments", "/settings", "/projects", "/shopping", "/travel", "/reviews"].includes(route)) return route as ClientMetricRoute;
+  if (/^\/leisure\/[0-9a-f-]{36}$/i.test(route)) return "/leisure/[id]";
   if (/^\/notes\/[0-9a-f-]{36}$/i.test(route)) return "/notes/[id]";
   if (route === "/career/interview" || route.startsWith("/career/interview/")) return "/career/interview";
   if (route === "/career" || route.startsWith("/career/")) return "/career";

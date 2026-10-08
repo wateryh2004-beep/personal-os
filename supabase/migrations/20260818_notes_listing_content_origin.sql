@@ -1,6 +1,10 @@
 -- Notes 列表返回 content_origin，供列表页区分「AI 生成」文档（门头门脸视觉）。
 -- 与 fallback 直查路径（queries.ts select 已含 content_origin）保持一致；
 -- 旧列表在未应用本迁移前仍可用（前端 schema 对该列做了 optional 容错）。
+-- PostgreSQL cannot change a function return record via CREATE OR REPLACE.
+-- Recreated immediately below with the same signature and owner-only grants.
+drop function if exists public.list_notes_workspace(integer, integer);
+
 create or replace function public.list_notes_workspace(
   p_limit integer default 100,
   p_offset integer default 0

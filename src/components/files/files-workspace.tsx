@@ -1,5 +1,11 @@
 "use client";
 
+import { FileOcrControl } from "./file-ocr-control";
+import { WorkspaceReadyMetric } from "@/components/performance/workspace-ready-metric";
+import { FileResumableUploads } from "./file-resumable-uploads";
+import { uploadMultipartFile, completeMultipartSession } from "@/features/files/multipart-client";
+import { multipartThreshold, type MultipartSnapshot } from "@/features/files/multipart-upload";
+import { checksumFile } from "@/features/files/file-checksum";
 import { FilePdfCover } from "./file-pdf-cover";
 import { FilePdfPreview } from "./file-pdf-preview";
 import { isPdfFile } from "@/features/files/preview-format";
@@ -43,15 +49,19 @@ async function responseError(response: Response, fallback: string) {
   try { const value = await response.json() as ApiError; return value.error || fallback; } catch { return fallback; }
 }
 
-function uploadToR2(url: string, file: File, onProgress: (value: number) => void) {
+function uploadToR2(url: string, file: File, onProgress: (value: number) => void, signal: AbortSignal) {
   return new Promise<number | null>((resolve) => {
     const request = new XMLHttpRequest();
     request.open("PUT", url); request.timeout = 300_000; request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
     request.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100)); };
+    const abort = () => request.abort();
+    signal.addEventListener("abort", abort, { once: true });
+    request.onloadend = () => signal.removeEventListener("abort", abort);
     request.onload = () => resolve(request.status);
     request.onerror = () => resolve(null);
     request.onabort = () => resolve(null);
     request.ontimeout = () => resolve(null);
+    if (signal.aborted) { resolve(null); signal.removeEventListener("abort", abort); return; }
     request.send(file);
   });
 }
@@ -84,6 +94,8 @@ function FileOperations({ file, folders, onArchive }: { file: FileRecord; folder
 export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, initialUpload = false, initialFileId, initialBrowserState = defaultFileBrowserState }: { folders: FileFolder[]; files: FileRecord[]; archivedFiles?: FileRecord[]; initialUpload?: boolean; initialFileId?: string; initialBrowserState?: FileBrowserState }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadInFlight = useRef(false);
+  const uploadController = useRef<AbortController | null>(null);
+  useEffect(() => () => uploadController.current?.abort(), []);
   const [browser, setBrowser] = useState<FileBrowserState>(() => initialFileId ? revealFileState(files, initialBrowserState, initialFileId) : initialBrowserState);
   const [folderId, setFolderId] = useState<string | null>(browser.folderId);
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -156,9 +168,10 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
     return () => { window.cancelAnimationFrame(frame); window.clearTimeout(timer); };
   }, [highlightId]);
 
-  async function upload(filesToUpload: FileList | null) {
+  async function upload(filesToUpload: FileList | File[] | null, resume?: MultipartSnapshot) {
     if (!filesToUpload?.length || uploadInFlight.current) return;
     uploadInFlight.current = true;
+    const controller = new AbortController(); uploadController.current = controller;
     setStage("preparing"); setProgress(0); setMessage(""); setMessageTone("neutral");
     const batch = Array.from(filesToUpload);
     const calculateProgress = createUploadProgress(batch.map((file) => file.size));
@@ -174,16 +187,22 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
         if (!canUpload(file.name, file.type || "application/octet-stream", file.size)) {
           throw new Error(file.size > maxFileSize ? `${file.name} 超过 100 MB，请选择较小的文件。` : `${file.name} 为空或不支持上传，请检查文件类型。`);
         }
-        const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-        const checksum = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-        const created = await fetch("/api/files/upload-url", { method: "POST", signal: AbortSignal.timeout(60_000), headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename: file.name, contentType: file.type || "application/octet-stream", size: file.size, folderId, checksum }) });
+        controller.signal.throwIfAborted();
         let payload: { documentId?: string; uploadUrl?: string; resumed?: boolean; error?: string; file?: { id: string; title: string; originalFilename: string; mimeType: string; fileSize: number; folderId: string | null; textExtractionStatus: FileRecord["text_extraction_status"] } };
-        try { payload = await created.json() as typeof payload; } catch { throw new Error("上传准备服务返回无效响应，请稍后重试。"); }
-        if (!created.ok || !payload.documentId || !payload.uploadUrl) throw new Error(payload.error || "上传准备失败。");
-        setStage("uploading");
-        const status = await uploadToR2(payload.uploadUrl, file, (value) => updateProgress(index, value));
-        if (status === null) { if (!payload.resumed) void fetch(`/api/files/upload-url?documentId=${encodeURIComponent(payload.documentId)}`, { method: "DELETE" }).catch(() => {}); throw new Error(await browserR2NetworkMessage()); }
-        if (status < 200 || status >= 300) { if (!payload.resumed) void fetch(`/api/files/upload-url?documentId=${encodeURIComponent(payload.documentId)}`, { method: "DELETE" }).catch(() => {}); throw new Error(directUploadFailureMessage(status)); }
+        if (file.size >= multipartThreshold || resume) {
+          setStage("uploading");
+          payload = await uploadMultipartFile(file, { folderId, resume, signal: controller.signal, onProgress: value => updateProgress(index, value) });
+        } else {
+          const checksum = await checksumFile(file, controller.signal);
+          const created = await fetch("/api/files/upload-url", { method: "POST", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60_000)]), headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename: file.name, contentType: file.type || "application/octet-stream", size: file.size, folderId, checksum }) });
+          try { payload = await created.json() as typeof payload; } catch { throw new Error("上传准备服务返回无效响应，请稍后重试。"); }
+          if (!created.ok || !payload.documentId || !payload.uploadUrl) throw new Error(payload.error || "上传准备失败。");
+          setStage("uploading");
+          const status = await uploadToR2(payload.uploadUrl, file, (value) => updateProgress(index, value), controller.signal);
+          if (status === null) throw new Error(controller.signal.aborted ? "上传已暂停，可重新选择原文件重试。" : await browserR2NetworkMessage());
+          if (status < 200 || status >= 300) throw new Error(directUploadFailureMessage(status));
+        }
+        if (!payload.documentId) throw new Error("上传标识缺失，请刷新检查。");
         if (batch.length === 1) setStage("verifying");
         const completed = await completeFileUpload(payload.documentId);
         if (!completed.ok) throw new Error(await responseError(completed, "文件上传后未能确认。"));
@@ -222,14 +241,32 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
         uploadedCount++;
         updateProgress(index, 100);
         setMessage(`已完成 ${uploadedCount} / ${batch.length} 个文件。请保持此页面打开。`);
-      });
+      }, 2);
       setStage(result.errors.length ? "error" : "complete");
       setMessageTone(result.errors.length || auditWarning ? "error" : "success");
       if (!result.errors.length) setProgress(100);
-      const errorMessage = result.errors[0]?.message;
+      const errorMessage = controller.signal.aborted ? "上传已暂停；已完成的分片会保留，重新选择原文件即可继续。" : result.errors[0]?.message;
       setMessage(result.errors.length ? `已上传 ${result.uploaded} 个，${result.errors.length} 个未完成。${errorMessage}` : `已上传 ${result.uploaded} 个文件。${auditWarning ? "部分操作日志未记录，请刷新确认。" : ""}${batch.length > 1 || extractionDeferred ? "文本索引将由后台逐步完成，也可点击解析文本重试。" : ""}`);
     } catch (error) { setMessageTone("error"); const raw = error instanceof Error ? error.message : "上传失败，请重试。"; setStage("error"); setMessage(/failed to fetch/i.test(raw) ? "无法连接应用服务器，暂时无法准备上传。请检查网络后重试。" : raw); }
-    finally { uploadInFlight.current = false; if (inputRef.current) inputRef.current.value = ""; }
+    finally { uploadInFlight.current = false; uploadController.current = null; if (inputRef.current) inputRef.current.value = ""; }
+  }
+
+  async function finishPending(session: MultipartSnapshot) {
+    if (uploadInFlight.current) return;
+    uploadInFlight.current = true; setStage("verifying"); setMessage("");
+    try {
+      const snapshot = await completeMultipartSession(session.sessionId);
+      const response = await completeFileUpload(snapshot.documentId);
+      if (!response.ok) throw new Error(await responseError(response, "保存状态未确认，请稍后重试。"));
+      const result = await response.json() as { warning?: string; extractionStatus?: FileRecord["text_extraction_status"] };
+      const now = new Date().toISOString();
+      setFileRows(rows => [{ id: snapshot.file.id, title: snapshot.file.title, original_filename: snapshot.file.originalFilename,
+        mime_type: snapshot.file.mimeType, file_size: snapshot.file.fileSize, folder_id: snapshot.file.folderId,
+        uploaded_at: now, created_at: now, archived_at: null, ai_visibility: "normal",
+        text_extraction_status: result.extractionStatus ?? snapshot.file.textExtractionStatus, extracted_character_count: 0 }, ...rows.filter(row => row.id !== snapshot.documentId)]);
+      setStage("complete"); setMessageTone(result.warning ? "error" : "success"); setMessage(result.warning ?? "文件已完成保存。");
+    } catch (error) { setStage("error"); setMessageTone("error"); setMessage(error instanceof Error ? error.message : "保存暂未完成，可稍后重试。"); }
+    finally { uploadInFlight.current = false; }
   }
 
   async function retryExtraction(documentId: string) {
@@ -294,6 +331,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
         <p className="mt-4 px-1 text-[10.5px] leading-5 text-[var(--text-tertiary)]">可在当前文件夹中新建子文件夹，或移动已有文件。</p>
       </aside>
 
+      <WorkspaceReadyMetric workspace="files" />
       <section ref={sectionRef} className="workspace-scroll min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
         <div className="flex min-h-12 flex-wrap items-start justify-between gap-3 border-b border-[var(--separator)] pb-3.5">
           <div>
@@ -319,6 +357,8 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           {browser.type === "photo" ? <p className="text-[11px] leading-5 text-[var(--text-tertiary)]">按上传时间管理；不是拍摄时间。预览仅生成受限缩略图，不会自动下载原件。</p> : null}
         </div>
 
+        <FileResumableUploads busy={uploadBusy} refresh={stage} onResume={(file, session) => void upload([file], session)} onFinish={session => void finishPending(session)} />
+        {uploadBusy && ["preparing", "uploading"].includes(stage) ? <button type="button" className="mb-2 min-h-9 text-[12px] text-[var(--accent)]" onClick={() => uploadController.current?.abort()}>暂停上传，保留分片</button> : null}
         <FileRecoveryPanel disabled={uploadBusy} />
 
         {message ? <p role="status" className={`mt-2.5 text-[11px] ${messageTone === "error" ? "text-[var(--danger)]" : messageTone === "success" ? "text-[var(--success)]" : "text-[var(--text-secondary)]"}`}>{message}</p> : null}
@@ -335,7 +375,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
             {displayedFiles.map(file => <li id={`file-${file.id}`} key={file.id} className={`min-w-0 overflow-hidden rounded-[12px] border border-[var(--separator)] bg-[var(--surface-canvas)] ${file.id === highlightId ? "ring-2 ring-[var(--accent)]" : ""}`}>
               {classifyFile(file) === "photo" ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="block w-full"><FilePhoto file={file} className="aspect-square w-full" /></button> : isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="block w-full"><FilePdfCover file={file} /></button> : <div className="flex aspect-square items-center justify-center bg-[var(--surface-control)] text-[var(--text-tertiary)]"><File size={36} /></div>}
               <div className="min-w-0 p-2.5">{classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} aria-label={`打开预览：${file.title}`} title={file.title} className="block w-full truncate text-left text-[12.5px] font-medium hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[12.5px] font-medium" title={file.title}>{file.title}</p>}<p className="mt-1 text-[10px] text-[var(--text-tertiary)]">{fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)}</p><p className="mt-1 text-[10px] text-[var(--text-tertiary)]">上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}</p>
-                <div className="mt-1 flex justify-end gap-1"><a href={`/api/files/${file.id}/download`} aria-label={`下载 ${file.title}`} className="pressable flex size-9 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Download size={14} /></a><FileOperations file={file} folders={sortedFolders} onArchive={archive} /></div>
+                <div className="mt-1 flex justify-end gap-1"><a href={`/api/files/${file.id}/download`} aria-label={`下载 ${file.title}`} className="pressable flex size-9 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Download size={14} /></a><FileOcrControl file={file} onComplete={count => setFileRows(current => current.map(item => item.id === file.id ? { ...item, text_extraction_status: "completed", extracted_character_count: count } : item))} /><FileOperations file={file} folders={sortedFolders} onArchive={archive} /></div>
               </div>
             </li>)}
           </ul>
@@ -354,6 +394,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
                 {classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="pressable flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--accent)] hover:bg-[var(--surface-hover)]"><Eye size={15} /></button> : null}
                 {["failed", "pending", "not_requested"].includes(file.text_extraction_status) ? <button type="button" disabled={extractingId === file.id} onClick={() => void retryExtraction(file.id)} className="pressable h-8 rounded-[8px] px-2 text-[10.5px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50">{extractingId === file.id ? "解析中…" : "解析文本"}</button> : null}
                 <a href={`/api/files/${file.id}/download`} className="pressable flex size-8 items-center justify-center rounded-[8px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]" aria-label={`下载 ${file.title}`}><Download size={14} /></a>
+                <FileOcrControl file={file} onComplete={count => setFileRows(current => current.map(item => item.id === file.id ? { ...item, text_extraction_status: "completed", extracted_character_count: count } : item))} />
                 <FileOperations file={file} folders={sortedFolders} onArchive={archive} />
               </li>
             ))}

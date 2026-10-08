@@ -1,0 +1,22 @@
+name: System backup recovery
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  postgres-roundtrip:
+    name: Actual migrations and isolated PostgreSQL round trip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch official disposable PostgreSQL image
+        run: docker pull postgres:17
+      - name: Verify original schema, owner boundaries, restore and re-export
+        run: python3 scripts/rehearse-system-backup-postgres.py --fixture

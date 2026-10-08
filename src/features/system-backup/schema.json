@@ -1,0 +1,7525 @@
+{
+  "format": "personal-os-system/v1",
+  "schemaRevision": "2026-10-ten-improvements/v1",
+  "tables": {
+    "activity_events": {
+      "columns": {
+        "action": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "entity_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "entity_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "metadata": {
+          "type": "json",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "agent_actions": {
+      "columns": {
+        "action_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "approved_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "domain": {
+          "type": "string",
+          "nullable": false
+        },
+        "error_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "executed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "expires_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "payload_json": {
+          "type": "json",
+          "nullable": false
+        },
+        "preview_json": {
+          "type": "json",
+          "nullable": false
+        },
+        "result_json": {
+          "type": "json",
+          "nullable": false
+        },
+        "risk_level": {
+          "type": "string",
+          "nullable": false
+        },
+        "run_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "run_id",
+            "user_id"
+          ],
+          "table": "agent_runs",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "agent_messages": {
+      "columns": {
+        "content_json": {
+          "type": "json",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "external_id": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "role": {
+          "type": "string",
+          "nullable": false
+        },
+        "run_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "run_id",
+            "user_id"
+          ],
+          "table": "agent_runs",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "agent_runs": {
+      "columns": {
+        "active_skills": {
+          "type": "array",
+          "nullable": false
+        },
+        "completed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "context_mode": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "current_entity_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "current_entity_type": {
+          "type": "string",
+          "nullable": true
+        },
+        "current_path": {
+          "type": "string",
+          "nullable": true
+        },
+        "discovered_tool_names": {
+          "type": "array",
+          "nullable": false
+        },
+        "error_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "initial_modules": {
+          "type": "array",
+          "nullable": false
+        },
+        "initial_tool_names": {
+          "type": "array",
+          "nullable": false
+        },
+        "kernel_state": {
+          "type": "json",
+          "nullable": false
+        },
+        "model": {
+          "type": "string",
+          "nullable": true
+        },
+        "personal_data_accessed": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "request_complexity": {
+          "type": "string",
+          "nullable": true
+        },
+        "source_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "started_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "surface": {
+          "type": "string",
+          "nullable": false
+        },
+        "tool_call_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_request": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "agent_steps": {
+      "columns": {
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "input_json": {
+          "type": "json",
+          "nullable": false
+        },
+        "output_json": {
+          "type": "json",
+          "nullable": false
+        },
+        "run_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "step_index": {
+          "type": "number",
+          "nullable": false
+        },
+        "step_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "summary": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "tool_name": {
+          "type": "string",
+          "nullable": true
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "run_id",
+            "user_id"
+          ],
+          "table": "agent_runs",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "ai_governance_settings": {
+      "columns": {
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "daily_call_limit": {
+          "type": "number",
+          "nullable": false
+        },
+        "daily_cost_limit_usd": {
+          "type": "number",
+          "nullable": false
+        },
+        "estimated_input_cost_per_million_usd": {
+          "type": "number",
+          "nullable": false
+        },
+        "estimated_output_cost_per_million_usd": {
+          "type": "number",
+          "nullable": false
+        },
+        "long_term_memory_opt_in": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "max_context_chars_per_request": {
+          "type": "number",
+          "nullable": false
+        },
+        "max_output_tokens_per_request": {
+          "type": "number",
+          "nullable": false
+        },
+        "monthly_call_limit": {
+          "type": "number",
+          "nullable": false
+        },
+        "monthly_cost_limit_usd": {
+          "type": "number",
+          "nullable": false
+        },
+        "semantic_retrieval_opt_in": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "user_id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "ai_prompt_overrides": {
+      "columns": {
+        "content": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "prompt_key": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "ai_request_audits": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "completed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "context_chars": {
+          "type": "number",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "error_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "estimated_cost_usd": {
+          "type": "number",
+          "nullable": false
+        },
+        "feedback": {
+          "type": "string",
+          "nullable": true
+        },
+        "feedback_reason": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "input_tokens": {
+          "type": "number",
+          "nullable": true
+        },
+        "model": {
+          "type": "string",
+          "nullable": true
+        },
+        "output_token_limit": {
+          "type": "number",
+          "nullable": false
+        },
+        "output_tokens": {
+          "type": "number",
+          "nullable": true
+        },
+        "purpose": {
+          "type": "string",
+          "nullable": false
+        },
+        "retrieval_mode": {
+          "type": "string",
+          "nullable": false
+        },
+        "retrieval_reason": {
+          "type": "string",
+          "nullable": false
+        },
+        "run_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "source_correction": {
+          "type": "string",
+          "nullable": true
+        },
+        "source_summary": {
+          "type": "json",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "surface": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "run_id"
+          ],
+          "table": "agent_runs",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "application_stage_events": {
+      "columns": {
+        "application_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "event_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "from_status": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "note": {
+          "type": "string",
+          "nullable": true
+        },
+        "occurred_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "to_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "application_id"
+          ],
+          "table": "career_applications",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "areas": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "icon": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "assistant_preferences": {
+      "columns": {
+        "analytical_dimensions": {
+          "type": "array",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "default_retrospective_window_days": {
+          "type": "number",
+          "nullable": false
+        },
+        "domain_instructions": {
+          "type": "json",
+          "nullable": false
+        },
+        "inference_tolerance": {
+          "type": "string",
+          "nullable": false
+        },
+        "preferred_answer_depth": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_citation_preference": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "user_id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "audit_logs": {
+      "columns": {
+        "action": {
+          "type": "string",
+          "nullable": false
+        },
+        "actor_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "after_data": {
+          "type": "json",
+          "nullable": true
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "before_data": {
+          "type": "json",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "entity_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "entity_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "request_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "briefing_ai_evaluations": {
+      "columns": {
+        "confidence": {
+          "type": "number",
+          "nullable": false
+        },
+        "content_hash": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "decision_value": {
+          "type": "number",
+          "nullable": true
+        },
+        "feed_item_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "information_value": {
+          "type": "number",
+          "nullable": false
+        },
+        "input_tokens": {
+          "type": "number",
+          "nullable": true
+        },
+        "key_question": {
+          "type": "string",
+          "nullable": true
+        },
+        "learning_value": {
+          "type": "number",
+          "nullable": true
+        },
+        "matched_topics": {
+          "type": "array",
+          "nullable": false
+        },
+        "model": {
+          "type": "string",
+          "nullable": false
+        },
+        "novelty": {
+          "type": "number",
+          "nullable": false
+        },
+        "output_tokens": {
+          "type": "number",
+          "nullable": true
+        },
+        "personal_relevance": {
+          "type": "number",
+          "nullable": false
+        },
+        "preference_version": {
+          "type": "number",
+          "nullable": false
+        },
+        "prompt_version": {
+          "type": "string",
+          "nullable": false
+        },
+        "reason": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_confidence": {
+          "type": "number",
+          "nullable": true
+        },
+        "timeliness": {
+          "type": "number",
+          "nullable": false
+        },
+        "topic_bucket": {
+          "type": "string",
+          "nullable": true
+        },
+        "uncertainty": {
+          "type": "string",
+          "nullable": true
+        },
+        "usage_reported": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "why_worth_reading": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "feed_item_id"
+          ],
+          "table": "feed_items",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "briefing_entries": {
+      "columns": {
+        "briefing_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "cluster_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "ranking_metadata": {
+          "type": "json",
+          "nullable": false
+        },
+        "relevance_reason": {
+          "type": "string",
+          "nullable": true
+        },
+        "representative_item_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "section": {
+          "type": "string",
+          "nullable": false
+        },
+        "summary": {
+          "type": "string",
+          "nullable": true
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "briefing_id"
+          ],
+          "table": "briefings",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "cluster_id"
+          ],
+          "table": "feed_item_clusters",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "representative_item_id"
+          ],
+          "table": "feed_items",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "briefing_exclusions": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "phrase": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "briefing_interests": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "excluded_keywords": {
+          "type": "array",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "keywords": {
+          "type": "array",
+          "nullable": false
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "weight": {
+          "type": "number",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "briefing_settings": {
+      "columns": {
+        "ai_enabled": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "budget_exhaustion_behavior": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "daily_input_token_budget": {
+          "type": "number",
+          "nullable": false
+        },
+        "generation_mode": {
+          "type": "string",
+          "nullable": false
+        },
+        "max_ai_candidates": {
+          "type": "number",
+          "nullable": false
+        },
+        "max_selected_items": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "user_id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "briefings": {
+      "columns": {
+        "ai_call_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "ai_failure_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "ai_model": {
+          "type": "string",
+          "nullable": true
+        },
+        "ai_usage_reported": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "briefing_date": {
+          "type": "string",
+          "nullable": false
+        },
+        "candidate_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "cluster_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "error_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "filtered_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "generated_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "generation_version": {
+          "type": "number",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "input_tokens": {
+          "type": "number",
+          "nullable": false
+        },
+        "output_tokens": {
+          "type": "number",
+          "nullable": false
+        },
+        "prompt_version": {
+          "type": "string",
+          "nullable": true
+        },
+        "ranking_method": {
+          "type": "string",
+          "nullable": false
+        },
+        "selected_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "source_window_end": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_window_start": {
+          "type": "string",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "timezone": {
+          "type": "string",
+          "nullable": false
+        },
+        "trigger_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "bullet_fact_links": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "bullet_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "fact_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "bullet_id"
+          ],
+          "table": "experience_bullets",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "fact_id"
+          ],
+          "table": "experience_facts",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "calendar_categories": {
+      "columns": {
+        "ai_description": {
+          "type": "string",
+          "nullable": true
+        },
+        "ai_enabled": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "category_kind": {
+          "type": "string",
+          "nullable": false
+        },
+        "color": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "display_name": {
+          "type": "string",
+          "nullable": false
+        },
+        "display_order": {
+          "type": "number",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "is_ai_managed": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "keywords": {
+          "type": "array",
+          "nullable": false
+        },
+        "last_synced_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "managed_key": {
+          "type": "string",
+          "nullable": true
+        },
+        "provider_category_id": {
+          "type": "string",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "calendar_connections": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "calendar_last_delta_sync_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "calendar_last_full_reconcile_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "calendar_near_window_end": {
+          "type": "string",
+          "nullable": true
+        },
+        "calendar_near_window_start": {
+          "type": "string",
+          "nullable": true
+        },
+        "calendar_sync_window_end": {
+          "type": "string",
+          "nullable": true
+        },
+        "calendar_sync_window_start": {
+          "type": "string",
+          "nullable": true
+        },
+        "calendar_webhook_last_received_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "granted_scopes": {
+          "type": "array",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "label": {
+          "type": "string",
+          "nullable": false
+        },
+        "last_error_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "last_seen_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "last_sync_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "oauth_connected_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "oauth_scope_version": {
+          "type": "number",
+          "nullable": false
+        },
+        "provider": {
+          "type": "string",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": [
+        "oauth_refresh_token_ciphertext",
+        "oauth_token_expires_at",
+        "calendar_delta_link",
+        "calendar_near_delta_link",
+        "calendar_webhook_state_ciphertext",
+        "calendar_subscription_id",
+        "calendar_subscription_expires_at"
+      ]
+    },
+    "calendar_events": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "body_text": {
+          "type": "string",
+          "nullable": true
+        },
+        "calendar_id": {
+          "type": "string",
+          "nullable": true
+        },
+        "categories": {
+          "type": "array",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "ends_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "importance": {
+          "type": "string",
+          "nullable": false
+        },
+        "is_all_day": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "last_synced_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "location_name": {
+          "type": "string",
+          "nullable": true
+        },
+        "provider_change_key": {
+          "type": "string",
+          "nullable": true
+        },
+        "provider_event_id": {
+          "type": "string",
+          "nullable": false
+        },
+        "show_as": {
+          "type": "string",
+          "nullable": false
+        },
+        "starts_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "subject": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "calendar_operations": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "cache_committed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "calendar_id": {
+          "type": "string",
+          "nullable": true
+        },
+        "claimed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "completed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "confirmed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "connection_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "error_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "operation_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "payload": {
+          "type": "json",
+          "nullable": false
+        },
+        "provider_change_key": {
+          "type": "string",
+          "nullable": true
+        },
+        "provider_event_id": {
+          "type": "string",
+          "nullable": true
+        },
+        "remote_committed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "requested_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "result": {
+          "type": "json",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "connection_id"
+          ],
+          "table": "calendar_connections",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "calendar_sync_settings": {
+      "columns": {
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "full_reconcile_interval_seconds": {
+          "type": "number",
+          "nullable": false
+        },
+        "hourly_interval_seconds": {
+          "type": "number",
+          "nullable": false
+        },
+        "near_forward_days": {
+          "type": "number",
+          "nullable": false
+        },
+        "near_history_days": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "user_id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "career_applications": {
+      "columns": {
+        "applied_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "notes_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "opportunity_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "resume_version_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "opportunity_id"
+          ],
+          "table": "career_opportunities",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "resume_version_id"
+          ],
+          "table": "resume_versions",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "career_directions": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "current_decision": {
+          "type": "string",
+          "nullable": true
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "hypothesis_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "opposing_evidence_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "priority": {
+          "type": "number",
+          "nullable": false
+        },
+        "review_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "supporting_evidence_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "career_milestones": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "career_direction_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "importance": {
+          "type": "string",
+          "nullable": false
+        },
+        "starts_on": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "target_date": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "track_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "track_id"
+          ],
+          "table": "career_tracks",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "career_direction_id"
+          ],
+          "table": "career_directions",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "career_opportunities": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "captured_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "career_direction_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "compensation_text": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "deadline_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "expected_start_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "jd_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "location": {
+          "type": "string",
+          "nullable": true
+        },
+        "notes_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "opportunity_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "organization": {
+          "type": "string",
+          "nullable": false
+        },
+        "recruitment_cycle": {
+          "type": "string",
+          "nullable": true
+        },
+        "role_title": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_name": {
+          "type": "string",
+          "nullable": true
+        },
+        "source_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "work_mode": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "career_direction_id"
+          ],
+          "table": "career_directions",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "career_profiles": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "career_summary": {
+          "type": "string",
+          "nullable": true
+        },
+        "constraints_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "current_stage": {
+          "type": "string",
+          "nullable": true
+        },
+        "goals_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "preferred_locations": {
+          "type": "array",
+          "nullable": false
+        },
+        "preferred_work_types": {
+          "type": "array",
+          "nullable": false
+        },
+        "professional_headline": {
+          "type": "string",
+          "nullable": true
+        },
+        "risk_preferences": {
+          "type": "string",
+          "nullable": true
+        },
+        "target_graduation_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "target_recruitment_cycle": {
+          "type": "string",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "career_tracks": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "color": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "end_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "start_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "certifications": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "credential_number": {
+          "type": "string",
+          "nullable": true
+        },
+        "document_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "exam_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "expiry_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "issue_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "issuer": {
+          "type": "string",
+          "nullable": true
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "notes_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "score": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "document_id"
+          ],
+          "table": "documents",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "decision_sources": {
+      "columns": {
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "decision_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_role": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "decision_id"
+          ],
+          "table": "decisions",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "decisions": {
+      "columns": {
+        "ai_visibility": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "confidence": {
+          "type": "number",
+          "nullable": true
+        },
+        "context_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_via": {
+          "type": "string",
+          "nullable": false
+        },
+        "decided_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "decision_text": {
+          "type": "string",
+          "nullable": false
+        },
+        "falsification_condition": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "importance": {
+          "type": "string",
+          "nullable": false
+        },
+        "last_reviewed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "rationale_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "review_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "supersedes_decision_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "user_id",
+            "supersedes_decision_id"
+          ],
+          "table": "decisions",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "document_reading_progress": {
+      "columns": {
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "document_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "last_mutation_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "page": {
+          "type": "number",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "source_version": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "total_pages": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "document_id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "document_id"
+          ],
+          "table": "documents",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "documents": {
+      "columns": {
+        "ai_visibility": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "checksum": {
+          "type": "string",
+          "nullable": true
+        },
+        "confidentiality_level": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "document_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "extracted_character_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "extracted_text": {
+          "type": "string",
+          "nullable": true
+        },
+        "file_size": {
+          "type": "number",
+          "nullable": false
+        },
+        "folder_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "mime_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "original_filename": {
+          "type": "string",
+          "nullable": false
+        },
+        "reading_source_version": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "storage_bucket": {
+          "type": "string",
+          "nullable": false
+        },
+        "storage_path": {
+          "type": "string",
+          "nullable": false
+        },
+        "storage_provider": {
+          "type": "string",
+          "nullable": false
+        },
+        "storage_state": {
+          "type": "string",
+          "nullable": false
+        },
+        "text_extracted_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "text_extraction_empty_pages": {
+          "type": "number",
+          "nullable": true
+        },
+        "text_extraction_engine_version": {
+          "type": "string",
+          "nullable": true
+        },
+        "text_extraction_error_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "text_extraction_method": {
+          "type": "string",
+          "nullable": true
+        },
+        "text_extraction_model_version": {
+          "type": "string",
+          "nullable": true
+        },
+        "text_extraction_page_count": {
+          "type": "number",
+          "nullable": true
+        },
+        "text_extraction_source_sha256": {
+          "type": "string",
+          "nullable": true
+        },
+        "text_extraction_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "upload_mode": {
+          "type": "string",
+          "nullable": false
+        },
+        "uploaded_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "folder_id"
+          ],
+          "table": "file_folders",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "entity_link_dismissals": {
+      "columns": {
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "target_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "target_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "entity_links": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_via": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "metadata": {
+          "type": "json",
+          "nullable": false
+        },
+        "relationship_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "target_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "target_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "experience_bullets": {
+      "columns": {
+        "approved_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "career_direction_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "content": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "experience_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "language": {
+          "type": "string",
+          "nullable": false
+        },
+        "source": {
+          "type": "string",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "version_number": {
+          "type": "number",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "experience_id"
+          ],
+          "table": "experiences",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "career_direction_id"
+          ],
+          "table": "career_directions",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experience_fact_versions": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "content": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_by": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "fact_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "fact_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "metric_unit": {
+          "type": "string",
+          "nullable": true
+        },
+        "metric_value": {
+          "type": "number",
+          "nullable": true
+        },
+        "notes_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "occurred_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "source_document_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "verification_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "version_number": {
+          "type": "number",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "fact_id"
+          ],
+          "table": "experience_facts",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "source_document_id"
+          ],
+          "table": "documents",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experience_facts": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "content": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "experience_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "fact_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "metric_unit": {
+          "type": "string",
+          "nullable": true
+        },
+        "metric_value": {
+          "type": "number",
+          "nullable": true
+        },
+        "notes_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "occurred_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "source_document_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "verification_status": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "experience_id"
+          ],
+          "table": "experiences",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "source_document_id"
+          ],
+          "table": "documents",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experience_outputs": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "confidentiality_level": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "description_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "experience_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "occurred_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "output_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "public_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "result_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "experience_id"
+          ],
+          "table": "experiences",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experience_skills": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "experience_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "skill_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "usage_description": {
+          "type": "string",
+          "nullable": true
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "experience_id"
+          ],
+          "table": "experiences",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "skill_id"
+          ],
+          "table": "skills",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experiences": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "background_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "confidentiality_level": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "department": {
+          "type": "string",
+          "nullable": true
+        },
+        "end_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "experience_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "is_current": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "location": {
+          "type": "string",
+          "nullable": true
+        },
+        "organization": {
+          "type": "string",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "raw_description_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "role": {
+          "type": "string",
+          "nullable": true
+        },
+        "start_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "feed_item_cluster_members": {
+      "columns": {
+        "cluster_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "feed_item_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "match_method": {
+          "type": "string",
+          "nullable": false
+        },
+        "similarity": {
+          "type": "number",
+          "nullable": true
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "cluster_id",
+        "feed_item_id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "cluster_id"
+          ],
+          "table": "feed_item_clusters",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "feed_item_id"
+          ],
+          "table": "feed_items",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "feed_item_clusters": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "canonical_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "earliest_published_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "fingerprint": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "latest_published_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "normalized_title": {
+          "type": "string",
+          "nullable": false
+        },
+        "representative_item_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "representative_item_id"
+          ],
+          "table": "feed_items",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "feed_items": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "author": {
+          "type": "string",
+          "nullable": true
+        },
+        "canonical_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "content_hash": {
+          "type": "string",
+          "nullable": true
+        },
+        "content_text": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "excerpt": {
+          "type": "string",
+          "nullable": true
+        },
+        "external_id": {
+          "type": "string",
+          "nullable": true
+        },
+        "feed_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "fetched_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "first_seen_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "identity_key": {
+          "type": "string",
+          "nullable": false
+        },
+        "language": {
+          "type": "string",
+          "nullable": true
+        },
+        "last_seen_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "normalized_title": {
+          "type": "string",
+          "nullable": false
+        },
+        "published_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at_source": {
+          "type": "string",
+          "nullable": true
+        },
+        "url": {
+          "type": "string",
+          "nullable": true
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "feed_id"
+          ],
+          "table": "feeds",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "feeds": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "category": {
+          "type": "string",
+          "nullable": true
+        },
+        "consecutive_error_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "etag": {
+          "type": "string",
+          "nullable": true
+        },
+        "feed_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "feed_url": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "last_error_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "last_error_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "last_fetched_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "last_http_status": {
+          "type": "number",
+          "nullable": true
+        },
+        "last_modified": {
+          "type": "string",
+          "nullable": true
+        },
+        "last_successful_fetch_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "personal_priority": {
+          "type": "string",
+          "nullable": false
+        },
+        "priority": {
+          "type": "number",
+          "nullable": false
+        },
+        "reason_for_subscription": {
+          "type": "string",
+          "nullable": true
+        },
+        "site_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "source_quality": {
+          "type": "string",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "verification_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "verified_at": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "file_folders": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "parent_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "parent_id"
+          ],
+          "table": "file_folders",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "gap_analysis_evidence": {
+      "columns": {
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "entity_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "entity_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "evidence_role": {
+          "type": "string",
+          "nullable": false
+        },
+        "gap_item_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "gap_item_id"
+          ],
+          "table": "gap_analysis_items",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "gap_analysis_items": {
+      "columns": {
+        "assessment": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "explanation": {
+          "type": "string",
+          "nullable": false
+        },
+        "gap_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "requirement_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "run_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "run_id"
+          ],
+          "table": "gap_analysis_runs",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "requirement_id"
+          ],
+          "table": "opportunity_requirements",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "gap_analysis_runs": {
+      "columns": {
+        "analysis_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "opportunity_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "resume_version_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "summary": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "opportunity_id"
+          ],
+          "table": "career_opportunities",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "resume_version_id"
+          ],
+          "table": "resume_versions",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "inbox_items": {
+      "columns": {
+        "ai_error": {
+          "type": "string",
+          "nullable": true
+        },
+        "ai_proposal": {
+          "type": "json",
+          "nullable": true
+        },
+        "ai_status": {
+          "type": "string",
+          "nullable": true
+        },
+        "ai_updated_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "content_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "converted_note_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "converted_task_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "converted_todo_task_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "processed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "converted_task_id"
+          ],
+          "table": "tasks",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "converted_note_id"
+          ],
+          "table": "notes",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "converted_todo_task_id"
+          ],
+          "table": "microsoft_todo_tasks",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_answer_versions": {
+      "columns": {
+        "answer_mode": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "body_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "change_note": {
+          "type": "string",
+          "nullable": true
+        },
+        "confirmed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "language": {
+          "type": "string",
+          "nullable": false
+        },
+        "preparation_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source": {
+          "type": "string",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "target_seconds": {
+          "type": "number",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "version_number": {
+          "type": "number",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "preparation_id"
+          ],
+          "table": "interview_question_preparations",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_archetype_stories": {
+      "columns": {
+        "archetype_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "evidence_role": {
+          "type": "string",
+          "nullable": false
+        },
+        "fit_note": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "story_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "user_id",
+            "archetype_id"
+          ],
+          "table": "interview_question_archetypes",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id",
+            "story_id"
+          ],
+          "table": "interview_stories",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_competencies": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "description": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "key": {
+          "type": "string",
+          "nullable": false
+        },
+        "label": {
+          "type": "string",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "interview_contexts": {
+      "columns": {
+        "application_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "career_direction_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "context_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "default_language": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "next_interview_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "notes_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "opportunity_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "organization_snapshot": {
+          "type": "string",
+          "nullable": true
+        },
+        "priority": {
+          "type": "number",
+          "nullable": false
+        },
+        "role_title_snapshot": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "career_direction_id"
+          ],
+          "table": "career_directions",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "opportunity_id"
+          ],
+          "table": "career_opportunities",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "application_id"
+          ],
+          "table": "career_applications",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_evidence_links": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "entity_link_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "evidence_role": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "note": {
+          "type": "string",
+          "nullable": false
+        },
+        "preparation_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "user_id",
+            "preparation_id"
+          ],
+          "table": "interview_question_preparations",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id",
+            "entity_link_id"
+          ],
+          "table": "entity_links",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_formats": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "description": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "key": {
+          "type": "string",
+          "nullable": false
+        },
+        "label": {
+          "type": "string",
+          "nullable": false
+        },
+        "participant_mode": {
+          "type": "string",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "interview_practice_attempts": {
+      "columns": {
+        "answer_version_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "attempt_kind": {
+          "type": "string",
+          "nullable": false
+        },
+        "confidence_after": {
+          "type": "number",
+          "nullable": true
+        },
+        "confidence_before": {
+          "type": "number",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "duration_seconds": {
+          "type": "number",
+          "nullable": true
+        },
+        "feedback_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "feedback_source": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "input_mode": {
+          "type": "string",
+          "nullable": false
+        },
+        "issue_tags": {
+          "type": "array",
+          "nullable": false
+        },
+        "language": {
+          "type": "string",
+          "nullable": false
+        },
+        "metrics": {
+          "type": "json",
+          "nullable": false
+        },
+        "next_focus": {
+          "type": "string",
+          "nullable": false
+        },
+        "parent_attempt_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "practiced_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "preparation_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "prompt_snapshot": {
+          "type": "string",
+          "nullable": false
+        },
+        "response_transcript_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "self_review_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "sequence_no": {
+          "type": "number",
+          "nullable": true
+        },
+        "session_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "story_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "strength_tags": {
+          "type": "array",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "preparation_id"
+          ],
+          "table": "interview_question_preparations",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "session_id"
+          ],
+          "table": "interview_sessions",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "answer_version_id"
+          ],
+          "table": "interview_answer_versions",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "parent_attempt_id"
+          ],
+          "table": "interview_practice_attempts",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id",
+            "story_id"
+          ],
+          "table": "interview_stories",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_question_archetypes": {
+      "columns": {
+        "answer_framework_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "intent_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "key": {
+          "type": "string",
+          "nullable": false
+        },
+        "primary_question_type_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "user_id",
+            "primary_question_type_id"
+          ],
+          "table": "interview_question_types",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_question_competencies": {
+      "columns": {
+        "competency_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "is_primary": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "question_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "relevance": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "user_id",
+            "question_id"
+          ],
+          "table": "interview_questions",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id",
+            "competency_id"
+          ],
+          "table": "interview_competencies",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_question_notes": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "body_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "note_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "occurred_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "pinned": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "preparation_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "preparation_id"
+          ],
+          "table": "interview_question_preparations",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_question_preparations": {
+      "columns": {
+        "answer_logic_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "confidence": {
+          "type": "number",
+          "nullable": true
+        },
+        "context_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "importance": {
+          "type": "string",
+          "nullable": false
+        },
+        "interviewer_intent_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "key_message": {
+          "type": "string",
+          "nullable": false
+        },
+        "last_practiced_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "next_focus": {
+          "type": "string",
+          "nullable": false
+        },
+        "next_practice_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "prompt_override": {
+          "type": "string",
+          "nullable": true
+        },
+        "question_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "ready_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "risk_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "target_language": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "working_thoughts_markdown": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "question_id"
+          ],
+          "table": "interview_questions",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "context_id"
+          ],
+          "table": "interview_contexts",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_question_types": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "description": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "key": {
+          "type": "string",
+          "nullable": false
+        },
+        "label": {
+          "type": "string",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "interview_questions": {
+      "columns": {
+        "archetype_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "canonical_prompt": {
+          "type": "string",
+          "nullable": false
+        },
+        "category": {
+          "type": "string",
+          "nullable": false
+        },
+        "competency_tags": {
+          "type": "array",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "difficulty": {
+          "type": "number",
+          "nullable": false
+        },
+        "follow_up_kind": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "parent_question_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "prompt_variants": {
+          "type": "array",
+          "nullable": false
+        },
+        "question_style": {
+          "type": "string",
+          "nullable": false
+        },
+        "question_type_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "short_title": {
+          "type": "string",
+          "nullable": true
+        },
+        "source_detail": {
+          "type": "string",
+          "nullable": true
+        },
+        "source_name": {
+          "type": "string",
+          "nullable": true
+        },
+        "source_observed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "source_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "subcategory": {
+          "type": "string",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "variant_kind": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "parent_question_id"
+          ],
+          "table": "interview_questions",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id",
+            "question_type_id"
+          ],
+          "table": "interview_question_types",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id",
+            "archetype_id"
+          ],
+          "table": "interview_question_archetypes",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_sessions": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "context_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "ended_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "facilitator": {
+          "type": "string",
+          "nullable": false
+        },
+        "format_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "interviewer_label": {
+          "type": "string",
+          "nullable": true
+        },
+        "issue_tags": {
+          "type": "array",
+          "nullable": false
+        },
+        "language_mode": {
+          "type": "string",
+          "nullable": false
+        },
+        "next_focus": {
+          "type": "string",
+          "nullable": false
+        },
+        "notes_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "overall_review_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "round_label": {
+          "type": "string",
+          "nullable": true
+        },
+        "scheduled_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "session_format": {
+          "type": "string",
+          "nullable": false
+        },
+        "session_kind": {
+          "type": "string",
+          "nullable": false
+        },
+        "started_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "strength_tags": {
+          "type": "array",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "context_id"
+          ],
+          "table": "interview_contexts",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id",
+            "format_id"
+          ],
+          "table": "interview_formats",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_stories": {
+      "columns": {
+        "action_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "experience_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "last_refined_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "one_line": {
+          "type": "string",
+          "nullable": false
+        },
+        "reflection_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "result_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "situation_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "task_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "user_id",
+            "experience_id"
+          ],
+          "table": "experiences",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_story_competencies": {
+      "columns": {
+        "competency_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "is_primary": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "relevance": {
+          "type": "number",
+          "nullable": false
+        },
+        "story_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "user_id",
+            "story_id"
+          ],
+          "table": "interview_stories",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id",
+            "competency_id"
+          ],
+          "table": "interview_competencies",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "investment_accounts": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "currency": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "mode": {
+          "type": "string",
+          "nullable": false
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "investment_cash_ledger": {
+      "columns": {
+        "account_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "amount": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "fees": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "import_key": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "kind": {
+          "type": "string",
+          "nullable": false
+        },
+        "occurred_on": {
+          "type": "string",
+          "nullable": false
+        },
+        "sequence": {
+          "type": "number",
+          "nullable": false
+        },
+        "source": {
+          "type": "string",
+          "nullable": false
+        },
+        "symbol": {
+          "type": "string",
+          "nullable": true
+        },
+        "tax": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "void_entry_id": {
+          "type": "uuid",
+          "nullable": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "account_id",
+            "user_id"
+          ],
+          "table": "investment_accounts",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        },
+        {
+          "columns": [
+            "void_entry_id",
+            "user_id"
+          ],
+          "table": "investment_cash_ledger",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "investment_ledger": {
+      "columns": {
+        "account_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "fees": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "import_key": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "kind": {
+          "type": "string",
+          "nullable": false
+        },
+        "occurred_on": {
+          "type": "string",
+          "nullable": false
+        },
+        "payload_hash": {
+          "type": "string",
+          "nullable": false
+        },
+        "price": {
+          "type": "string",
+          "nullable": true
+        },
+        "quantity": {
+          "type": "string",
+          "nullable": false
+        },
+        "sequence": {
+          "type": "number",
+          "nullable": false
+        },
+        "source": {
+          "type": "string",
+          "nullable": false
+        },
+        "symbol": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "void_entry_id": {
+          "type": "uuid",
+          "nullable": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "account_id",
+            "user_id"
+          ],
+          "table": "investment_accounts",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        },
+        {
+          "columns": [
+            "void_entry_id",
+            "user_id"
+          ],
+          "table": "investment_ledger",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "investment_quotes": {
+      "columns": {
+        "account_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "as_of": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "currency": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "import_key": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "price": {
+          "type": "string",
+          "nullable": false
+        },
+        "sequence": {
+          "type": "number",
+          "nullable": false
+        },
+        "source": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_kind": {
+          "type": "string",
+          "nullable": false
+        },
+        "symbol": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "account_id",
+            "user_id"
+          ],
+          "table": "investment_accounts",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "investment_research_runs": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "as_of": {
+          "type": "string",
+          "nullable": false
+        },
+        "body_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "import_key": {
+          "type": "string",
+          "nullable": false
+        },
+        "kind": {
+          "type": "string",
+          "nullable": false
+        },
+        "metrics": {
+          "type": "json",
+          "nullable": true
+        },
+        "payload_hash": {
+          "type": "string",
+          "nullable": false
+        },
+        "provenance": {
+          "type": "json",
+          "nullable": false
+        },
+        "source_urls": {
+          "type": "json",
+          "nullable": false
+        },
+        "strategy_version_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "strategy_version_id",
+            "user_id"
+          ],
+          "table": "investment_strategy_versions",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "investment_strategy_versions": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "body_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "strategy_key": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "version": {
+          "type": "number",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "leisure_content_versions": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "content_revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "experience_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "snapshot": {
+          "type": "json",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "experience_id",
+            "user_id"
+          ],
+          "table": "leisure_experiences",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "leisure_experiences": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "body_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "budget": {
+          "type": "string",
+          "nullable": false
+        },
+        "company": {
+          "type": "string",
+          "nullable": true
+        },
+        "content_revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "cost_text": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "duration_minutes": {
+          "type": "number",
+          "nullable": true
+        },
+        "how_to_start": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "kind": {
+          "type": "string",
+          "nullable": false
+        },
+        "location": {
+          "type": "string",
+          "nullable": true
+        },
+        "platform": {
+          "type": "string",
+          "nullable": true
+        },
+        "ratings": {
+          "type": "json",
+          "nullable": false
+        },
+        "setting": {
+          "type": "string",
+          "nullable": true
+        },
+        "sources": {
+          "type": "json",
+          "nullable": false
+        },
+        "starts_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "why": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "leisure_feedback": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "experience_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "linked_note_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "personal_note": {
+          "type": "string",
+          "nullable": false
+        },
+        "reaction": {
+          "type": "string",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "experience_id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "experience_id",
+            "user_id"
+          ],
+          "table": "leisure_experiences",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        },
+        {
+          "columns": [
+            "linked_note_id",
+            "user_id"
+          ],
+          "table": "notes",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "memory_import_batches": {
+      "columns": {
+        "content_hash": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "item_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "source_exported_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "source_label": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_system": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "memory_sources": {
+      "columns": {
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "memory_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_role": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "memory_id"
+          ],
+          "table": "personal_memories",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "microsoft_sync_backups": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "calendar_event_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "connection_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "snapshot": {
+          "type": "json",
+          "nullable": false
+        },
+        "todo_list_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "todo_task_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "trigger_source": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "connection_id"
+          ],
+          "table": "calendar_connections",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "microsoft_todo_lists": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "connection_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "display_name": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "is_default": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "last_synced_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "provider_list_id": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "connection_id"
+          ],
+          "table": "calendar_connections",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "microsoft_todo_tasks": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "body_text": {
+          "type": "string",
+          "nullable": true
+        },
+        "completed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "due_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "importance": {
+          "type": "string",
+          "nullable": true
+        },
+        "last_synced_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "provider_last_modified_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "provider_task_id": {
+          "type": "string",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "todo_list_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "todo_list_id"
+          ],
+          "table": "microsoft_todo_lists",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "note_folders": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "parent_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "parent_id"
+          ],
+          "table": "note_folders",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "note_links": {
+      "columns": {
+        "alias": {
+          "type": "string",
+          "nullable": true
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "link_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "position_end": {
+          "type": "number",
+          "nullable": true
+        },
+        "position_start": {
+          "type": "number",
+          "nullable": true
+        },
+        "source_note_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "target_note_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "target_title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "source_note_id"
+          ],
+          "table": "notes",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "target_note_id"
+          ],
+          "table": "notes",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "note_tags": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "note_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "tag_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "note_id"
+          ],
+          "table": "notes",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "tag_id"
+          ],
+          "table": "tags",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "note_versions": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "body_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "content_hash": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_by": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "note_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "reason": {
+          "type": "string",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": true
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "version_number": {
+          "type": "number",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "note_id"
+          ],
+          "table": "notes",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "notes": {
+      "columns": {
+        "ai_visibility": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "body_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "character_count": {
+          "type": "number",
+          "nullable": false
+        },
+        "content_hash": {
+          "type": "string",
+          "nullable": true
+        },
+        "content_origin": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "deleted_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "folder_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "last_saved_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "pinned_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "project_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "word_count": {
+          "type": "number",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "project_id"
+          ],
+          "table": "projects",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "folder_id"
+          ],
+          "table": "note_folders",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "opportunity_requirements": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "extraction_source": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "importance": {
+          "type": "string",
+          "nullable": false
+        },
+        "opportunity_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "requirement_text": {
+          "type": "string",
+          "nullable": false
+        },
+        "requirement_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_excerpt": {
+          "type": "string",
+          "nullable": true
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "opportunity_id"
+          ],
+          "table": "career_opportunities",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "personal_memories": {
+      "columns": {
+        "ai_visibility": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "confidence": {
+          "type": "number",
+          "nullable": false
+        },
+        "confirmed_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "content": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_via": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "last_verified_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "memory_key": {
+          "type": "string",
+          "nullable": false
+        },
+        "memory_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "provenance": {
+          "type": "json",
+          "nullable": false
+        },
+        "review_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "structured_data": {
+          "type": "json",
+          "nullable": false
+        },
+        "supersedes_memory_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "valid_from": {
+          "type": "string",
+          "nullable": false
+        },
+        "valid_until": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "user_id",
+            "supersedes_memory_id"
+          ],
+          "table": "personal_memories",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "profiles": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "display_name": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "locale": {
+          "type": "string",
+          "nullable": false
+        },
+        "storage_budget_gib": {
+          "type": "number",
+          "nullable": true
+        },
+        "timezone": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "projects": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "area_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "completed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "due_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "start_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "area_id"
+          ],
+          "table": "areas",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "purchase_items": {
+      "columns": {
+        "abandoned_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "ai_metadata": {
+          "type": "json",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "category": {
+          "type": "string",
+          "nullable": true
+        },
+        "cooldown_until": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_via": {
+          "type": "string",
+          "nullable": false
+        },
+        "decided_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "existing_alternative": {
+          "type": "string",
+          "nullable": true
+        },
+        "expected_usage": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "image_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "necessity": {
+          "type": "string",
+          "nullable": false
+        },
+        "necessity_confirmed": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "notes_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "price_cny": {
+          "type": "number",
+          "nullable": true
+        },
+        "purchased_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "reason_to_buy": {
+          "type": "string",
+          "nullable": true
+        },
+        "source_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "resume_version_bullets": {
+      "columns": {
+        "bullet_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "resume_version_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "resume_version_id",
+        "bullet_id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "resume_version_id"
+          ],
+          "table": "resume_versions",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "bullet_id"
+          ],
+          "table": "experience_bullets",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "resume_versions": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "content_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "document_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "target_direction_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "version_label": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "target_direction_id"
+          ],
+          "table": "career_directions",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "document_id"
+          ],
+          "table": "documents",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "review_proposals": {
+      "columns": {
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "payload": {
+          "type": "json",
+          "nullable": false
+        },
+        "proposal_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "resolved_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "resulting_entity_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "resulting_entity_type": {
+          "type": "string",
+          "nullable": true
+        },
+        "review_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "review_id"
+          ],
+          "table": "reviews",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "review_sources": {
+      "columns": {
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "review_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_role": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "review_id"
+          ],
+          "table": "reviews",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "review_versions": {
+      "columns": {
+        "content_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "reason": {
+          "type": "string",
+          "nullable": false
+        },
+        "review_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "structured_data": {
+          "type": "json",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "version_number": {
+          "type": "number",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "review_id"
+          ],
+          "table": "reviews",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "reviews": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "completed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "content_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "decision_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "generated_with_ai": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "period_end": {
+          "type": "string",
+          "nullable": false
+        },
+        "period_start": {
+          "type": "string",
+          "nullable": false
+        },
+        "review_key": {
+          "type": "string",
+          "nullable": false
+        },
+        "review_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_snapshot_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "structured_data": {
+          "type": "json",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "decision_id"
+          ],
+          "table": "decisions",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "skills": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "category": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "evidence_markdown": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "last_used_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "proficiency": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "tags": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "color": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "tasks": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "completed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "due_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "estimated_minutes": {
+          "type": "number",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "priority": {
+          "type": "string",
+          "nullable": false
+        },
+        "project_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "project_id"
+          ],
+          "table": "projects",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "today_task_priorities": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "focus_date": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "task_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "task_id"
+          ],
+          "table": "microsoft_todo_tasks",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "trip_stops": {
+      "columns": {
+        "address": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "day_number": {
+          "type": "number",
+          "nullable": true
+        },
+        "duration_minutes": {
+          "type": "number",
+          "nullable": true
+        },
+        "geocode_provider": {
+          "type": "string",
+          "nullable": true
+        },
+        "geocode_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "latitude": {
+          "type": "number",
+          "nullable": true
+        },
+        "longitude": {
+          "type": "number",
+          "nullable": true
+        },
+        "notes": {
+          "type": "string",
+          "nullable": true
+        },
+        "place_name": {
+          "type": "string",
+          "nullable": false
+        },
+        "planned_time": {
+          "type": "string",
+          "nullable": true
+        },
+        "sort_order": {
+          "type": "number",
+          "nullable": false
+        },
+        "trip_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "trip_id"
+          ],
+          "table": "trips",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "trips": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "budget_cny": {
+          "type": "number",
+          "nullable": true
+        },
+        "completed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "country_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "cover_image_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_via": {
+          "type": "string",
+          "nullable": false
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "destination_label": {
+          "type": "string",
+          "nullable": true
+        },
+        "end_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "notes_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "region": {
+          "type": "string",
+          "nullable": true
+        },
+        "start_date": {
+          "type": "string",
+          "nullable": true
+        },
+        "status": {
+          "type": "string",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    }
+  },
+  "excludedTables": {
+    "file_upload_sessions": "Transient multipart provider upload IDs, leases and uncommitted bytes; never restore as resumable uploads.",
+    "ai_provider_settings": "Encrypted provider credentials; reconnect manually.",
+    "search_documents": "Derived search index; rebuild after approved restore.",
+    "pdf_cover_jobs": "Derived cover work queue; regenerate.",
+    "calendar_sync_queue": "Live execution queue; never replay.",
+    "calendar_sync_leases": "Ephemeral execution leases; never replay.",
+    "calendar_sync_cron_runs": "Global operational telemetry, not owner business data.",
+    "calendar_sync_runs": "Operational sync telemetry; recreate.",
+    "system_domain_statuses": "Derived health status; recompute.",
+    "system_status_events": "Operational status telemetry.",
+    "proactive_events": "Derived proactive detections; recompute.",
+    "proactive_insights": "Derived proactive suggestions; recompute.",
+    "proactive_insight_events": "Derived proactive join index; recompute.",
+    "document_ocr_jobs": "Transient OCR lease/progress state; durable extracted text remains in documents and is included."
+  },
+  "exclusions": [
+    "Authentication users, sessions, passwords, API keys, OAuth credentials and deployment configuration.",
+    "Files original bytes require separately verified Files portable packages. Legacy Supabase document originals require separately retained copies; exact missing document identities are reported. Existing activated private Leisure artwork bytes are embedded.",
+    "Operational caches/queues are not replayed; external calendar/task services remain authoritative."
+  ]
+}

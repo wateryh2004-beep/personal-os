@@ -1,0 +1,17 @@
+Personal OS private OCR distribution notices
+
+Tesseract.js 7.0.0 and Tesseract.js-core 7.0.0: Apache License 2.0.
+Sources: https://github.com/naptha/tesseract.js and https://github.com/naptha/tesseract.js-core
+Their published license files and bundled dependency notices are redistributed unchanged.
+
+English and simplified-Chinese trained data: @tesseract.js-data/eng 1.0.0
+and @tesseract.js-data/chi_sim 1.0.0, 4.0.0_best_int variants.
+Sources: https://github.com/naptha/tessdata and https://github.com/tesseract-ocr/tessdata_best
+The npm wrappers declare MIT; their package metadata is included. The upstream
+trained-data repositories license the models under Apache 2.0. Both upstream
+Apache licenses are included. Model files are copied without modification.
+
+Personal OS adds a same-origin disposable worker supervisor. It does not modify
+the engine, compiled WASM, or trained models. SHA-256 hashes and source package
+versions are recorded in manifest.json. Browser runtime makes no requests to
+these upstream URLs: all assets are served from this application's /ocr/v1/.

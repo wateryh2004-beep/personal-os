@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FilesWorkspace } from "@/components/files/files-workspace";
 import { defaultFileBrowserState } from "@/features/files/browser-state";
 import type { FileRecord } from "@/features/files/queries";
-vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn(), usePathname: () => "/files" }));
 vi.mock("@/components/shared/action-feedback", () => ({ useActionFeedback: () => ({ show: vi.fn() }) }));
 vi.mock("@/features/files/actions", () => ({ archiveFile: vi.fn(), createFileFolder: vi.fn(), moveFile: vi.fn(), renameFile: vi.fn(), restoreFile: vi.fn(), setFileAiVisibility: vi.fn() }));
 const files: FileRecord[] = [

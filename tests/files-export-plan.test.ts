@@ -36,6 +36,12 @@ function entries(buffer: Buffer) {
 }
 
 describe("Deterministic bounded Files export plans", () => {
+  it("does not budget cancelled terminal metadata as stored or required original bytes", async () => {
+    const plan = await createExportPlan(source([document(1, { storage_state: "cancelled" })]), new AbortController().signal);
+    expect(plan.counts).toMatchObject({ documents: 1, objects: 0, objectBytes: 0, pending: 0 });
+    expect(plan.storage).toMatchObject({ availableBytes: 0, pendingBytes: 0, totalLogicalBytes: 0 });
+    expect(plan.parts[0].originalBytes).toBe(0);
+  });
   it("plans more than 512 MiB into independently bounded parts without reading originals", async () => {
     const value = source(Array.from({ length: 6 }, (_, i) => document(i + 1, { file_size: 100 * 1024 * 1024 })));
     value.openObject = async () => { throw new Error("planning must not read an original"); };

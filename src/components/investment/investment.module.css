@@ -117,3 +117,24 @@
 @media(prefers-reduced-motion:reduce) {
   .tab,.mode,.document > summary,.table tbody tr { transition:none; }
 }
+
+.dailyAccount { margin:16px 0 22px; padding:18px; border:1px solid var(--separator); border-radius:var(--radius-lg); background:var(--surface-control); }
+.dailyHeading { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; font-size:13px; font-weight:500; }
+.dailyHeading > p > span { font-size:12px; color:var(--text-tertiary); font-weight:400; }
+.dailyActions { display:flex; flex-wrap:wrap; gap:4px; }
+.dailyMetrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:18px; margin-top:18px; }
+.dailyMetrics dt { font-size:12px; color:var(--text-tertiary); }
+.dailyMetrics dd { margin-top:7px; overflow-wrap:anywhere; font-size:20px; font-weight:500; line-height:1.45; font-variant-numeric:tabular-nums; }
+.dailyMetrics dd > .missing { font-size:15px; }
+.dailyStatus { margin-top:16px; font-size:12px; line-height:1.8; color:var(--text-secondary); }
+.dailyHint { margin:10px 0; font-size:12px; line-height:1.8; color:var(--warning); }
+.quoteMeta { display:block; max-width:220px; margin-top:6px; font-size:11px; font-weight:400; line-height:1.6; white-space:normal; overflow-wrap:anywhere; color:var(--text-tertiary); }
+.quoteMeta > span { display:block; }
+.account[data-selected],.document[data-selected] { outline:2px solid var(--accent); outline-offset:8px; border-radius:var(--radius-md); }
+@media(max-width:639px) {
+  .dailyAccount { padding:14px; }
+  .dailyMetrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 12px; }
+  .dailyMetrics dd { font-size:18px; }
+  .dailyActions { width:100%; }
+  .dailyActions button { min-height:40px; }
+}

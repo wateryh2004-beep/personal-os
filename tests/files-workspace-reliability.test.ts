@@ -7,7 +7,7 @@ import { FileMutationForm } from "@/components/files/file-mutation-form";
 import { useFileRows } from "@/components/files/use-file-rows";
 import type { FileRecord } from "@/features/files/queries";
 
-vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn(), usePathname: () => "/files" }));
 vi.mock("@/components/shared/action-feedback", () => ({ useActionFeedback: () => ({ show: vi.fn() }) }));
 vi.mock("@/features/files/actions", () => ({ archiveFile: vi.fn(), createFileFolder: vi.fn(), moveFile: vi.fn(), renameFile: vi.fn(), restoreFile: vi.fn(), setFileAiVisibility: vi.fn() }));
 
@@ -163,6 +163,7 @@ describe("upload confirmation and indexing", () => {
     vi.stubGlobal("XMLHttpRequest", UploadRequest);
     vi.stubGlobal("crypto", { subtle: { digest: vi.fn(async () => new ArrayBuffer(32)) } });
     vi.stubGlobal("fetch", vi.fn(async (_url: string, options?: RequestInit) => {
+      if (_url === "/api/files/multipart") return Response.json([]);
       if (options?.method === "DELETE") throw new Error("cleanup offline");
       if (options?.method === "PATCH") return Response.json({ extractionStatus: "completed" });
       const body = JSON.parse(options!.body as string) as { filename: string };
@@ -193,6 +194,6 @@ describe("upload confirmation and indexing", () => {
     Object.defineProperty(input, "files", { value: [{ name: "large.pdf", type: "application/pdf", size: 101 * 1024 * 1024, arrayBuffer: vi.fn() }] });
     await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
     expect(host.textContent).toContain("超过 100 MB");
-    expect(digest).not.toHaveBeenCalled(); expect(fetchMock).not.toHaveBeenCalled();
+    expect(digest).not.toHaveBeenCalled(); expect(fetchMock.mock.calls.every(([, options]) => !options?.method || options.method === "GET")).toBe(true);
   });
 });

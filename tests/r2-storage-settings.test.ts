@@ -4,6 +4,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { R2StorageSettings, storageBytes } from "@/components/settings/r2-storage-settings";
 import type { StorageInspection } from "@/features/files/storage-inspection/contract";
+const budgetApi = vi.hoisted(() => ({ save: vi.fn() }));
+vi.mock("@/features/files/storage-inspection/budget-actions", () => ({ saveStorageBudget: budgetApi.save }));
 let host: HTMLDivElement; let root: Root;
 const fixture = (): StorageInspection => ({
   checkedAt: new Date().toISOString(),
@@ -75,7 +77,7 @@ describe("R2 Settings inspection UI", () => {
 
 it("never treats account free allowance as bucket remaining capacity", async () => {
   await click();
-  expect(host.textContent).toContain("账户免费额度余量暂无法确认");
+  expect(host.textContent).toContain("免费余量：暂无法确认");
   expect(host.querySelector('[role="meter"]')).toBeNull();
   const input = host.querySelector('input[type="number"]')!;
   await act(async () => {
@@ -91,4 +93,26 @@ it("does not render a green latest-success claim after 401", async () => {
   await click();
   expect(host.querySelector('[role="alert"]')?.textContent).toContain("会话已失效");
   expect(host.textContent).toContain("上次连接检查");
+});
+
+it("restores the saved budget after remount and explicitly saves edits", async () => {
+  await act(async () => root.unmount()); root = createRoot(host);
+  await act(async () => root.render(createElement(R2StorageSettings, { initialBudget: {value:"8",available:true} })));
+  const input=host.querySelector<HTMLInputElement>('input[type="number"]')!;
+  expect(input.value).toBe("8");
+  await act(async () => {Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(input,"12");input.dispatchEvent(new Event("input",{bubbles:true}));});
+  budgetApi.save.mockResolvedValue({ok:true,value:"12"});
+  await click("保存预算");
+  expect(budgetApi.save).toHaveBeenLastCalledWith("12");
+  expect(host.textContent).toContain("已保存，可在其他设备继续使用");
+  await act(async () => root.unmount()); root=createRoot(host);
+  await act(async () => root.render(createElement(R2StorageSettings,{initialBudget:{value:"12",available:true}})));
+  expect(host.querySelector<HTMLInputElement>("input")!.value).toBe("12");
+});
+it("keeps failed edits retryable without claiming persistence", async () => {
+  const input=host.querySelector<HTMLInputElement>("input")!;
+  await act(async () => {Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(input,"2");input.dispatchEvent(new Event("input",{bubbles:true}));});
+  budgetApi.save.mockResolvedValue({ok:false,error:"预算未保存，请重试。"});
+  await click("保存预算");expect(host.textContent).toContain("预算未保存");expect(input.value).toBe("2");
+  expect(Array.from(host.querySelectorAll("button")).find(b=>b.textContent==="保存预算")!.disabled).toBe(false);
 });

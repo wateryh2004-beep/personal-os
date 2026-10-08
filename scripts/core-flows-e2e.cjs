@@ -37,7 +37,7 @@ const output = "test-results/core-flows";
       const box = await card.boundingBox(); assert.ok(box.height >= 44);
       await capture("notes-parent");
       await card.click();
-      await page.getByRole("link", { name: "子文件夹里的示例笔记", exact: true }).waitFor();
+      await page.getByRole("region", { name: "笔记列表", exact: true }).getByRole("link", { name: "子文件夹里的示例笔记", exact: true }).waitFor();
       await capture("notes-child");
       await page.goBack();
       await page.getByText("当前层级没有直接存放的笔记", { exact: true }).waitFor();

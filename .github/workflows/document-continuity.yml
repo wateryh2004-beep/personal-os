@@ -1,0 +1,85 @@
+name: Document continuity
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  document-reading-sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ephemeral-fixture-only
+          POSTGRES_DB: document_continuity_test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:ephemeral-fixture-only@127.0.0.1:5432/document_continuity_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'psycopg[binary]>=3.2,<4'
+      - run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/document-continuity-sql/bootstrap.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261007092752_document_reading_progress.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261007093836_resumable_file_uploads.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/document-continuity-sql/regression.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/document-continuity-sql/multipart-regression.sql
+          python scripts/document-reading-sql-concurrency.py
+          python scripts/multipart-sql-concurrency.py
+  document-reading-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm install --global playwright@1.62.1 && playwright install --with-deps chromium
+      - run: |
+          node scripts/document-reading-preview.mjs > /tmp/reading-preview.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do curl -fsS http://127.0.0.1:4191 > /dev/null && break; sleep 1; done
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/document-reading-e2e.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: document-reading-browser
+          path: test-results/document-reading
+          if-no-files-found: ignore
+          retention-days: 7
+
+  multipart-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm install --global playwright@1.62.1 && playwright install --with-deps chromium
+      - run: |
+          node scripts/multipart-preview.mjs > /tmp/multipart-preview.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do curl -fsS http://127.0.0.1:4192 > /dev/null && break; sleep 1; done
+          NODE_PATH="$(npm root -g)" timeout 180s node scripts/multipart-e2e.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: multipart-browser
+          path: test-results/multipart
+          if-no-files-found: ignore
+          retention-days: 7

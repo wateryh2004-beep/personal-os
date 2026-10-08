@@ -1,6 +1,30 @@
 import type { NextConfig } from "next";
 
+const pdfCoverRuntimeAssets = [
+  "./scripts/pdf-cover-render-worker.mjs",
+  "./node_modules/pdfjs-dist/package.json",
+  "./node_modules/pdfjs-dist/LICENSE",
+  "./node_modules/pdfjs-dist/legacy/build/*.mjs",
+  "./node_modules/pdfjs-dist/{cmaps,standard_fonts,wasm,iccs}/**/*",
+  "./node_modules/@napi-rs/canvas*/**/*",
+  "./node_modules/sharp/{package.json,LICENSE}",
+  "./node_modules/sharp/lib/**/*",
+  "./node_modules/sharp/dist/**/*",
+  "./node_modules/@img/**/*",
+  "./node_modules/detect-libc/**/*",
+  "./node_modules/semver/**/*",
+];
+
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["pdfjs-dist", "@napi-rs/canvas", "sharp"],
+  // The first-page renderer is an unbundled, killable Node process. Include
+  // its ESM runtime, local fonts/CMaps/WASM and platform native bindings in
+  // every route that can run a durable cover job (including after() work).
+  outputFileTracingIncludes: {
+    "/api/files/**/pdf-cover": pdfCoverRuntimeAssets,
+    "/api/files/upload-url": pdfCoverRuntimeAssets,
+    "/api/cron/files-extraction": pdfCoverRuntimeAssets,
+  },
   images: {
     // Public promotional artwork only, never arbitrary database URLs.
     remotePatterns: [

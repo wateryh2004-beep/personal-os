@@ -6,7 +6,7 @@ import type { Holding, InvestmentWorkspaceData, ResearchRun } from "@/features/i
 import { formatInvestmentDecimal, investmentHref, parseInvestmentView, safeResearchUrl } from "@/components/investment/presentation";
 
 const mocks = vi.hoisted(() => ({ account: vi.fn(), entry: vi.fn(), strategy: vi.fn(), research: vi.fn(), voidEntry: vi.fn(), refresh: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/investments", useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock("next/link", () => ({ default: ({ children, scroll: _scroll, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { scroll?: boolean }) => { void _scroll; return createElement("a", props, children); } }));
 vi.mock("@/features/investment/actions", () => ({ createInvestmentAccount: mocks.account, addInvestmentEntry: mocks.entry, saveInvestmentStrategy: mocks.strategy, importInvestmentResearch: mocks.research, voidInvestmentEntry: mocks.voidEntry }));
 import { InvestmentWorkspace } from "@/components/investment/investment-workspace";

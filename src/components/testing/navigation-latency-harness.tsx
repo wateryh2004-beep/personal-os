@@ -26,10 +26,12 @@ function Harness({ workspace, mode, delay }: { workspace: string; mode: string; 
   const [warmed, setWarmed] = useState(false);
   const [draft, setDraft] = useState("");
   const href = (target: string) => `/mobile-native-e2e?scene=latency&mode=${mode}&delay=${delay}&workspace=${target}`;
-  const warm = async () => { await Promise.all([tasksWorkspaceResource.prefetch(), notesWorkspaceResource.prefetch()]); setWarmed(true); };
+  // This fixture explicitly exercises the legacy client-read cache, independent
+  // of production route-owned prefetch. The streamed Notes path has its own E2E.
+  const warm = async () => { await Promise.all([tasksWorkspaceResource.prefetch(), notesWorkspaceResource.revalidate()]); setWarmed(true); };
   const start = (target: string) => {
     performance.mark("fixture-navigation-click");
-    if (mode !== "baseline") void (target === "tasks" ? tasksWorkspaceResource : notesWorkspaceResource).prefetch();
+    if (mode !== "baseline") void (target === "tasks" ? tasksWorkspaceResource : notesWorkspaceResource).revalidate();
   };
   return <main data-testid="latency-harness" data-workspace={workspace}>
     <nav className="flex gap-5 p-4">

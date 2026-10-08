@@ -2,6 +2,7 @@
 
 import { FilesWorkspace } from "@/components/files/files-workspace";
 import type { FileRecord } from "@/features/files/queries";
+import { useEffect, useRef } from "react";
 
 const folders = Array.from({ length: 36 }, (_, index) => ({ id: `e2e-file-folder-${index}`, name: `示例文件夹 ${index + 1}`, parent_id: null }));
 const fixtureTypes = [
@@ -18,4 +19,17 @@ const files: FileRecord[] = Array.from({ length: 80 }, (_, index) => ({
 // Synthetic geometry and menu fixture; browser checks never submit account mutations.
 export function FilesPolishFixture() {
   return <FilesWorkspace folders={folders} files={files} />;
+}
+
+const coverCases = ["ready", "pending", "failed", "landscape", "unsupported", "disabled"] as const;
+const cachedCoverFiles: FileRecord[] = coverCases.map((kind, index) => ({
+  ...files[0], id: `e2e-cached-cover-${index}`, title: `${index + 1}. ${kind} · Synthetic PDF`,
+  original_filename: `synthetic-${kind}.pdf`, folder_id: null, file_size: 1024 * 1024 * (index + 1),
+}));
+
+/** No account data. API bytes are supplied by the isolated CI fixture proxy. */
+export function FilesCachedCoversFixture() {
+  const marker = useRef<HTMLDivElement>(null);
+  useEffect(() => { marker.current?.setAttribute("data-cached-covers-hydrated", "true"); }, []);
+  return <div ref={marker} className="contents" data-cached-covers-hydrated="false"><FilesWorkspace folders={[]} files={cachedCoverFiles} /></div>;
 }

@@ -15,7 +15,7 @@ import {
 } from "@/lib/navigation-registry";
 
 export type CommandCenterSection = "search" | "quick";
-const domainLabels: Record<string, string> = { notes: "Notes", career: "Career", files: "Files", tasks: "Tasks", calendar: "Calendar", reviews: "Reviews", projects: "Projects", shopping: "Shopping", travel: "Travel" };
+const domainLabels: Record<string, string> = { notes: "Notes", career: "Career", files: "Files", tasks: "Tasks", calendar: "Calendar", reviews: "Reviews", projects: "Projects", shopping: "Shopping", travel: "Travel", leisure: "Leisure", briefing: "Briefing", investment: "Investment" };
 
 export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search", contentOnly = false }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection; contentOnly?: boolean }) {
   const router = useRouter();
