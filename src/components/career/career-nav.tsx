@@ -13,9 +13,8 @@ const secondary = [
   ["技能", "/career/skills"],
   ["职业方向", "/career/directions"],
   ["证书", "/career/certifications"],
-  ["职业资本", "/career/capital"],
   ["职业档案", "/career/profile"],
-  ["证明材料", "/career/materials"],
+  ["文件与证明材料", "/files"],
 ] as const;
 
 function isActive(current: string, href: string) {

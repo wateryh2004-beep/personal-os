@@ -12,5 +12,6 @@ export async function createProject(formData: FormData) {
   if (error || !data) throw new Error("项目暂时无法创建，请稍后重试。");
   await supabase.from("audit_logs").insert({ user_id: userId, action: "create", entity_type: "project", entity_id: data.id, actor_type: "user", after_data: { name: parsed.data.name } });
   await revalidatePath("/projects");
+  await revalidatePath("/tasks/projects");
   await revalidatePath("/today");
 }

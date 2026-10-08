@@ -17,11 +17,12 @@ describe("navigation registry", () => {
     const hrefs = navigationRegistry.map((item) => item.href);
     expect(new Set(hrefs).size).toBe(hrefs.length);
     expect(desktopNavigationGroups.flatMap((group) => group.items).map((item) => item.href)).toEqual([
-      "/today", "/notes", "/career", "/inbox", "/calendar", "/tasks", "/projects", "/reviews", "/files", "/briefing", "/investments", "/leisure", "/shopping", "/travel",
+      "/today", "/notes", "/career", "/inbox", "/calendar", "/tasks", "/files", "/briefing", "/investments", "/leisure", "/shopping", "/travel",
     ]);
     expect(mobileTabNavigation.map((item) => item.href)).toEqual(["/today", "/notes", "/career"]);
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/settings");
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/reviews");
+    expect(commandPaletteNavigation.map((item) => item.href)).toContain("/tasks/projects");
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/briefing");
   });
 
@@ -32,6 +33,8 @@ describe("navigation registry", () => {
     expect(more).not.toContain("/career");
     expect(more).not.toContain("/notes");
     expect(more).toContain("/tasks");
+    expect(more).not.toContain("/tasks/projects");
+    expect(more).not.toContain("/reviews");
     expect(more).toContain("/leisure");
     expect(more).toContain("/investments");
     expect(mobileTabNavigation.map((item) => item.href)).toContain("/career");
@@ -43,6 +46,8 @@ describe("navigation registry", () => {
     expect(navigationItemForPath("/notes/123")?.href).toBe("/notes");
     expect(navigationItemForPath("/leisure/123")?.href).toBe("/leisure");
     expect(navigationItemForPath("/today")?.href).toBe("/today");
+    expect(navigationItemForPath("/files/materials")?.href).toBe("/files");
+    expect(navigationItemForPath("/tasks/projects")?.href).toBe("/tasks/projects");
   });
 
   it("derives contextual create behavior from the same registry", () => {
@@ -51,6 +56,8 @@ describe("navigation registry", () => {
     expect(contextualCreateKindForPath("/travel/ideas")).toBe("travel");
     expect(contextualCreateKindForPath("/calendar")).toBe("calendar");
     expect(contextualCreateKindForPath("/career")).toBeUndefined();
+    expect(contextualCreateKindForPath("/tasks/projects")).toBe("project");
+    expect(contextualCreateKindForPath("/tasks")).toBe("task");
   });
 
   it("parses and merges recent navigation defensively", () => {
@@ -70,7 +77,7 @@ describe("navigation registry", () => {
     ]);
   });
 
-  it("returns recent non-tab modules without duplicating a module", () => {
+  it("returns recent primary modules without promoting folded secondary views", () => {
     const recents = [
       { href: "/career/roadmap", label: "Career" },
       { href: "/notes/123", label: "Notes" },
@@ -78,10 +85,14 @@ describe("navigation registry", () => {
       { href: "/today", label: "Now" },
       { href: "/career/experiences", label: "Career" },
       { href: "/reviews", label: "Reviews" },
+      { href: "/tasks/projects", label: "Projects" },
+      { href: "/investments", label: "Investments" },
+      { href: "/investments?mode=paper", label: "Investments" },
+      { href: "/calendar", label: "Calendar" },
     ];
     expect(getMobileRecentNavigation(recents, "/today")).toEqual([
-      { targetHref: "/projects", item: navigationItemForPath("/projects") },
-      { targetHref: "/reviews", item: navigationItemForPath("/reviews") },
+      { targetHref: "/investments", item: navigationItemForPath("/investments") },
+      { targetHref: "/calendar", item: navigationItemForPath("/calendar") },
     ]);
   });
 });

@@ -27,6 +27,7 @@ export function TodaySecondary({ workspace, future = workspace.upcoming, pastEve
         {workspace.briefing.entries.length ? <ul>{workspace.briefing.entries.map(entry => <li key={entry.id}><a href={entry.url || "/briefing"} target={entry.url ? "_blank" : undefined} rel={entry.url ? "noreferrer" : undefined} className="ui-record-link today-future-link">{entry.title}{entry.reason ? <span className="today-future-detail">{entry.reason}</span> : null}</a></li>)}</ul> : null}
         {workspace.availability.briefing === "unavailable" ? <p className="today-ledger-note">简报暂未更新</p> : !contextItems.length && !workspace.briefing.entries.length ? <p className="today-ledger-note">暂无额外背景</p> : null}
         <Link href="/briefing" className="ui-link today-quiet-link">查看简报 ↗</Link>
+        <Link href="/reviews" className="ui-link today-quiet-link">复盘记录与待复核决定 ↗</Link>
       </TodayDisclosure>
     </section>
   </>;

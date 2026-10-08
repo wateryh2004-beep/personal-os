@@ -36,14 +36,16 @@ it.each(["tasks", "projects"] as const)("restores %s manual launcher on Cancel a
       await pause();
     });
     expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(document.activeElement).toBe(launch);
+    // Radix restores focus in a timer scheduled by the close commit. A pause
+    // inside act can expire before that commit, especially under suite load.
+    await vi.waitFor(() => expect(document.activeElement).toBe(launch));
   }
 });
 it("returns to the actual empty-state Projects launcher", async () => {
   await render("projects"); const launch = launchers()[1];
   await act(async () => launch.click());
   await act(async () => { cancel().click(); await pause(); });
-  expect(document.activeElement).toBe(launch);
+  await vi.waitFor(() => expect(document.activeElement).toBe(launch));
 });
 it.each(["tasks", "projects"] as const)("does not restore stale %s launch focus after route changes", async (kind) => {
   await render(kind); const launch = launchers()[0]; const focus = vi.spyOn(launch, "focus");

@@ -164,7 +164,7 @@ export async function uploadEvidence(formData: FormData) {
   if (error) { await supabase.storage.from("private-files").remove([path]); failed(error); }
   const { error: linkError } = await supabase.from("entity_links").insert({ user_id: userId, source_type: "experience", source_id: experienceId, target_type: "document", target_id: data.id, relationship_type: "evidence", created_via: "system" });
   if (linkError) { await supabase.from("documents").update({ archived_at: new Date().toISOString() }).eq("id", data.id); failed(linkError); }
-  await audit(supabase, userId, "upload", "document", data.id, { experience_id: experienceId, document_type: formData.get("document_type") }); revalidatePath(`/career/experiences/${experienceId}`); revalidatePath("/career");
+  await audit(supabase, userId, "upload", "document", data.id, { experience_id: experienceId, document_type: formData.get("document_type") }); revalidatePath(`/career/experiences/${experienceId}`); revalidatePath("/career"); revalidatePath("/files/materials");
 }
 export async function createEntityLink(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const experienceId = String(formData.get("experience_id") || ""); const targetType = String(formData.get("target_type") || ""); const targetId = String(formData.get("target_id") || ""); const tables: Record<string, string> = { note: "notes", task: "tasks", project: "projects", document: "documents" }; const table = tables[targetType];

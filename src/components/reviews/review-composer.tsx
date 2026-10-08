@@ -79,7 +79,7 @@ export function ReviewComposer({
             {type === "daily" ? "今日复盘" : "本周复盘"}
           </h1>
           <p className="mt-1.5 text-[11.5px] text-[var(--text-tertiary)]">
-            {periodLabel} · {existingReviewId ? "已完成，可继续修正" : "尚未完成"}
+            {periodLabel} · {existingReviewId ? "已有记录，可继续修正" : "按需记录"}
           </p>
         </div>
         <div className="flex items-center gap-1.5">

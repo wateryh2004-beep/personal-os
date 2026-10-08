@@ -1,0 +1,16 @@
+import React from "react";
+import {createRoot} from "react-dom/client";
+import "@/app/globals.css";
+import Profile from "@/app/(app)/career/profile/page";
+import Skills from "@/app/(app)/career/skills/page";
+import Certifications from "@/app/(app)/career/certifications/page";
+import Reviews from "@/app/(app)/reviews/page";
+import {CareerCapitalSummary} from "@/components/career/career-capital-summary";
+import {InterviewNav} from "@/components/career/interview/interview-nav";
+import {InboxWorkspace} from "@/components/inbox/inbox-workspace";
+import {ActionFeedbackProvider} from "@/components/shared/action-feedback";
+const scene=new URLSearchParams(location.search).get("scene")||"profile";
+const base={created_at:"2026-10-01T12:00:00Z",processed_at:null,converted_task_id:null,converted_todo_task_id:null,converted_note_id:null,ai_error:null};
+const pages={profile:Profile,skills:Skills,certifications:Certifications,reviews:Reviews,capital:CareerCapitalSummary};
+const content=pages[scene] ? await pages[scene]() : scene==="interview" ? <><h1>面试准备</h1><InterviewNav current="/career/interview" context="synthetic"/></> : <ActionFeedbackProvider><h1 className="mb-5 text-2xl">收集箱</h1><InboxWorkspace items={[{...base,id:"ready",content_markdown:"示例待确认笔记",ai_status:"ready",ai_proposal:{target:"note",title:"示例整理结果",bodyMarkdown:"虚构的笔记正文"}},{...base,id:"failed",content_markdown:"示例识别失败记录",ai_status:"failed",ai_proposal:null,ai_error:"测试失败原因"},{...base,id:"missing",content_markdown:"示例建议缺失记录",ai_status:"ready",ai_proposal:null}]} archivedItems={[]} lists={[]}/></ActionFeedbackProvider>;
+createRoot(document.getElementById("root")).render(<main className="mx-auto max-w-5xl p-4 sm:p-8">{content}</main>);

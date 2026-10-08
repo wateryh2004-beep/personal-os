@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FileOcrControl } from "./file-ocr-control";
 import { WorkspaceReadyMetric } from "@/components/performance/workspace-ready-metric";
 import { FileResumableUploads } from "./file-resumable-uploads";
@@ -347,6 +348,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           </div>
         </div>
 
+        <Link href="/files/materials" className="inline-flex min-h-11 items-center text-[12px] text-[var(--text-tertiary)] hover:text-[var(--accent)]">证明材料目录 →</Link>
         <div className="my-3 space-y-2" role="region" aria-label="文件筛选与排序">
           <div className="flex flex-wrap items-center gap-2">
             <input aria-label="搜索文件名称" type="search" maxLength={200} value={browser.query} onChange={event => changeBrowser({ query: event.target.value }, true)} placeholder="搜索名称或原始文件名" className="h-10 w-full min-w-0 rounded-[9px] sm:w-auto sm:flex-1 border border-[var(--separator)] bg-[var(--surface-control)] px-3 text-[13px] outline-none focus:ring-2 focus:ring-[var(--accent)]" />

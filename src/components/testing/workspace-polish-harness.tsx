@@ -75,7 +75,7 @@ const filledCareer: CareerHomeData = {
 };
 
 export function WorkspacePolishHarness({ scene }: { scene: PolishScene }) {
-  const pathname = scene === "files-cached-covers" ? "/files" : scene === "heading" ? "/today" : (scene === "note-editor" || scene === "note-pdf") ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
+  const pathname = scene === "projects" ? "/tasks/projects" : scene === "files-cached-covers" ? "/files" : scene === "heading" ? "/today" : (scene === "note-editor" || scene === "note-pdf") ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
   return <div data-testid="workspace-polish-harness" data-scene={scene}>
     <AppShell presentationPathname={pathname}>
       {scene === "projects" ? <ProjectsWorkspace projects={[]} /> : null}

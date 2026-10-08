@@ -63,9 +63,11 @@ async function backCloses(page, trigger, visibleTarget) {
       assert.deepEqual(await bottomNavigation.getByRole("link").evaluateAll((links) => links.map((link) => link.getAttribute("href"))), ["/today", "/notes", "/career"], `${width}px frequent workspaces stay one tap away`);
       await bottomNavigation.getByRole("button", { name: "更多", exact: true }).click();
       const more = page.getByRole("dialog");
-      for (const name of ["日历", "任务", "收集箱", "项目", "回顾", "文件", "简报", "购物", "旅行", "设置"]) {
+      for (const name of ["日历", "任务", "收集箱", "文件", "简报", "购物", "旅行", "设置"]) {
         await more.getByRole("link", { name, exact: true }).waitFor({ state: "visible" });
       }
+      assert.equal(await more.getByRole("link", { name: "项目", exact: true }).count(), 0);
+      assert.equal(await more.getByRole("link", { name: "回顾", exact: true }).count(), 0);
       await page.evaluate(() => history.back());
       await more.waitFor({ state: "hidden" });
 

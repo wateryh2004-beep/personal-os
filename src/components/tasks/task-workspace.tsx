@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -977,6 +978,7 @@ export function TaskWorkspace({
                 <span className="text-[12px] leading-5 tabular-nums text-[var(--text-tertiary)]">
                   {visible.length}
                 </span>
+                <Link href="/tasks/projects" className="inline-flex min-h-11 items-center text-[12px] text-[var(--text-tertiary)] hover:text-[var(--accent)]">项目 →</Link>
               </div>
               <nav
                 className="tasks-view-tabs mt-2.5 flex items-center gap-4.5 overflow-x-auto"

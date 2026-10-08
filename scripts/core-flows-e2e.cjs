@@ -45,6 +45,7 @@ const output = "test-results/core-flows";
       await page.getByRole("navigation", { name: "文件夹路径" }).getByRole("link", { name: "示例知识与学习资料", exact: true }).click();
       await page.getByText("当前层级没有直接存放的笔记", { exact: true }).waitFor();
       await page.goto(`${baseURL}/mobile-native-e2e?scene=projects`, { waitUntil: "networkidle" });
+      assert.equal(await page.getByRole("link", { name: "← 返回任务", exact: true }).getAttribute("href"), "/tasks");
       const projectLauncher = page.getByRole("button", { name: "新建项目", exact: true }).first();
       for (let i = 0; i < 2; i++) {
         await projectLauncher.click();
@@ -58,6 +59,7 @@ const output = "test-results/core-flows";
         assert.equal(await projectLauncher.evaluate(node => node === document.activeElement), true, "Project cancellation restores launcher focus");
       }
       await page.goto(`${baseURL}/mobile-native-e2e?scene=tasks`, { waitUntil: "networkidle" });
+      assert.equal(await page.getByRole("link", { name: "项目 →", exact: true }).getAttribute("href"), "/tasks/projects");
       const taskLauncher = page.getByRole("button", { name: "新建任务", exact: true }).first();
       await taskLauncher.click();
       const taskDialog = page.getByRole("dialog", { name: "新建任务", exact: true });

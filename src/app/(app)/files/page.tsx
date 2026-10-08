@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { parseFileBrowserState } from "@/features/files/browser-state";
 import { FilesWorkspace } from "@/components/files/files-workspace";
 import { getFilesWorkspace } from "@/features/files/queries";
@@ -9,6 +10,7 @@ function FilesUnavailable({ children }: { children: React.ReactNode }) {
     <section className="max-w-xl">
       <h1 className="text-[27px] font-semibold tracking-[-0.042em] text-[var(--text-primary)]">文件</h1>
       <p className="mt-3 rounded-[10px] bg-amber-50 px-3.5 py-2.5 text-[12px] leading-5 text-amber-900">{children}</p>
+      <Link href="/files/materials" className="mt-3 inline-flex min-h-11 items-center text-sm text-[var(--accent)]">查看证明材料目录 →</Link>
     </section>
   );
 }

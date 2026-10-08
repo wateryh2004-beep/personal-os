@@ -28,24 +28,7 @@ export default async function CertificationsPage() {
       <PageHeader title="证书" description="记录真正有求职价值的考试与证书。" />
       <CareerNav current="/career/certifications" />
 
-      <div className="mb-7 flex justify-end">
-        <details>
-          <summary className="pressable cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 新增证书</summary>
-          <CareerForm action={submitCareerForm.bind(null, "createCertification")} resetOnSuccess className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
-            <Field label="名称" name="name" required />
-            <Field label="发证机构" name="issuer" />
-            <SelectField label="状态" name="status" values={statuses} defaultValue="planned" />
-            <Field label="考试日期" name="exam_date" type="date" />
-            <Field label="发证日期" name="issue_date" type="date" />
-            <Field label="到期日期" name="expiry_date" type="date" />
-            <Field label="分数" name="score" />
-            <Field label="证书编号" name="credential_number" />
-            <SelectField label="证明材料" name="document_id" values={documentOptions} defaultValue="" />
-            <TextField label="说明" name="notes_markdown" />
-            <div><PrimaryButton>创建</PrimaryButton></div>
-          </CareerForm>
-        </details>
-      </div>
+
 
       <div className="space-y-px">
         {certifications.map((item) => (
@@ -62,7 +45,7 @@ export default async function CertificationsPage() {
             </div>
 
             <details className="mt-1.5">
-              <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">编辑</summary>
+              <summary className="pressable inline-flex min-h-11 items-center cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">更正资料</summary>
               <CareerForm action={submitCareerForm.bind(null, "updateCertification")} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
                 <input type="hidden" name="certification_id" value={item.id} />
                 <Field label="名称" name="name" defaultValue={item.name} required />
@@ -82,6 +65,24 @@ export default async function CertificationsPage() {
           </article>
         ))}
         {!certifications.length ? <p className="py-8 text-[13px] text-[var(--text-tertiary)]">还没有证书记录。</p> : null}
+      </div>
+      <div className="mt-7 border-t border-[var(--separator)] pt-4">
+        <details>
+          <summary className="pressable inline-flex min-h-11 items-center cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">更正资料 · 补充证书</summary>
+          <CareerForm action={submitCareerForm.bind(null, "createCertification")} resetOnSuccess className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
+            <Field label="名称" name="name" required />
+            <Field label="发证机构" name="issuer" />
+            <SelectField label="状态" name="status" values={statuses} defaultValue="planned" />
+            <Field label="考试日期" name="exam_date" type="date" />
+            <Field label="发证日期" name="issue_date" type="date" />
+            <Field label="到期日期" name="expiry_date" type="date" />
+            <Field label="分数" name="score" />
+            <Field label="证书编号" name="credential_number" />
+            <SelectField label="证明材料" name="document_id" values={documentOptions} defaultValue="" />
+            <TextField label="说明" name="notes_markdown" />
+            <div><PrimaryButton>创建</PrimaryButton></div>
+          </CareerForm>
+        </details>
       </div>
     </>
   );

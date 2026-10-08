@@ -2,7 +2,7 @@ name: Verify
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, test/ten-system-improvements]
   push:
     branches: [main]
 
@@ -44,6 +44,24 @@ jobs:
         with:
           name: map-attribution-security
           path: test-results/map-attribution-security
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Verify AI-first reader and correction surfaces
+        run: |
+          node scripts/ai-first-preview.mjs > /tmp/personal-os-ai-first-e2e.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:4186 > /dev/null; then break; fi
+            sleep 1
+          done
+          NODE_PATH="$(npm root -g)" timeout 240s node scripts/ai-first-e2e.cjs
+      - name: Save AI-first screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-first-ui-evidence
+          path: test-results/ai-first
           if-no-files-found: ignore
           retention-days: 7
       - name: Verify isolated investment workspace

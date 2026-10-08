@@ -85,7 +85,7 @@ export function buildProactiveInsights({
       id: "weekly-review",
       kind: "weekly_review_due",
       priority: "low",
-      title: "本周复盘仍未安排",
+      title: "本周记录可按需回顾",
       href: "/reviews",
       fingerprint: `weekly_review_due:${today.slice(0, 4)}-${today.slice(5, 7)}`,
     });

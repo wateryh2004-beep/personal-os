@@ -1,7 +1,7 @@
 name: System backup recovery
 on:
   pull_request:
-    branches: [main]
+    branches: [main, test/ten-system-improvements]
   push:
     branches: [main]
 permissions:

@@ -12,24 +12,9 @@ export default async function ReviewsPage() {
   const byKey = new Map(data.reviews.map((review) => [review.review_key, review]));
   return (
     <section className="mx-auto max-w-4xl">
-      <PageHeader eyebrow="复盘" title="复盘" description="从可验证记录开始复盘，再把真正长期有效的信息交给你确认。" />
+      <PageHeader eyebrow="复盘" title="复盘" description="查看已有复盘与待复核决定。需要时再生成摘要或补充记录。" />
 
-      <div className="mt-6 grid gap-2.5 md:grid-cols-2">
-        <ReviewEntry
-          href="/reviews/daily"
-          icon={<CalendarDays className="size-5" />}
-          title="每日复盘"
-          period="今天"
-          review={byKey.get(data.daily.key)}
-        />
-        <ReviewEntry
-          href="/reviews/weekly"
-          icon={<CalendarRange className="size-5" />}
-          title="每周复盘"
-          period="本周"
-          review={byKey.get(data.weekly.key)}
-        />
-      </div>
+
 
       {data.dueDecisions.length ? (
         <section className="mt-8 border-t border-[var(--separator)] pt-5">
@@ -80,6 +65,22 @@ export default async function ReviewsPage() {
           )}
         </div>
       </section>
+      <details className="mt-8 border-t border-[var(--separator)] pt-3"><summary className="inline-flex min-h-11 cursor-pointer items-center text-sm text-[var(--text-secondary)]">按需生成或补充复盘</summary><div className="mt-3 grid gap-2.5 md:grid-cols-2">
+        <ReviewEntry
+          href="/reviews/daily"
+          icon={<CalendarDays className="size-5" />}
+          title="每日复盘"
+          period="今天"
+          review={byKey.get(data.daily.key)}
+        />
+        <ReviewEntry
+          href="/reviews/weekly"
+          icon={<CalendarRange className="size-5" />}
+          title="每周复盘"
+          period="本周"
+          review={byKey.get(data.weekly.key)}
+        />
+      </div></details>
     </section>
   );
 }
@@ -102,7 +103,7 @@ function ReviewEntry({
       <span className="flex size-9 items-center justify-center rounded-[9px] bg-[var(--accent-soft)] text-[var(--accent)]">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[13.5px] font-semibold tracking-[-0.006em]">{title}</span>
-        <span className="mt-0.5 block text-[11.5px] text-[var(--text-secondary)]">{period} · {review?.status === "completed" ? "已完成，可修正" : "尚未完成"}</span>
+        <span className="mt-0.5 block text-[11.5px] text-[var(--text-secondary)]">{period} · {review?.status === "completed" ? "已有记录，可查看" : review ? "已有草稿，可查看" : "按需开始"}</span>
       </span>
       <ArrowRight className="size-4 text-[var(--text-tertiary)] group-hover:text-[var(--accent)]" />
     </Link>

@@ -193,6 +193,21 @@ export async function getCareerPortfolio() {
   return { ...base, skills: skills.data ?? [], facts: facts.data ?? [], outputs: outputs.data ?? [], approvedBullets: approvedBullets.data ?? [], opportunities: opportunities.data ?? [], applications: applications.data ?? [], resumes: resumes.data ?? [], decisions: decisions.data ?? [], certifications: certifications.data ?? [], milestones: milestones.data ?? [], interviewTargets: interviewTargets.data ?? [], interviewPreparations: interviewPreparations.data ?? [], career2Unavailable: Boolean(opportunities.error || applications.error || resumes.error) };
 }
 
+// Home needs counts, not the full private fact/bullet bodies. Stream this separately.
+export async function getCareerCapitalSummary() {
+  const { supabase } = await requireOwner();
+  const count = (table: string) => supabase.from(table).select("id", { count: "exact", head: true }).is("archived_at", null);
+  const [facts, verifiedFacts, approvedBullets, outputs, skills, certifications, gaps] = await Promise.all([
+    count("experience_facts"),
+    count("experience_facts").or("source_document_id.not.is.null,verification_status.neq.unverified"),
+    count("experience_bullets").eq("status", "approved"),
+    count("experience_outputs"), count("skills"), count("certifications"),
+    supabase.from("gap_analysis_runs").select("id,summary").is("archived_at", null).order("created_at", { ascending: false }).limit(3),
+  ]);
+  const value = (result: { error: unknown; count: number | null }) => result.error ? null : result.count;
+  return { facts: value(facts), verifiedFacts: value(verifiedFacts), approvedBullets: value(approvedBullets), outputs: value(outputs), skills: value(skills), certifications: value(certifications), gaps: gaps.data ?? [], unavailable: [facts, verifiedFacts, approvedBullets, outputs, skills, certifications, gaps].some(result => Boolean(result.error)) };
+}
+
 export async function getCareerCapital() {
   const { supabase } = await requireOwner();
   const [experiences, facts, outputs, bullets, skills, certifications, gaps] = await Promise.all([
@@ -204,7 +219,7 @@ export async function getCareerCapital() {
     supabase.from("certifications").select("id,name,issuer,status,document_id").is("archived_at", null).order("created_at", { ascending: false }),
     supabase.from("gap_analysis_runs").select("id,summary,analysis_type,created_at,career_opportunities(organization,role_title)").is("archived_at", null).order("created_at", { ascending: false }).limit(5),
   ]);
-  return { experiences: experiences.data ?? [], facts: facts.data ?? [], outputs: outputs.data ?? [], bullets: bullets.data ?? [], skills: skills.data ?? [], certifications: certifications.data ?? [], gaps: gaps.data ?? [], unavailable: Boolean(gaps.error) };
+  return { experiences: experiences.data ?? [], facts: facts.data ?? [], outputs: outputs.data ?? [], bullets: bullets.data ?? [], skills: skills.data ?? [], certifications: certifications.data ?? [], gaps: gaps.data ?? [], unavailable: Boolean(experiences.error || facts.error || outputs.error || bullets.error || skills.error || certifications.error || gaps.error) };
 }
 
 export async function getOpportunities() {

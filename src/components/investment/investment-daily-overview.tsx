@@ -12,7 +12,7 @@ export function InvestmentDailyOverview({ daily, cashEntries, quotes, onOpen }: 
   const voided = new Set(cashEntries.filter((entry) => entry.kind === "void").map((entry) => entry.void_entry_id));
   const metric = (value: string | null, missing = "资料不足") => value === null ? <span className={styles.missing}>{missing}</span> : formatInvestmentDecimal(value);
   return <div className={styles.dailyAccount}>
-    <div className={styles.dailyHeading}><p>账户概览 <span>· {account.currency}</span></p><div className={styles.dailyActions}><Button size="sm" variant="ghost" onClick={() => onOpen({ kind: "cash", account, importKey: crypto.randomUUID() })}><Plus aria-hidden="true" />现金 / 分红</Button><Button size="sm" variant="ghost" onClick={() => onOpen({ kind: "quote", account, importKey: crypto.randomUUID() })}><RefreshCw aria-hidden="true" />更新报价</Button></div></div>
+    <div className={styles.dailyHeading}><p>账户概览 <span>· {account.currency}</span></p><details><summary className="inline-flex min-h-11 cursor-pointer items-center text-[12px] text-[var(--text-secondary)]">高级更正</summary><p className={styles.caption}>仅在补充或更正账本时使用；报价来自手工记录或导入，不会自动更新。</p><div className={styles.dailyActions}><Button size="sm" variant="ghost" onClick={() => onOpen({ kind: "cash", account, importKey: crypto.randomUUID() })}><Plus aria-hidden="true" />现金 / 分红</Button><Button size="sm" variant="ghost" onClick={() => onOpen({ kind: "quote", account, importKey: crypto.randomUUID() })}><RefreshCw aria-hidden="true" />更新报价</Button></div></details></div>
     <dl className={styles.dailyMetrics}>
       <div><dt>账面现金</dt><dd>{metric(daily.cash, "期初待补")}</dd></div>
       <div><dt>持仓估值</dt><dd>{metric(daily.marketValue, "报价待补")}</dd></div>

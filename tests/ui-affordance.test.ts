@@ -58,11 +58,16 @@ it("uses a native summary and preserves independent nested disclosure state", as
 });
 
 it("shows one current interview destination, including session routes", async () => {
-  for (const [current, label] of [["/career/interview/sessions/example", "练习"], ["/career/interview/insights", "复盘"], ["/career/interview", "学习库"]]) {
+  for (const [current, label] of [["/career/interview/sessions/example", "面试记录"], ["/career/interview/insights", "复盘"], ["/career/interview", "学习库"]]) {
     await act(async () => root.render(createElement(InterviewNav, { current })));
     const active = host.querySelectorAll('[aria-current="page"]');
     expect(active).toHaveLength(1); expect(active[0].textContent).toBe(label);
     expect(active[0].classList.contains("ui-navigation-item")).toBe(true);
+    const secondary = active[0].closest<HTMLDetailsElement>("details");
+    if (secondary) {
+      expect(secondary.open).toBe(false);
+      expect(active[0].classList.contains("min-h-11")).toBe(true);
+    }
   }
 });
 

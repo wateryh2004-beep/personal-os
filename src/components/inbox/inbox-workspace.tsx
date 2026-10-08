@@ -621,7 +621,11 @@ export function InboxWorkspace({
   items,
   archivedItems,
   lists,
+  pendingCount,
+  unavailable = false,
 }: {
+  pendingCount?: number | null;
+  unavailable?: boolean;
   items: InboxItem[];
   archivedItems: InboxItem[];
   lists: TodoList[];
@@ -649,7 +653,7 @@ export function InboxWorkspace({
     (item) => item.ai_status === "ready" && item.ai_proposal && !item.processed_at,
   );
   const collectionItems = items.filter(
-    (item) => item.ai_status !== "ready" && !item.processed_at,
+    (item) => !(item.ai_status === "ready" && item.ai_proposal) && !item.processed_at,
   );
   const processedItems = items.filter((item) => item.processed_at);
   const toggleManual = (id: string, kind: ManualKind) =>
@@ -659,6 +663,10 @@ export function InboxWorkspace({
 
   return (
     <div>
+      {unavailable ? <p role="alert" className="mb-4 text-sm text-[var(--danger)]">部分收集箱记录暂时无法读取，请稍后刷新；当前列表可能不完整。</p> : null}
+      {pendingCount != null && pendingCount > 100 ? <p role="status" className="mb-4 text-sm text-[var(--text-secondary)]">共有 {pendingCount} 条待处理记录，当前展示最早的 100 条；处理后会继续显示后续记录。</p> : null}
+      <details className="mb-4 border-b border-[var(--separator)] pb-3">
+        <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm text-[var(--text-secondary)]">补充一条记录</summary>
       <form action={captureAction} className="border-b border-[var(--separator)] pb-5">
         <label htmlFor="inbox-capture" className="sr-only">
           记录想法
@@ -694,6 +702,7 @@ export function InboxWorkspace({
           </p>
         ) : null}
       </form>
+      </details>
 
       {readyItems.length ? (
         <section className="mt-5">
@@ -739,7 +748,7 @@ export function InboxWorkspace({
 
       <section className="mt-5">
         <h2 className="border-b border-[var(--separator)] pb-2.5 text-[13px] font-semibold text-[var(--text-primary)]">
-          收集盒{" "}
+          待处理与识别失败{" "}
           <span className="ml-1 font-mono text-[10.5px] font-normal tabular-nums text-[var(--text-tertiary)]">
             {collectionItems.length}
           </span>
@@ -748,7 +757,7 @@ export function InboxWorkspace({
           <div className="py-12 text-center">
             <InboxIcon />
             <p className="mt-2.5 text-[11.5px] leading-5 text-[var(--text-secondary)]">
-              这里放无法自动识别的记录，可手动选择去向。
+              {unavailable ? "待处理记录尚未完整读取，请稍后刷新。" : "目前没有待处理或识别失败的记录。"}
             </p>
           </div>
         ) : (
@@ -778,7 +787,9 @@ export function InboxWorkspace({
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
                   <ReclassifyControl inboxId={item.id} />
-                  <span className="text-[var(--separator)]">|</span>
+                  <details className="w-full">
+                    <summary className="inline-flex min-h-11 cursor-pointer items-center text-[12px] text-[var(--text-secondary)]">必要更正 · 手动选择去向</summary>
+                    <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => toggleManual(item.id, "task")}
@@ -807,10 +818,10 @@ export function InboxWorkspace({
                   >
                     写今日日记
                   </button>
+                    </div>
+                    {manual && manual.id === item.id ? <ManualImportForm kind={manual.kind} item={item} lists={lists} /> : null}
+                  </details>
                 </div>
-                {manual && manual.id === item.id ? (
-                  <ManualImportForm kind={manual.kind} item={item} lists={lists} />
-                ) : null}
               </li>
             ))}
           </ul>

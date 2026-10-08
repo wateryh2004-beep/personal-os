@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useRef, useState, useTransition, type FormEvent } from "react";
 import { unstable_rethrow, useSearchParams } from "next/navigation";
 import { Plus, SquareKanban } from "lucide-react";
@@ -72,7 +73,8 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
   };
   return (
     <div>
-      <PageHeader title="项目" description="聚合真正需要持续推进的长期工作。" action={<Button onClick={(event) => { rememberTrigger(event.currentTarget); changeOpen(true); }}><Plus aria-hidden="true" />新建项目</Button>} />
+      <Link href="/tasks" className="mb-3 inline-flex min-h-11 items-center text-sm text-[var(--text-secondary)] hover:text-[var(--accent)]">← 返回任务</Link>
+      <PageHeader title="项目" description="任务的辅助视图：查看需要持续推进的长期工作。" action={<Button onClick={(event) => { rememberTrigger(event.currentTarget); changeOpen(true); }}><Plus aria-hidden="true" />新建项目</Button>} />
 
       {success ? <p role="status" className="mt-3 text-[12px] text-[var(--success)]">{success}</p> : null}
 
