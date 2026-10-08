@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 const { createHash } = require('node:crypto');
+const { gzipSync } = require('node:zlib');
 const { build } = require('esbuild');
 const { createCanvas, GlobalFonts } = require('@napi-rs/canvas');
 const { jsPDF } = require('jspdf');
@@ -13,7 +14,7 @@ const { chromium } = require('playwright');
 (async () => {
   const evidence = path.resolve('test-results/private-ocr');
   await fs.mkdir(evidence, { recursive: true });
-  const stages = [], requests = [], blockedRequests = [], browserErrors = [];
+  const stages = [], requests = [], blockedRequests = [], browserErrors = [], sourceResponses = [];
   let browser, page, phase = 'prepare', passed = false;
   const checkpoint = name => { phase = name; stages.push({ name, at: new Date().toISOString() }); console.log(`OCR checkpoint: ${name}`); };
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'private-ocr-cold-'));
@@ -43,7 +44,21 @@ const { chromium } = require('playwright');
   pdf.addPage(); await fs.writeFile(path.join(root,'scan-with-blank.pdf'),Buffer.from(pdf.output('arraybuffer')));
   const tooMany=new jsPDF(); for(let i=0;i<10;i++)tooMany.addPage();await fs.writeFile(path.join(root,'too-many.pdf'),Buffer.from(tooMany.output('arraybuffer')));
   await fs.writeFile(path.join(root,'index.html'),'<script src="/client.js"></script><h1>Synthetic local OCR verification</h1>');
-  const server=http.createServer(async(req,res)=>{try{const filename=path.join(root,decodeURIComponent(new URL(req.url,'http://local').pathname));const target=filename===root+'/'?path.join(root,'index.html'):filename;if(!target.startsWith(root+path.sep))throw Error();const bytes=await fs.readFile(target);res.setHeader('Content-Type',target.endsWith('.js')?'text/javascript':target.endsWith('.css')?'text/css':target.endsWith('.wasm')?'application/wasm':target.endsWith('.html')?'text/html':'application/octet-stream');res.end(bytes);}catch{res.writeHead(404).end();}});
+  let sourceTransport = 'chunked';
+  const server=http.createServer(async(req,res)=>{try{
+    const requestUrl = new URL(req.url,'http://local');
+    if (requestUrl.pathname.startsWith('/api/files/') && requestUrl.searchParams.get('source') === '1') {
+      const headers = { 'Content-Type': 'application/octet-stream', 'X-Ocr-Sha256': createHash('sha256').update(image).digest('hex') };
+      if (sourceTransport === 'gzip') {
+        const encoded = gzipSync(image); assert.notEqual(encoded.length, image.length);
+        res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', 'Content-Length': String(encoded.length) });
+        return res.end(encoded);
+      }
+      // A real chunked response omits Content-Length, as a streaming proxy can.
+      res.writeHead(200, headers); res.write(image.subarray(0, Math.floor(image.length / 2)));
+      return res.end(image.subarray(Math.floor(image.length / 2)));
+    }
+    const filename=path.join(root,decodeURIComponent(requestUrl.pathname));const target=filename===root+'/'?path.join(root,'index.html'):filename;if(!target.startsWith(root+path.sep))throw Error();const bytes=await fs.readFile(target);res.setHeader('Content-Type',target.endsWith('.js')?'text/javascript':target.endsWith('.css')?'text/css':target.endsWith('.wasm')?'application/wasm':target.endsWith('.html')?'text/html':'application/octet-stream');res.end(bytes);}catch{res.writeHead(404).end();}});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
   let denied=0;
@@ -52,6 +67,7 @@ const { chromium } = require('playwright');
     browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{}),args:['--no-sandbox']});
     const browserContext=await browser.newContext({ viewport: { width: 390, height: 844 } });page=await browserContext.newPage();
     page.on('pageerror', error => browserErrors.push(error.message));
+    page.on('response', response => { if (response.url().endsWith('?source=1')) sourceResponses.push(response.headers()); });
     await browserContext.route('**/*',route=>{if(!route.request().url().startsWith(base+'/')){denied++;blockedRequests.push(route.request().url());return route.abort();}requests.push(route.request().url());return route.continue();});
     await page.goto(base);assert(!requests.some(url=>url.includes('/ocr/')),'must not load OCR on page open');
     const recognize=filename=>page.evaluate(async filename=>{const bytes=new Uint8Array(await(await fetch('/'+filename)).arrayBuffer());const pages=[];const result=await PrivateOcr.recognizePrivateDocument({bytes,filename,mimeType:filename.endsWith('.pdf')?'application/pdf':'image/png',signal:new AbortController().signal,onProgress:()=>{},onPage:async(page,total)=>{pages.push([page,total]);}});return{...result,progress:pages};},filename);
@@ -74,11 +90,11 @@ const { chromium } = require('playwright');
     assert.equal(denied,0,'recognition must never ask an external origin');
     assert(requests.some(url=>url.includes('chi_sim.traineddata.gz')));assert(requests.some(url=>url.includes('eng.traineddata.gz')));
     const actions=[]; let starts=0; const token='33333333-3333-4333-8333-333333333333';
-    await browserContext.route('**/api/files/*/ocr*', async route=>{
+    await browserContext.route(`${base}/api/files/*/ocr*`, async route=>{
       const request=route.request();
       if(request.method()==='POST'){starts++;return route.fulfill({json:{token}});}
       if(request.method()==='PATCH'){const body=request.postDataJSON();actions.push(body.action);assert.equal(body.token,token);return route.fulfill({json:{ok:true,characterCount:body.text?.length??0}});}
-      if(request.url().endsWith('?source=1'))return route.fulfill({body:image,headers:{'Content-Type':'application/octet-stream','Content-Length':String(image.length),'X-Ocr-Sha256':createHash('sha256').update(image).digest('hex')}});
+      if(request.url().endsWith('?source=1'))return route.continue();
       return route.fulfill({json:{job:null}});
     });
     checkpoint('actual-dialog-opt-in');
@@ -98,7 +114,15 @@ const { chromium } = require('playwright');
     await page.getByRole('button',{name:'开始 / 重新识别',exact:true}).click();
     await page.locator('#saved').filter({hasText:/Saved/}).waitFor({timeout:60000});
     assert(actions.includes('complete'));assert.equal(starts,2);
+    assert(sourceResponses.some(headers => !headers['content-length'] && headers['transfer-encoding'] === 'chunked'));
     await page.screenshot({path:path.join(evidence,'03-completed.png'),fullPage:true});
+    checkpoint('actual-dialog-compressed-source');
+    sourceTransport = 'gzip';
+    await page.locator('#saved').evaluate(element => { element.textContent = ''; });
+    await page.getByRole('button',{name:'开始 / 重新识别',exact:true}).click();
+    await page.locator('#saved').filter({hasText:/Saved/}).waitFor({timeout:60000});
+    assert.equal(actions.filter(action => action === 'complete').length,2);assert.equal(starts,3);
+    assert(sourceResponses.some(headers => headers['content-encoding'] === 'gzip' && Number(headers['content-length']) !== image.length));
     checkpoint('actual-dialog-close');
     await page.getByRole('button',{name:'开始 / 重新识别',exact:true}).click();
     await page.getByRole('button',{name:'取消识别',exact:true}).waitFor();
@@ -113,7 +137,7 @@ const { chromium } = require('playwright');
     await fs.writeFile(path.join(evidence,'failure.txt'),`${phase}\n${error.stack || error}`);
     throw error;
   } finally {
-    await fs.writeFile(path.join(evidence,'network-and-stages.json'),JSON.stringify({passed,phase,stages,requests,blockedRequests,browserErrors,remainingWorkers:page && !page.isClosed() ? page.workers().map(worker=>worker.url()) : [],coldAssetCount:manifest.files.length},null,2));
+    await fs.writeFile(path.join(evidence,'network-and-stages.json'),JSON.stringify({passed,phase,stages,requests,blockedRequests,browserErrors,sourceResponses,remainingWorkers:page && !page.isClosed() ? page.workers().map(worker=>worker.url()) : [],coldAssetCount:manifest.files.length},null,2));
     await browser?.close();await new Promise(resolve=>server.close(resolve));await fs.rm(root,{recursive:true,force:true});
   }
 })().catch(error=>{console.error(error);process.exit(1);});

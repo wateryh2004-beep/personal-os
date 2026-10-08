@@ -64,7 +64,9 @@ function OcrSession({ file, onComplete }: { file: FileRecord; onComplete: (count
       const source = await fetch(`${url}?source=1`, { headers: { "X-Ocr-Run": token! }, cache: "no-store", signal: abort.signal });
       if (!source.ok) { const result = await source.json(); throw new Error(result.code ?? "ocr_failed"); }
       const sha256 = source.headers.get("X-Ocr-Sha256");
-      if (!sha256 || Number(source.headers.get("content-length")) !== file.file_size) throw new Error("ocr_source_changed");
+      // Proxies may omit Content-Length or report compressed transfer bytes.
+      // Verify the decoded source's actual length and digest instead.
+      if (!sha256) throw new Error("ocr_source_changed");
       const buffer = await source.arrayBuffer();
       if (buffer.byteLength !== file.file_size || buffer.byteLength > OCR_MAX_BYTES) throw new Error("ocr_source_changed");
       const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", buffer)), byte => byte.toString(16).padStart(2, "0")).join("");
