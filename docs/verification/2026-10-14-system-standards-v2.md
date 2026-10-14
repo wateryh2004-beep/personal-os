@@ -82,7 +82,7 @@
 
 ## 验证记录
 
-本地回归：1,977 项测试通过、0 失败；全仓 lint 为 0 错误、0 警告；strict 类型检查和生产构建已执行。文档检查为 90 份 Markdown、288 条本地链接、34 个主题。静态门禁的通过，只说明所列机器规则无命中，不代替下列视觉验收。
+本地回归：1,977 项测试通过、0 失败；全仓 lint 为 0 错误、0 警告；strict 类型检查和生产构建通过。文档检查为 90 份 Markdown、288 条本地链接、34 个主题。静态门禁的通过，只说明所列机器规则无命中，不代替下列视觉验收。
 
 首轮 GitHub `02bfb53`：System standards v2、文档、文档连续性、问题恢复数据库边界、OCR、系统备份恢复检查通过。System standards 生成 21 张截图、2 段录屏，产物约 2.9MB，已查看桌面 Today、手机任务、职业页和手机弹层截图。Verify 的隔离 PostgreSQL、PDF 缓存浏览器检查通过；完整 Verify 在找回答案更正流程失败，暴露 I06，未被当作已通过。修复后更正答案的浏览器流程已通过。`8cd7bb4` 的 v2 浏览器检查也实际记录到 `workspace-arrive` 空间动画；旧 Today 脚本按历史无衬线规范断言失败，已改为测量真实 CJK 宋体标题，并继续检查正文无衬线。后续检查在同一 PR 跟踪。
 
@@ -94,14 +94,32 @@
 
 依赖更新后，本地完整测试 1,977 项通过；全仓 lint 0 错误/0 警告；Next 16.3.8 生产构建通过。部署闭包检查覆盖 119 份 nft 清单、21,616 条路径，未加载/追踪到剩余 CLI 告警链。生产依赖扫描为 0 critical、0 high、3 moderate；包含开发依赖的完整扫描另有一条 lint glob 链的 5 个 high 包级告警；具体判断见依赖复核，不宣称零告警。
 
+## 最终代码验收
+
+完整代码验证提交：`5cfd7519b49603522d74c8e12a29fa15aa571fa8`，2026-10-14。以下 7 个工作流全部成功；本记录随后只补文档，不改变已验证的应用代码。
+
+| 工作流 | 实际结果与证据 |
+| --- | --- |
+| [Verify](https://github.com/wateryh2004-beep/personal-os/actions/runs/38572411046) | 7 个 job 全部成功：类型、1,977 测试、构建、冷包 PDF、真实 SDK/合成 Auth HTTP、投资、笔记、设置、Today、核心/恢复/浏览/存储、全部封面解码、搜索、导航、移动布局与工作区可靠性；隔离 SQL 与 PDF 缓存浏览器同时通过 |
+| [System standards v2](https://github.com/wateryh2004-beep/personal-os/actions/runs/38572410954) | 全仓 lint、源代码门禁、部署闭包、390/1440px 场景与连续动效通过 |
+| [Question recovery boundary](https://github.com/wateryh2004-beep/personal-os/actions/runs/38572411119) | 问题找回的独立数据库边界通过 |
+| [Document continuity](https://github.com/wateryh2004-beep/personal-os/actions/runs/38572411083) | 文件阅读与恢复连续性通过 |
+| [System backup recovery](https://github.com/wateryh2004-beep/personal-os/actions/runs/38572411060) | 合成备份恢复通过 |
+| [Private document OCR](https://github.com/wateryh2004-beep/personal-os/actions/runs/38572411218) | 私有 OCR 边界与相关检查通过 |
+| [Project documentation](https://github.com/wateryh2004-beep/personal-os/actions/runs/38572410994) | Markdown 入口、链接、锚点和主题检查通过 |
+
+最终 [v2 视觉产物](https://github.com/wateryh2004-beep/personal-os/actions/runs/38572410954/artifacts/11897469704) 含 21 张截图、2 段独立连续录屏，约 3.1MB；完整 Verify 另保存认证、Today、文件、投资、设置、面试阅读、导航等证据。GitHub 当前产物保留 7 天；代码、脚本和本记录随仓库保留。
+
+本轮保留失败证据并区分原因：真实任务手机标题覆盖已移除；旧字体/时长/控件色断言按已采纳 v2 对齐；移动抽屉的两控件改为同一帧测量，仍要求至少 8px 分离与 44px 触控。最后一轮全部移动工作区与可靠性检查通过，未放宽这些几何条件。
+
 ## 仍需明确区分的范围
 
 1. 当前 public schema 类型先接入面试读取，不能据此声称全部 Supabase 调用都已有强类型契约。
 2. 静态命名候选中，自定义 `Field` / `field()` 包装器与测试夹具需人工追踪；命名正确不等于全部键盘、朗读器和触控行为已验收。
-3. 真实 Apple/Windows/Android 字体回退、低端移动设备帧率、200% 字体、完整暗色矩阵和真实生产网络延迟，需要实际设备证据。没有测量就不声称达到帧率或耗时目标。
+3. Today 已在合成 Chromium 下覆盖 360/390/430/768/1440px、短屏、200% 字体和局部暗色，并验证实际 CJK 宋体字形。真实 Apple/Windows/Android 字体回退、低端设备帧率、全系统放大/暗色矩阵和生产网络延迟仍需实际设备证据，不能由局部结果外推。
 4. 原生 ViewTransition 不支持的环境保留正常导航。共享侧栏和已延迟加载的 AI 面板已处理退出生命周期；后续新增入口仍需验证实际打开/关闭/重开，不能仅以公共样式存在宣称动画验收完成。
 5. 此记录不宣称已配置生产告警、定时备份或新的服务目标；这些是运行配置任务，不能由代码排查伪造完成。
-6. 外部封面 CDN 在一轮回归中曾返回 500：360/390px 的三个 Apple 图像优化请求失败，768/1440px 同轮通过。应用保留标题/入口并显示后备图；此前两轮真实图片检查也通过。保留所有 28 张封面必须实际解码的断言；后续成功不被当作外部 CDN 可用性承诺。
+6. 一轮回归中，360/390px 的三个 Apple 封面 `/_next/image` 优化请求返回 500，768/1440px 同轮通过。现有记录不能区分上游图像获取与本地优化的具体失败原因；不能直接归因为 CDN。应用保留标题/入口并显示后备图；此前两轮真实图片检查也通过。保留所有 28 张封面必须实际解码的断言；后续成功不被当作图片服务可用性承诺。
 
 ## 发布与回退
 
