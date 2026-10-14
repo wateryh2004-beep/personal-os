@@ -1,4 +1,4 @@
-/* Auth-only motion grammar: entrance 650ms, controls 180ms, confirmed entry 1s.
+/* Auth motion: entrance 650ms, controls 180ms, confirmed handoff 320ms + scene 700ms.
    No animation library, continuous decorative animation, or global page overrides. */
 .auth-scene {
   --auth-ink:var(--text-primary);

@@ -70,6 +70,7 @@
 .today-shell .today-mobile-brand {display:none}
 @media(max-width:767px){
  .today-calm {padding:22px 24px 36px!important}
+ .today-title {font-size:1.875rem}
  .today-shell .app-toolbar {height:calc(56px + env(safe-area-inset-top));padding-inline:20px;gap:0}
  .today-shell .today-mobile-brand {display:block;flex:1;font-size:.8125rem;letter-spacing:-.025em;color:var(--today-muted);white-space:nowrap}
  .today-shell .today-mobile-menu {display:none}

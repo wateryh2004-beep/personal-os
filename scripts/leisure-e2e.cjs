@@ -47,7 +47,7 @@ async function capture(page, name) {
       await page.getByRole("button", { name: "清除选择", exact: true }).click();
       await page.waitForFunction(() => document.querySelectorAll("#leisure-collection li").length === 5);
       assert.equal(await page.locator("#leisure-collection li").count(), 5);
-      await page.getByRole("link", { name: "走进这个世界", exact: true }).click();
+      await page.getByRole("link", { name: "查看详情", exact: true }).click();
       await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
       const like = page.getByRole("button", { name: "喜欢，留着", exact: true });
       await like.click();
@@ -154,7 +154,7 @@ async function capture(page, name) {
       await page.getByRole("button", { name: "游戏", exact: true }).waitFor();
       assert.equal(await page.getByRole("button", { name: "游戏", exact: true }).getAttribute("aria-pressed"), "true");
       await page.getByRole("button", { name: "全部", exact: true }).click();
-      await page.getByRole("link", { name: "走进这个世界", exact: true }).click();
+      await page.getByRole("link", { name: "查看详情", exact: true }).click();
       await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
       await page.waitForFunction(() => document.querySelector('[data-artwork-state="ready"]'));
       await capture(page, `leisure-artwork-detail-${width}`);
@@ -192,7 +192,7 @@ async function capture(page, name) {
       await page.getByRole("button", { name: "换个灵感", exact: true }).click();
       assert.equal(await page.locator("article").first().evaluate((node) => getComputedStyle(node).animationName), "none", "reduced motion disables feature animation");
       await capture(page, `leisure-reduced-motion-${width}`);
-      await page.getByRole("link", { name: "走进这个世界", exact: true }).click();
+      await page.getByRole("link", { name: "查看详情", exact: true }).click();
       await page.getByRole("heading", { name: "我的这一页", exact: true }).waitFor();
       assert.deepEqual(await page.locator("article > header > div").evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).animationName)), ["none", "none"], "reduced motion disables both detail entrance layers");
       await page.emulateMedia({ reducedMotion: "no-preference" });
@@ -200,7 +200,7 @@ async function capture(page, name) {
       await page.route("**/_next/image?**", (route) => route.abort());
       await page.goto(`${fixture}&mode=gallery`);
       await page.waitForFunction(() => document.querySelector('article [data-artwork-state="fallback"]'));
-      assert.equal(await page.getByRole("link", { name: "走进这个世界", exact: true }).count(), 1);
+      assert.equal(await page.getByRole("link", { name: "查看详情", exact: true }).count(), 1);
       await capture(page, `leisure-artwork-failure-${width}`);
       await page.unroute("**/_next/image?**");
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1, `${width}px gallery has no horizontal overflow`);

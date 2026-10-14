@@ -19,13 +19,16 @@ export function AuthSuccess({ title, message, href, action, autoEnter = false }:
   useEffect(() => {
     heading.current?.focus();
     if (!autoEnter) return;
+    // The server has confirmed login and set session cookies. Fetch the private
+    // destination alongside confirmation motion, rather than after its delay.
+    router.prefetch(href);
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     // Independent of animationend: disabled animations/background tabs cannot trap login.
     const timer = window.setTimeout(enter, reduced.matches ? 0 : 320);
     const skip = () => { if (reduced.matches) { window.clearTimeout(timer); enter(); } };
     reduced.addEventListener("change", skip);
     return () => { window.clearTimeout(timer); reduced.removeEventListener("change", skip); };
-  }, [autoEnter, enter]);
+  }, [autoEnter, enter, href, router]);
 
   return (
     <section className={`auth-card auth-success${autoEnter ? " auth-entering" : ""}`}>

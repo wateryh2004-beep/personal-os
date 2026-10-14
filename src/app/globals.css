@@ -276,7 +276,7 @@ details[open] > .ui-disclosure-trigger .ui-disclosure-chevron { transform:rotate
 [data-slot=input][aria-invalid=true], [data-slot=textarea][aria-invalid=true],
 [data-slot=select-trigger][aria-invalid=true], .ui-field[aria-invalid=true] { border-color:var(--danger); }
 .ui-selectable-row[data-selected=true], .ui-selectable-row[aria-current=true] { box-shadow:inset 3px 0 0 var(--accent); }
-@media (max-width:767px), (pointer:coarse) { .ui-field { min-height:44px; } }
+@media (max-width:767px), (pointer:coarse) { .ui-field { min-height:44px; font-size:16px; } }
 @media (forced-colors:active) {
   .ui-selectable-row[data-selected=true], .ui-selectable-row[aria-current=true] { outline:2px solid Highlight; outline-offset:-2px; }
 }

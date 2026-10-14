@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthPassword, AuthSuccess } from "@/components/auth/auth-interaction";
 import { QuestionRecoveryForm } from "@/app/(auth)/forgot-password/question-recovery-form";
 
-const mocks = vi.hoisted(() => ({ replace: vi.fn(), reset: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
+const mocks = vi.hoisted(() => ({ replace: vi.fn(), prefetch: vi.fn(), reset: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace, prefetch: mocks.prefetch }) }));
 vi.mock("@/features/auth/question-recovery-action", () => ({ questionPasswordResetAction: mocks.reset }));
 let host: HTMLDivElement; let root: Root;
 beforeEach(() => {
@@ -31,6 +31,8 @@ describe("auth interactions", () => {
     vi.useFakeTimers();
     await render(createElement(AuthSuccess, { title: "欢迎回来", href: "/today", action: "进入我的空间", autoEnter: true }));
     expect(host.querySelector("a")?.getAttribute("href")).toBe("/today");
+    expect(mocks.prefetch).toHaveBeenCalledWith("/today");
+    expect(mocks.replace).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(host.querySelector("h1"));
     await act(async () => vi.advanceTimersByTime(319)); expect(mocks.replace).not.toHaveBeenCalled();
     await act(async () => vi.advanceTimersByTime(1)); expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/today", { transitionTypes: ["auth-entry"] });

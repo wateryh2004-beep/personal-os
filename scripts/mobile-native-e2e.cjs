@@ -256,7 +256,7 @@ async function backCloses(page, trigger, visibleTarget) {
 
         if (scene === "heading" || scene === "tasks" || scene === "notes") {
           const title = await textMetrics(page.locator("#main-content h1").first());
-          assert.equal(title.fontSize, width < 768 ? 24 : 28, "workspace titles share a responsive scale");
+          assert.equal(title.fontSize, width < 768 ? 30 : 36, "workspace titles share a responsive scale");
           assert.ok(title.lineHeight / title.fontSize >= 1.2, "CJK headings have enough line height");
           visualMetrics.push({ scene, width, title });
         }
