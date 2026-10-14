@@ -105,7 +105,13 @@ export async function updateSession(request: NextRequest) {
       getAll: () => request.cookies.getAll(),
       setAll: (items) => {
         items.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
+        // Refresh cookies without restoring browser-supplied identity headers.
+        // The downstream request must see both the sanitized headers and the
+        // latest cookies, including when the verified caller is not the owner.
+        const cookieHeader = request.headers.get("cookie");
+        if (cookieHeader) requestHeaders.set("cookie", cookieHeader);
+        else requestHeaders.delete("cookie");
+        response = copySessionCookies(response, NextResponse.next({ request: { headers: requestHeaders } }));
         items.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
       },
     },
@@ -141,7 +147,7 @@ export async function updateSession(request: NextRequest) {
     // clears stale session cookies; the next request is fully anonymous. A
     // request-only header lets the Login Server Component show a safe notice
     // without exposing configuration or persisting authorization in storage.
-    const headers = new Headers(request.headers);
+    const headers = new Headers(requestHeaders);
     headers.set("x-personal-os-auth-notice", "not-authorized");
     const unauthorizedLoginResponse = NextResponse.next({ request: { headers } });
     copySessionCookies(response, unauthorizedLoginResponse);
