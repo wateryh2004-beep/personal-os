@@ -17,8 +17,6 @@ export default async function UpdatePasswordPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center p-6">
-      <UpdatePasswordForm email={email!} />
-    </main>
+    <UpdatePasswordForm email={email!} />
   );
 }

@@ -24,6 +24,15 @@ class Fixture(BaseHTTPRequestHandler):
         if self.path == "/rest/v1/rpc/consume_question_recovery_attempt":
             attempts += 1
             result = attempts <= 5
+        elif self.path == "/auth/v1/token?grant_type=password":
+            if body.get("email") == owner["email"] and body.get("password") == "synthetic-login-password":
+                result = {"access_token": token, "refresh_token": "synthetic-refresh", "expires_in": 3600, "token_type": "bearer", "user": owner}
+            else:
+                status, result = 400, {"code": "invalid_credentials", "msg": "Synthetic invalid login"}
+        elif self.path == "/auth/v1/user" and self.command == "GET":
+            result = owner
+        elif self.path.startswith("/auth/v1/recover"):
+            result = {}
         elif self.path == "/auth/v1/admin/users/" + owner["id"]:
             result = owner
         elif self.path == "/auth/v1/admin/generate_link":
@@ -59,7 +68,7 @@ fixture = ThreadingHTTPServer(("127.0.0.1", 0), Fixture)
 threading.Thread(target=fixture.serve_forever, daemon=True).start()
 salt = bytes([1])*16
 verifier = "scrypt-v1:" + salt.hex() + ":" + hashlib.scrypt(b"alpha\nbeta", salt=salt, n=16384, r=8, p=1, dklen=32).hex()
-environment = dict(os.environ, NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost", VERCEL_ENV="production", NEXT_PUBLIC_SUPABASE_URL=f"http://127.0.0.1:{fixture.server_port}", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="synthetic-publishable", SUPABASE_SECRET_KEY="synthetic-secret", OWNER_EMAIL=owner["email"], OWNER_USER_ID=owner["id"], PASSWORD_RECOVERY_ANSWER_HASH=verifier)
+environment = dict(os.environ, NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost", VERCEL_ENV="production", APP_URL="https://synthetic-app.invalid", NEXT_PUBLIC_SUPABASE_URL=f"http://127.0.0.1:{fixture.server_port}", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="synthetic-publishable", SUPABASE_SECRET_KEY="synthetic-secret", OWNER_EMAIL=owner["email"], OWNER_USER_ID=owner["id"], PASSWORD_RECOVERY_ANSWER_HASH=verifier)
 log = open("/tmp/question-recovery-http-app.log", "w")
 app = subprocess.Popen(["node", "node_modules/next/dist/bin/next", "start", "-H", "127.0.0.1", "-p", "3199"], cwd=Path(__file__).resolve().parents[1], env=environment, stdout=log, stderr=log)
 base = "http://127.0.0.1:3199"
@@ -100,6 +109,26 @@ try:
     assert "尝试次数过多" in submit("ALPHA", "BETA")
     assert [call[1] for call in calls[before:]] == ["/rest/v1/rpc/consume_question_recovery_attempt"]
     print("PASS: Next rendered question form; real Server Action and Supabase SDK HTTP contracts; wrong-answer denial; case-insensitive reset; global sign-out; lockout; no token/cookie exposure. Synthetic local services only.")
+    with urllib.request.urlopen(base + "/login", timeout=5) as response: login_html = response.read().decode()
+    login_parser = FormParser(); login_parser.feed(login_html)
+    def login(password):
+        values = dict(login_parser.forms[0], email=owner["email"], password=password)
+        boundary = "----synthetic-login-form-boundary"
+        payload = "".join(f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n' for key, value in values.items()) + f"--{boundary}--\r\n"
+        request = urllib.request.Request(base + "/login", data=payload.encode(), headers={"Content-Type": "multipart/form-data; boundary=" + boundary, "Origin": base})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            result = response.read().decode()
+            assert token not in result and "synthetic-refresh" not in result
+            return result, response.headers.get_all("Set-Cookie", [])
+    denied, denied_cookies = login("wrong-synthetic-password")
+    assert "登录失败" in denied and "auth-entering" not in denied and not denied_cookies
+    accepted, accepted_cookies = login("synthetic-login-password")
+    assert "auth-entering" in accepted and 'href="/today"' in accepted
+    assert any("sb-" in cookie for cookie in accepted_cookies)
+    print("PASS: real login action rejects failed credentials; success emits SDK session cookies and a confirmed entry state without serializing tokens.")
+    if os.environ.get("AUTH_BROWSER_E2E") == "1":
+        attempts = 0
+        subprocess.run(["node", "scripts/auth-motion-e2e.cjs"], env=dict(os.environ, E2E_BASE_URL=base), check=True, timeout=120)
 finally:
     app.terminate()
     app.wait(timeout=10)

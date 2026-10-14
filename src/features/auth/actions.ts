@@ -23,7 +23,7 @@ const updatePasswordSchema = z.object({
   message: "两次输入的密码不一致。",
 });
 
-export type LoginState = { error?: string; message?: string };
+export type LoginState = { error?: string; message?: string; authenticated?: boolean };
 export type PasswordRecoveryState = { error?: string; message?: string };
 export type UpdatePasswordState = { error?: string };
 
@@ -49,7 +49,7 @@ export async function loginAction(_: LoginState, formData: FormData): Promise<Lo
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: "登录失败，请检查邮箱和密码。" };
-  redirect("/today");
+  return { authenticated: true };
 }
 
 export async function requestPasswordResetAction(

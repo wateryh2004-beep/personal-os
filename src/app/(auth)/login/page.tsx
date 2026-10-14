@@ -39,8 +39,6 @@ export default async function Login({ searchParams }: { searchParams: LoginSearc
     : undefined;
 
   return (
-    <main className="grid min-h-screen place-items-center p-6">
-      <LoginForm initialError={proxyNotice ?? queryError} initialMessage={message} />
-    </main>
+    <LoginForm initialError={proxyNotice ?? queryError} initialMessage={message} />
   );
 }
