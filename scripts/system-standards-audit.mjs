@@ -31,6 +31,7 @@ for (const path of paths.filter(path => /\.(tsx?|css)$/.test(path))) {
       [/\btransition-all\b/g, "broad-transition"],
       [/(?:text|bg|border)-\[#(?:365F78|EDF3F6|b8cbd6|f5f9fb)\]/gi, "legacy-accent"],
       [/text-\[(?:[789]|10(?:\.\d+)?|11(?:\.\d+)?)px\]/g, "small-ui-type"],
+      [/\bfont-size\s*:\s*(?:[1-9](?:\.\d+)?|1[01](?:\.\d+)?)px\b/gi, "small-css-ui-type"],
     ]) for (const match of source.matchAll(pattern)) add(path, source, match.index, rule, "error");
   }
   if (!path.endsWith(".tsx") || path.startsWith("src/components/ui/")) continue;
