@@ -84,7 +84,7 @@ const output = process.env.E2E_AFFORDANCE_SCREENSHOT_DIR || "test-results/afford
       await active.waitFor({ state: "hidden" });
       const input = page.getByLabel("搜索题库", { exact: true });
       const border = await input.evaluate(node => getComputedStyle(node).borderTopColor);
-      assert.equal(border, "rgb(129, 139, 133)", "control boundary survives Tailwind cascade");
+      assert.equal(border, "rgb(123, 135, 123)", "v2 control boundary survives Tailwind cascade");
       await capture("interview");
       assert.deepEqual(errors, []);
       await context.close();
