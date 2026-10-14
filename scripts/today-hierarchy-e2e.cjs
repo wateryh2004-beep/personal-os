@@ -150,17 +150,17 @@ async function noOverflow(page, label) {
     await page.getByRole("button", { name: `完成 ${firstTask}`, exact: true }).waitFor();
     const overdue = "核对需要补充的材料";
     // Begin observing before the update: waiting for disappearance can finish
-    // after a220ms animation has already ended on a busy CI runner.
+    // after the v2 300ms animation has already ended on a busy CI runner.
     const reflowObserved = page.waitForFunction(() => {
       const row = document.querySelector('[data-today-row="event-later"]');
-      const animation = row?.getAnimations().find(value => value.effect?.getTiming().duration === 220);
+      const animation = row?.getAnimations().find(value => value.effect?.getTiming().duration === 300);
       return animation ? { duration: animation.effect.getTiming().duration, keyframes: animation.effect.getKeyframes() } : null;
     }, undefined, { polling: "raf", timeout: 10000 });
     await page.getByRole("button", { name: `完成 ${overdue}`, exact: true }).click();
     const observed = await reflowObserved;
     diagnostics.push({ confirmedLedgerReflow: await observed.jsonValue() });
     await page.getByRole("link", { name: new RegExp(`^${overdue}`) }).waitFor({ state: "hidden" });
-    await page.waitForTimeout(260); // Capture the intentional 220ms settle in the video.
+    await page.waitForTimeout(360); // Capture the complete v2 settle in the video.
     await page.getByRole("button", { name: "调整重点", exact: true }).click();
     await page.getByRole("dialog", { name: "选择今日重点", exact: true }).waitFor();
     await page.evaluate(() => history.back());

@@ -11,7 +11,7 @@ const output = "test-results/design-v2";
   const evidence = [];
   try {
     for (const width of [390, 1440]) {
-      const context = await browser.newContext({ viewport: { width, height: 900 }, recordVideo: { dir: `${output}/video`, size: { width: Math.min(width, 1440), height: 900 } } });
+      const context = await browser.newContext({ viewport: { width, height: 900 } });
       const page = await context.newPage();
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
@@ -70,6 +70,48 @@ const output = "test-results/design-v2";
       assert.deepEqual(errors, []);
       evidence.push({ width, tokens, nativeTransitions: transitions, sceneAnimations, errors });
       await context.close();
+
+      // Record uninterrupted interactions separately. Full-page screenshot
+      // capture can resize Chromium's video surface and fast-forward animation;
+      // it is useful for layout evidence, not for judging motion trajectories.
+      const motion = await browser.newContext({ viewport: { width, height: 900 }, recordVideo: { dir: `${output}/video/${width}`, size: { width, height: 900 } } });
+      const movingPage = await motion.newPage();
+      const motionErrors = [];
+      movingPage.on("pageerror", error => motionErrors.push(error.message));
+      await movingPage.route("**/api/**", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Synthetic offline boundary" }) }));
+      await movingPage.goto(`${base}/mobile-native-e2e?scene=projects`);
+      await movingPage.evaluate(() => document.fonts.ready);
+      const motionLauncher = movingPage.getByRole("button", { name: "新建项目", exact: true }).first();
+      await motionLauncher.click();
+      const dialog = movingPage.getByRole("dialog");
+      await dialog.waitFor();
+      assert.equal(await dialog.evaluate(node => getComputedStyle(node).animationName), "surface-arrive");
+      // Pauses preserve the full trajectory in the recording; assertions still
+      // wait for semantic state rather than relying on these presentation gaps.
+      await movingPage.waitForTimeout(520);
+      await dialog.getByLabel("项目名称").fill("动效检查 · Synthetic fixture");
+      await movingPage.waitForTimeout(220);
+      await movingPage.keyboard.press("Escape");
+      await dialog.waitFor({ state: "hidden" });
+      assert.ok(await motionLauncher.evaluate(node => node === document.activeElement));
+      await motionLauncher.click();
+      await dialog.waitFor();
+      await movingPage.waitForTimeout(100);
+      await movingPage.keyboard.press("Escape");
+      await dialog.waitFor({ state: "hidden" });
+      assert.ok(await motionLauncher.evaluate(node => node === document.activeElement), "interrupted entrance restores focus");
+      await movingPage.goto(`${base}/mobile-native-e2e?scene=leisure`);
+      await movingPage.locator('[data-fixture-ready="true"]').waitFor();
+      await movingPage.waitForTimeout(300);
+      await movingPage.locator('a[href*="&item="]').first().click();
+      await movingPage.locator('[data-edition]').waitFor();
+      await movingPage.waitForTimeout(800);
+      await movingPage.goBack();
+      await movingPage.locator('#leisure-collection-heading').waitFor();
+      await movingPage.waitForTimeout(800);
+      assert.deepEqual(motionErrors, []);
+      evidence.at(-1).motionRecording = { viewport: { width, height: 900 }, fullPageCaptures: false, entranceInterruptedByEscape: true, errors: motionErrors };
+      await motion.close();
     }
     const reduced = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
     const page = await reduced.newPage();
