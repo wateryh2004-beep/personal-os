@@ -1,5 +1,7 @@
 # Personal Intelligence Agent
 
+> 类型：应用内 AI 实现演进参考。2026-10-14 分类：当前权限与外发边界以 [AI 治理](ai-governance.md) 和真实工具 registry 为准；历史回退示例不授权删除偏好数据或直接 drop 表，实际恢复按 [数据规范](data-governance.md)。
+
 Global Personal OS Agent 的请求链路是：
 
 1. Cognitive Router 将请求分类为稳定的 cognitive recipe，并给出复杂度、时间窗口与所需检索能力。
@@ -31,3 +33,4 @@ Global Personal OS Agent 的请求链路是：
 `20260809055042_restrict_personal_intelligence_rpc.sql` 显式撤销 `anon` 对搜索 RPC 的执行权限，只保留 `authenticated`。搜索函数仍为 `security invoker`，所有结果继续受调用者 RLS 约束。
 
 应用前可运行 `supabase db push --dry-run`。若需要回滚，应创建新的 rollback migration：恢复 `20260808124822_fix_global_search_escape.sql` 中的 `search_personal_os` 函数，然后 `drop table public.assistant_preferences`。应用代码在表不存在时会安全使用只读默认偏好，因此数据库迁移与应用部署可独立回退。
+

@@ -1,5 +1,7 @@
 # Interaction performance budget
 
+Status: active performance requirements; reviewed 2026-10-14. Visual/motion targets are now defined in [design v2](design-system.md) and [motion](design/motion.md). The initial feedback latency and the total animation duration are different measures; old short-duration examples are not a global prohibition on spatial motion. Historical measurements live in [the baseline record](performance-baseline.md), not a claim about today's production.
+
 Personal OS is a private, server-authorized application. Private data must not
 be moved to public caching in the name of speed. Instead, interaction latency
 is managed at the client boundary.
@@ -14,8 +16,8 @@ is managed at the client boundary.
   and concurrent requests for the same range are deduplicated.
 - Closed Agent and page AI panels must not mount, restore runs, subscribe to
   Realtime, or ship their heavy runtime eagerly.
-- Mutations use an optimistic local state first, then reconcile provider truth.
-  A failure visibly rolls back and reports the failure.
+- Reversible, appropriate mutations may show a clearly pending optimistic local state, then reconcile provider truth.
+  A failure visibly rolls back and reports the failure. Authentication, password updates and consequential writes never show confirmed success before the trusted result.
 - `location.reload()` is forbidden for business operations. New
   `router.refresh()` calls require a documented reason that local state cannot
   satisfy (for example, an explicit full Microsoft reconcile).
@@ -56,8 +58,7 @@ The user sees local feedback, not a promise about provider response time:
   is a target to benchmark, not a fabricated local guarantee.
 - Provider mutation → optimistic visible UI: **under 100 ms**; a failed
   provider reconciliation must roll back visibly.
-- Panel, dialog, and quick capture: state changes in the next frame; CSS motion
-  completes in roughly **150–200 ms**.
+- Panel, dialog, and quick capture: respond immediately and preserve input/focus; total motion follows the shared [motion grammar](design/motion.md), with interruptible scene transitions rather than a blanket 150–200 ms cap.
 - Quick-create submit → local pending state: immediate; confirmation happens
   after the provider responds.
 - Search debounce: **120–180 ms**.
@@ -70,3 +71,4 @@ They do not send analytics or persist personal behavior.
 design-system drift and raw feature-level controls, while keeping deliberate
 renderer/third-party exceptions in a small allowlist. It is intentionally not
 a blocking lint rule until historical exceptions are retired.
+

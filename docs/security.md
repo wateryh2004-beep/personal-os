@@ -1,10 +1,12 @@
 # 安全、认证、RLS 与审计
 
+状态：有效安全规则与带日期的发布记录。维护日期：2026-10-14。通用生命周期见 [数据规范](data-governance.md)，操作顺序见 [运行手册](release-operations.md)。认证实现以 `src/lib/supabase/proxy.ts`、`src/lib/auth/require-owner.ts` 和各独立端点为依据；历史段落不自动代表最新运行状态。
+
 ## 身份与会话
 
 - 采用 Supabase Auth + `@supabase/ssr` cookie 会话与 PKCE；根据当前施工提示，Phase 1 改为 owner-only 邮箱密码登录，不提供公开注册页面。
 - `src/lib/supabase/server.ts` 只在服务端创建 cookie client；浏览器 client 使用 URL 和 publishable key。`proxy.ts` 刷新会话。
-- 每次页面读取和 Server Action 都用 `auth.getClaims()` 验证身份并取得 `sub`。不得信任 `getSession()` 返回的 user，也不得读取/接受表单中的 `user_id`。
+- 每个私有读取/写入边界通过 owner guard 验证身份。当前 Proxy 调用 `auth.getClaims()` 后清理并重建仅限本次请求的身份头，guard 可以复用该可信结果；无可信桥接时重新核对 claims。不得信任浏览器提交的身份头、`getSession()` 返回的 user 或表单 `user_id`。
 - 用户身份来自 session 后，应用层将其作为写入 `user_id`；数据库 RLS 是最终隔离边界。
 
 ## 可选的问题找回密码
@@ -23,7 +25,9 @@
 
 独立 Supabase 验证项目已用临时虚构账户完成真实 Auth SDK 验收：创建账户、原密码登录、固定 ID 查询、生成并消费 recovery token、修改密码、全局退出、拒绝旧密码与旧刷新会话、新密码登录，以及数据库共享限流。临时账户已删除，临时测试入口已停用，验证项目恢复暂停状态。生产真实所有者密码未改动。
 
-生产已应用限流迁移，权限检查确认匿名与普通用户不能读取计数或执行限流 RPC。管理 API 生成的实际迁移版本为 `20261014082638`，仓库文件和隔离测试入口按此版本对齐；未直接改写生产迁移历史。生产问题答案校验值的配置被自动审查阻止，未启用答题找回；邮箱找回与页面动效可以独立发布。
+生产已应用限流迁移，权限检查确认匿名与普通用户不能读取计数或执行限流 RPC。管理 API 生成的实际迁移版本为 `20261014082638`，仓库文件和隔离测试入口按此版本对齐；未直接改写生产迁移历史。
+
+初次配置曾被自动审查阻止。随后所有者于 2026-10-14 明确授权将先前指定答案作为生产恢复凭据，并确认知道答案的人能够重置密码；Production 专用配置及重新部署已完成，答题入口已确认可见，邮箱备用保留。该记录来自 [PR #66](https://github.com/wateryh2004-beep/personal-os/pull/66) 的发布与启用验收；真实所有者密码未为测试修改。后续可用性须核对实际配置与部署，不能从静态记录永久推断。
 
 ## RLS 基线
 
@@ -46,7 +50,7 @@ with check (user_id = auth.uid())
 ## 秘密、Storage 与运行环境
 
 - `.env.local`、Supabase service-role key、数据库 URL、OAuth secret 永不提交。提供 `.env.example` 仅列变量名。
-- 浏览器公开变量仅限 `NEXT_PUBLIC_SUPABASE_URL` 和 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`。service role 只允许部署端受控后台任务使用，不能进入 client bundle 或日志。
+- 浏览器仅接收明确可公开的配置，Supabase 凭据仅限 URL 与 publishable key；service role/secret key 只在受保护的 server-only 适配层或后台任务中以最小职责使用，不能进入 client bundle、返回值或日志。
 - `exports` bucket 为私有；对象路径以经过验证的 user UUID 开头；Storage policy 和签名 URL 都检查所有权。导出 URL 短期有效。
 - Vercel、Supabase、GitHub 的密钥由各自 secrets/env 管理，不写入 migration、文档示例或测试 fixture。
 
@@ -93,7 +97,7 @@ Files 的每次签名、上传确认与下载都调用 `requireOwnerApi()`；查
 
 Private application routes are protected in four independent layers: `src/proxy.ts` performs an early redirect, the `(app)` server layout calls `requireOwner()` before rendering the application shell, every Server Action and private Route Handler checks the owner again, and Supabase RLS isolates rows by `auth.uid()`.
 
-`/login` is the only public page route. API endpoints are not redirected by the Proxy because protocol clients need status responses; each private endpoint calls `requireOwner()` itself. OAuth callback paths are explicit protocol exceptions and must remain separately audited. Private HTML and authenticated login responses use `Cache-Control: private, no-store, max-age=0`; they are not eligible for shared CDN caching.
+Public authentication pages include `/login` and `/forgot-password`; public manifest/static resources and explicit OAuth protocol callbacks are separately scoped. `/update-password` still requires the valid recovery/session path. API endpoints are not redirected by the Proxy because protocol clients need status responses; each private endpoint uses its owner/API guard. Private HTML and authenticated login responses use `Cache-Control: private, no-store, max-age=0`; they are not eligible for shared CDN caching. The exact public allowlist lives in `src/lib/supabase/proxy.ts`, and static exclusions in `src/proxy.ts`; adding a route requires an explicit boundary review.
 
 The root `/` performs the same server-side owner check as the private layout before redirecting to `/today`. A non-owner session is cleared by Proxy and redirected to `/login?error=not-authorized`; the configured owner email is never emitted to the client.
 
@@ -104,3 +108,4 @@ The root `/` performs the same server-side owner check as the private layout bef
 内容丢失。它不是云端权威存储、不会跨设备同步，也不会发送给第三方；确认保存后的业务数据
 仍写入其受 RLS 保护的云端表。恢复窗口到期、关闭标签页或主动退出登录后，应用会清除这些
 临时快照。流式 AI 请求在离开页面时不声称仍在后台运行，而是保留已生成内容并提示用户已暂停。
+

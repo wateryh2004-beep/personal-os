@@ -1,5 +1,7 @@
 # Ten-item optimization program
 
+> 类型：特定批次的规划与验收记录。2026-10-14 分类：下文提交、Draft PR 和门槛属于该批次，不自动成为所有未来任务的发布阻断；当前流程见 [运行手册](../release-operations.md)，原安全与数据边界继续保留。
+
 User-approved scope, 2026-10-07. Release main only after all ten acceptance gates pass. No production changes have been made by this program. Integration base: main `247976e390bccd7b81bdcbe412843bc1f4bd7864` plus the two tested commits in draft PR 61, ending `038017352e28e18e0cbca081afade2ec3cef5407`.
 
 ## Acceptance and current status
@@ -56,3 +58,4 @@ All four workflows passed on `720cbdba33b6d55a5d848232faadf9c5963def9b`:
 Responsive investment/multipart and OCR screenshots were inspected. The corrected Notes fixture recorded median first readiness 259.4ms versus 679.4ms at 390px, with warm return 19.4ms versus 18.6ms and zero additional workspace API calls in the streamed path. These are controlled synthetic CI results with modeled delays, not live user-network improvements.
 
 The nine code-focused items have staging evidence. This is not permission to merge: item 3 remains open under private substantive review, production/live-R2 activation remains separately gated, and a bounded correction of four verified pre-existing dependency vulnerabilities is now being prepared. All 26 audit-flagged package versions predate this program; no new OCR/hash package was flagged. The approved patch scope is Next plus matching eslint-config-next, Sharp, MapLibre and xmldom only, with primary-advisory verification and fresh aggregate regression. No blanket audit fix or unrelated downgrade is authorized.
+
