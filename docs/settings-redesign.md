@@ -1,5 +1,7 @@
 # Settings workspace redesign
 
+> 类型：历史模块设计与验收参考。2026-10-14 分类：内容/容量语义继续按领域契约维护；当前视觉和交互目标见 [设计规范](design-system.md)，下方检查属于原批次。
+
 ## Composition
 
 Four hash-addressable sections keep the main page quiet: storage, connections, AI/privacy, and general. All panels stay mounted so changing sections does not discard drafts or the current read-only snapshot. Hash changes support browser Back/Forward; no database setting is changed by navigation.
@@ -20,3 +22,4 @@ Storage leads with actual bucket bytes and object count. The database's active/a
 Run npm run typecheck, npm test and focused ESLint. Repository-wide lint currently has unrelated pre-existing failures. scripts/settings-preview.mjs serves the actual Settings page using synthetic query/action modules only; scripts/settings-workspace-e2e.cjs checks 360/390/1440px, navigation history, retained unsaved forms, empty/partial/unavailable/auth-error states, no auto-scan, and overflow. Its focused six screenshots and JSON report are uploaded by Verify CI. The existing R2 endpoint fixture remains in place.
 
 The local executor cannot launch Chromium because socket creation is denied. Browser pixel review must use the CI artifact after approved publication; passing unit tests is not visual sign-off.
+

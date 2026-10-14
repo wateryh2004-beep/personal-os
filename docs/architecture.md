@@ -1,14 +1,16 @@
 # Personal OS：架构与数据模型
 
+状态：有效架构基线与历史模型参考。维护日期：2026-10-14。工程规则见 [工程规范](engineering-standards.md)，权威源、迁移与生命周期见 [数据规范](data-governance.md)。下方 Phase 1 表与建议目录保留设计演进，不是当前完整 schema；精确结构以已审查 migration、生成类型与实际部署记录为准。
+
 ## 形态与技术选择
 
-采用可迁移的模块化单体：一个 Next.js 应用、一个 Supabase PostgreSQL 项目、一个 Supabase Storage 桶。按领域分模块，而不是拆微服务。
+采用可迁移的模块化单体：一个 Next.js 应用与 Supabase PostgreSQL，私有文件主要在 R2，历史 Storage 按对象 provider 保留。按领域分模块，而不是拆微服务。
 
 - Next.js App Router、TypeScript `strict`、Tailwind CSS、shadcn/ui（明确选择 Radix primitives）。
 - Server Components 为默认读取层；Client Components 仅用于编辑器、命令面板、交互状态等浏览器能力。
-- Server Actions 处理正常表单写入；Route Handlers 仅处理 `/auth/callback`、将来的 webhook/OAuth 回调和导出文件下载等 HTTP 边界。
+- Server Actions 处理正常表单写入；Route Handlers 处理现有受保护 API/工作区读模型、OAuth、Webhook、流式响应与导出等 HTTP 边界。
 - Supabase 使用 `@supabase/ssr` 的 cookie SSR 客户端、PKCE、`proxy.ts` 会话刷新。服务端鉴权使用 `getClaims()`，不以 `getSession()` 的 user 对象作授权依据。
-- 所有第三方连接放入 Adapter；当前无外部业务 Adapter 实现。
+- 所有第三方连接经 Adapter；已有 Microsoft、R2、AI、认证恢复等服务端适配层，具体能力以代码与领域契约为准。
 
 ### 云端 Microsoft Calendar
 
@@ -107,3 +109,4 @@ Calendar 确认队列保护。AI 没有直接的 Graph 写入工具、没有访�
 Career 使用独立、可迁移的标准关系表：`career_profiles`、`career_directions`、`experiences`、`experience_facts`、`experience_fact_versions`、`experience_outputs`、`experience_bullets`、`bullet_fact_links`、`skills`、`experience_skills`、`certifications`。通用 `profiles.display_name` 不复制到 Career Profile。`documents` 和 `entity_links` 位于 Core 层，供现有和未来模块复用；多态链接由受控枚举限制实体类型，并在 Server Action 中校验双方所有权。
 
 Fact 的初始内容与每次更新均由数据库触发器追加到 `experience_fact_versions`；版本表不允许 UPDATE/DELETE。文件元数据进 `documents`，对象在私有 Storage 的 `{user_id}/career/.../{uuid}.{extension}` 路径；原始文件名仅做元数据。导出目前为经鉴权的 JSON Route Handler，默认脱敏 `credential_number` 并仅输出文件清单。
+

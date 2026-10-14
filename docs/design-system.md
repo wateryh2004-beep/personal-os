@@ -1,90 +1,99 @@
-# Quiet Precision 设计系统
+# Personal OS 设计规范
 
-## 视觉基调
+状态：有效的目标规范，版本 2。维护日期：2026-10-14。适用范围：认证入口、应用壳和所有模块。此前 Quiet Precision 的冲突视觉条目由本文替代；数据、安全和交互可发现性不变量保留。
 
-克制、清晰、优美，优先让内容和决策显现。页面暖白，内容表面纯白；不使用渐变、玻璃拟态或金融终端黑底。卡片只用在需要边界的编辑、详情、汇总区域，不把每一行信息都卡片化。
+本次只建立规则，不代表现有 CSS、组件或线上页面已完成迁移。已确认方向见 [决策记录](decisions/2026-10-14-design-and-governance.md)；下列具体数值为实施基准，需随实际界面验证，不冒充用户逐项确认或已测量结果。
 
-| Token | 值 | 用途 |
+## 已确认的审美方向
+
+暖白、柔和、舒展，适合长期使用。少量卡片提供清晰分组与包裹感；深灰绿是唯一主强调色。页面主标题和重要展示标题使用宋体/衬线，正文与操作界面使用现代无衬线。
+
+信息通过对齐、位置、留白、层级与状态引导。去除装饰英文、寄语、重复标注和不帮助决策的说明。真实字段标签、错误原因、有效筛选和必要权限/执行结果仍保持可发现。
+
+动效是核心语言：允许大胆的纵深、共享元素、形态变化和完整空间衔接，每一处动画设计起点、终点、节奏、中断与返回。完整要求见 [动效规范](design/motion.md)。
+
+## 色彩与语义变量
+
+| 语义 | v2 实施基准 | 使用方式 |
 | --- | --- | --- |
-| `--background` | `#F7F7F5` | 页面背景 |
-| `--surface` | `#FFFFFF` | 内容面、弹层 |
-| `--foreground` / `--text-primary` | `#1D1D1F` | 一级文字 |
-| `--text-secondary` | `#454C54` | 次级文字 |
-| `--text-tertiary` | `#60666D` | 辅助文字 |
-| `--border` | `#E5E7E7` | 分隔与控件边框 |
-| `--primary` / `--accent` | `#0E7490` | 唯一主强调 |
-| `--primary-soft` / `--accent-soft` | `#ECF6F8` | 选中、轻提示背景 |
+| 页面 `--surface-app` | `#F7F6F2` | 微暖的白，承载整体空间 |
+| 卡片 `--surface-canvas` | `#FFFEFA` | 略亮于页面，形成温和边界 |
+| 浮层 `--surface-elevated` | `#FFFEFA` | 菜单、对话框和侧栏 |
+| 主文字 `--text-primary` | `#252C29` | 正文、主要标签和标题 |
+| 次文字 `--text-secondary` | `#5D665F` | 次级信息，仍需可读 |
+| 辅助文字 `--text-tertiary` | `#697269` | 低频辅助信息；不得用于必须阅读的小字长文 |
+| 主强调 `--accent` | `#37594B` | 主按钮、选中、焦点；按钮文字 `#FFFEFA` |
+| 悬停 `--accent-hover` | `#294737` | 主操作交互状态 |
+| 轻选中 `--accent-soft` | `#E8EEE6` | 配合文字/稳定标记表达选中 |
+| 分隔 `--separator` | `#D9DDD4` | 内容组织，不作为输入边界唯一依据 |
+| 控件边界 `--control-border` | `#7B877B` | 保持输入与必要控件的可识别边界 |
 
-使用 CSS variables 将 token 映射到 shadcn theme。`background`、`foreground`、`card`、`card-foreground`、`popover`、`popover-foreground`、`primary`、`primary-foreground`、`secondary`、`secondary-foreground`、`muted`、`muted-foreground`、`accent`、`accent-foreground`、`input`、`border`、`ring`、`destructive` 均须在 `globals.css` 中有明确 mapping；页面 chrome 不得重新硬编码其等价颜色。状态色仅用于状态（错误、完成、提醒），不得用多色装饰。阴影只用于菜单、对话框与浮层，且应轻微。
+色值按实际表面和状态验证对比度，不能靠阴影弥补文字或控件不可见。错误、警告、成功使用统一语义色；深灰绿不承载所有状态。状态不能只靠颜色。
 
-### Radius、控件与动效
+在 `globals.css` 中统一映射 shadcn 的 background、foreground、card、popover、primary、secondary、muted、accent、input、border、ring、destructive 等变量。功能页使用语义变量，禁止自行复制一套近似 palette。
 
-- `--radius-sm`：图标按钮、小型行内控件；`--radius-md`：Button、Input、Select、导航与行选中；`--radius-lg`：Dialog 与独立 surface。
-- `rounded-full` 仅用于 avatar、badge 和真正的 pill；不得以 `rounded-xl` 制造装饰性差异。
-- Button 的标准高度为 small 30px、default 34px、large 38px；Input 与 Select 默认 34px，Textarea 继承同一边框、focus ring 与 disabled 语义。手机主要控件与图标按钮至少 44px，输入文字至少 16px。
-- Hover 只过渡背景、文字、边框或透明度，使用 `--motion-fast`（120ms）；普通微交互使用 `--motion-base`（160ms）；Dialog、Sheet、SidePanel 使用 `--motion-panel`（180ms），统一 `--ease-standard`。禁止 `transition-all`、普通 UI 的长动画、明显 zoom、bounce 和逐行入场。
-- `prefers-reduced-motion` 始终优先，不能以动画表达唯一信息。
+现有暗色支持在迁移时保证可读与状态完整；全站深色方案尚无本轮独立确认，不通过反色滤镜或局部硬编码假装完成。公开品牌色、作品图像等事实性色彩按内容保留。
 
-## 排版与布局
+## 字体与文字层级
 
-- UI 使用系统字体；等宽数字、金额、时间与 ID 使用 SF Mono、Geist Mono 等宽回退。
-- 中文回退：`PingFang SC`, `Microsoft YaHei`, system-ui, sans-serif。
-- 正文优先 14–16px，标题通过字重、留白与层级而非大字号制造噪声。
-- 桌面：固定左导航（216px）、页面顶部工具栏、中心内容区；仅在选中实体时开启可折叠右详情栏。
-- 移动：底部今日、笔记、职业、更多，快速捕捉固定可达；不强行压缩复杂表格。
-- 采用一致的 4px 间距尺度、清晰 1px 边框与可见 focus ring。
+| 用途 | 实施基准 |
+| --- | --- |
+| 页面主标题 | 衬线，手机 28–32px、桌面 32–40px，舒展行高，避免过粗 |
+| 阅读/展示标题 | 衬线，按内容 22–30px；只用于真正的标题 |
+| 区域标题 | 无衬线，15–18px，以字重与间距建立分组 |
+| 正文 | 无衬线，通常 15–16px、行高 1.6–1.8；紧凑列表可 14px |
+| 标签与元信息 | 通常 12–14px；关键信息不用更小字号隐藏 |
+| 输入文字 | 手机至少 16px；保持可读且不触发意外缩放 |
+| 金额、时间和编号 | 等宽数字；按需局部等宽字体，不强制整段等宽 |
 
-## 组件策略
+中文衬线优先系统可用的 `Songti SC`、`Noto Serif CJK SC`、`Source Han Serif SC`、`SimSun` 并提供 serif 回退；正文使用系统无衬线、`PingFang SC`、`Noto Sans CJK SC`、`Microsoft YaHei` 与 sans-serif 回退。不同平台可能缺少某字体，验收要检查实际 fallback 和字宽。
 
-从 shadcn/ui 按需生成组件代码（Radix 底座），先使用 Button、Input、Textarea、Dialog、DropdownMenu、Sheet、Command、Popover、Select、Tabs、Tooltip、Skeleton、Sonner/Toast。包装成产品组件：`AppShell`、`SidebarNav`、`PageHeader`、`EntityList`、`EntityDetailPanel`、`QuickCapture`、`EmptyState`、`StatusBadge`。
+需要提供字体文件时检查许可、按需字重/字符范围与加载体积；默认不为了装饰标题阻塞首屏或请求未核对的第三方字体服务。
 
-所有图标配文字或 tooltip；关键行为不只依赖颜色。表单有 label、错误文本和键盘流程；Command Palette 支持 `⌘K` 与焦点回归。
+## 网格、对齐与密度
 
-## 页面层次
+使用 4px 间距基础，常用 4/8/12/16/24/32/40/48。允许有理由的 1–2px 光学修正，但应在共享组件解决，不能每页积累偏移。
 
-```text
-RootLayout
-├── AuthLayout → Login
-└── AppLayout (受保护)
-    ├── SidebarNav
-    ├── TopBar → GlobalSearchTrigger / QuickCapture
-    ├── Main → Route Page (Server Component) → Feature UI
-    ├── Optional DetailPanel
-    └── CommandPalette (client island, Phase 1 shell)
-```
+卡片标题、字段、正文和主按钮共享内容基准线；图标使用稳定占位，数字列对齐；相关内容靠近，不同任务组明确拉开。对齐检查包含空态、长文本、错误与加载。
 
-Career 延续同一应用壳：二级导航使用细底线，不另建仪表盘。经历、事实和成果以列表与分隔线表达层次；状态总是同时显示文字，敏感字段不会在普通列表呈现。
+首页突出当前任务与日程，保留舒展的阅读路径；工作区保持必要信息量，通过分组、行距和详情渐进展开组织。此密度为实施默认，后续以真实任务验证微调。
 
-## 样式边界
+桌面沿用共享左导航、顶栏和工作区，详情按情境展开；手机沿用明确主入口与可达的更多/捕捉。具体导航源为 `src/lib/navigation-registry.ts`，不另造文档驱动的平行数组。尊重安全区域、软键盘、短屏和浏览器返回。
 
-- `globals.css` 管理颜色、排版、控件尺度、焦点、动效与通用状态。
-- `workspaces.css` 管理编辑器与日历等第三方组件的皮肤及模块语义类。
-- `responsive.css` 管理手机尺寸、触控、安全区域与响应式布局。
-- 组件持有自身结构；列表为空或有数据时使用相同布局类，不按文案、结果行或 `:has()` 判断页面布局。
+正文区参考 680–820px，普通工作区参考 980–1180px；认证卡片参考 400–440px。宽表、编辑器和画廊按任务使用空间，不强行塞入同一宽度。
 
-## 重点工作区
+## 卡片与表面
 
-- Today：优先显示今日重点与日程；到期提醒排除已展示的重点任务，并避免重复日程操作。继续编辑来自真实最近笔记。
-- Notes：快速打开与正文搜索分开；文件夹、收藏、最近列表在分页前完成范围查询。保存状态占固定位置，工具栏保留保存、AI、专注与更多；版本、冲突与原文语义继续保留。
-- Career：工作台、面试准备、履历素材、机会与申请、简历五个主入口。经历默认阅读，编辑按需展开；创建成功复位，失败保留输入；机会可带上下文进入申请与面试。
-- 缓存内容刷新失败时保留可读内容并提供重试；手机侧栏使用共享 Dialog 焦点约束及关闭后焦点恢复。
+一张卡片对应一个完整任务或有意义的信息组。卡片内优先使用留白、行与细分隔，不把每个字段和每条数据都再次包进卡片。
 
-## 页面框架与反馈
+认证流程在同一张卡片内切换步骤与调整高度；成功进入系统采用连续空间过渡。卡片底色略亮，细边框与极轻阴影共同表达包裹感。阴影不能变成厚重悬浮面板。
 
-- `AppShell` 只负责导航、顶栏与主内容容器；页面通过 `DashboardLayout`、`WorkspaceLayout`、`DocumentLayout` 或局部 layout 管理自身空间，避免重复 padding。
-- `PageHeader` 是普通页面的标题、说明、context 和右侧 action 的唯一入口。Section 使用 12–14px 的低噪声标题、可选计数和紧凑 action；普通数据优先 row、divider 与留白，而不是堆叠卡片。
-- Inspector 与 AI 使用 `SidePanelShell`：共享遮罩、surface、边框、header 高度、关闭按钮、body scroll 与 180ms panel motion；仅宽度通过 inspector / assistant variant 区分。
-- Loading 应保持真实 page/workspace 的几何结构，使用 semantic skeleton，不使用闪白文本或泛化 dashboard 卡片。异步成功优先按钮状态、局部 status 或乐观 UI；错误必须可见。高频 status 不应通过插入文档流造成 layout shift。
-- Empty state 由小图标（可选）、标题、简短解释与一个主要 action 组成；不使用巨大插画。移动端不能隐藏唯一操作在 hover-only 控件后；触控设备上管理操作默认可达。
+实施圆角层级：小控件 6–8px、按钮与输入 10–12px、卡片 18–20px、主要弹层 20–24px。同类组件统一，pill 仅用于确实有胶囊语义的标签/筛选等。
 
-## 闲暇的视觉例外
+卡片桌面内边距参考 24–32px、手机 20–24px。认证卡片可适度增大顶部留白。装饰不得挤占必要字段或导致短屏无法提交。
 
-闲暇使用独立的影像画廊与轻量交互语言；不沿用办公模块的纯列表呈现。此例外只作用于闲暇，不改全局样式。范围、素材出处与验证见 `leisure-cinematic-redesign.md`。
+## 控件与交互
 
-## 认证入口的动效例外
+局部任务有明确主动作。主按钮用深灰绿，次动作以文字、边界或轻底区分；状态和可点击性在静止时即可识别。图标按钮具有可访问名称，触摸不依赖 tooltip 才能理解唯一操作。
 
-登录与找回密码共用 `(auth)/auth.css` 和 `components/auth/auth-interaction.tsx`，沿用主系统的颜色与字体。认证是独立、低频的进入场景，可使用 650ms 的单次卡片入场与 1s 的登录成功光环；普通控件反馈保持 180ms。背景不循环移动，不使用视频、粒子引擎或动效依赖。
+认证输入/主按钮参考 48–52px 高；普通桌面控件参考 36–40px，紧凑列表可 30–34px；手机主要目标至少 44px。公共组件承载尺度，页面不另行调出一套近似尺寸。
 
-成功动画必须由 Server Action 的真实成功结果触发。登录仅返回布尔成功状态，认证 Cookie 与受保护路由仍由 Supabase 管理；客户端动画不承担权限判断。自动跳转有独立计时器和可立即点击的原生链接；减少动态效果时直接跳转。找回密码的第一步只填写答案，最终提交时才验证答案，不能在前端假装已验证。
+字段保留稳定标签，placeholder 不代替 label。错误靠近相关位置，保留输入并提供恢复动作；密码等敏感字段按安全契约处理。加载保持原有几何，真实成功后再切换为成功状态。
 
-维护时，调整节奏改认证 CSS；调整流程改对应表单；鉴权、限流与密码写入仍放在现有服务端模块中。
+展开、取消、删除、保存、重试和返回遵循 [交互清晰度规则](design/interaction-clarity.md)。键盘焦点可见，弹层关闭恢复启动位置；重要状态通过语义表达，避免每个动画帧反复播报。
+
+## 文案与图像
+
+按 [文案规则](design/content.md) 保持简短直接。技术实现、内部 ID、阶段编号和验证过程不进入普通用户路径；确实影响判断的事实保留，并尽量用明确动作和状态表达。
+
+文件和闲暇保留原件/作品的比例、来源、失败后备与可达链接。闲暇允许更丰富的画廊和沉浸构图，沿用全局的文字、控件、焦点和运动语言；旧模块独立配色不是继续漂移的授权。
+
+## 样式与实施边界
+
+`globals.css` 管全局语义变量、字体、控件与状态；`responsive.css` 管共享响应式；`workspaces.css` 与模块 CSS 管领域结构和第三方皮肤。认证可以持有独立场景编排，不自行重定义品牌语言。
+
+新页面和实质重构按本规范；小修复先遵守现有语义与本次范围，不借机全站换皮。先迁移共享变量/组件与登录、找回密码、Today 样板，再按模块推广。迁移期间明确哪些页面仍使用旧规则，避免声称文档更新等于上线。
+
+## 验收
+
+检查 390/1440px 及变化涉及的 360/768px、短屏、长文、空态、错误、200% 文字、键盘与触摸；动画按完整时间线、快速操作与减少动态效果验收。截图和录屏使用合成或授权数据，结果按 [质量规范](quality-standards.md) 记录。

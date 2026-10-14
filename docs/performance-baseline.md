@@ -1,5 +1,7 @@
 # Performance baseline and measurement protocol
 
+> 类型：历史性能基线与测量方法。2026-10-14 分类：其中账号可见性、CLI、区域和部署状态属于当时环境；当前资源必须重新核对。有效性能要求见 [性能规范](performance.md)，动效总时长见 [动效规范](design/motion.md)。
+
 > Status: established before the P0 route/data-path refactor. Values must be
 > measured on a real authenticated deployment; this document intentionally
 > does not invent localhost or cloud timings.
@@ -96,3 +98,4 @@ region, network condition, and whether it is cold or warm. Perform:
 
 The table must be filled only after the real deployment is accessible. The
 local type/lint/test/build gates verify correctness, not production latency.
+

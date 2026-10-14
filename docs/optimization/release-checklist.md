@@ -1,5 +1,7 @@
 # Integrated release checklist
 
+> 类型：特定功能批次的发布检查与恢复参考。2026-10-14 分类：仅在对应变更范围内采用，实际授权沿用任务上下文；通用顺序见 [运行手册](../release-operations.md)。原文件/权限/原件不变量保留，不把历史步骤机械应用于每次文档修改。
+
 No production action is authorized by this checklist alone. The ten-item program remains draft until every acceptance gate and the parent's release decision are satisfied.
 
 ## Exact staged validation
@@ -45,3 +47,4 @@ Existing service credentials and private bucket configuration are reused. No new
 Keep new data/schema intact and disable the cover flag before diagnosing a rendering issue. Pause new OCR/upload actions if their acceptance fails. Do not delete originals, progress, accepted text/provenance, ledgers or snapshots.
 
 Do not blindly redeploy an old build that predates the new cancelled state or OCR completion CAS. A rollback build must retain cancelled-state search/storage/export compatibility and the accepted-text race guard. Forward fixes or a compatibility-preserving revert are safer than discarding new user data. The current release has no destructive down migration.
+

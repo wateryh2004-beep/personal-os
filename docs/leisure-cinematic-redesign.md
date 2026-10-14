@@ -1,5 +1,7 @@
 # Leisure: a gallery for the good hours
 
+> 类型：历史视觉方案与素材边界。2026-10-14 更新：闲暇仍允许画廊与沉浸构图，但冲突配色、字体、控件和运动规则由 [设计 v2](design-system.md) 与 [动效规范](design/motion.md) 替代。下方发布/测试状态为原批次记录，来源与许可边界仍需保留。
+
 ## Local visual exception
 
 The October 5 redesign explicitly gives leisure a more expressive direction than the ordinary work modules in `design-system.md`: official film/series/game artwork, warm paper, editorial serif headings, an immersive featured composition, an always-visible collection, and responsive micro-interactions. This exception is scoped to leisure’s CSS module; it does not change shared color tokens, other pages, personal content or feedback storage.
@@ -36,3 +38,4 @@ Local checks for the revised implementation:
 Browser verification is prepared in `scripts/leisure-e2e.cjs` but not yet executed for this patch. It must run in the authorized CI/browser environment before visual signoff. The real-app-shell fixtures cover 360, 390, 768 and 1440 px; all 16 official images must decode; category switching, keyboard shuffle, no overflow, Back/Forward, reduced motion and forced broken-image fallback are checked. Existing synthetic feedback/error/conflict/long-content checks remain.
 
 No production database, authentication, RLS, feedback action or migration changed. No branch push, PR, merge or deployment is part of these local verification claims.
+

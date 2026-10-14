@@ -1,5 +1,7 @@
 # Microsoft Calendar Companion（已弃用的本机诊断工具）
 
+> 类型：本机 companion 的历史/替代方案参考。2026-10-14 分类：现行集成以 [Microsoft 云端集成](microsoft-calendar-integration.md) 和 [架构](architecture.md) 为准，不因本文件存在就配置本机常驻服务。
+
 ## 决策
 
 这是早期本机诊断记录，保留用于审计上游 Microsoft 365 MCP 的最小权限行为。
@@ -57,3 +59,4 @@ Device Code 登录必须由账户本人在 Microsoft 官方页面完成。登录
 
 不能先写 Supabase 缓存再假装 Outlook 已成功；不能让 AI 或网页直接持有
 Microsoft Token。
+
