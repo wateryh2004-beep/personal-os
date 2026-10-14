@@ -12,12 +12,18 @@
 - 登录页的“找回密码”进入 `/forgot-password`。启用后填写两个英语单词（按顺序、忽略大小写和首尾空格）及两次新密码；答对直接重置，无需邮件。邮箱找回保留为备用入口。
 - 此方式把问题答案作为唯一恢复凭据。常见单词可能被猜中；共享限流不能防止已经知道答案的人接管账户。它比邮箱验证弱，不能视为第二因素认证。
 - 实际答案不写入源码、测试、日志或浏览器。服务端环境变量 `PASSWORD_RECOVERY_ANSWER_HASH` 保存随机盐的 scrypt 校验值；用 `node scripts/hash-recovery-answer.mjs` 在本地生成，仅复制输出到部署端秘密配置。生成器会在本地终端显示输入，勿录屏或提交输出。
-- 复用现有服务端 `SUPABASE_SECRET_KEY`、`OWNER_USER_ID` 与 `OWNER_EMAIL`。上线前应用 `20261014072543_question_password_recovery.sql` 并确认固定 UUID 和邮箱对应同一所有者。缺少配置或数据库限流不可用时拒绝问题重置；Vercel Preview 始终禁用此方式。
+- 复用现有服务端 `SUPABASE_SECRET_KEY`、`OWNER_USER_ID` 与 `OWNER_EMAIL`。上线前应用 `20261014082638_question_password_recovery.sql` 并确认固定 UUID 和邮箱对应同一所有者。缺少配置或数据库限流不可用时拒绝问题重置；Vercel Preview 始终禁用此方式。
 - 限流是账户级共享计数：每个 15 分钟窗口最多 5 次有效表单尝试（成功也计数），不依赖浏览器 Cookie、IP 或实例内存。攻击者可以耗尽这 5 次，邮箱找回仍可用。`question_recovery_attempts` 是只含一个计数行的技术表，不保存任何业务内容或答案；启用并强制 RLS，无匿名/用户策略，仅 service_role 有最低读写权限。RPC 为 SECURITY INVOKER，仅 service_role 可执行。
 - 通过固定 UUID 查询 Auth 用户，核对所有者邮箱；仅在服务端生成并消费一次性 recovery token，经普通 `updateUser` 修改密码。令牌与临时会话不进入返回值、URL 或 Cookie，不直接使用 admin 修改任意账户密码，不关闭 MFA。成功后请求全局退出，撤销刷新会话；已有 access JWT 仍可能有效至到期。如果退出请求失败，明确告知密码已更新但旧会话退出未完成。
 - 发布顺序：先在隔离数据库验证迁移权限和计数，再审查并应用迁移，最后设置仅 Production 的校验值并部署。不要在生产中通过自动化修改真实所有者密码验收；使用独立测试项目验证 Supabase 完整重置流程，再由所有者进行实际验收。
 - 回退：删除部署端 `PASSWORD_RECOVERY_ANSWER_HASH` 并重新部署，恢复纯邮箱找回；技术计数表可保留，不需要回滚或改动业务数据。
 - 回归入口：`tests/question-recovery*.test.ts` 检查校验和授权；`tests/question-recovery-database.mjs` 在隔离 PGlite 检查 SQL 权限与计数；构建后 `python3 scripts/question-recovery-http-smoke.py` 使用虚构本地 Auth 服务验证真实 Next Server Action 和 SDK HTTP 调用，不等同于真实 Supabase 项目的验收。
+
+### 2026-10-14 发布验收
+
+独立 Supabase 验证项目已用临时虚构账户完成真实 Auth SDK 验收：创建账户、原密码登录、固定 ID 查询、生成并消费 recovery token、修改密码、全局退出、拒绝旧密码与旧刷新会话、新密码登录，以及数据库共享限流。临时账户已删除，临时测试入口已停用，验证项目恢复暂停状态。生产真实所有者密码未改动。
+
+生产已应用限流迁移，权限检查确认匿名与普通用户不能读取计数或执行限流 RPC。管理 API 生成的实际迁移版本为 `20261014082638`，仓库文件和隔离测试入口按此版本对齐；未直接改写生产迁移历史。生产问题答案校验值的配置被自动审查阻止，未启用答题找回；邮箱找回与页面动效可以独立发布。
 
 ## RLS 基线
 

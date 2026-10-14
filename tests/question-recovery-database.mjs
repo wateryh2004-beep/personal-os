@@ -4,7 +4,7 @@ const { PGlite } = await import(process.env.RECOVERY_PGLITE_MODULE || "@electric
 const db = new PGlite();
 try {
   await db.exec("create role anon; create role authenticated; create role service_role bypassrls; grant usage on schema public to anon, authenticated, service_role;");
-  await db.exec(await readFile(new URL("../supabase/migrations/20261014072543_question_password_recovery.sql", import.meta.url), "utf8"));
+  await db.exec(await readFile(new URL("../supabase/migrations/20261014082638_question_password_recovery.sql", import.meta.url), "utf8"));
   for (const role of ["anon", "authenticated"]) {
     await db.exec(`set role ${role}`);
     await assert.rejects(db.query("select public.consume_question_recovery_attempt()"), /permission denied/);
