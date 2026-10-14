@@ -11,7 +11,7 @@ import { resolveCalendarEventVisual } from "@/features/calendar/categories/visua
 
 type EditableEvent = { provider_event_id: string; subject: string; body_text: string | null; starts_at: string; ends_at: string; is_all_day: boolean; location_name: string | null; categories: string[]; importance: "low" | "normal" | "high"; show_as: "free" | "tentative" | "busy" | "oof" | "workingElsewhere" | "unknown"; last_synced_at: string };
 const initial: CalendarCreateState = { status: "idle", message: "" };
-const control = "h-9 min-w-0 rounded-[9px] border-0 bg-[var(--surface-control)] px-2.5 text-[12.5px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]";
+const control = "ui-field h-9 min-w-0 rounded-[9px] border-0 bg-[var(--surface-control)] px-2.5 text-[12.5px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]";
 
 type CalendarEventEditProps = { event: EditableEvent; timezone: string; calendarCategories: CalendarCategory[]; categoriesEnabled?: boolean; onReconcile?: (kind: "update" | "delete") => Promise<void> | void };
 

@@ -55,7 +55,7 @@ export function NotesKnowledgeEntry({ folderName }: { folderName?: string | null
           maxLength={2_000}
           placeholder="询问你的知识库…"
           aria-label="询问你的笔记"
-          className="h-9 min-w-0 flex-1 rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+          className="ui-field h-9 min-w-0 flex-1 rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
         />
         <button
           type="submit"

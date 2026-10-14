@@ -374,7 +374,7 @@ export function NotesWorkspace({
                 if (event.key === "Enter" && normalizedQuery) { event.preventDefault(); resultLinks()[0]?.click(); }
               }}
               placeholder={selectedFolder && scope === "context" ? `搜索内容 · ${selectedFolder.name}` : "搜索内容 · 标题、正文或文件夹"}
-              className="h-11 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] pl-8 pr-16 text-[16px] md:h-9 md:text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+              className="ui-field h-11 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] pl-8 pr-16 text-[16px] md:h-9 md:text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
             />
             <span className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
               {!query ? <kbd aria-hidden="true" className="mr-2 hidden text-[12px] text-[var(--text-tertiary)] md:inline">/</kbd> : null}

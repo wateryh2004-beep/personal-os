@@ -20,8 +20,14 @@ const output = "test-results/design-v2";
       await page.route("**/api/**", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Synthetic offline boundary" }) }));
       await page.addInitScript(() => {
         window.__sceneTransitions = 0;
+        window.__sceneAnimations = [];
         const native = Document.prototype.startViewTransition;
-        if (native) Document.prototype.startViewTransition = function (...args) { window.__sceneTransitions++; return native.apply(this, args); };
+        if (native) Document.prototype.startViewTransition = function (...args) {
+          window.__sceneTransitions++;
+          const transition = native.apply(this, args);
+          transition.ready.then(() => window.__sceneAnimations.push(...document.getAnimations().filter(animation => animation instanceof CSSAnimation).map(animation => animation.animationName))).catch(() => {});
+          return transition;
+        };
       });
       for (const scene of ["today-filled", "tasks", "calendar", "notes", "files", "career-filled", "projects"]) {
         await page.goto(`${base}/mobile-native-e2e?scene=${scene}`);
@@ -50,6 +56,8 @@ const output = "test-results/design-v2";
       await page.screenshot({ animations: "disabled", path: `${output}/leisure-detail-${width}.png`, fullPage: true });
       const transitions = await page.evaluate(() => window.__sceneTransitions);
       assert.ok(transitions > 0, "App Router activates a native scene transition");
+      const sceneAnimations = await page.evaluate(() => window.__sceneAnimations);
+      assert.ok(sceneAnimations.includes("workspace-arrive"), "the shared workspace choreography actually runs");
       await page.goBack();
       await page.locator('#leisure-collection-heading').waitFor();
       await page.screenshot({ animations: "disabled", path: `${output}/leisure-return-${width}.png` });
@@ -60,7 +68,7 @@ const output = "test-results/design-v2";
       assert.equal(tokens.accent.toLowerCase(), "#37594b");
       assert.match(tokens.serif, /Songti SC/);
       assert.deepEqual(errors, []);
-      evidence.push({ width, tokens, nativeTransitions: transitions, errors });
+      evidence.push({ width, tokens, nativeTransitions: transitions, sceneAnimations, errors });
       await context.close();
     }
     const reduced = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });

@@ -7,7 +7,7 @@
   --foreground:#252C29;
   --card:#FFFEFA;
   --muted:#F0F1EB;
-  --muted-foreground:#697269;
+  --muted-foreground:var(--text-tertiary);
   --border:#D9DDD4;
   --primary:#37594B;
   --primary-soft:#E8EEE6;

@@ -17,7 +17,7 @@ import { taskDueInputToIso } from "@/features/tasks/due-time";
 const initialState: TodoCreateState = { status: "idle", message: "" };
 
 const fieldClass =
-  "h-9 w-full rounded-[var(--radius-md)] border-0 bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]";
+  "ui-field h-9 w-full rounded-[var(--radius-md)] border-0 bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]";
 
 export function MicrosoftTodoCreateDialog({
   lists,
@@ -162,7 +162,7 @@ export function MicrosoftTodoCreateDialog({
                 rows={4}
                 maxLength={10000}
                 placeholder="补充背景、步骤或链接"
-                className="min-h-24 w-full resize-y rounded-[var(--radius-md)] border-0 bg-[var(--surface-control)] px-3 py-2.5 text-[13px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]"
+                className="ui-field min-h-24 w-full resize-y rounded-[var(--radius-md)] border-0 bg-[var(--surface-control)] px-3 py-2.5 text-[13px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]"
               />
             </label>
 

@@ -21,7 +21,7 @@ export function CareerAssistant({ experienceId }: { experienceId: string }) {
   return (
     <section className="border-t pt-8">
       <div className="flex items-center gap-2">
-        <Sparkles className="size-4 text-[#365F78]" />
+        <Sparkles className="size-4 text-[var(--accent)]" />
         <h2 className="font-medium">AI 分析</h2>
       </div>
       <p className="mt-1 text-sm text-[var(--text-secondary)]">
@@ -74,7 +74,7 @@ export function CareerAssistant({ experienceId }: { experienceId: string }) {
             停止
           </button>
         ) : (
-          <button className="bg-[#365F78] px-3 py-2 text-sm text-white">
+          <button className="bg-[var(--accent)] px-3 py-2 text-sm text-white">
             分析
           </button>
         )}

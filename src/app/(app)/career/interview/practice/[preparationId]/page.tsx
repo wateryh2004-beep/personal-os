@@ -66,7 +66,7 @@ export default async function PracticeDetailPage({ params, searchParams }: {
         {data.linkedStories.length ? (
           <label className="mb-8 block">
             <span className="text-[12px] font-medium text-[var(--text-tertiary)]">这次调用的故事</span>
-            <select name="story_id" defaultValue={primaryStory?.story.id ?? ""} className="mt-2 h-9 w-full max-w-xl rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none">
+            <select name="story_id" defaultValue={primaryStory?.story.id ?? ""} className="ui-field mt-2 h-9 w-full max-w-xl rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none">
               <option value="">不指定故事</option>
               {data.linkedStories.map((item) => (
                 <option key={item.story.id} value={item.story.id}>{item.story.title}{item.evidence_role === "primary" ? " · 首选" : ""}</option>

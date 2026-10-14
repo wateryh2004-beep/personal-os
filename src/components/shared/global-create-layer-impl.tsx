@@ -128,7 +128,7 @@ export function GlobalCreateLayer({ initialRequest, contentOnly = false, onClose
         <legend className="sr-only">{selected?.label}内容</legend>
         {kind === "task" ? <>
           {field("任务内容", <Input key={`task-${prefill}`} autoFocus name="title" required maxLength={500} defaultValue={prefill} placeholder="写下要做的事" />)}
-          {field("清单", <select key={lists.length ? "loaded" : "loading"} name="todo_list_id" required defaultValue={lists.find((list) => list.isDefault)?.id ?? lists[0]?.id ?? ""} className="h-9 rounded-[var(--radius-md)] border bg-[var(--surface-control)] px-3 text-sm"><option value="" disabled>{lists.length ? "选择清单" : message ? "清单暂未读取" : "正在读取清单…"}</option>{lists.map((list) => <option key={list.id} value={list.id}>{list.displayName}</option>)}</select>)}
+          {field("清单", <select key={lists.length ? "loaded" : "loading"} name="todo_list_id" required defaultValue={lists.find((list) => list.isDefault)?.id ?? lists[0]?.id ?? ""} className="ui-field h-9 rounded-[var(--radius-md)] border bg-[var(--surface-control)] px-3 text-sm"><option value="" disabled>{lists.length ? "选择清单" : message ? "清单暂未读取" : "正在读取清单…"}</option>{lists.map((list) => <option key={list.id} value={list.id}>{list.displayName}</option>)}</select>)}
           {!lists.length && message ? <button type="button" className="min-h-11 justify-self-start text-[13px] text-[var(--accent)]" onClick={() => { setMessage(""); setListAttempt((value) => value + 1); }}>重新读取清单</button> : null}
           {field("截止时间", <Input name="due_at" type="datetime-local" />, true)}
           <input type="hidden" name="body_text" value="" /><input type="hidden" name="importance" value="normal" />

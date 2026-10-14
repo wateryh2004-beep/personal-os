@@ -315,7 +315,7 @@ export function NoteAiAssistant({
     return wordDiff(request.content, result.suggestion);
   }, [request, result.suggestion, rewrite]);
   const statusColor =
-    result.status === "error" ? "text-red-700" : "text-[#365F78]";
+    result.status === "error" ? "text-red-700" : "text-[var(--accent)]";
   const replaceLabel = request?.scope === "selection"
     ? "确认并替换所选文字"
     : "确认并替换全文";
@@ -598,7 +598,7 @@ export function NoteAiAssistant({
                   }
                 }
               }}
-              className="min-h-24 w-full resize-none rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 text-[12.5px] leading-5.5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+              className="ui-field min-h-24 w-full resize-none rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 text-[12.5px] leading-5.5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
             />
             <button
               disabled={

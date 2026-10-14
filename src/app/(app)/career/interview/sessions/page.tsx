@@ -26,7 +26,7 @@ export default async function InterviewSessionsPage() {
 
       <div className="mb-8 flex justify-end">
         <details className="group">
-          <summary className="cursor-pointer list-none text-sm font-medium text-[#365F78]">+ 新建面试记录</summary>
+          <summary className="cursor-pointer list-none text-sm font-medium text-[var(--accent)]">+ 新建面试记录</summary>
           <div className="mt-4 rounded-2xl bg-[var(--surface-canvas)] p-5">
             <form action={createInterviewSession} className="grid gap-4 md:grid-cols-3 lg:w-[760px]">
               <Field name="title" label="标题" required placeholder="太古 MT · 模拟面试 #1" />

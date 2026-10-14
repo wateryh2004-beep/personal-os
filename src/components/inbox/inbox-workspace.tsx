@@ -417,7 +417,7 @@ function inputToIso(input: string) {
 }
 
 const inputClass =
-  "h-9 w-full rounded-[9px] border border-transparent bg-[var(--surface-control)] px-2.5 text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]";
+  "ui-field h-9 w-full rounded-[9px] border border-transparent bg-[var(--surface-control)] px-2.5 text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]";
 
 function ManualTaskForm({
   item,
@@ -671,7 +671,7 @@ export function InboxWorkspace({
           maxLength={10_000}
           rows={3}
           placeholder="想到什么，就先记下来…"
-          className="min-h-24 w-full resize-y rounded-[11px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 text-[13px] leading-5.5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+          className="ui-field min-h-24 w-full resize-y rounded-[11px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 text-[13px] leading-5.5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
         />
         <div className="mt-2.5 flex items-center justify-between gap-3">
           <p className="text-[12px] leading-5 text-[var(--text-tertiary)]">

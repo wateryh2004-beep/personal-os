@@ -22,7 +22,7 @@ export function PracticeReflectionFields({ submitPending = false, submitFailed =
           inputMode="numeric"
           aria-describedby="practice-duration-help"
           placeholder="如 90"
-          className="mt-2 block h-9 w-32 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+          className="ui-field mt-2 block h-9 w-32 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
         />
         <span id="practice-duration-help" className="mt-1.5 block text-[12px] text-[var(--text-tertiary)]">按实际回答时长填写，60 秒 = 1 分钟；没计时可留空</span>
       </label>
@@ -51,7 +51,7 @@ export function PracticeReflectionFields({ submitPending = false, submitFailed =
           rows={3}
           maxLength={50_000}
           placeholder="哪里卡住了？哪里可以更直接？"
-          className="mt-2 w-full resize-y rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[14px] leading-6 text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+          className="ui-field mt-2 w-full resize-y rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[14px] leading-6 text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
         />
       </label>
 
@@ -63,7 +63,7 @@ export function PracticeReflectionFields({ submitPending = false, submitFailed =
           maxLength={5000}
           aria-describedby="practice-focus-help"
           placeholder="写下下次练习最想改进的一个具体点"
-          className="mt-2 w-full resize-y rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[14px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+          className="ui-field mt-2 w-full resize-y rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[14px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
         />
         <span id="practice-focus-help" className="mt-1.5 block text-[12px] text-[var(--text-tertiary)]">填写后会更新这道题的练习重点；留空则保留原重点</span>
       </label>

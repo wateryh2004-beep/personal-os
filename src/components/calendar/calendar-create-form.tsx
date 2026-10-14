@@ -9,7 +9,7 @@ import { MentionTextarea } from "@/components/links/entity-mention-textarea";
 import { getManagedCalendarCategory } from "@/features/calendar/classification/taxonomy";
 
 const initialCalendarCreateState: CalendarCreateState = { status: "idle", message: "" };
-const control = "h-9 min-w-0 rounded-[9px] border-0 bg-[var(--surface-control)] px-2.5 text-[12.5px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]";
+const control = "ui-field h-9 min-w-0 rounded-[9px] border-0 bg-[var(--surface-control)] px-2.5 text-[12.5px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_14%,transparent)]";
 
 export function CalendarCreateForm({ timezone, categoriesEnabled = true, initialStart, initialEnd, initialAllDay = false, onCreated }: { timezone: string; categoriesEnabled?: boolean; initialStart?: string; initialEnd?: string; initialAllDay?: boolean; onCreated?: () => Promise<void> | void }) {
   const subjectInputRef = useRef<HTMLInputElement>(null);

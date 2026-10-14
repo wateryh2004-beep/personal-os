@@ -201,7 +201,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
         onKeyDown={(event) => { if (event.key === "Escape") setNavigatorQuery(""); }}
         autoComplete="off"
         placeholder="快速打开…"
-        className="h-8 w-full rounded-[9px] border border-transparent bg-[var(--surface-control)] pl-8 pr-8 text-[12px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+        className="ui-field h-8 w-full rounded-[9px] border border-transparent bg-[var(--surface-control)] pl-8 pr-8 text-[12px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
       />
       {navigatorQuery ? <button type="button" onClick={() => setNavigatorQuery("")} className="pressable absolute right-1 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" aria-label="清空切换搜索"><X className="size-3" aria-hidden="true" /></button> : null}
     </label>

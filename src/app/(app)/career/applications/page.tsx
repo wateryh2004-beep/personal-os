@@ -17,7 +17,7 @@ const stages = [
 ] as const;
 
 const stageLabel = Object.fromEntries(stages);
-const controlClass = "h-9 rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
+const controlClass = "ui-field h-9 rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
 const labelClass = "grid gap-1.5 text-[12px] font-medium text-[var(--text-secondary)]";
 
 export default async function ApplicationsPage({ searchParams }: { searchParams: Promise<{ opportunity?: string }> }) {

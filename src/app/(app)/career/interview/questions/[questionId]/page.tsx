@@ -82,7 +82,7 @@ export default async function InterviewQuestionPage({
         <form action={ensureInterviewPreparation} className="py-6">
           <input type="hidden" name="question_id" value={questionId} />
           <input type="hidden" name="context_id" value={context ?? ""} />
-          <button className="text-sm font-medium text-[#365F78]">开始写 →</button>
+          <button className="text-sm font-medium text-[var(--accent)]">开始写 →</button>
         </form>
       ) : (
         <>
@@ -126,7 +126,7 @@ export default async function InterviewQuestionPage({
               />
               <div className="mt-2 flex items-center gap-4">
                 <button className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">保存并确认为当前答案</button>
-                <Link href={`/career/interview/practice/${prep.id}`} className="text-xs font-medium text-[#365F78]">练习这道题 →</Link>
+                <Link href={`/career/interview/practice/${prep.id}`} className="text-xs font-medium text-[var(--accent)]">练习这道题 →</Link>
               </div>
             </form>
           </section>
@@ -160,7 +160,7 @@ export default async function InterviewQuestionPage({
                   </summary>
                   <div className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-[var(--text-primary)]">{answer.body_markdown}</div>
                   <div className="mt-3 flex flex-wrap gap-4 text-xs">
-                    {answer.status !== "current" ? <form action={promoteInterviewAnswerVersion}><input type="hidden" name="answer_id" value={answer.id}/><button className="min-h-11 text-[#365F78]">确认并设为当前答案</button></form> : null}
+                    {answer.status !== "current" ? <form action={promoteInterviewAnswerVersion}><input type="hidden" name="answer_id" value={answer.id}/><button className="min-h-11 text-[var(--accent)]">确认并设为当前答案</button></form> : null}
                     <form action={archiveInterviewAnswerVersion}><input type="hidden" name="answer_id" value={answer.id}/><input type="hidden" name="preparation_id" value={prep.id}/><button className="min-h-11 text-[var(--text-secondary)]">归档</button></form>
                   </div>
                 </details>
@@ -223,7 +223,7 @@ export default async function InterviewQuestionPage({
                       {Object.entries(storyEvidenceRoleLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
                     <input type="hidden" name="fit_note" value="" />
-                    <button className="text-xs text-[#365F78]">关联故事</button>
+                    <button className="text-xs text-[var(--accent)]">关联故事</button>
                   </form>
                 ) : null}
               </section>
@@ -273,7 +273,7 @@ export default async function InterviewQuestionPage({
                   <select aria-label="关联方式" name="relationship_type" defaultValue="supporting_evidence" className="px-3 py-2 text-sm">
                     {evidenceRelationships.map((value) => <option key={value} value={value}>{evidenceRelationshipLabels[value]}</option>)}
                   </select>
-                  <button className="text-xs text-[#365F78]">关联</button>
+                  <button className="text-xs text-[var(--accent)]">关联</button>
                 </form>
               </section>
 
@@ -304,7 +304,7 @@ export default async function InterviewQuestionPage({
                   <input type="hidden" name="parent_question_id" value={question.id} />
                   <input type="hidden" name="follow_up_kind" value="deep_dive" />
                   <input type="hidden" name="difficulty" value={Math.min(5, Number(question.difficulty) + 1)} />
-                  <button className="mt-2 text-xs text-[#365F78]">添加</button>
+                  <button className="mt-2 text-xs text-[var(--accent)]">添加</button>
                 </form>
               </section>
 
@@ -329,7 +329,7 @@ export default async function InterviewQuestionPage({
                   <input type="hidden" name="difficulty" value={question.difficulty}/>
                   <input type="hidden" name="parent_question_id" value={question.parent_question_id ?? ""}/>
                   <input type="hidden" name="follow_up_kind" value={question.follow_up_kind ?? ""}/>
-                  <button className="w-fit text-xs text-[#365F78]">保存题目</button>
+                  <button className="w-fit text-xs text-[var(--accent)]">保存题目</button>
                 </form>
                 <form action={archiveInterviewQuestion} className="mt-3"><input type="hidden" name="question_id" value={question.id}/><button className="text-xs text-red-600">归档题目</button></form>
               </details>

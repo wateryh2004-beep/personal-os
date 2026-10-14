@@ -121,7 +121,7 @@ export function TaskAssistant() {
             type="button"
             disabled={waiting}
             onClick={() => setModel("deepseek-v4-flash")}
-            className={`px-3 py-1 text-xs ${model === "deepseek-v4-flash" ? "bg-[#EDF3F6] text-[#365F78]" : "text-[var(--text-secondary)]"}`}
+            className={`px-3 py-1 text-xs ${model === "deepseek-v4-flash" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}
           >
             Flash
           </button>
@@ -129,7 +129,7 @@ export function TaskAssistant() {
             type="button"
             disabled={waiting}
             onClick={() => setModel("deepseek-v4-pro")}
-            className={`border-l px-3 py-1 text-xs ${model === "deepseek-v4-pro" ? "bg-[#EDF3F6] text-[#365F78]" : "text-[var(--text-secondary)]"}`}
+            className={`border-l px-3 py-1 text-xs ${model === "deepseek-v4-pro" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}
           >
             Pro
           </button>
@@ -146,7 +146,7 @@ export function TaskAssistant() {
                 return message.role === "user" ? (
                   <p
                     key={index}
-                    className="inline-block bg-[#EDF3F6] px-3 py-2 text-sm"
+                    className="inline-block bg-[var(--accent-soft)] px-3 py-2 text-sm"
                   >
                     {part.text}
                   </p>
@@ -224,7 +224,7 @@ export function TaskAssistant() {
               停止
             </button>
           ) : (
-            <button className="bg-[#365F78] px-3 py-2 text-sm text-white">
+            <button className="bg-[var(--accent)] px-3 py-2 text-sm text-white">
               发送
             </button>
           )}

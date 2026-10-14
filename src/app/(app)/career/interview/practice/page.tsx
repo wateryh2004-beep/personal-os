@@ -18,7 +18,7 @@ export default async function InterviewPracticePage({ searchParams }: { searchPa
       <InterviewNav current="/career/interview/practice" context={context} />
 
       <form className="mb-8 flex items-center gap-2">
-        <select aria-label="面试岗位" name="context" defaultValue={context ?? ""} className="h-9 max-w-sm rounded-[10px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]">
+        <select aria-label="面试岗位" name="context" defaultValue={context ?? ""} className="ui-field h-9 max-w-sm rounded-[10px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]">
           <option value="">全部岗位</option>
           <option value="general">通用面试</option>
           {data.contexts.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}

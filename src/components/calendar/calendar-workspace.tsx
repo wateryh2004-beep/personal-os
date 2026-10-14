@@ -500,7 +500,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-auto p-3">
                   <label className="grid gap-1.5 text-[12px] text-[var(--text-secondary)]">{view === "month" ? "跳到月份" : "跳到日期"}
-                    <input type={view === "month" ? "month" : "date"} defaultValue={instantToWallTime(cursor.toISOString(), timezone).slice(0, view === "month" ? 7 : 10)} onChange={(event) => { const value = event.target.value; if (value) jumpToDate(view === "month" ? `${value}-01` : value); }} className="h-9 min-w-52 rounded-[var(--radius-md)] border-0 bg-[var(--surface-control)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]" />
+                    <input type={view === "month" ? "month" : "date"} defaultValue={instantToWallTime(cursor.toISOString(), timezone).slice(0, view === "month" ? 7 : 10)} onChange={(event) => { const value = event.target.value; if (value) jumpToDate(view === "month" ? `${value}-01` : value); }} className="ui-field h-9 min-w-52 rounded-[var(--radius-md)] border-0 bg-[var(--surface-control)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]" />
                   </label>
                 </PopoverContent>
               </Popover>

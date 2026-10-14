@@ -46,7 +46,7 @@ export default async function InterviewSessionDetailPage({ params }: { params: P
           <span>面试官：{session.interviewer_label || "—"}</span>
           <span>开始时间：{formatDateTime(session.started_at)}</span>
         </div>
-        {session.status === "planned" ? <form action={startInterviewSession} className="mt-4"><input type="hidden" name="session_id" value={session.id}/><button className="rounded-lg bg-[#365F78] px-3 py-2 text-sm text-white">开始面试</button></form> : null}
+        {session.status === "planned" ? <form action={startInterviewSession} className="mt-4"><input type="hidden" name="session_id" value={session.id}/><button className="rounded-lg bg-[var(--accent)] px-3 py-2 text-sm text-white">开始面试</button></form> : null}
       </section>
 
       <div className="grid gap-9 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -58,7 +58,7 @@ export default async function InterviewSessionDetailPage({ params }: { params: P
               {data.attempts.map((attempt) => {
                 const parent = attempt.parent_attempt_id ? data.attempts.find((item) => item.id === attempt.parent_attempt_id) : null;
                 return (
-                  <article key={attempt.id} className={`border-l-2 pl-4 ${parent ? "ml-6 border-[#365F78]/50" : "border-[var(--separator)]"}`}>
+                  <article key={attempt.id} className={`border-l-2 pl-4 ${parent ? "ml-6 border-[var(--accent)]/50" : "border-[var(--separator)]"}`}>
                     <div className="flex items-start justify-between gap-3"><div><p className="text-xs text-[var(--text-tertiary)]">Q{attempt.sequence_no}{parent ? ` · 追问 Q${parent.sequence_no}` : ""}</p><h3 className="mt-1 font-medium">{attempt.prompt_snapshot}</h3></div><span className="text-xs text-[var(--text-tertiary)]">{attempt.duration_seconds ? `${attempt.duration_seconds}s` : ""}</span></div>
                     {attempt.response_transcript_markdown ? <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]">{attempt.response_transcript_markdown}</p> : null}
                     {attempt.self_review_markdown ? <p className="mt-2 text-xs text-[var(--text-secondary)]">自评：{attempt.self_review_markdown}</p> : null}
@@ -108,7 +108,7 @@ export default async function InterviewSessionDetailPage({ params }: { params: P
               <label className="grid gap-1 text-sm"><span>优势标签</span><input name="strength_tags" defaultValue={(session.strength_tags ?? []).join(", ")} className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
               <label className="grid gap-1 text-sm"><span>问题标签</span><input name="issue_tags" defaultValue={(session.issue_tags ?? []).join(", ")} className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
               <label className="grid gap-1 text-sm"><span>下次重点</span><input name="next_focus" defaultValue={session.next_focus} className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
-              <button className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 text-sm text-[#365F78] ring-1 ring-inset ring-[#365F78]/30">{session.status === "completed" ? "更新复盘" : "完成面试"}</button>
+              <button className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 text-sm text-[var(--accent)] ring-1 ring-inset ring-[var(--accent)]/30">{session.status === "completed" ? "更新复盘" : "完成面试"}</button>
             </form>
           </section>
 

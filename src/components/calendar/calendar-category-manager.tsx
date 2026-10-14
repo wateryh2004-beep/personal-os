@@ -11,7 +11,7 @@ import type { CalendarEventRecord } from "@/features/calendar/types";
 
 const initial: CalendarCreateState = { status: "idle", message: "" };
 const initialBackfill: CalendarBackfillState = { status: "idle", message: "" };
-const control = "h-8 rounded-[7px] border-0 bg-[var(--surface-control)] px-2 text-xs text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]";
+const control = "ui-field h-8 rounded-[7px] border-0 bg-[var(--surface-control)] px-2 text-xs text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]";
 
 function CategoryRow({ category }: { category: CalendarCategory }) {
   const [state, action, pending] = useActionState(updateCalendarCategoryColorAction, initial);

@@ -24,12 +24,12 @@ export default async function InterviewStoriesPage() {
         <details className="relative">
           <summary className="pressable cursor-pointer list-none rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 新故事</summary>
           <form action={createInterviewStory} className="absolute right-0 z-30 mt-2 grid w-[min(620px,90vw)] gap-3 rounded-[14px] border border-[var(--separator)] bg-[var(--material-popover)] p-4 shadow-[var(--shadow-popover)]">
-            <input aria-label="标题" name="title" required placeholder="故事标题，例如：Viewer 权限原则重构" className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none" />
-            <select aria-label="关联经历" name="experience_id" defaultValue="" className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
+            <input aria-label="标题" name="title" required placeholder="故事标题，例如：Viewer 权限原则重构" className="ui-field h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none" />
+            <select aria-label="关联经历" name="experience_id" defaultValue="" className="ui-field h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
               <option value="">不绑定经历</option>
               {data.experiences.map((experience) => <option key={experience.id} value={experience.id}>{experience.organization}{experience.role ? ` · ${experience.role}` : ""}</option>)}
             </select>
-            <textarea aria-label="一句话概括" name="one_line" rows={2} placeholder="一句话：这段故事证明了什么？" className="resize-none rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[13px] outline-none" />
+            <textarea aria-label="一句话概括" name="one_line" rows={2} placeholder="一句话：这段故事证明了什么？" className="ui-field resize-none rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[13px] outline-none" />
             <input type="hidden" name="situation_markdown" value="" />
             <input type="hidden" name="task_markdown" value="" />
             <input type="hidden" name="action_markdown" value="" />

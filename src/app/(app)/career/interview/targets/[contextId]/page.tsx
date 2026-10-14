@@ -94,7 +94,7 @@ export default async function InterviewTargetPage({ params }: { params: Promise<
               <form action={ensureInterviewPreparation}>
                 <input type="hidden" name="question_id" value={question.id} />
                 <input type="hidden" name="context_id" value={contextId} />
-                <button className="shrink-0 text-xs text-[#365F78]">加入</button>
+                <button className="shrink-0 text-xs text-[var(--accent)]">加入</button>
               </form>
             </div>
           ))}

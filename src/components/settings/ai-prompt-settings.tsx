@@ -58,7 +58,7 @@ export function AiPromptSettings({
                   defaultValue={prompt.content}
                   disabled={!available}
                   rows={prompt.key === "notes.system" ? 14 : 6}
-                  className="min-h-32 resize-y rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 font-mono text-xs font-normal leading-5 text-[var(--text-primary)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)] disabled:opacity-60"
+                  className="ui-field min-h-32 resize-y rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 font-mono text-xs font-normal leading-5 text-[var(--text-primary)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)] disabled:opacity-60"
                 />
               </label>
               <div className="flex flex-wrap items-center gap-2">

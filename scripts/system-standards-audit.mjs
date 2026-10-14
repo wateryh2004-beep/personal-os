@@ -29,6 +29,7 @@ for (const path of paths.filter(path => /\.(tsx?|css)$/.test(path))) {
       [/\b(?:bg|text|border)-(?:zinc|neutral|gray)-\d+\b/g, "legacy-neutral"],
       [/\bbg-white\b/g, "fixed-white-surface"],
       [/\btransition-all\b/g, "broad-transition"],
+      [/#(?:365F78|EDF3F6|b8cbd6|f5f9fb)\b/gi, "legacy-accent"],
       [/text-\[(?:[789]|10(?:\.\d+)?|11(?:\.\d+)?)px\]/g, "small-ui-type"],
     ]) for (const match of source.matchAll(pattern)) add(path, source, match.index, rule, "error");
   }

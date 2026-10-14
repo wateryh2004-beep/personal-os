@@ -137,14 +137,14 @@ function CalendarProposalForm({
       <input type="hidden" name="show_as" value={event.showAs} />
       <button
         disabled={pending || state.status === "success"}
-        className="mt-3 bg-[#365F78] px-3 py-1.5 text-xs text-white disabled:opacity-60"
+        className="mt-3 bg-[var(--accent)] px-3 py-1.5 text-xs text-white disabled:opacity-60"
       >
         {pending ? "正在创建…" : state.status === "success" ? "已创建" : "确认创建日程"}
       </button>
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`mt-2 text-xs ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}
+          className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
         >
           {state.message}
         </p>
@@ -191,7 +191,7 @@ function CalendarDeleteProposalForm({
       {state.status !== "idle" ? (
         <p
           role="status"
-          className={`mt-2 text-xs ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}
+          className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}
         >
           {state.message}
         </p>
@@ -202,14 +202,14 @@ function CalendarDeleteProposalForm({
 
 function CalendarUpdateProposalForm({ event, timezone }: { event: CalendarUpdateProposal["proposal"]; timezone: string }) {
   const [state, formAction, pending] = useActionState(updateCalendarEvent, initialCalendarCreateState);
-  return <form action={formAction} className="mt-2 border border-[#b8cbd6] bg-[#f5f9fb] p-3 text-left text-sm">
+  return <form action={formAction} className="mt-2 border border-[var(--control-border)] bg-[var(--surface-control)] p-3 text-left text-sm">
     <p className="font-medium">修改日程：{event.subject}</p>
     <p className="mt-1 text-xs text-[var(--text-secondary)]">原时间：{eventTime({ startsAt: event.originalStartsAt, endsAt: event.originalEndsAt }, timezone)}</p>
     <p className="mt-1 text-[var(--text-secondary)]">新时间：{eventTime(event, timezone)} · {timezone}</p>
     {event.locationName ? <p className="mt-1 text-xs text-[var(--text-secondary)]">{event.locationName}</p> : null}
     <input type="hidden" name="provider_event_id" value={event.providerEventId}/><input type="hidden" name="original_subject" value={event.originalSubject}/><input type="hidden" name="original_starts_at" value={event.originalStartsAt}/><input type="hidden" name="original_ends_at" value={event.originalEndsAt}/><input type="hidden" name="subject" value={event.subject}/>{event.description !== undefined ? <input type="hidden" name="description" value={event.description ?? ""}/> : null}<input type="hidden" name="starts_at" value={event.startsAt}/><input type="hidden" name="ends_at" value={event.endsAt}/>{event.locationName !== undefined ? <input type="hidden" name="location_name" value={event.locationName ?? ""}/> : null}{event.isAllDay !== undefined ? <><input type="hidden" name="is_all_day_present" value="true"/><input type="hidden" name="is_all_day" value={event.isAllDay ? "on" : ""}/></> : null}<input type="hidden" name="preserve_categories" value="true"/>{event.importance ? <input type="hidden" name="importance" value={event.importance}/> : null}{event.showAs ? <input type="hidden" name="show_as" value={event.showAs}/> : null}
-    <button disabled={pending || state.status === "success"} className="mt-3 bg-[#365F78] px-3 py-1.5 text-xs text-white disabled:opacity-60">{pending ? "正在更新…" : state.status === "success" ? "已更新" : "确认修改日程"}</button>
-    {state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}>{state.message}</p> : null}
+    <button disabled={pending || state.status === "success"} className="mt-3 bg-[var(--accent)] px-3 py-1.5 text-xs text-white disabled:opacity-60">{pending ? "正在更新…" : state.status === "success" ? "已更新" : "确认修改日程"}</button>
+    {state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[var(--accent)]" : "text-red-700"}`}>{state.message}</p> : null}
   </form>;
 }
 
@@ -302,7 +302,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
             type="button"
             disabled={waiting}
             onClick={() => setModel("deepseek-v4-flash")}
-            className={`px-3 py-1 text-xs ${model === "deepseek-v4-flash" ? "bg-[#EDF3F6] text-[#365F78]" : "text-[var(--text-secondary)]"}`}
+            className={`px-3 py-1 text-xs ${model === "deepseek-v4-flash" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}
           >
             Flash
           </button>
@@ -310,7 +310,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
             type="button"
             disabled={waiting}
             onClick={() => setModel("deepseek-v4-pro")}
-            className={`border-l px-3 py-1 text-xs ${model === "deepseek-v4-pro" ? "bg-[#EDF3F6] text-[#365F78]" : "text-[var(--text-secondary)]"}`}
+            className={`border-l px-3 py-1 text-xs ${model === "deepseek-v4-pro" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}
           >
             Pro
           </button>
@@ -331,7 +331,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
                     key={index}
                     className={
                       message.role === "user"
-                        ? "inline-block bg-[#EDF3F6] px-3 py-2 text-sm"
+                        ? "inline-block bg-[var(--accent-soft)] px-3 py-2 text-sm"
                         : "whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]"
                     }
                   >
@@ -415,7 +415,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
               停止
             </button>
           ) : (
-            <button className="bg-[#365F78] px-3 py-2 text-sm text-white">
+            <button className="bg-[var(--accent)] px-3 py-2 text-sm text-white">
               发送
             </button>
           )}

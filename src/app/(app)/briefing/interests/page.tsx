@@ -10,7 +10,7 @@ import { getBriefingInterests } from "@/features/briefing/queries";
 import { BriefingSettings } from "@/components/briefing/briefing-settings";
 
 const weights = [[80, "高"], [50, "中"], [25, "低"]] as const;
-const control = "h-9 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[12.5px] text-[var(--text-primary)] outline-none hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
+const control = "ui-field h-9 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[12.5px] text-[var(--text-primary)] outline-none hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
 const textarea = "min-h-20 w-full resize-y rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 text-[12.5px] leading-5 text-[var(--text-primary)] outline-none hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
 
 export default async function BriefingInterestsPage() {

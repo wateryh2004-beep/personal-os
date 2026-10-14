@@ -11,7 +11,10 @@ export function QuestionRecoveryForm() {
   const [step, setStep] = useState<"answer" | "password">("answer");
   const [words, setWords] = useState(["", ""]);
   const form = useRef<HTMLFormElement>(null);
+  const previousStep = useRef(step);
   useEffect(() => {
+    if (previousStep.current === step) return;
+    previousStep.current = step;
     form.current?.querySelector<HTMLInputElement>(step === "password" ? '[name="password"]' : '[name="firstWord"]')?.focus({ preventScroll: true });
   }, [step]);
 
@@ -32,7 +35,7 @@ export function QuestionRecoveryForm() {
         <fieldset className="auth-answer-fields" hidden={step !== "answer"}>
           <legend className="auth-question">你认为余航人生中最重要的事情是什么？</legend>
           <p className="auth-hint">填写两个英语单词，大小写不限。</p>
-          <div className="auth-word-pair">{[0, 1].map(index => <div key={index} className="auth-word"><AuthPassword label={index === 0 ? "第一个单词" : "第二个单词"} required name={index === 0 ? "firstWord" : "secondWord"} maxLength={64} pattern="[a-zA-Z]+" autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="xxxx" value={words[index]} onChange={event => setWords(values => values.map((value, i) => i === index ? event.target.value : value))} />{index === 0 ? <span className="auth-word-join" aria-hidden="true">和</span> : null}</div>)}</div>
+          <div className="auth-word-pair">{[0, 1].map(index => <div key={index} className="auth-word"><AuthPassword label={index === 0 ? "第一个单词" : "第二个单词"} required name={index === 0 ? "firstWord" : "secondWord"} maxLength={64} pattern="[a-zA-Z]+" autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="xxxx" value={words[index]} onChange={event => { const nextWord = event.currentTarget.value; setWords(values => values.map((value, i) => i === index ? nextWord : value)); }} />{index === 0 ? <span className="auth-word-join" aria-hidden="true">和</span> : null}</div>)}</div>
         </fieldset>
         <div className="auth-password-fields auth-fields" hidden={step !== "password"} key={step}>
           <AuthPassword label="新密码" required name="password" minLength={10} maxLength={128} autoComplete="new-password" placeholder="至少 10 个字符" />

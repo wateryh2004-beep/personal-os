@@ -34,11 +34,11 @@ export default async function InterviewStoryPage({ params }: { params: Promise<{
         <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
           <label className="grid gap-1.5">
             <span className="text-[12px] font-medium text-[var(--text-tertiary)]">故事标题</span>
-            <input name="title" required defaultValue={story.title} className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none" />
+            <input name="title" required defaultValue={story.title} className="ui-field h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none" />
           </label>
           <label className="grid gap-1.5">
             <span className="text-[12px] font-medium text-[var(--text-tertiary)]">状态</span>
-            <select name="status" defaultValue={story.status} className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
+            <select name="status" defaultValue={story.status} className="ui-field h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
               {Object.entries(storyStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
@@ -46,7 +46,7 @@ export default async function InterviewStoryPage({ params }: { params: Promise<{
 
         <label className="mt-4 grid gap-1.5">
           <span className="text-[12px] font-medium text-[var(--text-tertiary)]">对应经历</span>
-          <select name="experience_id" defaultValue={story.experience_id ?? ""} className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
+          <select name="experience_id" defaultValue={story.experience_id ?? ""} className="ui-field h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
             <option value="">不绑定经历</option>
             {data.experiences.map((experience) => <option key={experience.id} value={experience.id}>{experience.organization}{experience.role ? ` · ${experience.role}` : ""}</option>)}
           </select>

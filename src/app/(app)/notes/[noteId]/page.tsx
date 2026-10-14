@@ -69,7 +69,7 @@ export default async function NotePage({ params }: { params: Promise<{ noteId: s
     <section>
       <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">AI 隐私</h2>
       <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">敏感和“永不使用”笔记不会作为第三方模型的背景上下文。选择后立即生效。</p>
-      <form action={setNoteAiVisibility} className="mt-2.5 flex flex-wrap items-center gap-2"><input type="hidden" name="note_id" value={data.note.id}/><select aria-label="AI 可见范围" name="ai_visibility" defaultValue={data.note.ai_visibility ?? "normal"} className="h-8 rounded-[8px] border border-transparent bg-[var(--surface-control)] px-2.5 text-[12px] text-[var(--text-primary)] outline-none"><option value="normal">AI 可正常使用</option><option value="sensitive">敏感：默认不发送</option><option value="never">永不发送给 AI</option></select><button className="pressable h-8 rounded-[8px] px-2.5 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">保存</button></form>
+      <form action={setNoteAiVisibility} className="mt-2.5 flex flex-wrap items-center gap-2"><input type="hidden" name="note_id" value={data.note.id}/><select aria-label="AI 可见范围" name="ai_visibility" defaultValue={data.note.ai_visibility ?? "normal"} className="ui-field h-8 rounded-[8px] border border-transparent bg-[var(--surface-control)] px-2.5 text-[12px] text-[var(--text-primary)] outline-none"><option value="normal">AI 可正常使用</option><option value="sensitive">敏感：默认不发送</option><option value="never">永不发送给 AI</option></select><button className="pressable h-8 rounded-[8px] px-2.5 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">保存</button></form>
     </section>
 
     <section>
