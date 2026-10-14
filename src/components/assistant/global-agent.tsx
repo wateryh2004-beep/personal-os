@@ -23,6 +23,7 @@ import { AgentActionGroup } from "./agent-action-group";
 import { AgentSources } from "./agent-sources";
 import { AssistantStreamSources } from "./assistant-stream-sources";
 import { loadWorkspaceSession, saveWorkspaceSession, removeWorkspaceSession } from "@/lib/workspace-session";
+import { captureWorkspaceScope, WorkspaceReadSupersededError } from "@/lib/workspace-resource-cache";
 import { perfMark } from "@/lib/perf";
 import { errorMessage, runError, type RunPayload, type RunStep } from "./agent-errors";
 
@@ -68,6 +69,7 @@ function suggestionsForSurface(surface: string) {
 }
 
 export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [scopeIsCurrent] = useState(() => captureWorkspaceScope());
   useEffect(() => perfMark("agent-lazy-mounted"), []);
   const pathname = usePathname();
   const currentSurface = surfaceForPath(pathname);
@@ -88,19 +90,20 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
     onFinish: () => { submittedDraft.current = null; void refreshRun(); },
     onError: () => {
       const draft = submittedDraft.current;
-      if (draft) { retainFailedDraft(draft); setInput(current => current || draft); }
+      if (draft && scopeIsCurrent()) { retainFailedDraft(draft); setInput(current => current || draft); }
     },
   });
   const waiting = status !== "ready";
 
   const refreshRun = useCallback(async () => {
-    if (!open) return;
+    if (!open || !scopeIsCurrent()) return;
     const runId = runIdRef.current;
     if (!runId) return;
     try {
       const response = await fetch(`/api/assistant/runs/${runId}`, { cache: "no-store" });
       if (!response.ok) return;
       const payload = (await response.json()) as RunPayload;
+      if (!scopeIsCurrent()) return;
       setSteps(payload.steps ?? []);
       setActions(payload.actions ?? []);
       setLocalError(runError(payload));
@@ -108,7 +111,7 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
     } catch {
       // Streaming remains usable if persistence refresh is temporarily offline.
     }
-  }, [messages.length, open, setMessages, waiting, setLocalError]);
+  }, [messages.length, open, scopeIsCurrent, setMessages, waiting, setLocalError]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -123,6 +126,7 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
     if (!open) return;
     let disposed = false;
     const timer = window.setTimeout(async () => {
+      if (!scopeIsCurrent()) return;
       let storedRun = loadWorkspaceSession<unknown>(runStorageKey);
       let storedDraft = loadWorkspaceSession<unknown>(draftStorageKey);
       // The identity boundary clears legacy keys before mounting a different
@@ -146,12 +150,12 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
           const response = await fetch(`/api/assistant/runs/${runId}`, { cache: "no-store" });
           if (response.ok) {
             const payload = (await response.json()) as RunPayload;
-            if (disposed) return;
+            if (disposed || !scopeIsCurrent()) return;
             setMessages((payload.messages ?? []) as AssistantUIMessage[]);
             setSteps(payload.steps ?? []);
             setActions(payload.actions ?? []);
             setLocalError(runError(payload));
-          } else if (!disposed) {
+          } else if (!disposed && scopeIsCurrent()) {
             runIdRef.current = null;
             setActiveRunId(null);
             removeWorkspaceSession(runStorageKey);
@@ -160,12 +164,12 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
           // Preserve id for a later retry.
         }
       }
-      if (!disposed) setRestoring(false);
+      if (!disposed && scopeIsCurrent()) setRestoring(false);
     }, 0);
     return () => { disposed = true; window.clearTimeout(timer); };
-  }, [open, setMessages]);
+  }, [open, scopeIsCurrent, setMessages]);
 
-  useEffect(() => { if (open && !restoring) saveWorkspaceSession(draftStorageKey, input); }, [input, open, restoring]);
+  useEffect(() => { if (open && !restoring && scopeIsCurrent()) saveWorkspaceSession(draftStorageKey, input); }, [input, open, restoring, scopeIsCurrent]);
 
   const ensureRun = useCallback(async (currentEntity: { type: string; id: string } | null) => {
     if (runIdRef.current) return runIdRef.current;
@@ -175,12 +179,13 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
       body: JSON.stringify({ surface: "global", currentPath: pathname, currentEntity }),
     });
     const payload = (await response.json()) as { runId?: string; error?: string };
+    if (!scopeIsCurrent()) throw new WorkspaceReadSupersededError("workspace_scope_changed");
     if (!response.ok || !payload.runId) throw new Error(payload.error || "Agent 操作会话暂时不可用。");
     runIdRef.current = payload.runId;
     setActiveRunId(payload.runId);
     saveWorkspaceSession(runStorageKey, payload.runId);
     return payload.runId;
-  }, [pathname]);
+  }, [pathname, scopeIsCurrent]);
 
   useEffect(() => {
     if (!open || !activeRunId) return;
@@ -205,7 +210,7 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
 
   const submitText = useCallback(async (value: string) => {
     const text = value.trim();
-    if (!open || !text || pendingSubmitRef.current) return;
+    if (!open || !scopeIsCurrent() || !text || pendingSubmitRef.current) return;
     pendingSubmitRef.current = true;
     try {
       const selectedText = window.getSelection()?.toString().trim().slice(0, 4_000) || null;
@@ -213,6 +218,7 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
       const currentEntity = active?.entity ?? entityForPath(pathname);
       const gate = decideContextGate({ message: text, surface: "global", currentPath: pathname, hasCurrentSurface: Boolean(selectedText || currentEntity) });
       const runId = Boolean(runIdRef.current) || gate.mode === "action" ? await ensureRun(currentEntity) : null;
+      if (!scopeIsCurrent()) return;
       clearError();
       setLocalError(null);
       submittedDraft.current = text;
@@ -228,13 +234,14 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
         },
       });
     } catch {
+      if (!scopeIsCurrent()) return;
       retainFailedDraft(text);
       setInput(current => current || text);
       setLocalError("请求未完成，输入已保留，可以重试。");
     } finally {
       pendingSubmitRef.current = false;
     }
-  }, [clearError, ensureRun, open, pathname, sendMessage, setLocalError]);
+  }, [clearError, ensureRun, open, pathname, scopeIsCurrent, sendMessage, setLocalError]);
 
   useEffect(() => {
     const handler = (event: Event) => {
