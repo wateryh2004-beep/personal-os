@@ -7502,6 +7502,7 @@
     }
   },
   "excludedTables": {
+    "question_recovery_attempts": "Transient shared password recovery throttle; never restore authentication attempt state.",
     "file_upload_sessions": "Transient multipart provider upload IDs, leases and uncommitted bytes; never restore as resumable uploads.",
     "ai_provider_settings": "Encrypted provider credentials; reconnect manually.",
     "search_documents": "Derived search index; rebuild after approved restore.",
