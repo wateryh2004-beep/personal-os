@@ -9,10 +9,11 @@ const output = "test-results/auth-motion";
   await mkdir(output, { recursive: true });
   const browser = await chromium.launch({ headless: true });
   const evidence = [];
+  let activePage;
   try {
     for (const width of [390, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 900 }, recordVideo: { dir: `${output}/video`, size: { width: Math.min(width, 1000), height: 900 } } });
-      const page = await context.newPage(); const errors = [];
+      const page = await context.newPage(); activePage = page; const errors = [];
       page.on("pageerror", error => errors.push(error.message));
       // No user data queries: intercept only the protected destination after real local auth.
       await context.route(`${base}/today**`, route => route.fulfill({ body: "<!doctype html><h1>Synthetic Today</h1>", contentType: "text/html" }));
@@ -29,7 +30,7 @@ const output = "test-results/auth-motion";
       await capture("login");
       await page.getByRole("button", { name: "进入我的空间", exact: true }).click();
       await page.getByRole("alert").waitFor();
-      assert.equal(await page.getByRole("alert").evaluate(node => node === document.activeElement), true);
+      await page.locator('[role="alert"]:focus').waitFor();
       assert.equal(await page.locator(".auth-success").count(), 0, "failed login must never play success");
       assert.equal(await page.getByLabel("邮箱", { exact: true }).inputValue(), "owner@example.com");
       await capture("login-error");
@@ -45,7 +46,7 @@ const output = "test-results/auth-motion";
       await page.getByLabel("第二个单词", { exact: true }).fill("wrong");
       await capture("recovery-answer");
       await page.getByRole("button", { name: "继续设置密码", exact: true }).click();
-      assert.equal(await page.getByLabel("新密码", { exact: true }).evaluate(node => node === document.activeElement), true);
+      await page.locator('[name="password"]:focus').waitFor();
       await page.getByLabel("新密码", { exact: true }).fill("new-password-123");
       await page.getByLabel("确认新密码", { exact: true }).fill("new-password-123");
       await capture("recovery-password");
@@ -74,5 +75,9 @@ const output = "test-results/auth-motion";
     await reduced.close();
     await writeFile(`${output}/evidence.json`, JSON.stringify(evidence, null, 2));
     console.log("PASS: auth motion browser flows, mobile/desktop, errors, success timing, SDK cookies, reduced motion; synthetic local services only.");
+  } catch (error) {
+    await activePage?.screenshot({ path: `${output}/failure.png` });
+    await writeFile(`${output}/failure.json`, JSON.stringify({ message: error.message, focus: await activePage?.evaluate(() => ({ tag: document.activeElement?.tagName, name: document.activeElement?.getAttribute("name"), role: document.activeElement?.getAttribute("role") })) }, null, 2));
+    throw error;
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
