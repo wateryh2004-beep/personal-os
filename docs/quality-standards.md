@@ -30,12 +30,16 @@ npm ci --ignore-scripts
 npm run typecheck
 npm test
 npm run lint
+node scripts/system-standards-audit.mjs --check
 npm run build
+node scripts/check-runtime-closure.mjs
 npm run audit:ui
 git diff --check
 ```
 
 上面是入口清单，不是每个小修改都要执行的固定套餐。安装和构建前核对当前 `package.json`、lockfile 与构建前资源生成要求。`audit:ui` 当前为提示性审计，不冒充阻断式检查。
+
+`System standards v2` 工作流执行全仓 lint、明确规则的源代码门禁、构建与部署闭包检查，再用合成 Chromium 场景验证 390/1440px、原生页面过渡、弹层开闭/焦点/中断与减少动态效果，保存截图和独立连续录屏。`check-runtime-closure.mjs` 必须在构建后运行；它核对已知 CLI 告警链是否进入实际加载和部署清单，不是全部依赖的安全证明。静态规则、人工追踪项和实际覆盖见 [全系统排查](verification/2026-10-14-system-standards-v2.md)，剩余告警见 [依赖复核](security/runtime-dependencies-2026-10-14.md)。
 
 标准 Verify 工作流包含类型、Vitest、构建、合成浏览器和若干 SQL 场景；另有 Document continuity、Private OCR、Question recovery、System backup recovery 等工作流。名称和覆盖以当前工作流文件为准；其中 Document continuity 指文件阅读/恢复连续性，不是 Markdown 文档链接检查。
 
