@@ -1,5 +1,6 @@
 import "server-only";
 
+import { diagnosticErrorKind } from "@/lib/diagnostics";
 import { z } from "zod";
 import type { createClient } from "@/lib/supabase/server";
 
@@ -12,7 +13,6 @@ export async function markInboxProcessed(supabase: Supabase, userId: string, inb
   const parsed = inboxIdSchema.safeParse(inboxId);
   if (!parsed.success) {
     console.error("[inbox:markInboxProcessed] invalid inbox_id", {
-      inboxId: String(inboxId ?? "").slice(0, 64),
       target,
       destinationId,
       userId: userId.slice(0, 8),
@@ -37,7 +37,7 @@ export async function markInboxProcessed(supabase: Supabase, userId: string, inb
       target,
       destinationId,
       userId: userId.slice(0, 8),
-      error: error?.message ?? (data ? undefined : "no_row_matched"),
+      error: error ? diagnosticErrorKind(error) : "no_row_matched",
     });
     return;
   }

@@ -15,7 +15,7 @@ export function AssistantStreamSources({ sources }: { sources: AssistantStreamSo
   if (!unique.length) return null;
 
   return (
-    <details className="mt-2 rounded-[10px] bg-[var(--surface-hover)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+    <details className="mt-2 rounded-[10px] bg-[var(--surface-hover)] px-3 py-2 text-[12px] text-[var(--text-secondary)]">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-medium">
         <span>参考来源 · {unique.length}</span>
         <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />

@@ -28,7 +28,7 @@ export function SettingsWorkspace({ storage, connections, ai, general }: Record<
       <div className="grid grid-cols-2 gap-1.5 lg:sticky lg:top-5 lg:grid-cols-1">
         {sections.map(({ id, title, subtitle, icon: Icon }) => <a key={id} href={`#${id}`} aria-current={selected === id ? "page" : undefined} onClick={() => setSelected(id)} className={`flex min-h-14 items-center gap-3 rounded-xl px-3 py-3 transition-colors focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${selected === id ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-control)]"}`}>
           <Icon aria-hidden="true" size={18} className="shrink-0" />
-          <span className="min-w-0"><span className="block text-[13px] font-semibold">{title}</span><span className="mt-1 hidden text-[11px] text-[var(--text-tertiary)] lg:block">{subtitle}</span></span>
+          <span className="min-w-0"><span className="block text-[13px] font-semibold">{title}</span><span className="mt-1 hidden text-[12px] text-[var(--text-tertiary)] lg:block">{subtitle}</span></span>
           {selected === id ? <ChevronRight aria-hidden="true" size={14} className="ml-auto hidden shrink-0 lg:block" /> : null}
         </a>)}
       </div>

@@ -53,8 +53,8 @@ export function ReviewEditor({
         </label>
       ))}
       <label className="block">
-        <span className="text-sm font-semibold text-zinc-800">自由复盘</span>
-        <span className="ml-2 text-[10.5px] font-normal text-[var(--text-tertiary)]">自由写作，可留空</span>
+        <span className="text-sm font-semibold text-[var(--text-primary)]">自由复盘</span>
+        <span className="ml-2 text-[12px] font-normal text-[var(--text-tertiary)]">自由写作，可留空</span>
         <Textarea
           value={value.freeReflection}
           onChange={(event) => onChange({ ...value, freeReflection: event.target.value })}

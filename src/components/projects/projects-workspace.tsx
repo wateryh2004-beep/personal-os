@@ -72,22 +72,22 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
   };
   return (
     <div>
-      <PageHeader title="项目" description="聚合真正需要持续推进的长期工作。" action={<Button onClick={(event) => { rememberTrigger(event.currentTarget); changeOpen(true); }}><Plus aria-hidden="true" />新建项目</Button>} />
+      <PageHeader title="项目" action={<Button onClick={(event) => { rememberTrigger(event.currentTarget); changeOpen(true); }}><Plus aria-hidden="true" />新建项目</Button>} />
 
       {success ? <p role="status" className="mt-3 text-[12px] text-[var(--success)]">{success}</p> : null}
 
       {projects.length ? (
-        <div className="mt-6 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
+        <div className="ui-card mt-6 divide-y divide-[var(--separator)] px-3">
           {projects.map((project) => (
             <article key={project.id} className="group grid gap-1.5 px-2 py-3.5 transition-colors ui-transition hover:bg-[var(--surface-hover)] sm:grid-cols-[1fr_auto] sm:items-start">
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <h2 className="truncate text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{project.name}</h2>
-                  <span className="shrink-0 rounded-full bg-[var(--surface-control)] px-2 py-0.5 text-[10.5px] text-[var(--text-secondary)]">{statusLabel[project.status] ?? project.status}</span>
+                  <span className="shrink-0 rounded-full bg-[var(--surface-control)] px-2 py-0.5 text-[12px] text-[var(--text-secondary)]">{statusLabel[project.status] ?? project.status}</span>
                 </div>
                 <p className={`mt-1 line-clamp-2 text-[12px] leading-5 ${project.description ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]"}`}>{project.description || "尚未补充项目说明"}</p>
               </div>
-              <div className="text-right text-[10.5px] leading-5 text-[var(--text-tertiary)]">
+              <div className="text-right text-[12px] leading-5 text-[var(--text-tertiary)]">
                 <p>{project.due_date ? `截止 ${new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(project.due_date))}` : "持续推进"}</p>
                 <p>更新于 {new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(new Date(project.updated_at))}</p>
               </div>
@@ -98,7 +98,7 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
         <div className="flex min-h-64 flex-col items-center justify-center text-center">
           <SquareKanban className="size-6 text-[var(--text-tertiary)]" aria-hidden="true" />
           <h2 className="mt-3 text-[13.5px] font-medium text-[var(--text-primary)]">还没有进行中的项目</h2>
-          <p className="mt-1 text-[11.5px] text-[var(--text-secondary)]">只在确实需要持续推进与聚合时创建项目。</p>
+          <p className="mt-1 text-[12px] text-[var(--text-secondary)]">只在确实需要持续推进与聚合时创建项目。</p>
           <Button size="sm" className="mt-3.5" onClick={(event) => { rememberTrigger(event.currentTarget); changeOpen(true); }}>新建项目</Button>
         </div>
       )}
@@ -109,9 +109,9 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
           <form onSubmit={submit} aria-busy={pending} aria-describedby={error ? errorId : undefined} className="grid gap-3">
             <fieldset disabled={pending} className="grid min-w-0 gap-3 disabled:opacity-70">
               <legend className="sr-only">新建项目内容</legend>
-              <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-secondary)]">项目名称<Input name="name" required maxLength={180} autoComplete="off" placeholder="例如：Personal OS 2.0" /></label>
-              <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-secondary)]">说明（可选）<Textarea name="description" maxLength={8000} rows={4} autoComplete="off" placeholder="目标、边界和完成标准…" /></label>
-              <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-secondary)]">截止日期（可选）<Input name="due_date" type="date" /></label>
+              <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-secondary)]">项目名称<Input name="name" required maxLength={180} autoComplete="off" placeholder="例如：Personal OS 2.0" /></label>
+              <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-secondary)]">说明（可选）<Textarea name="description" maxLength={8000} rows={4} autoComplete="off" placeholder="目标、边界和完成标准…" /></label>
+              <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-secondary)]">截止日期（可选）<Input name="due_date" type="date" /></label>
               <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => changeOpen(false)}>取消</Button><Button type="submit">{pending ? "正在创建…" : "创建项目"}</Button></div>
             </fieldset>
             {error ? <p id={errorId} role="alert" className="text-[12px] text-[var(--danger)]">{error}</p> : null}

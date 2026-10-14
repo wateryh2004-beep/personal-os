@@ -82,10 +82,10 @@ function FileOperations({ file, folders, onArchive }: { file: FileRecord; folder
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild><button type="button" aria-label={`操作 ${file.title}`} className="pressable flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><MoreHorizontal size={15} /></button></PopoverTrigger>
     <PopoverContent aria-label={`操作 ${file.title}`} align="end" collisionPadding={12} onOpenAutoFocus={(event) => { if (window.matchMedia("(pointer: coarse)").matches) event.preventDefault(); }} className="files-actions-popover w-60 max-h-[min(65dvh,var(--radix-popover-content-available-height))] overflow-y-auto overscroll-contain">
-      <FileMutationForm action={renameFile} onSuccess={close} className="space-y-2"><input aria-label="文件名称" name="title" required maxLength={240} defaultValue={file.title} className="h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2.5 text-[11.5px] outline-none" /><input type="hidden" name="document_id" value={file.id} /><button className="text-[10.5px] font-medium text-[var(--accent)]">重命名</button></FileMutationForm>
-      <FileMutationForm action={moveFile} onSuccess={close} className="mt-2 border-t border-[var(--separator)] pt-2"><input type="hidden" name="document_id" value={file.id} /><select aria-label="目标文件夹" name="folder_id" defaultValue={file.folder_id ?? ""} className="h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2 text-[11.5px] outline-none"><option value="">根目录</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{"　".repeat(folderDepth(folder, folders))}{folder.name}</option>)}</select><button className="mt-1.5 text-[10.5px] font-medium text-[var(--accent)]">移动文件</button></FileMutationForm>
-      <FileMutationForm action={setFileAiVisibility} onSuccess={close} className="mt-2 border-t border-[var(--separator)] pt-2"><input type="hidden" name="document_id" value={file.id}/><select aria-label="文件 AI 可见性" name="ai_visibility" defaultValue={file.ai_visibility} className="h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2 text-[11.5px] outline-none"><option value="normal">AI 可正常使用</option><option value="sensitive">敏感：默认不发送</option><option value="never">永不发送给 AI</option></select><button className="mt-1.5 text-[10.5px] font-medium text-[var(--accent)]">保存隐私设置</button></FileMutationForm>
-      <button type="button" onClick={() => { close(); onArchive(file); }} className="mt-2 inline-flex items-center gap-1 border-t border-[var(--separator)] pt-2 text-[10.5px] text-[var(--danger)]"><Archive size={12} />归档</button>
+      <FileMutationForm action={renameFile} onSuccess={close} className="space-y-2"><input aria-label="文件名称" name="title" required maxLength={240} defaultValue={file.title} className="h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2.5 text-[12px] outline-none" /><input type="hidden" name="document_id" value={file.id} /><button className="text-[12px] font-medium text-[var(--accent)]">重命名</button></FileMutationForm>
+      <FileMutationForm action={moveFile} onSuccess={close} className="mt-2 border-t border-[var(--separator)] pt-2"><input type="hidden" name="document_id" value={file.id} /><select aria-label="目标文件夹" name="folder_id" defaultValue={file.folder_id ?? ""} className="h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2 text-[12px] outline-none"><option value="">根目录</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{"　".repeat(folderDepth(folder, folders))}{folder.name}</option>)}</select><button className="mt-1.5 text-[12px] font-medium text-[var(--accent)]">移动文件</button></FileMutationForm>
+      <FileMutationForm action={setFileAiVisibility} onSuccess={close} className="mt-2 border-t border-[var(--separator)] pt-2"><input type="hidden" name="document_id" value={file.id}/><select aria-label="文件 AI 可见性" name="ai_visibility" defaultValue={file.ai_visibility} className="h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2 text-[12px] outline-none"><option value="normal">AI 可正常使用</option><option value="sensitive">敏感：默认不发送</option><option value="never">永不发送给 AI</option></select><button className="mt-1.5 text-[12px] font-medium text-[var(--accent)]">保存隐私设置</button></FileMutationForm>
+      <button type="button" onClick={() => { close(); onArchive(file); }} className="mt-2 inline-flex items-center gap-1 border-t border-[var(--separator)] pt-2 text-[12px] text-[var(--danger)]"><Archive size={12} />归档</button>
 
     </PopoverContent>
   </Popover>;
@@ -299,7 +299,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
     <div className="files-workspace grid grid-rows-[auto_minmax(0,1fr)] md:grid-rows-1 h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 bg-[var(--surface-canvas)] md:min-h-[540px] md:grid-cols-[216px_minmax(0,1fr)]">
       <aside className="workspace-scroll min-h-0 max-h-48 overflow-y-auto md:max-h-none border-b border-white/55 bg-[var(--material-sidebar)] p-3 md:border-b-0 md:border-r">
         <div className="flex h-8 items-center justify-between px-1">
-          <p className="text-[10.5px] font-semibold tracking-[.04em] text-[var(--text-tertiary)]">文件夹</p>
+          <p className="text-[12px] font-semibold tracking-[.04em] text-[var(--text-tertiary)]">文件夹</p>
           <button type="button" onClick={() => setCreatingFolder((value) => !value)} aria-label="新建文件夹" className="pressable flex size-7 items-center justify-center rounded-[7px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"><FolderPlus size={15} /></button>
         </div>
 
@@ -307,14 +307,14 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           <FileMutationForm action={createFileFolder} onSuccess={() => setCreatingFolder(false)} className="mt-2 flex flex-wrap gap-1.5">
             <input aria-label="文件夹名称" name="name" required maxLength={160} autoFocus placeholder="文件夹名称" className="h-8 min-w-0 flex-1 rounded-[8px] border border-transparent bg-[var(--surface-control)] px-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]" />
             <input type="hidden" name="parent_id" value={folderId ?? ""} />
-            <button className="pressable h-8 rounded-[8px] bg-[var(--accent)] px-2.5 text-[11px] font-medium text-white">创建</button>
+            <button className="pressable h-8 rounded-[8px] bg-[var(--accent)] px-2.5 text-[12px] font-medium text-white">创建</button>
           </FileMutationForm>
         ) : null}
 
         <button onClick={() => changeBrowser({ folderId: null })} className={`pressable mt-2 flex h-[30px] w-full items-center gap-2 rounded-[8px] px-2 text-left text-[12.5px] ${folderId === null ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}>
           <Folder size={14} />
           <span className="truncate">全部文件</span>
-          <span className="ml-auto font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]">{fileRows.length}</span>
+          <span className="ml-auto font-mono text-[12px] tabular-nums text-[var(--text-tertiary)]">{fileRows.length}</span>
         </button>
         <div className="mt-px space-y-px">
           {sortedFolders.map((folder) => (
@@ -328,15 +328,15 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
             </button>
           ))}
         </div>
-        <p className="mt-4 px-1 text-[10.5px] leading-5 text-[var(--text-tertiary)]">可在当前文件夹中新建子文件夹，或移动已有文件。</p>
+        <p className="mt-4 px-1 text-[12px] leading-5 text-[var(--text-tertiary)]">可在当前文件夹中新建子文件夹，或移动已有文件。</p>
       </aside>
 
       <WorkspaceReadyMetric workspace="files" />
       <section ref={sectionRef} className="workspace-scroll min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
         <div className="flex min-h-12 flex-wrap items-start justify-between gap-3 border-b border-[var(--separator)] pb-3.5">
           <div>
-            <h1 className="text-[27px] font-semibold leading-[1.08] tracking-[-0.042em] text-[var(--text-primary)]">{activeFolder?.name ?? "全部文件"}</h1>
-            <p className="mt-0.5 text-[10.5px] tabular-nums text-[var(--text-tertiary)]">{`${visibleFiles.length} 个文件${filtering ? ` · 当前目录共 ${fileRows.filter(file => folderId === null || file.folder_id === folderId).length} 个` : ""}`}</p>
+            <h1 className="page-title">{activeFolder?.name ?? "全部文件"}</h1>
+            <p className="mt-0.5 text-[12px] tabular-nums text-[var(--text-tertiary)]">{`${visibleFiles.length} 个文件${filtering ? ` · 当前目录共 ${fileRows.filter(file => folderId === null || file.folder_id === folderId).length} 个` : ""}`}</p>
           </div>
           <div>
             <input ref={inputRef} className="hidden" type="file" multiple onChange={(event) => void upload(event.target.files)} />
@@ -353,28 +353,28 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
             <select aria-label="文件排序" value={browser.sort} onChange={event => changeBrowser({ sort: event.target.value as FileBrowserState["sort"] })} className="h-10 max-w-full rounded-[9px] border border-[var(--separator)] bg-[var(--surface-control)] px-2 text-[12px]">{fileSorts.map(sort => <option key={sort} value={sort}>{fileSortLabels[sort]}</option>)}</select>
             <div role="group" aria-label="文件显示方式" className="flex rounded-[9px] bg-[var(--surface-control)] p-1">{(["list", "grid"] as const).map(view => <button type="button" key={view} aria-pressed={browser.view === view} onClick={() => changeBrowser({ view })} className={`pressable min-h-8 rounded-[7px] px-2 text-[12px] ${browser.view === view ? "bg-[var(--surface-selected)] text-[var(--accent)]" : ""}`}>{view === "list" ? "列表" : "网格"}</button>)}</div>
           </div>
-          <div role="group" aria-label="文件类型" className="flex flex-wrap gap-1.5">{fileTypes.map(type => <button type="button" key={type} aria-pressed={browser.type === type} onClick={() => changeBrowser({ type, ...(type === "photo" ? { view: "grid" as const } : {}) })} className={`pressable min-h-9 rounded-full border px-3 text-[12px] ${browser.type === type ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--separator)] text-[var(--text-secondary)]"}`}>{fileTypeLabels[type]} <span className="font-mono text-[10px]">{selection.counts[type]}</span></button>)}</div>
-          {browser.type === "photo" ? <p className="text-[11px] leading-5 text-[var(--text-tertiary)]">按上传时间管理；不是拍摄时间。预览仅生成受限缩略图，不会自动下载原件。</p> : null}
+          <div role="group" aria-label="文件类型" className="flex flex-wrap gap-1.5">{fileTypes.map(type => <button type="button" key={type} aria-pressed={browser.type === type} onClick={() => changeBrowser({ type, ...(type === "photo" ? { view: "grid" as const } : {}) })} className={`pressable min-h-9 rounded-full border px-3 text-[12px] ${browser.type === type ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--separator)] text-[var(--text-secondary)]"}`}>{fileTypeLabels[type]} <span className="font-mono text-[12px]">{selection.counts[type]}</span></button>)}</div>
+          {browser.type === "photo" ? <p className="text-[12px] leading-5 text-[var(--text-tertiary)]">按上传时间管理；不是拍摄时间。预览仅生成受限缩略图，不会自动下载原件。</p> : null}
         </div>
 
         <FileResumableUploads busy={uploadBusy} refresh={stage} onResume={(file, session) => void upload([file], session)} onFinish={session => void finishPending(session)} />
         {uploadBusy && ["preparing", "uploading"].includes(stage) ? <button type="button" className="mb-2 min-h-9 text-[12px] text-[var(--accent)]" onClick={() => uploadController.current?.abort()}>暂停上传，保留分片</button> : null}
         <FileRecoveryPanel disabled={uploadBusy} />
 
-        {message ? <p role="status" className={`mt-2.5 text-[11px] ${messageTone === "error" ? "text-[var(--danger)]" : messageTone === "success" ? "text-[var(--success)]" : "text-[var(--text-secondary)]"}`}>{message}</p> : null}
+        {message ? <p role="status" className={`mt-2.5 text-[12px] ${messageTone === "error" ? "text-[var(--danger)]" : messageTone === "success" ? "text-[var(--success)]" : "text-[var(--text-secondary)]"}`}>{message}</p> : null}
 
         {!visibleFiles.length ? (
           <div className="flex min-h-56 flex-col items-center justify-center text-center">
             <FilePlus2 size={24} className="text-[var(--text-tertiary)]" />
             <h2 className="mt-3 text-[13.5px] font-medium text-[var(--text-primary)]">{filtering ? "没有符合条件的文件" : "这里还没有文件"}</h2>
-            <p className="mt-1 text-[11.5px] text-[var(--text-secondary)]">{filtering ? "调整类型或搜索条件，不会删除任何文件。" : "上传文件，或切换到其他文件夹。"}</p>
+            <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{filtering ? "调整类型或搜索条件，不会删除任何文件。" : "上传文件，或切换到其他文件夹。"}</p>
             {filtering ? <button type="button" onClick={() => changeBrowser({ query: "", type: "all" })} className="mt-3 min-h-9 px-3 text-[12px] text-[var(--accent)]">清除筛选</button> : null}
           </div>
         ) : browser.view === "grid" ? (
           <ul aria-label="文件网格" className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
             {displayedFiles.map(file => <li id={`file-${file.id}`} key={file.id} className={`min-w-0 overflow-hidden rounded-[12px] border border-[var(--separator)] bg-[var(--surface-canvas)] ${file.id === highlightId ? "ring-2 ring-[var(--accent)]" : ""}`}>
               {classifyFile(file) === "photo" ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="block w-full"><FilePhoto file={file} className="aspect-square w-full" /></button> : isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="block w-full"><FilePdfCover file={file} /></button> : <div className="flex aspect-square items-center justify-center bg-[var(--surface-control)] text-[var(--text-tertiary)]"><File size={36} /></div>}
-              <div className="min-w-0 p-2.5">{classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} aria-label={`打开预览：${file.title}`} title={file.title} className="block w-full truncate text-left text-[12.5px] font-medium hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[12.5px] font-medium" title={file.title}>{file.title}</p>}<p className="mt-1 text-[10px] text-[var(--text-tertiary)]">{fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)}</p><p className="mt-1 text-[10px] text-[var(--text-tertiary)]">上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}</p>
+              <div className="min-w-0 p-2.5">{classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} aria-label={`打开预览：${file.title}`} title={file.title} className="block w-full truncate text-left text-[12.5px] font-medium hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[12.5px] font-medium" title={file.title}>{file.title}</p>}<p className="mt-1 text-[12px] text-[var(--text-tertiary)]">{fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)}</p><p className="mt-1 text-[12px] text-[var(--text-tertiary)]">上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}</p>
                 <div className="mt-1 flex justify-end gap-1"><a href={`/api/files/${file.id}/download`} aria-label={`下载 ${file.title}`} className="pressable flex size-9 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Download size={14} /></a><FileOcrControl file={file} onComplete={count => setFileRows(current => current.map(item => item.id === file.id ? { ...item, text_extraction_status: "completed", extracted_character_count: count } : item))} /><FileOperations file={file} folders={sortedFolders} onArchive={archive} /></div>
               </div>
             </li>)}
@@ -386,13 +386,13 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
                 <File size={16} className="shrink-0 text-[var(--text-tertiary)]" />
                 <div className="min-w-0 flex-1">
                   {classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} aria-label={`打开预览：${file.title}`} className="block max-w-full truncate text-left text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[13px] font-medium text-[var(--text-primary)]">{file.title}</p>}
-                  <p className="mt-0.5 font-mono text-[10px] leading-4 tabular-nums text-[var(--text-tertiary)]">
+                  <p className="mt-0.5 font-mono text-[12px] leading-4 tabular-nums text-[var(--text-tertiary)]">
                     {fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)} · 上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}
                     {file.text_extraction_status === "completed" ? ` · 已索引 ${file.extracted_character_count.toLocaleString("zh-CN")} 字` : file.text_extraction_status === "processing" || file.text_extraction_status === "pending" ? " · 正在建立全文索引" : file.text_extraction_status === "too_large" ? " · 文件过大，暂不解析" : file.text_extraction_status === "unsupported" ? " · 此类型暂不解析" : file.text_extraction_status === "failed" ? " · 文本解析失败" : ""}
                   </p>
                 </div>
                 {classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="pressable flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--accent)] hover:bg-[var(--surface-hover)]"><Eye size={15} /></button> : null}
-                {["failed", "pending", "not_requested"].includes(file.text_extraction_status) ? <button type="button" disabled={extractingId === file.id} onClick={() => void retryExtraction(file.id)} className="pressable h-8 rounded-[8px] px-2 text-[10.5px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50">{extractingId === file.id ? "解析中…" : "解析文本"}</button> : null}
+                {["failed", "pending", "not_requested"].includes(file.text_extraction_status) ? <button type="button" disabled={extractingId === file.id} onClick={() => void retryExtraction(file.id)} className="pressable h-8 rounded-[8px] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50">{extractingId === file.id ? "解析中…" : "解析文本"}</button> : null}
                 <a href={`/api/files/${file.id}/download`} className="pressable flex size-8 items-center justify-center rounded-[8px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]" aria-label={`下载 ${file.title}`}><Download size={14} /></a>
                 <FileOcrControl file={file} onComplete={count => setFileRows(current => current.map(item => item.id === file.id ? { ...item, text_extraction_status: "completed", extracted_character_count: count } : item))} />
                 <FileOperations file={file} folders={sortedFolders} onArchive={archive} />
@@ -408,16 +408,16 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
 
         {visibleArchived.length > 0 ? (
           <details className="mt-5 border-t border-[var(--separator)] pt-3">
-            <summary className="pressable inline-flex cursor-pointer list-none items-center gap-2 rounded-[7px] px-1 py-0.5 text-[11px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">
-              <Archive size={13} />已归档（全部文件夹） <span className="font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]">{visibleArchived.length}</span>
+            <summary className="pressable inline-flex cursor-pointer list-none items-center gap-2 rounded-[7px] px-1 py-0.5 text-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">
+              <Archive size={13} />已归档（全部文件夹） <span className="font-mono text-[12px] tabular-nums text-[var(--text-tertiary)]">{visibleArchived.length}</span>
             </summary>
             <ul className="mt-2 divide-y divide-[var(--separator)]">
               {visibleArchived.slice(0, archivedLimit).map((file) => (
                 <li className="flex min-h-11 items-center gap-2.5 px-2 py-2" key={file.id}>
                   <File size={14} className="shrink-0 text-[var(--text-tertiary)]" />
-                  <div className="min-w-0 flex-1"><p className="truncate text-[12.5px] text-[var(--text-primary)]">{file.title}</p><p className="mt-0.5 font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]">{formatBytes(file.file_size)} · 归档于 {new Date(file.archived_at ?? file.uploaded_at).toLocaleDateString("zh-CN")}</p></div>
-                  <span className="text-[10px] text-[var(--text-tertiary)]">恢复后下载</span>
-                  <FileMutationForm action={restoreFile}><input type="hidden" name="document_id" value={file.id} /><button className="pressable h-8 rounded-[8px] px-2 text-[10.5px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">恢复</button></FileMutationForm>
+                  <div className="min-w-0 flex-1"><p className="truncate text-[12.5px] text-[var(--text-primary)]">{file.title}</p><p className="mt-0.5 font-mono text-[12px] tabular-nums text-[var(--text-tertiary)]">{formatBytes(file.file_size)} · 归档于 {new Date(file.archived_at ?? file.uploaded_at).toLocaleDateString("zh-CN")}</p></div>
+                  <span className="text-[12px] text-[var(--text-tertiary)]">恢复后下载</span>
+                  <FileMutationForm action={restoreFile}><input type="hidden" name="document_id" value={file.id} /><button className="pressable h-8 rounded-[8px] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">恢复</button></FileMutationForm>
                 </li>
               ))}
             </ul>

@@ -98,7 +98,7 @@ function StrategyFields({ id, strategy }: { id: string; strategy?: StrategyVersi
 }
 
 function ResearchFields({ id, example }: { id: string; example: string }) {
-  return <><Field id={`${id}-payload`} label="研究 JSON" hint="研究观点使用 kind: research，metrics 为 null。外部回测还需数据快照、代码版本、回测区间、基准、成本假设与原始产物链接。"><Textarea id={`${id}-payload`} name="payload" required maxLength={120000} rows={12} className="min-h-64 font-mono text-[12px]" spellCheck={false} placeholder="粘贴完整 JSON…" aria-describedby={`${id}-payload-hint`} /></Field><details className="min-w-0 text-[12px] leading-6 text-[var(--text-tertiary)]"><summary className="cursor-pointer">查看研究观点的格式模板</summary><p className="mt-2">模板只说明格式。请替换标题、日期、来源和内容，并为每份研究填写独立的 import_key。</p><pre className="mt-2 max-h-60 overflow-auto rounded-[var(--radius-md)] bg-[var(--surface-control)] p-3 text-[11px]">{example}</pre></details></>;
+  return <><Field id={`${id}-payload`} label="研究 JSON" hint="研究观点使用 kind: research，metrics 为 null。外部回测还需数据快照、代码版本、回测区间、基准、成本假设与原始产物链接。"><Textarea id={`${id}-payload`} name="payload" required maxLength={120000} rows={12} className="min-h-64 font-mono text-[12px]" spellCheck={false} placeholder="粘贴完整 JSON…" aria-describedby={`${id}-payload-hint`} /></Field><details className="min-w-0 text-[12px] leading-6 text-[var(--text-tertiary)]"><summary className="cursor-pointer">查看研究观点的格式模板</summary><p className="mt-2">模板只说明格式。请替换标题、日期、来源和内容，并为每份研究填写独立的 import_key。</p><pre className="mt-2 max-h-60 overflow-auto rounded-[var(--radius-md)] bg-[var(--surface-control)] p-3 text-[12px]">{example}</pre></details></>;
 }
 
 function VoidFields({ id, entry, importKey }: { id: string; entry: LedgerEntry; importKey: string }) {

@@ -42,7 +42,7 @@ it("loads current and draft practice references under the same authenticated pre
       select: () => query, eq: (field: string, value: unknown) => { calls.push([table, "eq", field, value]); return query; },
       in: (field: string, value: unknown) => { calls.push([table, "in", field, value]); return query; },
       is: (field: string, value: unknown) => { calls.push([table, "is", field, value]); return query; },
-      order: () => query, limit: () => query,
+      order: () => query, limit: () => query, range: () => query,
       maybeSingle: () => Promise.resolve({ data: { id: "prep", interview_questions: { archetype_id: "archetype" } } }),
       then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
     }; return query;

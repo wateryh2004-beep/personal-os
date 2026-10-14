@@ -33,12 +33,12 @@ export function NotesKnowledgeEntry({ folderName }: { folderName?: string | null
 
   return (
     <section className="mt-4 max-w-3xl border-b border-[var(--separator)] pb-3.5" aria-labelledby="ask-notes-heading">
-      <div className="flex items-center gap-2 text-[11.5px] text-[var(--text-secondary)]">
+      <div className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
         <Sparkles className="size-3.5 text-[var(--accent)]" aria-hidden="true" />
         <h3 id="ask-notes-heading" className="font-medium text-[var(--text-primary)]">
           询问笔记
         </h3>
-        <span aria-label={`知识范围：${scope}`} className="rounded-full bg-[var(--surface-control)] px-2 py-0.5 text-[10.5px]">
+        <span aria-label={`知识范围：${scope}`} className="rounded-full bg-[var(--surface-control)] px-2 py-0.5 text-[12px]">
           {scope}
         </span>
       </div>
@@ -72,7 +72,7 @@ export function NotesKnowledgeEntry({ folderName }: { folderName?: string | null
             key={prompt}
             type="button"
             onClick={() => submit(prompt)}
-            className="text-left text-[10.5px] text-[var(--text-tertiary)] hover:text-[var(--accent)]"
+            className="text-left text-[12px] text-[var(--text-tertiary)] hover:text-[var(--accent)]"
           >
             {prompt}
           </button>

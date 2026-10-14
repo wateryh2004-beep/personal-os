@@ -11,7 +11,7 @@ export default async function InterviewStoryPage({ params }: { params: Promise<{
   const { storyId } = await params;
   const data = await getInterviewStoryDetail(storyId);
   if (!data) notFound();
-  const story: any = data.story;
+  const story = data.story;
 
   return (
     <>
@@ -23,9 +23,9 @@ export default async function InterviewStoryPage({ params }: { params: Promise<{
       <CareerNav current="/career/interview" />
       <InterviewNav current="/career/interview/insights" />
 
-      <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--text-tertiary)]">
+      <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-[var(--text-tertiary)]">
         <span>{storyStatusLabels[story.status] ?? story.status}</span>
-        {data.competencies.slice(0, 5).map((item: any) => <span key={item.competency_id}>{item.competency.label}</span>)}
+        {data.competencies.slice(0, 5).map((item) => <span key={item.competency_id}>{item.competency.label}</span>)}
       </div>
 
       <form action={updateInterviewStory} className="max-w-3xl">
@@ -33,11 +33,11 @@ export default async function InterviewStoryPage({ params }: { params: Promise<{
 
         <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
           <label className="grid gap-1.5">
-            <span className="text-[11px] font-medium text-[var(--text-tertiary)]">故事标题</span>
+            <span className="text-[12px] font-medium text-[var(--text-tertiary)]">故事标题</span>
             <input name="title" required defaultValue={story.title} className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none" />
           </label>
           <label className="grid gap-1.5">
-            <span className="text-[11px] font-medium text-[var(--text-tertiary)]">状态</span>
+            <span className="text-[12px] font-medium text-[var(--text-tertiary)]">状态</span>
             <select name="status" defaultValue={story.status} className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
               {Object.entries(storyStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
@@ -45,15 +45,15 @@ export default async function InterviewStoryPage({ params }: { params: Promise<{
         </div>
 
         <label className="mt-4 grid gap-1.5">
-          <span className="text-[11px] font-medium text-[var(--text-tertiary)]">对应经历</span>
+          <span className="text-[12px] font-medium text-[var(--text-tertiary)]">对应经历</span>
           <select name="experience_id" defaultValue={story.experience_id ?? ""} className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
             <option value="">不绑定经历</option>
-            {data.experiences.map((experience: any) => <option key={experience.id} value={experience.id}>{experience.organization}{experience.role ? ` · ${experience.role}` : ""}</option>)}
+            {data.experiences.map((experience) => <option key={experience.id} value={experience.id}>{experience.organization}{experience.role ? ` · ${experience.role}` : ""}</option>)}
           </select>
         </label>
 
         <label className="mt-7 block">
-          <span className="text-[11px] font-medium text-[var(--text-tertiary)]">一句话</span>
+          <span className="text-[12px] font-medium text-[var(--text-tertiary)]">一句话</span>
           <textarea name="one_line" defaultValue={story.one_line} rows={2} className="mt-1.5 w-full resize-y bg-transparent py-2 text-[15px] leading-7 text-[var(--text-primary)] outline-none" />
         </label>
 
@@ -71,13 +71,13 @@ export default async function InterviewStoryPage({ params }: { params: Promise<{
       <section className="mt-12 max-w-3xl">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">可以回答</h2>
-          <span className="text-[10.5px] text-[var(--text-tertiary)]">{data.archetypes.length} 个母题</span>
+          <span className="text-[12px] text-[var(--text-tertiary)]">{data.archetypes.length} 个母题</span>
         </div>
         <div className="mt-3 space-y-px">
-          {data.archetypes.map((item: any) => (
+          {data.archetypes.map((item) => (
             <div key={item.archetype_id} className="rounded-[9px] px-2.5 py-2.5 hover:bg-[var(--surface-hover)]">
               <p className="text-[13px] text-[var(--text-primary)]">{item.archetype.title}</p>
-              {item.fit_note ? <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">{item.fit_note}</p> : null}
+              {item.fit_note ? <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">{item.fit_note}</p> : null}
             </div>
           ))}
         </div>
@@ -85,7 +85,7 @@ export default async function InterviewStoryPage({ params }: { params: Promise<{
 
       <form action={archiveInterviewStory} className="mt-10">
         <input type="hidden" name="story_id" value={story.id} />
-        <button className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档故事</button>
+        <button className="text-[12px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档故事</button>
       </form>
     </>
   );
@@ -94,7 +94,7 @@ export default async function InterviewStoryPage({ params }: { params: Promise<{
 function StoryField({ name, label, value, placeholder, rows = 4 }: { name: string; label: string; value: string; placeholder: string; rows?: number }) {
   return (
     <label className="block">
-      <span className="text-[11px] font-medium text-[var(--text-tertiary)]">{label}</span>
+      <span className="text-[12px] font-medium text-[var(--text-tertiary)]">{label}</span>
       <textarea name={name} defaultValue={value} rows={rows} placeholder={placeholder} className="mt-1.5 w-full resize-y bg-transparent py-2 text-[15px] leading-7 text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-tertiary)]" />
     </label>
   );

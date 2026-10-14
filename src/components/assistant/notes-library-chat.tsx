@@ -219,7 +219,7 @@ export function NotesLibraryChat() {
             <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitText(input); } }} rows={3} maxLength={10_000} placeholder="询问笔记库，或要求跨多篇笔记综合分析…" className="max-h-48 min-h-[3.5rem] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm leading-6 outline-none" aria-label="询问笔记库" />
             <button type="submit" disabled={waiting || !input.trim()} className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent)] text-white transition-opacity disabled:opacity-40" aria-label="发送">{waiting ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}</button>
           </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--text-tertiary)]">
+          <div className="mt-2 flex items-center justify-between text-[12px] text-[var(--text-tertiary)]">
             <span>Enter 发送 · Shift Enter 换行</span>
             <span>只读分析 + 整理提案（确认后才执行）</span>
           </div>

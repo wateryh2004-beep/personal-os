@@ -8,7 +8,7 @@ import { navActive } from "@/lib/navigation";
 import type { ShellNavigationEvent } from "@/components/layout/use-shell-navigation";
 import { cn } from "@/lib/utils";
 
-const itemClass = "navigation-tab pressable relative flex min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-[12px] text-[10.5px] font-medium tracking-[-0.01em]";
+const itemClass = "navigation-tab pressable relative flex min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-[12px] text-[12px] font-medium tracking-[-0.01em]";
 
 type MobileTabBarProps = {
   onOpenMore: () => void;

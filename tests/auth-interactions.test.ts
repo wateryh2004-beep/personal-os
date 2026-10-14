@@ -32,14 +32,14 @@ describe("auth interactions", () => {
     await render(createElement(AuthSuccess, { title: "欢迎回来", href: "/today", action: "进入我的空间", autoEnter: true }));
     expect(host.querySelector("a")?.getAttribute("href")).toBe("/today");
     expect(document.activeElement).toBe(host.querySelector("h1"));
-    await act(async () => vi.advanceTimersByTime(999)); expect(mocks.replace).not.toHaveBeenCalled();
-    await act(async () => vi.advanceTimersByTime(1)); expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/today");
+    await act(async () => vi.advanceTimersByTime(319)); expect(mocks.replace).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTime(1)); expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/today", { transitionTypes: ["auth-entry"] });
   });
   it("skips the success delay for reduced motion and cancels timers on unmount", async () => {
     vi.useFakeTimers();
     vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
     await render(createElement(AuthSuccess, { title: "欢迎回来", href: "/today", action: "进入", autoEnter: true }));
-    await act(async () => vi.advanceTimersByTime(0)); expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/today");
+    await act(async () => vi.advanceTimersByTime(0)); expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/today", { transitionTypes: ["auth-entry"] });
     mocks.replace.mockClear();
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     await render(null);
@@ -56,7 +56,8 @@ describe("auth interactions", () => {
     first.value = "alpha"; second.value = "beta";
     await act(async () => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     expect(form.dataset.step).toBe("password");
-    expect(host.textContent).toContain("当前还未完成身份验证");
+    expect(host.querySelector(".auth-success")).toBeNull();
+    expect(form.querySelector('[aria-current="step"]')?.textContent).toContain("设置密码");
     expect(document.activeElement).toBe(form.querySelector('[name="password"]'));
     expect(mocks.reset).not.toHaveBeenCalled();
     const back = Array.from(form.querySelectorAll("button")).find(button => button.textContent?.includes("修改答案"))!;

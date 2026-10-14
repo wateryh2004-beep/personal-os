@@ -69,15 +69,15 @@ export function CalendarCreateForm({ timezone, categoriesEnabled = true, initial
       endsAt.value = wallTimeToIso(allDay ? `${endInputRef.current.value}T00:00` : endInputRef.current.value, timezone);
     }} className="calendar-event-form grid gap-0">
       <div className="border-b border-[var(--separator)] pb-3.5">
-        <input ref={subjectInputRef} name="subject" required maxLength={500} placeholder="日程标题" value={subject} onChange={(event) => setSubject(event.target.value)} className="w-full border-0 bg-transparent px-0 text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" />
-        <input name="location_name" maxLength={500} placeholder="添加地点" value={location} onChange={(event) => setLocation(event.target.value)} className="mt-1.5 w-full border-0 bg-transparent px-0 text-[11.5px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-tertiary)]" />
+        <input aria-label="日程标题" ref={subjectInputRef} name="subject" required maxLength={500} placeholder="日程标题" value={subject} onChange={(event) => setSubject(event.target.value)} className="w-full border-0 bg-transparent px-0 text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]" />
+        <input aria-label="地点" name="location_name" maxLength={500} placeholder="添加地点" value={location} onChange={(event) => setLocation(event.target.value)} className="mt-1.5 w-full border-0 bg-transparent px-0 text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-tertiary)]" />
       </div>
 
       <section className="border-b border-[var(--separator)] py-3.5">
         <label className="flex items-center justify-between gap-4 text-[13px] text-[var(--text-primary)]"><span>全天</span><input type="checkbox" name="is_all_day" checked={allDay} onChange={(event) => setAllDay(event.target.checked)} className="size-4 accent-[var(--accent)]" /></label>
         <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
-          <label className="grid gap-1.5 text-[10.5px] font-medium text-[var(--text-tertiary)]">{allDay ? "开始日期" : "开始"}<input key={`start-${allDay}`} ref={startInputRef} type={allDay ? "date" : "datetime-local"} required onChange={keepEndAfterStart} defaultValue={allDay ? defaultStartDate : defaultStart} className={control} /></label>
-          <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">{allDay ? "结束日期（不含）" : "结束"}<input key={`end-${allDay}`} ref={endInputRef} type={allDay ? "date" : "datetime-local"} required defaultValue={allDay ? allDayEndDate : defaultEnd} className={control} /></label>
+          <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">{allDay ? "开始日期" : "开始"}<input key={`start-${allDay}`} ref={startInputRef} type={allDay ? "date" : "datetime-local"} required onChange={keepEndAfterStart} defaultValue={allDay ? defaultStartDate : defaultStart} className={control} /></label>
+          <label className="grid gap-1.5 text-[12px] text-[var(--text-tertiary)]">{allDay ? "结束日期（不含）" : "结束"}<input key={`end-${allDay}`} ref={endInputRef} type={allDay ? "date" : "datetime-local"} required defaultValue={allDay ? allDayEndDate : defaultEnd} className={control} /></label>
         </div>
         <input type="hidden" name="starts_at" /><input type="hidden" name="ends_at" />
       </section>
@@ -89,19 +89,19 @@ export function CalendarCreateForm({ timezone, categoriesEnabled = true, initial
           const contexts = autoClassification.contextCategoryKeys.map((key) => getManagedCalendarCategory(key)?.shortName).filter(Boolean) as string[];
           if (!autoClassification.needsConfirmation) {
             const parts = [primary?.shortName, ...contexts].filter(Boolean) as string[];
-            return <p className="mt-1.5 flex items-center gap-1.5 text-[10px] text-[var(--text-tertiary)]"><span className="size-1.5 shrink-0 rounded-full bg-[var(--accent)]" />自动判断：{parts.join(" · ") || "其他"} · {Math.round(autoClassification.confidence * 100)}%</p>;
+            return <p className="mt-1.5 flex items-center gap-1.5 text-[12px] text-[var(--text-tertiary)]"><span className="size-1.5 shrink-0 rounded-full bg-[var(--accent)]" />自动判断：{parts.join(" · ") || "其他"} · {Math.round(autoClassification.confidence * 100)}%</p>;
           }
-          return <p className="mt-2 flex items-center gap-1.5 text-[10.5px] text-[var(--text-tertiary)]"><span className="size-1.5 shrink-0 rounded-full bg-[var(--text-tertiary)]" />低置信度，暂不自动归类</p>;
+          return <p className="mt-2 flex items-center gap-1.5 text-[12px] text-[var(--text-tertiary)]"><span className="size-1.5 shrink-0 rounded-full bg-[var(--text-tertiary)]" />低置信度，暂不自动归类</p>;
         })() : null}
       </section>
 
       <details className="border-b border-[var(--separator)] py-3.5">
-        <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11.5px] font-medium text-[var(--text-secondary)]">更多选项</summary>
+        <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-secondary)]">更多选项</summary>
         <div className="mt-2.5 grid gap-2.5">
-          <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">说明<MentionTextarea value={description} onChange={setDescription} name="description" maxLength={10000} rows={4} placeholder="议程、链接或准备事项；输入 @ 引用笔记/任务/日程/文件" className="min-h-24 w-full resize-y rounded-[9px] border-0 bg-[var(--surface-control)] px-3 py-2.5 text-[12.5px] leading-5.5 outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]" /></label>
+          <label className="grid gap-1.5 text-[12px] text-[var(--text-tertiary)]">说明<MentionTextarea value={description} onChange={setDescription} name="description" maxLength={10000} rows={4} placeholder="议程、链接或准备事项；输入 @ 引用笔记/任务/日程/文件" className="min-h-24 w-full resize-y rounded-[9px] border-0 bg-[var(--surface-control)] px-3 py-2.5 text-[12.5px] leading-5.5 outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]" /></label>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">显示为<select name="show_as" defaultValue="busy" className={control}><option value="busy">忙碌</option><option value="free">空闲</option><option value="tentative">暂定</option><option value="workingElsewhere">在其他地点工作</option><option value="oof">外出</option></select></label>
-            <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">重要性<select name="importance" defaultValue="normal" className={control}><option value="low">低</option><option value="normal">普通</option><option value="high">高</option></select></label>
+            <label className="grid gap-1.5 text-[12px] text-[var(--text-tertiary)]">显示为<select name="show_as" defaultValue="busy" className={control}><option value="busy">忙碌</option><option value="free">空闲</option><option value="tentative">暂定</option><option value="workingElsewhere">在其他地点工作</option><option value="oof">外出</option></select></label>
+            <label className="grid gap-1.5 text-[12px] text-[var(--text-tertiary)]">重要性<select name="importance" defaultValue="normal" className={control}><option value="low">低</option><option value="normal">普通</option><option value="high">高</option></select></label>
           </div>
         </div>
       </details>
@@ -111,7 +111,7 @@ export function CalendarCreateForm({ timezone, categoriesEnabled = true, initial
           <p className="text-[9.5px] text-[var(--text-tertiary)]">按 {timezone} 保存并同步至 Outlook</p>
           <button disabled={pending} className="pressable h-9 rounded-[9px] bg-[var(--accent)] px-3.5 text-[12px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] disabled:opacity-60">{pending ? "正在创建…" : "创建日程"}</button>
         </div>
-        {state.status !== "idle" ? <p role="status" className={`mt-1.5 text-[10.5px] ${state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}>{state.message}</p> : null}
+        {state.status !== "idle" ? <p role="status" className={`mt-1.5 text-[12px] ${state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"}`}>{state.message}</p> : null}
       </div>
     </form>
   );

@@ -35,13 +35,13 @@ export default async function BriefingPage() {
               ? `${data.briefing.briefing_date} · ${data.briefing.candidate_count} 条候选 · ${data.briefing.selected_count} 条入选${data.briefing.generated_at ? ` · ${formatTime(data.briefing.generated_at, data.timezone)}` : ""}`
               : `${data.date} · 尚未生成`}
           </p>
-          {data.briefing ? <p className="mt-0.5 text-[10.5px] text-[var(--text-tertiary)]">{method}{isPrevious ? " · 今天尚未生成" : ""}</p> : null}
-          {runUsage ? <p className="mt-0.5 text-[10px] text-[var(--text-tertiary)] opacity-70">{runUsage}</p> : null}
-          {data.todayGenerating ? <p className="mt-1 text-[10.5px] font-medium text-[var(--accent)]">正在生成今日简报…{isPrevious ? " 当前继续展示上一版。" : ""}</p> : null}
+          {data.briefing ? <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">{method}{isPrevious ? " · 今天尚未生成" : ""}</p> : null}
+          {runUsage ? <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)] opacity-70">{runUsage}</p> : null}
+          {data.todayGenerating ? <p className="mt-1 text-[12px] font-medium text-[var(--accent)]">正在生成今日简报…{isPrevious ? " 当前继续展示上一版。" : ""}</p> : null}
         </div>
         <GenerateBriefingControl hasBriefing={Boolean(data.briefing)} />
       </header>
-      {data.unavailable ? <p className="mt-4 rounded-[9px] bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">简报数据暂时无法读取。</p> : null}
+      {data.unavailable ? <p className="mt-4 rounded-[9px] bg-amber-50 px-3 py-2 text-[12px] text-amber-800">简报数据暂时无法读取。</p> : null}
       <div id="briefing-results">
         {entries.length ? (
           <div className="mt-3.5 divide-y divide-[var(--border-subtle)]">
@@ -59,7 +59,7 @@ export default async function BriefingPage() {
               const worthDeepRead = readingValue >= 140;
               return (
                 <article key={entry.id} className="py-4.5">
-                  <p className="text-[10.5px] leading-4 text-[var(--text-tertiary)]">
+                  <p className="text-[12px] leading-4 text-[var(--text-tertiary)]">
                     {feed?.title ?? "未知来源"}{feed?.category ? ` · ${feed.category}` : ""}{topicLabel ? ` · ${topicLabel}` : ""}{item?.published_at ? ` · ${formatTime(item.published_at, data.timezone)}` : ""}
                   </p>
                   {href ? (

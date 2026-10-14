@@ -18,14 +18,14 @@ export function EntityMarkdown({ body, className }: { body: string; className?: 
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}
         components={{
-          h1: ({ children }) => <h1 className="mb-3 mt-1 text-2xl font-semibold tracking-tight text-zinc-900">{children}</h1>,
-          h2: ({ children }) => <h2 className="mb-2 mt-6 border-b pb-1 text-lg font-semibold text-zinc-900">{children}</h2>,
-          h3: ({ children }) => <h3 className="mb-2 mt-5 text-base font-semibold text-zinc-900">{children}</h3>,
-          p: ({ children }) => <p className="mb-3 leading-6 text-zinc-700">{children}</p>,
-          ul: ({ children }) => <ul className="mb-3 list-disc space-y-1 pl-5 text-zinc-700">{children}</ul>,
-          ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1 pl-5 text-zinc-700">{children}</ol>,
+          h1: ({ children }) => <h1 className="mb-3 mt-1 text-2xl font-semibold tracking-tight text-[var(--text-primary)]">{children}</h1>,
+          h2: ({ children }) => <h2 className="mb-2 mt-6 border-b pb-1 text-lg font-semibold text-[var(--text-primary)]">{children}</h2>,
+          h3: ({ children }) => <h3 className="mb-2 mt-5 text-base font-semibold text-[var(--text-primary)]">{children}</h3>,
+          p: ({ children }) => <p className="mb-3 leading-6 text-[var(--text-secondary)]">{children}</p>,
+          ul: ({ children }) => <ul className="mb-3 list-disc space-y-1 pl-5 text-[var(--text-secondary)]">{children}</ul>,
+          ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1 pl-5 text-[var(--text-secondary)]">{children}</ol>,
           li: ({ children }) => <li className="pl-1 leading-6">{children}</li>,
-          blockquote: ({ children }) => <blockquote className="mb-3 border-l-2 border-zinc-300 pl-3 italic text-zinc-600">{children}</blockquote>,
+          blockquote: ({ children }) => <blockquote className="mb-3 border-l-2 border-[var(--control-border)] pl-3 italic text-[var(--text-secondary)]">{children}</blockquote>,
           a: ({ children, href }) => {
             if (isInternalEntityHref(href)) {
               return (
@@ -36,12 +36,12 @@ export function EntityMarkdown({ body, className }: { body: string; className?: 
             }
             return <a href={href} target="_blank" rel="noreferrer" className="text-[var(--accent)] underline underline-offset-2">{children}</a>;
           },
-          pre: ({ children }) => <pre className="mb-3 overflow-x-auto bg-zinc-950 p-3 text-sm leading-6 text-zinc-100">{children}</pre>,
-          code: ({ children, className }) => className ? <code className={className}>{children}</code> : <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-[0.85em] text-zinc-800">{children}</code>,
+          pre: ({ children }) => <pre className="mb-3 overflow-x-auto bg-[var(--accent)] p-3 text-sm leading-6 text-[var(--text-tertiary)]">{children}</pre>,
+          code: ({ children, className }) => className ? <code className={className}>{children}</code> : <code className="rounded bg-[var(--surface-control)] px-1 py-0.5 font-mono text-[0.85em] text-[var(--text-primary)]">{children}</code>,
           table: ({ children }) => <div className="mb-3 overflow-x-auto"><table className="w-full border-collapse text-left text-sm">{children}</table></div>,
-          th: ({ children }) => <th className="border bg-zinc-50 px-3 py-2 font-medium">{children}</th>,
+          th: ({ children }) => <th className="border bg-[var(--surface-canvas)] px-3 py-2 font-medium">{children}</th>,
           td: ({ children }) => <td className="border px-3 py-2 align-top">{children}</td>,
-          hr: () => <hr className="my-6 border-zinc-200" />,
+          hr: () => <hr className="my-6 border-[var(--separator)]" />,
         }}
       >
         {body}

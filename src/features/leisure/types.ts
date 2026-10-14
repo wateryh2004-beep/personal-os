@@ -76,3 +76,7 @@ export type LeisureFeedbackInput = {
 export type LeisureFeedbackResult =
   | { ok: true; feedback: LeisureFeedback }
   | { ok: false; error: "invalid" | "conflict" | "unavailable" | "note_unavailable" };
+
+export type LeisureFeedbackReadResult =
+  | { ok: true; feedback: LeisureFeedback | null }
+  | { ok: false };

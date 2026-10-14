@@ -177,7 +177,7 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
 
       <div className="grid items-start gap-6 pt-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-8 xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-12">
         <aside data-testid="interview-question-list" className={`${mobileDetailOpen ? "hidden lg:block" : ""} min-w-0 self-start px-2 sm:px-3 lg:sticky lg:top-[calc(var(--toolbar-height)+1rem)]`}>
-          <label className="block text-[11px] font-medium text-[var(--text-tertiary)]">面试方向
+          <label className="block text-[12px] font-medium text-[var(--text-tertiary)]">面试方向
             <select aria-label="面试岗位" value={contextId} onChange={(event) => handleContextChange(event.target.value)} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--separator)] bg-[var(--surface-canvas)] px-3 text-[13px] font-medium text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]">
               <option value="">通用面试</option>
               {targets.map((target) => <option key={target.id} value={target.id}>{target.organization ? target.organization + " · " : ""}{target.role || target.title}</option>)}
@@ -191,8 +191,8 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
                 <CategoryButton label="全部题型" count={counts.all ?? 0} active={category === "all"} onClick={() => handleFiltersChange({ category: "all" })} />
                 {ALL_CATEGORIES.map((key) => <CategoryButton key={key} label={categoryShortLabels[key]} count={counts[key] ?? 0} active={category === key} onClick={() => handleFiltersChange({ category: key })} />)}
               </div>
-              <label className="grid gap-1 text-[11px] text-[var(--text-tertiary)]">学习模块<select aria-label="学习模块" value={domain} onChange={(event) => handleFiltersChange({ domain: event.target.value })} className="min-h-11 w-full min-w-0 rounded-lg bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部模块</option>{domain !== "all" && !domains.includes(domain) ? <option value={domain}>{domain}</option> : null}{domains.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-              <label className="grid gap-1 text-[11px] text-[var(--text-tertiary)]">提问风格<select aria-label="提问风格" value={style} onChange={(event) => handleFiltersChange({ style: event.target.value })} className="min-h-11 w-full rounded-lg bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部风格</option><option value="standard">标准提问</option><option value="stress">压力追问</option></select></label>
+              <label className="grid gap-1 text-[12px] text-[var(--text-tertiary)]">学习模块<select aria-label="学习模块" value={domain} onChange={(event) => handleFiltersChange({ domain: event.target.value })} className="min-h-11 w-full min-w-0 rounded-lg bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部模块</option>{domain !== "all" && !domains.includes(domain) ? <option value={domain}>{domain}</option> : null}{domains.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+              <label className="grid gap-1 text-[12px] text-[var(--text-tertiary)]">提问风格<select aria-label="提问风格" value={style} onChange={(event) => handleFiltersChange({ style: event.target.value })} className="min-h-11 w-full rounded-lg bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部风格</option><option value="standard">标准提问</option><option value="stress">压力追问</option></select></label>
               {filterCount ? <button type="button" onClick={() => handleFiltersChange({ ...emptyLibraryFilters, q })} className="min-h-11 text-[12px] text-[var(--accent)]">重置筛选</button> : null}
             </div>
           </details>
@@ -200,7 +200,7 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
             <p>已筛选：{[category !== "all" ? categoryShortLabels[category] ?? category : null, domain !== "all" ? domain : null, style !== "all" ? style === "stress" ? "压力追问" : "标准提问" : null].filter(Boolean).join(" · ")}</p>
             <button type="button" className="ui-link" onClick={() => handleFiltersChange({ ...emptyLibraryFilters, q })}>清除筛选</button>
           </div> : null}
-          <div className="flex min-h-12 items-center justify-between gap-2 text-[11px] text-[var(--text-tertiary)]">
+          <div className="flex min-h-12 items-center justify-between gap-2 text-[12px] text-[var(--text-tertiary)]">
             <span>{q ? "搜索结果" : category === "all" ? "全部问题" : questionTypeLabels[category] ?? "问题"}</span>
             <span aria-live="polite" className="tabular-nums">{visibleItems.length} 道题</span>
           </div>
@@ -226,7 +226,7 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
               </div>
 
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--separator)] pb-5">
-                <span className="text-[11px] leading-6 text-[var(--text-tertiary)]">{selected.answerMeta?.status === "draft" ? "参考答案 · 待确认" : "先理解，再用自己的话表达"}{selected.answerMeta?.language === "bilingual" ? " · 中英双语" : selected.answerMeta?.language === "en" ? " · 英文" : ""}</span>
+                <span className="text-[12px] leading-6 text-[var(--text-tertiary)]">{selected.answerMeta?.status === "draft" ? "参考答案 · 待确认" : "先理解，再用自己的话表达"}{selected.answerMeta?.language === "bilingual" ? " · 中英双语" : selected.answerMeta?.language === "en" ? " · 英文" : ""}</span>
                 <Link href={`/career/interview/practice/${selected.preparationId}`} className="inline-flex min-h-11 items-center rounded-lg bg-[var(--accent)] px-4 text-[12px] font-medium text-white">练习这道题 →</Link>
               </div>
               <InterviewStudyView key={selected.preparationId} thoughts={selected.thoughts} answer={selected.answer} isDraft={selected.answerMeta?.status === "draft"} learning={selected.learning} related={relatedItems} onSelect={handleQuestionChange} answerMeta={selected.answerMeta} versionHref={`${detailHref}#answer-versions`} />
@@ -294,7 +294,7 @@ function CategoryButton({
       className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[12px] font-medium ${active ? "bg-[var(--text-primary)] text-white shadow-[var(--shadow-control)]" : "bg-[var(--surface-control)] text-[var(--text-secondary)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-primary)]"}`}
     >
       <span>{label}</span>
-      <span className={`text-[10px] tabular-nums ${active ? "text-white/60" : "text-[var(--text-tertiary)]"}`}>{count}</span>
+      <span className={`text-[12px] tabular-nums ${active ? "text-white/60" : "text-[var(--text-tertiary)]"}`}>{count}</span>
     </button>
   );
 }

@@ -103,22 +103,22 @@ function CalendarProposalForm({
   return (
     <form
       action={formAction}
-      className="mt-2 rounded-md border bg-white p-3 text-left text-sm"
+      className="mt-2 rounded-md border bg-[var(--surface-canvas)] p-3 text-left text-sm"
     >
       <p className="font-medium">{event.subject}</p>
       {event.description ? (
-        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-zinc-600">
+        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[var(--text-secondary)]">
           {event.description}
         </p>
       ) : null}
-      <p className="mt-2 text-zinc-600">
+      <p className="mt-2 text-[var(--text-secondary)]">
         {eventTime(event, timezone)} · {timezone}
       </p>
-      <p className="mt-2 flex items-center gap-1.5 text-xs text-zinc-700"><span className="size-2 rounded-full" style={{ background: visual.dot }}/>{primary?.shortName ?? "分类待确认"}</p>
-      {event.contextCategoryKeys.length ? <p className="mt-1 text-[10px] text-zinc-500">场景：{event.contextCategoryKeys.map((key) => getManagedCalendarCategory(key)?.shortName).filter(Boolean).join(" · ")}</p> : null}
-      <label className="mt-3 grid gap-1 text-xs text-zinc-600">建议分类<select name="category_choice" defaultValue={event.primaryCategoryKey ?? "__auto"} className="h-8 rounded-md border bg-white px-2 text-xs"><option value="__auto">自动判断</option><option value="__none">不设置分类</option>{primaryCalendarCategories.map((category) => <option key={category.key} value={category.key}>{category.shortName}</option>)}</select></label>
-      {event.classificationReason ? <p className="mt-1 text-[10px] text-zinc-500">{event.classificationReason}{event.classificationConfidence !== null ? ` · 置信度 ${Math.round(event.classificationConfidence * 100)}%` : ""}</p> : null}
-      <div className="mt-2 flex flex-wrap gap-2">{contextCategoryKeys.map((key) => { const category = getManagedCalendarCategory(key)!; return <label key={key} className="flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" name="context_category_keys" value={key} defaultChecked={event.contextCategoryKeys.includes(key)} />{category.shortName}</label>; })}</div>
+      <p className="mt-2 flex items-center gap-1.5 text-xs text-[var(--text-secondary)]"><span className="size-2 rounded-full" style={{ background: visual.dot }}/>{primary?.shortName ?? "分类待确认"}</p>
+      {event.contextCategoryKeys.length ? <p className="mt-1 text-[12px] text-[var(--text-secondary)]">场景：{event.contextCategoryKeys.map((key) => getManagedCalendarCategory(key)?.shortName).filter(Boolean).join(" · ")}</p> : null}
+      <label className="mt-3 grid gap-1 text-xs text-[var(--text-secondary)]">建议分类<select name="category_choice" defaultValue={event.primaryCategoryKey ?? "__auto"} className="h-8 rounded-md border bg-[var(--surface-canvas)] px-2 text-xs"><option value="__auto">自动判断</option><option value="__none">不设置分类</option>{primaryCalendarCategories.map((category) => <option key={category.key} value={category.key}>{category.shortName}</option>)}</select></label>
+      {event.classificationReason ? <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{event.classificationReason}{event.classificationConfidence !== null ? ` · 置信度 ${Math.round(event.classificationConfidence * 100)}%` : ""}</p> : null}
+      <div className="mt-2 flex flex-wrap gap-2">{contextCategoryKeys.map((key) => { const category = getManagedCalendarCategory(key)!; return <label key={key} className="flex items-center gap-1 text-[12px] text-[var(--text-secondary)]"><input type="checkbox" name="context_category_keys" value={key} defaultChecked={event.contextCategoryKeys.includes(key)} />{category.shortName}</label>; })}</div>
       <input type="hidden" name="subject" value={event.subject} />
       <input type="hidden" name="description" value={event.description ?? ""} />
       <input type="hidden" name="starts_at" value={event.startsAt} />
@@ -170,7 +170,7 @@ function CalendarDeleteProposalForm({
       className="mt-2 border border-red-200 bg-red-50 p-3 text-left text-sm"
     >
       <p className="font-medium text-red-900">删除这条日程？</p>
-      <p className="mt-1 text-zinc-700">
+      <p className="mt-1 text-[var(--text-secondary)]">
         {event.subject} · {eventTime(event, timezone)} · {timezone}
       </p>
       <input
@@ -204,9 +204,9 @@ function CalendarUpdateProposalForm({ event, timezone }: { event: CalendarUpdate
   const [state, formAction, pending] = useActionState(updateCalendarEvent, initialCalendarCreateState);
   return <form action={formAction} className="mt-2 border border-[#b8cbd6] bg-[#f5f9fb] p-3 text-left text-sm">
     <p className="font-medium">修改日程：{event.subject}</p>
-    <p className="mt-1 text-xs text-zinc-500">原时间：{eventTime({ startsAt: event.originalStartsAt, endsAt: event.originalEndsAt }, timezone)}</p>
-    <p className="mt-1 text-zinc-700">新时间：{eventTime(event, timezone)} · {timezone}</p>
-    {event.locationName ? <p className="mt-1 text-xs text-zinc-500">{event.locationName}</p> : null}
+    <p className="mt-1 text-xs text-[var(--text-secondary)]">原时间：{eventTime({ startsAt: event.originalStartsAt, endsAt: event.originalEndsAt }, timezone)}</p>
+    <p className="mt-1 text-[var(--text-secondary)]">新时间：{eventTime(event, timezone)} · {timezone}</p>
+    {event.locationName ? <p className="mt-1 text-xs text-[var(--text-secondary)]">{event.locationName}</p> : null}
     <input type="hidden" name="provider_event_id" value={event.providerEventId}/><input type="hidden" name="original_subject" value={event.originalSubject}/><input type="hidden" name="original_starts_at" value={event.originalStartsAt}/><input type="hidden" name="original_ends_at" value={event.originalEndsAt}/><input type="hidden" name="subject" value={event.subject}/>{event.description !== undefined ? <input type="hidden" name="description" value={event.description ?? ""}/> : null}<input type="hidden" name="starts_at" value={event.startsAt}/><input type="hidden" name="ends_at" value={event.endsAt}/>{event.locationName !== undefined ? <input type="hidden" name="location_name" value={event.locationName ?? ""}/> : null}{event.isAllDay !== undefined ? <><input type="hidden" name="is_all_day_present" value="true"/><input type="hidden" name="is_all_day" value={event.isAllDay ? "on" : ""}/></> : null}<input type="hidden" name="preserve_categories" value="true"/>{event.importance ? <input type="hidden" name="importance" value={event.importance}/> : null}{event.showAs ? <input type="hidden" name="show_as" value={event.showAs}/> : null}
     <button disabled={pending || state.status === "success"} className="mt-3 bg-[#365F78] px-3 py-1.5 text-xs text-white disabled:opacity-60">{pending ? "正在更新…" : state.status === "success" ? "已更新" : "确认修改日程"}</button>
     {state.status !== "idle" ? <p role="status" className={`mt-2 text-xs ${state.status === "success" ? "text-[#365F78]" : "text-red-700"}`}>{state.message}</p> : null}
@@ -293,16 +293,16 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
   };
 
   return (
-    <section className="flex h-[min(66dvh,560px)] min-h-[420px] flex-col overflow-hidden border bg-white">
+    <section className="flex h-[min(66dvh,560px)] min-h-[420px] flex-col overflow-hidden border bg-[var(--surface-canvas)]">
       <div className="flex items-center justify-between border-b p-2">
-        <div className="px-2"><p className="text-sm font-medium">AI 日历</p><p className="text-[11px] text-zinc-500">时间按 {timezone} 处理</p></div>
-        <div className="flex items-center gap-2"><button type="button" disabled={waiting || messages.length === 0} onClick={() => { setMessages([]); setStoppedMessage(null); }} className="px-2 py-1 text-xs text-zinc-500 hover:text-zinc-900 disabled:opacity-40">清空</button>
+        <div className="px-2"><p className="text-sm font-medium">AI 日历</p><p className="text-[12px] text-[var(--text-secondary)]">时间按 {timezone} 处理</p></div>
+        <div className="flex items-center gap-2"><button type="button" disabled={waiting || messages.length === 0} onClick={() => { setMessages([]); setStoppedMessage(null); }} className="px-2 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40">清空</button>
         <div className="inline-flex border">
           <button
             type="button"
             disabled={waiting}
             onClick={() => setModel("deepseek-v4-flash")}
-            className={`px-3 py-1 text-xs ${model === "deepseek-v4-flash" ? "bg-[#EDF3F6] text-[#365F78]" : "text-zinc-500"}`}
+            className={`px-3 py-1 text-xs ${model === "deepseek-v4-flash" ? "bg-[#EDF3F6] text-[#365F78]" : "text-[var(--text-secondary)]"}`}
           >
             Flash
           </button>
@@ -310,7 +310,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
             type="button"
             disabled={waiting}
             onClick={() => setModel("deepseek-v4-pro")}
-            className={`border-l px-3 py-1 text-xs ${model === "deepseek-v4-pro" ? "bg-[#EDF3F6] text-[#365F78]" : "text-zinc-500"}`}
+            className={`border-l px-3 py-1 text-xs ${model === "deepseek-v4-pro" ? "bg-[#EDF3F6] text-[#365F78]" : "text-[var(--text-secondary)]"}`}
           >
             Pro
           </button>
@@ -318,7 +318,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
         </div>
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-        {messages.length === 0 ? <p className="py-16 text-center text-sm text-zinc-400">告诉我你要创建、查找、修改或删除什么日程。</p> : null}
+        {messages.length === 0 ? <p className="py-16 text-center text-sm text-[var(--text-tertiary)]">告诉我你要创建、查找、修改或删除什么日程。</p> : null}
         {messages.map((message) => (
           <div
             key={message.id}
@@ -332,7 +332,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
                     className={
                       message.role === "user"
                         ? "inline-block bg-[#EDF3F6] px-3 py-2 text-sm"
-                        : "whitespace-pre-wrap text-sm leading-6 text-zinc-700"
+                        : "whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]"
                     }
                   >
                     {part.text}
@@ -369,7 +369,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
         ))}
       </div>
       {stoppedMessage ? (
-        <p role="status" className="px-4 pb-2 text-xs text-zinc-500">
+        <p role="status" className="px-4 pb-2 text-xs text-[var(--text-secondary)]">
           {stoppedMessage}
         </p>
       ) : null}
@@ -403,7 +403,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
             onChange={(event) => setInput(event.target.value)}
             disabled={waiting}
             maxLength={2_000}
-            className="min-w-0 flex-1 border bg-white px-3 py-2 text-sm"
+            className="min-w-0 flex-1 border bg-[var(--surface-canvas)] px-3 py-2 text-sm"
             placeholder="输入消息…"
           />
           {waiting ? (

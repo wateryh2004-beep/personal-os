@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./motion.css";
 import "./workspaces.css";
 import "./responsive.css";
 import "./today-calm.css";
@@ -22,7 +23,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  themeColor: "#f7f7f5",
+  themeColor: "#F7F6F2",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

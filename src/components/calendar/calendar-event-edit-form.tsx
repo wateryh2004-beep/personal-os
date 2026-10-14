@@ -87,27 +87,27 @@ function CalendarEventEditSession({ event, timezone, calendarCategories, categor
             <span className="mt-2 size-2 shrink-0 rounded-full" style={{ background: visual.dot }} />
             <div className="min-w-0">
               <h3 className="text-[18px] font-semibold leading-6 tracking-[-0.03em] text-[var(--text-primary)]">{event.subject || "未命名日程"}</h3>
-              <p className="mt-0.5 text-[11.5px] text-[var(--text-secondary)]">{dateLabel}</p>
-              {event.location_name ? <p className="mt-0.5 text-[10.5px] text-[var(--text-tertiary)]">{event.location_name}</p> : null}
+              <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">{dateLabel}</p>
+              {event.location_name ? <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">{event.location_name}</p> : null}
             </div>
           </div>
         </section>
 
         {event.body_text ? <section className="border-b border-[var(--separator)] py-3.5"><p className="mb-1.5 text-[9.5px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">说明</p><EntityMarkdown body={event.body_text} className="text-[12.5px] leading-5.5 text-[var(--text-secondary)]" /></section> : null}
 
-        <section className="border-b border-[var(--separator)] py-3.5 text-[11.5px]">
+        <section className="border-b border-[var(--separator)] py-3.5 text-[12px]">
           <div className="flex items-center justify-between gap-3"><span className="text-[var(--text-tertiary)]">分类</span><span className="font-medium text-[var(--text-primary)]">{visual.primaryCategory?.display_name ?? "未分类"}</span></div>
           <div className="mt-2.5 flex items-center justify-between gap-3"><span className="text-[var(--text-tertiary)]">Outlook</span><span className="text-right text-[var(--text-secondary)]">{new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(event.last_synced_at))} 同步</span></div>
         </section>
 
         <div className="flex items-center justify-between py-3.5">
-          {state.status === "success" ? <p role="status" className="text-[11px] text-[var(--success)]">{state.message}</p> : <button disabled={deleting} onClick={() => onEditingChange(true)} className="pressable rounded-[8px] px-2 py-1.5 text-[11.5px] font-medium text-[var(--accent)] transition-colors ui-transition hover:bg-[var(--accent-soft)]">编辑日程</button>}
+          {state.status === "success" ? <p role="status" className="text-[12px] text-[var(--success)]">{state.message}</p> : <button disabled={deleting} onClick={() => onEditingChange(true)} className="pressable rounded-[8px] px-2 py-1.5 text-[12px] font-medium text-[var(--accent)] transition-colors ui-transition hover:bg-[var(--accent-soft)]">编辑日程</button>}
           <form action={deleteAction} onSubmit={(submitEvent) => { if (!window.confirm("确认从 Outlook 删除这条日程？")) submitEvent.preventDefault(); }}>
             <input type="hidden" name="provider_event_id" value={event.provider_event_id}/><input type="hidden" name="subject" value={event.subject}/><input type="hidden" name="starts_at" value={event.starts_at}/><input type="hidden" name="ends_at" value={event.ends_at}/><input type="hidden" name="is_all_day" value={event.is_all_day ? "on" : ""}/>
-            <button disabled={deleting} className="pressable rounded-[8px] px-2 py-1.5 text-[10.5px] text-[var(--danger)] transition-colors ui-transition hover:bg-[rgba(215,0,21,.06)] disabled:opacity-50">{deleting ? "正在删除…" : "删除"}</button>
+            <button disabled={deleting} className="pressable rounded-[8px] px-2 py-1.5 text-[12px] text-[var(--danger)] transition-colors ui-transition hover:bg-[rgba(215,0,21,.06)] disabled:opacity-50">{deleting ? "正在删除…" : "删除"}</button>
           </form>
         </div>
-        {deleteState.status === "error" ? <p role="status" className="text-[11px] text-[var(--danger)]">{deleteState.message}</p> : null}
+        {deleteState.status === "error" ? <p role="status" className="text-[12px] text-[var(--danger)]">{deleteState.message}</p> : null}
       </div>
     );
   }
@@ -124,37 +124,37 @@ function CalendarEventEditSession({ event, timezone, calendarCategories, categor
       <input type="hidden" name="provider_event_id" value={event.provider_event_id}/><input type="hidden" name="original_subject" value={event.subject}/><input type="hidden" name="original_starts_at" value={event.starts_at}/><input type="hidden" name="original_ends_at" value={event.ends_at}/><input type="hidden" name="starts_at"/><input type="hidden" name="ends_at"/><input type="hidden" name="preserve_categories" value={categoriesEnabled ? "false" : "true"}/><input type="hidden" name="is_all_day_present" value="true"/>
 
       <section className="border-b border-[var(--separator)] pb-4">
-        <input ref={subjectInputRef} name="subject" required maxLength={500} defaultValue={event.subject} className="w-full border-0 bg-transparent px-0 text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)] outline-none" />
-        <input name="location_name" maxLength={500} defaultValue={event.location_name ?? ""} placeholder="添加地点" className="mt-1.5 w-full border-0 bg-transparent px-0 text-[11.5px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-tertiary)]" />
+        <input aria-label="日程标题" ref={subjectInputRef} name="subject" required maxLength={500} defaultValue={event.subject} className="w-full border-0 bg-transparent px-0 text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)] outline-none" />
+        <input aria-label="地点" name="location_name" maxLength={500} defaultValue={event.location_name ?? ""} placeholder="添加地点" className="mt-1.5 w-full border-0 bg-transparent px-0 text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-tertiary)]" />
       </section>
 
       <section className="border-b border-[var(--separator)] py-4">
         <label className="flex items-center justify-between gap-4 text-[13px] text-[var(--text-primary)]"><span>全天</span><input type="checkbox" name="is_all_day" checked={allDay} onChange={(input) => setAllDay(input.target.checked)} className="size-4 accent-[var(--accent)]" /></label>
         <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
-          <label className="grid gap-1.5 text-[10.5px] font-medium text-[var(--text-tertiary)]">{allDay ? "开始日期" : "开始"}<input key={`start-${allDay}`} ref={startRef} type={allDay ? "date" : "datetime-local"} required onChange={keepEndAfterStart} defaultValue={allDay ? startDate : dateTimeInputValue(event.starts_at, timezone)} className={control}/></label>
-          <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">{allDay ? "结束日期（不含）" : "结束"}<input key={`end-${allDay}`} ref={endRef} type={allDay ? "date" : "datetime-local"} required defaultValue={allDay ? allDayEndDate : dateTimeInputValue(event.ends_at, timezone)} className={control}/></label>
+          <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">{allDay ? "开始日期" : "开始"}<input key={`start-${allDay}`} ref={startRef} type={allDay ? "date" : "datetime-local"} required onChange={keepEndAfterStart} defaultValue={allDay ? startDate : dateTimeInputValue(event.starts_at, timezone)} className={control}/></label>
+          <label className="grid gap-1.5 text-[12px] text-[var(--text-tertiary)]">{allDay ? "结束日期（不含）" : "结束"}<input key={`end-${allDay}`} ref={endRef} type={allDay ? "date" : "datetime-local"} required defaultValue={allDay ? allDayEndDate : dateTimeInputValue(event.ends_at, timezone)} className={control}/></label>
         </div>
       </section>
 
       <section className="border-b border-[var(--separator)] py-4">
-        <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">说明<MentionTextarea value={description} onChange={setDescription} name="description" maxLength={10000} rows={4} placeholder="输入 @ 引用笔记/任务/日程/文件" className="min-h-24 rounded-[9px] border-0 bg-[var(--surface-control)] px-3 py-2.5 text-[12.5px] leading-5.5 outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]"/></label>
+        <label className="grid gap-1.5 text-[12px] text-[var(--text-tertiary)]">说明<MentionTextarea value={description} onChange={setDescription} name="description" maxLength={10000} rows={4} placeholder="输入 @ 引用笔记/任务/日程/文件" className="min-h-24 rounded-[9px] border-0 bg-[var(--surface-control)] px-3 py-2.5 text-[12.5px] leading-5.5 outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]"/></label>
       </section>
 
       <section className="border-b border-[var(--separator)] py-4"><CalendarCategoryPicker defaultCategories={event.categories} enabled={categoriesEnabled} /></section>
 
       <details className="border-b border-[var(--separator)] py-4">
-        <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11.5px] font-medium text-[var(--text-secondary)]">更多选项</summary>
+        <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-secondary)]">更多选项</summary>
         <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
-          <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">显示为<select name="show_as" defaultValue={event.show_as === "unknown" ? "busy" : event.show_as} className={control}><option value="busy">忙碌</option><option value="free">空闲</option><option value="tentative">暂定</option><option value="workingElsewhere">在其他地点工作</option><option value="oof">外出</option></select></label>
-          <label className="grid gap-1.5 text-[11px] text-[var(--text-tertiary)]">重要性<select name="importance" defaultValue={event.importance} className={control}><option value="low">低</option><option value="normal">普通</option><option value="high">高</option></select></label>
+          <label className="grid gap-1.5 text-[12px] text-[var(--text-tertiary)]">显示为<select name="show_as" defaultValue={event.show_as === "unknown" ? "busy" : event.show_as} className={control}><option value="busy">忙碌</option><option value="free">空闲</option><option value="tentative">暂定</option><option value="workingElsewhere">在其他地点工作</option><option value="oof">外出</option></select></label>
+          <label className="grid gap-1.5 text-[12px] text-[var(--text-tertiary)]">重要性<select name="importance" defaultValue={event.importance} className={control}><option value="low">低</option><option value="normal">普通</option><option value="high">高</option></select></label>
         </div>
       </details>
 
       <div className="flex items-center justify-end gap-2 pt-3.5">
-        <button type="button" disabled={pending} onClick={() => onEditingChange(false)} className="pressable h-9 rounded-[8px] px-3 text-[11.5px] font-medium text-[var(--text-secondary)] transition-colors ui-transition hover:bg-[var(--surface-hover)]">取消</button>
+        <button type="button" disabled={pending} onClick={() => onEditingChange(false)} className="pressable h-9 rounded-[8px] px-3 text-[12px] font-medium text-[var(--text-secondary)] transition-colors ui-transition hover:bg-[var(--surface-hover)]">取消</button>
         <button disabled={pending} className="pressable h-9 rounded-[9px] bg-[var(--accent)] px-3.5 text-[12px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] disabled:opacity-60">{pending ? "正在保存…" : "保存"}</button>
       </div>
-      {state.status === "error" ? <p role="status" className="mt-1.5 text-[10.5px] text-[var(--danger)]">{state.message}</p> : null}
+      {state.status === "error" ? <p role="status" className="mt-1.5 text-[12px] text-[var(--danger)]">{state.message}</p> : null}
     </form>
   );
 }

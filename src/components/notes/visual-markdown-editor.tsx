@@ -623,7 +623,7 @@ export function VisualMarkdownEditor({
           className="absolute right-2 top-[42px] z-30 flex max-h-[min(356px,60vh)] w-60 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[12px] border border-[var(--separator)] bg-[var(--material-popover)] shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%]"
         >
           <div className="flex h-8 shrink-0 items-center justify-between border-b border-[var(--separator)] pl-3 pr-1.5">
-            <span className="text-[11.5px] font-semibold text-[var(--text-secondary)]">目录</span>
+            <span className="text-[12px] font-semibold text-[var(--text-secondary)]">目录</span>
             <button
               type="button"
               onClick={() => setOutlineOpen(false)}

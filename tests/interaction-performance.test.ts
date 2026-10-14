@@ -117,7 +117,7 @@ describe("interaction performance guardrails", () => {
 
   it("loads heavy agent surfaces only after the user opens them", () => {
     expect(appShell).toContain("dynamic(");
-    expect(appShell).toContain("globalAgentOpen ? <GlobalAgent");
+    expect(appShell).toContain("<PanelPresence open={globalAgentOpen}>");
     expect(globalAgent).toContain('perfMark("agent-lazy-mounted")');
   });
 

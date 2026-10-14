@@ -18,7 +18,7 @@ export default async function InterviewQuestionLibraryPage({ searchParams }: { s
 
       <div className="mb-8 flex items-center justify-between gap-4">
         <form className="flex-1">
-          <input
+          <input aria-label="搜索题目"
             name="q"
             defaultValue={q ?? ""}
             placeholder="搜索题目"
@@ -27,9 +27,9 @@ export default async function InterviewQuestionLibraryPage({ searchParams }: { s
         </form>
 
         <details>
-          <summary className="cursor-pointer text-sm text-zinc-500 hover:text-zinc-900">+ 新题目</summary>
-          <form action={createInterviewQuestion} className="mt-4 w-[min(620px,90vw)] rounded-2xl bg-white/70 p-5">
-            <textarea
+          <summary className="cursor-pointer text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">+ 新题目</summary>
+          <form action={createInterviewQuestion} className="mt-4 w-[min(620px,90vw)] rounded-2xl bg-[var(--surface-canvas)]/70 p-5">
+            <textarea aria-label="题目"
               required
               autoFocus
               name="canonical_prompt"
@@ -50,24 +50,24 @@ export default async function InterviewQuestionLibraryPage({ searchParams }: { s
             <input type="hidden" name="parent_question_id" value="" />
             <input type="hidden" name="follow_up_kind" value="" />
             <input type="hidden" name="difficulty" value="3" />
-            <button className="mt-3 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white">保存</button>
+            <button className="mt-3 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white">保存</button>
           </form>
         </details>
       </div>
 
       <div className="space-y-1">
-        {data.rows.map(({ question }: any) => (
+        {data.rows.map(({ question }) => (
           <Link
             key={question.id}
             href={`/career/interview/questions/${question.id}`}
-            className="block rounded-lg px-2 py-3.5 text-sm leading-6 text-zinc-800 hover:bg-white/70"
+            className="block rounded-lg px-2 py-3.5 text-sm leading-6 text-[var(--text-primary)] hover:bg-[var(--surface-canvas)]/70"
           >
             {presentInterviewPrompt(question.canonical_prompt).question}
           </Link>
         ))}
       </div>
 
-      {!data.rows.length ? <p className="py-12 text-sm text-zinc-400">没有题目。</p> : null}
+      {!data.rows.length ? <p className="py-12 text-sm text-[var(--text-tertiary)]">没有题目。</p> : null}
     </>
   );
 }

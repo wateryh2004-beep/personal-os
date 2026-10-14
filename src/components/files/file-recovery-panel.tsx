@@ -56,7 +56,7 @@ export function FileRecoveryPanel({ disabled = false }: { disabled?: boolean }) 
       if (value.code === "files_export_plan_changed") { setPlan(null); setStarted([]); }
     } catch { /* Browser attachment handling need not expose a document. */ }
   }
-  return <details className="mt-3 rounded-[9px] border border-[var(--separator)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+  return <details className="mt-3 rounded-[9px] border border-[var(--separator)] px-3 py-2 text-[12px] text-[var(--text-secondary)]">
     <summary className="cursor-pointer font-medium">导出与恢复副本</summary>
     <p className="mt-2 leading-5">包含全部 Files 原件（不受当前筛选影响）、归档中的文件、笔记附件及目录关系，可能含敏感资料。仅保存到你控制的位置。未完成上传只列入清单，不算已备份。</p>
     <p className="mt-1 leading-5">大文件集合可分包下载，失败时重试相同分包。单文件仍限 100 MiB；这不是完整数据库备份，也不会自动清理原件。</p>

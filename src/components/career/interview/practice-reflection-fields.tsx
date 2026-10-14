@@ -24,7 +24,7 @@ export function PracticeReflectionFields({ submitPending = false, submitFailed =
           placeholder="如 90"
           className="mt-2 block h-9 w-32 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
         />
-        <span id="practice-duration-help" className="mt-1.5 block text-[11px] text-[var(--text-tertiary)]">按实际回答时长填写，60 秒 = 1 分钟；没计时可留空</span>
+        <span id="practice-duration-help" className="mt-1.5 block text-[12px] text-[var(--text-tertiary)]">按实际回答时长填写，60 秒 = 1 分钟；没计时可留空</span>
       </label>
 
       <fieldset>
@@ -65,14 +65,14 @@ export function PracticeReflectionFields({ submitPending = false, submitFailed =
           placeholder="写下下次练习最想改进的一个具体点"
           className="mt-2 w-full resize-y rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[14px] leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
         />
-        <span id="practice-focus-help" className="mt-1.5 block text-[11px] text-[var(--text-tertiary)]">填写后会更新这道题的练习重点；留空则保留原重点</span>
+        <span id="practice-focus-help" className="mt-1.5 block text-[12px] text-[var(--text-tertiary)]">填写后会更新这道题的练习重点；留空则保留原重点</span>
       </label>
 
       <div>
         <button type="submit" disabled={pending} aria-busy={pending} className="pressable rounded-[9px] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-wait disabled:opacity-60">
           {pending ? "保存中…" : submitFailed ? "核对后重试保存" : "保存这次练习"}
         </button>
-        <p className="mt-2 text-[11px] text-[var(--text-tertiary)]">保存后，下次复习安排在 3 天后</p>
+        <p className="mt-2 text-[12px] text-[var(--text-tertiary)]">保存后，下次复习安排在 3 天后</p>
       </div>
     </fieldset>
   );

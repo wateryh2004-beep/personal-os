@@ -312,7 +312,7 @@ function QuickAdd({
           <span className="inline-flex size-6 shrink-0 items-center justify-center text-[var(--accent)]">
             <Plus className="size-4" aria-hidden="true" />
           </span>
-          <input
+          <input aria-label="标题"
             autoFocus
             name="title"
             defaultValue={draftTitle}
@@ -343,11 +343,11 @@ function QuickAdd({
           新建任务
         </button>
       )}
-      <p className="pl-8 text-[10px] leading-4 text-[var(--text-tertiary)]">
+      <p className="pl-8 text-[12px] leading-4 text-[var(--text-tertiary)]">
         添加到 {listLabel}
       </p>
       {message ? (
-        <p role="status" className="mt-1 pl-8 text-[10.5px] text-[var(--text-tertiary)]">
+        <p role="status" className="mt-1 pl-8 text-[12px] text-[var(--text-tertiary)]">
           {message}
           {createdTask ? <button type="button" onClick={() => onReveal(createdTask)} className="pressable ml-2 inline-flex min-h-11 items-center rounded-md px-1 text-[12px] font-medium text-[var(--accent)]">查看任务</button> : null}
         </p>
@@ -413,7 +413,7 @@ function TaskInspector({
 
         <section className="border-b border-[var(--separator)] pb-4.5">
           {editing === "title" ? (
-            <input
+            <input aria-label="清单名称"
               autoFocus
               disabled={pending}
               value={title}
@@ -447,7 +447,7 @@ function TaskInspector({
 
         <section className="border-b border-[var(--separator)] py-4.5">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[10.5px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">
+            <p className="text-[12px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">
               说明
             </p>
             {!editing && task.bodyText ? (
@@ -455,7 +455,7 @@ function TaskInspector({
                 type="button"
                 disabled={pending}
               onClick={() => { setBody(task.bodyText ?? ""); setEditing("body"); }}
-                className="text-[11px] font-medium text-[var(--accent)]"
+                className="text-[12px] font-medium text-[var(--accent)]"
               >
                 编辑
               </button>
@@ -494,7 +494,7 @@ function TaskInspector({
 
         <dl className="divide-y divide-[var(--border-subtle)] border-b border-[var(--border-subtle)]">
           <div className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-3 py-3">
-            <dt className="text-[11.5px] text-[var(--text-tertiary)]">清单</dt>
+            <dt className="text-[12px] text-[var(--text-tertiary)]">清单</dt>
             <dd className="text-[12.5px] text-[var(--text-primary)]">{list}</dd>
           </div>
           <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-3 py-3.5">
@@ -516,7 +516,7 @@ function TaskInspector({
           <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-3 py-3.5">
             <dt className="text-[12px] text-[var(--text-tertiary)]">优先级</dt>
             <dd>
-              <select
+              <select aria-label="任务清单"
                 disabled={pending}
                 value={task.importance}
                 onChange={(event) =>
@@ -537,7 +537,7 @@ function TaskInspector({
         </div>
 
         {message ? (
-          <p role="status" className="pt-3.5 text-[10.5px] text-[var(--text-tertiary)]">
+          <p role="status" className="pt-3.5 text-[12px] text-[var(--text-tertiary)]">
             {message}
           </p>
         ) : null}
@@ -1132,7 +1132,7 @@ export function TaskWorkspace({
           </main>
 
           <aside className="hidden border-l border-[var(--separator)] px-3.5 py-4.5 xl:block">
-            <p className="px-2 text-[10px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">
+            <p className="px-2 text-[12px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">
               清单
             </p>
             <div className="mt-1.5 space-y-px">

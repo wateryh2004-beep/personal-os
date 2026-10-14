@@ -32,7 +32,7 @@ export default async function ResumesPage() {
         <CareerForm action={submitCareerForm.bind(null, "createResumeVersion")} resetOnSuccess className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
           <Field name="title" label="名称 *" required />
           <Field name="version_label" label="版本标签" />
-          <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-secondary)]">
+          <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-secondary)]">
             <span>目标方向</span>
             <select name="target_direction_id" className={selectClass}>
               <option value="">通用</option>

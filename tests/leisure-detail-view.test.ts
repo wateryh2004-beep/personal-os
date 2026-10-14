@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { LeisureExperience } from "@/features/leisure/types";
 vi.mock("next/link", () => ({ default: ({ onNavigate, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { onNavigate?: (event: { preventDefault: () => void }) => void }) => createElement("a", { ...props, onClick: (event: React.MouseEvent) => { onNavigate?.(event); event.preventDefault(); } }) }));
 vi.mock("next/image", () => ({ default: ({ fill, preload, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean; preload?: boolean }) => { void fill; void preload; return createElement("img", props); } }));
-vi.mock("@/features/leisure/actions", () => ({ saveLeisureFeedback: vi.fn() }));
+vi.mock("@/features/leisure/actions", () => ({ saveLeisureFeedback: vi.fn(), readLeisureFeedback: vi.fn() }));
 import { LeisureDetail } from "@/components/leisure/leisure-detail";
 const base: LeisureExperience = { id: "a", title: "Synthetic detail", kind: "film", why: "Synthetic editorial description", body_markdown: "## A first chapter\n\nOnly verified content belongs here.", how_to_start: "Read the official introduction", duration_minutes: 90, platform: null, location: null, starts_at: null, cost_text: null, setting: null, company: null, budget: "unknown", sources: [], ratings: [], content_revision: 1, created_at: "2026-10-05T00:00:00Z", updated_at: "2026-10-05T00:00:00Z", feedback: null };
 let host: HTMLDivElement, root: Root;

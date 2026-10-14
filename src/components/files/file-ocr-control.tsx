@@ -95,7 +95,7 @@ function OcrSession({ file, onComplete }: { file: FileRecord; onComplete: (count
       <p>{progress.phase === "loading" ? "正在加载本地识别引擎…" : `第 ${progress.page} / ${progress.total} 页 · ${Math.round(progress.progress * 100)}%`}</p>
       <progress className="w-full" aria-label="OCR 进度" max={100} value={Math.round(((Math.max(1, progress.page) - 1 + progress.progress) / progress.total) * 100)} />
     </div> : null}
-    {provenance ? <p className="break-words text-[10px] text-[var(--text-secondary)]">{provenance}</p> : null}
+    {provenance ? <p className="break-words text-[12px] text-[var(--text-secondary)]">{provenance}</p> : null}
     {message ? <p role="status">{message}</p> : null}
     {file.file_size > OCR_MAX_BYTES ? <p role="alert">文件超过 20 MiB，请先拆分或压缩副本。</p> : null}
     <div className="flex gap-2"><button type="button" className={button} disabled={busy || file.file_size > OCR_MAX_BYTES} onClick={() => void run()}>{busy ? "正在识别…" : "开始 / 重新识别"}</button>

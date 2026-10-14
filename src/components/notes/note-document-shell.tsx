@@ -67,7 +67,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
         {pdfs.length > 0 ? <div className="flex h-12 shrink-0 items-center gap-1 border-b border-[var(--separator)] px-3 md:px-6" role="group" aria-label="文档阅读方式">
           <button type="button" aria-pressed={view === "markdown"} onClick={() => { setEditorVisited(true); setView("markdown"); }} className={`pressable rounded-[8px] px-3 py-1.5 text-[12px] ${view === "markdown" ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}>正文</button>
           <button type="button" aria-pressed={view === "pdf"} onClick={() => { setPdfVisited(true); setView("pdf"); }} className={`pressable rounded-[8px] px-3 py-1.5 text-[12px] ${view === "pdf" ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}>PDF</button>
-          <span className="ml-2 hidden truncate text-[11px] text-[var(--text-tertiary)] sm:block">{selectedPdf?.role === "pdf_snapshot" ? "飞书导入时的原始排版" : selectedPdf?.title}</span>
+          <span className="ml-2 hidden truncate text-[12px] text-[var(--text-tertiary)] sm:block">{selectedPdf?.role === "pdf_snapshot" ? "飞书导入时的原始排版" : selectedPdf?.title}</span>
         </div> : null}
         {/* Keep the editor mounted so drafts and in-flight autosaves survive view changes. */}
         <div className="min-h-0 flex-1" hidden={view === "pdf" && !!selectedPdf}>{editorVisited || !selectedPdf ? editor : null}</div>
@@ -80,7 +80,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
           </div>
           <iframe key={`${selectedPdf.id}:${readerVersion}`} onLoad={() => setLoadedReader(`${selectedPdf.id}:${readerVersion}`)} src={`${noteAttachmentUrl(selectedPdf.id, true)}#view=FitH`} title={`PDF 阅读器：${selectedPdf.title}`} className="min-h-0 w-full flex-1 border-0 bg-[var(--surface-hover)]" />
           {loadedReader !== `${selectedPdf.id}:${readerVersion}` ? <p role="status" className="shrink-0 px-3 py-1.5 text-[12px] text-[var(--text-secondary)]">正在打开 PDF…</p> : null}
-          <p className="shrink-0 px-3 py-1.5 text-[10.5px] text-[var(--text-tertiary)]">若浏览器无法显示 PDF，可在独立窗口阅读或下载。PDF 原件不会随正文编辑而改变。</p>
+          <p className="shrink-0 px-3 py-1.5 text-[12px] text-[var(--text-tertiary)]">若浏览器无法显示 PDF，可在独立窗口阅读或下载。PDF 原件不会随正文编辑而改变。</p>
         </div> : null}
       </div>
       <Inspector

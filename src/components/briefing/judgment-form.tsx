@@ -64,7 +64,7 @@ export function JudgmentForm({ entryId, existing }: { entryId: string; existing:
             defaultValue={existing?.decisionText ?? ""}
             placeholder="你认为这件事说明了什么？它会怎样发展？"
             rows={3}
-            className="mt-1 w-full resize-y rounded-[var(--radius-sm)] border bg-white px-3 py-2 text-sm leading-6"
+            className="mt-1 w-full resize-y rounded-[var(--radius-sm)] border bg-[var(--surface-canvas)] px-3 py-2 text-sm leading-6"
           />
         </label>
         <label className="block">
@@ -90,12 +90,12 @@ export function JudgmentForm({ entryId, existing }: { entryId: string; existing:
             defaultValue={existing?.falsificationCondition ?? ""}
             placeholder="写出一个可观察的条件，满足时你的判断需要修正。"
             rows={2}
-            className="mt-1 w-full resize-y rounded-[var(--radius-sm)] border bg-white px-3 py-2 text-sm leading-6"
+            className="mt-1 w-full resize-y rounded-[var(--radius-sm)] border bg-[var(--surface-canvas)] px-3 py-2 text-sm leading-6"
           />
         </label>
         <label className="block">
           <span className="text-xs font-medium text-[var(--text-secondary)]">回看日期</span>
-          <select name="review_period" defaultValue="3_months" className="mt-1 h-8 w-full rounded-[var(--radius-sm)] border bg-white px-2 text-sm">
+          <select name="review_period" defaultValue="3_months" className="mt-1 h-8 w-full rounded-[var(--radius-sm)] border bg-[var(--surface-canvas)] px-2 text-sm">
             {judgmentReviewPeriods.map((period) => (
               <option key={period.value} value={period.value}>
                 {period.label}
@@ -117,7 +117,7 @@ export function JudgmentForm({ entryId, existing }: { entryId: string; existing:
         </div>
       </form>
       {existing ? (
-        <p className="mt-2 text-[11px] text-[var(--text-tertiary)]">
+        <p className="mt-2 text-[12px] text-[var(--text-tertiary)]">
           {existing.confidence != null ? `置信度 ${existing.confidence}%` : ""}
           {existing.reviewAt ? ` · 回看 ${new Date(existing.reviewAt).toLocaleDateString("zh-CN")}` : ""}
         </p>

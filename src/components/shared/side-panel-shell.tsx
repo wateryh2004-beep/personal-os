@@ -135,10 +135,8 @@ export function SidePanelShell({
     persistWidth();
   };
 
-  if (!open) return null;
-
   return <DialogPrimitive.Root open={open} modal={isMobile} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
-    {isMobile ? <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/12" /> : null}
+    {isMobile ? <DialogPrimitive.Overlay className="side-panel-veil fixed inset-0 z-50 bg-black/12" /> : null}
     <DialogPrimitive.Content
       asChild
       aria-modal={isMobile || undefined}
@@ -158,7 +156,7 @@ export function SidePanelShell({
       ref={asideRef}
       style={{ "--panel-width": `${defaults}px` } as React.CSSProperties}
       className={cn(
-        "side-panel-surface fixed bottom-0 right-0 top-[var(--toolbar-height)] z-50 flex h-[calc(var(--app-viewport-height)-var(--toolbar-height))] min-h-0 w-full max-w-full flex-col overflow-hidden border-l border-[var(--border-subtle)] bg-[var(--surface-canvas)] text-popover-foreground shadow-[var(--shadow-panel)] ui-panel-transition animate-in fade-in-0 slide-in-from-right-2 md:z-40 md:w-[min(var(--panel-width),calc(100vw-8px))]",
+        "side-panel-surface fixed bottom-0 right-0 top-[var(--toolbar-height)] z-50 flex h-[calc(var(--app-viewport-height)-var(--toolbar-height))] min-h-0 w-full max-w-full flex-col overflow-hidden border-l border-[var(--border-subtle)] bg-[var(--surface-canvas)] text-popover-foreground shadow-[var(--shadow-panel)] ui-panel-transition md:z-40 md:w-[min(var(--panel-width),calc(100vw-8px))]",
         className,
       )}
       aria-label={ariaLabel}
@@ -184,7 +182,7 @@ export function SidePanelShell({
         <div className="flex min-w-0 items-center gap-2">
           {leading}
           <DialogPrimitive.Title asChild><h2 ref={headingRef} tabIndex={-1} className="truncate rounded-[var(--radius-sm)] text-[14px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">{title}</h2></DialogPrimitive.Title>
-          {meta ? <div className="min-w-0 truncate text-[10.5px] text-[var(--text-tertiary)]">{meta}</div> : null}
+          {meta ? <div className="min-w-0 truncate text-[12px] text-[var(--text-tertiary)]">{meta}</div> : null}
         </div>
         <Button variant="ghost" size="icon-sm" className="size-11 md:size-8" onClick={onClose} aria-label={`关闭${ariaLabel}`}>
           <X className="size-3.5" aria-hidden="true" />

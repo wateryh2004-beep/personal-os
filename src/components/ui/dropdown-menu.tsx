@@ -128,7 +128,7 @@ function DropdownMenuLabel({
     <DropdownMenuPrimitive.Label
       data-slot="dropdown-menu-label"
       data-inset={inset}
-      className={cn("px-2 py-1 text-[10.5px] font-medium text-[var(--text-tertiary)] data-inset:pl-7", className)}
+      className={cn("px-2 py-1 text-[12px] font-medium text-[var(--text-tertiary)] data-inset:pl-7", className)}
       {...props}
     />
   )
@@ -139,7 +139,7 @@ function DropdownMenuSeparator({ className, ...props }: React.ComponentProps<typ
 }
 
 function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<"span">) {
-  return <span data-slot="dropdown-menu-shortcut" className={cn("ml-auto text-[10.5px] tabular-nums text-[var(--text-tertiary)]", className)} {...props} />
+  return <span data-slot="dropdown-menu-shortcut" className={cn("ml-auto text-[12px] tabular-nums text-[var(--text-tertiary)]", className)} {...props} />
 }
 
 function DropdownMenuSub({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {

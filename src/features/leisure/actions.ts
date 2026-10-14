@@ -3,7 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { leisureFeedbackInputSchema, leisureFeedbackSchema } from "./schemas";
-import type { LeisureFeedbackResult } from "./types";
+import type { LeisureFeedbackReadResult, LeisureFeedbackResult } from "./types";
+import { getLeisureExperience } from "./queries";
+
+/** Reconcile a lost response or revision conflict without reloading a draft. */
+export async function readLeisureFeedback(experienceId: string): Promise<LeisureFeedbackReadResult> {
+  const result = await getLeisureExperience(experienceId);
+  return result.unavailable || !result.experience
+    ? { ok: false }
+    : { ok: true, feedback: result.experience.feedback };
+}
 
 /** An explicit user feedback snapshot, never an editorial/AI content write. */
 export async function saveLeisureFeedback(input: unknown): Promise<LeisureFeedbackResult> {
@@ -37,7 +46,7 @@ export async function saveLeisureFeedback(input: unknown): Promise<LeisureFeedba
     } catch { /* The returned revision remains authoritative for the current UI. */ }
     return { ok: true, feedback: feedback.data };
   } catch {
-    // A dropped response may have committed; the UI should reload before retrying.
+    // A dropped response may have committed; re-read the revision before retrying.
     return { ok: false, error: "unavailable" };
   }
 }

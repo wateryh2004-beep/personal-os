@@ -1,5 +1,6 @@
 "use server";
 
+import { diagnosticErrorKind } from "@/lib/diagnostics";
 import { revalidatePath } from "@/lib/workspace-revalidation";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
@@ -31,7 +32,7 @@ export async function captureInboxItem(_: InboxCaptureState, formData: FormData)
       classified = result.status === "ready";
     } catch (error) {
       console.error("[inbox:capture] classify failed", {
-        reason: error instanceof Error ? error.message : "unknown_error",
+        reason: diagnosticErrorKind(error),
       });
     }
     await revalidatePath("/inbox");
@@ -39,7 +40,7 @@ export async function captureInboxItem(_: InboxCaptureState, formData: FormData)
     return { status: "success", message: "已加入 Inbox。", inboxId: data.id, classified };
   } catch (error) {
     console.error("[inbox:capture] failed", {
-      reason: error instanceof Error ? error.message : "unknown_error",
+      reason: diagnosticErrorKind(error),
     });
     return { status: "error", message: "暂时无法保存，请检查网络后重试。" };
   }
@@ -58,7 +59,7 @@ export async function reclassifyInboxItem(_: InboxClassifyState, formData: FormD
       message: result.status === "ready" ? "已识别出去向，请在列表确认。" : "仍无法判断，可手动选择去向。",
     };
   } catch (error) {
-    console.error("[inbox:reclassify] failed", { reason: error instanceof Error ? error.message : "unknown_error" });
+    console.error("[inbox:reclassify] failed", { reason: diagnosticErrorKind(error) });
     return { status: "error", message: "识别失败，请稍后重试。" };
   }
 }
@@ -109,7 +110,7 @@ export async function archiveInboxItem(_: InboxCaptureState, formData: FormData)
     await revalidatePath("/today");
     return { status: "success", message: "已归档，可在页面底部恢复。" };
   } catch (error) {
-    console.error("[inbox:archive] failed", { reason: error instanceof Error ? error.message : "unknown_error" });
+    console.error("[inbox:archive] failed", { reason: diagnosticErrorKind(error) });
     return { status: "error", message: "暂时无法归档，请重试。" };
   }
 }
@@ -132,7 +133,7 @@ export async function restoreInboxItem(_: InboxCaptureState, formData: FormData)
     await revalidatePath("/today");
     return { status: "success", message: "已恢复到 Inbox。" };
   } catch (error) {
-    console.error("[inbox:restore] failed", { reason: error instanceof Error ? error.message : "unknown_error" });
+    console.error("[inbox:restore] failed", { reason: diagnosticErrorKind(error) });
     return { status: "error", message: "暂时无法恢复，请重试。" };
   }
 }
@@ -237,7 +238,7 @@ export async function convertInboxToDailyNote(_: InboxCaptureState, formData: Fo
       destinationHref: `/notes/${destination.noteId}`,
     };
   } catch (error) {
-    console.error("[inbox:daily] failed", { reason: error instanceof Error ? error.message : "unknown_error" });
+    console.error("[inbox:daily] failed", { reason: diagnosticErrorKind(error) });
     return { status: "error", message: "暂时无法写入今日日记，请重试。" };
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 /** These states describe server results; animation never grants access. */
@@ -9,16 +10,22 @@ export function AuthSuccess({ title, message, href, action, autoEnter = false }:
 }) {
   const router = useRouter();
   const heading = useRef<HTMLHeadingElement>(null);
+  const entered = useRef(false);
+  const enter = useCallback(() => {
+    if (entered.current) return;
+    entered.current = true;
+    router.replace(href, { transitionTypes: ["auth-entry"] });
+  }, [href, router]);
   useEffect(() => {
     heading.current?.focus();
     if (!autoEnter) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     // Independent of animationend: disabled animations/background tabs cannot trap login.
-    const timer = window.setTimeout(() => router.replace(href), reduced.matches ? 0 : 1000);
-    const skip = () => { if (reduced.matches) { window.clearTimeout(timer); router.replace(href); } };
+    const timer = window.setTimeout(enter, reduced.matches ? 0 : 320);
+    const skip = () => { if (reduced.matches) { window.clearTimeout(timer); enter(); } };
     reduced.addEventListener("change", skip);
     return () => { window.clearTimeout(timer); reduced.removeEventListener("change", skip); };
-  }, [autoEnter, href, router]);
+  }, [autoEnter, enter]);
 
   return (
     <section className={`auth-card auth-success${autoEnter ? " auth-entering" : ""}`}>
@@ -26,17 +33,17 @@ export function AuthSuccess({ title, message, href, action, autoEnter = false }:
         <span className="auth-success-ring" /><span className="auth-success-ring auth-success-ring-outer" />
         <div className="auth-success-core"><svg viewBox="0 0 40 40" fill="none"><path d="m11 20 6 6 13-13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></div>
       </div>
-      <p className="auth-eyebrow">{autoEnter ? "YOUR SPACE, READY" : "ALL SET"}</p>
+
       <h1 ref={heading} tabIndex={-1} className="auth-title">{title}</h1>
-      <p role="status" className="auth-description">{message}</p>
+      {message ? <p role="status" className="auth-description">{message}</p> : null}
       {/* Native link remains usable without JS, and lets users skip the transition. */}
-      <a href={href} className="auth-primary">{action}<span aria-hidden="true">↗</span></a>
+      <a href={href} onClick={event => { if (autoEnter && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); enter(); } }} className="auth-primary">{action}<span aria-hidden="true">↗</span></a>
     </section>
   );
 }
 
-export function AuthHeading({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) {
-  return <div className="auth-heading"><p className="auth-eyebrow">{eyebrow}</p><h1 className="auth-title">{title}</h1><p className="auth-description">{children}</p></div>;
+export function AuthHeading({ title, children }: { title: string; children?: ReactNode }) {
+  return <div className="auth-heading"><h1 className="auth-title">{title}</h1>{children ? <p className="auth-description">{children}</p> : null}</div>;
 }
 
 export function AuthFeedback({ state }: { state: { error?: string; message?: string } }) {
@@ -59,5 +66,5 @@ export function AuthSubmit({ pending, label, pendingLabel }: { pending: boolean;
 export function AuthPassword({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   const id = useId();
   const [visible, setVisible] = useState(false);
-  return <div className="auth-field"><label htmlFor={id}>{label}</label><div className="auth-password"><input {...props} id={id} type={visible ? "text" : "password"} className="auth-input" /><button type="button" className="auth-reveal" aria-label={`${visible ? "隐藏" : "显示"}${label}`} aria-pressed={visible} onClick={() => setVisible(value => !value)}>{visible ? "隐藏" : "显示"}</button></div></div>;
+  return <div className="auth-field"><label htmlFor={id}>{label}</label><div className="auth-password"><input {...props} id={id} type={visible ? "text" : "password"} className="auth-input" /><button type="button" className="auth-reveal" aria-label={`${visible ? "隐藏" : "显示"}${label}`} aria-pressed={visible} onClick={() => setVisible(value => !value)}>{visible ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}</button></div></div>;
 }

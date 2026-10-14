@@ -22,11 +22,17 @@ import { AgentActionCard } from "./agent-action-card";
 import { AgentActionGroup } from "./agent-action-group";
 import { AgentSources } from "./agent-sources";
 import { AssistantStreamSources } from "./assistant-stream-sources";
+import { loadWorkspaceSession, saveWorkspaceSession, removeWorkspaceSession } from "@/lib/workspace-session";
 import { perfMark } from "@/lib/perf";
 import { errorMessage, runError, type RunPayload, type RunStep } from "./agent-errors";
 
-const runStorageKey = "personal-os:agent:active-run:v1";
-const draftStorageKey = "personal-os:agent:draft:v1";
+const runStorageKey = "agent:active-run:v2";
+const draftStorageKey = "agent:draft:v2";
+
+function retainFailedDraft(text: string) {
+  const newer = loadWorkspaceSession<unknown>(draftStorageKey);
+  if (typeof newer !== "string" || !newer) saveWorkspaceSession(draftStorageKey, text);
+}
 
 const surfaceLabels: Record<string, string> = {
   calendar: "日历",
@@ -67,6 +73,7 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
   const currentSurface = surfaceForPath(pathname);
   const runIdRef = useRef<string | null>(null);
   const pendingSubmitRef = useRef(false);
+  const submittedDraft = useRef<string | null>(null);
   const [input, setInput] = useState("");
   const [steps, setSteps] = useState<RunStep[]>([]);
   const [actions, setActions] = useState<AgentAction[]>([]);
@@ -78,11 +85,16 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/assistant" }), []);
   const { messages, setMessages, sendMessage, status, error, stop, clearError } = useChat<AssistantUIMessage>({
     transport,
-    onFinish: () => void refreshRun(),
+    onFinish: () => { submittedDraft.current = null; void refreshRun(); },
+    onError: () => {
+      const draft = submittedDraft.current;
+      if (draft) { retainFailedDraft(draft); setInput(current => current || draft); }
+    },
   });
   const waiting = status !== "ready";
 
   const refreshRun = useCallback(async () => {
+    if (!open) return;
     const runId = runIdRef.current;
     if (!runId) return;
     try {
@@ -96,7 +108,7 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
     } catch {
       // Streaming remains usable if persistence refresh is temporarily offline.
     }
-  }, [messages.length, setMessages, waiting]);
+  }, [messages.length, open, setMessages, waiting, setLocalError]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -108,9 +120,24 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
   }, []);
 
   useEffect(() => {
+    if (!open) return;
+    let disposed = false;
     const timer = window.setTimeout(async () => {
-      const runId = localStorage.getItem(runStorageKey);
-      const draft = localStorage.getItem(draftStorageKey);
+      let storedRun = loadWorkspaceSession<unknown>(runStorageKey);
+      let storedDraft = loadWorkspaceSession<unknown>(draftStorageKey);
+      // The identity boundary clears legacy keys before mounting a different
+      // owner. Preserve the existing same-owner draft on this upgrade, then
+      // retire the long-lived keys in favor of bounded same-tab recovery.
+      try {
+        storedRun ??= localStorage.getItem("personal-os:agent:active-run:v1");
+        storedDraft ??= localStorage.getItem("personal-os:agent:draft:v1");
+        if (typeof storedRun === "string") saveWorkspaceSession(runStorageKey, storedRun);
+        if (typeof storedDraft === "string") saveWorkspaceSession(draftStorageKey, storedDraft);
+        localStorage.removeItem("personal-os:agent:active-run:v1");
+        localStorage.removeItem("personal-os:agent:draft:v1");
+      } catch { /* Private/blocked storage cannot prevent input or streaming. */ }
+      const runId = typeof storedRun === "string" && /^[0-9a-f-]{36}$/i.test(storedRun) ? storedRun : null;
+      const draft = typeof storedDraft === "string" ? storedDraft : null;
       if (draft) setInput(draft);
       if (runId) {
         runIdRef.current = runId;
@@ -119,25 +146,26 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
           const response = await fetch(`/api/assistant/runs/${runId}`, { cache: "no-store" });
           if (response.ok) {
             const payload = (await response.json()) as RunPayload;
+            if (disposed) return;
             setMessages((payload.messages ?? []) as AssistantUIMessage[]);
             setSteps(payload.steps ?? []);
             setActions(payload.actions ?? []);
             setLocalError(runError(payload));
-          } else {
+          } else if (!disposed) {
             runIdRef.current = null;
             setActiveRunId(null);
-            localStorage.removeItem(runStorageKey);
+            removeWorkspaceSession(runStorageKey);
           }
         } catch {
           // Preserve id for a later retry.
         }
       }
-      setRestoring(false);
+      if (!disposed) setRestoring(false);
     }, 0);
-    return () => window.clearTimeout(timer);
-  }, [setMessages]);
+    return () => { disposed = true; window.clearTimeout(timer); };
+  }, [open, setMessages]);
 
-  useEffect(() => localStorage.setItem(draftStorageKey, input), [input]);
+  useEffect(() => { if (open && !restoring) saveWorkspaceSession(draftStorageKey, input); }, [input, open, restoring]);
 
   const ensureRun = useCallback(async (currentEntity: { type: string; id: string } | null) => {
     if (runIdRef.current) return runIdRef.current;
@@ -150,12 +178,12 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
     if (!response.ok || !payload.runId) throw new Error(payload.error || "Agent 操作会话暂时不可用。");
     runIdRef.current = payload.runId;
     setActiveRunId(payload.runId);
-    localStorage.setItem(runStorageKey, payload.runId);
+    saveWorkspaceSession(runStorageKey, payload.runId);
     return payload.runId;
   }, [pathname]);
 
   useEffect(() => {
-    if (!activeRunId) return;
+    if (!open || !activeRunId) return;
     const supabase = createBrowserSupabaseClient();
     let refreshTimer: number | null = null;
     const scheduleRefresh = () => {
@@ -173,11 +201,11 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
-  }, [activeRunId, refreshRun]);
+  }, [activeRunId, open, refreshRun]);
 
   const submitText = useCallback(async (value: string) => {
     const text = value.trim();
-    if (!text || pendingSubmitRef.current) return;
+    if (!open || !text || pendingSubmitRef.current) return;
     pendingSubmitRef.current = true;
     try {
       const selectedText = window.getSelection()?.toString().trim().slice(0, 4_000) || null;
@@ -187,8 +215,9 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
       const runId = Boolean(runIdRef.current) || gate.mode === "action" ? await ensureRun(currentEntity) : null;
       clearError();
       setLocalError(null);
+      submittedDraft.current = text;
       setInput("");
-      localStorage.removeItem(draftStorageKey);
+      removeWorkspaceSession(draftStorageKey);
       await sendMessage({ text }, {
         body: {
           surface: "global",
@@ -199,11 +228,13 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
         },
       });
     } catch {
-      setLocalError("Personal OS AI 暂时没有完成这次请求。你的输入仍保留在当前会话中，可以直接重试。");
+      retainFailedDraft(text);
+      setInput(current => current || text);
+      setLocalError("请求未完成，输入已保留，可以重试。");
     } finally {
       pendingSubmitRef.current = false;
     }
-  }, [clearError, ensureRun, pathname, sendMessage]);
+  }, [clearError, ensureRun, open, pathname, sendMessage, setLocalError]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -218,7 +249,7 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
     if (waiting) void stop();
     runIdRef.current = null;
     setActiveRunId(null);
-    localStorage.removeItem(runStorageKey);
+    removeWorkspaceSession(runStorageKey);
     setMessages([]);
     setSteps([]);
     setActions([]);
@@ -235,13 +266,13 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
         <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !waiting) { event.preventDefault(); void submitText(input); } }} rows={2} maxLength={10_000} placeholder={`问 ${surfaceLabels[currentSurface]}，或直接说要做什么…`} className="max-h-36 min-h-10 flex-1 resize-none bg-transparent px-1 py-1 text-sm leading-6 outline-none placeholder:text-[var(--text-tertiary)]" aria-label="询问 Personal OS" />
         {waiting ? <button type="button" onClick={() => void stop()} className="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-[var(--text-primary)] text-white" aria-label="停止生成"><Square className="size-3 fill-current" /></button> : <button type="submit" disabled={!input.trim()} className="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-[var(--accent)] text-white transition-transform active:scale-[0.96] disabled:opacity-35" aria-label="发送"><ArrowUp className="size-4" /></button>}
       </div>
-      <div className="flex items-center justify-between text-[10.5px] text-[var(--text-tertiary)]"><span>Enter 发送 · Shift Enter 换行</span><button type="button" onClick={newRun} className="inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-[var(--surface-hover)]"><Plus className="size-3" />新会话</button></div>
+      <div className="flex items-center justify-between text-[12px] text-[var(--text-tertiary)]"><span>Enter 发送 · Shift Enter 换行</span><button type="button" onClick={newRun} className="inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-[var(--surface-hover)]"><Plus className="size-3" />新会话</button></div>
     </form>
   );
 
   return <AISidecar open={open} onClose={onClose} title="Personal OS" context={`${surfaceLabels[currentSurface]}${contextSuffix}`} status={stateLabel} footer={footer} className="lg:h-[calc(var(--app-viewport-height)-var(--toolbar-height))]">
     <div className="space-y-4">
-      {!messages.length && !restoring ? <div className="py-6"><div className="inline-flex rounded-full bg-[var(--surface-hover)] px-2.5 py-1 text-[10.5px] font-medium text-[var(--text-secondary)]">当前 · {surfaceLabels[currentSurface]}{contextSuffix}</div><h3 className="mt-4 text-[17px] font-semibold tracking-[-0.025em] text-[var(--text-primary)]">直接告诉我你要解决什么</h3><p className="mt-2 max-w-sm text-[13px] leading-6 text-[var(--text-secondary)]">我会先直接回答；只有问题确实依赖你的数据时才读取对应内容。需要修改 Personal OS 时，会先给你确认。</p><div className="mt-5 space-y-1">{suggestionsForSurface(currentSurface).map((prompt) => <button key={prompt} type="button" onClick={() => void submitText(prompt)} className="block w-full rounded-[9px] px-2.5 py-2.5 text-left text-[12.5px] leading-5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">{prompt}</button>)}</div></div> : null}
+      {!messages.length && !restoring ? <div className="py-6"><div className="inline-flex rounded-full bg-[var(--surface-hover)] px-2.5 py-1 text-[12px] font-medium text-[var(--text-secondary)]">当前 · {surfaceLabels[currentSurface]}{contextSuffix}</div><h3 className="mt-4 text-[17px] font-semibold tracking-[-0.025em] text-[var(--text-primary)]">直接告诉我你要解决什么</h3><p className="mt-2 max-w-sm text-[13px] leading-6 text-[var(--text-secondary)]">我会先直接回答；只有问题确实依赖你的数据时才读取对应内容。需要修改 Personal OS 时，会先给你确认。</p><div className="mt-5 space-y-1">{suggestionsForSurface(currentSurface).map((prompt) => <button key={prompt} type="button" onClick={() => void submitText(prompt)} className="block w-full rounded-[9px] px-2.5 py-2.5 text-left text-[12.5px] leading-5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">{prompt}</button>)}</div></div> : null}
       {messages.map((message) => <div key={message.id} className={message.role === "user" ? "ml-8" : "mr-1"}>{message.role === "user" ? <div className="rounded-[12px] bg-[var(--accent-soft)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)]">{message.parts.filter((part) => part.type === "text").map((part) => part.type === "text" ? part.text : "").join("\n")}</div> : <div className="text-sm leading-6 text-[var(--text-primary)]">{message.parts.filter((part) => part.type === "text").map((part, index) => part.type === "text" ? <ReactMarkdown key={index} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{part.text}</ReactMarkdown> : null)}{!activeRunId && message.metadata?.sources?.length ? <AssistantStreamSources sources={message.metadata.sources} /> : null}</div>}</div>)}
       {waiting ? <p role="status" className="text-xs text-[var(--text-tertiary)]">{steps.at(-1)?.title ?? "正在整理…"}</p> : null}
       {currentError ? <div className="rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-3 text-xs text-red-800"><p>{currentError}</p><button type="button" onClick={() => { clearError(); setLocalError(null); const last = [...messages].reverse().find((message) => message.role === "user"); const previous = last?.parts.filter((part) => part.type === "text").map((part) => part.type === "text" ? part.text : "").join("\n"); if (previous || input) void submitText(previous || input); }} className="mt-2 inline-flex items-center gap-1 font-medium"><RotateCcw className="size-3" />重试</button></div> : null}

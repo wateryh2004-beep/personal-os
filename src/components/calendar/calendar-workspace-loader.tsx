@@ -10,7 +10,7 @@ import { WorkspaceReadError } from "@/components/shared/workspace-read-error";
 function CalendarMessage({ children }: { children: React.ReactNode }) {
   return (
     <section className="mx-auto w-full max-w-[748px] px-5 py-8 sm:px-7">
-      <h1 className="text-[27px] font-semibold tracking-[-0.042em] text-[var(--text-primary)]">日历</h1>
+      <h1 className="page-title">日历</h1>
       <p className="mt-4.5 border-t border-[var(--separator)] pt-4.5 text-[12px] leading-5.5 text-[var(--text-secondary)]">{children}</p>
     </section>
   );

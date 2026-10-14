@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 function FilesUnavailable({ children }: { children: React.ReactNode }) {
   return (
     <section className="max-w-xl">
-      <h1 className="text-[27px] font-semibold tracking-[-0.042em] text-[var(--text-primary)]">文件</h1>
+      <h1 className="page-title">文件</h1>
       <p className="mt-3 rounded-[10px] bg-amber-50 px-3.5 py-2.5 text-[12px] leading-5 text-amber-900">{children}</p>
     </section>
   );

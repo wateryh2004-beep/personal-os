@@ -106,7 +106,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                 <CareerForm action={submitCareerForm.bind(null, "transitionCareerApplication")} successMessage="申请阶段已更新。" className="mt-3 flex flex-wrap items-center gap-2">
                   <input type="hidden" name="application_id" value={application.id}/>
                   <input type="hidden" name="note" value=""/>
-                  <select name="status" defaultValue={application.status} className={`${controlClass} h-8 px-2.5 text-[12px]`}>
+                  <select aria-label="申请阶段" name="status" defaultValue={application.status} className={`${controlClass} h-8 px-2.5 text-[12px]`}>
                     {stages.map(([value,label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                   <button className="pressable h-8 rounded-[8px] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">

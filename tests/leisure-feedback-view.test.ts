@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { LeisureExperience, LeisureFeedbackInput, LeisureFeedbackResult, LeisureSource } from "@/features/leisure/types";
 vi.mock("next/link", () => ({ default: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => createElement("a", props) }));
-vi.mock("@/features/leisure/actions", () => ({ saveLeisureFeedback: vi.fn() }));
+vi.mock("@/features/leisure/actions", () => ({ saveLeisureFeedback: vi.fn(), readLeisureFeedback: vi.fn() }));
 import { LeisureDetail } from "@/components/leisure/leisure-detail";
 const experience: LeisureExperience = { id: "10000000-0000-4000-8000-000000000001", title: "Synthetic experience", kind: "film", why: "", body_markdown: "", how_to_start: null, duration_minutes: null, platform: null, location: null, starts_at: null, cost_text: null, setting: null, company: null, budget: "unknown", sources: [], ratings: [], content_revision: 1, created_at: "2026-10-04T00:00:00Z", updated_at: "2026-10-04T00:00:00Z", feedback: null };
 let host: HTMLDivElement, root: Root;
@@ -95,4 +95,21 @@ it.each([
   expect(rating.textContent).toContain("92%");
   expect(rating.textContent).toContain(checkedAt.slice(0, 10));
   expect(rating.textContent).toContain(warning);
+});
+
+it("rebases a conflict onto a fresh revision while preserving the user's draft", async () => {
+  const { LeisureFeedbackControls } = await import("@/components/leisure/leisure-feedback");
+  const save = vi.fn(async (input: LeisureFeedbackInput): Promise<LeisureFeedbackResult> => save.mock.calls.length === 1 ? { ok: false, error: "conflict" } : result(input));
+  const read = vi.fn(async () => ({ ok: true as const, feedback: { status: "planned" as const, reaction: "liked" as const, personal_note: "Remote synthetic text", linked_note_id: null, linked_note_title: null, linked_note_available: false, revision: 5, updated_at: experience.updated_at } }));
+  await act(async () => root.render(createElement(LeisureFeedbackControls, { experience, onSave: save, onRead: read })));
+  await editNote("My unfinished thought");
+  await act(async () => button("保存感想").click());
+  expect(button("保存感想").disabled).toBe(true);
+  await act(async () => button("读取最新状态").click());
+  expect(read).toHaveBeenCalledWith(experience.id);
+  expect(host.querySelector("textarea")!.value).toBe("My unfinished thought");
+  expect(button("准备去").getAttribute("aria-pressed")).toBe("true");
+  await act(async () => button("保存感想").click());
+  expect(save.mock.calls[1][0]).toMatchObject({ expected_revision: 5, status: "planned", reaction: "liked", personal_note: "My unfinished thought" });
+  expect(host.querySelector('[role="status"]')!.textContent).toBe("已保存");
 });

@@ -452,7 +452,7 @@ export function NoteAiAssistant({
               <div aria-label="AI 结果确认操作" className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium text-[var(--text-primary)]">AI 结果待确认</p>
-                  <span className="text-[10px] text-[var(--text-tertiary)]">尚未写入笔记</span>
+                  <span className="text-[12px] text-[var(--text-tertiary)]">尚未写入笔记</span>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {rewrite ? (
@@ -465,7 +465,7 @@ export function NoteAiAssistant({
                   ) : null}
                   <button
                     onClick={() => apply("insert")}
-                    className={`min-h-10 rounded-md px-3 py-2 text-xs font-medium ${rewrite ? "border bg-white text-[var(--text-primary)]" : "bg-[var(--accent)] text-white sm:col-span-2"}`}
+                    className={`min-h-10 rounded-md px-3 py-2 text-xs font-medium ${rewrite ? "border bg-[var(--surface-canvas)] text-[var(--text-primary)]" : "bg-[var(--accent)] text-white sm:col-span-2"}`}
                   >
                     确认并{insertLabel}
                   </button>
@@ -473,20 +473,20 @@ export function NoteAiAssistant({
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   <button
                     onClick={() => void navigator.clipboard?.writeText(result.suggestion)}
-                    className="pressable inline-flex min-h-8 items-center gap-1 rounded-[7px] px-1 text-[11.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                    className="pressable inline-flex min-h-8 items-center gap-1 rounded-[7px] px-1 text-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                   >
                     <Copy className="size-3" aria-hidden="true" />
                     复制
                   </button>
                   <button
                     onClick={() => result.truncated ? continueResult() : request && run(request, resultSelection)}
-                    className="pressable min-h-8 rounded-[7px] px-1 text-[11.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                    className="pressable min-h-8 rounded-[7px] px-1 text-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                   >
                     {result.truncated ? "从截断处继续" : "重新生成"}
                   </button>
                   <button
                     onClick={discardResult}
-                    className="pressable min-h-8 rounded-[7px] px-1 text-[11.5px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                    className="pressable min-h-8 rounded-[7px] px-1 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                   >
                     放弃
                   </button>
@@ -503,15 +503,15 @@ export function NoteAiAssistant({
                 </p>
                 <button
                   onClick={() => request && run(request, resultSelection)}
-                  className="pressable min-h-8 rounded-[7px] px-1 text-[11.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                  className="pressable min-h-8 rounded-[7px] px-1 text-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                 >
                   重新生成
                 </button>
               </div>
             ) : null}
             <div className="flex items-center justify-between border-t border-[var(--separator)] pt-2">
-              <span className="text-[10px] text-[var(--text-tertiary)]">模型</span>
-              <select aria-label="AI 模型" value={model} onChange={(event) => setModel(event.target.value as DeepSeekModelId)} className="h-7 rounded-[7px] bg-transparent px-1.5 text-[10.5px] text-[var(--text-tertiary)] outline-none hover:bg-[var(--surface-hover)]"><option value="deepseek-v4-flash">DeepSeek V4 Flash</option><option value="deepseek-v4-pro">DeepSeek V4 Pro</option></select>
+              <span className="text-[12px] text-[var(--text-tertiary)]">模型</span>
+              <select aria-label="AI 模型" value={model} onChange={(event) => setModel(event.target.value as DeepSeekModelId)} className="h-7 rounded-[7px] bg-transparent px-1.5 text-[12px] text-[var(--text-tertiary)] outline-none hover:bg-[var(--surface-hover)]"><option value="deepseek-v4-flash">DeepSeek V4 Flash</option><option value="deepseek-v4-pro">DeepSeek V4 Pro</option></select>
             </div>
           </div>
         }
@@ -541,7 +541,7 @@ export function NoteAiAssistant({
                       </ReactMarkdown>
                     </div>
                     {item.applied ? (
-                      <p className="inline-flex items-center gap-1 text-[11px] text-emerald-700">
+                      <p className="inline-flex items-center gap-1 text-[12px] text-emerald-700">
                         <Check className="size-3" aria-hidden="true" />
                         已写入笔记
                       </p>
@@ -555,7 +555,7 @@ export function NoteAiAssistant({
             <p
               role="status"
               aria-live="polite"
-              className="mb-3 text-[11px] text-[var(--text-tertiary)]"
+              className="mb-3 text-[12px] text-[var(--text-tertiary)]"
             >
               正在{noteAiOperationLabel(request.operation)}（{request.content.length} 字）
             </p>
@@ -625,13 +625,13 @@ export function NoteAiAssistant({
             {customSelection ? (
               <button
                 onClick={() => setCustomSelection(null)}
-                className="ml-3 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                className="ml-3 text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
               >
                 改为询问全文
               </button>
             ) : null}
             {!customSelection ? (
-              <label className="ml-4 inline-flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
+              <label className="ml-4 inline-flex items-center gap-2 text-[12px] text-[var(--text-tertiary)]">
                 <input
                   type="checkbox"
                   checked={usePersonalContext}
@@ -663,11 +663,11 @@ export function NoteAiAssistant({
               <div className="flex items-center justify-between gap-3 pb-2.5">
                 <div>
                   <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">{discussion ? "讨论回复" : "AI 结果预览"}</p>
-                  <p className="mt-0.5 text-[11px] leading-5 text-[var(--text-secondary)]">{discussion ? "这段回复已保存到本篇笔记的讨论历史，不会写入正文。" : "使用底部固定确认区决定是否写入笔记。"}</p>
+                  <p className="mt-0.5 text-[12px] leading-5 text-[var(--text-secondary)]">{discussion ? "这段回复已保存到本篇笔记的讨论历史，不会写入正文。" : "使用底部固定确认区决定是否写入笔记。"}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {diffSegments ? (
-                    <div className="flex overflow-hidden rounded-md border border-[var(--surface-hover)] text-[10px]">
+                    <div className="flex overflow-hidden rounded-md border border-[var(--surface-hover)] text-[12px]">
                       <button
                         type="button"
                         onClick={() => setShowDiff(true)}
@@ -684,7 +684,7 @@ export function NoteAiAssistant({
                       </button>
                     </div>
                   ) : null}
-                  <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[10px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? `所选文字 · ${request.content.length} 字` : "当前笔记"}</span>
+                  <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[12px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? `所选文字 · ${request.content.length} 字` : "当前笔记"}</span>
                 </div>
               </div>
               {diffSegments && showDiff ? (
@@ -707,17 +707,17 @@ export function NoteAiAssistant({
                 <pre className="whitespace-pre-wrap rounded-[9px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-3 font-sans text-[12.5px] leading-5.5 text-[var(--text-primary)]">{result.suggestion}</pre>
               )}
               {result.warning ? (
-                <p role="status" className="mt-2.5 rounded-[9px] bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-800">
+                <p role="status" className="mt-2.5 rounded-[9px] bg-amber-50 px-3 py-2 text-[12px] leading-5 text-amber-800">
                   {result.warning}
                 </p>
               ) : null}
               {result.truncated ? (
-                <button onClick={continueResult} className="pressable mt-2.5 h-8 rounded-[8px] px-2.5 text-[11.5px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">
+                <button onClick={continueResult} className="pressable mt-2.5 h-8 rounded-[8px] px-2.5 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">
                   从截断处继续
                 </button>
               ) : null}
               {result.contextSources?.length ? (
-                <details className="mt-3.5 border-t border-[var(--separator)] pt-3 text-[11px]">
+                <details className="mt-3.5 border-t border-[var(--separator)] pt-3 text-[12px]">
                   <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
                     本次提供给 AI 的上下文 · {result.contextSources.length} 项
                   </summary>

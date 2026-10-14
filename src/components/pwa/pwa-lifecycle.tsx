@@ -1,30 +1,27 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+
+const onlineSnapshot = () => navigator.onLine;
+function subscribeOnline(listener: () => void) {
+  window.addEventListener("online", listener);
+  window.addEventListener("offline", listener);
+  return () => { window.removeEventListener("online", listener); window.removeEventListener("offline", listener); };
+}
 
 type PwaLifecycleProps = { currentVersion: string };
 
 export function PwaLifecycle({ currentVersion }: PwaLifecycleProps) {
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const reloadOnControllerChange = useRef(false);
-  const [offline, setOffline] = useState(false);
+  const offline = !useSyncExternalStore(subscribeOnline, onlineSnapshot, () => true);
+  const reloadTimer = useRef<number | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
-
-  useEffect(() => {
-    setOffline(!navigator.onLine);
-    const onOnline = () => setOffline(false);
-    const onOffline = () => setOffline(true);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, []);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
     let disposed = false;
+    const cleanups: (() => void)[] = [];
 
     const onControllerChange = () => {
       if (reloadOnControllerChange.current) window.location.reload();
@@ -35,16 +32,26 @@ export function PwaLifecycle({ currentVersion }: PwaLifecycleProps) {
       if (disposed) return;
       registrationRef.current = registration;
       if (registration.waiting && navigator.serviceWorker.controller) setUpdateReady(true);
-      registration.addEventListener("updatefound", () => {
+      const watchWorker = () => {
         const worker = registration.installing;
-        worker?.addEventListener("statechange", () => {
-          if (worker.state === "installed" && navigator.serviceWorker.controller) setUpdateReady(true);
-        });
-      });
+        if (!worker) return;
+        const onStateChange = () => {
+          if (!disposed && worker.state === "installed" && navigator.serviceWorker.controller) setUpdateReady(true);
+        };
+        worker.addEventListener("statechange", onStateChange);
+        cleanups.push(() => worker.removeEventListener("statechange", onStateChange));
+        onStateChange();
+      };
+      registration.addEventListener("updatefound", watchWorker);
+      cleanups.push(() => registration.removeEventListener("updatefound", watchWorker));
+      watchWorker();
     }).catch(() => {});
 
     return () => {
       disposed = true;
+      cleanups.forEach(cleanup => cleanup());
+      registrationRef.current = null;
+      if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current);
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
     };
   }, []);
@@ -61,7 +68,7 @@ export function PwaLifecycle({ currentVersion }: PwaLifecycleProps) {
         const response = await fetch("/api/version", { cache: "no-store", credentials: "same-origin" });
         if (!response.ok) return;
         const payload = await response.json() as { version?: string };
-        if (payload.version && payload.version !== currentVersion) setUpdateReady(true);
+        if (!disposed && payload.version && payload.version !== currentVersion) setUpdateReady(true);
       } catch {}
     };
 
@@ -85,7 +92,8 @@ export function PwaLifecycle({ currentVersion }: PwaLifecycleProps) {
     if (waiting) {
       reloadOnControllerChange.current = true;
       waiting.postMessage({ type: "SKIP_WAITING" });
-      window.setTimeout(() => window.location.reload(), 1_200);
+      if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current);
+      reloadTimer.current = window.setTimeout(() => window.location.reload(), 1_200);
       return;
     }
     window.location.reload();

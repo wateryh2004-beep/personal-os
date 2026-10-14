@@ -114,14 +114,14 @@ export function TaskAssistant() {
     setStoppedMessage(message);
   };
   return (
-    <section className="flex h-[min(66dvh,560px)] min-h-[420px] flex-col overflow-hidden border bg-white">
+    <section className="flex h-[min(66dvh,560px)] min-h-[420px] flex-col overflow-hidden border bg-[var(--surface-canvas)]">
       <div className="flex justify-end border-b p-2">
         <div className="inline-flex border">
           <button
             type="button"
             disabled={waiting}
             onClick={() => setModel("deepseek-v4-flash")}
-            className={`px-3 py-1 text-xs ${model === "deepseek-v4-flash" ? "bg-[#EDF3F6] text-[#365F78]" : "text-zinc-500"}`}
+            className={`px-3 py-1 text-xs ${model === "deepseek-v4-flash" ? "bg-[#EDF3F6] text-[#365F78]" : "text-[var(--text-secondary)]"}`}
           >
             Flash
           </button>
@@ -129,7 +129,7 @@ export function TaskAssistant() {
             type="button"
             disabled={waiting}
             onClick={() => setModel("deepseek-v4-pro")}
-            className={`border-l px-3 py-1 text-xs ${model === "deepseek-v4-pro" ? "bg-[#EDF3F6] text-[#365F78]" : "text-zinc-500"}`}
+            className={`border-l px-3 py-1 text-xs ${model === "deepseek-v4-pro" ? "bg-[#EDF3F6] text-[#365F78]" : "text-[var(--text-secondary)]"}`}
           >
             Pro
           </button>
@@ -153,7 +153,7 @@ export function TaskAssistant() {
                 ) : (
                   <div
                     key={index}
-                    className="task-ai-markdown text-sm leading-6 text-zinc-700"
+                    className="task-ai-markdown text-sm leading-6 text-[var(--text-secondary)]"
                   >
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
@@ -178,7 +178,7 @@ export function TaskAssistant() {
         ))}
       </div>
       {stoppedMessage ? (
-        <p role="status" className="px-4 pb-2 text-xs text-zinc-500">
+        <p role="status" className="px-4 pb-2 text-xs text-[var(--text-secondary)]">
           {stoppedMessage}
         </p>
       ) : null}
@@ -212,7 +212,7 @@ export function TaskAssistant() {
             onChange={(event) => setInput(event.target.value)}
             disabled={waiting}
             maxLength={2_000}
-            className="min-w-0 flex-1 border bg-white px-3 py-2 text-sm"
+            className="min-w-0 flex-1 border bg-[var(--surface-canvas)] px-3 py-2 text-sm"
             placeholder="输入消息…"
           />
           {waiting ? (

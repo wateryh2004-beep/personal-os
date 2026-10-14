@@ -143,7 +143,7 @@ export function MicrosoftTodoCreateDialog({
         ) : (
           <form ref={formRef} onSubmit={(event) => void submit(event)} className="mt-2 grid gap-4" aria-busy={pending}>
             <fieldset disabled={pending || createdTaskId !== null} className="grid gap-4">
-            <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-tertiary)]">
+            <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">
               任务标题
               <input
                 name="title"
@@ -155,7 +155,7 @@ export function MicrosoftTodoCreateDialog({
               />
             </label>
 
-            <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-tertiary)]">
+            <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">
               说明
               <textarea
                 name="body_text"
@@ -167,7 +167,7 @@ export function MicrosoftTodoCreateDialog({
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-tertiary)]">
+              <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">
                 清单
                 <select name="todo_list_id" defaultValue={defaultList} className={fieldClass}>
                   {lists.map((list) => (
@@ -179,7 +179,7 @@ export function MicrosoftTodoCreateDialog({
                 </select>
               </label>
 
-              <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-tertiary)]">
+              <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">
                 优先级
                 <select name="importance" defaultValue="normal" className={fieldClass}>
                   <option value="normal">普通</option>
@@ -189,7 +189,7 @@ export function MicrosoftTodoCreateDialog({
               </label>
             </div>
 
-            <label className="grid gap-1.5 text-[11px] font-medium text-[var(--text-tertiary)]">
+            <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">
               截止时间
               <input name="due_at" type="datetime-local" className={fieldClass} />
             </label>

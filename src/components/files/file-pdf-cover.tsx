@@ -140,8 +140,8 @@ function PdfCover({ file }: { file: FileRecord }) {
       ref={attachImage} src={source} alt="" aria-hidden="true" decoding="async"
       onLoad={() => settleRef.current?.(true)} onError={() => settleRef.current?.(false)}
       data-pdf-cover-rendered={phase === "ready" ? "true" : undefined}
-      className={`max-h-full max-w-full bg-white object-contain shadow-sm transition-opacity duration-200 motion-reduce:transition-none ${phase === "ready" ? "opacity-100" : "opacity-0"}`} /> : null}
-    {phase !== "ready" ? <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[var(--text-tertiary)]"><File size={36} aria-hidden="true" /><span className="px-2 text-center text-[11px]">{!eligible ? "点击预览 PDF" : phase === "failed" ? "封面暂不可用 · 点击预览" : "PDF 首页"}</span></div> : null}
-    {phase === "ready" ? <span aria-hidden="true" className="absolute bottom-2 right-2 rounded bg-white/90 px-1.5 py-0.5 text-[10px] text-neutral-600 shadow-sm">PDF · 1</span> : null}
+      className={`max-h-full max-w-full bg-[var(--surface-canvas)] object-contain shadow-sm transition-opacity duration-200 motion-reduce:transition-none ${phase === "ready" ? "opacity-100" : "opacity-0"}`} /> : null}
+    {phase !== "ready" ? <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[var(--text-tertiary)]"><File size={36} aria-hidden="true" /><span className="px-2 text-center text-[12px]">{!eligible ? "点击预览 PDF" : phase === "failed" ? "封面暂不可用 · 点击预览" : "PDF 首页"}</span></div> : null}
+    {phase === "ready" ? <span aria-hidden="true" className="absolute bottom-2 right-2 rounded bg-[var(--surface-canvas)]/90 px-1.5 py-0.5 text-[12px] text-[var(--text-secondary)] shadow-sm">PDF · 1</span> : null}
   </div>;
 }

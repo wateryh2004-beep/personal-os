@@ -31,17 +31,19 @@ export function TodayReflow({ signature, children }: { signature: string; childr
   const positions = useRef(new Map<string, number>());
   useLayoutEffect(() => {
     const next = new Map<string, number>();
+    const animations: Animation[] = [];
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     root.current?.querySelectorAll<HTMLElement>("[data-today-row]").forEach(node => {
       const key = node.dataset.todayRow!;
       const top = node.offsetTop;
       const before = positions.current.get(key);
       if (!reduced && before !== undefined && Math.abs(before - top) > 1 && typeof node.animate === "function") {
-        node.animate([{ transform: `translateY(${before - top}px)` }, { transform: "translateY(0)" }], { duration: 220, easing: "cubic-bezier(.22,1,.36,1)" });
+        animations.push(node.animate([{ transform: `translateY(${before - top}px)` }, { transform: "translateY(0)" }], { duration: 300, easing: "cubic-bezier(.22,1,.36,1)" }));
       }
       next.set(key, top);
     });
     positions.current = next;
+    return () => animations.forEach(animation => animation.cancel());
   }, [signature]);
   return <ul ref={root} className="today-ledger-list">{children}</ul>;
 }
