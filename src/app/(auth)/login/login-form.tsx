@@ -43,7 +43,7 @@ export function LoginForm({
 
       <div className="text-center">
         <Link href="/forgot-password" className="text-sm text-[#365F78] underline underline-offset-4">
-          忘记账号或密码？
+          找回密码
         </Link>
       </div>
     </form>
