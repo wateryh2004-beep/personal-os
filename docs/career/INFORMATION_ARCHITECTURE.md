@@ -1,5 +1,19 @@
 # Career 信息架构
 
-一级工作区为：求职总览、履历档案、简历中心、职业路线、岗位与投递、材料与知识。`/career/profile`、`/career/skills`、`/career/certifications` 保留为兼容路由或二级内容，不以数据库表名构成主要导航。
+Career 的日常入口收敛为三个：目标岗位、面试学习、简历与经历。页面使用既有路由与数据，不增加聚合表、写入接口或另一套内容阅读器。
 
-求职总览聚合当前阶段、未来 30 天节点、Career 相关的 Today 重点、活跃投递、简历状态、履历缺口和最近业务变化。Career 不复制 Today、Notes、Tasks、Calendar、Projects 或 Reviews 的底层系统。
+| 入口 | 路由 | 职责 |
+| --- | --- | --- |
+| 目标岗位 | `/career` | 优先展示活跃岗位，保留继续阅读与下一步；职业资产统计和方向放在默认折叠的“职业资料与管理”中。 |
+| 面试学习 | `/career/interview` | 复用主干题库、标准答案、独立讲解、来源与版本；从题目进入练习和复盘。 |
+| 简历与经历 | `/career/experiences` | 查看真实经历与事实；简历版本仍从“更多”进入 `/career/resumes`。此入口不承诺聚合所有关联文件。 |
+
+简历版本、机会与申请、路线图、技能、职业方向、证书、职业资本、职业档案和证明材料均保留在“更多”。申请记录沿用机会与申请的二级导航。旧深链接保持有效，页面标题和菜单显示当前所在位置。
+
+`/career/materials` 当前仍是既有文件列表，尚未按 Career 关联筛选；不把它升级成日常“我的材料”入口，也不新增覆盖二十类实体的聚合器。证明材料的关联筛选如确有需要，应单独提出可验收的范围。
+
+Career 不复制 Today、Notes、Tasks、Calendar、Projects 或 Reviews 的底层系统。读取不计为练习或掌握；职业事实不被表达版本覆盖。无目标岗位时先进入通用题库，不提示尚未实现的 Agent 自动写入流程。
+
+维护时先区分：入口和展示改 `career-nav.tsx` / `career-home-view.tsx`；读取改 `features/career/queries.ts`；学习内容展示复用 `interview-study-view.tsx` 与 `features/interview/study-content.ts`；内容修改继续使用明确的编辑/版本操作。每次只改一种用户行为，并在 PR 写出可观察的前后差异。
+
+本次收敛替代 PR #57 的整包迁移思路。OAuth/MCP 网关、内容写入事务与 Notes 独立阅读页不属于此界面改动，需另行设计和验证。
