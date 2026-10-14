@@ -26,6 +26,7 @@ jobs:
       - run: npm run lint
       - run: node scripts/system-standards-audit.mjs --check --json=system-standards.json
       - run: npm run build
+      - run: node scripts/check-runtime-closure.mjs
       - name: Install browser and CJK fonts
         run: |
           npm install --global playwright@1.62.1

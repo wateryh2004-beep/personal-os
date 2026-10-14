@@ -4,8 +4,9 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 
 const patches = [
-  ["next", "16.3.6", "MIT"],
-  ["eslint-config-next", "16.3.6", "MIT"],
+  ["next", "16.3.8", "MIT"],
+  ["eslint-config-next", "16.3.8", "MIT"],
+  ["mammoth", "1.12.2", "BSD-2-Clause"],
   ["sharp", "0.35.5", "Apache-2.0"],
   ["maplibre-gl", "6.4.1", "BSD-3-Clause"],
   ["@xmldom/xmldom", "0.8.15", "MIT"],

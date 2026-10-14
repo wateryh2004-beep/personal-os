@@ -33,10 +33,11 @@ async function fontEvidence(page, width) {
   const { root } = await cdp.send("DOM.getDocument");
   const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: ".today-focus-title a" });
   const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
-  const computed = await page.locator(".today-focus-title").evaluate(node => { const style = getComputedStyle(node); const root = getComputedStyle(document.querySelector(".today-calm")); return { family: style.fontFamily, size: style.fontSize, weight: style.fontWeight, lineHeight: style.lineHeight, canvas: root.backgroundColor, cjkFontAvailable: document.fonts.check('16px "Noto Sans CJK SC"') }; });
+  const computed = await page.locator(".today-focus-title").evaluate(node => { const style = getComputedStyle(node); const root = getComputedStyle(document.querySelector(".today-calm")); return { family: style.fontFamily, size: style.fontSize, weight: style.fontWeight, lineHeight: style.lineHeight, canvas: root.backgroundColor, cjkFontAvailable: document.fonts.check('16px "Noto Serif CJK SC"') }; });
   diagnostics.push({ width, computed, fonts });
-  assert.ok(computed.family.includes("sans-serif"));
-  if (process.env.CI) assert.ok(fonts.some(font => font.familyName.includes("Noto Sans CJK")), "CI must prove an actual CJK sans glyph font, not merely a declared fallback");
+  assert.ok(computed.family.includes("serif") && !computed.family.includes("sans-serif"), "v2 display titles use the serif stack");
+  assert.ok(await page.evaluate(() => getComputedStyle(document.body).fontFamily.includes("sans-serif")), "body and controls retain the sans stack");
+  if (process.env.CI) assert.ok(fonts.some(font => font.familyName.includes("Noto Serif CJK")), "CI must prove an actual CJK serif glyph font, not merely a declared fallback");
   await cdp.detach();
 }
 async function noOverflow(page, label) {
