@@ -7,11 +7,13 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(), setMessages: vi.fn(), stop: vi.fn(), clear: vi.fn(),
   callbacks: {} as { onError?: (error: Error) => void },
   gateMode: "answer" as "answer" | "action",
+  status: "ready" as "ready" | "error",
+  messages: [] as Array<{ id: string; role: "user"; parts: { type: "text"; text: string }[] }>,
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/today" }));
 vi.mock("@ai-sdk/react", () => ({ useChat: (options: { onError: (error: Error) => void }) => {
   mocks.callbacks = options;
-  return { messages: [], setMessages: mocks.setMessages, sendMessage: mocks.send, status: "ready", stop: mocks.stop, clearError: mocks.clear };
+  return { messages: mocks.messages, setMessages: mocks.setMessages, sendMessage: mocks.send, status: mocks.status, error: mocks.status === "error" ? new Error("synthetic stream failure") : undefined, stop: mocks.stop, clearError: mocks.clear };
 } }));
 vi.mock("@/features/assistant/kernel/context-gate", () => ({ decideContextGate: () => ({ mode: mocks.gateMode }) }));
 vi.mock("@/components/ai/ai-sidecar", () => ({ AISidecar: ({ children, footer }: { children: React.ReactNode; footer: React.ReactNode }) => createElement("section", null, children, footer) }));
@@ -22,7 +24,7 @@ import { clearWorkspaceResources, reconcileWorkspaceScope } from "@/lib/workspac
 let host: HTMLDivElement, root: Root;
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  vi.clearAllMocks(); mocks.gateMode = "answer"; window.sessionStorage.clear(); clearWorkspaceResources();
+  vi.clearAllMocks(); mocks.gateMode = "answer"; mocks.status = "ready"; mocks.messages = []; window.sessionStorage.clear(); clearWorkspaceResources();
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.restoreAllMocks(); });
@@ -100,4 +102,18 @@ it("does not send the old draft or persist a late run after an identity change d
   expect(mocks.send).not.toHaveBeenCalled();
   expect(loadWorkspaceSession("agent:active-run:v2")).toBeNull();
   expect(loadWorkspaceSession("agent:draft:v2")).toBeNull();
+});
+
+it("leaves generation on SDK error and sends the edited draft when retrying", async () => {
+  mocks.send.mockResolvedValue(undefined);
+  await mount(); await type("最初的合成问题"); await submit();
+  mocks.status = "error";
+  mocks.messages = [{ id: "synthetic-message", role: "user", parts: [{ type: "text", text: "最初的合成问题" }] }];
+  await act(async () => root.render(createElement(GlobalAgent, { open: true, onClose: vi.fn() })));
+  await act(async () => mocks.callbacks.onError?.(new Error("synthetic stream failure")));
+  expect(host.querySelector('button[aria-label="停止生成"]')).toBeNull();
+  expect(host.querySelector<HTMLButtonElement>('button[aria-label="发送"]')!.disabled).toBe(false);
+  await type("修改后的合成问题");
+  await act(async () => [...host.querySelectorAll("button")].find(button => button.textContent === "重试")!.click());
+  expect(mocks.send).toHaveBeenLastCalledWith({ text: "修改后的合成问题" }, expect.any(Object));
 });
