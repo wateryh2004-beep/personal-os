@@ -1,14 +1,14 @@
 import Link from "next/link";
 
 const primary = [
-  ["工作台", "/career"],
-  ["面试准备", "/career/interview"],
-  ["履历素材", "/career/experiences"],
-  ["机会与申请", "/career/opportunities"],
-  ["简历", "/career/resumes"],
+  ["目标岗位", "/career"],
+  ["面试学习", "/career/interview"],
+  ["简历与经历", "/career/experiences"],
 ] as const;
 
 const secondary = [
+  ["简历版本", "/career/resumes"],
+  ["机会与申请", "/career/opportunities"],
   ["路线图", "/career/roadmap"],
   ["技能", "/career/skills"],
   ["职业方向", "/career/directions"],
@@ -31,9 +31,9 @@ export function CareerNav({ current }: { current: string }) {
       const active = isActive(current, href);
       return <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`relative inline-flex min-h-11 shrink-0 items-center py-2 transition-colors ui-transition after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 ${active ? "font-medium text-[var(--text-primary)] after:bg-[var(--accent)]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>{label}</Link>;
     })}
-    <details className="group relative shrink-0">
+    <details className="group relative ml-auto shrink-0">
       <summary className={`pressable inline-flex min-h-11 cursor-pointer list-none items-center rounded-[var(--radius-md)] px-1 ${secondaryLabel ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>{secondaryLabel ?? "更多"}<span aria-hidden="true" className="ml-1 text-xs">⌄</span></summary>
-      <div className="absolute right-0 top-full z-20 w-40 rounded-[var(--radius-lg)] border border-[var(--separator)] bg-[var(--surface-canvas)] p-1.5 shadow-[var(--shadow-popover)]">{secondary.map(([label, href]) => <Link key={href} href={href} aria-current={isActive(current, href) ? "page" : undefined} className={`flex min-h-11 items-center rounded-[var(--radius-md)] px-3 text-[13px] ${isActive(current, href) ? "bg-[var(--accent-soft)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}>{label}</Link>)}</div>
+      <div className="absolute right-0 top-full z-20 max-h-[70vh] w-40 overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--separator)] bg-[var(--surface-canvas)] p-1.5 shadow-[var(--shadow-popover)]">{secondary.map(([label, href]) => <Link key={href} href={href} aria-current={isActive(current, href) ? "page" : undefined} className={`flex min-h-11 items-center rounded-[var(--radius-md)] px-3 text-[13px] ${isActive(current, href) ? "bg-[var(--accent-soft)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}>{label}</Link>)}</div>
     </details>
   </nav>;
 }

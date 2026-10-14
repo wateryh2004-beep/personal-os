@@ -19,6 +19,26 @@ function render(data: CareerHomeData) {
 }
 
 describe("career home workbench", () => {
+  it("prioritizes target preparation over next actions and folds administrative counts", () => {
+    const host = render(base);
+    expect(host.querySelector("h1")?.textContent).toBe("目标岗位");
+    expect([...host.querySelectorAll("h2")].slice(0, 2).map(heading => heading.textContent)).toEqual(["目标岗位", "下一步"]);
+    const management = host.querySelector("details")!;
+    expect(management.open).toBe(false);
+    expect(management.querySelector("summary")?.textContent).toContain("职业资料与管理");
+    for (const href of ["/career/experiences", "/career/resumes", "/career/skills", "/career/applications"]) {
+      expect(management.querySelector(`a[href="${href}"]`)).not.toBeNull();
+    }
+    expect(host.textContent).toContain("先阅读通用面试内容");
+  });
+
+  it("retains partial-load status and direction links inside the optional management section", () => {
+    const host = render({ ...base, unavailable: true, directions: [{ id: "direction", name: "Synthetic direction", status: "active" }] });
+    expect(host.textContent).toContain("部分职业数据暂时不可用");
+    expect(host.querySelector("details")?.textContent).toContain("Synthetic direction");
+    expect(host.querySelector('details a[href="/career/directions"]')).not.toBeNull();
+  });
+
   it("renders history as a separate review link without turning it into the primary next action", () => {
     const host = render({ ...base, pastMilestoneCount: 7 });
     expect(host.textContent).toContain("目前没有待推进的职业事项。");
