@@ -5,6 +5,7 @@ import { CareerNav } from "@/components/career/career-nav";
 import type { getCareerHome } from "@/features/career/queries";
 import { getCareerNextActions, getCareerPreparationCounts } from "@/features/career/next-actions";
 import { CareerContinue } from "@/components/career/career-continue";
+import { ArrowUpRight, CalendarDays, ChevronRight } from "lucide-react";
 
 export type CareerHomeData = Awaited<ReturnType<typeof getCareerHome>>;
 
@@ -22,7 +23,7 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
     <>
       <PageHeader
         title="目标岗位"
-        description={p?.professional_headline || p?.current_stage || "围绕真实岗位推进下一步。"}
+        description={p?.professional_headline || p?.current_stage || undefined}
       />
       <CareerNav current="/career" />
       {showContinue ? <CareerContinue /> : null}
@@ -33,49 +34,51 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
         </p>
       ) : null}
 
-      <section className="mb-12">
+      <div className="career-preparation-layout mb-10 grid items-start gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,1fr)] xl:gap-10">
+      <section aria-labelledby="career-targets-heading" className="min-w-0">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="text-[15px] font-medium text-[var(--text-primary)]">目标岗位</h2>
-          <Link href="/career/interview" className="pressable rounded-[7px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">全部 →</Link>
+          <h2 id="career-targets-heading" className="text-base font-medium text-[var(--text-primary)]">正在准备</h2>
+          <Link href="/career/interview" className="ui-link inline-flex min-h-11 items-center text-[13px]">全部岗位 <ChevronRight aria-hidden="true" className="ml-1 size-3.5" /></Link>
         </div>
 
-        <div className="mt-4 space-y-1">
+        <div className="mt-3 grid gap-4">
           {targets.map((target) => {
             const preparations = data.interviewPreparations.filter((prep) => prep.context_id === target.id);
             const { ready, due, unscheduled } = getCareerPreparationCounts(preparations, now);
             return (
-              <Link key={target.id} href={`/career/interview?context=${target.id}`} className="group grid min-h-12 gap-1 pressable rounded-[10px] px-2.5 py-2.5 hover:bg-[var(--surface-hover)] sm:grid-cols-[1fr_auto] sm:items-center">
+              <Link key={target.id} href={`/career/interview?context=${target.id}`} className="career-target-card group relative block rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-6">
                 <div className="min-w-0">
-                  <p className="truncate text-[14px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{target.role_title_snapshot || target.title}</p>
-                  <p className="mt-0.5 truncate text-[12px] text-[var(--text-tertiary)]">{target.organization_snapshot || target.title}</p>
+                  <p className="pr-8 text-[13px] leading-6 text-[var(--text-secondary)]">{target.organization_snapshot || target.title}</p>
+                  <h3 className="mt-1 break-words pr-6 font-[family-name:var(--font-serif)] text-[24px] font-normal leading-snug text-[var(--text-primary)]">{target.role_title_snapshot || target.title}</h3>
+                  <ArrowUpRight aria-hidden="true" className="career-target-arrow absolute right-5 top-6 size-5 text-[var(--accent)] sm:right-6" />
                 </div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] tabular-nums text-[var(--text-tertiary)]">
+                <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--separator)] pt-4 text-[13px] tabular-nums text-[var(--text-secondary)]">
                   <span>{preparations.length ? `${ready}/${preparations.length} 已准备` : "尚未开始"}</span>
                   {due ? <span className="text-amber-700">{due} 到期练习</span> : null}
                   {unscheduled ? <span>{unscheduled} 待安排练习</span> : null}
-                  {target.next_interview_at ? <span className="w-full sm:w-auto">{formatDateTime(target.next_interview_at)}</span> : null}
+                  {target.next_interview_at ? <span className="flex w-full items-start gap-2 leading-6"><CalendarDays aria-hidden="true" className="mt-1 size-4 shrink-0" /><time dateTime={target.next_interview_at}>{formatDateTime(target.next_interview_at)}</time></span> : null}
                 </div>
               </Link>
             );
           })}
 
           {!targets.length ? (
-            <Link href="/career/interview" className="block py-3 text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">先阅读通用面试内容 →</Link>
+            <Link href="/career/interview" className="career-target-card block rounded-[20px] border border-dashed border-[var(--separator)] px-6 py-10 text-sm text-[var(--accent)]">先阅读通用面试内容 →</Link>
           ) : null}
         </div>
       </section>
 
-      <section className="mb-12">
+      <section aria-labelledby="career-next-heading" className="career-next-panel min-w-0 rounded-[20px] bg-[var(--surface-canvas)] px-5 pb-5 pt-1 sm:px-6 xl:mt-0 xl:border xl:border-[var(--separator)]">
         <div className="flex min-h-6 flex-wrap items-baseline justify-between gap-2.5">
-          <h2 className="text-[14px] font-semibold tracking-[-0.008em] text-[var(--text-primary)]">下一步</h2>
-          <Link href="/career/roadmap" className="pressable rounded-[7px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">路线图 →</Link>
+          <h2 id="career-next-heading" className="text-base font-medium text-[var(--text-primary)]">下一步</h2>
+          <Link href="/career/roadmap" className="ui-link inline-flex min-h-11 items-center text-[13px]">路线图 →</Link>
         </div>
 
         <div className="mt-3.5 space-y-px">
           {nextActions.map((item) => (
-            <Link key={item.key} href={item.href} className="group flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 pressable rounded-[10px] px-2.5 py-2.5 hover:bg-[var(--surface-hover)]">
-              <span className="min-w-0 truncate text-[14px] text-[var(--text-primary)]">{item.title}</span>
-              <span className="shrink-0 text-[12px] tabular-nums text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]">{item.dueAt ? `${item.dueAt.length === 10 ? item.dueAt : formatDateTime(item.dueAt)} · ` : ""}{item.meta}</span>
+            <Link key={item.key} href={item.href} className="ui-record-link group flex min-h-16 items-start gap-3 rounded-[10px] px-2 py-3 hover:bg-[var(--surface-hover)]">
+              <span className="min-w-0 flex-1"><span className="block break-words text-[15px] leading-6 text-[var(--text-primary)]">{item.title}</span>
+              <span className="mt-1 block text-[13px] leading-6 tabular-nums text-[var(--text-secondary)]">{item.dueAt ? `${item.dueAt.length === 10 ? item.dueAt : formatDateTime(item.dueAt)} · ` : ""}{item.meta}</span></span>
             </Link>
           ))}
 
@@ -89,6 +92,7 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
           </Link>
         ) : null}
       </section>
+      </div>
 
       <details className="border-t border-[var(--separator)] pt-2">
         <DisclosureSummary className="min-h-11 text-sm">职业资料与管理</DisclosureSummary>

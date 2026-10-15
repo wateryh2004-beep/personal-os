@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -14,8 +14,11 @@ import {
   MoreHorizontal,
   Save as SaveIcon,
   Sparkles,
+  BookOpen,
+  PenLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NoteReadingView } from "@/components/notes/note-reading-view";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -97,6 +100,10 @@ function savedTimeLabel(value: string | null) {
   }).format(date)}`;
 }
 
+const subscribeToHydration = () => () => {};
+const clientHydrated = () => true;
+const serverHydrated = () => false;
+
 async function copyText(value: string) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value);
@@ -116,8 +123,10 @@ async function copyText(value: string) {
 
 export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDefaultModel: DeepSeekModelId }) {
   const feedback = useActionFeedback();
+  const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
+  const [reading, setReading] = useState(false);
   const [titleUndoStack, setTitleUndoStack] = useState<string[]>([]);
   const titleUndoStackRef = useRef<string[]>([]);
   const [state, setState] = useState<SaveState>("已保存");
@@ -411,7 +420,9 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
     if (wasFullscreen.current && !fullscreenActive) fullscreenTriggerRef.current?.focus();
     wasFullscreen.current = fullscreenActive;
   }, [fullscreenActive]);
-  const statusLabel = state === "已保存" ? savedTimeLabel(lastSavedAt) : state;
+  // Browser-local clock formatting starts after hydration; SSR and its first
+  // client pass share the truthful, timezone-independent saved state.
+  const statusLabel = state === "已保存" && hydrated ? savedTimeLabel(lastSavedAt) : state;
   const saveHasError = state === "保存失败" || state === "版本冲突";
   const saveNeedsAttention = state === "有未保存修改";
   const aiGenerated = isAiGeneratedNote(contentOrigin);
@@ -483,11 +494,13 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
       className={`notes-editor-surface flex h-full min-w-0 overflow-hidden bg-[var(--surface-canvas)] ${isFallbackFullscreen ? "fixed inset-0 z-[80] h-[var(--app-viewport-height)]" : ""}`}
     >
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="notes-editor-toolbar grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-[var(--separator)] bg-[var(--surface-canvas)] px-3 py-1.5 md:px-6">
-          <div className="col-span-2 flex min-h-10 min-w-0 items-center gap-2 md:col-span-1">
+        <div className="notes-editor-toolbar flex shrink-0 flex-col gap-3 border-b border-[var(--separator)] bg-[var(--surface-canvas)] px-5 pb-3 pt-5 md:px-8 md:pt-7">
+          <div className="notes-editor-title-row mx-auto flex min-h-10 w-full min-w-0 max-w-[720px] items-center gap-2">
             {aiGenerated ? <span title="AI 生成内容不会被 AI 读取为背景" className="shrink-0 text-[12px] text-[var(--accent)]"><Sparkles aria-label="AI 生成内容" className="size-4" /></span> : null}
             <input
               aria-label="笔记标题"
+              hidden={reading}
+              readOnly={reading}
               value={title}
               onChange={(event) => {
                 const nextTitle = event.target.value;
@@ -498,12 +511,17 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
                 publishNotesNavigatorTitle(note.id, nextTitle);
                 dirty(nextTitle, body);
               }}
-              className="notes-title-input min-w-0 flex-1 rounded-[var(--radius-sm)] bg-transparent py-1 text-[20px] font-semibold leading-[1.3] tracking-[-0.015em] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] md:text-[22px]"
+              className="notes-title-input min-w-0 flex-1 rounded-[var(--radius-sm)] bg-transparent py-1 font-[family-name:var(--font-serif)] text-[28px] font-normal leading-[1.4] tracking-[-0.015em] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] md:text-[32px]"
               placeholder="无标题笔记"
             />
+            {reading ? <h1 className="notes-reading-title min-w-0 flex-1 break-words py-1">{title || "无标题笔记"}</h1> : null}
           </div>
-          <div className="col-span-2 flex min-h-11 items-center gap-1 md:col-span-1 md:mx-0">
-            <span aria-live="polite" title={statusLabel} className={`mr-auto w-[8.5rem] shrink-0 truncate text-[12px] tabular-nums md:mr-2 ${saveHasError ? "text-[var(--danger)]" : saveNeedsAttention ? "text-[var(--warning)]" : "text-[var(--text-secondary)]"}`}>
+          <div className="flex min-h-11 flex-wrap items-center gap-1">
+            <div role="group" aria-label="笔记阅读方式" className="mr-auto flex shrink-0 gap-1 md:mr-3">
+              <button type="button" aria-pressed={!reading} onClick={() => setReading(false)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${!reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><PenLine aria-hidden="true" className="hidden size-4 sm:block" />编辑</button>
+              <button type="button" aria-pressed={reading} onClick={() => setReading(true)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><BookOpen aria-hidden="true" className="hidden size-4 sm:block" />阅读</button>
+            </div>
+            <span aria-live="polite" title={statusLabel} className={`order-last basis-full pt-1 text-[12px] tabular-nums md:order-none md:mr-auto md:basis-auto md:pt-0 ${saveHasError ? "text-[var(--danger)]" : saveNeedsAttention ? "text-[var(--warning)]" : "text-[var(--text-secondary)]"}`}>
               {statusLabel}
             </span>
             <Button variant={state === "已保存" ? "ghost" : "outline"} size="sm" className="max-md:size-11 max-md:px-0" onClick={() => { flushDraft(); void save(); }} aria-label={`立即保存，当前状态：${statusLabel}`} title="立即保存">
@@ -543,7 +561,8 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             {state === "版本冲突" ? <a href={`/notes/${note.id}`} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-8 items-center rounded-[6px] px-2 font-medium underline underline-offset-2">在新标签页核对</a> : null}
           </div>
         ) : null}
-        <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-canvas)]">
+        {/* Keep CodeMirror and its undo/selection/scroll state mounted in both views. */}
+        <div hidden={reading} className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-canvas)]">
           <VisualMarkdownEditor
             markdown={body}
             noteId={note.id}
@@ -553,6 +572,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             onChange={handleBodyChange}
           />
         </div>
+        {reading ? <div className="min-h-0 flex-1 overflow-hidden"><NoteReadingView body={body} /></div> : null}
       </div>
       <NoteAiAssistant
         key={note.id}

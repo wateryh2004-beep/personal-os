@@ -145,6 +145,16 @@ export function shiftCalendarCursor(value: Date, timezone: string, amount: numbe
   return new Date(wallTimeToInstant(nextWall, timezone));
 }
 
+/** Month navigation uses calendar months, clamping the day at month end.
+ * Noon is a display cursor, not an event instant; it avoids DST clock gaps. */
+export function shiftCalendarMonth(value: Date, timezone: string, amount: number) {
+  const { year, month, day } = partsForInstant(value, timezone);
+  const target = new Date(Date.UTC(year, month - 1 + amount, 1, 12));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(day, lastDay));
+  return new Date(wallTimeToInstant(`${target.toISOString().slice(0, 10)}T12:00`, timezone));
+}
+
 // Compatibility aliases for the existing form boundary.
 export const dateTimeInputValue = instantToWallTime;
 export const wallTimeToIso = wallTimeToInstant;

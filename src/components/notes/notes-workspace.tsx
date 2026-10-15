@@ -5,7 +5,7 @@ import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { unstable_rethrow, useRouter, useSearchParams } from "next/navigation";
-import { FilePlus2, LoaderCircle, MoreHorizontal, Pin, Search, Sparkles, X } from "lucide-react";
+import { AlignJustify, FilePlus2, List, LoaderCircle, MoreHorizontal, Pin, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -53,7 +53,7 @@ function AskNotesButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="pressable inline-flex h-8 items-center gap-1.5 rounded-[9px] px-2 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+      className="pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2 text-[13px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
     >
       <Sparkles className="size-3.5 text-[var(--accent)]" aria-hidden="true" />
       问笔记库
@@ -120,7 +120,7 @@ function NoteRow({
               href={`/notes/${note.id}`}
               data-note-result
               onClick={onOpen}
-              className="truncate text-[14px] font-medium leading-[22px] text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)] focus-visible:outline-none focus-visible:after:rounded-[var(--radius-md)] focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--accent)] after:absolute after:inset-0 after:content-['']"
+              className="line-clamp-2 break-words text-[16px] font-medium leading-7 text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)] focus-visible:outline-none focus-visible:after:rounded-[var(--radius-md)] focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--accent)] after:absolute after:inset-0 after:content-['']"
             >
               <SearchText text={note.title || "无标题笔记"} query={searchQuery} />
             </Link>
@@ -137,8 +137,9 @@ function NoteRow({
             <SearchText text={note.excerpt} query={searchQuery} />
           </p>
         ) : null}
-        <p className="mt-1 truncate text-[12px] leading-5 text-[var(--text-tertiary)]">
-          <SearchText text={folderPath(note, folders)} query={searchQuery} />{!showExcerpt ? ` · ${formatNoteTimestamp(note.updated_at, timezone)}` : null}
+        <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] leading-5 text-[var(--text-tertiary)]">
+          <span className="min-w-0 break-words"><SearchText text={folderPath(note, folders)} query={searchQuery} /></span>
+          <time dateTime={note.updated_at} className="tabular-nums">{formatNoteTimestamp(note.updated_at, timezone)}</time>
         </p>
       </div>
       <DropdownMenu>
@@ -203,6 +204,7 @@ export function NotesWorkspace({
   const searchInput = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLElement>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [showPreviews, setShowPreviews] = useState(true);
   const mutationInFlight = useRef(false);
   const [renaming, setRenaming] = useState<NoteListItem | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -309,6 +311,7 @@ export function NotesWorkspace({
     <main
       ref={listScrollRef}
       data-searching={Boolean(normalizedQuery)}
+      data-previews={showPreviews}
       className="notes-library notes-list-workspace workspace-scroll h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pb-24 pt-16 sm:px-7 md:pb-6 md:pt-7 lg:px-10"
     >
       <div className="mx-auto max-w-[748px]">
@@ -411,7 +414,13 @@ export function NotesWorkspace({
         ) : null}
 
         {!normalizedQuery ? <NotesChildFolders folders={childFolders} /> : null}
-        {selectedFolder && !normalizedQuery && visible.length ? <h2 className="mt-5 text-[12px] font-medium text-[var(--text-secondary)]">当前层级的笔记</h2> : null}
+        {!normalizedQuery && visible.length ? <div className="mt-5 flex items-center justify-between gap-3 border-b border-[var(--separator)] pb-2">
+          <span className="text-[13px] text-[var(--text-secondary)]">{selectedFolder ? "当前层级的笔记" : "笔记"}</span>
+          <div role="group" aria-label="笔记列表显示方式" className="flex gap-1">
+            <button type="button" aria-pressed={showPreviews} onClick={() => setShowPreviews(true)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2.5 text-[13px] ${showPreviews ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><AlignJustify className="size-4" aria-hidden="true" />摘要</button>
+            <button type="button" aria-pressed={!showPreviews} onClick={() => setShowPreviews(false)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-2.5 text-[13px] ${!showPreviews ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><List className="size-4" aria-hidden="true" />列表</button>
+          </div>
+        </div> : null}
         {visible.length ? (
           <section ref={resultsRef} aria-label={normalizedQuery ? "搜索结果" : "笔记列表"} className="mt-4.5" onKeyDown={(event) => {
             if ((event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) || !(event.target instanceof HTMLAnchorElement) || !event.target.hasAttribute("data-note-result")) return;
@@ -464,7 +473,7 @@ export function NotesWorkspace({
                 }}
                 searchQuery={normalizedQuery}
                 onOpen={rememberList}
-                showExcerpt={Boolean(normalizedQuery)}
+                showExcerpt={Boolean(normalizedQuery) || showPreviews}
                 pending={pending}
               />
             ))}

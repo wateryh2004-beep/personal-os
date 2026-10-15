@@ -37,8 +37,10 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
   useEffect(() => {
     const api = calendarRef.current?.getApi();
     if (!api) return;
-    if (api.view.type !== initialView) api.changeView(initialView);
-    if (api.getDate().getTime() !== visualInitialDate.getTime()) api.gotoDate(visualInitialDate);
+    // Commit a view and its date together so custom event renderers never
+    // attach to an intermediate, immediately retired date/view container.
+    if (api.view.type !== initialView) api.changeView(initialView, visualInitialDate);
+    else if (api.getDate().getTime() !== visualInitialDate.getTime()) api.gotoDate(visualInitialDate);
   }, [initialView, visualInitialDate]);
 
   const persistMove = (info: EventDropArg | EventResizeDoneArg) => { void (async () => {
@@ -101,14 +103,14 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     return (
       <div className="h-full overflow-hidden px-1.5 py-1 text-[12px] leading-[1.25]">
         <p className="line-clamp-2 font-medium tracking-[-0.01em]">{info.event.title}</p>
-        <p className="mt-0.5 text-[9.5px] opacity-65">{info.timeText}</p>
-        {durationMinutes >= 60 && location ? <p className="mt-0.5 line-clamp-1 text-[9.5px] opacity-55">{location}</p> : null}
+        <p className="mt-1 text-[12px] leading-4">{info.timeText}</p>
+        {durationMinutes >= 90 && location ? <p className="mt-1 line-clamp-1 text-[12px] leading-4">{location}</p> : null}
       </div>
     );
   }, []);
 
   return (
-    <div className={styles.canvas}>
+    <div className={styles.canvas} aria-busy={loadingRange}>
       <FullCalendar
         ref={calendarRef}
         plugins={calendarPlugins}

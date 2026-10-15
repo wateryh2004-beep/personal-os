@@ -22,7 +22,7 @@ describe("career home workbench", () => {
   it("prioritizes target preparation over next actions and folds administrative counts", () => {
     const host = render(base);
     expect(host.querySelector("h1")?.textContent).toBe("目标岗位");
-    expect([...host.querySelectorAll("h2")].slice(0, 2).map(heading => heading.textContent)).toEqual(["目标岗位", "下一步"]);
+    expect([...host.querySelectorAll("h2")].slice(0, 2).map(heading => heading.textContent)).toEqual(["正在准备", "下一步"]);
     const management = host.querySelector("details")!;
     expect(management.open).toBe(false);
     expect(management.querySelector("summary")?.textContent).toContain("职业资料与管理");

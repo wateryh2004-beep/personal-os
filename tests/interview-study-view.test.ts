@@ -28,6 +28,23 @@ async function expand(index: number) {
   await act(async () => { details.open = true; details.dispatchEvent(new Event("toggle")); });
 }
 
+it("conceals the answer and explanation for recall, then restores the exact answer without recording mastery", async () => {
+  Element.prototype.scrollIntoView = vi.fn();
+  await render({ answer: "## 标准答案\n完整回答。\n## 思路拆解讲解\n教学解释。" });
+  const body = host.querySelector<HTMLElement>("#study-answer-body")!;
+  const original = body.textContent;
+  const recall = [...host.querySelectorAll<HTMLButtonElement>("nav button")].find(node => node.textContent === "自测与追问")!;
+  await act(async () => recall.click());
+  expect(body.hidden).toBe(true);
+  expect(host.querySelector<HTMLDetailsElement>("#study-thinking")!.open).toBe(false);
+  expect(document.activeElement?.id).toBe("study-recall");
+  const restore = [...host.querySelectorAll<HTMLButtonElement>("button")].find(node => node.textContent === "显示答案")!;
+  await act(async () => restore.click());
+  expect(body.hidden).toBe(false);
+  expect(body.textContent).toBe(original);
+  expect(host.textContent).toContain("阅读不会标记掌握");
+});
+
 it("shows useful answers and reasoning before folded provenance without losing the original", async () => {
   const thoughts = "## 来源与目标岗位\nSynthetic background.\n\n## 概念白话解释\n100−20−15=65，不是90。\n\n## 来源核验记录\n- 来源类型：primary_reference\n- 作者或发布方：未披露";
   const answer = "## 完整参考答案\nStart with the calculation.\n\n## 深入追问与参考应答\nExplain deductions.\n\n## 参考资料\n[Example source](https://example.com/reference)\n\n## 使用边界\nThis is hypothetical.";

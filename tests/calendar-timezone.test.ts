@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateTimeInputValue, formatWallDate, fullCalendarDateToInstant, instantToDate, instantToFullCalendarDate, shiftCalendarCursor, wallNowAsUtcDate, wallTimeToIso, weekRangeInTimeZone } from "@/features/calendar/timezone";
+import { dateTimeInputValue, formatWallDate, fullCalendarDateToInstant, instantToDate, instantToFullCalendarDate, shiftCalendarCursor, shiftCalendarMonth, wallNowAsUtcDate, wallTimeToIso, weekRangeInTimeZone } from "@/features/calendar/timezone";
 
 describe("calendar timezone conversion", () => {
   it("stores Beijing wall time as the correct instant", () => {
@@ -53,6 +53,23 @@ describe("calendar timezone conversion", () => {
   it("moves a cursor using the profile timezone rather than browser-local Date fields", () => {
     const cursor = new Date("2026-08-13T16:30:00.000Z"); // Aug 14 00:30 Shanghai
     expect(shiftCalendarCursor(cursor, "Asia/Shanghai", 1).toISOString()).toBe("2026-08-14T16:30:00.000Z");
+  });
+
+  it.each([
+    ["2026-01-31T23:30", 1, "2026-02-28"],
+    ["2028-01-31T23:30", 1, "2028-02-29"],
+    ["2026-01-15T00:30", -1, "2025-12-15"],
+    ["2026-12-15T00:30", 1, "2027-01-15"],
+  ])("moves a month from %s without overflowing or moving only one day", (wall, amount, expected) => {
+    const timezone = "Asia/Shanghai";
+    expect(instantToDate(shiftCalendarMonth(new Date(wallTimeToIso(wall, timezone)), timezone, amount).toISOString(), timezone)).toBe(expected);
+  });
+
+  it("keeps month navigation usable across DST while event conversion still rejects clock gaps", () => {
+    const timezone = "America/New_York";
+    const next = shiftCalendarMonth(new Date(wallTimeToIso("2026-02-08T02:30", timezone)), timezone, 1);
+    expect(dateTimeInputValue(next.toISOString(), timezone)).toBe("2026-03-08T12:00");
+    expect(() => wallTimeToIso("2026-03-08T02:30", timezone)).toThrow("calendar_wall_time_nonexistent");
   });
 });
 

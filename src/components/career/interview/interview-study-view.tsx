@@ -2,7 +2,7 @@
 
 import { DisclosureSummary } from "@/components/ui/disclosure";
 import Link from "next/link";
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EntityMarkdown } from "@/components/links/entity-markdown";
 import { prepareInterviewAnswer, prepareStudyContent } from "@/features/interview/study-content";
 import type { WorkspaceItem } from "@/features/interview/workspace-library";
@@ -24,28 +24,41 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
   const [explanationOpen, setExplanationOpen] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [originalOpen, setOriginalOpen] = useState(false);
+  const [answerVisible, setAnswerVisible] = useState(true);
+  const [chapterJump, setChapterJump] = useState<{ id: string; focus?: boolean } | null>(null);
+  useLayoutEffect(() => {
+    if (!chapterJump) return;
+    const target = document.getElementById(chapterJump.id);
+    if (chapterJump.focus) target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: "start" });
+  }, [chapterJump]);
   const separatePreparation = expression.hasExplicitExplanation;
   const hasPreparation = [thoughts, learning?.keyMessage, learning?.logic, learning?.pitfalls, learning?.nextFocus].some((body) => Boolean(body?.trim()));
   const hasThinking = Boolean(expression.explanation.trim() || (!separatePreparation && [thinking.reading, learning?.keyMessage, learning?.logic, learning?.pitfalls].some((body) => Boolean(body?.trim()))));
   const openExplanation = () => {
     if (explanationRef.current) explanationRef.current.open = true;
     setExplanationOpen(true);
-    explanationRef.current?.scrollIntoView({ block: "start" });
+    setChapterJump({ id: "study-thinking" });
   };
   const structuredOriginal = thinking.format === "structured-original" || expression.format === "structured-original";
 
   return (
-    <article data-testid="interview-study-view" className="mt-5 min-w-0 max-w-3xl">
-      <nav aria-label="题目学习章节" className="mb-6 flex flex-wrap gap-x-5 gap-y-2 border-b border-[var(--separator)] pb-3 text-[12px] text-[var(--accent)]">
-        <button type="button" onClick={() => document.getElementById("study-answer")?.scrollIntoView({ block: "start" })} className="ui-link inline-flex min-h-11 items-center">标准答案</button>
+    <article data-testid="interview-study-view" className="interview-reading mt-5 min-w-0 max-w-3xl">
+      <nav aria-label="题目学习章节" className="study-chapter-nav mb-6 flex flex-wrap gap-x-5 gap-y-1 border-b border-[var(--separator)] text-[13px] text-[var(--accent)]">
+        <button type="button" onClick={() => { setAnswerVisible(true); setChapterJump({ id: "study-answer" }); }} className="ui-link inline-flex min-h-11 items-center">标准答案</button>
         {hasThinking ? <button type="button" onClick={openExplanation} aria-controls="study-thinking" aria-expanded={explanationOpen} className="ui-link inline-flex min-h-11 items-center">思路拆解讲解</button> : null}
-        {showRecall ? <button type="button" onClick={() => document.getElementById("study-recall")?.scrollIntoView({ block: "start" })} className="ui-link inline-flex min-h-11 items-center">自测与追问</button> : null}
+        {showRecall ? <button type="button" onClick={() => { setAnswerVisible(false); if (explanationRef.current) explanationRef.current.open = false; setExplanationOpen(false); setChapterJump({ id: "study-recall", focus: true }); }} className="ui-link inline-flex min-h-11 items-center">自测与追问</button> : null}
       </nav>
-      <section id="study-answer" className="scroll-mt-[calc(var(--toolbar-height)+1rem)]">
-        <h2 className="mb-4 text-[14px] font-semibold leading-6 text-[var(--text-primary)]">标准答案{isDraft ? <span className="ml-2 text-xs font-normal text-[var(--text-tertiary)]">待核对</span> : null}</h2>
+      <section id="study-answer" className="scroll-mt-[calc(var(--toolbar-height)+5rem)]">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-medium leading-7 text-[var(--text-primary)]">标准答案{isDraft ? <span className="ml-2 text-xs font-normal text-[var(--text-tertiary)]">待核对</span> : null}</h2>
+          {expression.answer.trim() ? <button type="button" aria-expanded={answerVisible} aria-controls="study-answer-body" onClick={() => setAnswerVisible((visible) => !visible)} className="pressable min-h-11 rounded-[8px] px-3 text-[13px] text-[var(--accent)] hover:bg-[var(--accent-soft)]">{answerVisible ? "收起答案" : "显示答案"}</button> : null}
+        </div>
+        <div id="study-answer-body" hidden={!answerVisible} className="study-answer-body">
         {expression.answer.trim() ? <StudyMarkdown body={expression.answer} /> : <p className="text-sm leading-6 text-[var(--text-tertiary)]">{expression.format === "structured-original" ? "这份答案是结构化原文，可在下方展开查看。" : expression.separation === "needs-answer" ? "这份旧内容还未整理出完整的标准答案，可先展开下方讲解查看。" : "还没有标准答案。"}{expression.separation === "needs-answer" ? <button type="button" onClick={openExplanation} aria-controls="study-thinking" aria-expanded={explanationOpen} className="mt-2 block min-h-11 text-[var(--accent)]">阅读现有讲解 →</button> : null}</p>}
+        </div>
       </section>
-      {hasThinking ? <details ref={explanationRef} onToggle={(event) => setExplanationOpen(event.currentTarget.open)} id="study-thinking" className="mt-8 scroll-mt-[calc(var(--toolbar-height)+1rem)] border-t border-[var(--separator)] pt-6">
+      {hasThinking ? <details ref={explanationRef} onToggle={(event) => setExplanationOpen(event.currentTarget.open)} id="study-thinking" className="mt-8 scroll-mt-[calc(var(--toolbar-height)+5rem)] border-t border-[var(--separator)] pt-6">
         <DisclosureSummary expanded={explanationOpen} className="min-h-11 cursor-pointer text-[14px] font-semibold leading-6 text-[var(--text-primary)]">思路拆解讲解</DisclosureSummary>
         {explanationOpen ? <div className="space-y-5 pt-3">
         {expression.explanation.trim() ? <StudyMarkdown body={expression.explanation} /> : null}
@@ -53,7 +66,7 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
         </div> : null}
       </details> : null}
       {separatePreparation && hasPreparation ? <HistoricalSupplement key={answer} reading={thinking.reading} references={thinking.references} learning={learning} /> : null}
-      {showRecall ? <section id="study-recall" className="mt-8 scroll-mt-[calc(var(--toolbar-height)+1rem)] border-t border-[var(--separator)] pt-6">
+      {showRecall ? <section id="study-recall" tabIndex={-1} className="mt-8 scroll-mt-[calc(var(--toolbar-height)+5rem)] border-t border-[var(--separator)] pt-6 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]">
         <h2 className="text-[14px] font-semibold leading-6 text-[var(--text-primary)]">自测与追问</h2>
         {!separatePreparation && learning?.nextFocus ? <div className="mt-3"><StudyMarkdown body={learning.nextFocus} /></div> : <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">合上标准答案，试着用自己的话讲清结论、依据，以及条件变化后的判断。</p>}
         {related.length ? <div className="mt-3 space-y-1">{related.map((item) => <button type="button" key={item.preparationId} onClick={() => onSelect?.(item.questionId)} className="block min-h-11 w-full rounded-[8px] px-2 py-2 text-left text-[13px] leading-6 text-[var(--accent)] hover:bg-[var(--surface-hover)]">{item.shortTitle || item.prompt} →</button>)}</div> : null}
@@ -115,5 +128,5 @@ function OriginalText({ title, body }: { title: string; body: string }) {
 }
 
 const StudyMarkdown = memo(function StudyMarkdown({ body }: { body: string }) {
-  return <EntityMarkdown body={body} className="min-w-0 text-[15px] leading-7 [overflow-wrap:anywhere] [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm [&_p]:leading-7 [&_li]:leading-7 [&_img]:max-w-full" />;
+  return <EntityMarkdown body={body} className="study-prose min-w-0 text-[16px] leading-8 [overflow-wrap:anywhere] [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_p]:leading-8 [&_li]:leading-8 [&_img]:max-w-full" />;
 });
