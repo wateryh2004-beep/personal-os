@@ -19,7 +19,7 @@ import { Inspector } from "@/components/shared/inspector";
 import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { formatWallDate, fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, wallTimeToIso, weekRangeInTimeZone } from "@/features/calendar/timezone";
+import { formatWallDate, fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, shiftCalendarMonth, wallTimeToIso, weekRangeInTimeZone } from "@/features/calendar/timezone";
 import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, reconcileCalendarMutationRange, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
 import { primaryCalendarCategories } from "@/features/calendar/classification/taxonomy";
 import { outlookCategoryDot } from "@/features/calendar/categories/visual";
@@ -369,6 +369,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     }
   };
   const openDraft = (range: Draft) => {
+    setMoreOpen(false);
     linkedEventRequest.current?.abort();
     selectedRef.current = null; draftRef.current = range;
     setLookup(null); setSelected(null); setDraft(range); openInspector();
@@ -402,7 +403,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     });
   };
 
-  const changeCursor = (amount: number) => setCursor((date) => shiftCalendarCursor(date, timezone, view === "week" ? amount * 7 : amount));
+  const changeCursor = (amount: number) => setCursor((date) => view === "month" ? shiftCalendarMonth(date, timezone, amount) : shiftCalendarCursor(date, timezone, view === "week" ? amount * 7 : amount));
   const jumpToDate = (value: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
     setCursor(new Date(wallTimeToIso(`${value}T12:00`, timezone)));
@@ -486,15 +487,14 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   return (
     <section className="calendar-workspace flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <header className="shrink-0 border-b border-[var(--border-subtle)] bg-[var(--material-toolbar)] shadow-[0_1px_0_rgba(60,60,67,.035)]">
-          <div className="flex min-h-[50px] items-center justify-between gap-3 px-3 md:px-4">
-            <div className="flex min-w-0 items-center gap-1">
-              <button className="pressable inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" onClick={() => changeCursor(-1)} aria-label="上一段日期"><ChevronLeft size={17} /></button>
-              <button className="pressable inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" onClick={() => changeCursor(1)} aria-label="下一段日期"><ChevronRight size={17} /></button>
+        <header className="calendar-toolbar shrink-0 border-b border-[var(--separator)] bg-[var(--surface-canvas)]">
+          <div className="calendar-toolbar-primary flex items-start justify-between gap-3 px-4 pb-2 pt-5 md:px-6 md:pt-6">
+            <div className="min-w-0 flex-1">
+              <h1 className="min-w-0 font-[family-name:var(--font-serif)] text-[28px] font-normal leading-snug tracking-[-0.02em] text-[var(--text-primary)] md:text-[32px]">
               <Popover>
                 <PopoverTrigger asChild>
-                  <button type="button" title={view === "month" ? "跳到月份" : "跳到日期"} className="pressable ml-1 flex min-w-0 max-w-[252px] items-center gap-1 rounded-[8px] px-1.5 py-1 text-left hover:bg-[var(--surface-hover)]">
-                    <span className="truncate text-[15.5px] font-semibold tracking-[-0.03em] text-[var(--text-primary)] md:text-[17.5px]">{title}</span>
+                  <button type="button" title={view === "month" ? "跳到月份" : "跳到日期"} className="calendar-date-trigger pressable flex min-h-11 max-w-full items-center gap-2 rounded-[8px] py-1 text-left hover:bg-[var(--surface-hover)]">
+                    <span className="break-words">{title}</span>
                     <ChevronDown size={13} className="shrink-0 text-[var(--text-tertiary)]" />
                   </button>
                 </PopoverTrigger>
@@ -504,11 +504,16 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
                   </label>
                 </PopoverContent>
               </Popover>
-              <button onClick={() => setCursor(new Date())} aria-label="回到今天" className="pressable ml-1 shrink-0 rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">今天</button>
+              </h1>
+              <div role="group" aria-label="日期导航" className="mt-1 flex items-center gap-1">
+                <button type="button" className="pressable inline-flex size-11 shrink-0 items-center justify-center rounded-[10px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]" onClick={() => changeCursor(-1)} aria-label="上一段日期"><ChevronLeft size={18} /></button>
+                <button type="button" className="pressable inline-flex size-11 shrink-0 items-center justify-center rounded-[10px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]" onClick={() => changeCursor(1)} aria-label="下一段日期"><ChevronRight size={18} /></button>
+                <button type="button" onClick={() => setCursor(new Date())} aria-label="回到今天" className="pressable min-h-11 shrink-0 rounded-[9px] px-3 text-[13px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">今天</button>
+              </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              <div className="hidden items-center gap-2.5 sm:flex">
+              <div role="group" aria-label="日历视图" className="hidden items-center gap-2.5 sm:flex">
                 {availableViews.map((item) => (
                   <button key={item} onClick={() => setView(item)} aria-pressed={view === item} className={`pressable relative rounded-[7px] px-1.5 py-[7px] text-[12px] font-medium ${view === item ? "text-[var(--text-primary)] after:absolute after:inset-x-1 after:-bottom-[9px] after:h-px after:rounded-full after:bg-[var(--accent)]" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"}`}>
                     {item === "day" ? "日" : item === "week" ? "周" : "月"}
@@ -521,7 +526,6 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
                 <PopoverTrigger asChild><button aria-label="更多日历操作" className="pressable inline-flex size-8 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><MoreHorizontal size={17} /></button></PopoverTrigger>
                 <PopoverContent align="end" className="w-64 p-1.5">
                   <div className="sm:hidden border-b border-[var(--separator)] pb-1.5 mb-1.5">
-                    <button type="button" onClick={() => { setMoreOpen(false); openDraft(initialDraft(timezone)); }} className="flex min-h-11 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-[13px] text-[var(--text-primary)]"><Plus size={15} />新建日程</button>
                     <button type="button" onClick={() => { setMoreOpen(false); ai.toggle(); }} className="flex min-h-11 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-[13px] text-[var(--text-primary)]"><Bot size={15} />Calendar AI</button>
                     <button type="button" onClick={() => { setMoreOpen(false); setSettingsOpen(true); }} className="flex min-h-11 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-[13px] text-[var(--text-primary)]"><Settings2 size={15} />管理分类</button>
                   </div>
@@ -531,11 +535,11 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
                   <p className="px-2 py-1.5 text-[12px] leading-5 text-[var(--text-tertiary)]">状态：{syncStatus?.state ?? "unavailable"}{syncStatus?.errorCode ? ` · ${syncStatus.errorCode}` : ""}<br/>{syncStatus?.backgroundSyncLabel ?? "尚未验证后台调度"}<br/>最后成功：{syncStatus?.lastSyncAt ? new Date(syncStatus.lastSyncAt).toLocaleString("zh-CN") : "从未"}<br/>下次后台同步：{syncStatus?.nextBackgroundAt ? new Date(syncStatus.nextBackgroundAt).toLocaleString("zh-CN") : "等待首次运行验证"}<br/>全量对账目标：{syncStatus?.nextFullAt ? new Date(syncStatus.nextFullAt).toLocaleString("zh-CN") : "等待调度"}</p>
                 </PopoverContent>
               </Popover>
-              <button onClick={() => openDraft(initialDraft(timezone))} className="pressable ml-1 hidden sm:inline-flex h-8 items-center gap-1 rounded-[9px] bg-[var(--accent)] px-2.5 text-[12px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,.06)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]"><Plus size={14} />新建</button>
+              <button type="button" aria-label="新建日程" onClick={() => openDraft(initialDraft(timezone))} className="pressable ml-1 inline-flex min-h-11 items-center gap-1.5 rounded-[11px] bg-[var(--accent)] px-3 text-[13px] font-medium text-[var(--surface-canvas)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)]"><Plus size={16} aria-hidden="true" />新建</button>
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 border-t border-[var(--separator)] px-3 py-1 sm:hidden">
+          <div className="calendar-mobile-controls flex items-center justify-between gap-2 border-t border-[var(--separator)] px-3 py-1 sm:hidden">
             <div className="flex items-center gap-1" role="group" aria-label="日历视图">
               {availableViews.map((item) => <button key={item} type="button" onClick={() => setView(item)} aria-pressed={view === item} className={`pressable min-h-11 min-w-11 rounded-[8px] px-3 text-[13px] ${view === item ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>{item === "day" ? "日" : item === "week" ? "周" : "月"}</button>)}
             </div>
@@ -564,11 +568,15 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
             <button type="button" onClick={() => setHideInternship((current) => !current)} aria-pressed={hideInternship} className={`pressable hidden shrink-0 items-center gap-1 rounded-[9px] px-2 py-1 text-[12px] md:flex ${hideInternship ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><EyeOff size={12}/>{hideInternship ? "已隐藏实习" : "实习"}</button>
             <button type="button" onClick={() => setSettingsOpen(true)} className="pressable flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[9px] px-2 py-1 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><Settings2 size={12} />分类</button>
           </div>
+          {selectedCategories.size || hideInternship ? <div aria-label="已生效的日历筛选" className="calendar-active-filters flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[var(--separator)] px-4 py-1 md:px-6">
+            <p className="min-w-0 flex-1 break-words text-[13px] leading-6 text-[var(--text-secondary)]">{[...selectedCategories, ...(hideInternship ? ["已隐藏实习"] : [])].join(" · ")}</p>
+            <button type="button" onClick={() => { setSelectedCategories(new Set()); setHideInternship(false); }} className="ui-link min-h-11 shrink-0 text-[13px]">清除筛选</button>
+          </div> : null}
         </header>
 
+        {calendarError ? <div role="status" className="shrink-0 border-b border-[var(--separator)] bg-[var(--warning-soft)] px-4 py-2 text-[13px] leading-6 text-[var(--warning)]"><p>{calendarError} <button type="button" disabled={loadingRange} onClick={() => void refetchActiveRange()} className="inline-flex min-h-11 items-center px-2 font-medium underline">{loadingRange ? "读取中…" : "重新读取"}</button></p></div> : null}
         <CalendarFullView events={filtered} categories={categories} timezone={timezone} initialView={fullCalendarView(view)} initialDate={cursor} onOpen={openEvent} onCreate={openDraft} onMove={moveEvent} onRangeChange={onRangeChange} loadingRange={loadingRange} />
         {rangeTruncated ? <p className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[rgba(255,249,235,.94)] px-2.5 py-1 text-[12px] text-[var(--warning)] shadow-sm backdrop-blur-md">当前范围仅显示前 1,000 条日程</p> : null}
-        {calendarError ? <p role="status" className="absolute left-3 top-[92px] z-10 max-w-md rounded-[8px] border border-[rgba(178,80,0,.16)] bg-[rgba(255,249,235,.96)] px-2.5 py-2 text-[12px] leading-5 text-[var(--warning)] shadow-sm backdrop-blur-md">{calendarError} <button type="button" disabled={loadingRange} onClick={() => void refetchActiveRange()} className="ml-2 font-medium underline">{loadingRange ? "读取中…" : "重新读取"}</button></p> : null}
       </div>
 
       <Inspector open={inspector.isOpen} title={selected || lookup ? "日程详情" : "新建日程"} onClose={closeDetails} className="calendar-inspector w-[min(380px,calc(100vw-8px))]">{selected ? <><CalendarEventEditForm key={selected.id} event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={reconcileInspectorMutation} /><EntityBacklinks type="calendar_event" id={selected.id} /></> : draft ? <CalendarCreateForm key={`${draft.startsAt}:${draft.endsAt}:${draft.isAllDay ? "all-day" : "timed"}`} timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={reconcileCreatedEvent} /> : lookup ? <div role="status" className="space-y-3 text-sm text-[var(--text-secondary)]"><p>{lookup.error ?? "正在读取日程…"}</p>{lookup.error ? <button type="button" onClick={() => setLookupAttempt((current) => current + 1)} className="font-medium text-[var(--accent)]">重新读取</button> : null}</div> : null}</Inspector>

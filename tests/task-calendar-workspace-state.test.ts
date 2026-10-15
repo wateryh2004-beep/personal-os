@@ -281,12 +281,13 @@ describe("Task creation and dismissal", () => {
 });
 
 describe("Calendar exact-record navigation", () => {
-  it("closes the mobile overflow menu before opening a new calendar draft", async () => {
+  it("opens a draft from the visible mobile primary action and closes the overflow menu", async () => {
     Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })) });
     await renderCalendar(); await flushTimers();
     await click('[aria-label="更多日历操作"]');
-    const create = [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].find((button) => button.textContent === "新建日程")!;
+    const create = container.querySelector<HTMLButtonElement>('button[aria-label="新建日程"]')!;
     expect(create).toBeDefined();
+    expect(create.closest('[data-slot="popover-content"]')).toBeNull();
     await act(async () => { create.click(); });
     expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
     expect(container.querySelector('[data-draft-start]')).not.toBeNull();

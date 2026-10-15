@@ -177,13 +177,15 @@ async function setUrl(href: string, method: "replaceState" | "pushState" = "repl
 }
 
 describe("Notes URL-driven search", () => {
-  it("uses stable row geometry for search, including remount, and restores browsing estimates on clear", async () => {
+  it("uses real row geometry for previews and search, including remount, and restores estimates in compact mode", async () => {
     const stylesheet = document.createElement("style");
     stylesheet.textContent = readFileSync("src/app/workspaces.css", "utf8");
     document.head.append(stylesheet);
     const visibility = () => getComputedStyle(container.querySelector(".notes-list-row")!).contentVisibility;
     try {
       await renderWorkspace();
+      expect(visibility()).toBe("visible");
+      await act(async () => button("列表")!.click());
       expect(visibility()).toBe("auto");
       const input = container.querySelector<HTMLInputElement>("#notes-library-search")!;
       await act(async () => {
@@ -195,6 +197,8 @@ describe("Notes URL-driven search", () => {
       await renderWorkspace();
       expect(visibility()).toBe("visible");
       await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="清空搜索"]')!.click());
+      expect(visibility()).toBe("visible");
+      await act(async () => button("列表")!.click());
       expect(visibility()).toBe("auto");
     } finally { stylesheet.remove(); }
   });

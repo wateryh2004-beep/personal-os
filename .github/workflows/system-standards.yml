@@ -44,6 +44,7 @@ jobs:
             sleep 1
           done
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/design-v2-e2e.cjs
+          NODE_PATH="$(npm root -g)" timeout 240s node scripts/workspace-details-e2e.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -51,5 +52,6 @@ jobs:
           path: |
             system-standards.json
             test-results/design-v2
+            test-results/workspace-details
           if-no-files-found: ignore
           retention-days: 7

@@ -51,7 +51,7 @@ describe("readable typography and workspace rhythm", () => {
     const study = read("src/components/career/interview/interview-study-view.tsx");
     expect(study).toContain("memo(function InterviewStudyView");
     expect(study).toContain("memo(function StudyMarkdown");
-    expect(study).toContain("text-[15px] leading-7");
+    expect(study).toContain("text-[16px] leading-8");
     expect(study).toContain("标准答案");
     expect(study).toContain("待核对");
   });
