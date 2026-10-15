@@ -25,6 +25,13 @@ async function isolate(context, evidence) {
   });
 }
 
+async function editorReady(page) {
+  // The CodeMirror shell can mount before its editable content has geometry.
+  // Measure alignment only after a real line has painted; keep the 2px bound.
+  await page.locator(".cm-editor .cm-content[contenteditable=true]").waitFor({ state: "visible" });
+  await page.locator(".cm-editor .cm-content .cm-line").first().waitFor({ state: "visible" });
+}
+
 async function goto(page, scene) {
   await page.goto(`${base}/mobile-native-e2e?scene=${scene}`);
   await page.locator(".app-toolbar").waitFor();
@@ -83,7 +90,7 @@ async function goto(page, scene) {
       result.checks.push("note-excerpt-toggle-keeps-existing-list");
 
       await goto(page, "note-editor");
-      await page.locator(".cm-editor").waitFor();
+      await editorReady(page);
       assert.ok(await page.getByLabel("笔记标题", { exact: true }).evaluate(node => parseFloat(getComputedStyle(node).fontSize) >= 28), "the title is not flattened by the mobile input rule");
       const alignment = await page.evaluate(() => {
         const title = document.querySelector(".notes-title-input"), content = document.querySelector(".cm-content");
@@ -99,7 +106,7 @@ async function goto(page, scene) {
         assert.equal(await page.locator(".cm-editor").isVisible(), false);
         assert.equal(await page.locator(".note-reading-pane").evaluate(node => getComputedStyle(node).animationName), "none");
         await mode.getByRole("button", { name: "编辑", exact: true }).click();
-        await page.locator(".cm-editor").waitFor({ state: "visible" });
+        await editorReady(page);
         assert.ok(await page.evaluate(() => document.querySelector(".cm-editor") === window.__fixtureEditor));
       }
       await mode.getByRole("button", { name: "阅读", exact: true }).click();
@@ -175,7 +182,7 @@ async function goto(page, scene) {
       const page = await context.newPage();
       page.on("pageerror", error => result.errors.push(error.message));
       await goto(page, "note-editor");
-      await page.locator(".cm-editor").waitFor();
+      await editorReady(page);
       const mode = page.getByRole("group", { name: "笔记阅读方式" });
       await mode.getByRole("button", { name: "阅读", exact: true }).click();
       assert.equal(await page.locator(".note-reading-pane").evaluate(node => getComputedStyle(node).animationName), "reading-arrive");
@@ -184,7 +191,7 @@ async function goto(page, scene) {
       await mode.getByRole("button", { name: "阅读", exact: true }).click();
       await page.waitForTimeout(80);
       await mode.getByRole("button", { name: "编辑", exact: true }).click();
-      await page.locator(".cm-editor").waitFor();
+      await editorReady(page);
       await page.waitForTimeout(450);
       assert.equal(result.blockedWrites, 0);
       assert.deepEqual(result.errors, []);
