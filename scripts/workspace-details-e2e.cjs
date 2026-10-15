@@ -117,23 +117,11 @@ async function goto(page, scene) {
           .note-reading-prose h2 { font-size:48px!important; line-height:1.5!important; }
           .note-reading-prose h3 { font-size:40px!important; line-height:1.5!important; }
         ` });
-        const scale = await page.locator(".note-reading-prose p").first().evaluate(node => {
-          const rules = [];
-          const scan = entries => { for (const rule of entries) {
-            if (rule.selectorText && rule.style && (rule.style.fontSize || rule.style.font) && node.matches(rule.selectorText)) rules.push(rule.cssText);
-            if (rule.cssRules) scan(rule.cssRules);
-          } };
-          for (const sheet of document.styleSheets) { try { scan(sheet.cssRules); } catch {} }
-          const before = getComputedStyle(node).fontSize;
-          const diagnostics = { font: before, html: node.outerHTML, connected: node.isConnected, rules, injected: [...document.querySelectorAll("style")].map(style => style.textContent).filter(css => css.includes("font-size:32px")) };
-          if (parseFloat(before) < 32) {
-            node.style.setProperty("font-size", "32px", "important");
-            diagnostics.inlineFont = getComputedStyle(node).fontSize;
-            diagnostics.inlineHtml = node.outerHTML;
-          }
-          return diagnostics;
-        });
-        assert.ok(parseFloat(scale.font) >= 32, `reading text actually doubles to at least 32px: ${JSON.stringify(scale)}`);
+        // The shared reduced-motion rule uses a .01ms transition duration.
+        // Wait for computed style to settle, rather than reading its start frame.
+        await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector(".note-reading-prose p")).fontSize) >= 32);
+        const scale = await page.locator(".note-reading-prose p").first().evaluate(node => parseFloat(getComputedStyle(node).fontSize));
+        assert.ok(scale >= 32, `reading text actually doubles to at least 32px, got ${scale}`);
         await capture("note-reading-text-200");
         await enlarged.evaluate(node => node.remove());
         result.checks.push("reading-text-and-line-boxes-200-percent");
@@ -181,10 +169,11 @@ async function goto(page, scene) {
     // Motion evidence uses its own uninterrupted context: no screenshot resizing
     // or forced animation completion contaminates the recorded trajectories.
     for (const width of [390, 1440]) {
-      const result = { width, blockedWrites: 0 };
+      const result = { width, blockedWrites: 0, errors: [] };
       const context = await browser.newContext({ viewport: { width, height: 900 }, recordVideo: { dir: `${output}/video/${width}`, size: { width, height: 900 } }, timezoneId: "Asia/Shanghai" });
       await isolate(context, result);
       const page = await context.newPage();
+      page.on("pageerror", error => result.errors.push(error.message));
       await goto(page, "note-editor");
       await page.locator(".cm-editor").waitFor();
       const mode = page.getByRole("group", { name: "笔记阅读方式" });
@@ -198,6 +187,7 @@ async function goto(page, scene) {
       await page.locator(".cm-editor").waitFor();
       await page.waitForTimeout(450);
       assert.equal(result.blockedWrites, 0);
+      assert.deepEqual(result.errors, []);
       await context.close();
     }
     await writeFile(`${output}/evidence.json`, JSON.stringify(evidence, null, 2));
