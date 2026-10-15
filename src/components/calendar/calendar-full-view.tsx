@@ -37,8 +37,10 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
   useEffect(() => {
     const api = calendarRef.current?.getApi();
     if (!api) return;
-    if (api.view.type !== initialView) api.changeView(initialView);
-    if (api.getDate().getTime() !== visualInitialDate.getTime()) api.gotoDate(visualInitialDate);
+    // Commit a view and its date together so custom event renderers never
+    // attach to an intermediate, immediately retired date/view container.
+    if (api.view.type !== initialView) api.changeView(initialView, visualInitialDate);
+    else if (api.getDate().getTime() !== visualInitialDate.getTime()) api.gotoDate(visualInitialDate);
   }, [initialView, visualInitialDate]);
 
   const persistMove = (info: EventDropArg | EventResizeDoneArg) => { void (async () => {

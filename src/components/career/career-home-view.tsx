@@ -79,7 +79,6 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
             <Link key={item.key} href={item.href} className="ui-record-link group flex min-h-16 items-start gap-3 rounded-[10px] px-2 py-3 hover:bg-[var(--surface-hover)]">
               <span className="min-w-0 flex-1"><span className="block break-words text-[15px] leading-6 text-[var(--text-primary)]">{item.title}</span>
               <span className="mt-1 block text-[13px] leading-6 tabular-nums text-[var(--text-secondary)]">{item.dueAt ? `${item.dueAt.length === 10 ? item.dueAt : formatDateTime(item.dueAt)} · ` : ""}{item.meta}</span></span>
-              <ChevronRight aria-hidden="true" className="mt-1 size-4 shrink-0 text-[var(--text-tertiary)]" />
             </Link>
           ))}
 

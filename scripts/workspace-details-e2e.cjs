@@ -35,16 +35,20 @@ async function goto(page, scene) {
   await mkdir(output, { recursive: true });
   const browser = await chromium.launch({ headless: true });
   const evidence = [];
+  let activePage;
   try {
     for (const width of [360, 390, 768, 1440]) {
       const result = { width, blockedWrites: 0, errors: [], checks: [] };
       const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: "reduce", timezoneId: "Asia/Shanghai", hasTouch: width < 768 });
       await isolate(context, result);
       const page = await context.newPage();
-      page.on("pageerror", error => result.errors.push(error.message));
+      activePage = page;
+      page.on("pageerror", error => result.errors.push({ scene: new URL(page.url()).searchParams.get("scene"), message: error.message }));
       const capture = async name => {
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${name}: no horizontal page overflow at ${width}`);
         await page.screenshot({ path: `${output}/${name}-${width}.png`, fullPage: true });
+        await writeFile(`${output}/progress-${width}.json`, JSON.stringify(result, null, 2));
+        assert.deepEqual(result.errors, [], `${name}: no hydration or runtime errors`);
       };
       await goto(page, "career-filled");
       await page.locator(".career-target-card").waitFor();
@@ -79,6 +83,12 @@ async function goto(page, scene) {
 
       await goto(page, "note-editor");
       await page.locator(".cm-editor").waitFor();
+      assert.ok(await page.getByLabel("笔记标题", { exact: true }).evaluate(node => parseFloat(getComputedStyle(node).fontSize) >= 28), "the title is not flattened by the mobile input rule");
+      const alignment = await page.evaluate(() => {
+        const title = document.querySelector(".notes-title-input"), content = document.querySelector(".cm-content");
+        return { title: title.getBoundingClientRect().left + parseFloat(getComputedStyle(title).paddingLeft), text: content.getBoundingClientRect().left + parseFloat(getComputedStyle(content).paddingLeft) };
+      });
+      assert.ok(Math.abs(alignment.title - alignment.text) <= 2, `title and editor align: ${JSON.stringify(alignment)}`);
       await page.evaluate(() => { window.__fixtureEditor = document.querySelector(".cm-editor"); });
       const mode = page.getByRole("group", { name: "笔记阅读方式" });
       for (let index = 0; index < 2; index++) {
@@ -90,7 +100,21 @@ async function goto(page, scene) {
         assert.ok(await page.evaluate(() => document.querySelector(".cm-editor") === window.__fixtureEditor));
       }
       await mode.getByRole("button", { name: "阅读", exact: true }).click();
+      const readingAlignment = await page.evaluate(() => ({ title: document.querySelector(".notes-reading-title").getBoundingClientRect().left, text: document.querySelector(".note-reading-prose").getBoundingClientRect().left }));
+      assert.ok(Math.abs(readingAlignment.title - readingAlignment.text) <= 2, `title and reading align: ${JSON.stringify(readingAlignment)}`);
       await capture("note-reading");
+      if (width === 390) {
+        // Enlarge actual reading glyphs and line boxes, rather than assuming
+        // changing the root rem size doubles the many px-based body styles.
+        await page.evaluate(() => {
+          const elements = [...document.querySelectorAll(".notes-reading-title, .note-reading-prose, .note-reading-prose *")];
+          window.__readingScale = elements.map(node => ({ node, fontSize: node.style.fontSize, lineHeight: node.style.lineHeight, font: parseFloat(getComputedStyle(node).fontSize), line: parseFloat(getComputedStyle(node).lineHeight) }));
+          for (const item of window.__readingScale) { item.node.style.fontSize = `${item.font * 2}px`; if (Number.isFinite(item.line)) item.node.style.lineHeight = `${item.line * 2}px`; }
+        });
+        await capture("note-reading-text-200");
+        await page.evaluate(() => { for (const item of window.__readingScale) { item.node.style.fontSize = item.fontSize; item.node.style.lineHeight = item.lineHeight; } });
+        result.checks.push("reading-text-and-line-boxes-200-percent");
+      }
       await page.setViewportSize({ width, height: 600 });
       for (const label of ["编辑", "阅读"]) assert.ok(await mode.getByRole("button", { name: label, exact: true }).isVisible());
       assert.ok((await page.locator(".note-reading-pane").boundingBox()).height >= 120, "short screen keeps a useful reading region");
@@ -120,6 +144,7 @@ async function goto(page, scene) {
       await page.getByRole("button", { name: "回到今天", exact: true }).click();
       await page.getByRole("button", { name: "日", exact: true }).click();
       await page.locator(".fc-event").first().waitFor();
+      await page.locator(".fc-event-main").getByText("阅读与材料整理 · Synthetic fixture", { exact: true }).waitFor();
       await capture("calendar");
       await create.click();
       await page.getByRole("heading", { name: "新建日程", exact: true }).waitFor();
@@ -154,5 +179,12 @@ async function goto(page, scene) {
     }
     await writeFile(`${output}/evidence.json`, JSON.stringify(evidence, null, 2));
     console.log("PASS: workspace detail flows at 360/390/768/1440, short screens, editor lifetime, recall focus, month navigation, reduced motion and separate recordings; synthetic data only.");
+  } catch (error) {
+    if (activePage && !activePage.isClosed()) {
+      await activePage.screenshot({ path: `${output}/failure.png`, fullPage: true }).catch(() => {});
+      const diagnostics = await activePage.evaluate(() => ({ scene: new URL(location.href).searchParams.get("scene"), events: [...document.querySelectorAll(".fc-event-main")].map(node => ({ html: node.innerHTML, text: node.textContent, color: getComputedStyle(node).color })), savedState: document.querySelector(".notes-editor-toolbar [aria-live]")?.textContent })).catch(() => null);
+      await writeFile(`${output}/failure.json`, JSON.stringify(diagnostics, null, 2));
+    }
+    throw error;
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

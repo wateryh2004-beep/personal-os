@@ -48,10 +48,10 @@
 .notes-list-workspace { background:var(--surface-canvas); }
 .notes-navigator { background:var(--surface-sidebar); }
 .notes-document-shell { background:var(--surface-canvas); }
-.notes-title-input { color:var(--text-primary); }
+.notes-title-input,.notes-reading-title { color:var(--text-primary); font-family:var(--font-serif); font-size:32px; font-weight:400; line-height:1.4; }
 .notes-document-shell .life-codemirror .cm-editor { font-size:16px; }
 .notes-document-shell .life-codemirror .cm-scroller { line-height:1.76; scrollbar-width:thin; }
-.notes-document-shell .life-codemirror .cm-content { max-width:720px; padding:28px 32px 84px; }
+.notes-document-shell .life-codemirror .cm-content { max-width:784px; padding:28px 32px 84px; }
 .notes-document-shell .life-codemirror .cm-activeLine { background:transparent; }
 .notes-document-shell .life-codemirror .cm-selectionBackground,
 .notes-document-shell .life-codemirror .cm-editor.cm-focused .cm-selectionBackground { background:var(--accent-soft); }
@@ -91,10 +91,13 @@
 .note-reading-prose h2 { font-size:24px; }
 .note-reading-prose h3 { font-size:20px; }
 .notes-list-workspace[data-previews="true"] .notes-list-row { content-visibility:visible; contain-intrinsic-block-size:none; }
+.notes-editor-toolbar { overflow:hidden; scrollbar-gutter:stable; }
 .calendar-date-trigger { transition:color var(--motion-fast) var(--ease-standard),background-color var(--motion-fast) var(--ease-standard); }
 @keyframes reading-arrive { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 @media (max-width:767px) {
   .notes-document-shell .life-codemirror .cm-content { padding:24px 20px 84px; }
+  .notes-editor-toolbar { scrollbar-gutter:auto; }
+  .notes-title-input,.notes-reading-title { font-size:28px; }
   .career-next-panel { padding-inline:0; background:transparent; }
 }
 @media (prefers-reduced-motion:reduce) {

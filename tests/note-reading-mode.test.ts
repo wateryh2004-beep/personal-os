@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const fixture = vi.hoisted(() => ({ mounts: 0, unmounts: 0, save: vi.fn(), show: vi.fn(), noop: vi.fn() }));
@@ -61,4 +62,10 @@ it("reads the unsaved draft and retains it through autosave failure and returnin
   await act(async () => button("编辑").click());
   expect(host.querySelector('[data-testid="editor-instance"]')?.textContent).toContain("尚未保存的新内容。");
   expect(fixture.unmounts).toBe(0);
+});
+
+it("renders a stable saved state on the server instead of a server-local clock", () => {
+  const html = renderToString(createElement(NoteEditor, { note: { id: "server-fixture", title: "示例", body_markdown: "正文", revision: 1, last_saved_at: "2026-10-02T08:00:00Z" }, noteAiDefaultModel: "deepseek-v4-flash" }));
+  expect(html).toContain("已保存");
+  expect(html).not.toMatch(/已保存 \d{2}:\d{2}/);
 });
