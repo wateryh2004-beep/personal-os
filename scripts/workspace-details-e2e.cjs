@@ -47,7 +47,7 @@ async function goto(page, scene) {
       const capture = async name => {
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${name}: no horizontal page overflow at ${width}`);
         await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
-        await page.screenshot({ path: `${output}/${name}-${width}.png`, fullPage: true });
+        await page.screenshot({ path: `${output}/${name}-${width}.png`, fullPage: true, animations: "disabled" });
         await writeFile(`${output}/progress-${width}.json`, JSON.stringify(result, null, 2));
         assert.deepEqual(result.errors, [], `${name}: no hydration or runtime errors`);
       };
@@ -110,8 +110,10 @@ async function goto(page, scene) {
         await page.evaluate(() => {
           const elements = [...document.querySelectorAll(".notes-reading-title, .note-reading-prose, .note-reading-prose *")];
           window.__readingScale = elements.map(node => ({ node, fontSize: node.style.fontSize, lineHeight: node.style.lineHeight, font: parseFloat(getComputedStyle(node).fontSize), line: parseFloat(getComputedStyle(node).lineHeight) }));
-          for (const item of window.__readingScale) { item.node.style.fontSize = `${item.font * 2}px`; if (Number.isFinite(item.line)) item.node.style.lineHeight = `${item.line * 2}px`; }
+          for (const item of window.__readingScale) { item.node.style.setProperty("font-size", `${item.font * 2}px`, "important"); if (Number.isFinite(item.line)) item.node.style.lineHeight = `${item.line * 2}px`; }
         });
+        const scale = await page.locator(".note-reading-prose p").first().evaluate(node => parseFloat(getComputedStyle(node).fontSize));
+        assert.ok(scale >= 32, `reading text actually doubles to at least 32px, got ${scale}`);
         await capture("note-reading-text-200");
         await page.evaluate(() => { for (const item of window.__readingScale) { item.node.style.fontSize = item.fontSize; item.node.style.lineHeight = item.lineHeight; } });
         result.checks.push("reading-text-and-line-boxes-200-percent");
