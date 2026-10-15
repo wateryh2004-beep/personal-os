@@ -46,6 +46,7 @@ async function goto(page, scene) {
       page.on("pageerror", error => result.errors.push({ scene: new URL(page.url()).searchParams.get("scene"), message: error.message }));
       const capture = async name => {
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${name}: no horizontal page overflow at ${width}`);
+        await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
         await page.screenshot({ path: `${output}/${name}-${width}.png`, fullPage: true });
         await writeFile(`${output}/progress-${width}.json`, JSON.stringify(result, null, 2));
         assert.deepEqual(result.errors, [], `${name}: no hydration or runtime errors`);

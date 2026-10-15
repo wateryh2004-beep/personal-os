@@ -479,6 +479,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   };
 
   const weekRange = view === "week" ? weekRangeInTimeZone(cursor.toISOString(), timezone) : null;
+  const activeCategoryLabels = [...selectedCategories].map(name => primaryCalendarCategories.find(category => category.displayName === name)?.shortName ?? name);
   const title = view === "week" && weekRange
     ? `${formatWallDate(weekRange.start)} – ${formatWallDate(weekRange.end)}`
     : new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, month: "long", day: view === "month" ? undefined : "numeric", year: view === "month" ? "numeric" : undefined }).format(cursor);
@@ -569,7 +570,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
             <button type="button" onClick={() => setSettingsOpen(true)} className="pressable flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[9px] px-2 py-1 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><Settings2 size={12} />分类</button>
           </div>
           {selectedCategories.size || hideInternship ? <div aria-label="已生效的日历筛选" className="calendar-active-filters flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[var(--separator)] px-4 py-1 md:px-6">
-            <p className="min-w-0 flex-1 break-words text-[13px] leading-6 text-[var(--text-secondary)]">{[...selectedCategories, ...(hideInternship ? ["已隐藏实习"] : [])].join(" · ")}</p>
+            <p className="min-w-0 flex-1 break-words text-[13px] leading-6 text-[var(--text-secondary)]">{[...activeCategoryLabels, ...(hideInternship ? ["已隐藏实习"] : [])].join(" · ")}</p>
             <button type="button" onClick={() => { setSelectedCategories(new Set()); setHideInternship(false); }} className="ui-link min-h-11 shrink-0 text-[13px]">清除筛选</button>
           </div> : null}
         </header>
