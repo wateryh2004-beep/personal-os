@@ -94,28 +94,33 @@ async function goto(page, scene) {
       const mode = page.getByRole("group", { name: "笔记阅读方式" });
       for (let index = 0; index < 2; index++) {
         await mode.getByRole("button", { name: "阅读", exact: true }).click();
+        await mode.getByRole("button", { name: "阅读", exact: true, pressed: true }).waitFor();
         await page.getByRole("article", { name: "笔记正文", exact: true }).waitFor();
         assert.equal(await page.locator(".cm-editor").isVisible(), false);
         assert.equal(await page.locator(".note-reading-pane").evaluate(node => getComputedStyle(node).animationName), "none");
         await mode.getByRole("button", { name: "编辑", exact: true }).click();
+        await page.locator(".cm-editor").waitFor({ state: "visible" });
         assert.ok(await page.evaluate(() => document.querySelector(".cm-editor") === window.__fixtureEditor));
       }
       await mode.getByRole("button", { name: "阅读", exact: true }).click();
+      await mode.getByRole("button", { name: "阅读", exact: true, pressed: true }).waitFor();
       const readingAlignment = await page.evaluate(() => ({ title: document.querySelector(".notes-reading-title").getBoundingClientRect().left, text: document.querySelector(".note-reading-prose").getBoundingClientRect().left }));
       assert.ok(Math.abs(readingAlignment.title - readingAlignment.text) <= 2, `title and reading align: ${JSON.stringify(readingAlignment)}`);
       await capture("note-reading");
       if (width === 390) {
         // Enlarge actual reading glyphs and line boxes, rather than assuming
         // changing the root rem size doubles the many px-based body styles.
-        await page.evaluate(() => {
-          const elements = [...document.querySelectorAll(".notes-reading-title, .note-reading-prose, .note-reading-prose *")];
-          window.__readingScale = elements.map(node => ({ node, fontSize: node.style.fontSize, lineHeight: node.style.lineHeight, font: parseFloat(getComputedStyle(node).fontSize), line: parseFloat(getComputedStyle(node).lineHeight) }));
-          for (const item of window.__readingScale) { item.node.style.setProperty("font-size", `${item.font * 2}px`, "important"); if (Number.isFinite(item.line)) item.node.style.lineHeight = `${item.line * 2}px`; }
-        });
+        const enlarged = await page.addStyleTag({ content: `
+          .note-reading-prose { font-size:32px!important; }
+          .note-reading-prose :is(p,li,blockquote,a,strong,em) { font-size:32px!important; line-height:2!important; }
+          .note-reading-prose h1,.notes-reading-title { font-size:56px!important; line-height:1.4!important; }
+          .note-reading-prose h2 { font-size:48px!important; line-height:1.5!important; }
+          .note-reading-prose h3 { font-size:40px!important; line-height:1.5!important; }
+        ` });
         const scale = await page.locator(".note-reading-prose p").first().evaluate(node => parseFloat(getComputedStyle(node).fontSize));
         assert.ok(scale >= 32, `reading text actually doubles to at least 32px, got ${scale}`);
         await capture("note-reading-text-200");
-        await page.evaluate(() => { for (const item of window.__readingScale) { item.node.style.fontSize = item.fontSize; item.node.style.lineHeight = item.lineHeight; } });
+        await enlarged.evaluate(node => node.remove());
         result.checks.push("reading-text-and-line-boxes-200-percent");
       }
       await page.setViewportSize({ width, height: 600 });
