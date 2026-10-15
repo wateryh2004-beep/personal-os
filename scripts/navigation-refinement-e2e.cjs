@@ -39,10 +39,19 @@ const output = process.env.E2E_SCREENSHOT_DIR || "test-results/navigation";
         await popover.getByRole("button", { name: "清除分类筛选" }).click();
         await page.keyboard.press("Escape");
         await workspace.getByRole("button", { name: "更多日历操作" }).click();
-        await popover.getByRole("button", { name: "新建日程", exact: true }).waitFor();
+        await popover.getByRole("button", { name: "Calendar AI", exact: true }).waitFor();
         await page.keyboard.press("Escape");
         await popover.waitFor({ state: "hidden" });
       }
+      // Creating an event is now a persistent primary action, including phones.
+      const create = workspace.getByRole("button", { name: "新建日程", exact: true });
+      assert.equal(await create.isVisible(), true, "create is directly available without a menu");
+      assert.ok((await create.boundingBox()).height >= 44, "create remains touch sized");
+      await create.click();
+      const draft = page.getByRole("heading", { name: "新建日程", exact: true });
+      await draft.waitFor();
+      await page.keyboard.press("Escape");
+      await draft.waitFor({ state: "hidden" });
       await page.screenshot({ path: path.join(output, `navigation-calendar-${width}.png`), fullPage: true });
       assert.deepEqual(errors, [], `browser errors at ${width}`);
       await context.close();
