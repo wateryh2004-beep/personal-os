@@ -13,17 +13,17 @@ export default async function InterviewWorkspacePage({
   const params = Object.fromEntries(Object.entries(rawParams).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]));
   const data = await getInterviewWorkspaceData();
 
-  const targets = data.contexts.map((context: any) => ({
+  const targets = data.contexts.map((context) => ({
     id: context.id as string,
     title: context.title as string,
     organization: (context.organization_snapshot as string | null) ?? null,
     role: (context.role_title_snapshot as string | null) ?? null,
   }));
 
-  const typeById = new Map((data.questionTypes as any[]).map((item: any) => [item.id as string, item]));
-  const competencyById = new Map((data.competencies as any[]).map((item: any) => [item.id as string, item]));
-  const competenciesByQuestion = new Map<string, any[]>();
-  for (const link of data.competencyLinks as any[]) {
+  const typeById = new Map((data.questionTypes).map((item) => [item.id as string, item]));
+  const competencyById = new Map((data.competencies).map((item) => [item.id as string, item]));
+  const competenciesByQuestion = new Map<string, ((typeof data.competencies)[number] & { relevance: number; isPrimary: boolean })[]>();
+  for (const link of data.competencyLinks) {
     const competency = competencyById.get(link.competency_id);
     if (!competency) continue;
     const list = competenciesByQuestion.get(link.question_id) ?? [];
@@ -34,14 +34,14 @@ export default async function InterviewWorkspacePage({
     list.sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || b.relevance - a.relevance || a.position - b.position);
   }
 
-  const answersByPreparation = new Map<string, any[]>();
-  for (const answer of data.answers as any[]) {
+  const answersByPreparation = new Map<string, (typeof data.answers)>();
+  for (const answer of data.answers) {
     const list = answersByPreparation.get(answer.preparation_id) ?? [];
     list.push(answer);
     answersByPreparation.set(answer.preparation_id, list);
   }
 
-  const items = (data.preparations as any[]).flatMap((prep: any) => {
+  const items = (data.preparations).flatMap((prep) => {
     const relation = Array.isArray(prep.interview_questions) ? prep.interview_questions[0] : prep.interview_questions;
     if (!relation) return [];
     const answerList = answersByPreparation.get(prep.id) ?? [];
@@ -63,7 +63,7 @@ export default async function InterviewWorkspacePage({
       categoryLabel: (typeById.get(relation.question_type_id)?.label as string | undefined) ?? "行为",
       style: (relation.question_style as string | null) ?? "standard",
       subcategory: (relation.subcategory as string | null) ?? null,
-      competencies: (competenciesByQuestion.get(prep.question_id) ?? []).map((item: any) => ({
+      competencies: (competenciesByQuestion.get(prep.question_id) ?? []).map((item) => ({
         key: item.key as string,
         label: item.label as string,
       })),

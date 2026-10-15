@@ -72,13 +72,13 @@ export function ReviewComposer({
     <section className="mx-auto max-w-[1080px]">
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--separator)] pb-4.5">
         <div>
-          <p className="text-[10.5px] font-semibold tracking-[0.08em] text-[var(--accent)]">
+          <p className="text-[12px] font-semibold tracking-[0.08em] text-[var(--accent)]">
             {type === "daily" ? "每日复盘" : "每周复盘"}
           </p>
-          <h1 className="mt-1 text-[27px] font-semibold leading-[1.08] tracking-[-0.042em] text-[var(--text-primary)]">
+          <h1 className="page-title">
             {type === "daily" ? "今日复盘" : "本周复盘"}
           </h1>
-          <p className="mt-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+          <p className="mt-1.5 text-[12px] text-[var(--text-tertiary)]">
             {periodLabel} · {existingReviewId ? "已完成，可继续修正" : "尚未完成"}
           </p>
         </div>
@@ -94,14 +94,14 @@ export function ReviewComposer({
         </div>
       </header>
       {notice ? (
-        <p className={`mt-3.5 rounded-[9px] px-3 py-2 text-[11.5px] ${notice.tone === "info" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-red-50 text-[var(--danger)]"}`}>
+        <p className={`mt-3.5 rounded-[9px] px-3 py-2 text-[12px] ${notice.tone === "info" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-red-50 text-[var(--danger)]"}`}>
           {notice.text}
         </p>
       ) : null}
       <div className="mt-6 grid gap-7 lg:grid-cols-[minmax(0,1fr)_300px]">
         <main className="min-w-0">
           <ReviewEditor type={type} value={value} onChange={setValue} />
-          <p className="mt-3.5 text-[10.5px] leading-5 text-[var(--text-tertiary)]">
+          <p className="mt-3.5 text-[12px] leading-5 text-[var(--text-tertiary)]">
             保存后会创建新版本，并记录本次证据来源。AI 草稿不会自动进入记忆或改变决定。
           </p>
         </main>

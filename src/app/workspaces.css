@@ -9,7 +9,7 @@
 .calendar-canvas .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { display:inline-block; min-width:23px; margin-top:2px; margin-right:6px; padding:2px 6px; text-align:center; background:var(--accent); color:#fff; border-radius:9999px; }
 .calendar-canvas .fc-timegrid-slot { height:1.85em; border-color:rgba(60,60,67,.10); }
 .calendar-canvas .fc-timegrid-slot-minor { border-top-style:dotted; border-top-color:rgba(60,60,67,.07); }
-.calendar-canvas .fc-timegrid-slot-label-cushion { color:var(--text-tertiary); font-size:11px; padding-right:10px; }
+.calendar-canvas .fc-timegrid-slot-label-cushion { color:var(--text-tertiary); font-size:12px; padding-right:10px; }
 .calendar-canvas .fc-timegrid-now-indicator-line { border-color:var(--danger); border-width:1px; }
 .calendar-canvas .fc-timegrid-now-indicator-arrow { border-color:var(--danger); color:var(--danger); }
 .calendar-canvas .fc-event { border-width:1px 1px 1px 3px; border-radius:8px; box-shadow:none; cursor:pointer; }
@@ -26,7 +26,7 @@
 .calendar-canvas .fc-day-other { background:color-mix(in srgb,var(--surface-hover) 48%,transparent); }
 .calendar-canvas .fc-event-main { color:inherit!important; }
 .calendar-canvas .fc-highlight { background:color-mix(in srgb,var(--accent-soft) 72%,transparent); }
-.calendar-canvas .fc-more-link { color:var(--accent); font-size:11px; }
+.calendar-canvas .fc-more-link { color:var(--accent); font-size:12px; }
 .calendar-canvas .fc-daygrid-day-number { color:var(--text-secondary); font-size:12px; padding:5px 7px; text-decoration:none; }
 .calendar-canvas .fc-scrollgrid-section-sticky > * { background:#fff; }
 @media (max-width:767px) { .calendar-canvas .fc-timegrid-slot { height:1.6em; } .calendar-canvas .fc-daygrid-day-frame { min-height:84px; } .calendar-canvas .fc-daygrid-event { margin:2px 1px; } }

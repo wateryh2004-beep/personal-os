@@ -122,7 +122,6 @@
   /* Tasks */
   .tasks-workspace > div > header { padding: 14px 16px 8px !important; }
   .tasks-workspace > div > header > div { align-items: center !important; gap: 8px !important; }
-  .tasks-workspace h1 { font-size: 24px !important; }
   .tasks-view-tabs { margin-top: 8px !important; gap: 18px !important; padding-bottom: 2px; scrollbar-width: none; }
   .tasks-view-tabs::-webkit-scrollbar { display: none; }
   .tasks-view-tabs button { min-height: 34px; padding-top: 6px; }

@@ -162,7 +162,7 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
       <span className="tabular-nums">{Math.round(zoom * 100)}%</span>
       <button type="button" className={buttonClass} aria-label="放大 PDF" disabled={zoom >= 2} onClick={() => setZoom(value => Math.min(2, value + 0.25))}>+</button>
     </div> : null}
-    {pdf && readingMessage ? <div className="flex flex-wrap items-center gap-x-3 text-[11px] text-[var(--text-secondary)]" role="status">
+    {pdf && readingMessage ? <div className="flex flex-wrap items-center gap-x-3 text-[12px] text-[var(--text-secondary)]" role="status">
       <span>{readingMessage}</span>
       {conflict ? <>
         <button type="button" className={buttonClass} onClick={() => {
@@ -180,7 +180,7 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
         <PdfCanvasPage key={`${pageNumber}:${zoom}:${width}`} pdf={pdf} pageNumber={pageNumber} title={title} width={width * zoom} onFailure={fail} onRendered={onRendered} /> :
         <p role="status" className="flex min-h-56 items-center justify-center text-[13px] text-[var(--text-secondary)]">正在准备 PDF 预览…</p>}
     </div>
-    <p className="text-[11px] leading-5 text-[var(--text-secondary)]">逐页显示 PDF；页内预览上限为 25 MiB。文件通过当前登录会话读取，不会发送给第三方阅读服务。</p>
+    <p className="text-[12px] leading-5 text-[var(--text-secondary)]">逐页显示 PDF；页内预览上限为 25 MiB。文件通过当前登录会话读取，不会发送给第三方阅读服务。</p>
     <div className="flex flex-wrap gap-x-4 text-[12px] text-[var(--accent)]">
       {nativeAvailable ? <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center">在新窗口预览 PDF</a> : null}
       <a href={`/api/files/${documentId}/download`} className="inline-flex min-h-9 items-center">下载原件</a>
@@ -254,6 +254,6 @@ function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure, onRendered }:
   return <div className="w-max min-w-full">
     {!rendered ? <p role="status" className="py-3 text-[12px] text-[var(--text-secondary)]">正在绘制第 {pageNumber} 页…</p> : null}
     <canvas ref={canvasRef} role="img" aria-label={`${title}，第 ${pageNumber} 页`} data-pdf-page={pageNumber}
-      className="mx-auto block bg-white shadow-sm" style={{ visibility: rendered ? "visible" : "hidden" }} />
+      className="mx-auto block bg-[var(--surface-canvas)] shadow-sm" style={{ visibility: rendered ? "visible" : "hidden" }} />
   </div>;
 }

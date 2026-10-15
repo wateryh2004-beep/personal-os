@@ -207,7 +207,7 @@ export function MentionTextarea(props: Props) {
 
   return (
     <div className="relative">
-      <textarea
+      <textarea aria-label="内容"
         ref={textareaRef}
         name={name}
         value={value}
@@ -224,7 +224,7 @@ export function MentionTextarea(props: Props) {
       {mention && mention.suggestions.length > 0 ? (
         <div
           data-mention-popup
-          className="fixed z-40 w-72 overflow-hidden rounded-md border border-[var(--border-subtle)] bg-white py-1 text-sm shadow-lg"
+          className="fixed z-40 w-72 overflow-hidden rounded-md border border-[var(--border-subtle)] bg-[var(--surface-canvas)] py-1 text-sm shadow-lg"
           style={{ top: mention.top, left: mention.left }}
         >
           {mention.suggestions.map((suggestion, index) => (
@@ -236,7 +236,7 @@ export function MentionTextarea(props: Props) {
               onMouseEnter={() => setMention((current) => (current ? { ...current, activeIndex: index } : current))}
               className={`flex w-full items-center gap-2 px-3 py-1.5 text-left ${index === mention.activeIndex ? "bg-[var(--surface-selected)]" : ""}`}
             >
-              <span className="shrink-0 rounded bg-[var(--surface-hover)] px-1 py-0.5 text-[10px] text-[var(--text-tertiary)]">{suggestion.label}</span>
+              <span className="shrink-0 rounded bg-[var(--surface-hover)] px-1 py-0.5 text-[12px] text-[var(--text-tertiary)]">{suggestion.label}</span>
               <span className="truncate">{suggestion.title}</span>
             </button>
           ))}

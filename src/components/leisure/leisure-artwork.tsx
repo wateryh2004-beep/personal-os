@@ -24,7 +24,7 @@ export function LeisureArtwork({ item, priority = false, sizes, className = "", 
     : art && !failedSources.includes(art.src) ? art.src : undefined;
   const privateSource = src ? isPrivateLeisureArtworkSource(src) : false;
   return <div className={`${styles.artwork} ${className}`} data-kind={item.kind} data-orientation={art && art.width > art.height ? "landscape" : "portrait"} data-cinematic={cinematic} data-artwork-state={!src ? "fallback" : loadedSrc === src ? "ready" : "loading"}>
-    <div className={styles.artworkFallback} aria-hidden="true"><span className={styles.orbit} /><span className={styles.fallbackKind}>{leisureKindLabels[item.kind]}</span><span className={styles.fallbackTitle}>{item.title}</span><span className={styles.fallbackFoot}>A LITTLE TIME, WELL SPENT</span></div>
+    <div className={styles.artworkFallback} aria-hidden="true"><span className={styles.orbit} /><span className={styles.fallbackKind}>{leisureKindLabels[item.kind]}</span><span className={styles.fallbackTitle}>{item.title}</span></div>
     {src && art ? <Image key={src} src={src} loader={privateSource ? privateLeisureArtworkLoader : undefined} alt="" fill sizes={sizes} preload={priority} loading={priority ? undefined : "lazy"} onLoad={() => setLoadedSrc(src)} onError={() => setFailedSources((previous) => previous.includes(src) ? previous : [...previous, src])} style={{ objectPosition: art.position ?? "center" }} /> : null}
   </div>;
 }

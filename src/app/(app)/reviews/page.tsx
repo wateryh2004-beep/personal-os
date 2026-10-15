@@ -12,7 +12,7 @@ export default async function ReviewsPage() {
   const byKey = new Map(data.reviews.map((review) => [review.review_key, review]));
   return (
     <section className="mx-auto max-w-4xl">
-      <PageHeader eyebrow="复盘" title="复盘" description="从可验证记录开始复盘，再把真正长期有效的信息交给你确认。" />
+      <PageHeader title="复盘" />
 
       <div className="mt-6 grid gap-2.5 md:grid-cols-2">
         <ReviewEntry
@@ -41,9 +41,9 @@ export default async function ReviewsPage() {
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3.5">
                   <div>
                     <p className="text-[13px] font-medium text-[var(--text-primary)]">{decision.title}</p>
-                    <p className="mt-0.5 text-[10.5px] text-[var(--text-secondary)]">计划复核：{String(decision.review_at).slice(0, 10)}</p>
+                    <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">计划复核：{String(decision.review_at).slice(0, 10)}</p>
                   </div>
-                  <span className="text-[11.5px] font-medium text-[var(--accent)]">开始复核 →</span>
+                  <span className="text-[12px] font-medium text-[var(--accent)]">开始复核 →</span>
                 </summary>
                 <div className="mt-3.5 grid gap-3.5 border-l-2 border-[var(--border-strong)] pl-4 md:grid-cols-2">
                   <DecisionReviewForm decisionId={decision.id} outcome="keep" />
@@ -68,7 +68,7 @@ export default async function ReviewsPage() {
                     <span className="shrink-0 text-xs text-[var(--text-tertiary)]">{review.status === "completed" ? "已完成" : "草稿"}</span>
                   </div>
                   <p className="mt-1.5 line-clamp-2 whitespace-pre-wrap text-[12.5px] leading-5.5 text-[var(--text-secondary)]">{review.content_markdown || "尚未写下内容"}</p>
-                  <p className="mt-1.5 flex items-center gap-1.5 text-[10.5px] text-[var(--text-tertiary)]">
+                  <p className="mt-1.5 flex items-center gap-1.5 text-[12px] text-[var(--text-tertiary)]">
                     <Database className="size-3.5" /> 基于 {sourceCount} 条 Personal OS 记录
                     {review.generated_with_ai ? " · 使用过 AI 草稿" : ""}
                   </p>
@@ -102,7 +102,7 @@ function ReviewEntry({
       <span className="flex size-9 items-center justify-center rounded-[9px] bg-[var(--accent-soft)] text-[var(--accent)]">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[13.5px] font-semibold tracking-[-0.006em]">{title}</span>
-        <span className="mt-0.5 block text-[11.5px] text-[var(--text-secondary)]">{period} · {review?.status === "completed" ? "已完成，可修正" : "尚未完成"}</span>
+        <span className="mt-0.5 block text-[12px] text-[var(--text-secondary)]">{period} · {review?.status === "completed" ? "已完成，可修正" : "尚未完成"}</span>
       </span>
       <ArrowRight className="size-4 text-[var(--text-tertiary)] group-hover:text-[var(--accent)]" />
     </Link>

@@ -43,5 +43,5 @@ export function TravelMap({ stops }: { stops: LocatedStop[] }) {
     if (map.isStyleLoaded()) update(); else map.once("load", update);
   }, [stops]);
 
-  return <div ref={container} className="mt-3 h-72 overflow-hidden rounded border bg-zinc-100" aria-label="旅行路线地图" />;
+  return <div ref={container} className="mt-3 h-72 overflow-hidden rounded border bg-[var(--surface-control)]" aria-label="旅行路线地图" />;
 }

@@ -14,6 +14,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PanelPresence } from "@/components/shared/panel-presence";
+import { MotionBoundary } from "@/components/shared/motion-boundary";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
@@ -81,7 +83,7 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent, gr
   const pendingPathname = pathnameFromHref(pendingHref);
 
   return <nav aria-label="主导航" className="space-y-5.5">{groups.map((group, groupIndex) => <div key={group.label ?? groupIndex}>
-    {group.label && !collapsed ? <p className="mb-1.5 px-2.5 text-[10.5px] font-semibold tracking-[0.015em] text-[var(--text-tertiary)]">{group.label}</p> : null}
+    {group.label && !collapsed ? <p className="mb-1.5 px-2.5 text-[12px] font-semibold tracking-[0.015em] text-[var(--text-tertiary)]">{group.label}</p> : null}
     <div className="space-y-px">{group.items.map(({ name, href, icon: Icon }) => {
       const active = navActive(pathname, href);
       const pending = pendingPathname ? navActive(pendingPathname, href) : false;
@@ -405,7 +407,7 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
         <div className="flex min-h-12 items-center px-4 pt-[env(safe-area-inset-top)]"><SheetTitle className="wordmark text-[16px]">Life of HANG</SheetTitle></div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
           {mobileRecentNavigation.length ? <div className="mb-4">
-            <p className="mb-1.5 px-2.5 text-[10.5px] font-semibold tracking-[0.015em] text-[var(--text-tertiary)]">最近访问</p>
+            <p className="mb-1.5 px-2.5 text-[12px] font-semibold tracking-[0.015em] text-[var(--text-tertiary)]">最近访问</p>
             <div className="space-y-px">{mobileRecentNavigation.map(({ targetHref, item }) => {
               const Icon = item.icon;
               const pending = pathnameFromHref(visiblePendingHref) === pathnameFromHref(targetHref);
@@ -447,17 +449,19 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
         </Link>
       </SheetContent>
     </Sheet>
-    <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="min-h-[var(--app-viewport-height)] min-w-0 bg-[var(--surface-canvas)] md:ml-[var(--shell-width)]">
+    <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="min-h-[var(--app-viewport-height)] min-w-0 bg-[var(--surface-app)] md:ml-[var(--shell-width)]">
       <header className="app-toolbar sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-2.5 border-b border-[var(--border-subtle)] bg-[var(--material-toolbar)] px-3 pt-[env(safe-area-inset-top)] sm:px-4">
         <Button variant="ghost" size="icon-sm" className="today-mobile-menu md:hidden" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu aria-hidden="true" /></Button>
-        {pathname === "/today" ? <span className="today-mobile-brand" aria-hidden="true">PERSONAL OS</span> : null}
-        <button type="button" aria-label="搜索 Personal OS" onClick={() => openCommand("search")} className="today-search pressable mx-auto flex h-8 w-full max-w-lg items-center gap-2 rounded-[11px] bg-[var(--surface-control)] px-2.5 text-left text-[13px] text-[var(--text-tertiary)] shadow-[inset_0_1px_0_rgba(255,255,255,.36)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-secondary)]"><Search className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden font-sans text-[10px] font-medium text-[var(--text-tertiary)] sm:inline">⌘K</kbd></button>
-        <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={openGlobalAgent} aria-label="询问 Personal OS" className="gap-1.5"><Sparkles className="size-3.5" aria-hidden="true"/><span className="hidden sm:inline">询问</span><kbd className="hidden font-sans text-[9px] font-medium text-[var(--text-tertiary)] lg:inline">⌘J</kbd></Button></TooltipTrigger><TooltipContent>询问 Personal OS（⌘J）</TooltipContent></Tooltip>
+        {pathname === "/today" ? <span className="today-mobile-brand" aria-hidden="true">Life of HANG</span> : null}
+        <button type="button" aria-label="搜索 Personal OS" onClick={() => openCommand("search")} className="today-search pressable mx-auto flex h-8 w-full max-w-lg items-center gap-2 rounded-[11px] bg-[var(--surface-control)] px-2.5 text-left text-[13px] text-[var(--text-tertiary)] shadow-[inset_0_1px_0_rgba(255,255,255,.36)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-secondary)]"><Search className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden font-sans text-[12px] font-medium text-[var(--text-tertiary)] sm:inline">⌘K</kbd></button>
+        <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={openGlobalAgent} aria-label="询问 Personal OS" className="gap-1.5"><Sparkles className="size-3.5" aria-hidden="true"/><span className="hidden sm:inline">询问</span><kbd className="hidden font-sans text-[12px] font-medium text-[var(--text-tertiary)] lg:inline">⌘J</kbd></Button></TooltipTrigger><TooltipContent>询问 Personal OS（⌘J）</TooltipContent></Tooltip>
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" onClick={openContextualCreate} aria-label="快速新建"><Plus aria-hidden="true" /></Button></TooltipTrigger><TooltipContent>快速新建（⌘N）</TooltipContent></Tooltip>
       </header>
       <div className="min-w-0">
-        <main id="main-content" tabIndex={-1} className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>
-        {globalAgentOpen ? <GlobalAgent open onClose={closeGlobalAgent} /> : null}
+        <MotionBoundary key={pathname.startsWith("/notes/") || pathname === "/notes" ? "notes" : pathname} name="workspace" share="workspace-route" enter={{ "auth-entry": "workspace-entry", default: "workspace-enter" }} exit="workspace-exit">
+          <main id="main-content" tabIndex={-1} className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>
+        </MotionBoundary>
+        <PanelPresence open={globalAgentOpen}><GlobalAgent open={globalAgentOpen} onClose={closeGlobalAgent} /></PanelPresence>
       </div>
     </div>
     <MobileTabBar presentationPathname={presentationPathname} onOpenMore={() => setMobileOpen(true)} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget} />

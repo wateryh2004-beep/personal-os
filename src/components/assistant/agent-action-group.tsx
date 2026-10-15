@@ -25,7 +25,7 @@ export function AgentActionGroup({
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] bg-[var(--surface-hover)] px-3 py-2">
       <div>
         <p className="text-xs font-medium">计划包含 {proposed.length} 项冻结操作</p>
-        {message ? <p role="status" className="mt-0.5 text-[11px] text-[var(--text-secondary)]">{message}</p> : null}
+        {message ? <p role="status" className="mt-0.5 text-[12px] text-[var(--text-secondary)]">{message}</p> : null}
       </div>
       <button
         type="button"

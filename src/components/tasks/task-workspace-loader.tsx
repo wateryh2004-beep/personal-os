@@ -13,7 +13,7 @@ import { WorkspaceReadError } from "@/components/shared/workspace-read-error";
 function WorkspaceMessage({ tone, title, children }: { tone: "danger" | "warning"; title?: string; children: React.ReactNode }) {
   return (
     <section className="mx-auto w-full max-w-[760px] px-5 py-8 sm:px-7">
-      {title ? <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-[var(--text-primary)]">{title}</h1> : null}
+      {title ? <h1 className="page-title">{title}</h1> : null}
       <div className="mt-5 border-t border-[var(--separator)] pt-5">
         <p className={`border-l-2 pl-3 text-[13px] leading-6 text-[var(--text-secondary)] ${tone === "danger" ? "border-[var(--danger)]" : "border-[var(--warning)]"}`}>
           {children}

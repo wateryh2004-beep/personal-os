@@ -67,7 +67,13 @@ function DialogContent({
         )}
         onOpenAutoFocus={(event) => {
           onOpenAutoFocus?.(event)
-          if (!event.defaultPrevented && window.matchMedia("(max-width: 767px)").matches) event.preventDefault()
+          if (!event.defaultPrevented && window.matchMedia("(max-width: 767px)").matches) {
+            event.preventDefault()
+            if (event.target instanceof HTMLElement) {
+              const target = event.target.querySelector<HTMLElement>('[data-slot="dialog-title"]') ?? event.target
+              target.focus({ preventScroll: true })
+            }
+          }
         }}
         {...props}
       >
@@ -118,6 +124,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
+      tabIndex={-1}
       className={cn("text-[17px] font-semibold leading-6 tracking-[-0.02em] text-[var(--text-primary)]", className)}
       {...props}
     />

@@ -8,7 +8,7 @@ import { enqueuePhotoThumbnail, photoThumbnailLoadTimeoutMs } from "@/features/f
 
 function PhotoPlaceholder({ className, waiting = false, elementRef, reason }: { className: string; waiting?: boolean; elementRef?: Ref<HTMLDivElement>; reason?: string }) {
   return <div ref={elementRef} className={`flex flex-col items-center justify-center gap-2 bg-[var(--surface-control)] text-[var(--text-tertiary)] ${className}`}>
-    <ImageIcon size={28} aria-hidden="true" /><span className="px-2 text-center text-[11px]">{waiting ? "照片缩略图" : <>{reason ?? "缩略图暂不可用"}<br />可下载原件查看</>}</span>
+    <ImageIcon size={28} aria-hidden="true" /><span className="px-2 text-center text-[12px]">{waiting ? "照片缩略图" : <>{reason ?? "缩略图暂不可用"}<br />可下载原件查看</>}</span>
   </div>;
 }
 

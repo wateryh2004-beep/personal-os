@@ -313,12 +313,12 @@ export function NotesWorkspace({
     >
       <div className="mx-auto max-w-[748px]">
         {state === "base" ? (
-          <p role="status" className="mb-4 rounded-[9px] bg-amber-50 px-3 py-2 text-[11.5px] leading-5 text-amber-800">
+          <p role="status" className="mb-4 rounded-[9px] bg-amber-50 px-3 py-2 text-[12px] leading-5 text-amber-800">
             笔记基础功能正在使用兼容模式；文件夹与链接功能会在迁移启用后完整可用。
           </p>
         ) : null}
         {state === "unavailable" ? (
-          <p role="alert" className="mb-4 rounded-[9px] bg-red-50 px-3 py-2 text-[11.5px] leading-5 text-[var(--danger)]">
+          <p role="alert" className="mb-4 rounded-[9px] bg-red-50 px-3 py-2 text-[12px] leading-5 text-[var(--danger)]">
             暂时无法读取笔记库。请检查 Supabase 环境变量、登录状态和数据库连接。
           </p>
         ) : null}
@@ -328,11 +328,11 @@ export function NotesWorkspace({
           </p>
         ) : null}
 
-        {mutationError ? <div role="alert" className="mb-4 rounded-[9px] bg-red-50 px-3 py-2 text-[11.5px] leading-5 text-[var(--danger)]">
+        {mutationError ? <div role="alert" className="mb-4 rounded-[9px] bg-red-50 px-3 py-2 text-[12px] leading-5 text-[var(--danger)]">
           <p>{mutationError}</p>
           <Button variant="ghost" size="sm" disabled={pending} onClick={refreshList}>重新读取列表</Button>
         </div> : null}
-        {pending ? <p role="status" className="mb-2 text-[11px] text-[var(--text-tertiary)]">正在处理，请稍候…</p> : null}
+        {pending ? <p role="status" className="mb-2 text-[12px] text-[var(--text-tertiary)]">正在处理，请稍候…</p> : null}
 
         {selectedFolder ? <NotesFolderBreadcrumbs folder={selectedFolder} folders={folders} /> : null}
         <header className="flex min-h-11 flex-wrap items-end gap-2.5">
@@ -374,7 +374,7 @@ export function NotesWorkspace({
                 if (event.key === "Enter" && normalizedQuery) { event.preventDefault(); resultLinks()[0]?.click(); }
               }}
               placeholder={selectedFolder && scope === "context" ? `搜索内容 · ${selectedFolder.name}` : "搜索内容 · 标题、正文或文件夹"}
-              className="h-11 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] pl-8 pr-16 text-[16px] md:h-9 md:text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+              className="ui-field h-11 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] pl-8 pr-16 text-[16px] md:h-9 md:text-[13px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
             />
             <span className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
               {!query ? <kbd aria-hidden="true" className="mr-2 hidden text-[12px] text-[var(--text-tertiary)] md:inline">/</kbd> : null}
@@ -393,14 +393,14 @@ export function NotesWorkspace({
                 const next = scope === "context" ? "all" : "context";
                 syncSearchUrl(query, next);
               }}
-              className="pressable h-11 md:h-9 shrink-0 rounded-[9px] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-control)] hover:text-[var(--text-primary)]"
+              className="pressable h-11 md:h-9 shrink-0 rounded-[9px] px-2.5 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-control)] hover:text-[var(--text-primary)]"
             >
               {scope === "context" ? "当前文件夹" : "全部笔记"}
             </button>
           ) : null}
         </div>
         {normalizedQuery ? (
-          <p role={searchState === "error" ? "status" : undefined} className={`mt-1.5 min-h-4 text-[10.5px] leading-4 ${searchState === "error" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>
+          <p role={searchState === "error" ? "status" : undefined} className={`mt-1.5 min-h-4 text-[12px] leading-4 ${searchState === "error" ? "text-[var(--danger)]" : "text-[var(--text-tertiary)]"}`}>
             {searchState === "error"
               ? "搜索暂未更新，已保留可用结果。"
               : searchState === "loading"
@@ -509,7 +509,7 @@ export function NotesWorkspace({
             className="grid gap-2"
           >
             <input type="hidden" name="note_id" value={moving.id} />
-            {mutationError ? <div role="alert" className="mb-3 text-[11px] leading-5 text-[var(--danger)]"><p>{mutationError}</p><Button type="button" variant="ghost" size="sm" disabled={pending} onClick={refreshList}>重新读取列表</Button></div> : null}
+            {mutationError ? <div role="alert" className="mb-3 text-[12px] leading-5 text-[var(--danger)]"><p>{mutationError}</p><Button type="button" variant="ghost" size="sm" disabled={pending} onClick={refreshList}>重新读取列表</Button></div> : null}
             <FolderPicker folders={folders} initialFolderId={moving.folder_id} idPrefix={`move-${moving.id}`} label="移动到" />
             <div className="mt-4 flex justify-end gap-2">
               <Button type="button" variant="ghost" disabled={pending} onClick={() => setMoving(null)}>取消</Button>

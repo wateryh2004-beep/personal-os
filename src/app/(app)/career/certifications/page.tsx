@@ -55,14 +55,14 @@ export default async function CertificationsPage() {
                 <h2 className="text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{item.name}</h2>
                 <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">{item.issuer || item.notes_markdown || "—"}</p>
               </div>
-              <div className="text-right text-[11px] leading-5 text-[var(--text-tertiary)]">
+              <div className="text-right text-[12px] leading-5 text-[var(--text-tertiary)]">
                 <p>{statusLabel[item.status] ?? item.status}</p>
                 {item.expiry_date ? <p className="mt-1">到期 {item.expiry_date}</p> : null}
               </div>
             </div>
 
             <details className="mt-1.5">
-              <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">编辑</summary>
+              <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">编辑</summary>
               <CareerForm action={submitCareerForm.bind(null, "updateCertification")} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
                 <input type="hidden" name="certification_id" value={item.id} />
                 <Field label="名称" name="name" defaultValue={item.name} required />
@@ -77,7 +77,7 @@ export default async function CertificationsPage() {
                 <TextField label="说明" name="notes_markdown" defaultValue={item.notes_markdown} />
                 <div><PrimaryButton>保存</PrimaryButton></div>
               </CareerForm>
-              <CareerForm action={submitCareerForm.bind(null, "archiveCertification")} successMessage="已归档。" className="mt-2.5 px-1"><input type="hidden" name="certification_id" value={item.id} /><button className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档</button></CareerForm>
+              <CareerForm action={submitCareerForm.bind(null, "archiveCertification")} successMessage="已归档。" className="mt-2.5 px-1"><input type="hidden" name="certification_id" value={item.id} /><button className="text-[12px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档</button></CareerForm>
             </details>
           </article>
         ))}

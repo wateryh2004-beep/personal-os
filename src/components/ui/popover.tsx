@@ -48,7 +48,7 @@ function PopoverTitle({ className, ...props }: React.ComponentProps<"h2">) {
 }
 
 function PopoverDescription({ className, ...props }: React.ComponentProps<"p">) {
-  return <p data-slot="popover-description" className={cn("text-[11px] leading-4 text-[var(--text-secondary)]", className)} {...props} />
+  return <p data-slot="popover-description" className={cn("text-[12px] leading-4 text-[var(--text-secondary)]", className)} {...props} />
 }
 
 export {

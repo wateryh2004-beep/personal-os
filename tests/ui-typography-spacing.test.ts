@@ -18,25 +18,26 @@ describe("readable typography and workspace rhythm", () => {
 
   it("keeps secondary text above 4.5:1 on the canvas and app backgrounds", () => {
     for (const token of ["text-secondary", "text-tertiary"]) {
-      const foreground = css.match(new RegExp(`--${token}:#([0-9a-f]{6});`))![1];
-      for (const background of ["ffffff", "f4f4f6", "f5f5f7"]) {
+      const foreground = css.match(new RegExp(`--${token}:#([0-9a-fA-F]{6});`))![1];
+      for (const background of ["FFFEFA", "F7F6F2", "F0F1EB", "E6E9E1"]) {
         expect((luminance(background) + 0.05) / (luminance(foreground) + 0.05)).toBeGreaterThanOrEqual(4.5);
       }
     }
   });
 
   it("shares the page-title scale without a Notes override or forced shared-title truncation", () => {
-    expect(css).toContain(".page-title { font-size:28px; font-weight:600; line-height:1.25; letter-spacing:-.015em;");
-    expect(css).toContain(".page-title { font-size:24px; }");
+    expect(css).toMatch(/\.page-title \{[^}]*font-family:var\(--font-serif\)/);
+    expect(css).toMatch(/\.page-title \{[^}]*font-size:(3[2-9]|40)px/);
+    expect(css).toMatch(/@media[^}]*\.page-title \{ font-size:(28|30|32)px/);
     expect(css).not.toContain('header h1 { font-size:27px!important;');
     expect(read("src/components/shared/page-header.tsx")).toContain('className="page-title break-words"');
     for (const path of ["src/components/tasks/task-workspace.tsx", "src/components/notes/notes-workspace.tsx"]) expect(read(path)).toContain("page-title");
   });
 
-  it("uses a single warm Today reading surface and scoped responsive tokens", () => {
+  it("shares the warm foundation and retains responsive Today controls", () => {
     const todayCss = read("src/app/today-calm.css");
-    expect(todayCss).toContain("--today-paper:#f8f7f3");
-    expect(todayCss).toContain("--today-muted:#687068");
+    expect(todayCss).toContain("--today-paper:var(--surface-app)");
+    expect(todayCss).toContain("--today-muted:var(--text-secondary)");
     expect(todayCss).toContain("font-size:1.625rem");
     expect(todayCss).toContain("width:44px;min-width:44px;height:44px;min-height:44px");
     expect(todayCss).toContain("prefers-reduced-motion:reduce");

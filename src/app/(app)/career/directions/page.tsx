@@ -51,11 +51,11 @@ export default async function DirectionsPage() {
                 <h2 className="text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{item.name}</h2>
                 <p className="mt-1 line-clamp-2 text-[12.5px] leading-5.5 text-[var(--text-secondary)]">{item.current_decision || item.hypothesis_markdown || "还没有形成判断。"}</p>
               </div>
-              <p className="text-[11px] text-[var(--text-tertiary)]">{statusLabel[item.status] ?? item.status}{item.review_date ? " · " + item.review_date : ""}</p>
+              <p className="text-[12px] text-[var(--text-tertiary)]">{statusLabel[item.status] ?? item.status}{item.review_date ? " · " + item.review_date : ""}</p>
             </div>
 
             <details className="mt-1.5">
-              <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[11px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">展开与编辑</summary>
+              <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">展开与编辑</summary>
               <div className="mt-3.5 grid gap-4.5 sm:grid-cols-2">
                 <Read label="方向假设" value={item.hypothesis_markdown} />
                 <Read label="当前结论" value={item.current_decision} />
@@ -75,7 +75,7 @@ export default async function DirectionsPage() {
                 <input type="hidden" name="description" value={item.description ?? ""} />
                 <div><PrimaryButton>保存</PrimaryButton></div>
               </CareerForm>
-              <CareerForm action={submitCareerForm.bind(null, "archiveDirection")} successMessage="已归档。" className="mt-2.5 px-1"><input type="hidden" name="direction_id" value={item.id} /><button className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档</button></CareerForm>
+              <CareerForm action={submitCareerForm.bind(null, "archiveDirection")} successMessage="已归档。" className="mt-2.5 px-1"><input type="hidden" name="direction_id" value={item.id} /><button className="text-[12px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档</button></CareerForm>
             </details>
           </article>
         ))}
@@ -86,5 +86,5 @@ export default async function DirectionsPage() {
 }
 
 function Read({ label, value }: { label: string; value?: string | null }) {
-  return <div><p className="text-[11px] font-medium text-[var(--text-tertiary)]">{label}</p><p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-5.5 text-[var(--text-secondary)]">{value || "—"}</p></div>;
+  return <div><p className="text-[12px] font-medium text-[var(--text-tertiary)]">{label}</p><p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-5.5 text-[var(--text-secondary)]">{value || "—"}</p></div>;
 }

@@ -78,7 +78,7 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     const visual = info.event.extendedProps.visual;
     if (info.view.type === "dayGridMonth") {
       return (
-        <div className="flex min-w-0 items-center gap-1.5 px-1 py-0.5 text-[10.5px] leading-4">
+        <div className="flex min-w-0 items-center gap-1.5 px-1 py-0.5 text-[12px] leading-4">
           <span className="size-[5px] shrink-0 rounded-full" style={{ backgroundColor: visual.dot }} />
           <span className="truncate font-medium text-[var(--text-primary)]">{info.event.title}</span>
         </div>
@@ -89,17 +89,17 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     if (durationMinutes <= 30) {
       return (
         <div className="fc-short-event group relative h-full overflow-visible">
-          <p className="flex h-full items-center truncate px-1.5 text-[10.5px] font-medium">{info.event.title}</p>
+          <p className="flex h-full items-center truncate px-1.5 text-[12px] font-medium">{info.event.title}</p>
           <div className="pointer-events-none absolute left-0 top-full z-50 hidden whitespace-nowrap rounded-[7px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,.96)] px-2.5 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,.08)] backdrop-blur-md group-hover:block">
             <p className="text-xs font-medium text-[var(--text-primary)]">{info.event.title}</p>
-            <p className="mt-0.5 text-[10px] text-[var(--text-tertiary)]">{info.timeText}</p>
+            <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">{info.timeText}</p>
           </div>
         </div>
       );
     }
     const location = event.location_name;
     return (
-      <div className="h-full overflow-hidden px-1.5 py-1 text-[11px] leading-[1.25]">
+      <div className="h-full overflow-hidden px-1.5 py-1 text-[12px] leading-[1.25]">
         <p className="line-clamp-2 font-medium tracking-[-0.01em]">{info.event.title}</p>
         <p className="mt-0.5 text-[9.5px] opacity-65">{info.timeText}</p>
         {durationMinutes >= 60 && location ? <p className="mt-0.5 line-clamp-1 text-[9.5px] opacity-55">{location}</p> : null}

@@ -25,23 +25,23 @@ export default async function ReviewDetailPage({
   const structured = data.review.structured_data;
   return (
     <section className="mx-auto max-w-4xl">
-      <Link href="/reviews" className="inline-flex items-center gap-1.5 text-[11.5px] text-[var(--text-tertiary)] hover:text-[var(--accent)]">
+      <Link href="/reviews" className="inline-flex items-center gap-1.5 text-[12px] text-[var(--text-tertiary)] hover:text-[var(--accent)]">
         <ArrowLeft className="size-4" /> Reviews
       </Link>
       <header className="mt-4.5 border-b border-[var(--separator)] pb-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-[10.5px] font-semibold tracking-[0.08em] text-[var(--accent)]">已完成复盘</p>
-            <h1 className="mt-1 text-[27px] font-semibold leading-[1.1] tracking-[-0.042em] text-[var(--text-primary)]">{data.review.title}</h1>
-            <p className="mt-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+            <p className="text-[12px] font-semibold tracking-[0.08em] text-[var(--accent)]">已完成复盘</p>
+            <h1 className="page-title">{data.review.title}</h1>
+            <p className="mt-1.5 text-[12px] text-[var(--text-tertiary)]">
               {data.review.completed_at ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(data.review.completed_at)) : "未标记完成时间"}
             </p>
           </div>
-          <Link href={data.review.review_type === "decision" ? "/reviews" : `/reviews/${data.review.review_type}`} className="pressable h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[11.5px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-control-hover)]">
+          <Link href={data.review.review_type === "decision" ? "/reviews" : `/reviews/${data.review.review_type}`} className="pressable h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-control-hover)]">
             继续修正
           </Link>
         </div>
-        <div className="mt-3.5 flex flex-wrap gap-3.5 text-[10.5px] text-[var(--text-tertiary)]">
+        <div className="mt-3.5 flex flex-wrap gap-3.5 text-[12px] text-[var(--text-tertiary)]">
           <span className="flex items-center gap-1.5"><Database className="size-3.5" /> 基于 {data.sources.length} 条 Personal OS 记录</span>
           <span className="flex items-center gap-1.5"><History className="size-3.5" /> {data.versions.length} 个版本</span>
           {data.review.generated_with_ai ? <span className="flex items-center gap-1.5"><Bot className="size-3.5" /> 使用过 AI 草稿</span> : null}
@@ -75,14 +75,14 @@ export default async function ReviewDetailPage({
             {data.sources.length ? data.sources.map((source) => (
               <Link key={source.id} href={source.href} className="block py-2 text-[12px] outline-none hover:text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]">
                 <span className="line-clamp-2 font-medium">{source.title}</span>
-                <span className="mt-0.5 block text-[10px] text-[var(--text-tertiary)]">{source.source_type} · {source.source_role}</span>
+                <span className="mt-0.5 block text-[12px] text-[var(--text-tertiary)]">{source.source_type} · {source.source_role}</span>
               </Link>
-            )) : <p className="py-3 text-[11.5px] text-[var(--text-secondary)]">这个旧版本没有来源快照。</p>}
+            )) : <p className="py-3 text-[12px] text-[var(--text-secondary)]">这个旧版本没有来源快照。</p>}
           </div>
           <h2 className="mt-6 text-[13px] font-semibold text-[var(--text-primary)]">版本历史</h2>
           <div className="mt-2.5 space-y-1.5">
             {data.versions.map((version) => (
-              <div key={version.id} className="text-[10.5px] tabular-nums text-[var(--text-tertiary)]">
+              <div key={version.id} className="text-[12px] tabular-nums text-[var(--text-tertiary)]">
                 v{version.version_number} · {version.reason} · {new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(version.created_at))}
               </div>
             ))}

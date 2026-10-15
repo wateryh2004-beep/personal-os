@@ -256,7 +256,7 @@ async function backCloses(page, trigger, visibleTarget) {
 
         if (scene === "heading" || scene === "tasks" || scene === "notes") {
           const title = await textMetrics(page.locator("#main-content h1").first());
-          assert.equal(title.fontSize, width < 768 ? 24 : 28, "workspace titles share a responsive scale");
+          assert.equal(title.fontSize, width < 768 ? 30 : 36, "workspace titles share a responsive scale");
           assert.ok(title.lineHeight / title.fontSize >= 1.2, "CJK headings have enough line height");
           visualMetrics.push({ scene, width, title });
         }
@@ -297,10 +297,18 @@ async function backCloses(page, trigger, visibleTarget) {
           await page.getByRole("dialog", { name: "笔记文件", exact: true }).waitFor({ state: "visible" });
           const drawer = page.getByRole("dialog", { name: "笔记文件", exact: true });
           const closeDrawer = drawer.getByRole("button", { name: "关闭", exact: true });
-          const closeBox = await closeDrawer.boundingBox();
-          const createBox = await drawer.getByRole("button", { name: "新建笔记", exact: true }).boundingBox();
+          // Read both hit areas in one frame: separate protocol round trips
+          // can sample different points of the same moving sheet entrance.
+          const { closeBox, createBox } = await drawer.evaluate(node => {
+            const bounds = element => {
+              if (!element) return null;
+              const { x, y, width, height } = element.getBoundingClientRect();
+              return { x, y, width, height };
+            };
+            return { closeBox: bounds(node.querySelector('[data-slot="sheet-close"]')), createBox: bounds(node.querySelector('button[aria-label="新建笔记"]')) };
+          });
           assert.ok(closeBox && createBox);
-          assert.ok(createBox.x + createBox.width + 8 <= closeBox.x, "Notes drawer create and close controls must have separate hit areas");
+          assert.ok(createBox.x + createBox.width + 8 <= closeBox.x, `Notes drawer create and close controls must have separate hit areas: ${JSON.stringify({ createBox, closeBox })}`);
           assert.ok(createBox.width >= 44 && createBox.height >= 44, "Notes drawer create control is touch-sized");
           assert.equal(await page.locator('[data-slot="sheet-overlay"]').evaluate((node) => getComputedStyle(node).backdropFilter), "none", "sheet scrim should not blur the full page");
           await capture(page, `workspace-notes-folder-${width}`);

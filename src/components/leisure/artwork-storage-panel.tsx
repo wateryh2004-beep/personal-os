@@ -28,7 +28,7 @@ export function ArtworkStoragePanel({ configured, initialSources }: { configured
   }
   return <section className="mx-auto max-w-3xl space-y-5 px-5 py-8">
     <Link href="/leisure" className="text-sm text-[var(--accent)]">← 返回闲暇</Link>
-    <h1 className="text-2xl font-semibold">宣传图片的私有存储</h1>
+    <h1 className="page-title">宣传图片的私有存储</h1>
     <p className="text-sm leading-6 text-[var(--text-secondary)]">复制现有的 16 张公开宣传图至私有 R2，保留原始来源与署名。原件和阅读用缩略图会逐一校验；只有登录后才能读取。其他内容与文件不受影响。</p>
     <p className="text-xs leading-5 text-[var(--text-tertiary)]">图片版权仍归各权利人所有。私人存储不代表取得授权；这里不绕过付费墙、登录要求或下载限制。</p>
     {!configured ? <p role="status" className="text-sm text-[var(--danger)]">现有 R2 服务端配置尚不可用，未进行上传。</p> : null}

@@ -33,10 +33,11 @@ async function fontEvidence(page, width) {
   const { root } = await cdp.send("DOM.getDocument");
   const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: ".today-focus-title a" });
   const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
-  const computed = await page.locator(".today-focus-title").evaluate(node => { const style = getComputedStyle(node); const root = getComputedStyle(document.querySelector(".today-calm")); return { family: style.fontFamily, size: style.fontSize, weight: style.fontWeight, lineHeight: style.lineHeight, canvas: root.backgroundColor, cjkFontAvailable: document.fonts.check('16px "Noto Sans CJK SC"') }; });
+  const computed = await page.locator(".today-focus-title").evaluate(node => { const style = getComputedStyle(node); const root = getComputedStyle(document.querySelector(".today-calm")); return { family: style.fontFamily, size: style.fontSize, weight: style.fontWeight, lineHeight: style.lineHeight, canvas: root.backgroundColor, cjkFontAvailable: document.fonts.check('16px "Noto Serif CJK SC"') }; });
   diagnostics.push({ width, computed, fonts });
-  assert.ok(computed.family.includes("sans-serif"));
-  if (process.env.CI) assert.ok(fonts.some(font => font.familyName.includes("Noto Sans CJK")), "CI must prove an actual CJK sans glyph font, not merely a declared fallback");
+  assert.ok(computed.family.includes("serif") && !computed.family.includes("sans-serif"), "v2 display titles use the serif stack");
+  assert.ok(await page.evaluate(() => getComputedStyle(document.body).fontFamily.includes("sans-serif")), "body and controls retain the sans stack");
+  if (process.env.CI) assert.ok(fonts.some(font => font.familyName.includes("Noto Serif CJK")), "CI must prove an actual CJK serif glyph font, not merely a declared fallback");
   await cdp.detach();
 }
 async function noOverflow(page, label) {
@@ -149,17 +150,17 @@ async function noOverflow(page, label) {
     await page.getByRole("button", { name: `完成 ${firstTask}`, exact: true }).waitFor();
     const overdue = "核对需要补充的材料";
     // Begin observing before the update: waiting for disappearance can finish
-    // after a220ms animation has already ended on a busy CI runner.
+    // after the v2 300ms animation has already ended on a busy CI runner.
     const reflowObserved = page.waitForFunction(() => {
       const row = document.querySelector('[data-today-row="event-later"]');
-      const animation = row?.getAnimations().find(value => value.effect?.getTiming().duration === 220);
+      const animation = row?.getAnimations().find(value => value.effect?.getTiming().duration === 300);
       return animation ? { duration: animation.effect.getTiming().duration, keyframes: animation.effect.getKeyframes() } : null;
     }, undefined, { polling: "raf", timeout: 10000 });
     await page.getByRole("button", { name: `完成 ${overdue}`, exact: true }).click();
     const observed = await reflowObserved;
     diagnostics.push({ confirmedLedgerReflow: await observed.jsonValue() });
     await page.getByRole("link", { name: new RegExp(`^${overdue}`) }).waitFor({ state: "hidden" });
-    await page.waitForTimeout(260); // Capture the intentional 220ms settle in the video.
+    await page.waitForTimeout(360); // Capture the complete v2 settle in the video.
     await page.getByRole("button", { name: "调整重点", exact: true }).click();
     await page.getByRole("dialog", { name: "选择今日重点", exact: true }).waitFor();
     await page.evaluate(() => history.back());

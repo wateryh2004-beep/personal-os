@@ -1,0 +1,50 @@
+/* Scene transitions use React's transient browser snapshots, never cloned or
+   persisted private DOM. Navigation/data start immediately; input remains live. */
+::view-transition { pointer-events:none; }
+::view-transition-group(*) { animation-timing-function:var(--ease-emphasized); }
+::view-transition-old(.workspace-route) { animation:workspace-depart 260ms var(--ease-standard) both; }
+::view-transition-new(.workspace-route),
+::view-transition-new(.workspace-enter) { animation:workspace-arrive 600ms var(--ease-emphasized) both; }
+::view-transition-old(.workspace-exit) { animation:workspace-depart 260ms var(--ease-standard) both; }
+::view-transition-new(.workspace-entry) { animation:space-enter 700ms var(--ease-emphasized) both; }
+::view-transition-old(.auth-retreat) { animation:space-retreat 560ms var(--ease-emphasized) both; }
+::view-transition-group(.auth-flow) { animation-duration:360ms; }
+::view-transition-old(.auth-flow) { animation:auth-flow-out 180ms var(--ease-standard) both; }
+::view-transition-new(.auth-flow) { animation:auth-flow-in 360ms var(--ease-emphasized) both; }
+@keyframes workspace-arrive { from { opacity:0; transform:translateY(20px) scale(.985); filter:blur(3px); } to { opacity:1; transform:none; filter:none; } }
+@keyframes workspace-depart { to { opacity:0; transform:translateY(-8px) scale(.99); } }
+@keyframes space-enter { from { opacity:0; transform:perspective(1400px) translateZ(-100px) translateY(28px); filter:blur(8px); } to { opacity:1; transform:none; filter:none; } }
+@keyframes space-retreat { to { opacity:0; transform:perspective(1400px) translateZ(160px); filter:blur(10px); } }
+@keyframes auth-flow-out { to { opacity:0; transform:translateY(-8px) scale(.98); } }
+@keyframes auth-flow-in { from { opacity:0; transform:translateY(14px) scale(.98); } to { opacity:1; transform:none; } }
+
+/* Radix Presence keeps exiting surfaces mounted. Reopening reverses by state;
+   no timers own visibility, focus, or the user's form values. */
+[data-slot="dialog-content"] { --surface-offset-x:0px; --surface-offset-y:24px; --surface-scale:.96; }
+[data-slot="sheet-content"] { --surface-offset-x:0px; --surface-offset-y:0px; --surface-scale:1; }
+[data-slot="sheet-content"][data-side="right"],.side-panel-surface { --surface-offset-x:64px; --surface-offset-y:0px; --surface-scale:.99; transform-origin:right center; }
+[data-slot="sheet-content"][data-side="left"] { --surface-offset-x:-64px; }
+[data-slot="sheet-content"][data-side="bottom"] { --surface-offset-y:64px; transform-origin:center bottom; }
+[data-slot="sheet-content"][data-side="top"] { --surface-offset-y:-64px; }
+:is([data-slot="dialog-content"],[data-slot="sheet-content"],.side-panel-surface)[data-state="open"] { animation:surface-arrive var(--motion-panel) var(--ease-emphasized) both; }
+:is([data-slot="dialog-content"],[data-slot="sheet-content"],.side-panel-surface)[data-state="closed"] { animation:surface-leave 240ms var(--ease-standard) both; pointer-events:none; }
+:is([data-slot="dialog-overlay"],[data-slot="sheet-overlay"],.side-panel-veil)[data-state="open"] { animation:veil-arrive 360ms var(--ease-standard) both; }
+:is([data-slot="dialog-overlay"],[data-slot="sheet-overlay"],.side-panel-veil)[data-state="closed"] { animation:veil-leave 240ms var(--ease-standard) both; }
+@keyframes surface-arrive { from { opacity:0; transform:translate(var(--surface-offset-x),var(--surface-offset-y)) scale(var(--surface-scale)); } to { opacity:1; transform:none; } }
+@keyframes surface-leave { from { opacity:1; transform:none; } to { opacity:0; transform:translate(var(--surface-offset-x),var(--surface-offset-y)) scale(var(--surface-scale)); } }
+@keyframes veil-arrive { from { opacity:0; } to { opacity:1; } }
+@keyframes veil-leave { to { opacity:0; } }
+@media(max-width:639px) { [data-slot="dialog-content"] { --surface-offset-y:64px; --surface-scale:1; transform-origin:center bottom; } }
+@media(prefers-reduced-motion:reduce) {
+  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*) { animation:none!important; }
+  :is([data-slot="dialog-content"],[data-slot="sheet-content"],.side-panel-surface,[data-slot="dialog-overlay"],[data-slot="sheet-overlay"],.side-panel-veil)[data-state] { animation:none!important; }
+  .pressable:active { transform:none; }
+}
+
+:is([data-slot="popover-content"],[data-slot="select-content"],[data-slot="dropdown-menu-content"]) { animation-duration:var(--motion-base); animation-timing-function:var(--ease-emphasized); }
+@media(prefers-reduced-motion:reduce) { :is([data-slot="popover-content"],[data-slot="select-content"],[data-slot="dropdown-menu-content"]) { animation:none!important; } }
+
+/* Retain lazily mounted panels for the same exit lifetime as their Radix surface. */
+.panel-lifecycle[data-state="closed"] { animation:panel-lifetime 240ms linear; }
+@keyframes panel-lifetime { from { opacity:1; } to { opacity:1; } }
+@media(prefers-reduced-motion:reduce) { .panel-lifecycle[data-state="closed"] { animation:none!important; } }

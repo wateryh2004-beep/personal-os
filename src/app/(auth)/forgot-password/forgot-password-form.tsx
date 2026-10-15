@@ -12,7 +12,7 @@ export function ForgotPasswordForm() {
   if (state.message) return <AuthSuccess title="请查看你的邮箱" message={state.message} href="/login" action="返回登录" />;
   return (
     <form action={action} className="auth-card auth-form" aria-busy={pending}>
-      <AuthHeading eyebrow="FIND YOUR WAY BACK" title="通过邮箱找回">输入所有者邮箱，获取密码重置链接。</AuthHeading>
+      <AuthHeading title="通过邮箱找回">输入所有者邮箱，获取密码重置链接。</AuthHeading>
       <fieldset disabled={pending} className="auth-fields"><label className="auth-field">邮箱<input required name="email" type="email" autoComplete="email" placeholder="你的邮箱" value={email} onChange={event => setEmail(event.target.value)} className="auth-input" /></label></fieldset>
       <AuthFeedback state={state} />
       <AuthSubmit pending={pending} label="发送重置邮件" pendingLabel="正在发送…" />

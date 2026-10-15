@@ -1,5 +1,5 @@
 const controlClass =
-  "min-h-11 w-full sm:min-h-9 rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[14px] text-[var(--text-primary)] shadow-[inset_0_0_0_.5px_rgba(60,60,67,.05)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
+  "ui-field min-h-11 w-full sm:min-h-9 rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[14px] text-[var(--text-primary)] shadow-[inset_0_0_0_.5px_rgba(60,60,67,.05)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
 
 const labelClass = "grid gap-1.5 text-[13px] font-medium text-[var(--text-secondary)]";
 

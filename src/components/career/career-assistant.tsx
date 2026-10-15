@@ -21,10 +21,10 @@ export function CareerAssistant({ experienceId }: { experienceId: string }) {
   return (
     <section className="border-t pt-8">
       <div className="flex items-center gap-2">
-        <Sparkles className="size-4 text-[#365F78]" />
+        <Sparkles className="size-4 text-[var(--accent)]" />
         <h2 className="font-medium">AI 分析</h2>
       </div>
-      <p className="mt-1 text-sm text-zinc-500">
+      <p className="mt-1 text-sm text-[var(--text-secondary)]">
         只读结合相关笔记、材料和职业状态分析这段经历。
       </p>
       <div className="mt-4 space-y-3">
@@ -33,7 +33,7 @@ export function CareerAssistant({ experienceId }: { experienceId: string }) {
           .map((message) => (
             <div
               key={message.id}
-              className="whitespace-pre-wrap text-sm leading-6 text-zinc-700"
+              className="whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]"
             >
               {message.parts
                 .filter((part) => part.type === "text")
@@ -57,12 +57,12 @@ export function CareerAssistant({ experienceId }: { experienceId: string }) {
           setInput("");
         }}
       >
-        <input
+        <input aria-label="内容"
           value={input}
           onChange={(event) => setInput(event.target.value)}
           disabled={waiting}
           maxLength={2000}
-          className="min-w-0 flex-1 border bg-white px-3 py-2 text-sm"
+          className="min-w-0 flex-1 border bg-[var(--surface-canvas)] px-3 py-2 text-sm"
           placeholder="例如：结合相关笔记，这段经历对下一阶段求职最有价值的部分是什么？"
         />
         {waiting ? (
@@ -74,7 +74,7 @@ export function CareerAssistant({ experienceId }: { experienceId: string }) {
             停止
           </button>
         ) : (
-          <button className="bg-[#365F78] px-3 py-2 text-sm text-white">
+          <button className="bg-[var(--accent)] px-3 py-2 text-sm text-white">
             分析
           </button>
         )}

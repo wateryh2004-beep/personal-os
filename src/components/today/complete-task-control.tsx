@@ -97,7 +97,7 @@ export function CompleteTaskControl({ taskId, title, compact = false, calm = fal
         ? "today-calm-press today-completion-control inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)] disabled:cursor-default"
         : compact
           ? "pressable inline-flex size-11 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)] disabled:cursor-wait disabled:text-[var(--accent)] sm:size-8"
-          : "pressable inline-flex min-h-11 items-center gap-1 rounded-[8px] px-2 text-[11px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-60 sm:min-h-8"}>
+          : "pressable inline-flex min-h-11 items-center gap-1 rounded-[8px] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-60 sm:min-h-8"}>
       {calm ? <>
         {!compact ? <span className="today-completion-label">{completed ? "已完成" : pending ? "完成中" : failed ? "重试" : "完成"}</span> : null}
         <svg className="today-completion-ring size-[21px] shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -109,6 +109,6 @@ export function CompleteTaskControl({ taskId, title, compact = false, calm = fal
         {!compact ? pending ? "完成中…" : completed ? "已完成" : failed ? "重试" : "完成" : null}
       </>}
     </button>
-    {failed && (compact || calm) ? <span role="alert" className="text-[10px] text-[var(--danger)]">点此重试</span> : null}
+    {failed && (compact || calm) ? <span role="alert" className="text-[12px] text-[var(--danger)]">点此重试</span> : null}
   </div>;
 }

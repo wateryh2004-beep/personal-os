@@ -18,21 +18,21 @@ export default async function InterviewPracticePage({ searchParams }: { searchPa
       <InterviewNav current="/career/interview/practice" context={context} />
 
       <form className="mb-8 flex items-center gap-2">
-        <select name="context" defaultValue={context ?? ""} className="h-9 max-w-sm rounded-[10px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]">
+        <select aria-label="面试岗位" name="context" defaultValue={context ?? ""} className="ui-field h-9 max-w-sm rounded-[10px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]">
           <option value="">全部岗位</option>
           <option value="general">通用面试</option>
-          {data.contexts.map((item: any) => <option key={item.id} value={item.id}>{item.title}</option>)}
+          {data.contexts.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
         </select>
-        <button className="pressable rounded-[7px] px-1.5 py-1 text-[11px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">切换</button>
+        <button className="pressable rounded-[7px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">切换</button>
       </form>
 
       <section>
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-[14px] font-semibold tracking-[-0.008em] text-[var(--text-primary)]">今天先练</h2>
-          <span className="text-[10.5px] text-[var(--text-tertiary)]">{priority.length} 道</span>
+          <span className="text-[12px] text-[var(--text-tertiary)]">{priority.length} 道</span>
         </div>
         <div className="mt-3 space-y-px">
-          {priority.map((item: any) => <PracticeRow key={item.id} item={item} />)}
+          {priority.map((item) => <PracticeRow key={item.id} item={item} />)}
         </div>
       </section>
 
@@ -42,7 +42,7 @@ export default async function InterviewPracticePage({ searchParams }: { searchPa
             其他可练 · {rest.length}
           </summary>
           <div className="mt-3 space-y-px">
-            {rest.map((item: any) => <PracticeRow key={item.id} item={item} />)}
+            {rest.map((item) => <PracticeRow key={item.id} item={item} />)}
           </div>
         </details>
       ) : null}
@@ -52,7 +52,7 @@ export default async function InterviewPracticePage({ searchParams }: { searchPa
   );
 }
 
-function PracticeRow({ item }: { item: any }) {
+function PracticeRow({ item }: { item: Awaited<ReturnType<typeof getPracticeQueue>>["queue"][number] }) {
   const question = Array.isArray(item.interview_questions) ? item.interview_questions[0] : item.interview_questions;
   const interviewContext = Array.isArray(item.interview_contexts) ? item.interview_contexts[0] : item.interview_contexts;
   return (
@@ -62,12 +62,12 @@ function PracticeRow({ item }: { item: any }) {
     >
       <div className="min-w-0">
         <p className="text-[13.5px] leading-5.5 text-[var(--text-primary)]">{presentInterviewPrompt(item.prompt_override || question?.canonical_prompt || "").question}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] text-[var(--text-tertiary)]">
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-[var(--text-tertiary)]">
           {interviewContext?.title ? <span>{interviewContext.title}</span> : null}
           {(item.practice_reasons ?? []).map((reason: string) => <span key={reason}>· {reason}</span>)}
         </div>
       </div>
-      <div className="mt-1 flex shrink-0 items-center gap-3 text-[10.5px] text-[var(--text-tertiary)] sm:mt-0">
+      <div className="mt-1 flex shrink-0 items-center gap-3 text-[12px] text-[var(--text-tertiary)] sm:mt-0">
         <span>{item.usable_story_count ?? 0} 个可用故事</span>
         <span>{item.covered_competency_count ?? 0}/{item.competency_count ?? 0} 能力证据</span>
       </div>

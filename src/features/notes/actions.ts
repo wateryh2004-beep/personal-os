@@ -1,4 +1,5 @@
 "use server";
+import { diagnosticErrorKind } from "@/lib/diagnostics";
 import { revalidatePath } from "@/lib/workspace-revalidation";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
@@ -394,7 +395,7 @@ export async function openDailyNote() {
     await openDailyNoteInternal();
   } catch (error) {
     if (isRedirect(error)) throw error;
-    console.error(JSON.stringify({ level: "error", action: "open_daily_note", error: error instanceof Error ? error.message : "unknown" }));
+    console.error(JSON.stringify({ level: "error", action: "open_daily_note", error: diagnosticErrorKind(error) }));
     redirect("/notes?daily=error");
   }
 }

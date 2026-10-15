@@ -160,7 +160,7 @@ export function MarkdownToolbar({
             else if (active.quote) run(toggleBlockquote);
             else if (active.codeBlock) run(toggleCodeBlock);
           }}
-          className="h-[30px] rounded-[7px] border border-transparent bg-transparent px-2 text-[11.5px] font-medium text-[var(--text-secondary)] transition-[background-color,border-color,color] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)] disabled:opacity-35"
+          className="h-[30px] rounded-[7px] border border-transparent bg-transparent px-2 text-[12px] font-medium text-[var(--text-secondary)] transition-[background-color,border-color,color] ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)] disabled:opacity-35"
         >
           <option value="paragraph">正文</option>
           <option value="h1">标题 1</option>
@@ -188,6 +188,7 @@ export function MarkdownToolbar({
       <ToolbarButton label={onOpenAi ? "AI" : "AI 生成内容已排除"} disabled={!view || !onOpenAi} onClick={() => { onOpenAi?.(); view?.focus(); }}><Sparkles aria-hidden="true" className="size-4" /></ToolbarButton>
       <input
         ref={fileRef}
+        aria-label="插入图片"
         type="file"
         accept="image/*"
         className="sr-only"

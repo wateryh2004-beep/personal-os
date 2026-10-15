@@ -20,16 +20,16 @@ export default async function InterviewStoriesPage() {
       <InterviewNav current="/career/interview/insights" />
 
       <div className="mb-7 flex items-center justify-between gap-4">
-        <p className="text-[11px] text-[var(--text-tertiary)]">{data.stories.length} 个故事资产</p>
+        <p className="text-[12px] text-[var(--text-tertiary)]">{data.stories.length} 个故事资产</p>
         <details className="relative">
           <summary className="pressable cursor-pointer list-none rounded-[8px] px-2 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 新故事</summary>
           <form action={createInterviewStory} className="absolute right-0 z-30 mt-2 grid w-[min(620px,90vw)] gap-3 rounded-[14px] border border-[var(--separator)] bg-[var(--material-popover)] p-4 shadow-[var(--shadow-popover)]">
-            <input name="title" required placeholder="故事标题，例如：Viewer 权限原则重构" className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none" />
-            <select name="experience_id" defaultValue="" className="h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
+            <input aria-label="标题" name="title" required placeholder="故事标题，例如：Viewer 权限原则重构" className="ui-field h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none" />
+            <select aria-label="关联经历" name="experience_id" defaultValue="" className="ui-field h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
               <option value="">不绑定经历</option>
-              {data.experiences.map((experience: any) => <option key={experience.id} value={experience.id}>{experience.organization}{experience.role ? ` · ${experience.role}` : ""}</option>)}
+              {data.experiences.map((experience) => <option key={experience.id} value={experience.id}>{experience.organization}{experience.role ? ` · ${experience.role}` : ""}</option>)}
             </select>
-            <textarea name="one_line" rows={2} placeholder="一句话：这段故事证明了什么？" className="resize-none rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[13px] outline-none" />
+            <textarea aria-label="一句话概括" name="one_line" rows={2} placeholder="一句话：这段故事证明了什么？" className="ui-field resize-none rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[13px] outline-none" />
             <input type="hidden" name="situation_markdown" value="" />
             <input type="hidden" name="task_markdown" value="" />
             <input type="hidden" name="action_markdown" value="" />
@@ -42,7 +42,7 @@ export default async function InterviewStoriesPage() {
       </div>
 
       <div className="space-y-px">
-        {data.stories.map((story: any) => (
+        {data.stories.map((story) => (
           <Link
             key={story.id}
             href={`/career/interview/stories/${story.id}`}
@@ -51,16 +51,16 @@ export default async function InterviewStoriesPage() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="truncate text-[13.5px] font-medium text-[var(--text-primary)]">{story.title}</h2>
-                <span className="text-[10.5px] text-[var(--text-tertiary)]">{storyStatusLabels[story.status] ?? story.status}</span>
+                <span className="text-[12px] text-[var(--text-tertiary)]">{storyStatusLabels[story.status] ?? story.status}</span>
               </div>
               <p className="mt-0.5 line-clamp-1 text-[12px] text-[var(--text-secondary)]">{story.one_line || "尚未提炼一句话。"}</p>
-              <p className="mt-1 text-[10.5px] text-[var(--text-tertiary)]">
+              <p className="mt-1 text-[12px] text-[var(--text-tertiary)]">
                 {story.experience ? `${story.experience.organization}${story.experience.role ? ` · ${story.experience.role}` : ""}` : "未绑定经历"}
               </p>
             </div>
-            <div className="mt-1 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-[var(--text-tertiary)] sm:mt-0 sm:justify-end">
+            <div className="mt-1 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[var(--text-tertiary)] sm:mt-0 sm:justify-end">
               <span>{story.archetypeCount} 个母题</span>
-              {story.competencies.slice(0, 3).map((item: any) => <span key={item.id}>{item.label}</span>)}
+              {story.competencies.slice(0, 3).map((item) => <span key={item.id}>{item.label}</span>)}
             </div>
           </Link>
         ))}

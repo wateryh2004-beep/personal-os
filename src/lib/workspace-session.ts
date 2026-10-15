@@ -62,6 +62,10 @@ export function removeWorkspaceSession(key: string) {
 export function clearWorkspaceSessions() {
   if (typeof window === "undefined") return;
   try {
+    window.localStorage.removeItem("personal-os:agent:active-run:v1");
+    window.localStorage.removeItem("personal-os:agent:draft:v1");
+  } catch { /* Clear same-tab snapshots even if localStorage is blocked. */ }
+  try {
     for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
       const key = window.sessionStorage.key(index);
       if (key?.startsWith(WORKSPACE_SESSION_PREFIX)) window.sessionStorage.removeItem(key);

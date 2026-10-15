@@ -9,7 +9,7 @@ describe("core UI consistency polish", () => {
     const polish = read("src/app/globals.css");
 
     expect(layout).toContain('import "./workspaces.css"');
-    expect(layout).toContain('themeColor: "#f7f7f5"');
+    expect(layout).toContain('themeColor: "#F7F6F2"');
     expect(layout).not.toContain("next/font/google");
     expect(polish).toContain("--separator:");
     expect(polish).toContain("--shadow-popover:");

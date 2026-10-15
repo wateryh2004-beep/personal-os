@@ -27,7 +27,7 @@ function EvidenceGroup({
   if (!items.length) return null;
   return (
     <section>
-      <h3 className="text-[10px] font-semibold tracking-[0.06em] text-[var(--text-tertiary)]">
+      <h3 className="text-[12px] font-semibold tracking-[0.06em] text-[var(--text-tertiary)]">
         {title}
       </h3>
       <div className="mt-1.5 divide-y divide-[var(--separator)]">
@@ -43,14 +43,14 @@ function EvidenceGroup({
                   {item.title}
                 </span>
                 {item.summary ? (
-                  <span className="mt-0.5 line-clamp-2 block text-[10.5px] leading-4.5 text-[var(--text-secondary)]">
+                  <span className="mt-0.5 line-clamp-2 block text-[12px] leading-4.5 text-[var(--text-secondary)]">
                     {item.summary}
                   </span>
                 ) : null}
               </span>
               <ArrowUpRight className="mt-0.5 size-3.5 shrink-0 text-[var(--text-tertiary)] group-hover:text-[var(--accent)]" />
             </span>
-            <span className="mt-1 flex gap-2 text-[10px] tabular-nums text-[var(--text-tertiary)]">
+            <span className="mt-1 flex gap-2 text-[12px] tabular-nums text-[var(--text-tertiary)]">
               <span>{timeLabel(item.occurredAt, type)}</span>
               {item.state ? <span>· {item.state}</span> : null}
             </span>
@@ -76,13 +76,13 @@ export function ReviewEvidencePanel({ evidence }: { evidence: ReviewEvidence }) 
     <aside className="lg:sticky lg:top-5 lg:max-h-[calc(100dvh-2.5rem)] lg:overflow-y-auto lg:border-l lg:border-[var(--separator)] lg:pl-5">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">证据</h2>
-        <span className="text-[10.5px] tabular-nums text-[var(--text-tertiary)]">{count} 条记录</span>
+        <span className="text-[12px] tabular-nums text-[var(--text-tertiary)]">{count} 条记录</span>
       </div>
-      <p className="mt-1 text-[10.5px] leading-5 text-[var(--text-secondary)]">
+      <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
         本周期由系统确定性收集。AI 草稿与最终来源使用同一快照。
       </p>
       {count < 3 ? (
-        <p className="mt-3.5 rounded-[9px] bg-amber-50 px-3 py-2 text-[10.5px] leading-5 text-amber-800">
+        <p className="mt-3.5 rounded-[9px] bg-amber-50 px-3 py-2 text-[12px] leading-5 text-amber-800">
           {count === 0
             ? "本周期暂时没有可验证活动。你仍可以写下自己的 复盘。"
             : `本周期记录较少，目前只有 ${count} 条可验证活动。`}

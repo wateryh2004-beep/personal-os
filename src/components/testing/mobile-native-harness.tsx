@@ -56,7 +56,7 @@ export function MobileNativeHarness() {
         <DialogContent>
           <DialogTitle>测试 Dialog</DialogTitle>
           <DialogDescription>打开后不应在手机端自动弹出软键盘。</DialogDescription>
-          <input data-testid="dialog-input" className="h-11 rounded-lg bg-[var(--surface-control)] px-3" placeholder="Dialog input" />
+          <input data-testid="dialog-input" className="h-11 rounded-lg bg-[var(--surface-control)] px-3" aria-label="Dialog input" placeholder="Dialog input" />
         </DialogContent>
       </Dialog>
 
@@ -64,14 +64,14 @@ export function MobileNativeHarness() {
         <SheetContent side="left">
           <SheetTitle>测试 Sheet</SheetTitle>
           <SheetDescription>Android Back 应优先关闭抽屉。</SheetDescription>
-          <input data-testid="sheet-input" className="mx-4 h-11 rounded-lg bg-[var(--surface-control)] px-3" placeholder="Sheet input" />
+          <input data-testid="sheet-input" className="mx-4 h-11 rounded-lg bg-[var(--surface-control)] px-3" aria-label="Sheet input" placeholder="Sheet input" />
         </SheetContent>
       </Sheet>
 
       <MobileTabBar onOpenMore={() => {}} />
 
       <SidePanelShell open={panelOpen} onClose={() => setPanelOpen(false)} title="测试详情" ariaLabel="测试详情">
-        <input data-testid="panel-input" className="h-11 w-full rounded-lg bg-[var(--surface-control)] px-3" placeholder="Panel input" />
+        <input data-testid="panel-input" className="h-11 w-full rounded-lg bg-[var(--surface-control)] px-3" aria-label="Panel input" placeholder="Panel input" />
         <div className="mt-6 space-y-3">
           {Array.from({ length: 24 }, (_, index) => <p key={index} className="text-sm">Long scroll row {index + 1}</p>)}
         </div>

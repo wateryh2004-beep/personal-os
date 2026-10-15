@@ -5,7 +5,7 @@ import { presentInterviewPrompt } from "@/features/interview/prompt-presentation
 export function InterviewPrompt({ prompt, shortTitle }: { prompt: string; shortTitle?: string | null }) {
   const content = presentInterviewPrompt(prompt, shortTitle);
   return <div className="min-w-0" data-testid="interview-prompt">
-    <h1 className="text-[20px] font-semibold leading-[1.5] tracking-[-0.015em] text-[var(--text-primary)]">{content.title}</h1>
+    <h1 className="font-serif text-[26px] font-medium leading-[1.5] tracking-[-0.015em] text-[var(--text-primary)]">{content.title}</h1>
     <p data-testid="interview-prompt-text" className="mt-3 whitespace-pre-wrap text-[15px] font-normal leading-7 text-[var(--text-primary)] [overflow-wrap:anywhere]">{content.question}</p>
     {content.conditions.length ? <section aria-label="题设条件与口径" className="mt-4 border-l-2 border-[var(--separator)] pl-4">
       <h2 className="mb-1 text-[12px] font-medium text-[var(--text-secondary)]">条件与口径</h2>

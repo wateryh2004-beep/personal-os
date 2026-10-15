@@ -22,7 +22,7 @@ export function FileResumableUploads({busy,refresh,onResume,onFinish}:{busy:bool
   if(!sessions.length&&!error)return null;
   return <section aria-label="未完成上传" className="mb-3 rounded-[10px] border border-[var(--separator)] p-3 text-[12px]">
     <div className="flex items-center justify-between"><p className="font-medium">未完成上传</p><button type="button" disabled={busy||!!canceling} onClick={()=>setReload(value=>value+1)} className="min-h-9 px-2 text-[var(--accent)]">刷新状态</button></div>
-    <p className="text-[11px] text-[var(--text-secondary)]">刷新或断网后重新选择同一份文件，只上传缺失分片；最多保留 6 天。选择窗口取消不会取消上传。</p>
+    <p className="text-[12px] text-[var(--text-secondary)]">刷新或断网后重新选择同一份文件，只上传缺失分片；最多保留 6 天。选择窗口取消不会取消上传。</p>
     <input ref={input} type="file" className="hidden" aria-label="重新选择续传文件" onChange={event=>{
       const file=event.target.files?.[0],session=selected.current;
       event.target.value="";selected.current=null;if(file&&session)onResume(file,session);
