@@ -77,6 +77,9 @@ export async function requestPasswordResetAction(
       message: error.message,
       redirectOrigin: origin,
     });
+    if (error.code === "over_email_send_rate_limit" || error.status === 429) {
+      return { error: "重置邮件发送过于频繁。Supabase 默认邮件服务存在发送限额，请稍后再试；不要连续点击发送。" };
+    }
     return { error: "暂时无法发送重置邮件。请确认 Supabase 项目和重定向地址配置后重试。" };
   }
 
