@@ -43,3 +43,9 @@
 - 迁移前后 notes 910、documents 598、note_folders 79、file_folders 2，计数不变；未建立真实独立口令或会话。
 - 四张内容/文件夹表已有隐藏列；29 条 restrictive 策略覆盖普通行、关联行与 Storage；凭据/会话/尝试表强制 RLS，无 anon/authenticated 读取授权；5 个专用 RPC 仅 service_role 可执行。
 - 生产所需环境变量名称已确认；没有读取秘密值，未启用 `E2E_MOBILE_HARNESS`。
+
+生产 PostgreSQL 回滚探针通过：使用唯一现有 owner 的合成记录验证整夹隐藏、附件连带隐藏、历史/关联/搜索/原件可见性、普通写入拒绝、凭据表拒读、OCR 拒绝、专用编辑与版本冲突、新建隐藏笔记和整组恢复。所有探针写入位于自动回滚的子事务，复核全部业务计数不变，凭据、会话与隐藏项仍为 0；没有读取正文或写入 R2 原件。
+
+首轮远端全仓 CI 为 1998 通过、1 个旧的 Projects 关闭焦点用例失败，OCR 的 5 项本机环境失败没有在 CI 重现。焦点用例原来仅等待 10ms，现改为等待实际焦点恢复，断言不变；生产焦点实现未改动。
+
+Supabase Security Advisor 提示认证表“启用 RLS 无策略”属预期 deny-all 设计，服务端角色专用；既有 OCR SECURITY DEFINER 警告对应函数现有 owner 检查和新增隐藏检查，回滚探针实证拒绝隐藏项。已有泄漏密码保护未启用提示未在本任务调整，见 [Supabase 说明](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)。
