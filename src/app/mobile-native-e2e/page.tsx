@@ -13,6 +13,8 @@ import { notFound } from "next/navigation";
 import { MobileNativeHarness } from "@/components/testing/mobile-native-harness";
 import { WorkspacePolishHarness, type PolishScene } from "@/components/testing/workspace-polish-harness";
 
+import { VaultFixture } from "@/components/testing/vault-fixture";
+
 export const dynamic = "force-dynamic";
 
 export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string; item?: string }> }) {
@@ -24,6 +26,7 @@ export default async function MobileNativeE2EPage({ searchParams }: { searchPara
     }>(resolve => setTimeout(() => resolve({ ownerId: "synthetic-bootstrap-owner", generatedAt: Date.now(), data: notesBootstrapFixture }), 150)) : undefined;
     return <NotesBootstrapFixture mode={mode ?? "streamed"} workspace={workspace ?? "notes"} bootstrap={bootstrap} />;
   }
+  if (scene === "vault") return <VaultFixture />;
   if (scene === "storage-settings") return <main className="mx-auto max-w-5xl p-4 sm:p-6"><h1 className="mb-5 text-2xl font-semibold">存储设置 · Synthetic fixture</h1><R2StorageSettings /></main>;
   if (scene === "today-hierarchy") return <TodayHierarchyFixture mode={mode} />;
   if (scene === "interview-reading") return <InterviewReadingFixture />;

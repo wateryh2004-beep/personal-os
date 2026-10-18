@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ChevronRight, Folder } from "lucide-react";
 
+import { VaultHideButton } from "@/components/vault/vault-provider";
+
 export type NotesFolder = { id: string; name: string; parent_id: string | null };
 
 /** Metadata only: never infer descendant note counts from a paginated list. */
@@ -27,6 +29,7 @@ export function NotesFolderBreadcrumbs({ folder, folders }: { folder: NotesFolde
       {notesFolderAncestors(folder, folders).map((ancestor) => <li key={ancestor.id} className="flex min-w-0 items-start gap-1">
         <ChevronRight aria-hidden="true" className="mt-2.5 size-3.5 shrink-0" />
         <Link href={notesFolderHref(ancestor.id)} className="ui-link inline-flex min-h-11 md:min-h-9 min-w-0 items-center break-words rounded px-1 [overflow-wrap:anywhere]">{ancestor.name}</Link>
+        <VaultHideButton kind="note_folder" id={folder.id} />
       </li>)}
       <li className="flex min-w-0 items-start gap-1"><ChevronRight aria-hidden="true" className="mt-2.5 size-3.5 shrink-0" /><span aria-current="page" className="min-w-0 break-words px-1 py-2 [overflow-wrap:anywhere]">{folder.name}</span></li>
     </ol>
@@ -44,6 +47,7 @@ export function NotesChildFolders({ folders }: { folders: NotesFolder[] }) {
           <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">{folder.name}</span>
           <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-[var(--text-tertiary)]" />
         </Link>
+        <VaultHideButton kind="note_folder" id={folder.id} />
       </li>)}
     </ul>
   </section>;

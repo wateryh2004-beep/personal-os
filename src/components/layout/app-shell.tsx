@@ -58,6 +58,22 @@ import {
   type WorkspacePrefetchHref,
 } from "@/lib/workspace-prefetch-policy";
 
+// A deliberate hold opens verification; a short click retains ordinary navigation.
+const privateHold = { timer: 0, held: false };
+const privateHoldHandlers = {
+  onPointerDown: (event: React.PointerEvent) => {
+    if (event.button !== 0) return;
+    privateHold.held = false;
+    clearTimeout(privateHold.timer);
+    privateHold.timer = window.setTimeout(() => { privateHold.held = true; }, 2000);
+  },
+  onPointerUp: () => { clearTimeout(privateHold.timer); if (privateHold.held) window.setTimeout(() => window.dispatchEvent(new Event("personal-os:private-open", { cancelable: true })), 0); },
+  onPointerLeave: () => { clearTimeout(privateHold.timer); privateHold.held = false; },
+  onPointerCancel: () => { clearTimeout(privateHold.timer); privateHold.held = false; },
+  onContextMenu: (event: React.MouseEvent) => { event.preventDefault(); },
+  onClick: (event: React.MouseEvent) => { if (privateHold.held) { event.preventDefault(); privateHold.held = false; } },
+};
+
 const sidebarStorageKey = "personal-os:shell:v2";
 
 const GlobalAgent = dynamic(
@@ -162,6 +178,18 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
   const pathname = presentationPathname ?? routePathname;
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const deferredPrivateOpen = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const close = (event: Event) => {
+      if (!mobileOpen) return;
+      event.preventDefault(); setMobileOpen(false);
+      clearTimeout(deferredPrivateOpen.current);
+      deferredPrivateOpen.current = window.setTimeout(() => window.dispatchEvent(new Event("personal-os:private-open", { cancelable: true })), 480);
+    };
+    window.addEventListener("personal-os:private-open", close, true);
+    return () => window.removeEventListener("personal-os:private-open", close, true);
+  }, [mobileOpen]);
+  useEffect(() => () => { clearTimeout(privateHold.timer); clearTimeout(deferredPrivateOpen.current); }, []);
   const [collapsed, setCollapsed] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandSection, setCommandSection] = useState<CommandCenterSection>("search");
@@ -353,6 +381,7 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
         onPointerEnter={() => prefetchNavigationTarget("/today")}
         onFocus={() => prefetchNavigationTarget("/today")}
         aria-label="Life of HANG，返回今日"
+        {...privateHoldHandlers}
         className={cn("wordmark truncate text-[15.5px] text-[var(--text-primary)]", collapsed ? "text-base" : "px-1.5")}
       >
         {collapsed ? "H" : "Life of HANG"}
@@ -404,7 +433,7 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
     {desktopSidebar}
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
       <SheetContent side="left" className="w-[min(84vw,282px)] gap-0 border-r border-[var(--border-subtle)] bg-[var(--material-thick)] p-0">
-        <div className="flex min-h-12 items-center px-4 pt-[env(safe-area-inset-top)]"><SheetTitle className="wordmark text-[16px]">Life of HANG</SheetTitle></div>
+        <div className="flex min-h-12 items-center px-4 pt-[env(safe-area-inset-top)]"><SheetTitle className="wordmark text-[16px]"><button type="button" {...privateHoldHandlers}>Life of HANG</button></SheetTitle></div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
           {mobileRecentNavigation.length ? <div className="mb-4">
             <p className="mb-1.5 px-2.5 text-[12px] font-semibold tracking-[0.015em] text-[var(--text-tertiary)]">最近访问</p>

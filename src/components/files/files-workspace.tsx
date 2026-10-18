@@ -20,6 +20,7 @@ import { completeFileUpload } from "@/features/files/complete-upload";
 import { canUpload, maxFileSize } from "@/features/files/schemas";
 import { runUploadBatch } from "@/features/files/upload-batch";
 
+import { VaultHideButton } from "@/components/vault/vault-provider";
 import { Archive, Download, Eye, File, FilePlus2, Folder, FolderPlus, LoaderCircle, MoreHorizontal, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { archiveFile, createFileFolder, moveFile, renameFile, restoreFile, setFileAiVisibility } from "@/features/files/actions";
@@ -85,6 +86,7 @@ function FileOperations({ file, folders, onArchive }: { file: FileRecord; folder
       <FileMutationForm action={renameFile} onSuccess={close} className="space-y-2"><input aria-label="文件名称" name="title" required maxLength={240} defaultValue={file.title} className="ui-field h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2.5 text-[12px] outline-none" /><input type="hidden" name="document_id" value={file.id} /><button className="text-[12px] font-medium text-[var(--accent)]">重命名</button></FileMutationForm>
       <FileMutationForm action={moveFile} onSuccess={close} className="mt-2 border-t border-[var(--separator)] pt-2"><input type="hidden" name="document_id" value={file.id} /><select aria-label="目标文件夹" name="folder_id" defaultValue={file.folder_id ?? ""} className="ui-field h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2 text-[12px] outline-none"><option value="">根目录</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{"　".repeat(folderDepth(folder, folders))}{folder.name}</option>)}</select><button className="mt-1.5 text-[12px] font-medium text-[var(--accent)]">移动文件</button></FileMutationForm>
       <FileMutationForm action={setFileAiVisibility} onSuccess={close} className="mt-2 border-t border-[var(--separator)] pt-2"><input type="hidden" name="document_id" value={file.id}/><select aria-label="文件 AI 可见性" name="ai_visibility" defaultValue={file.ai_visibility} className="ui-field h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2 text-[12px] outline-none"><option value="normal">AI 可正常使用</option><option value="sensitive">敏感：默认不发送</option><option value="never">永不发送给 AI</option></select><button className="mt-1.5 text-[12px] font-medium text-[var(--accent)]">保存隐私设置</button></FileMutationForm>
+      <VaultHideButton kind="document" id={file.id} onDone={close} className="w-full text-left" />
       <button type="button" onClick={() => { close(); onArchive(file); }} className="mt-2 inline-flex items-center gap-1 border-t border-[var(--separator)] pt-2 text-[12px] text-[var(--danger)]"><Archive size={12} />归档</button>
 
     </PopoverContent>
@@ -336,6 +338,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
         <div className="flex min-h-12 flex-wrap items-start justify-between gap-3 border-b border-[var(--separator)] pb-3.5">
           <div>
             <h1 className="page-title">{activeFolder?.name ?? "全部文件"}</h1>
+            {activeFolder ? <VaultHideButton kind="file_folder" id={activeFolder.id} /> : null}
             <p className="mt-0.5 text-[12px] tabular-nums text-[var(--text-tertiary)]">{`${visibleFiles.length} 个文件${filtering ? ` · 当前目录共 ${fileRows.filter(file => folderId === null || file.folder_id === folderId).length} 个` : ""}`}</p>
           </div>
           <div>

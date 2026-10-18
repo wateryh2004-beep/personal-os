@@ -1,0 +1,25 @@
+name: Private vault
+on:
+  pull_request:
+    paths:
+      - 'src/features/vault/**'
+      - 'src/components/vault/**'
+      - 'src/app/api/vault/**'
+      - 'supabase/migrations/**'
+      - 'tests/vault-*'
+      - '.github/workflows/private-vault.yml'
+jobs:
+  isolated-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx vitest run tests/vault-crypto.test.ts tests/vault-api.test.ts tests/vault-session.test.ts
+      - name: Install isolated PostgreSQL test runtime
+        run: npm install --prefix "$RUNNER_TEMP/vault-tests" --no-save --ignore-scripts @electric-sql/pglite@0.5.10
+      - name: Replay actual migrations and test RLS, RPCs and versions
+        run: VAULT_PGLITE_ROOT="$RUNNER_TEMP/vault-tests/node_modules/@electric-sql/pglite" node tests/vault-database.mjs

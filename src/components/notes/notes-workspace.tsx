@@ -34,6 +34,7 @@ import { lastNotesListSessionKey, lastNotesListTtlMs } from "@/features/notes/na
 import { saveWorkspaceSession } from "@/lib/workspace-session";
 import { useNotesListing } from "@/features/notes/use-notes-listing";
 import { NotesChildFolders, NotesFolderBreadcrumbs } from "@/components/notes/notes-folder-navigation";
+import { VaultHideButton, VaultHideMenuItem } from "@/components/vault/vault-provider";
 
 type Folder = { id: string; name: string; parent_id: string | null };
 type WorkspaceState = "ready" | "base" | "unavailable";
@@ -157,6 +158,7 @@ function NoteRow({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={() => onRename(note)}>重命名</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onMove(note)}>移动到…</DropdownMenuItem>
+          <VaultHideMenuItem kind="note" id={note.id} />
           <DropdownMenuItem onSelect={() => onTogglePinned(note)}>
             {note.pinned_at ? "取消收藏" : "加入收藏"}
           </DropdownMenuItem>
@@ -347,6 +349,7 @@ export function NotesWorkspace({
               {normalizedQuery ? `${visible.length} 个搜索结果` : <>{childFolders.length ? `${childFolders.length} 个子文件夹 · ` : ""}{!listing.loaded ? "正在读取当前层级…" : `${selectedFolder ? "当前层级 " : ""}${listing.hasMore ? "已加载 " : ""}${visible.length} 篇笔记`}</>}
             </p>
           </div>
+          {selectedFolder ? <VaultHideButton kind="note_folder" id={selectedFolder.id} /> : null}
           <AskNotesButton onClick={() => router.push("/notes/ask")} />
           {newNoteForm("shrink-0", true)}
         </header>

@@ -1,3 +1,4 @@
+import { VaultProvider } from "@/components/vault/vault-provider";
 import { cookies } from "next/headers";
 import { WorkspaceIdentityBoundary } from "@/components/layout/workspace-identity-boundary";
 import { workspaceRevisionCookie } from "@/lib/workspace-revalidation";
@@ -18,5 +19,5 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { userId } = await requireOwner();
   const revision = (await cookies()).get(workspaceRevisionCookie)?.value ?? "initial";
-  return <WorkspaceIdentityBoundary ownerId={userId} revision={revision}><AppShell>{children}</AppShell></WorkspaceIdentityBoundary>;
+  return <WorkspaceIdentityBoundary ownerId={userId} revision={revision}><VaultProvider><AppShell>{children}</AppShell></VaultProvider></WorkspaceIdentityBoundary>;
 }
