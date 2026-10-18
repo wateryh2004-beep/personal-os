@@ -36,14 +36,18 @@ it.each(["tasks", "projects"] as const)("restores %s manual launcher on Cancel a
       await pause();
     });
     expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(document.activeElement).toBe(launch);
+    // Radix restores focus from a deferred unmount callback; wait for the
+    // observable result rather than assuming a 10 ms timer has drained.
+    await vi.waitFor(() => expect(document.activeElement).toBe(launch));
   }
 });
 it("returns to the actual empty-state Projects launcher", async () => {
   await render("projects"); const launch = launchers()[1];
   await act(async () => launch.click());
   await act(async () => { cancel().click(); await pause(); });
-  expect(document.activeElement).toBe(launch);
+  // Radix restores focus from a deferred unmount callback; wait for the
+    // observable result rather than assuming a 10 ms timer has drained.
+    await vi.waitFor(() => expect(document.activeElement).toBe(launch));
 });
 it.each(["tasks", "projects"] as const)("does not restore stale %s launch focus after route changes", async (kind) => {
   await render(kind); const launch = launchers()[0]; const focus = vi.spyOn(launch, "focus");

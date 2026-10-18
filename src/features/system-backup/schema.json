@@ -1,6 +1,6 @@
 {
   "format": "personal-os-system/v1",
-  "schemaRevision": "2026-10-ten-improvements/v1",
+  "schemaRevision": "2026-10-private-vault/v1",
   "tables": {
     "activity_events": {
       "columns": {
@@ -2494,6 +2494,10 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "vault_group_id": {
+          "type": "uuid",
+          "nullable": true
         }
       },
       "primaryKey": [
@@ -3451,6 +3455,10 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "vault_group_id": {
+          "type": "uuid",
+          "nullable": true
         }
       },
       "primaryKey": [
@@ -6049,6 +6057,10 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "vault_group_id": {
+          "type": "uuid",
+          "nullable": true
         }
       },
       "primaryKey": [
@@ -6347,6 +6359,10 @@
         "word_count": {
           "type": "number",
           "nullable": false
+        },
+        "vault_group_id": {
+          "type": "uuid",
+          "nullable": true
         }
       },
       "primaryKey": [
@@ -7516,7 +7532,10 @@
     "proactive_events": "Derived proactive detections; recompute.",
     "proactive_insights": "Derived proactive suggestions; recompute.",
     "proactive_insight_events": "Derived proactive join index; recompute.",
-    "document_ocr_jobs": "Transient OCR lease/progress state; durable extracted text remains in documents and is included."
+    "document_ocr_jobs": "Transient OCR lease/progress state; durable extracted text remains in documents and is included.",
+    "vault_credentials": "Independent verification credentials, session capabilities or throttle; never export or restore.",
+    "vault_sessions": "Independent verification credentials, session capabilities or throttle; never export or restore.",
+    "vault_attempts": "Independent verification credentials, session capabilities or throttle; never export or restore."
   },
   "exclusions": [
     "Authentication users, sessions, passwords, API keys, OAuth credentials and deployment configuration.",
