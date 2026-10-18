@@ -1,6 +1,6 @@
 # 暗格本地验收 · 2026-10-18
 
-状态：本地候选已实现并验证；未推送、未执行生产迁移、未部署。
+状态：代码已推送，生产迁移已应用；代码发布与线上验收进行中。
 任务分支：`feature/private-vault`。规格：[独立验证的隐藏笔记与文件](../specs/private-vault.md)。
 
 ## 已执行
@@ -33,3 +33,13 @@
 未进行真实 Supabase Auth 登录、真实 R2 上传/下载或生产的联网端到端验收；本地没有复制真实服务凭据，也没有代设独立口令。需要按规格审查迁移并确认目标后，才进行生产发布和所有者实际验收。
 
 回退保持隐藏标记、RLS、版本和原件，不通过删策略或批量移回来恢复旧界面。
+
+## 生产发布进度
+
+2026-10-18 所有者明确授权推送、生产迁移与上线。PR：[#70](https://github.com/wateryh2004-beep/personal-os/pull/70)。
+
+- 目标：Vercel `personal-os` / Hang Yu 的团队；Supabase `rurzksvjefwjvswjgiup`。
+- Supabase 管理 API 于 2026-10-18 14:48 UTC 应用 `private_vault`，实际版本 `20261018144837`；本地 SQL 内容不变，仅将未发布的候选文件名对齐服务端生成版本，避免重复应用。
+- 迁移前后 notes 910、documents 598、note_folders 79、file_folders 2，计数不变；未建立真实独立口令或会话。
+- 四张内容/文件夹表已有隐藏列；29 条 restrictive 策略覆盖普通行、关联行与 Storage；凭据/会话/尝试表强制 RLS，无 anon/authenticated 读取授权；5 个专用 RPC 仅 service_role 可执行。
+- 生产所需环境变量名称已确认；没有读取秘密值，未启用 `E2E_MOBILE_HARNESS`。
