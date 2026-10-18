@@ -1,5 +1,6 @@
 // Loopback-only browser fixture: no real session, database, or R2 credentials.
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
@@ -11,8 +12,13 @@ const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const sourceVersion = '11111111-1111-4111-8111-111111111111';
 let progress = null, mutation = null;
 const bytes = syntheticPdf();
+const vaultBytes = await readFile(path.join(project,'tests/fixtures/pdf-covers/chinese-embedded.pdf'));
 const server = await createServer({ configFile:false, root:path.join(project,'tests/fixtures/document-reading-browser'),
   plugins:[react(), {name:'reading-fixture',configureServer(server) { server.middlewares.use(async (req,res,next) => {
+    if(req.url.startsWith('/fixture/vault.pdf')) {
+      const body=req.url.includes('pages=2') ? bytes : vaultBytes;
+      res.setHeader('Content-Type','application/pdf');res.setHeader('Cache-Control','no-store');res.end(body);return;
+    }
     if(req.url.startsWith('/fixture/progress')) {
       res.setHeader('Content-Type','application/json'); res.setHeader('Cache-Control','no-store');
       if(req.method === 'POST') { let body=''; for await(const chunk of req) body+=chunk; const input=JSON.parse(body);

@@ -8,6 +8,7 @@ import { DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/c
 import { draftStorageKey, openDraft, sealDraft, type VaultDraft } from "@/features/vault/client-crypto";
 import { checksumFile } from "@/features/files/file-checksum";
 
+const VaultPdfPreview = dynamic(() => import("./vault-pdf-preview").then(module => module.VaultPdfPreview), { ssr: false });
 const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), { ssr: false });
 type Item = { id: string; title: string; folder_id: string | null; vault_group_id: string };
 type FileItem = Item & { original_filename: string; mime_type: string; file_size: number; storage_state: "pending" | "available" | "archived" };
@@ -201,5 +202,5 @@ function VaultFileViewer({ file, call, onBack }: { file: FileItem; call: Props["
     return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [file.id, call]);
   const image = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"].includes(file.mime_type);
-  return <section className="flex min-h-0 flex-1 flex-col"><div className="flex flex-wrap items-center gap-2 px-4 py-2"><button className={action} onClick={onBack}>返回</button><span className="min-w-0 flex-1 break-words text-sm">{file.title}</span><button className={action} disabled={!blob} onClick={() => blob && downloadBlob(blob, file.original_filename)}>下载原件</button></div>{error ? <p role="alert" className="p-5 text-sm text-[var(--danger)]">{error}</p> : !url ? <p role="status" className="p-5 text-sm">正在读取…</p> : image ? <div className="min-h-0 flex-1 overflow-auto p-5"><img src={url} alt={file.title} className="mx-auto max-h-full max-w-full object-contain" /></div> : file.mime_type === "application/pdf" ? <iframe src={url} title="文档预览" sandbox="" className="min-h-0 flex-1 border-0" /> : <p className="p-5 text-sm text-[var(--text-secondary)]">此格式请下载原件查看。</p>}</section>;
+  return <section className="flex min-h-0 flex-1 flex-col"><div className="flex flex-wrap items-center gap-2 px-4 py-2"><button className={action} onClick={onBack}>返回</button><span className="min-w-0 flex-1 break-words text-sm">{file.title}</span><button className={action} disabled={!blob} onClick={() => blob && downloadBlob(blob, file.original_filename)}>下载原件</button></div>{error ? <p role="alert" className="p-5 text-sm text-[var(--danger)]">{error}</p> : !url ? <p role="status" className="p-5 text-sm">正在读取…</p> : image ? <div className="min-h-0 flex-1 overflow-auto p-5"><img src={url} alt={file.title} className="mx-auto max-h-full max-w-full object-contain" /></div> : file.mime_type === "application/pdf" ? <VaultPdfPreview blob={blob!} title={file.title} /> : <p className="p-5 text-sm text-[var(--text-secondary)]">此格式请下载原件查看。</p>}</section>;
 }

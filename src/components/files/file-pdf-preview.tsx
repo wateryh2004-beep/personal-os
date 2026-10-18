@@ -188,7 +188,7 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
   </div>;
 }
 
-function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure, onRendered }: {
+export function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure, onRendered }: {
   pdf: PDFDocumentProxy; pageNumber: number; title: string; width: number; onFailure: (message: string) => void; onRendered: (page: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);

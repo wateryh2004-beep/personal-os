@@ -18,7 +18,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npx vitest run tests/vault-crypto.test.ts tests/vault-api.test.ts tests/vault-session.test.ts
+      - run: npx vitest run tests/vault-crypto.test.ts tests/vault-api.test.ts tests/vault-session.test.ts tests/vault-pdf-preview.test.ts
       - name: Install isolated PostgreSQL test runtime
         run: npm install --prefix "$RUNNER_TEMP/vault-tests" --no-save --ignore-scripts @electric-sql/pglite@0.5.10
       - name: Replay actual migrations and test RLS, RPCs and versions
