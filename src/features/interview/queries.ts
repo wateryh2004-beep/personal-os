@@ -614,7 +614,8 @@ export async function getInterviewInsights(contextId?: string | null) {
 
   const preparations = prepsResult.data ?? [];
   const prepIds = new Set(preparations.map((prep) => prep.id));
-  const attempts = (attemptsResult.data ?? []).filter((attempt) => !attempt.preparation_id || prepIds.has(attempt.preparation_id));
+  // Unlinked attempts have no known target; include them only in the all-scope overview.
+  const attempts = (attemptsResult.data ?? []).filter((attempt) => attempt.preparation_id ? prepIds.has(attempt.preparation_id) : !contextId);
   const questionById = new Map((questionsResult.data ?? []).map((question) => [question.id, question]));
   const competencyById = new Map((competenciesResult.data ?? []).map((item) => [item.id, item]));
   const storyById = new Map((storiesResult.data ?? []).map((story) => [story.id, story]));

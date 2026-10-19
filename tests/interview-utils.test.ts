@@ -3,6 +3,7 @@ import {
   buildMonthlyIssueTrend,
   countTags,
   readinessChecklist,
+  rankSmartPracticeQueue,
   sortPracticeQueue,
 } from "@/features/interview/utils";
 
@@ -43,4 +44,12 @@ describe("Interview Lab utils", () => {
       { month: "2026-10", attempts: 1, issueCount: 0, issuesPerAttempt: 0 },
     ]);
   });
+});
+
+it("does not label an unscheduled practiced question as due for review", () => {
+  const base = { id: "p", status: "ready", importance: "high", attempt_count: 1, story_count: 1, usable_story_count: 1, last_practiced_at: "2026-10-18T00:00:00Z" };
+  const now = new Date("2026-10-19T00:00:00Z");
+  expect(rankSmartPracticeQueue([{ ...base, next_practice_at: null }], now)[0].practice_reasons).not.toContain("到期复习");
+  expect(rankSmartPracticeQueue([{ ...base, next_practice_at: "2026-10-18T00:00:00Z" }], now)[0].practice_reasons).toContain("到期复习");
+  expect(rankSmartPracticeQueue([{ ...base, next_practice_at: "2026-10-21T00:00:00Z" }], now)[0].practice_reasons).not.toContain("到期复习");
 });

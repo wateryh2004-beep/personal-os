@@ -2,6 +2,9 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
 import { InterviewNav } from "@/components/career/interview/interview-nav";
+import { PracticeScope, PracticeUnavailable, practiceScopeHref } from "@/components/career/interview/practice-scope";
+import { Button } from "@/components/ui/button";
+import { DisclosureSummary } from "@/components/ui/disclosure";
 import { getInterviewInsights } from "@/features/interview/queries";
 import { issueLabels } from "@/features/interview/constants";
 
@@ -9,105 +12,85 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
   const { context } = await searchParams;
   const data = await getInterviewInsights(context ?? null);
   const ready = data.preparations.filter((item) => item.status === "ready").length;
+  const practiceHref = practiceScopeHref("/career/interview/practice", context);
+  const learningHref = practiceScopeHref("/career/interview", context);
 
-  return (
-    <>
-      <PageHeader title="复盘" description="回答三个问题：哪里缺故事，哪里没练够，哪些素材用得太集中。" />
-      <CareerNav current="/career/interview" />
-      <InterviewNav current="/career/interview/insights" context={context} />
+  return <>
+    <PageHeader title="复盘" action={<Button asChild><Link href={practiceHref}>继续练习</Link></Button>} />
+    <CareerNav current="/career/interview" />
+    <InterviewNav current="/career/interview/insights" context={context} />
+    <PracticeScope contexts={data.contexts} context={context} />
+    {data.unavailable ? <PracticeUnavailable href={practiceScopeHref("/career/interview/insights", context)} /> : null}
+    <dl className="mb-8 grid grid-cols-2 gap-5 border-y border-[var(--separator)] py-5 sm:grid-cols-3">
+      <div><dt className="text-[13px] text-[var(--text-secondary)]">已保存练习</dt><dd className="mt-2 text-2xl tabular-nums text-[var(--text-primary)]">{data.attempts.length}<span className="ml-1 text-sm">次</span></dd></div>
+      <div><dt className="text-[13px] text-[var(--text-secondary)]">标记为已准备</dt><dd className="mt-2 text-2xl tabular-nums text-[var(--text-primary)]">{ready}<span className="ml-1 text-sm">/ {data.preparations.length} 道</span></dd></div>
+      <div><dt className="text-[13px] text-[var(--text-secondary)]">有待补齐的能力</dt><dd className="mt-2 text-2xl tabular-nums text-[var(--text-primary)]">{data.competencyCoverage.filter((item) => item.diagnosis).length}<span className="ml-1 text-sm">项</span></dd></div>
+    </dl>
 
-      <form className="mb-8 flex items-center gap-2">
-        <select aria-label="面试岗位" name="context" defaultValue={context ?? ""} className="ui-field h-9 max-w-sm rounded-[10px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none">
-          <option value="">全部岗位</option>
-          <option value="general">通用面试</option>
-          {data.contexts.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-        </select>
-        <button className="pressable rounded-[7px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]">切换</button>
-      </form>
+    <section aria-labelledby="insights-priority-title" className="mb-9 rounded-[var(--radius-xl)] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-7">
+      <h2 id="insights-priority-title" className="text-lg font-semibold text-[var(--text-primary)]">优先补齐</h2>
+      <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">依据已关联的故事、准备状态和练习记录整理。</p>
+      <ul className="mt-4 divide-y divide-[var(--separator)]">
+        {data.priorityGaps.map((item) => <li key={item.tag} className="grid min-w-0 gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="min-w-0">
+            <h3 className="break-words text-[15px] font-medium text-[var(--text-primary)]">{item.label}</h3>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">{item.diagnosis}</p>
+            <p className="mt-1 text-[13px] leading-6 tabular-nums text-[var(--text-secondary)]">{item.strongStoryCount} 个可用故事，{item.practiceCount} 次练习</p>
+          </div>
+          <Button asChild variant="outline"><Link href={item.strongStoryCount === 0 ? "/career/interview/stories" : item.ready < item.total ? learningHref : practiceHref}>{item.strongStoryCount === 0 ? "补充故事" : item.ready < item.total ? "继续准备" : "选择练习"}</Link></Button>
+        </li>)}
+      </ul>
+      {!data.priorityGaps.length ? <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{data.unavailable ? "资料不完整，暂不判断缺口。" : !data.preparations.length ? "当前范围还没有准备记录。" : !data.competencyCoverage.length ? "题目尚未关联能力，暂不能分析缺口。" : "当前记录未显示待补齐项，可继续练习检验回答。"}</p> : null}
+      {!data.preparations.length && !data.unavailable ? <Link href={learningHref} className="ui-link mt-3 inline-block text-sm">前往学习库</Link> : null}
+    </section>
 
-      <div className="mb-10 flex flex-wrap gap-x-5 gap-y-1.5 text-[12px] tabular-nums text-[var(--text-tertiary)]">
-        <span>{data.attempts.length} 次练习</span>
-        <span>{ready}/{data.preparations.length} 道已准备</span>
-        <Link href="/career/interview/stories" className="hover:text-[var(--text-primary)]">故事库 {data.stories.length} →</Link>
+    <section aria-labelledby="insights-coverage-title" className="mb-9">
+      <h2 id="insights-coverage-title" className="text-base font-semibold text-[var(--text-primary)]">能力覆盖</h2>
+      <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">已准备是题目的手动状态；可用故事包含“可用”和“强故事”。</p>
+      <div className="mt-4 divide-y divide-[var(--separator)]">
+        {data.competencyCoverage.map((item) => <div key={item.tag} className="grid min-w-0 gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <h3 className="break-words text-sm font-medium text-[var(--text-primary)]">{item.label}</h3>
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] leading-6 tabular-nums text-[var(--text-secondary)]">
+            <span>{item.ready}/{item.total} 道已准备</span><span>{item.strongStoryCount}/{item.storyCount} 个故事可用</span><span>{item.practiceCount} 次练习</span>
+          </div>
+        </div>)}
       </div>
+      {!data.competencyCoverage.length ? <p className="mt-4 text-sm text-[var(--text-secondary)]">{data.unavailable ? "暂未读到能力覆盖资料。" : "还没有可分析的能力关联。"}</p> : null}
+    </section>
 
-      <section className="mb-14">
-        <h2 className="text-[14px] font-semibold tracking-[-0.008em] text-[var(--text-primary)]">优先补齐</h2>
-        <div className="mt-3.5 space-y-px">
-          {data.priorityGaps.map((item) => (
-            <div key={item.tag} className="grid min-h-11 grid-cols-[1fr_auto] items-center gap-4 rounded-[9px] px-2.5 py-2 hover:bg-[var(--surface-hover)]">
-              <div>
-                <p className="text-[13px] text-[var(--text-primary)]">{item.label}</p>
-                <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">{item.diagnosis}</p>
-              </div>
-              <span className="text-right text-[12px] tabular-nums text-[var(--text-tertiary)]">{item.strongStoryCount} 强故事 · {item.practiceCount} 次练习</span>
-            </div>
-          ))}
-          {!data.priorityGaps.length ? <p className="py-4 text-[13px] text-[var(--text-tertiary)]">当前没有明显能力缺口。</p> : null}
-        </div>
-      </section>
+    <section aria-labelledby="insights-stories-title" className="mb-9">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="insights-stories-title" className="text-base font-semibold text-[var(--text-primary)]">故事使用</h2>
+        <Link href="/career/interview/stories" className="ui-link text-sm">管理故事</Link>
+      </div>
+      <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{data.storyUsage[0]?.source === "practice" ? "按已保存练习中记录的故事统计，比例为各故事的使用次数占比。" : "尚无实际故事使用记录，以下为题目母题的故事计划关联。"}</p>
+      <ul className="mt-4 divide-y divide-[var(--separator)]">
+        {data.storyUsage.map((item) => <li key={item.id}>
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 py-4 text-sm">
+            {item.story ? <Link href={`/career/interview/stories/${item.id}`} className="ui-link min-w-0 break-words">{item.story.title}</Link> : <span className="text-[var(--text-secondary)]">已归档故事</span>}
+            <span className="text-[13px] tabular-nums text-[var(--text-secondary)]">{item.count} {item.source === "practice" ? "次练习使用" : "个母题关联"}，占 {(item.share * 100).toFixed(0)}%</span>
+          </div>
+        </li>)}
+      </ul>
+      {!data.storyUsage.length ? <p className="mt-4 text-sm text-[var(--text-secondary)]">{data.unavailable ? "暂未读到故事使用资料。" : "还没有关联故事的题目或练习。"}</p> : null}
+    </section>
 
-      <section className="mb-14">
-        <h2 className="text-[14px] font-semibold tracking-[-0.008em] text-[var(--text-primary)]">能力覆盖</h2>
-        <div className="mt-3.5 space-y-px">
-          {data.competencyCoverage.map((item) => (
-            <div key={item.tag} className="grid min-h-10 grid-cols-[1fr_auto] items-center gap-4 rounded-[9px] px-2.5 py-2 hover:bg-[var(--surface-hover)]">
-              <span className="text-[13px] text-[var(--text-primary)]">{item.label}</span>
-              <span className="text-[12px] tabular-nums text-[var(--text-tertiary)]">
-                {item.ready}/{item.total} 已准备 · {item.strongStoryCount}/{item.storyCount} 可用故事 · {item.practiceCount} 次练习
-              </span>
-            </div>
-          ))}
-          {!data.competencyCoverage.length ? <p className="py-4 text-[13px] text-[var(--text-tertiary)]">还没有能力覆盖数据。</p> : null}
-        </div>
-      </section>
-
-      <section className="mb-14">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-[14px] font-semibold tracking-[-0.008em] text-[var(--text-primary)]">故事使用</h2>
-          <Link href="/career/interview/stories" className="text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">管理故事 →</Link>
-        </div>
-        <div className="mt-3.5 space-y-px">
-          {data.storyUsage.map((item) => (
-            <div key={item.id} className="grid min-h-10 grid-cols-[1fr_auto] items-center gap-4 rounded-[9px] px-2.5 py-2 hover:bg-[var(--surface-hover)]">
-              <Link href={`/career/interview/stories/${item.id}`} className="truncate text-[13px] text-[var(--text-primary)]">{item.story?.title || "已归档故事"}</Link>
-              <span className="text-[12px] tabular-nums text-[var(--text-tertiary)]">{item.count} 个母题 · {(item.share * 100).toFixed(0)}%</span>
-            </div>
-          ))}
-          {!data.storyUsage.length ? <p className="py-4 text-[13px] text-[var(--text-tertiary)]">还没有故事使用数据。</p> : null}
-        </div>
-      </section>
-
-      <details>
-        <summary className="pressable inline-flex cursor-pointer list-none rounded-[8px] px-1 py-0.5 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">更多趋势</summary>
-        <div className="mt-4.5 grid gap-8 sm:grid-cols-2">
-          <section>
-            <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">反复出现的问题</h3>
-            <div className="mt-3 space-y-2">
-              {data.issueCounts.slice(0,10).map((item) => (
-                <div key={item.tag} className="flex items-center justify-between gap-4 text-sm">
-                  <span className="text-[12.5px] text-[var(--text-secondary)]">{issueLabels[item.tag] ?? item.tag}</span>
-                  <span className="font-mono text-[12px] tabular-nums text-[var(--text-tertiary)]">{item.count}</span>
-                </div>
-              ))}
-              {!data.issueCounts.length ? <p className="text-[12.5px] text-[var(--text-tertiary)]">完成几次练习后再看错误模式。</p> : null}
-            </div>
-          </section>
-
-          <section>
-            <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">改善趋势</h3>
-            <div className="mt-3 space-y-2">
-              {data.monthlyTrend.map((item) => (
-                <div key={item.month} className="flex items-center justify-between gap-4 text-sm">
-                  <span className="text-[12.5px] text-[var(--text-secondary)]">{item.month}</span>
-                  <span className="font-mono text-[12px] tabular-nums text-[var(--text-tertiary)]">{item.attempts} 次 · {item.issuesPerAttempt.toFixed(2)} 问题/次</span>
-                </div>
-              ))}
-              {!data.monthlyTrend.length ? <p className="text-[12.5px] text-[var(--text-tertiary)]">完成几次练习后再看趋势。</p> : null}
-            </div>
-          </section>
-        </div>
-      </details>
-    </>
-  );
+    <details>
+      <DisclosureSummary>练习趋势与常见卡点</DisclosureSummary>
+      <div className="mt-5 grid gap-8 md:grid-cols-2">
+        <section>
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">反复出现的卡点</h3>
+          <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">来自每次练习保存时勾选的卡点，可多选。</p>
+          <ul className="mt-3 space-y-3">{data.issueCounts.slice(0, 10).map((item) => <li key={item.tag} className="flex justify-between gap-4 text-sm text-[var(--text-secondary)]"><span>{issueLabels[item.tag] ?? item.tag}</span><span className="shrink-0 tabular-nums">{item.count} 次</span></li>)}</ul>
+          {!data.issueCounts.length ? <p className="mt-3 text-sm text-[var(--text-secondary)]">{data.unavailable ? "暂未读到卡点记录。" : "还没有保存过卡点。"}</p> : null}
+        </section>
+        <section>
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">每月练习记录</h3>
+          <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">每次平均卡点数受勾选习惯影响，不代表能力评分。</p>
+          <ul className="mt-3 space-y-3">{data.monthlyTrend.map((item) => <li key={item.month} className="flex flex-wrap justify-between gap-2 text-[13px] text-[var(--text-secondary)]"><span>{item.month}</span><span className="tabular-nums">{item.attempts} 次练习，{item.issuesPerAttempt.toFixed(2)} 个卡点/次</span></li>)}</ul>
+          {!data.monthlyTrend.length ? <p className="mt-3 text-sm text-[var(--text-secondary)]">{data.unavailable ? "暂未读到月度记录。" : "保存练习后显示月度记录。"}</p> : null}
+        </section>
+      </div>
+    </details>
+  </>;
 }

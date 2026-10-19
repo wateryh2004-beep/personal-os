@@ -10,3 +10,6 @@ export function useRouter() { return { refresh() {} }; }
 export async function submitCareerForm(action, form) { if (form.get("title") === "失败测试") return { status:"error",message:"合成保存失败，输入保留。" }; return { status:"success",message:action }; }
 
 export async function createInterviewQuestion() { throw new Error("隔离预览不执行真实保存"); }
+
+export async function createPracticeAttempt() { throw new Error("合成保存失败，无真实写入"); }
+export function notFound() { throw new Error("合成详情不存在"); }

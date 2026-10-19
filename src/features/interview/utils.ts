@@ -94,7 +94,7 @@ export function rankSmartPracticeQueue<T extends SmartPracticeQueueItem>(items: 
 
       if (!item.next_practice_at || Date.parse(item.next_practice_at) <= nowMs) {
         score += 12;
-        if (attempts > 0 && reasons.length < 2) reasons.push("到期复习");
+        if (item.next_practice_at && attempts > 0 && reasons.length < 2) reasons.push("到期复习");
       }
 
       if (stories === 0) {
