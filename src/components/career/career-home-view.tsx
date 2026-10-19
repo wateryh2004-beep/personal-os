@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { CareerFocusPicker, useCareerFocus } from "@/components/career/career-focus-picker";
 import { DisclosureSummary } from "@/components/ui/disclosure";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
@@ -16,8 +19,11 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
 
   const activeApplications = data.applications.filter((item) => !["rejected", "withdrawn", "closed"].includes(item.status));
   const activeDirections = data.directions.filter((item) => ["active", "exploring"].includes(item.status));
-  const targets = data.interviewTargets.filter((item) => item.status === "active").slice(0, 3);
-  const nextActions = getCareerNextActions(data.interviewTargets, data.interviewPreparations, data.milestones, now, data.timezone);
+  const activeTargets = data.interviewTargets.filter((item) => item.status === "active");
+  const focus = useCareerFocus(data.ownerId);
+  const targets = activeTargets.filter((item) => focus.ids.includes(item.id));
+  const otherTargets = activeTargets.filter((item) => !focus.ids.includes(item.id));
+  const nextActions = getCareerNextActions(data.interviewTargets, data.interviewPreparations, data.milestones, now, data.timezone, new Set(focus.ids));
 
   return (
     <>
@@ -29,16 +35,39 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
       {showContinue ? <CareerContinue /> : null}
 
       {data.unavailable ? (
-        <p className="mb-8 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          部分职业数据暂时不可用。
-        </p>
+        <div role="alert" className="mb-6 flex flex-wrap items-center gap-3 rounded-xl bg-[var(--surface-control)] px-4 py-3 text-sm text-[var(--danger)]">部分职业数据暂时不可用。<button type="button" onClick={() => window.location.reload()} className="ui-link min-h-11">重新加载</button></div>
       ) : null}
 
-      <div className="career-preparation-layout mb-10 grid items-start gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,1fr)] xl:gap-10">
+      <div className="mb-10 grid items-start gap-8 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
+      <section aria-labelledby="career-next-heading" className="career-next-panel min-w-0 rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-6">
+        <div className="flex min-h-6 flex-wrap items-baseline justify-between gap-2.5">
+          <h2 id="career-next-heading" className="text-base font-medium text-[var(--text-primary)]">下一步</h2>
+          <Link href="/career/roadmap" className="ui-link inline-flex min-h-11 items-center text-[13px]">路线图 →</Link>
+        </div>
+
+        <div className="mt-3.5 space-y-px">
+          {nextActions.map((item, index) => (
+            <Link key={item.key} href={item.href} className={`ui-record-link group flex min-h-16 items-start gap-3 rounded-[10px] px-2 py-3 hover:bg-[var(--surface-hover)] ${index === 0 ? "mb-2 bg-[var(--accent-soft)] px-4 py-4" : ""}`}>
+              <span className="min-w-0 flex-1"><span className={`block break-words leading-7 text-[var(--text-primary)] ${index === 0 ? "text-lg font-medium" : "text-[15px]"}`}>{item.title}</span>
+              <span className="mt-1 block text-[13px] leading-6 tabular-nums text-[var(--text-secondary)]">{item.dueAt ? `${item.dueAt.length === 10 ? item.dueAt : formatDateTime(item.dueAt)} · ` : ""}{item.meta}</span></span>
+            </Link>
+          ))}
+
+          {!nextActions.length ? (
+            <p className="py-3 text-sm text-[var(--text-tertiary)]">目前没有待推进的职业事项。可先选择近期关注岗位，或阅读通用面试内容。</p>
+          ) : null}
+        </div>
+        {data.pastMilestoneCount > 0 ? (
+          <Link href="/career/roadmap" className="mt-3 inline-flex min-h-11 items-center rounded-[7px] px-2.5 py-1 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]">
+            {data.pastMilestoneCount} 项历史路线计划状态待确认 →
+          </Link>
+        ) : null}
+      </section>
+      <div>
       <section aria-labelledby="career-targets-heading" className="min-w-0">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 id="career-targets-heading" className="text-base font-medium text-[var(--text-primary)]">正在准备</h2>
-          <Link href="/career/interview" className="ui-link inline-flex min-h-11 items-center text-[13px]">全部岗位 <ChevronRight aria-hidden="true" className="ml-1 size-3.5" /></Link>
+          <h2 id="career-targets-heading" className="text-base font-medium text-[var(--text-primary)]">近期关注</h2>
+          <CareerFocusPicker targets={activeTargets} focus={focus} />
         </div>
 
         <div className="mt-3 grid gap-4">
@@ -63,35 +92,13 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
           })}
 
           {!targets.length ? (
-            <Link href="/career/interview" className="career-target-card block rounded-[20px] border border-dashed border-[var(--separator)] px-6 py-10 text-sm text-[var(--accent)]">先阅读通用面试内容 →</Link>
+            <div className="rounded-[20px] border border-dashed border-[var(--separator)] p-6"><p className="text-sm leading-7 text-[var(--text-secondary)]">选择近期要推进的岗位。其他目标仍保留在下方，关注不会更改申请状态。</p><Link href="/career/interview" className="ui-link mt-3 inline-flex min-h-11 items-center text-sm">先阅读通用面试内容 →</Link></div>
           ) : null}
         </div>
       </section>
+      {otherTargets.length ? <details className="mt-6 border-t border-[var(--separator)] pt-2"><DisclosureSummary className="min-h-11 text-sm">其他目标 · {otherTargets.length}</DisclosureSummary><div className="mt-2 divide-y divide-[var(--separator)]">{otherTargets.map(target => <Link key={target.id} href={`/career/interview?context=${target.id}`} className="ui-record-link flex min-h-16 items-center justify-between gap-3 py-3"><span className="min-w-0"><span className="block text-[13px] text-[var(--text-secondary)]">{target.organization_snapshot}</span><span className="mt-1 block break-words text-[15px]">{target.role_title_snapshot || target.title}</span></span><ChevronRight aria-hidden="true" className="size-4 shrink-0" /></Link>)}</div>{activeTargets.length === 100 ? <Link href="/career/interview" className="ui-link inline-flex min-h-11 items-center text-sm">更多岗位 →</Link> : null}</details> : null}
 
-      <section aria-labelledby="career-next-heading" className="career-next-panel min-w-0 rounded-[20px] bg-[var(--surface-canvas)] px-5 pb-5 pt-1 sm:px-6 xl:mt-0 xl:border xl:border-[var(--separator)]">
-        <div className="flex min-h-6 flex-wrap items-baseline justify-between gap-2.5">
-          <h2 id="career-next-heading" className="text-base font-medium text-[var(--text-primary)]">下一步</h2>
-          <Link href="/career/roadmap" className="ui-link inline-flex min-h-11 items-center text-[13px]">路线图 →</Link>
-        </div>
-
-        <div className="mt-3.5 space-y-px">
-          {nextActions.map((item) => (
-            <Link key={item.key} href={item.href} className="ui-record-link group flex min-h-16 items-start gap-3 rounded-[10px] px-2 py-3 hover:bg-[var(--surface-hover)]">
-              <span className="min-w-0 flex-1"><span className="block break-words text-[15px] leading-6 text-[var(--text-primary)]">{item.title}</span>
-              <span className="mt-1 block text-[13px] leading-6 tabular-nums text-[var(--text-secondary)]">{item.dueAt ? `${item.dueAt.length === 10 ? item.dueAt : formatDateTime(item.dueAt)} · ` : ""}{item.meta}</span></span>
-            </Link>
-          ))}
-
-          {!nextActions.length ? (
-            <p className="py-3 text-sm text-[var(--text-tertiary)]">目前没有待推进的职业事项。</p>
-          ) : null}
-        </div>
-        {data.pastMilestoneCount > 0 ? (
-          <Link href="/career/roadmap" className="mt-3 inline-flex min-h-11 items-center rounded-[7px] px-2.5 py-1 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]">
-            {data.pastMilestoneCount} 项历史路线计划状态待确认 →
-          </Link>
-        ) : null}
-      </section>
+      </div>
       </div>
 
       <details className="border-t border-[var(--separator)] pt-2">

@@ -62,6 +62,7 @@ const events: [] = [];
 const categories: [] = [];
 
 const career: CareerHomeData = {
+  ownerId: "synthetic-owner",
   now: Date.parse("2026-10-03T08:00:00Z"), timezone: "Asia/Shanghai", pastMilestoneCount: 0, profile: null, directions: [], experienceCount: 0,
   skillCount: 0, resumeCount: 0, applications: [], milestones: [], interviewTargets: [], interviewPreparations: [], unavailable: false,
 };
