@@ -41,7 +41,13 @@ export function sortPracticeQueue<T extends PracticeQueueItem>(items: readonly T
   });
 }
 
+/** Only evidence-based experience answers need a personal story; knowledge and cases do not. */
+export function requiresPersonalStory(category?: string | null) {
+  return category === "behavioral" || category === "resume";
+}
+
 export type SmartPracticeQueueItem = PracticeQueueItem & {
+  requires_story?: boolean;
   variant_kind?: string | null;
   story_count?: number;
   usable_story_count?: number;
@@ -92,23 +98,27 @@ export function rankSmartPracticeQueue<T extends SmartPracticeQueueItem>(items: 
         }
       }
 
-      if (!item.next_practice_at || Date.parse(item.next_practice_at) <= nowMs) {
+      // Unscheduled is not overdue; never boost it as a due review.
+      if (item.next_practice_at && Date.parse(item.next_practice_at) <= nowMs) {
         score += 12;
-        if (item.next_practice_at && attempts > 0 && reasons.length < 2) reasons.push("到期复习");
+        if (attempts > 0 && reasons.length < 2) reasons.push("到期复习");
       }
 
-      if (stories === 0) {
-        score += 24;
-        reasons.push("缺少可用故事");
-      } else if (usableStories === 0) {
-        score += 15;
-        reasons.push("故事还需完善");
-      }
-
-      const missingCompetencies = Math.max(0, competencyCount - coveredCompetencies);
-      if (missingCompetencies > 0) {
-        score += Math.min(21, missingCompetencies * 7);
-        reasons.push("能力证据不足");
+      // A missing STAR story is a valid gap for experience questions, but not
+      // for accounting, investment, product cases or knowledge exercises.
+      if (item.requires_story) {
+        if (stories === 0) {
+          score += 24;
+          reasons.push("缺少可用故事");
+        } else if (usableStories === 0) {
+          score += 15;
+          reasons.push("故事还需完善");
+        }
+        const missingCompetencies = Math.max(0, competencyCount - coveredCompetencies);
+        if (missingCompetencies > 0) {
+          score += Math.min(21, missingCompetencies * 7);
+          reasons.push("能力证据不足");
+        }
       }
 
       if ((item.context_priority ?? 0) >= 4) {
