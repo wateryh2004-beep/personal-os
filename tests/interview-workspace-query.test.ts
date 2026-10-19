@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ owner: vi.fn() }));
 vi.mock("@/lib/auth/require-owner", () => ({ requireOwner: mocks.owner }));
-import { getInterviewWorkspaceData, getPracticeDetail } from "@/features/interview/queries";
+import { getInterviewWorkspaceData, getPracticeDetail, getInterviewInsights } from "@/features/interview/queries";
 it("paginates answer history beyond the server row cap without losing late preparations", async () => {
   const rows = Array.from({ length: 1205 }, (_, index) => ({ id: `answer-${String(index).padStart(4, "0")}`, preparation_id: index < 1200 ? "early" : "late", status: index === 1204 ? "current" : "draft" }));
   const ranges: number[][] = [];
@@ -52,4 +52,24 @@ it("loads current and draft practice references under the same authenticated pre
   expect(calls).toContainEqual(["interview_answer_versions", "in", "status", ["current", "draft"]]);
   expect(calls).toContainEqual(["interview_answer_versions", "eq", "preparation_id", "prep"]);
   expect(calls).toContainEqual(["interview_answer_versions", "is", "archived_at", null]);
+});
+
+it("keeps unlinked attempts in the all-scope overview without attributing them to a target", async () => {
+  const supabase = { from(table: string) {
+    const query = {
+      select: () => query, eq: () => query, is: () => query, order: () => query, range: () => query,
+      then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: table === "interview_question_preparations" ? [{ id: "selected-prep", question_id: "q" }] : table === "interview_practice_attempts" ? [
+        { id: "selected", preparation_id: "selected-prep", practiced_at: "2026-10-19T00:00:00Z", issue_tags: [] },
+        { id: "other", preparation_id: "other-prep", practiced_at: "2026-10-19T00:00:00Z", issue_tags: [] },
+        { id: "unlinked", preparation_id: null, practiced_at: "2026-10-19T00:00:00Z", issue_tags: [] },
+      ] : [], error: null }).then(resolve),
+    }; return query;
+  } };
+  mocks.owner.mockResolvedValue({ supabase });
+  expect((await getInterviewInsights()).attempts.map((item) => item.id)).toEqual(["selected", "unlinked"]);
+  for (const scope of ["general", "target-id"]) {
+    const data = await getInterviewInsights(scope);
+    expect(data.attempts.map((item) => item.id)).toEqual(["selected"]);
+    expect(data.monthlyTrend[0].attempts).toBe(1);
+  }
 });

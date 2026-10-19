@@ -3,6 +3,7 @@ import { selectWorkspaceAnswer, workspaceAnswerMetadata } from "@/features/inter
 import { InterviewPrompt } from "@/components/career/interview/interview-prompt";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DisclosureSummary } from "@/components/ui/disclosure";
 import { PracticeAttemptForm } from "@/components/career/interview/practice-attempt-form";
 import { issueLabels } from "@/features/interview/constants";
 import { getPracticeDetail } from "@/features/interview/queries";
@@ -30,10 +31,10 @@ export default async function PracticeDetailPage({ params, searchParams }: {
 
   return (
     <>
-      <header className="mb-2">
-        <Link href={learningHref} className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">← 返回学习题目</Link>
+      <header className="mb-2 max-w-3xl">
+        <nav aria-label="练习返回导航" className="flex flex-wrap gap-x-5 gap-y-2 text-sm"><Link href={queueHref} className="ui-link inline-flex min-h-11 items-center">返回练习队列</Link><Link href={learningHref} className="ui-link inline-flex min-h-11 items-center">返回学习题目</Link></nav>
         <div className="mt-4 max-w-3xl"><InterviewPrompt prompt={prompt} shortTitle={question?.short_title} /></div>
-        {context?.title ? <p className="mt-2 text-xs text-[var(--text-tertiary)]">{context.title}</p> : null}
+        <p className="mt-2 text-sm text-[var(--text-secondary)]">{context?.title || "通用面试"}</p>
       </header>
 
       {savedAttempt ? (
@@ -65,8 +66,8 @@ export default async function PracticeDetailPage({ params, searchParams }: {
 
         {data.linkedStories.length ? (
           <label className="mb-8 block">
-            <span className="text-[12px] font-medium text-[var(--text-tertiary)]">这次调用的故事</span>
-            <select name="story_id" defaultValue={primaryStory?.story.id ?? ""} className="ui-field mt-2 h-9 w-full max-w-xl rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none">
+            <span className="text-[13px] font-medium text-[var(--text-secondary)]">这次调用的故事</span>
+            <select name="story_id" defaultValue={primaryStory?.story.id ?? ""} className="ui-field mt-2 min-h-11 w-full max-w-xl rounded-[var(--radius-md)] bg-[var(--surface-control)] px-3 text-base text-[var(--text-primary)] outline-none">
               <option value="">不指定故事</option>
               {data.linkedStories.map((item) => (
                 <option key={item.story.id} value={item.story.id}>{item.story.title}{item.evidence_role === "primary" ? " · 首选" : ""}</option>
@@ -80,10 +81,10 @@ export default async function PracticeDetailPage({ params, searchParams }: {
           <span className="text-[15px] font-medium text-[var(--text-primary)]">我的回答</span>
           <textarea
             name="response_transcript_markdown"
-            rows={12}
-            autoFocus
-            placeholder="直接回答。"
-            className="mt-3 w-full resize-y bg-transparent px-0 py-2 text-[15px] leading-7 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
+            rows={10}
+            maxLength={50_000}
+            placeholder="先尝试完整回答，再展开下方参考答案核对。"
+            className="ui-field mt-3 min-h-64 w-full resize-y rounded-[var(--radius-md)] bg-[var(--surface-canvas)] px-4 py-3 text-base leading-7 text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]"
           />
         </label>
 
@@ -92,7 +93,7 @@ export default async function PracticeDetailPage({ params, searchParams }: {
       <div className="mt-12 max-w-3xl space-y-5">
         {currentAnswer || thoughts || prep.risk_markdown ? (
           <details>
-            <summary className="cursor-pointer text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">查看标准答案与讲解</summary>
+            <DisclosureSummary>查看标准答案与讲解</DisclosureSummary>
             <InterviewStudyView
               key={currentAnswer?.id ?? prep.id}
               answer={currentAnswer?.body_markdown ?? ""}
@@ -112,14 +113,14 @@ export default async function PracticeDetailPage({ params, searchParams }: {
 
         {data.attempts.length ? (
           <details id="practice-history">
-            <summary className="cursor-pointer text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">以前的练习 · {data.attempts.length}</summary>
+            <DisclosureSummary>最近的练习（{data.attempts.length} 次，最多展示 8 次）</DisclosureSummary>
             <div className="mt-4 space-y-4">
-              {data.attempts.slice(0, 6).map((attempt) => (
-                <article key={attempt.id}>
+              {data.attempts.map((attempt) => (
+                <article key={attempt.id} className="border-b border-[var(--separator)] pb-5 last:border-0">
                   <p className="text-xs text-[var(--text-tertiary)]">{formatDateTime(attempt.practiced_at)}{attempt.duration_seconds ? ` · ${attempt.duration_seconds} 秒` : ""}</p>
                   {attempt.issue_tags?.length ? <p className="mt-1 text-xs leading-5 text-[var(--text-tertiary)]">卡点：{attempt.issue_tags.map((tag: string) => issueLabels[tag] ?? tag).join("、")}</p> : null}
-                  {attempt.response_transcript_markdown ? <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]">{attempt.response_transcript_markdown}</p> : null}
-                  {attempt.self_review_markdown ? <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">复盘：{attempt.self_review_markdown}</p> : null}
+                  {attempt.response_transcript_markdown ? <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-[var(--text-secondary)]">{attempt.response_transcript_markdown}</p> : null}
+                  {attempt.self_review_markdown ? <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-[var(--text-secondary)]">复盘：{attempt.self_review_markdown}</p> : null}
                   {attempt.next_focus ? <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]">下次重点：{attempt.next_focus}</p> : null}
                 </article>
               ))}
