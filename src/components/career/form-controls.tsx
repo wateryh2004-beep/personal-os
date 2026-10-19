@@ -40,12 +40,14 @@ export function Field({
 }
 
 export function TextField({
+  required = false,
   label,
   name,
   defaultValue,
   placeholder,
   maxLength,
 }: {
+  required?: boolean;
   label: string;
   name: string;
   defaultValue?: string | null;
@@ -56,6 +58,7 @@ export function TextField({
     <label className={labelClass}>
       <span>{label}</span>
       <textarea
+        required={required}
         name={name}
         defaultValue={defaultValue ?? ""}
         placeholder={placeholder}

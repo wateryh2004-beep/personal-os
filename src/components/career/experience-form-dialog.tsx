@@ -7,13 +7,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { submitCareerForm } from "@/features/career/form-actions";
 import { CareerForm } from "./career-form";
 
-type Operation = "createExperience" | "createFact" | "updateFact" | "createOutput" | "createBullet" | "linkFactToBullet" | "approveBullet" | "uploadEvidence" | "archiveExperience";
+type Operation = Parameters<typeof submitCareerForm>[0];
 export const experienceFormClass = "grid min-w-0 gap-5 sm:grid-cols-2 [&_input]:min-w-0 [&_input]:text-base [&_select]:min-w-0 [&_select]:text-base [&_textarea]:text-base [&_textarea]:leading-7";
 
 /** Keeps CareerForm validation and original actions inside a dismiss-safe task. */
-export function ExperienceFormDialog({ operation, title, description, submitLabel, children, initialOpen = false, primary = false, successTargetId }: {
+export function ExperienceFormDialog({ operation, title, description, submitLabel, children, initialOpen = false, primary = false, successTargetId, recoveryHref = "/career/experiences" }: {
   operation: Operation; title: string; description: string; submitLabel: string; children?: ReactNode;
-  initialOpen?: boolean; primary?: boolean; successTargetId?: string;
+  initialOpen?: boolean; primary?: boolean; successTargetId?: string; recoveryHref?: string;
 }) {
   const [open, setOpen] = useState(initialOpen);
   const [dirty, setDirty] = useState(false);
@@ -66,10 +66,13 @@ export function ExperienceFormDialog({ operation, title, description, submitLabe
             {children}
             <div className="flex flex-wrap gap-3 sm:col-span-2"><Button type="submit" variant={archive ? "destructive" : "default"} aria-busy={pending}>{pending ? "处理中…" : submitLabel}</Button><Button type="button" variant="outline" onClick={() => changeOpen(false)}>取消</Button></div>
           </CareerForm>
-          {failed ? <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">如未能确认操作结果，请先<a className="ui-link" href="/career/experiences" target="_blank" rel="noopener noreferrer">在新标签页核对记录</a>，避免重复创建或覆盖。</p> : null}
+          {failed ? <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">如未能确认操作结果，请先<a className="ui-link" href={recoveryHref} target="_blank" rel="noopener noreferrer">在新标签页核对记录</a>，避免重复创建或覆盖。</p> : null}
         </div>
       </DialogContent>
     </Dialog>
     {saved ? <p role="status" className="mt-2 text-sm text-[var(--text-secondary)]">已保存</p> : null}
   </div>;
 }
+
+// Shared task shell; the original export remains compatible with experience forms.
+export const CareerTaskDialog = ExperienceFormDialog;

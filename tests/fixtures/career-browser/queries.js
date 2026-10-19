@@ -10,3 +10,5 @@ export async function getInterviewStoryDetail(id) { return (await import("./stor
 export async function getExperiences() { return (await import("./experiences.js")).experienceListFixture(); }
 export async function getExperience() { return (await import("./experiences.js")).experienceDetailFixture(); }
 export async function getExperienceGraph() { return {related:[],suggestions:[]}; }
+
+export async function getCareerTarget(id) { return (await import("./targets.js")).targetFixture(id); }

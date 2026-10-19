@@ -1,12 +1,17 @@
 "use server";
 
+import { instantToWallTime, wallTimeToInstant } from "@/features/calendar/timezone";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { createInterviewContext } from "@/features/interview/actions";
+import { createInterviewContext, updateInterviewContext, createInterviewQuestion, ensureInterviewPreparation } from "@/features/interview/actions";
 import * as actions from "./actions";
 import { CareerInputError, type CareerFormResult } from "./form-state";
 
 const formActions = {
+  createTargetContext,
+  updateTargetContext,
+  createInterviewQuestion,
+  ensureInterviewPreparation,
   saveCareerProfile: actions.saveCareerProfile,
   createSkill: actions.createSkill,
   updateSkill: actions.updateSkill,
@@ -71,3 +76,22 @@ async function prepareOpportunityInterview(formData: FormData) {
   contextForm.set("return_to_workspace", "1");
   await createInterviewContext(contextForm);
 }
+
+/** Convert the explicit profile wall-time boundary; legacy action callers remain unchanged. */
+async function targetTimeForm(form: FormData) {
+  const { supabase, userId } = await requireOwner();
+  const profile = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
+  if (profile.error) throw new CareerInputError({}, "暂时无法读取个人时区，请重试。");
+  const timezone = profile.data?.timezone || "Asia/Shanghai";
+  const wall = String(form.get("interview_wall_time") || "");
+  const previous = String(form.get("next_interview_at") || "");
+  try {
+    // Preserve exact seconds and an existing DST-fold instant when wall time is unchanged.
+    const instant = !wall ? "" : previous && instantToWallTime(previous, timezone) === wall ? previous : wallTimeToInstant(wall, timezone);
+    form.set("next_interview_at", instant);
+  } catch { throw new CareerInputError({ interview_wall_time: "该时刻不存在或有夏令时歧义，请选择明确的时间。" }); }
+  form.delete("interview_wall_time");
+  return form;
+}
+async function createTargetContext(form: FormData) { await createInterviewContext(await targetTimeForm(form)); }
+async function updateTargetContext(form: FormData) { await updateInterviewContext(await targetTimeForm(form)); }

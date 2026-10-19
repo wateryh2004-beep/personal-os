@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { CareerHomeView, type CareerHomeData } from "@/components/career/career-home-view";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({refresh() {}}), useSearchParams: () => new URLSearchParams(), unstable_rethrow() {} }));
 vi.mock("@/components/career/career-nav", () => ({ CareerNav: () => null }));
 vi.mock("@/components/career/career-continue", () => ({ CareerContinue: () => null }));
 
@@ -54,9 +55,9 @@ describe("career home workbench", () => {
       interviewTargets: [{ id: "target", title: "Fixture", organization_snapshot: "Example", role_title_snapshot: "Analyst", status: "active", next_interview_at: "2026-10-04T01:00:00Z" }],
       interviewPreparations: [{ id: "prep", context_id: "target", status: "developing", next_practice_at: null }],
     });
-    expect(host.textContent).toContain("其他目标 · 1");
+    expect(host.textContent).toContain("全部目标岗位");
     expect(host.textContent).not.toContain("到期练习");
     expect(host.textContent).toContain(new Date("2026-10-04T01:00:00Z").toLocaleString("zh-CN", { timeZone: base.timezone, dateStyle: "medium", timeStyle: "short" }));
-    expect([...host.querySelectorAll("a")].filter((item) => item.getAttribute("href") === "/career/interview?context=target")).toHaveLength(2);
+    expect([...host.querySelectorAll("a")].filter((item) => item.getAttribute("href") === "/career/interview?context=target")).toHaveLength(1);
   });
 });

@@ -14,6 +14,7 @@ export class CareerInputError extends Error {
 }
 
 export const careerFieldLabels: Record<string, string> = {
+  interview_wall_time: "面试时间", organization_snapshot: "组织或公司", role_title_snapshot: "岗位名称", canonical_prompt: "题目原文",
   professional_headline: "职业标题", current_stage: "当前阶段", target_graduation_date: "目标毕业日期", target_recruitment_cycle: "目标招聘周期",
   career_summary: "职业摘要", preferred_locations: "工作地点", preferred_work_types: "工作偏好", risk_preferences: "风险偏好", constraints_markdown: "约束", goals_markdown: "长期目标",
   start_date: "开始日期", end_date: "结束日期", category: "类别", proficiency: "熟练度", last_used_at: "最近使用日期", priority: "优先级", review_date: "回顾日期",

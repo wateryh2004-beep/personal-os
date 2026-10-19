@@ -4,7 +4,7 @@ import { CareerInputError } from "@/features/career/form-state";
 const mocks = vi.hoisted(() => ({ mutation: vi.fn(), owner: vi.fn(), interview: vi.fn(), redirect: vi.fn(), rethrow: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, unstable_rethrow: mocks.rethrow }));
 vi.mock("@/lib/auth/require-owner", () => ({ requireOwner: mocks.owner }));
-vi.mock("@/features/interview/actions", () => ({ createInterviewContext: mocks.interview }));
+vi.mock("@/features/interview/actions", () => ({ createInterviewContext: mocks.interview, updateInterviewContext: mocks.interview, createInterviewQuestion: mocks.interview, ensureInterviewPreparation: mocks.interview }));
 vi.mock("@/features/career/actions", () => Object.fromEntries([
   "saveCareerProfile", "createSkill", "updateSkill", "archiveSkill", "createDirection", "updateDirection", "archiveDirection", "createCertification", "updateCertification", "archiveCertification",
   "createFact", "createExperience", "updateFact", "createOutput", "createBullet", "linkFactToBullet", "approveBullet", "uploadEvidence", "archiveExperience", "createOpportunity", "createOpportunityRequirement", "runGapAnalysis", "createCareerApplication", "transitionCareerApplication", "createResumeVersion", "updateResumeVersion", "setResumeVersionBullets", "finalizeResumeVersion", "archiveResumeVersion",
@@ -76,6 +76,30 @@ describe("Career form action boundary", () => {
     ownerWith(null, null);
     const result = await submitCareerForm("prepareOpportunityInterview", new FormData());
     expect(result.status).toBe("error");
+    expect(mocks.interview).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("target profile time boundary",()=>{
+  it("converts profile wall time rather than browser or server timezone and removes the helper field",async()=>{
+    ownerWith(null,{timezone:"Asia/Shanghai"});
+    const form=new FormData(); form.set("interview_wall_time","2026-10-20T10:00");
+    await submitCareerForm("createTargetContext",form);
+    expect(form.get("next_interview_at")).toBe("2026-10-20T02:00:00.000Z");
+    expect(form.has("interview_wall_time")).toBe(false);
+    expect(mocks.interview).toHaveBeenCalledWith(form);
+  });
+  it("preserves exact prior seconds when the projected input is unchanged",async()=>{
+    ownerWith(null,{timezone:"Asia/Shanghai"});
+    const form=new FormData(); form.set("interview_wall_time","2026-10-20T10:00"); form.set("next_interview_at","2026-10-20T02:00:45.123Z");
+    await submitCareerForm("updateTargetContext",form);
+    expect(form.get("next_interview_at")).toBe("2026-10-20T02:00:45.123Z");
+  });
+  it.each(["2026-03-08T02:30","2026-11-01T01:30"])("rejects nonexistent or ambiguous wall time %s without mutation",async wall=>{
+    ownerWith(null,{timezone:"America/New_York"});
+    const form=new FormData(); form.set("interview_wall_time",wall);
+    expect(await submitCareerForm("updateTargetContext",form)).toMatchObject({status:"error",fieldErrors:{interview_wall_time:expect.any(String)}});
     expect(mocks.interview).not.toHaveBeenCalled();
   });
 });
