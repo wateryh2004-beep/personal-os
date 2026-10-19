@@ -3,7 +3,7 @@ import type { QueryData, SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Tables } from "@/types/database";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { evidenceTypeLabels, type EvidenceType } from "./constants";
-import { buildMonthlyIssueTrend, countTags, rankSmartPracticeQueue, readinessChecklist } from "./utils";
+import { buildMonthlyIssueTrend, countTags, rankSmartPracticeQueue, readinessChecklist, requiresPersonalStory } from "./utils";
 import type { WorkspaceAnswer } from "./workspace-answers";
 
 // The generated public schema describes this existing verified RLS client.
@@ -404,7 +404,7 @@ export async function getInterviewStoryDetail(storyId: string) {
 export async function getPracticeQueue(contextId?: string | null) {
   const { supabase } = await ownerWithSchema();
   let prepQuery = supabase.from("interview_question_preparations")
-    .select("*,interview_questions!inner(id,canonical_prompt,short_title,archetype_id,variant_kind,question_style,difficulty),interview_contexts(id,title,organization_snapshot,role_title_snapshot,priority,next_interview_at)")
+    .select("*,interview_questions!inner(id,canonical_prompt,short_title,archetype_id,variant_kind,question_style,difficulty,category),interview_contexts(id,title,organization_snapshot,role_title_snapshot,priority,next_interview_at)")
     .is("archived_at", null)
     .is("interview_questions.archived_at", null)
     .neq("status", "paused");
@@ -421,7 +421,10 @@ export async function getPracticeQueue(contextId?: string | null) {
     readAllRows(supabase.from("interview_story_competencies").select("story_id,competency_id").order("id")),
   ]);
 
-  const preparations = (prepsResult.data ?? []);
+  // The all-scope queue is an actionable plan, not the archive. Paused/closed
+  // targets remain accessible when explicitly selected in the scope control.
+  const activeContextIds = new Set((contextsResult.data ?? []).filter((row) => row.status === "active").map((row) => row.id));
+  const preparations = (prepsResult.data ?? []).filter((prep) => Boolean(contextId) || !prep.context_id || activeContextIds.has(prep.context_id));
   const attemptsByPrep = new Map<string, NonNullable<typeof attemptsResult.data>>();
   for (const attempt of attemptsResult.data ?? []) {
     const row = attempt;
@@ -495,6 +498,7 @@ export async function getPracticeQueue(contextId?: string | null) {
     return {
       ...prep,
       variant_kind: question.variant_kind,
+      requires_story: requiresPersonalStory(question.category),
       story_count: storyIds.length,
       usable_story_count: usableStoryIds.length,
       competency_count: questionCompetencies.size,
@@ -602,7 +606,7 @@ export async function getInterviewInsights(contextId?: string | null) {
 
   const [prepsResult, questionsResult, competencyLinksResult, competenciesResult, attemptsResult, contextsResult, archetypeStoriesResult, storiesResult, storyCompetenciesResult] = await Promise.all([
     readAllRows(prepQuery.order("id")),
-    readAllRows(supabase.from("interview_questions").select("id,archetype_id,question_type_id,question_style").is("archived_at", null).order("id")),
+    readAllRows(supabase.from("interview_questions").select("id,archetype_id,question_type_id,question_style,category").is("archived_at", null).order("id")),
     readAllRows(supabase.from("interview_question_competencies").select("question_id,competency_id,relevance,is_primary").order("id")),
     readAllRows(supabase.from("interview_competencies").select("id,key,label").is("archived_at", null).order("id")),
     readAllRows(supabase.from("interview_practice_attempts").select("id,preparation_id,story_id,issue_tags,strength_tags,practiced_at,duration_seconds").is("archived_at", null).order("practiced_at").order("id")),
@@ -612,7 +616,8 @@ export async function getInterviewInsights(contextId?: string | null) {
     readAllRows(supabase.from("interview_story_competencies").select("story_id,competency_id,relevance,is_primary").order("id")),
   ]);
 
-  const preparations = prepsResult.data ?? [];
+  const activeContextIds = new Set((contextsResult.data ?? []).filter((row) => row.status === "active").map((row) => row.id));
+  const preparations = (prepsResult.data ?? []).filter((prep) => Boolean(contextId) || !prep.context_id || activeContextIds.has(prep.context_id));
   const prepIds = new Set(preparations.map((prep) => prep.id));
   // Unlinked attempts have no known target; include them only in the all-scope overview.
   const attempts = (attemptsResult.data ?? []).filter((attempt) => attempt.preparation_id ? prepIds.has(attempt.preparation_id) : !contextId);
@@ -626,6 +631,12 @@ export async function getInterviewInsights(contextId?: string | null) {
     const set = competencyIdsByQuestion.get(row.question_id) ?? new Set<string>();
     set.add(row.competency_id);
     competencyIdsByQuestion.set(row.question_id, set);
+  }
+
+  const storyRequiredCompetencies = new Set<string>();
+  for (const prep of preparations) {
+    if (!requiresPersonalStory(questionById.get(prep.question_id)?.category)) continue;
+    for (const competencyId of competencyIdsByQuestion.get(prep.question_id) ?? []) storyRequiredCompetencies.add(competencyId);
   }
 
   const relevantArchetypes = new Set<string>();
@@ -680,6 +691,7 @@ export async function getInterviewInsights(contextId?: string | null) {
     ready: number;
     storyCount: number;
     strongStoryCount: number;
+    requiresStory: boolean;
     practiceCount: number;
     lastPracticedAt: string | null;
   }>();
@@ -694,6 +706,7 @@ export async function getInterviewInsights(contextId?: string | null) {
         ready: 0,
         storyCount: competencyStoryIds.get(competencyId)?.size ?? 0,
         strongStoryCount: strongCompetencyStoryIds.get(competencyId)?.size ?? 0,
+        requiresStory: storyRequiredCompetencies.has(competencyId),
         practiceCount: practiceCountByCompetency.get(competencyId) ?? 0,
         lastPracticedAt: lastPracticeByCompetency.get(competencyId) ?? null,
       };
@@ -706,7 +719,7 @@ export async function getInterviewInsights(contextId?: string | null) {
   const competencyCoverage = [...competency.values()]
     .map((item) => ({
       ...item,
-      diagnosis: item.strongStoryCount === 0
+      diagnosis: item.requiresStory && item.strongStoryCount === 0
         ? "缺少可用故事"
         : item.ready < item.total
           ? "题目准备不足"
@@ -715,7 +728,7 @@ export async function getInterviewInsights(contextId?: string | null) {
             : null,
     }))
     .sort((a, b) =>
-      Number(a.strongStoryCount > 0) - Number(b.strongStoryCount > 0)
+      Number(b.requiresStory && b.strongStoryCount === 0) - Number(a.requiresStory && a.strongStoryCount === 0)
       || a.practiceCount - b.practiceCount
       || (a.ready / Math.max(a.total, 1)) - (b.ready / Math.max(b.total, 1))
       || b.total - a.total
