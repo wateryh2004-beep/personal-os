@@ -23,7 +23,8 @@ export function QuestionCatalog({ rows, unavailable, createForm }: { rows: Quest
     for (const row of filterQuestionCatalog(rows, { ...filters, domain: "all" })) counts.set(workspaceDomain(row), (counts.get(workspaceDomain(row)) ?? 0) + 1);
     return [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
   }, [rows, filters]);
-  const change = (patch: Partial<LibraryFilters>) => window.history.replaceState(window.history.state, "", catalogUrl({ ...filters, ...patch }));
+  // Passing Next internal markers back would skip its useSearchParams update.
+  const change = (patch: Partial<LibraryFilters>) => window.history.replaceState(null, "", catalogUrl({ ...filters, ...patch }));
   const filtered = filters.q.trim() || filters.category !== "all" || filters.domain !== "all" || filters.style !== "all";
   return <>
     {unavailable ? <div role="alert" className="mb-5 rounded-lg bg-[var(--surface-control)] p-4 text-sm">部分题目数据加载失败，结果可能不完整。<button type="button" disabled={refreshing} onClick={() => startRefresh(() => router.refresh())} className="ui-link ml-3 min-h-11">{refreshing ? "重新加载中…" : "重新加载"}</button></div> : null}

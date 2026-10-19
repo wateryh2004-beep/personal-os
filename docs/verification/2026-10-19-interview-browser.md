@@ -52,3 +52,7 @@ Saves are serialized. Errors remain visible across question switches; navigation
 ## 发布前 CI 修正
 
 首次 Verify 的类型、299 文件/2028 项测试和构建通过；综合浏览器回归在 interview-reading 脚本中仍按旧 h1 定位，因本轮题目已降为 h2 而超时。现将定位限定到 InterviewPrompt 的 h2，并补充页面唯一 h1=面试学习及嵌入题干完整性断言；没有删除题干、原文、首屏位置或历史返回的既有验证。修正后的 CI 结果以发布验收记录为准。
+
+## 真实 Next 路由筛选回归
+
+PR #75 发布后发现题目管理 URL 改变而输入和结果保持旧值。原因是将带有 Next 内部标记的 window.history.state 作为 replaceState 参数传回，Next 将其视为内部调用而跳过 useSearchParams 更新。改用官方原生 History 用法传入 null，让 Next 自行复制内部状态并同步搜索参数。早期 Vite 路由模拟总会通知订阅者，未暴露这一差异；新增门控合成目录场景，使用真实 Next 路由检查输入空格、多词搜索、风格空结果、清除与模块目录选择。修复不改变查询、权限或资料，只更正浏览器 URL 状态同步。

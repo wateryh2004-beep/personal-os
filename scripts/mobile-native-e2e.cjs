@@ -209,6 +209,7 @@ async function backCloses(page, trigger, visibleTarget) {
     assert.deepEqual(errors, [], "desktop learning view should not have uncaught errors");
     await desktop.close();
     console.log("mobile-native-e2e: 1440px desktop passed");
+    await require("./interview-reading-e2e.cjs").verifyInterviewCatalog(browser, baseURL, process.env.E2E_SCREENSHOT_DIR || "test-results/mobile");
     await require("./interview-reading-e2e.cjs").verifyInterviewReading(browser, baseURL, process.env.E2E_SCREENSHOT_DIR || "test-results/mobile");
 
     // Shared shell screenshots use real workspace components with synthetic
