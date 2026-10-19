@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { experienceTypes } from "./experience-types";
+export { experienceTypes } from "./experience-types";
 
 const optionalText = (limit: number) => z.string().trim().max(limit).optional().transform((value) => value || null);
 const optionalDate = z.string().trim().optional().transform((value) => value || null).pipe(z.string().date().nullable());
 
 export const directionStatuses = ["exploring", "active", "paused", "deprioritized", "rejected", "archived"] as const;
-export const experienceTypes = ["education", "internship", "employment", "project", "campus", "research", "volunteer", "other"] as const;
 export const factTypes = ["responsibility", "action", "tool", "scale", "metric", "collaboration", "process", "result", "context", "other"] as const;
 export const bulletStatuses = ["draft", "approved", "rejected", "archived"] as const;
 

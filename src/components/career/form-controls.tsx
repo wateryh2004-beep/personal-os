@@ -10,6 +10,8 @@ export function Field({
   type = "text",
   required = false,
   placeholder,
+  maxLength,
+  step,
 }: {
   label: string;
   name: string;
@@ -17,6 +19,8 @@ export function Field({
   type?: string;
   required?: boolean;
   placeholder?: string;
+  maxLength?: number;
+  step?: string;
 }) {
   return (
     <label className={labelClass}>
@@ -27,6 +31,8 @@ export function Field({
         required={required}
         defaultValue={defaultValue ?? ""}
         placeholder={placeholder}
+        maxLength={maxLength}
+        step={step}
         className={controlClass}
       />
     </label>
@@ -38,11 +44,13 @@ export function TextField({
   name,
   defaultValue,
   placeholder,
+  maxLength,
 }: {
   label: string;
   name: string;
   defaultValue?: string | null;
   placeholder?: string;
+  maxLength?: number;
 }) {
   return (
     <label className={labelClass}>
@@ -51,6 +59,7 @@ export function TextField({
         name={name}
         defaultValue={defaultValue ?? ""}
         placeholder={placeholder}
+        maxLength={maxLength}
         className={`min-h-24 resize-y py-2.5 leading-5 ${controlClass}`}
       />
     </label>
