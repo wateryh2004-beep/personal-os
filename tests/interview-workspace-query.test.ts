@@ -111,6 +111,7 @@ it("uses only active targets plus general preparation by default while allowing 
       select: () => query,
       eq: (field: string, value: unknown) => { if (field === "context_id") onlyContext = String(value); return query; },
       neq: () => query,
+      not: () => query,
       is: (field: string, value: unknown) => { if (field === "context_id" && value === null) onlyContext = null; return query; },
       order: () => query,
       range: (first: number, last: number) => { start = first; end = last; return query; },
