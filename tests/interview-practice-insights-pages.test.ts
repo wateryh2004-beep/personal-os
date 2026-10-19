@@ -5,7 +5,7 @@ vi.mock("@/features/interview/queries", () => ({ getPracticeQueue: mocks.queue, 
 import PracticePage from "@/app/(app)/career/interview/practice/page";
 import InsightsPage from "@/app/(app)/career/interview/insights/page";
 
-const gap = { tag: "analysis", label: "数据分析", total: 2, ready: 1, storyCount: 1, strongStoryCount: 0, practiceCount: 0, diagnosis: "缺少可用故事" };
+const gap = { requiresStory: true, tag: "analysis", label: "数据分析", total: 2, ready: 1, storyCount: 1, strongStoryCount: 0, practiceCount: 0, diagnosis: "缺少可用故事" };
 function insights(source = "plan") {
   return { contexts: [], preparations: [{ status: "ready" }], attempts: [], stories: [], competencyCoverage: [gap], priorityGaps: [gap], issueCounts: [], monthlyTrend: [], storyUsage: [{ id: "story", count: 3, share: 1, source, story: { title: "示例故事" } }], unavailable: false };
 }
@@ -58,4 +58,15 @@ describe("Practice and insights task pages", () => {
       expect(html).toContain(unavailable ? "资料不完整，暂不判断缺口" : "当前范围还没有准备记录");
     }
   });
+});
+
+
+it("sends technical competency gaps to preparation, not to the personal-story library", async () => {
+  const technical = { ...gap, requiresStory: false, strongStoryCount: 0, storyCount: 0, diagnosis: "题目准备不足" };
+  mocks.insights.mockResolvedValue({ ...insights(), competencyCoverage: [technical], priorityGaps: [technical] });
+  const html = renderToStaticMarkup(await InsightsPage({ searchParams: Promise.resolve({ context: "general" }) }));
+  expect(html).toContain("继续准备");
+  expect(html).toContain('href="/career/interview?context=general"');
+  expect(html).not.toContain("补充故事");
+  expect(html).not.toContain("0/0 个故事可用");
 });

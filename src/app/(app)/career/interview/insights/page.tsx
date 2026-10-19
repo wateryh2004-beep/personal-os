@@ -35,9 +35,9 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
           <div className="min-w-0">
             <h3 className="break-words text-[15px] font-medium text-[var(--text-primary)]">{item.label}</h3>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">{item.diagnosis}</p>
-            <p className="mt-1 text-[13px] leading-6 tabular-nums text-[var(--text-secondary)]">{item.strongStoryCount} 个可用故事，{item.practiceCount} 次练习</p>
+            <p className="mt-1 text-[13px] leading-6 tabular-nums text-[var(--text-secondary)]">{item.requiresStory ? `${item.strongStoryCount} 个可用故事，` : ""}{item.practiceCount} 次练习</p>
           </div>
-          <Button asChild variant="outline"><Link href={item.strongStoryCount === 0 ? "/career/interview/stories" : item.ready < item.total ? learningHref : practiceHref}>{item.strongStoryCount === 0 ? "补充故事" : item.ready < item.total ? "继续准备" : "选择练习"}</Link></Button>
+          <Button asChild variant="outline"><Link href={item.requiresStory && item.strongStoryCount === 0 ? "/career/interview/stories" : item.ready < item.total ? learningHref : practiceHref}>{item.requiresStory && item.strongStoryCount === 0 ? "补充故事" : item.ready < item.total ? "继续准备" : "选择练习"}</Link></Button>
         </li>)}
       </ul>
       {!data.priorityGaps.length ? <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{data.unavailable ? "资料不完整，暂不判断缺口。" : !data.preparations.length ? "当前范围还没有准备记录。" : !data.competencyCoverage.length ? "题目尚未关联能力，暂不能分析缺口。" : "当前记录未显示待补齐项，可继续练习检验回答。"}</p> : null}
@@ -51,7 +51,7 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
         {data.competencyCoverage.map((item) => <div key={item.tag} className="grid min-w-0 gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto]">
           <h3 className="break-words text-sm font-medium text-[var(--text-primary)]">{item.label}</h3>
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] leading-6 tabular-nums text-[var(--text-secondary)]">
-            <span>{item.ready}/{item.total} 道已准备</span><span>{item.strongStoryCount}/{item.storyCount} 个故事可用</span><span>{item.practiceCount} 次练习</span>
+            <span>{item.ready}/{item.total} 道已准备</span>{item.requiresStory ? <span>{item.strongStoryCount}/{item.storyCount} 个故事可用</span> : null}<span>{item.practiceCount} 次练习</span>
           </div>
         </div>)}
       </div>

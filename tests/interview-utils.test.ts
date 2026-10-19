@@ -3,6 +3,7 @@ import {
   buildMonthlyIssueTrend,
   countTags,
   readinessChecklist,
+  requiresPersonalStory,
   rankSmartPracticeQueue,
   sortPracticeQueue,
 } from "@/features/interview/utils";
@@ -52,4 +53,35 @@ it("does not label an unscheduled practiced question as due for review", () => {
   expect(rankSmartPracticeQueue([{ ...base, next_practice_at: null }], now)[0].practice_reasons).not.toContain("到期复习");
   expect(rankSmartPracticeQueue([{ ...base, next_practice_at: "2026-10-18T00:00:00Z" }], now)[0].practice_reasons).toContain("到期复习");
   expect(rankSmartPracticeQueue([{ ...base, next_practice_at: "2026-10-21T00:00:00Z" }], now)[0].practice_reasons).not.toContain("到期复习");
+});
+
+
+it("requests personal stories only for experience answers, never for technical cases", () => {
+  expect(requiresPersonalStory("behavioral")).toBe(true);
+  expect(requiresPersonalStory("resume")).toBe(true);
+  expect(requiresPersonalStory("knowledge")).toBe(false);
+  expect(requiresPersonalStory("business_commercial")).toBe(false);
+
+  const base = { status: "needs_review", importance: "high", attempt_count: 0, story_count: 0, usable_story_count: 0, competency_count: 2, covered_competency_count: 0 };
+  const queue = rankSmartPracticeQueue([
+    { ...base, id: "finance", requires_story: false },
+    { ...base, id: "behavioral", requires_story: true },
+  ], new Date("2026-10-19T00:00:00Z"));
+  const finance = queue.find((item) => item.id === "finance")!;
+  const behavioral = queue.find((item) => item.id === "behavioral")!;
+  expect(finance.practice_reasons).not.toContain("缺少可用故事");
+  expect(finance.practice_reasons).not.toContain("能力证据不足");
+  expect(behavioral.practice_reasons).toContain("缺少可用故事");
+  expect(behavioral.practice_priority_score).toBeGreaterThan(finance.practice_priority_score);
+});
+
+it("does not treat an unset review date as a due-review boost", () => {
+  const base = { status: "developing", importance: "high", attempt_count: 1, last_practiced_at: "2026-10-18T00:00:00Z" };
+  const queue = rankSmartPracticeQueue([
+    { ...base, id: "unscheduled", next_practice_at: null },
+    { ...base, id: "due", next_practice_at: "2026-10-18T00:00:00Z" },
+  ], new Date("2026-10-19T00:00:00Z"));
+  expect(queue[0].id).toBe("due");
+  expect(queue[0].practice_reasons).toContain("到期复习");
+  expect(queue[1].practice_reasons).not.toContain("到期复习");
 });
