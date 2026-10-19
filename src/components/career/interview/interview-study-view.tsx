@@ -35,6 +35,9 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
   const separatePreparation = expression.hasExplicitExplanation;
   const hasPreparation = [thoughts, learning?.keyMessage, learning?.logic, learning?.pitfalls, learning?.nextFocus].some((body) => Boolean(body?.trim()));
   const hasThinking = Boolean(expression.explanation.trim() || (!separatePreparation && [thinking.reading, learning?.keyMessage, learning?.logic, learning?.pitfalls].some((body) => Boolean(body?.trim()))));
+  // Keep the timed spoken answer clean; translated paragraphs and vocabulary
+  // belong in the existing folded explanation, clearly discoverable on demand.
+  const explanationLabel = expression.explanation.includes("### 英文口述逐段中文对照") ? "中文对照与讲解" : "思路拆解讲解";
   const openExplanation = () => {
     if (explanationRef.current) explanationRef.current.open = true;
     setExplanationOpen(true);
@@ -46,7 +49,7 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
     <article data-testid="interview-study-view" className="interview-reading mt-5 min-w-0 max-w-3xl">
       <nav aria-label="题目学习章节" className="study-chapter-nav mb-6 flex flex-wrap gap-x-5 gap-y-1 border-b border-[var(--separator)] text-[13px] text-[var(--accent)]">
         <button type="button" onClick={() => { setAnswerVisible(true); setChapterJump({ id: "study-answer" }); }} className="ui-link inline-flex min-h-11 items-center">标准答案</button>
-        {hasThinking ? <button type="button" onClick={openExplanation} aria-controls="study-thinking" aria-expanded={explanationOpen} className="ui-link inline-flex min-h-11 items-center">思路拆解讲解</button> : null}
+        {hasThinking ? <button type="button" onClick={openExplanation} aria-controls="study-thinking" aria-expanded={explanationOpen} className="ui-link inline-flex min-h-11 items-center">{explanationLabel}</button> : null}
         {showRecall ? <button type="button" onClick={() => { setAnswerVisible(false); if (explanationRef.current) explanationRef.current.open = false; setExplanationOpen(false); setChapterJump({ id: "study-recall", focus: true }); }} className="ui-link inline-flex min-h-11 items-center">自测与追问</button> : null}
       </nav>
       <section id="study-answer" className="scroll-mt-[calc(var(--toolbar-height)+5rem)]">
@@ -59,7 +62,7 @@ export const InterviewStudyView = memo(function InterviewStudyView({ thoughts, a
         </div>
       </section>
       {hasThinking ? <details ref={explanationRef} onToggle={(event) => setExplanationOpen(event.currentTarget.open)} id="study-thinking" className="mt-8 scroll-mt-[calc(var(--toolbar-height)+5rem)] border-t border-[var(--separator)] pt-6">
-        <DisclosureSummary expanded={explanationOpen} className="min-h-11 cursor-pointer text-[14px] font-semibold leading-6 text-[var(--text-primary)]">思路拆解讲解</DisclosureSummary>
+        <DisclosureSummary expanded={explanationOpen} className="min-h-11 cursor-pointer text-[14px] font-semibold leading-6 text-[var(--text-primary)]">{explanationLabel}</DisclosureSummary>
         {explanationOpen ? <div className="space-y-5 pt-3">
         {expression.explanation.trim() ? <StudyMarkdown body={expression.explanation} /> : null}
         {!separatePreparation ? <PreparationNotes reading={thinking.reading} learning={learning} /> : null}
