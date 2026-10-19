@@ -13,3 +13,6 @@ export async function createInterviewQuestion() { throw new Error("隔离预览�
 
 export async function createPracticeAttempt() { throw new Error("合成保存失败，无真实写入"); }
 export function notFound() { throw new Error("合成详情不存在"); }
+export async function createInterviewStory() { throw new Error("合成创建失败，无真实写入"); }
+export async function updateInterviewStory() { throw new Error("合成保存失败，无真实写入"); }
+export async function archiveInterviewStory() { throw new Error("合成归档失败，无真实写入"); }
