@@ -8,3 +8,5 @@ export function usePathname() { return location.pathname; }
 export function unstable_rethrow() {}
 export function useRouter() { return { refresh() {} }; }
 export async function submitCareerForm(action, form) { if (form.get("title") === "失败测试") return { status:"error",message:"合成保存失败，输入保留。" }; return { status:"success",message:action }; }
+
+export async function createInterviewQuestion() { throw new Error("隔离预览不执行真实保存"); }

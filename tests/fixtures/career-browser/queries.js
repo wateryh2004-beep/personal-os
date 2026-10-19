@@ -1,1 +1,3 @@
 import { resumes } from "./data"; export async function getResumeVersions() { const mode=new URLSearchParams(location.search).get("fixture"); return mode==="empty"?{...resumes,resumes:[]}:resumes; }
+
+export async function getInterviewQuestions() { const {catalogRows}=await import("./interview.js"); const mode=new URLSearchParams(location.search).get("fixture"); return {rows:mode==="empty"?[]:catalogRows.map(row=>({question:{id:row.id,canonical_prompt:row.prompt,short_title:row.shortTitle,category:row.category,question_style:row.style,subcategory:row.subcategory},preparationCount:row.preparationCount})),unavailable:mode==="error"}; }

@@ -1,5 +1,6 @@
 "use client";
 
+import { InterviewModulePicker } from "./interview-module-picker";
 import { DisclosureSummary } from "@/components/ui/disclosure";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -7,7 +8,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition 
 import { saveWorkspaceSession } from "@/lib/workspace-session";
 import { CAREER_CONTINUE_KEY } from "@/components/career/career-continue";
 import { questionTypeLabels } from "@/features/interview/constants";
-import { emptyLibraryFilters, filterWorkspaceItems, normalizeLibraryFilters, workspaceDomain, workspaceUrl, type LibraryFilters, type WorkspaceItem, type WorkspaceSearchIndex } from "@/features/interview/workspace-library";
+import { emptyLibraryFilters, filterWorkspaceItems, normalizeLibraryFilters, workspaceDomain, workspaceModules, workspaceUrl, type LibraryFilters, type WorkspaceItem, type WorkspaceSearchIndex } from "@/features/interview/workspace-library";
 import { InterviewPrompt } from "./interview-prompt";
 import { presentInterviewPrompt } from "@/features/interview/prompt-presentation";
 import { InterviewStudyView } from "./interview-study-view";
@@ -51,6 +52,7 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
   const contextItems = useMemo(() => items.filter((item) => contextId ? item.contextId === contextId : item.contextId === null), [contextId, items]);
   const domains = useMemo(() => [...new Set(contextItems.map(workspaceDomain))].sort((a, b) => a.localeCompare(b, "zh-CN")), [contextItems]);
   const { category, domain, style, q } = filters;
+  const modules = useMemo(() => workspaceModules(contextItems, filters, searchIndex), [contextItems, filters, searchIndex]);
   const matchingItems = useMemo(() => filterWorkspaceItems(contextItems, { category: "all", domain, style, q }, searchIndex), [contextItems, domain, style, q, searchIndex]);
   const counts = useMemo(() => {
     const next: Record<string, number> = { all: matchingItems.length };
@@ -163,55 +165,67 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
     <div className="interview-workspace -mx-2 sm:-mx-3">
       <header className="mx-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[var(--separator)] pb-4 sm:mx-3">
         <div className="flex min-w-0 items-center gap-3">
-          <Link href="/career" prefetch className="inline-flex min-h-11 items-center text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">← 工作台</Link>
+          <Link href="/career" prefetch className="inline-flex min-h-11 items-center text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">← 目标岗位</Link>
           <span className="h-4 w-px bg-[var(--separator)]" aria-hidden="true" />
-          <h2 className="text-[16px] font-semibold tracking-tight">面试学习</h2>
+          <h1 className="font-serif text-[28px] font-medium leading-tight">面试学习</h1>
         </div>
         <nav aria-label="面试学习导航" className="flex items-center gap-1 text-[12px]">
           <span aria-current="page" className="ui-navigation-item">学习库</span>
+          <Link href="/career/interview/questions" className="ui-navigation-item">题目管理</Link>
           <Link href={`/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`} className="ui-navigation-item">练习</Link>
           <Link href={`/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`} className="ui-navigation-item">复盘</Link>
         </nav>
       </header>
       {unavailable ? <div role="alert" className="mx-3 mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-[var(--surface-control)] p-3 text-[13px] text-[var(--danger)]">部分题库数据加载失败，当前结果可能不完整。<button type="button" onClick={() => startRefresh(() => router.refresh())} disabled={refreshing} className="min-h-11 underline">{refreshing ? "重新加载中…" : "重新加载"}</button></div> : null}
 
-      <div className="grid items-start gap-6 pt-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-8 xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-12">
+      <div className="grid items-start gap-6 pt-5 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-8 xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-12">
         <aside data-testid="interview-question-list" className={`${mobileDetailOpen ? "hidden lg:block" : ""} min-w-0 self-start px-2 sm:px-3 lg:sticky lg:top-[calc(var(--toolbar-height)+1rem)]`}>
           <label className="block text-[12px] font-medium text-[var(--text-tertiary)]">面试方向
-            <select aria-label="面试岗位" value={contextId} onChange={(event) => handleContextChange(event.target.value)} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--separator)] bg-[var(--surface-canvas)] px-3 text-[13px] font-medium text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]">
+            <select aria-label="面试岗位" value={contextId} onChange={(event) => handleContextChange(event.target.value)} className="ui-field mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--separator)] bg-[var(--surface-canvas)] px-3 text-[13px] font-medium text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]">
               <option value="">通用面试</option>
               {targets.map((target) => <option key={target.id} value={target.id}>{target.organization ? target.organization + " · " : ""}{target.role || target.title}</option>)}
             </select>
           </label>
           <label className="mt-3 block"><span className="sr-only">搜索题库</span><input type="search" aria-label="搜索题库" value={q} onChange={(event) => handleFiltersChange({ q: event.target.value })} placeholder="搜索题目、知识或答案" className="ui-field min-h-11 w-full min-w-0 rounded-lg border border-[var(--control-border)] bg-[var(--surface-control)] px-3 text-[13px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" /></label>
-          <details className="mt-2 border-b border-[var(--separator)]" data-testid="interview-filters" open={filterCount > 0 || undefined}>
+          <div className="mt-3 mb-2 grid gap-2">
+            <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium">学习模块</span><InterviewModulePicker modules={modules} value={domain} onSelect={domain => handleFiltersChange({ domain })} /></div>
+            <label className="grid gap-1 text-[12px] text-[var(--text-tertiary)]"><span className="sr-only">学习模块</span><select aria-label="学习模块" value={domain} onChange={(event) => handleFiltersChange({ domain: event.target.value })} className="ui-field min-h-11 w-full min-w-0 rounded-lg bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部模块</option>{domain !== "all" && !domains.includes(domain) ? <option value={domain}>{domain}</option> : null}{domains.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          </div>
+          <details className="mt-2 border-b border-[var(--separator)]" data-testid="interview-filters" open={category !== "all" || style !== "all" || undefined}>
             <DisclosureSummary className="min-h-11 cursor-pointer select-none py-3 text-[12px] text-[var(--text-secondary)]">筛选题库{filterCount ? ` · ${filterCount} 项` : ""}</DisclosureSummary>
             <div className="space-y-3 pb-4">
               <div className="flex flex-wrap gap-1" aria-label="问题类型筛选">
                 <CategoryButton label="全部题型" count={counts.all ?? 0} active={category === "all"} onClick={() => handleFiltersChange({ category: "all" })} />
                 {ALL_CATEGORIES.map((key) => <CategoryButton key={key} label={categoryShortLabels[key]} count={counts[key] ?? 0} active={category === key} onClick={() => handleFiltersChange({ category: key })} />)}
               </div>
-              <label className="grid gap-1 text-[12px] text-[var(--text-tertiary)]">学习模块<select aria-label="学习模块" value={domain} onChange={(event) => handleFiltersChange({ domain: event.target.value })} className="ui-field min-h-11 w-full min-w-0 rounded-lg bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部模块</option>{domain !== "all" && !domains.includes(domain) ? <option value={domain}>{domain}</option> : null}{domains.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+
               <label className="grid gap-1 text-[12px] text-[var(--text-tertiary)]">提问风格<select aria-label="提问风格" value={style} onChange={(event) => handleFiltersChange({ style: event.target.value })} className="ui-field min-h-11 w-full rounded-lg bg-[var(--surface-control)] px-2 text-[13px] text-[var(--text-primary)]"><option value="all">全部风格</option><option value="standard">标准提问</option><option value="stress">压力追问</option></select></label>
               {filterCount ? <button type="button" onClick={() => handleFiltersChange({ ...emptyLibraryFilters, q })} className="min-h-11 text-[12px] text-[var(--accent)]">重置筛选</button> : null}
             </div>
           </details>
-          {filterCount ? <div className="ui-active-filters" aria-label="已生效的题库筛选">
-            <p>已筛选：{[category !== "all" ? categoryShortLabels[category] ?? category : null, domain !== "all" ? domain : null, style !== "all" ? style === "stress" ? "压力追问" : "标准提问" : null].filter(Boolean).join(" · ")}</p>
-            <button type="button" className="ui-link" onClick={() => handleFiltersChange({ ...emptyLibraryFilters, q })}>清除筛选</button>
+          {(filterCount || q.trim()) ? <div className="ui-active-filters" aria-label="已生效的题库筛选">
+            <p>已筛选：{[q.trim() ? `搜索：${q.trim()}` : null, category !== "all" ? categoryShortLabels[category] ?? category : null, domain !== "all" ? domain : null, style !== "all" ? style === "stress" ? "压力追问" : "标准提问" : null].filter(Boolean).join(" · ")}</p>
+            <button type="button" className="ui-link" onClick={() => handleFiltersChange(emptyLibraryFilters)}>清除筛选</button>
           </div> : null}
           <div className="flex min-h-12 items-center justify-between gap-2 text-[12px] text-[var(--text-tertiary)]">
             <span>{q ? "搜索结果" : category === "all" ? "全部问题" : questionTypeLabels[category] ?? "问题"}</span>
             <span aria-live="polite" className="tabular-nums">{visibleItems.length} 道题</span>
           </div>
-          <nav ref={questionListRef} aria-label="面试题目" className="space-y-1 pr-1 lg:max-h-[calc(100dvh_-_var(--toolbar-height)_-_20rem)] lg:min-h-40 lg:overflow-y-auto lg:overscroll-contain">
+          <nav ref={questionListRef} aria-label="面试题目" className="space-y-1 pr-1 lg:max-h-[calc(100dvh_-_var(--toolbar-height)_-_24rem)] lg:min-h-40 lg:overflow-y-auto lg:overscroll-contain">
             <QuestionOptions items={visibleItems} questionId={questionId} onSelect={handleQuestionChange} />
-            {!visibleItems.length ? <div className="px-2 py-5 text-[13px] leading-6 text-[var(--text-tertiary)]"><p>{contextItems.length ? "没有找到匹配的问题" : "这个题库还没有问题"}</p><p className="text-xs">{contextItems.length ? "试试其他关键词，或清除筛选。" : "AI 整理的题目会在这里显示，也可以切换面试目标。"}</p>{contextItems.length ? <button type="button" onClick={() => handleFiltersChange(emptyLibraryFilters)} className="ui-link mt-2 min-h-11 text-[var(--accent)]">清除搜索与筛选</button> : null}</div> : null}
+            {!visibleItems.length ? <div className="px-2 py-5 text-[13px] leading-6 text-[var(--text-tertiary)]"><p>{contextItems.length ? "没有找到匹配的问题" : "这个题库还没有问题"}</p><p className="text-xs">{contextItems.length ? "试试其他关键词，或清除筛选。" : "可切换面试方向，或到题目管理查看已有题目。"}</p>{contextItems.length ? <button type="button" onClick={() => handleFiltersChange(emptyLibraryFilters)} className="ui-link mt-2 min-h-11 text-[var(--accent)]">清除搜索与筛选</button> : null}</div> : null}
           </nav>
         </aside>
 
-        <main ref={detailRef} tabIndex={-1} aria-label="面试题目详情" data-testid="interview-question-detail" className={`${mobileDetailOpen ? "block" : "hidden lg:block"} min-w-0 scroll-mt-[calc(var(--toolbar-height)+1rem)] px-2 outline-none sm:px-3 lg:border-l lg:border-[var(--separator)] lg:pl-8 xl:pl-12`}>
-          <button type="button" onClick={closeMobileDetail} className="mb-4 min-h-11 rounded-[9px] px-3 text-[13px] font-medium text-[var(--accent)] lg:hidden">← 返回题目列表</button>
+        <section ref={detailRef} tabIndex={-1} aria-label="面试题目详情" data-testid="interview-question-detail" className={`${mobileDetailOpen ? "block" : "hidden lg:block"} min-w-0 scroll-mt-[calc(var(--toolbar-height)+1rem)] px-2 outline-none sm:px-3 lg:border-l lg:border-[var(--separator)] lg:pl-8 xl:pl-12`}>
+          <nav aria-label="阅读导航" className="sticky top-[var(--toolbar-height)] z-10 mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-[var(--separator)] bg-[var(--surface-app)] py-2 text-[13px]">
+            <button type="button" onClick={closeMobileDetail} className="min-h-11 rounded-[9px] px-2 font-medium text-[var(--accent)] lg:hidden">← 返回题目列表</button>
+            {selected ? <div className="ml-auto flex items-center gap-1">
+              <button type="button" aria-label="阅读上一题" disabled={selectedIndex <= 0} onClick={() => handleQuestionChange(visibleItems[selectedIndex - 1].questionId)} className="ui-action-secondary min-h-11 rounded-lg px-2 disabled:opacity-30">上一题</button>
+              <span className="px-2 tabular-nums text-[var(--text-secondary)]">{selectedIndex + 1} / {visibleItems.length}</span>
+              <button type="button" aria-label="阅读下一题" disabled={selectedIndex < 0 || selectedIndex >= visibleItems.length - 1} onClick={() => handleQuestionChange(visibleItems[selectedIndex + 1].questionId)} className="ui-action-secondary min-h-11 rounded-lg px-2 disabled:opacity-30">下一题</button>
+            </div> : null}
+          </nav>
           {selected ? (
             <div className="mx-auto min-w-0 max-w-[760px]">
               <div className="flex flex-wrap items-start justify-between gap-3 lg:flex-nowrap lg:gap-5">
@@ -221,7 +235,7 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
                     {selected.style === "stress" ? <span>· 压力</span> : null}
                     {selected.competencies.slice(0, 2).map((competency) => <span key={competency.key}>· {competency.label}</span>)}
                   </div>
-                  <InterviewPrompt prompt={selected.prompt} shortTitle={selected.shortTitle} />
+                  <InterviewPrompt prompt={selected.prompt} shortTitle={selected.shortTitle} headingLevel={2} />
                 </div>
               </div>
 
@@ -238,10 +252,10 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
             </div>
           ) : (
             <div className="grid min-h-[520px] place-items-center px-8 text-center text-[13px] leading-6 text-[var(--text-tertiary)]">
-              {contextItems.length ? "没有匹配的问题。调整关键词或清除筛选，继续学习。" : contextId ? "这个岗位还没有面试题。" : "通用题库还没有内容。AI 整理完成后，会在这里显示。"}
+              {contextItems.length ? "没有匹配的问题。调整关键词或清除筛选，继续学习。" : contextId ? "这个岗位还没有面试题。" : "通用题库还没有内容，可到题目管理查看已有题目。"}
             </div>
           )}
-        </main>
+        </section>
       </div>
     </div>
   );
@@ -270,7 +284,7 @@ const QuestionOption = memo(function QuestionOption({ item, active, onSelect }: 
       className={`ui-selectable-row pressable block min-h-16 w-full rounded-lg border-l-2 px-3 py-3 text-left text-[13px] leading-[1.6] focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${active ? "border-[var(--accent)] bg-[var(--surface-selected)] font-medium text-[var(--text-primary)]" : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
     >
       <span className="line-clamp-2">{display.title === "面试题" ? display.question : display.title}</span>
-      <span className="mt-1 block truncate text-[12px] font-normal text-[var(--text-tertiary)]">{workspaceDomain(item) === "未分类" ? item.categoryLabel : workspaceDomain(item)}</span>
+      <span className="mt-1 flex flex-wrap gap-x-2 text-[12px] font-normal text-[var(--text-tertiary)]"><span>{workspaceDomain(item) === "未分类" ? item.categoryLabel : workspaceDomain(item)}</span>{item.style === "stress" ? <span>压力追问</span> : null}</span>
     </button>
   );
 });

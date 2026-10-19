@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { emptyLibraryFilters, filterWorkspaceItems, normalizeLibraryFilters, workspaceDomain, workspaceUrl, type WorkspaceItem } from "@/features/interview/workspace-library";
+import { emptyLibraryFilters, filterWorkspaceItems, normalizeLibraryFilters, workspaceDomain, workspaceModules, workspaceUrl, type WorkspaceItem } from "@/features/interview/workspace-library";
 const question: WorkspaceItem = { preparationId: "p1", questionId: "q1", contextId: null, prompt: "A question", shortTitle: "Full-width ＡＢ test", category: "knowledge", categoryLabel: "专业", style: "stress", subcategory: "技术面 · SQL与数据分析", competencies: [{ key: "judgment", label: "判断力" }], thoughts: "Window functions", answer: "Explain selection bias", answerId: null, learning: { keyMessage: "", logic: "Randomization", pitfalls: "Correlation", nextFocus: "Practice" } };
 it("keeps domains, question types and pressure style orthogonal", () => {
   expect(workspaceDomain(question)).toBe("SQL与数据分析");
@@ -17,4 +17,9 @@ it("keeps unknown and unclassified modules discoverable", () => {
 it("serializes the exact discovery context and answer version", () => {
   const params = new URL(workspaceUrl("target", "q1", { category: "knowledge", domain: "SQL与数据分析", style: "stress", q: " bias " }, "a2"), "https://local.test").searchParams;
   expect(Object.fromEntries(params)).toEqual({ context: "target", question: "q1", category: "knowledge", domain: "SQL与数据分析", style: "stress", q: "bias", answer: "a2" });
+});
+
+it("module counts follow other filters without hiding empty modules or reading unrelated bodies", () => {
+  const other = { ...question, questionId: "q2", subcategory: "新模块", category: "behavioral", style: "standard" };
+  expect(workspaceModules([question, other], { ...emptyLibraryFilters, category: "knowledge", domain: "新模块" })).toEqual([{ name: "新模块", count: 0 }, { name: "SQL与数据分析", count: 1 }]);
 });
