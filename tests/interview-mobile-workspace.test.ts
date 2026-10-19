@@ -219,3 +219,24 @@ it("keeps effective filters and clearing visible while advanced controls stay fo
   expect(list().textContent).toContain("Question general1");
   expect(list().textContent).toContain("Question general2");
 });
+
+it("keeps module selection visible outside advanced filters and exposes search-only reset", async () => {
+  await render();
+  const select = host.querySelector('[aria-label="学习模块"]')!;
+  expect(select.closest('[data-testid="interview-filters"]')).toBeNull();
+  await changeFilter("搜索题库", "general2");
+  const summary = list().querySelector('[aria-label="已生效的题库筛选"]')!;
+  expect(summary.textContent).toContain("搜索：general2");
+  await act(async () => summary.querySelector<HTMLButtonElement>("button")!.click());
+  expect(host.querySelector<HTMLInputElement>('[aria-label="搜索题库"]')!.value).toBe("");
+  expect(list().textContent).toContain("Question general1");
+});
+it("offers reachable top reading controls without recording practice or adding a history step", async () => {
+  await render({ initialQuestionId: "general1" });
+  const length = history.length;
+  await act(async () => button("阅读下一题").click());
+  expect(detail().textContent).toContain("Question general2");
+  expect(button("阅读下一题").disabled).toBe(true);
+  expect(history.length).toBe(length);
+  expect(mocks.save).not.toHaveBeenCalled();
+});

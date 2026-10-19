@@ -1,9 +1,14 @@
 import React from "react";
+import { InterviewFastWorkspace } from "@/components/career/interview/interview-fast-workspace";
+import QuestionLibraryPage from "@/app/(app)/career/interview/questions/page";
+import { interviewTargets, interviewItems } from "./interview.js";
 import { createRoot } from "react-dom/client";
 import { CareerHomeView } from "@/components/career/career-home-view";
 import ResumesPage from "@/app/(app)/career/resumes/page";
 import { home } from "./data";
 import "@/app/globals.css";
 const isResumes=location.pathname.includes("resumes");const mode=new URLSearchParams(location.search).get("fixture");
-const page=isResumes?await ResumesPage():<CareerHomeView data={mode==="empty"?{...home,interviewTargets:[],interviewPreparations:[],milestones:[]}:home} showContinue={false}/>;
+const params=new URLSearchParams(location.search);const isInterview=location.pathname.includes("interview");
+const interview=location.pathname.endsWith("/questions")?await QuestionLibraryPage({searchParams:Promise.resolve(Object.fromEntries(params))}):location.pathname!=="/career/interview"?<p>本隔离预览不提供此详情或写入流程。请返回学习库或题目管理。</p>:<InterviewFastWorkspace targets={interviewTargets} items={mode==="empty"?[]:interviewItems} initialContextId={params.get("context")??""} initialQuestionId={params.get("question")??""} initialCategory={params.get("category")??"all"} initialQuery={params.get("q")??""} initialDomain={params.get("domain")??"all"} initialStyle={params.get("style")??"all"} unavailable={mode==="error"}/>;
+const page=isInterview?interview:isResumes?await ResumesPage():<CareerHomeView data={mode==="empty"?{...home,interviewTargets:[],interviewPreparations:[],milestones:[]}:home} showContinue={false}/>;
 createRoot(document.getElementById("root")).render(<main className="mx-auto max-w-[1180px] px-4 py-8 sm:px-8"><p className="mb-6 text-xs text-[var(--text-secondary)]">隔离预览 · 合成内容 · 无数据库和真实写入</p>{page}</main>);

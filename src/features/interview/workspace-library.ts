@@ -30,7 +30,7 @@ export function normalizeLibraryFilters(filters: Partial<LibraryFilters>): Libra
     q: filters.q ?? "",
   };
 }
-export function workspaceDomain(item: WorkspaceItem) { return item.subcategory?.replace(/^(通用|技术面|Case面)\s*·\s*/, "").trim() || "未分类"; }
+export function workspaceDomain(item: Pick<WorkspaceItem, "subcategory">) { return item.subcategory?.replace(/^(通用|技术面|Case面)\s*·\s*/, "").trim() || "未分类"; }
 // Scope this cache to a workspace. Items are immutable snapshots: editing a body
 // produces a new item, so old normalized bodies can be garbage-collected.
 export type WorkspaceSearchIndex = WeakMap<WorkspaceItem, string>;
@@ -59,4 +59,14 @@ export function workspaceUrl(contextId: string, questionId: string, filters: Lib
   if (filters.q.trim()) params.set("q", filters.q.trim());
   if (questionId && answerId) params.set("answer", answerId);
   return params.size ? `/career/interview?${params}` : "/career/interview";
+}
+
+/** Keep zero-count modules discoverable while counts reflect the other facets. */
+export function workspaceModules(items: WorkspaceItem[], filters: LibraryFilters, searchIndex?: WorkspaceSearchIndex) {
+  const counts = new Map<string, number>(items.map(item => [workspaceDomain(item), 0]));
+  for (const item of filterWorkspaceItems(items, { ...filters, domain: "all" }, searchIndex)) {
+    const name = workspaceDomain(item);
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 }

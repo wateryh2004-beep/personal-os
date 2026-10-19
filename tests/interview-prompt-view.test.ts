@@ -30,3 +30,11 @@ it("does not interpret an unknown prompt as HTML or hide its original prose", ()
   expect(host.querySelector("script")).toBeNull();
   expect(host.querySelector('[data-testid="interview-prompt-text"]')!.textContent).toBe(raw);
 });
+
+it("uses level two for an embedded question while preserving the complete prompt", () => {
+  const host = document.createElement("div");
+  host.innerHTML = renderToStaticMarkup(createElement(InterviewPrompt, { prompt: "完整题干，保留条件。", shortTitle: "嵌入题目", headingLevel: 2 }));
+  expect(host.querySelector("h1")).toBeNull();
+  expect(host.querySelector("h2")!.textContent).toBe("嵌入题目");
+  expect(host.querySelector('[data-testid="interview-prompt-text"]')!.textContent).toBe("完整题干，保留条件。");
+});
