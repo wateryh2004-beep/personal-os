@@ -216,3 +216,29 @@ it.each(["参考资料与证据边界", "参考来源", "来源与使用边界",
   await expand(1);
   expect(host.querySelector("pre")!.textContent).toBe(answer);
 });
+
+
+it("discovers translated English interview support without altering the spoken script or other questions", async () => {
+  Element.prototype.scrollIntoView = vi.fn();
+  const english = "I would first assess the borrower's cash generation.";
+  await render({
+    thoughts: "",
+    answer: "## 标准答案\\n\\n### English spoken answer\\n\\n" + english +
+      "\\n\\n## 思路拆解讲解\\n\\n### 英文口述逐段中文对照（仅辅助理解，不需朗读）\\n\\n先评估现金创造能力。" +
+      "\\n\\n### 重点词汇与表达（结合本题语境）\\n\\n- **cash generation**：现金创造能力。",
+    isDraft: true,
+  });
+  const spoken = host.querySelector("#study-answer")!;
+  expect(spoken.textContent).toContain(english);
+  expect(spoken.textContent).not.toContain("先评估现金创造能力");
+  const explanation = host.querySelector<HTMLDetailsElement>("#study-thinking")!;
+  expect(explanation.open).toBe(false);
+  const jump = [...host.querySelectorAll<HTMLButtonElement>("nav button")].find((node) => node.textContent === "中文对照与讲解");
+  expect(jump).toBeDefined();
+  expect(explanation.querySelector("summary")?.textContent).toContain("中文对照与讲解");
+  await act(async () => jump!.click());
+  expect(explanation.open).toBe(true);
+  expect(explanation.textContent).toContain("先评估现金创造能力");
+  expect(explanation.textContent).toContain("cash generation");
+  expect(spoken.textContent).toContain(english);
+});
