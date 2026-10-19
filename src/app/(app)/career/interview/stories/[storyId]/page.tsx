@@ -3,99 +3,66 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
 import { InterviewNav } from "@/components/career/interview/interview-nav";
-import { archiveInterviewStory, updateInterviewStory } from "@/features/interview/actions";
+import { EntityMarkdown } from "@/components/links/entity-markdown";
+import { StoryFormDialog } from "@/components/career/interview/story-form-dialog";
+import { StoryArchiveDialog } from "@/components/career/interview/story-archive-dialog";
+import { DisclosureSummary } from "@/components/ui/disclosure";
 import { getInterviewStoryDetail } from "@/features/interview/queries";
-import { storyStatusLabels } from "@/features/interview/constants";
+import { storyEvidenceRoleLabels, storyStatusLabels } from "@/features/interview/constants";
+import { storyFilters, storyLibraryHref, storySections, type EditableStory } from "@/features/interview/story-library";
 
-export default async function InterviewStoryPage({ params }: { params: Promise<{ storyId: string }> }) {
-  const { storyId } = await params;
+type ReturnParams = Record<string, string | string[] | undefined>;
+export default async function InterviewStoryPage({ params, searchParams }: { params: Promise<{ storyId: string }>; searchParams?: Promise<ReturnParams> }) {
+  const [{ storyId }, returnParams] = await Promise.all([params, searchParams ?? Promise.resolve({} as ReturnParams)]);
   const data = await getInterviewStoryDetail(storyId);
   if (!data) notFound();
   const story = data.story;
-
-  return (
-    <>
-      <PageHeader
-        title={story.title}
-        description={story.one_line || "把事实整理成可以在不同问题中复用的故事。"}
-        eyebrow={<Link href="/career/interview/stories" className="hover:text-[var(--text-primary)]">面试准备 / 故事库</Link>}
-      />
-      <CareerNav current="/career/interview" />
-      <InterviewNav current="/career/interview/insights" />
-
-      <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-[var(--text-tertiary)]">
-        <span>{storyStatusLabels[story.status] ?? story.status}</span>
-        {data.competencies.slice(0, 5).map((item) => <span key={item.competency_id}>{item.competency.label}</span>)}
-      </div>
-
-      <form action={updateInterviewStory} className="max-w-3xl">
-        <input type="hidden" name="story_id" value={story.id} />
-
-        <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-          <label className="grid gap-1.5">
-            <span className="text-[12px] font-medium text-[var(--text-tertiary)]">故事标题</span>
-            <input name="title" required defaultValue={story.title} className="ui-field h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none" />
-          </label>
-          <label className="grid gap-1.5">
-            <span className="text-[12px] font-medium text-[var(--text-tertiary)]">状态</span>
-            <select name="status" defaultValue={story.status} className="ui-field h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
-              {Object.entries(storyStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          </label>
+  const query = new URLSearchParams();
+  for (const key of ["q", "status", "experience", "competency"]) {
+    const value = returnParams[key];
+    if (value) query.set(key, Array.isArray(value) ? value[0] : value);
+  }
+  const returnHref = storyLibraryHref(storyFilters(query));
+  const experience = data.experiences.find(item => item.id === story.experience_id);
+  const editable: EditableStory = { id: story.id, title: story.title, one_line: story.one_line, status: story.status, experience_id: story.experience_id,
+    situation_markdown: story.situation_markdown, task_markdown: story.task_markdown, action_markdown: story.action_markdown, result_markdown: story.result_markdown, reflection_markdown: story.reflection_markdown };
+  return <>
+    <div className="mb-4"><Link href={returnHref} className="ui-link inline-flex min-h-11 items-center text-sm">返回故事库</Link></div>
+    <PageHeader title={story.title} description={story.one_line || undefined} action={<StoryFormDialog story={editable} experiences={data.experiences} />} />
+    <CareerNav current="/career/interview" />
+    <InterviewNav current="/career/interview/stories" />
+    <p className="mb-6 text-sm text-[var(--text-secondary)]">使用状态：{storyStatusLabels[story.status] ?? story.status}</p>
+    <div className="grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1fr)_280px]">
+      <article aria-label="故事正文" className="min-w-0 rounded-[var(--radius-xl)] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-7">
+        <div className="space-y-8">
+          {storySections.map(section => <section key={section.name} aria-labelledby={`story-${section.name}`}>
+            <h2 id={`story-${section.name}`} className="mb-3 text-lg font-semibold text-[var(--text-primary)]">{section.label}</h2>
+            {story[section.name]?.trim() ? <EntityMarkdown body={story[section.name]} headingOffset={2} className="min-w-0 text-base leading-7 [overflow-wrap:anywhere] [&_pre]:max-w-full [&_pre]:rounded-[var(--radius-md)] [&_pre]:bg-[var(--surface-control)] [&_pre]:text-[var(--text-primary)] [&_img]:max-w-full [&_p]:leading-7 [&_li]:leading-7" /> : <p className="text-sm leading-7 text-[var(--text-secondary)]">尚未补充{section.label}。</p>}
+          </section>)}
         </div>
-
-        <label className="mt-4 grid gap-1.5">
-          <span className="text-[12px] font-medium text-[var(--text-tertiary)]">对应经历</span>
-          <select name="experience_id" defaultValue={story.experience_id ?? ""} className="ui-field h-9 rounded-[9px] bg-[var(--surface-control)] px-3 text-[13px] outline-none">
-            <option value="">不绑定经历</option>
-            {data.experiences.map((experience) => <option key={experience.id} value={experience.id}>{experience.organization}{experience.role ? ` · ${experience.role}` : ""}</option>)}
-          </select>
-        </label>
-
-        <label className="mt-7 block">
-          <span className="text-[12px] font-medium text-[var(--text-tertiary)]">一句话</span>
-          <textarea name="one_line" defaultValue={story.one_line} rows={2} className="mt-1.5 w-full resize-y bg-transparent py-2 text-[15px] leading-7 text-[var(--text-primary)] outline-none" />
-        </label>
-
-        <div className="mt-7 space-y-6">
-          <StoryField name="situation_markdown" label="Situation" value={story.situation_markdown} placeholder="发生了什么？只保留面试官需要知道的背景。" />
-          <StoryField name="task_markdown" label="Task" value={story.task_markdown} placeholder="你真正承担的任务和边界是什么？" />
-          <StoryField name="action_markdown" label="Action" value={story.action_markdown} rows={7} placeholder="你具体做了什么？判断、取舍、影响机制是什么？" />
-          <StoryField name="result_markdown" label="Result" value={story.result_markdown} placeholder="形成了什么可验证结果？" />
-          <StoryField name="reflection_markdown" label="Reflection" value={story.reflection_markdown} placeholder="这件事改变了你的什么方法或判断？" />
-        </div>
-
-        <button className="mt-7 rounded-[9px] bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-white">保存故事</button>
-      </form>
-
-      <section className="mt-12 max-w-3xl">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">可以回答</h2>
-          <span className="text-[12px] text-[var(--text-tertiary)]">{data.archetypes.length} 个母题</span>
-        </div>
-        <div className="mt-3 space-y-px">
-          {data.archetypes.map((item) => (
-            <div key={item.archetype_id} className="rounded-[9px] px-2.5 py-2.5 hover:bg-[var(--surface-hover)]">
-              <p className="text-[13px] text-[var(--text-primary)]">{item.archetype.title}</p>
-              {item.fit_note ? <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">{item.fit_note}</p> : null}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <form action={archiveInterviewStory} className="mt-10">
-        <input type="hidden" name="story_id" value={story.id} />
-        <button className="text-[12px] text-[var(--text-tertiary)] hover:text-[var(--danger)]">归档故事</button>
-      </form>
-    </>
-  );
-}
-
-function StoryField({ name, label, value, placeholder, rows = 4 }: { name: string; label: string; value: string; placeholder: string; rows?: number }) {
-  return (
-    <label className="block">
-      <span className="text-[12px] font-medium text-[var(--text-tertiary)]">{label}</span>
-      <textarea name={name} defaultValue={value} rows={rows} placeholder={placeholder} className="mt-1.5 w-full resize-y bg-transparent py-2 text-[15px] leading-7 text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-tertiary)]" />
-    </label>
-  );
+      </article>
+      <aside aria-label="故事关联" className="min-w-0 space-y-8">
+        <section>
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">关联经历</h2>
+          {experience ? <Link href={`/career/experiences/${experience.id}`} className="ui-link mt-3 inline-block break-words text-sm leading-7">{experience.organization}{experience.role ? ` · ${experience.role}` : ""}</Link> : <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">{story.experience_id ? "原关联经历已归档或暂不可用。" : "未绑定经历，可在编辑故事时选择。"}</p>}
+        </section>
+        <section>
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">关联能力</h2>
+          <ul className="mt-3 flex flex-wrap gap-2 text-[13px] leading-6 text-[var(--text-secondary)]">{data.competencies.map(item => <li key={item.competency_id} className="rounded-[var(--radius-sm)] bg-[var(--surface-control)] px-2 py-1">{item.competency.label}{item.is_primary ? "（主要）" : ""}</li>)}</ul>
+          {!data.competencies.length ? <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">尚未关联能力。</p> : null}
+        </section>
+        <section>
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">已关联母题</h2>
+          <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{data.archetypes.length} 个母题关联，不代表练习次数</p>
+          <ul className="mt-3 divide-y divide-[var(--separator)]">{data.archetypes.map(item => <li key={item.archetype_id} className="py-3 text-sm leading-7">
+            <h3 className="break-words font-medium text-[var(--text-primary)]">{item.archetype.title}</h3>
+            <p className="mt-1 text-[13px] text-[var(--text-secondary)]">{storyEvidenceRoleLabels[item.evidence_role] ?? item.evidence_role}</p>
+            {item.fit_note ? <p className="mt-2 whitespace-pre-wrap break-words text-sm text-[var(--text-secondary)]">{item.fit_note}</p> : null}
+          </li>)}</ul>
+          {!data.archetypes.length ? <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">尚未关联母题。</p> : null}
+        </section>
+        <details><DisclosureSummary>更多操作</DisclosureSummary><div className="mt-4"><StoryArchiveDialog storyId={story.id} title={story.title} /></div></details>
+      </aside>
+    </div>
+  </>;
 }

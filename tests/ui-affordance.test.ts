@@ -58,7 +58,7 @@ it("uses a native summary and preserves independent nested disclosure state", as
 });
 
 it("shows one current interview destination, including session routes", async () => {
-  for (const [current, label] of [["/career/interview/sessions/example", "练习"], ["/career/interview/insights", "复盘"], ["/career/interview", "学习库"]]) {
+  for (const [current, label] of [["/career/interview/stories/example", "故事库"], ["/career/interview/sessions/example", "练习"], ["/career/interview/insights", "复盘"], ["/career/interview", "学习库"]]) {
     await act(async () => root.render(createElement(InterviewNav, { current })));
     const active = host.querySelectorAll('[aria-current="page"]');
     expect(active).toHaveLength(1); expect(active[0].textContent).toBe(label);
@@ -112,4 +112,11 @@ it("retains a stable primitive marker when Radix asChild replaces data-slot", ()
     expect(button.getAttribute("data-size")).toBe("icon-sm");
     expect(button.getAttribute("data-slot")).not.toBe("button");
   }
+});
+
+it("keeps the story library global when coming from a target-specific interview", async () => {
+  await act(async () => root.render(createElement(InterviewNav, { current: "/career/interview/stories", context: "target" })));
+  const story = [...host.querySelectorAll("a")].find(item => item.textContent === "故事库")!;
+  expect(story.getAttribute("href")).toBe("/career/interview/stories");
+  expect(story.getAttribute("aria-current")).toBe("page");
 });
