@@ -39,6 +39,10 @@ Saves are serialized. Errors remain visible across question switches; navigation
 - `scripts/mobile-native-e2e.cjs` exercises 360, 390, 412, and 430 px mobile layouts plus a 1440 px desktop view in the existing fixture-only CI harness.
 - The harness remains behind `E2E_MOBILE_HARNESS=1`; production authentication and data access are unchanged.
 
+## 2026-10-19 练习相关性修正
+
+默认练习队列与复盘只包含通用题和 active 目标；暂停、结束目标仍可显式选择查看，不删除、不重写历史。仅行为与简历经历题需要个人故事；金融知识、商业 Case 等题不再因缺少故事而被加权或诊断为“缺少可用故事”。未设置下次复习日期的题不被当作到期复习。保留现有答案原文、来源和草稿确认规则。本次只修改查询、排序及展示，不需要数据库迁移或批量答案重写。
+
 ## 2026-10-19 浏览与阅读细化（候选实现）
 
 学习模块选择始终位于高级筛选之外；「浏览模块」打开共享 Dialog，可搜索当前面试方向中的模块。模块数量随当前搜索、题型与提问风格计算，不应用所选模块自身条件；零结果与未知模块仍可发现，不按名称猜测新分类。选择后保留其他筛选；取消、Esc 不改变条件并恢复启动焦点。仅选择模块不自动展开高级题型/风格控件。搜索词本身也显示在可清除的生效条件中。
