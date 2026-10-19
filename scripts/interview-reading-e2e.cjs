@@ -113,3 +113,35 @@ exports.verifyInterviewReading = async (browser, baseURL, output) => {
   }
   console.log("interview-reading-e2e: 390/768/1024/1440px passed");
 };
+
+exports.verifyInterviewCatalog = async (browser, baseURL, output) => {
+  await mkdir(output, { recursive: true });
+  for (const width of [390, 1440]) {
+    const context = await browser.newContext({ viewport: { width, height: 960 } });
+    await context.route("**/api/**", route => route.fulfill({ json: {} }));
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.goto(`${baseURL}/mobile-native-e2e?scene=interview-catalog`, { waitUntil: "networkidle" });
+    const search = page.getByRole("searchbox", { name: "搜索题目", exact: true });
+    await search.fill("SQL ");
+    assert.equal(await search.inputValue(), "SQL ", "native Next history must update the controlled input including its composing space");
+    await search.pressSequentially("窗口");
+    await page.getByRole("status").getByText("1 道结果 · 已筛选", { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).searchParams.get("q"), "SQL 窗口");
+    await page.getByRole("combobox", { name: "提问风格", exact: true }).selectOption("stress");
+    await page.getByRole("status").getByText("0 道结果 · 已筛选", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "清除搜索与筛选", exact: true }).click();
+    await page.getByRole("status").getByText("3 道结果", { exact: true }).waitFor();
+    assert.equal(await search.inputValue(), "");
+    await page.getByRole("button", { name: "浏览模块", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "SQL与数据分析 2 道", exact: true }).click();
+    await page.getByRole("status").getByText("2 道结果 · 已筛选", { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).searchParams.get("domain"), "SQL与数据分析");
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    assert.deepEqual(errors, []);
+    await page.screenshot({ path: `${output}/interview-catalog-next-${width}.png`, fullPage: true });
+    await context.close();
+  }
+  console.log("interview-catalog-next-e2e: 390/1440px native history and filtered results passed");
+};

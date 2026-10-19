@@ -3,6 +3,7 @@ import { NotesBootstrapFixture } from "@/components/testing/notes-bootstrap-fixt
 import { R2StorageSettings } from "@/components/settings/r2-storage-settings";
 import { NotesFolderFixture } from "@/components/testing/notes-folder-fixture";
 import { TodayHierarchyFixture } from "@/components/testing/today-hierarchy-fixture";
+import { InterviewCatalogFixture } from "@/components/testing/interview-catalog-fixture";
 import { InterviewReadingFixture } from "@/components/testing/interview-reading-fixture";
 import { LeisureFixture } from "@/components/testing/leisure-fixture";
 import { NotesSearchFixture } from "@/components/testing/notes-search-fixture";
@@ -29,6 +30,7 @@ export default async function MobileNativeE2EPage({ searchParams }: { searchPara
   if (scene === "vault") return <VaultFixture />;
   if (scene === "storage-settings") return <main className="mx-auto max-w-5xl p-4 sm:p-6"><h1 className="mb-5 text-2xl font-semibold">存储设置 · Synthetic fixture</h1><R2StorageSettings /></main>;
   if (scene === "today-hierarchy") return <TodayHierarchyFixture mode={mode} />;
+  if (scene === "interview-catalog") return <InterviewCatalogFixture />;
   if (scene === "interview-reading") return <InterviewReadingFixture />;
   if (scene === "leisure") return <LeisureFixture item={item} mode={mode} />;
   if (scene === "notes-folders") return <NotesFolderFixture />;
