@@ -223,9 +223,9 @@ it("discovers translated English interview support without altering the spoken s
   const english = "I would first assess the borrower's cash generation.";
   await render({
     thoughts: "",
-    answer: "## 标准答案\\n\\n### English spoken answer\\n\\n" + english +
-      "\\n\\n## 思路拆解讲解\\n\\n### 英文口述逐段中文对照（仅辅助理解，不需朗读）\\n\\n先评估现金创造能力。" +
-      "\\n\\n### 重点词汇与表达（结合本题语境）\\n\\n- **cash generation**：现金创造能力。",
+    answer: "## 标准答案\n\n### English spoken answer\n\n" + english +
+      "\n\n## 思路拆解讲解\n\n### 英文口述逐段中文对照（仅辅助理解，不需朗读）\n\n先评估现金创造能力。" +
+      "\n\n### 重点词汇与表达（结合本题语境）\n\n- **cash generation**：现金创造能力。",
     isDraft: true,
   });
   const spoken = host.querySelector("#study-answer")!;
