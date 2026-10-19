@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { getDateKeyInTimeZone } from "@/lib/date-keys";
 import { readAllRows } from "@/lib/supabase/read-all-rows";
@@ -141,21 +143,19 @@ export async function getCareerHome() {
       .select("id,status")
       .is("archived_at", null),
     roadmapPromise,
-    supabase
+    readAllRows(supabase
       .from("interview_contexts")
       .select("id,title,organization_snapshot,role_title_snapshot,status,next_interview_at")
-      .eq("status", "active")
       .neq("context_type", "general")
       .is("archived_at", null)
       .order("priority", { ascending: false })
       .order("next_interview_at", { ascending: true, nullsFirst: false })
-      .order("id")
-      .limit(100),
-    supabase
+      .order("id")),
+    readAllRows(supabase
       .from("interview_question_preparations")
       .select("id,context_id,status,next_practice_at")
       .not("context_id", "is", null)
-      .is("archived_at", null),
+      .is("archived_at", null).order("id")),
   ]);
 
   return {
@@ -254,4 +254,19 @@ export async function getResumeVersions() {
     supabase.from("documents").select("id,title,original_filename").eq("storage_provider", "cloudflare_r2").is("archived_at", null).order("uploaded_at", { ascending: false }).limit(200),
   ]);
   return { resumes: resumes.data ?? [], directions: directions.data ?? [], bullets: bullets.data ?? [], links: links.data ?? [], applications: applications.data ?? [], documents: documents.data ?? [], unavailable: Boolean(resumes.error || directions.error || bullets.error || links.error || applications.error || documents.error) };
+}
+
+/** Target reader: only this target's preparations, no answers or whole-bank private notes. */
+export async function getCareerTarget(contextId: string) {
+  const { supabase: client, userId } = await requireOwner();
+  const supabase = client as SupabaseClient<Database>;
+  const primary = await supabase.from("interview_contexts").select("*").eq("id", contextId).is("archived_at", null).maybeSingle();
+  if (primary.error) throw new Error("暂时无法读取岗位，请重试。");
+  if (!primary.data) return null;
+  const [preparations, questions, profile] = await Promise.all([
+    readAllRows(supabase.from("interview_question_preparations").select("id,question_id,context_id,status,next_practice_at,prompt_override").eq("context_id",contextId).is("archived_at",null).order("position").order("id")),
+    readAllRows(supabase.from("interview_questions").select("id,canonical_prompt,parent_question_id").is("archived_at",null).order("updated_at",{ascending:false}).order("id")),
+    supabase.from("profiles").select("timezone").eq("user_id",userId).maybeSingle(),
+  ]);
+  return { target: primary.data, preparations: preparations.data ?? [], questions: questions.data ?? [], timezone: profile.data?.timezone || "Asia/Shanghai", now: Date.now(), unavailable: Boolean(preparations.error || questions.error || profile.error) };
 }

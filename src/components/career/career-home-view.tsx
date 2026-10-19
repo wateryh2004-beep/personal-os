@@ -1,6 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { TargetLibrary } from "./target-library";
+import { TargetForm } from "./target-form";
+import { targetDetailHref } from "@/features/career/target-library";
 import { CareerFocusPicker, useCareerFocus } from "@/components/career/career-focus-picker";
 import { DisclosureSummary } from "@/components/ui/disclosure";
 import { PageHeader } from "@/components/shared/page-header";
@@ -8,7 +13,7 @@ import { CareerNav } from "@/components/career/career-nav";
 import type { getCareerHome } from "@/features/career/queries";
 import { getCareerNextActions, getCareerPreparationCounts } from "@/features/career/next-actions";
 import { CareerContinue } from "@/components/career/career-continue";
-import { ArrowUpRight, CalendarDays, ChevronRight } from "lucide-react";
+import { ArrowUpRight, CalendarDays } from "lucide-react";
 
 export type CareerHomeData = Awaited<ReturnType<typeof getCareerHome>>;
 
@@ -22,7 +27,8 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
   const activeTargets = data.interviewTargets.filter((item) => item.status === "active");
   const focus = useCareerFocus(data.ownerId);
   const targets = activeTargets.filter((item) => focus.ids.includes(item.id));
-  const otherTargets = activeTargets.filter((item) => !focus.ids.includes(item.id));
+  const router = useRouter();
+  const [reloading, startReload] = useTransition();
   const nextActions = getCareerNextActions(data.interviewTargets, data.interviewPreparations, data.milestones, now, data.timezone, new Set(focus.ids));
 
   return (
@@ -30,12 +36,13 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
       <PageHeader
         title="目标岗位"
         description={p?.professional_headline || p?.current_stage || undefined}
+        action={<TargetForm timezone={data.timezone} />}
       />
       <CareerNav current="/career" />
       {showContinue ? <CareerContinue /> : null}
 
       {data.unavailable ? (
-        <div role="alert" className="mb-6 flex flex-wrap items-center gap-3 rounded-xl bg-[var(--surface-control)] px-4 py-3 text-sm text-[var(--danger)]">部分职业数据暂时不可用。<button type="button" onClick={() => window.location.reload()} className="ui-link min-h-11">重新加载</button></div>
+        <div role="alert" className="mb-6 flex flex-wrap items-center gap-3 rounded-xl bg-[var(--surface-control)] px-4 py-3 text-sm text-[var(--danger)]">部分职业数据暂时不可用。<button type="button" disabled={reloading} onClick={() => startReload(() => router.refresh())} className="ui-link min-h-11">重新加载</button></div>
       ) : null}
 
       <div className="mb-10 grid items-start gap-8 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
@@ -75,7 +82,7 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
             const preparations = data.interviewPreparations.filter((prep) => prep.context_id === target.id);
             const { ready, due, unscheduled } = getCareerPreparationCounts(preparations, now);
             return (
-              <Link key={target.id} href={`/career/interview?context=${target.id}`} className="career-target-card group relative block rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-6">
+              <Link key={target.id} href={targetDetailHref(target.id)} className="career-target-card group relative block rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-6">
                 <div className="min-w-0">
                   <p className="pr-8 text-[13px] leading-6 text-[var(--text-secondary)]">{target.organization_snapshot || target.title}</p>
                   <h3 className="mt-1 break-words pr-6 font-[family-name:var(--font-serif)] text-[24px] font-normal leading-snug text-[var(--text-primary)]">{target.role_title_snapshot || target.title}</h3>
@@ -92,14 +99,14 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
           })}
 
           {!targets.length ? (
-            <div className="rounded-[20px] border border-dashed border-[var(--separator)] p-6"><p className="text-sm leading-7 text-[var(--text-secondary)]">选择近期要推进的岗位。其他目标仍保留在下方，关注不会更改申请状态。</p><Link href="/career/interview" className="ui-link mt-3 inline-flex min-h-11 items-center text-sm">先阅读通用面试内容 →</Link></div>
+            <div className="rounded-[20px] border border-dashed border-[var(--separator)] p-6"><p className="text-sm leading-7 text-[var(--text-secondary)]">选择近期要推进的岗位。全部岗位仍保留在下方，关注不会更改申请状态。</p><Link href="/career/interview" className="ui-link mt-3 inline-flex min-h-11 items-center text-sm">先阅读通用面试内容 →</Link></div>
           ) : null}
         </div>
       </section>
-      {otherTargets.length ? <details className="mt-6 border-t border-[var(--separator)] pt-2"><DisclosureSummary className="min-h-11 text-sm">其他目标 · {otherTargets.length}</DisclosureSummary><div className="mt-2 divide-y divide-[var(--separator)]">{otherTargets.map(target => <Link key={target.id} href={`/career/interview?context=${target.id}`} className="ui-record-link flex min-h-16 items-center justify-between gap-3 py-3"><span className="min-w-0"><span className="block text-[13px] text-[var(--text-secondary)]">{target.organization_snapshot}</span><span className="mt-1 block break-words text-[15px]">{target.role_title_snapshot || target.title}</span></span><ChevronRight aria-hidden="true" className="size-4 shrink-0" /></Link>)}</div>{activeTargets.length === 100 ? <Link href="/career/interview" className="ui-link inline-flex min-h-11 items-center text-sm">更多岗位 →</Link> : null}</details> : null}
+      </div>
+      </div>
 
-      </div>
-      </div>
+      <TargetLibrary targets={data.interviewTargets} preparations={data.interviewPreparations} now={now} timezone={data.timezone} unavailable={data.unavailable} />
 
       <details className="border-t border-[var(--separator)] pt-2">
         <DisclosureSummary className="min-h-11 text-sm">职业资料与管理</DisclosureSummary>

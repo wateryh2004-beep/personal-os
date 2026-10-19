@@ -16,7 +16,7 @@ function harness(rows: Row[], timezone: string | null = "America/Los_Angeles", f
   const from = vi.fn((table: string) => {
     const read: QueryRead = { table, steps: [] };
     const query: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "is", "neq", "order", "limit", "in", "lt", "gte", "not", "maybeSingle"]) {
+    for (const method of ["select", "eq", "is", "neq", "order", "limit", "in", "lt", "gte", "not", "maybeSingle", "range"]) {
       query[method] = (...args: unknown[]) => { read.steps.push({ method, args }); return query; };
     }
     query.then = (resolve: (value: QueryResult) => unknown) => {
@@ -71,7 +71,8 @@ describe("career home milestone reads", () => {
     expect(mocks.owner).toHaveBeenCalledTimes(1);
     expect(data.ownerId).toBe("owner");
     const targets = h.reads.find(read => read.table === "interview_contexts")!;
-    expect(targets.steps).toContainEqual({ method: "limit", args: [100] });
+    expect(targets.steps).toContainEqual({ method: "range", args: [0, 499] });
+    expect(targets.steps).not.toContainEqual({ method: "eq", args: ["status", "active"] });
     expect(targets.steps).toContainEqual({ method: "order", args: ["id"] });
   });
 

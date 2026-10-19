@@ -149,6 +149,7 @@ export async function createInterviewQuestion(formData: FormData) {
   });
   revalidateInterview(data.id);
   if (contextId) revalidatePath(`/career/interview/targets/${contextId}`);
+  if (contextId) revalidatePath(`/career/interview/targets/${contextId}`);
   if (returnToWorkspace) {
     redirect(contextId ? `/career/interview?context=${contextId}&question=${data.id}` : `/career/interview?question=${data.id}`);
   }
@@ -289,6 +290,7 @@ export async function ensureInterviewPreparation(formData: FormData) {
     await audit(supabase, userId, "create", "interview_preparation", preparationId, { question_id: questionId, context_id: contextId });
   }
   revalidateInterview(questionId, preparationId);
+  if (contextId) revalidatePath(`/career/interview/targets/${contextId}`);
   redirect(contextId ? `/career/interview/questions/${questionId}?context=${contextId}` : `/career/interview/questions/${questionId}`);
 }
 

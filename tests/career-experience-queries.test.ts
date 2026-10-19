@@ -8,7 +8,7 @@ vi.mock("@/lib/auth/require-owner", () => ({ requireOwner: async () => ({ supaba
     range: (from: number, to: number) => { db.pages.push(from); const r = result(); return Promise.resolve({ ...r, data: r.data?.slice(from, to + 1) ?? null }); },
   }; return query;
 } } }) }));
-import { getExperience, getExperiences } from "@/features/career/queries";
+import { getExperience, getExperiences, getCareerTarget } from "@/features/career/queries";
 beforeEach(() => { db.rows = {}; db.fail = ""; db.primaryError = false; db.selected = []; db.ordered = []; db.pages = []; db.documentIds = []; });
 it("reads all metadata pages in stable order and reports a failed page honestly", async () => {
   db.rows.experiences = Array.from({ length: 501 }, (_, index) => ({ id: String(index) }));
@@ -30,4 +30,16 @@ it("reads evidence links in both directions and uses the owner's configured time
   db.rows.experiences = [{ id: "e1" }]; db.rows.profiles = [{ timezone: "America/New_York" }];
   db.rows.entity_links = [{ target_type: "document", target_id: "d1" }, { source_type: "document", source_id: "d2" }, { source_type: "document", source_id: "d1" }];
   const result = await getExperience("e1"); expect(db.documentIds).toEqual(["d1", "d2"]); expect(result?.timezone).toBe("America/New_York");
+});
+
+it("loads target relations in complete stable metadata pages without answer or private preparation bodies", async()=>{
+ db.rows.interview_contexts=[{id:"t"}];
+ db.rows.interview_questions=Array.from({length:501},(_,i)=>({id:String(i)}));
+ db.rows.profiles=[{timezone:"America/New_York"}];
+ const result=await getCareerTarget("t");
+ expect(result?.questions).toHaveLength(501); expect(result?.timezone).toBe("America/New_York"); expect(result?.unavailable).toBe(false);
+ expect(db.ordered).toContain("interview_questions:id");
+ db.fail="interview_questions"; expect((await getCareerTarget("t"))?.unavailable).toBe(true);
+ db.primaryError=true; await expect(getCareerTarget("t")).rejects.toThrow("暂时无法读取岗位");
+ db.primaryError=false; db.rows.interview_contexts=[]; expect(await getCareerTarget("missing")).toBeNull();
 });
