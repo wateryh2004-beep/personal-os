@@ -59,8 +59,11 @@ async function goto(page, scene) {
         assert.deepEqual(result.errors, [], `${name}: no hydration or runtime errors`);
       };
       await goto(page, "career-filled");
+      await page.getByRole("button", { name: "选择关注岗位", exact: true }).click();
+      await page.getByRole("dialog").getByRole("checkbox").first().check();
+      await page.getByRole("button", { name: "保存关注", exact: true }).click();
       await page.locator(".career-target-card").waitFor();
-      assert.equal(await page.getByRole("heading", { name: "正在准备", exact: true }).count(), 1);
+      assert.equal(await page.getByRole("heading", { name: "近期关注", exact: true }).count(), 1);
       assert.ok(await page.locator(".career-target-card time").isVisible());
       await capture("career");
       result.checks.push("target-card-date-and-next-actions");

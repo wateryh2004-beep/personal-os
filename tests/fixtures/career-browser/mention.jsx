@@ -1,0 +1,1 @@
+import React from "react"; export function MentionTextarea(props) { return <textarea {...props} onChange={event => props.onChange(event.target.value)} />; }

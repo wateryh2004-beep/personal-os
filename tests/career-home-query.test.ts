@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getCareerHome } from "@/features/career/queries";
+import { getCareerHome, getResumeVersions } from "@/features/career/queries";
 
 const mocks = vi.hoisted(() => ({ owner: vi.fn() }));
 vi.mock("@/lib/auth/require-owner", () => ({ requireOwner: mocks.owner }));
@@ -11,7 +11,7 @@ type QueryResult = { data: unknown; error: { message: string } | null; count?: n
 const now = new Date("2026-10-04T00:30:00Z");
 const milestone = (id: string, target_date: string, status = "planned", extra: Row = {}): Row => ({ id, title: id, user_id: "owner", target_date, status, archived_at: null, ...extra });
 
-function harness(rows: Row[], timezone: string | null = "America/Los_Angeles", failure?: "profiles" | "past") {
+function harness(rows: Row[], timezone: string | null = "America/Los_Angeles", failure?: "profiles" | "past" | "resume_versions" | "career_directions" | "experience_bullets" | "resume_version_bullets" | "career_applications" | "documents") {
   const reads: QueryRead[] = [];
   const from = vi.fn((table: string) => {
     const read: QueryRead = { table, steps: [] };
@@ -38,6 +38,7 @@ function harness(rows: Row[], timezone: string | null = "America/Los_Angeles", f
         const head = read.steps.some((step) => step.method === "select" && (step.args[1] as { head?: boolean } | undefined)?.head);
         result = failure === "past" && head ? { data: null, error: { message: "unavailable" } } : { data: head ? null : selected, count: selected.length, error: null };
       }
+      if (table === failure && failure !== "profiles") result.error = { message: "unavailable" };
       return Promise.resolve(result).then(resolve);
     };
     return query;
@@ -68,6 +69,10 @@ describe("career home milestone reads", () => {
     expect(upcoming.steps.findIndex((step) => step.method === "in")).toBeLessThan(upcoming.steps.findIndex((step) => step.method === "limit"));
     expect(upcoming.steps.findIndex((step) => step.method === "gte")).toBeLessThan(upcoming.steps.findIndex((step) => step.method === "limit"));
     expect(mocks.owner).toHaveBeenCalledTimes(1);
+    expect(data.ownerId).toBe("owner");
+    const targets = h.reads.find(read => read.table === "interview_contexts")!;
+    expect(targets.steps).toContainEqual({ method: "limit", args: [100] });
+    expect(targets.steps).toContainEqual({ method: "order", args: ["id"] });
   });
 
   it("uses the standard timezone fallback when no profile timezone is stored", async () => {
@@ -88,5 +93,12 @@ describe("career home milestone reads", () => {
     mocks.owner.mockRejectedValue(new Error("unauthenticated"));
     await expect(getCareerHome()).rejects.toThrow("unauthenticated");
     expect(h.from).not.toHaveBeenCalled();
+  });
+});
+
+describe("resume workspace partial reads", () => {
+  it.each(["resume_versions", "career_directions", "experience_bullets", "resume_version_bullets", "career_applications", "documents"] as const)("reports an incomplete result if %s is unavailable", async table => {
+    harness([], "Asia/Shanghai", table);
+    expect((await getResumeVersions()).unavailable).toBe(true);
   });
 });

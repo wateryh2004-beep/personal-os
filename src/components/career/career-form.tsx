@@ -12,10 +12,11 @@ type CareerFormProps = {
   successMessage?: string;
   successTargetId?: string;
   resetOnSuccess?: boolean;
+  onSuccess?: () => void;
 };
 
 /** Explicit submission avoids React resetting uncontrolled inputs after a validation error. */
-export function CareerForm({ action, children, className, successMessage = "已保存。", successTargetId, resetOnSuccess = false }: CareerFormProps) {
+export function CareerForm({ action, children, className, successMessage = "已保存。", successTargetId, resetOnSuccess = false, onSuccess }: CareerFormProps) {
   const [state, setState] = useState(initialCareerFormResult);
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
@@ -47,6 +48,7 @@ export function CareerForm({ action, children, className, successMessage = "已�
         const result = await action(formData);
         setState(result);
         if (result.status === "success") {
+          onSuccess?.();
           // Only creation forms opt in; updates retain their current controlled/uncontrolled values.
           if (resetOnSuccess) formRef.current?.reset();
           if (successTargetId) requestAnimationFrame(() => document.getElementById(successTargetId)?.scrollIntoView({ block: "nearest", behavior: "instant" }));

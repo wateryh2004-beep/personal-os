@@ -139,7 +139,8 @@ export async function getCareerHome() {
       .is("archived_at", null)
       .order("priority", { ascending: false })
       .order("next_interview_at", { ascending: true, nullsFirst: false })
-      .limit(3),
+      .order("id")
+      .limit(100),
     supabase
       .from("interview_question_preparations")
       .select("id,context_id,status,next_practice_at")
@@ -148,6 +149,7 @@ export async function getCareerHome() {
   ]);
 
   return {
+    ownerId: userId,
     now,
     timezone: roadmap.timezone,
     profile: profile.data,
@@ -241,5 +243,5 @@ export async function getResumeVersions() {
     supabase.from("career_applications").select("id,resume_version_id,status").is("archived_at", null),
     supabase.from("documents").select("id,title,original_filename").eq("storage_provider", "cloudflare_r2").is("archived_at", null).order("uploaded_at", { ascending: false }).limit(200),
   ]);
-  return { resumes: resumes.data ?? [], directions: directions.data ?? [], bullets: bullets.data ?? [], links: links.data ?? [], applications: applications.data ?? [], documents: documents.data ?? [], unavailable: Boolean(resumes.error || links.error) };
+  return { resumes: resumes.data ?? [], directions: directions.data ?? [], bullets: bullets.data ?? [], links: links.data ?? [], applications: applications.data ?? [], documents: documents.data ?? [], unavailable: Boolean(resumes.error || directions.error || bullets.error || links.error || applications.error || documents.error) };
 }

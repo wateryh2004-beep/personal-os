@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -11,16 +12,19 @@ import { isInternalEntityHref } from "@/features/links/parser";
  * /calendar?event=…、/files?file=…)渲染为站内可点击链接,其余按外部链接处理。
  * 用于日历日程说明、任务说明等描述字段。
  */
-export function EntityMarkdown({ body, className }: { body: string; className?: string }) {
+export function EntityMarkdown({ body, className, headingOffset = 0 }: { body: string; className?: string; headingOffset?: 0 | 1 | 2 }) {
   return (
     <div className={className}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}
         components={{
-          h1: ({ children }) => <h1 className="mb-3 mt-1 text-2xl font-semibold tracking-tight text-[var(--text-primary)]">{children}</h1>,
-          h2: ({ children }) => <h2 className="mb-2 mt-6 border-b pb-1 text-lg font-semibold text-[var(--text-primary)]">{children}</h2>,
-          h3: ({ children }) => <h3 className="mb-2 mt-5 text-base font-semibold text-[var(--text-primary)]">{children}</h3>,
+          h1: ({ children }) => createElement(`h${Math.min(6, 1 + headingOffset)}`, { className: "mb-3 mt-1 text-2xl font-semibold tracking-tight text-[var(--text-primary)]" }, children),
+          h2: ({ children }) => createElement(`h${Math.min(6, 2 + headingOffset)}`, { className: "mb-2 mt-6 border-b pb-1 text-lg font-semibold text-[var(--text-primary)]" }, children),
+          h3: ({ children }) => createElement(`h${Math.min(6, 3 + headingOffset)}`, { className: "mb-2 mt-5 text-base font-semibold text-[var(--text-primary)]" }, children),
+          h4: ({ children }) => createElement(`h${Math.min(6, 4 + headingOffset)}`, null, children),
+          h5: ({ children }) => createElement(`h${Math.min(6, 5 + headingOffset)}`, null, children),
+          h6: ({ children }) => createElement(`h${Math.min(6, 6 + headingOffset)}`, null, children),
           p: ({ children }) => <p className="mb-3 leading-6 text-[var(--text-secondary)]">{children}</p>,
           ul: ({ children }) => <ul className="mb-3 list-disc space-y-1 pl-5 text-[var(--text-secondary)]">{children}</ul>,
           ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1 pl-5 text-[var(--text-secondary)]">{children}</ol>,

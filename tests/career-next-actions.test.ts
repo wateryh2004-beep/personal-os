@@ -9,11 +9,11 @@ describe("career next actions", () => {
   it("has a real empty state when targets exist but nothing needs practice", () => {
     expect(getCareerNextActions([target], [{ context_id: "target", status: "ready", next_practice_at: "2026-10-09T08:00:00Z" }], [], now)).toEqual([]);
   });
-  it("retains upcoming interview dates and orders actual dated work before undated practice", () => {
+  it("orders interviews and active preparation ahead of longer term plans", () => {
     const result = getCareerNextActions([{ ...target, next_interview_at: "2026-10-04T09:00:00Z" }, { ...target, id: "undated" }], [{ context_id: "undated", status: "draft", next_practice_at: null }], [{ id: "due", title: "Submit", target_date: "2026-10-03", status: "planned" }, { id: "done", title: "Done", target_date: "2026-10-02", status: "completed" }], now);
-    expect(result.map((item) => item.key)).toEqual(["milestone-due", "target-target", "target-undated"]);
-    expect(result[1].dueAt).toBe("2026-10-04T09:00:00Z");
-    expect(result[2]).toMatchObject({ meta: "1 道题待安排练习", dueAt: null });
+    expect(result.map((item) => item.key)).toEqual(["target-target", "target-undated", "milestone-due"]);
+    expect(result[0].dueAt).toBe("2026-10-04T09:00:00Z");
+    expect(result[1]).toMatchObject({ meta: "1 道题待安排练习", dueAt: null });
   });
   it("separates scheduled due practice from undated preparation without flagging ready or paused work", () => {
     const preparations = [
@@ -43,7 +43,7 @@ describe("career next actions", () => {
       { id: "tomorrow", title: "Tomorrow", target_date: "2026-10-04", status: "planned" },
     ];
     const result = getCareerNextActions([{ ...target, next_interview_at: "2026-10-04T01:00:00Z" }], [], milestones, boundaryNow, "America/Los_Angeles");
-    expect(result.map((item) => item.key)).toEqual(["milestone-today", "target-target", "milestone-tomorrow"]);
+    expect(result.map((item) => item.key)).toEqual(["target-target", "milestone-today", "milestone-tomorrow"]);
     const shanghaiResult = getCareerNextActions([], [], milestones, Date.parse("2026-10-03T16:30:00Z"), "Asia/Shanghai");
     expect(shanghaiResult.map((item) => item.key)).toEqual(["milestone-tomorrow"]);
   });
@@ -56,4 +56,26 @@ describe("career next actions", () => {
     expect(getCareerNextActions([target], [{ context_id: "target", status: "paused", next_practice_at: null }], [], now)).toEqual([]);
     expect(careerOptions(["responsibility", "document_verified"])).toEqual([{ value: "responsibility", label: "职责" }, { value: "document_verified", label: "材料验证" }]);
   });
+  it("keeps due practice ahead of dated milestones and only surfaces unscheduled focused targets", () => {
+    const targets = [target, { ...target, id: "later" }];
+    const preparations = [{ context_id: "target", status: "practicing", next_practice_at: "2026-10-01T09:00:00Z" }, { context_id: "later", status: "draft", next_practice_at: null }];
+    const milestones = Array.from({ length: 5 }, (_, index) => ({ id: String(index), title: "Plan", target_date: "2026-10-05", status: "planned" }));
+    const result = getCareerNextActions(targets, preparations, milestones, now, "Asia/Shanghai", new Set());
+    expect(result[0]).toMatchObject({ kind: "practice", key: "target-target", dueAt: "2026-10-01T09:00:00Z" });
+    expect(result.some(item => item.key === "target-later")).toBe(false);
+    const focused = getCareerNextActions(targets, preparations, milestones, now, "Asia/Shanghai", new Set(["later"]));
+    expect(focused[1]).toMatchObject({ key: "target-later", kind: "preparation" });
+  });
+
+  it("does not let a distant interview displace practice already due", () => {
+    const targets = [{ ...target, next_interview_at: "2027-01-01T09:00:00Z" }, { ...target, id: "due" }];
+    const result = getCareerNextActions(targets, [{ context_id: "due", status: "practicing", next_practice_at: "2026-10-01T09:00:00Z" }], [], now);
+    expect(result.map(item => item.key)).toEqual(["target-due", "target-target"]);
+  });
+
+  it("shows due practice on the same target instead of obscuring it with a distant interview", () => {
+    const result = getCareerNextActions([{ ...target, next_interview_at: "2027-01-01T09:00:00Z" }], [{ context_id: "target", status: "practicing", next_practice_at: "2026-10-01T09:00:00Z" }], [], now);
+    expect(result[0]).toMatchObject({ kind: "practice", dueAt: "2026-10-01T09:00:00Z", meta: "1 道题到期练习" });
+  });
+
 });
