@@ -13,6 +13,7 @@ exports.verifyInterviewReading = async (browser, baseURL, output) => {
     await page.goto(`${baseURL}/mobile-native-e2e?scene=interview-reading`, { waitUntil: "networkidle" });
     const list = page.getByTestId("interview-question-list");
     const detail = page.getByTestId("interview-question-detail");
+    assert.deepEqual(await page.locator("h1").allTextContents(), ["面试学习"], "workspace keeps one page heading; embedded questions are level two");
     assert.equal(await list.isVisible(), true);
     assert.equal(await detail.isVisible(), width >= 1024);
     assert.equal(await list.getByTestId("interview-filters").getAttribute("open"), null);
@@ -25,12 +26,12 @@ exports.verifyInterviewReading = async (browser, baseURL, output) => {
     // The exact reported prompts must show actual questions, not job metadata.
     if (width >= 1024) {
       assert.equal(await detail.getByTestId("interview-prompt-text").innerText(), "用约90秒介绍自己，并说明哪些真实经历支持你胜任当前岗位。");
-      assert.equal(await detail.locator("h1").innerText(), "自我介绍");
+      assert.equal(await detail.getByTestId("interview-prompt").locator("h2").innerText(), "自我介绍");
     }
     await list.getByRole("button").filter({ hasText: "现金流与折现率" }).first().click();
     const cashflow = await detail.getByTestId("interview-prompt-text").innerText();
     assert.equal(cashflow, "面试官给你两套现金流：一套在债务偿付前，另一套已扣利息并考虑净借款。你分别用什么折现率？算出来是企业价值还是股权价值？");
-    assert.equal(await detail.locator("h1").innerText(), "现金流与折现率");
+    assert.equal(await detail.getByTestId("interview-prompt").locator("h2").innerText(), "现金流与折现率");
     assert.ok(!(await detail.innerText()).includes("2028届条件准备目标"));
     await page.screenshot({ path: `${output}/interview-prompt-cashflow-${width}.png` });
     if (width < 1024) { await detail.getByRole("button", { name: "← 返回题目列表", exact: true }).click(); await list.waitFor({ state: "visible" }); }
