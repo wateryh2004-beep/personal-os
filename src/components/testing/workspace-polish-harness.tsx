@@ -3,6 +3,8 @@
 import { ProjectsWorkspace } from "@/components/projects/projects-workspace";
 import { CalendarEventEditForm } from "@/components/calendar/calendar-event-edit-form";
 import { CareerHomeView, type CareerHomeData } from "@/components/career/career-home-view";
+import { TargetLibrary } from "@/components/career/target-library";
+import type { CareerTarget } from "@/features/career/next-actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { DashboardLayout } from "@/components/layout/page-layouts";
@@ -20,7 +22,7 @@ import type { TodoTask } from "@/features/tasks/types";
 import { FilesCachedCoversFixture, FilesPolishFixture } from "./files-polish-fixture";
 import { NoteEditorPolishFixture } from "./note-editor-polish-fixture";
 
-export type PolishScene = "projects" | "calendar-edit" | "heading" | "career" | "career-filled" | "today" | "today-filled" | "tasks" | "calendar" | "notes" | "note-editor" | "note-pdf" | "files" | "files-cached-covers" | "today-loading" | "tasks-loading" | "calendar-loading";
+export type PolishScene = "projects" | "calendar-edit" | "heading" | "career" | "career-filled" | "career-scenarios" | "today" | "today-filled" | "tasks" | "calendar" | "notes" | "note-editor" | "note-pdf" | "files" | "files-cached-covers" | "today-loading" | "tasks-loading" | "calendar-loading";
 
 // Fixture-only, reached through the existing explicitly gated E2E route. Never
 // populated from an account, and the browser test never submits these forms.
@@ -66,6 +68,15 @@ const career: CareerHomeData = {
   now: Date.parse("2026-10-03T08:00:00Z"), timezone: "Asia/Shanghai", pastMilestoneCount: 0, profile: null, directions: [], experienceCount: 0,
   skillCount: 0, resumeCount: 0, opportunities: [], applications: [], milestones: [], unavailable: false,
 };
+const scenarioTargets: CareerTarget[] = [
+  { id: "e2e-historical", title: "历史项目训练", organization_snapshot: "测试组织", role_title_snapshot: "旧岗位参考", status: "paused", next_interview_at: null },
+  { id: "e2e-focused", title: "近期英语训练", organization_snapshot: "模拟银行", role_title_snapshot: "实习项目练习", status: "active", next_interview_at: null },
+];
+const scenarioPreparations = [
+  { context_id: "e2e-historical", status: "developing", next_practice_at: null },
+  { context_id: "e2e-focused", status: "developing", next_practice_at: null },
+];
+
 const filledCareer: CareerHomeData = {
   ...career,
   pastMilestoneCount: 3,
@@ -76,13 +87,14 @@ const filledCareer: CareerHomeData = {
 };
 
 export function WorkspacePolishHarness({ scene }: { scene: PolishScene }) {
-  const pathname = scene === "files-cached-covers" ? "/files" : scene === "heading" ? "/today" : (scene === "note-editor" || scene === "note-pdf") ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
+  const pathname = scene === "career-scenarios" ? "/career/interview/targets" : scene === "files-cached-covers" ? "/files" : scene === "heading" ? "/today" : (scene === "note-editor" || scene === "note-pdf") ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
   return <div data-testid="workspace-polish-harness" data-scene={scene}>
     <AppShell presentationPathname={pathname}>
       {scene === "projects" ? <ProjectsWorkspace projects={[]} /> : null}
       {scene === "calendar-edit" ? <div className="mx-auto max-w-md p-5"><CalendarEventEditForm event={{ provider_event_id: "fixture-event", subject: "示例定时日程", body_text: "只用于取消和布局验证", starts_at: "2026-10-06T07:00:00Z", ends_at: "2026-10-06T08:00:00Z", is_all_day: false, location_name: null, categories: [], importance: "normal", show_as: "busy", last_synced_at: "2026-10-06T00:00:00Z" }} timezone="Asia/Shanghai" calendarCategories={[]} /></div> : null}
       {scene === "heading" ? <DashboardLayout><PageHeader eyebrow="Collection · 排版验证" title="项目与长期计划 / Projects and long-term plans" description="中英文标题、说明和操作保持清晰层级。This synthetic fixture checks wrapping without hiding long titles." action={<Button>新建项目</Button>} secondaryActions={<Button variant="ghost">查看全部</Button>} /><div className="mt-8 border-t border-[var(--separator)] pt-4 text-[14px] leading-6 text-[var(--text-secondary)]">仅用于共享标题组件的布局验证，不包含个人资料。</div></DashboardLayout> : null}
       {scene === "career" || scene === "career-filled" ? <div><p className="mb-4 text-[12px] text-[var(--text-secondary)]">Synthetic fixture · 以下仅为布局验证，不包含个人经历或业务数据。</p><CareerHomeView data={scene === "career-filled" ? filledCareer : career} showContinue={false}/></div> : null}
+      {scene === "career-scenarios" ? <div className="mx-auto max-w-5xl px-4 pt-7"><p className="mb-5 text-xs text-[var(--text-secondary)]">Synthetic Interview Lab fixture · 仅测试本地近期准备选择</p><TargetLibrary ownerId="synthetic-owner" targets={scenarioTargets} preparations={scenarioPreparations} now={Date.parse("2026-10-03T08:00:00Z")} timezone="Asia/Shanghai" unavailable={false}/></div> : null}
       {scene === "today" || scene === "today-filled" ? <NowWorkspaceView workspace={scene === "today-filled" ? filledNow : now} /> : null}
       {scene === "tasks" ? <TaskWorkspace tasks={tasks} lists={lists} initialDayBounds={{ startMs: 0, endMs: 8_640_000_000_000_000 }} /> : null}
       {scene === "calendar" ? <CalendarWorkspace events={events} categories={categories} timezone="Asia/Shanghai" syncStatus={null} scopeReady /> : null}
