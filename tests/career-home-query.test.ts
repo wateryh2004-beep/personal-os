@@ -16,7 +16,7 @@ function harness(rows: Row[], timezone: string | null = "America/Los_Angeles", f
   const from = vi.fn((table: string) => {
     const read: QueryRead = { table, steps: [] };
     const query: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "is", "neq", "order", "limit", "in", "lt", "gte", "not", "maybeSingle", "range"]) {
+    for (const method of ["select", "eq", "is", "neq", "or", "order", "limit", "in", "lt", "gte", "not", "maybeSingle", "range"]) {
       query[method] = (...args: unknown[]) => { read.steps.push({ method, args }); return query; };
     }
     query.then = (resolve: (value: QueryResult) => unknown) => {
