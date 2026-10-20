@@ -13,7 +13,7 @@
 ## 二、原有数据和读写规则
 
 1. 现有3条 `career_directions` 与92条历史/模拟 `interview_contexts` 全部保留；本阶段不从准备情境批量生成 `career_opportunities`，不自动生成 `career_applications`。
-2. Career 首页只查询方向、明确记录的招聘机会、申请和路线事项。历史准备不进入“真实招聘机会”和“实际投递”统计；全部旧情境放到 `/career/interview/targets`。
+2. Career 首页只查询方向、明确记录的招聘机会、申请和路线事项。历史准备不进入“真实招聘机会”和“实际投递”统计；全部旧情境放到 `/career/interview/targets`。旧版最多3项“近期关注”浏览器选择沿用原有存储键，转入 Interview Lab 情境置顶，不能用于招聘或投递状态推断。
 3. 新建具体招聘机会必须填写公司、具体岗位、可追溯JD或项目来源URL、招聘周期（如2027暑期/2028届）、类别；截止日和地点信息未知时不得臆造。URL是线索和证据入口，**仅存有URL不等于当天独立核验**。就业目标而非JD应在职业方向或备考情境记录。
 4. 正式投递的状态必须由用户实际提交操作触发。创建申请默认 `preparing`，不得仅凭准备简历自动变为 `submitted`；手动创建 `submitted` 必须填实际提交时间。原有转阶段动作通过 `transition_career_application` 记录时间并写入事件历史；不能通过题库修改申请状态。
 5. 一条真实机会对应面试学习，通过机会页的“准备面试”操作创建/定位 `context_type=opportunity` 的情境，并持有 `opportunity_id`。用户手动创建的是 `context_type=target` 的参考情境，与真实机会不同。旧情境深层URL不变。
