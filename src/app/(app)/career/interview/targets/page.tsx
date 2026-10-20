@@ -11,6 +11,6 @@ export default async function InterviewTargetsPage() {
     <PageHeader title="面试准备情境" description="保存题库、答案与模拟练习；这些记录不是正在招聘的岗位，也不是投递证明。" action={<TargetForm timezone={data.timezone} />} />
     <CareerNav current="/career/interview/targets" />
     <InterviewNav current="/career/interview/targets" />
-    <TargetLibrary targets={data.targets} preparations={data.preparations} now={data.now} timezone={data.timezone} unavailable={data.unavailable} />
+    <TargetLibrary ownerId={data.ownerId} targets={data.targets} preparations={data.preparations} now={data.now} timezone={data.timezone} unavailable={data.unavailable} />
   </>;
 }
