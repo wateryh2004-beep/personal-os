@@ -43,13 +43,13 @@ export function CareerFocusPicker({ targets, focus }: { targets: CareerTarget[];
   const options = targets.filter(target => [target.title, target.organization_snapshot, target.role_title_snapshot].join(" ").toLocaleLowerCase().includes(query.toLocaleLowerCase().trim()));
   return <div>
     <Dialog open={open} onOpenChange={next => { if (next) { setDraft(focus.ids.filter(id => validIds.has(id))); setQuery(""); } setOpen(next); }}>
-      <DialogTrigger asChild><Button variant="outline" size="sm" disabled={!targets.length}>选择关注岗位</Button></DialogTrigger>
+      <DialogTrigger asChild><Button variant="outline" size="sm" disabled={!targets.length}>选择近期准备</Button></DialogTrigger>
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader><DialogTitle>近期关注岗位</DialogTitle><DialogDescription>最多选择 3 个，仅保存在此浏览器；不更改岗位、申请或准备状态。</DialogDescription></DialogHeader>
-        <label className="grid gap-2 text-sm">搜索岗位<input className="ui-field min-h-11 rounded-lg px-3 text-base" value={query} onChange={event => setQuery(event.target.value)} type="search" /></label>
+        <DialogHeader><DialogTitle>近期准备的面试情境</DialogTitle><DialogDescription>最多选择 3 个并置于面试情境列表前面；仅保存在此浏览器，不代表企业正在招聘或已经投递。</DialogDescription></DialogHeader>
+        <label className="grid gap-2 text-sm">搜索准备情境<input className="ui-field min-h-11 rounded-lg px-3 text-base" value={query} onChange={event => setQuery(event.target.value)} type="search" /></label>
         <div className="max-h-[40dvh] space-y-1 overflow-y-auto overscroll-contain">
           {options.map(target => <label key={target.id} className="flex min-h-14 cursor-pointer items-start gap-3 rounded-lg p-3 hover:bg-[var(--surface-hover)]"><input type="checkbox" className="mt-1 size-4 shrink-0 accent-[var(--accent)]" checked={selected.includes(target.id)} disabled={!selected.includes(target.id) && selected.length >= 3} onChange={event => setDraft(event.target.checked ? [...selected, target.id] : selected.filter(id => id !== target.id))} /><span className="min-w-0 break-words text-sm"><span className="block text-xs text-[var(--text-secondary)]">{target.organization_snapshot}</span>{target.role_title_snapshot || target.title}</span></label>)}
-          {!options.length ? <p className="py-4 text-sm text-[var(--text-secondary)]">没有匹配的岗位。</p> : null}
+          {!options.length ? <p className="py-4 text-sm text-[var(--text-secondary)]">没有匹配的情境。</p> : null}
         </div>
         <div className="flex items-center justify-between gap-3"><span className="text-sm tabular-nums">已选 {selected.length}/3</span><div className="flex gap-2"><Button variant="outline" onClick={() => setOpen(false)}>取消</Button><Button onClick={() => { focus.save(selected); setOpen(false); }}>保存关注</Button></div></div>
       </DialogContent>
