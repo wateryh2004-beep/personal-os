@@ -66,7 +66,7 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
             </span>
             <span className="shrink-0 text-[12px] leading-6 text-[var(--text-tertiary)]">{item.deadline_at ? `${formatDate(item.deadline_at)} 截止` : "未公布截止"}</span>
           </Link>)}
-          {!openOpportunities.length ? <p className="py-3 text-sm leading-6 text-[var(--text-secondary)]">尚无记录的开放机会。面试准备中的历史目标不会自动算作在招岗位。</p> : null}
+          {!openOpportunities.length ? <p className="py-3 text-sm leading-6 text-[var(--text-secondary)]">尚无记录的开放机会。面试准备中的历史题库情境不会自动算作在招岗位。</p> : null}
         </div>
       </section>
 
