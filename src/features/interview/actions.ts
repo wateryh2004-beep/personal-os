@@ -97,6 +97,7 @@ async function resolveInterviewFormatId(
 function revalidateInterview(questionId?: string, preparationId?: string, sessionId?: string) {
   revalidatePath("/career");
   revalidatePath("/career/interview");
+  revalidatePath("/career/interview/targets");
   revalidatePath("/career/interview/questions");
   revalidatePath("/career/interview/practice");
   revalidatePath("/career/interview/sessions");
