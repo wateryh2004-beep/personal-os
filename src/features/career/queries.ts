@@ -103,7 +103,9 @@ export async function getCareerHome() {
     supabase.from("resume_versions").select("id", { count: "exact", head: true }).is("archived_at", null),
     supabase.from("career_opportunities")
       .select("id,organization,role_title,source_url,recruitment_cycle,status,deadline_at")
-      .is("archived_at", null).neq("status", "archived")
+      .is("archived_at", null).neq("status", "archived").neq("status", "closed")
+      // Apply freshness before limiting; old expired postings cannot hide new deadlines.
+      .or(`deadline_at.is.null,deadline_at.gte.${new Date(now).toISOString()}`)
       .order("deadline_at", { ascending: true, nullsFirst: false }).limit(8),
     supabase.from("career_applications").select("id,status,applied_at,opportunity_id")
       .is("archived_at", null).order("updated_at", { ascending: false }),
