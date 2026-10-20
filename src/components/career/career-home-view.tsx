@@ -3,146 +3,137 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { TargetLibrary } from "./target-library";
-import { TargetForm } from "./target-form";
-import { targetDetailHref } from "@/features/career/target-library";
-import { CareerFocusPicker, useCareerFocus } from "@/components/career/career-focus-picker";
+import { ArrowUpRight } from "lucide-react";
 import { DisclosureSummary } from "@/components/ui/disclosure";
 import { PageHeader } from "@/components/shared/page-header";
-import { CareerNav } from "@/components/career/career-nav";
+import { CareerNav } from "./career-nav";
+import { CareerContinue } from "./career-continue";
+import { getCareerNextActions } from "@/features/career/next-actions";
 import type { getCareerHome } from "@/features/career/queries";
-import { getCareerNextActions, getCareerPreparationCounts } from "@/features/career/next-actions";
-import { CareerContinue } from "@/components/career/career-continue";
-import { ArrowUpRight, CalendarDays } from "lucide-react";
 
 export type CareerHomeData = Awaited<ReturnType<typeof getCareerHome>>;
+const submittedStages = new Set(["submitted", "interviewing", "offer", "rejected", "withdrawn", "closed"]);
 
 export function CareerHomeView({ data, showContinue = true }: { data: CareerHomeData; showContinue?: boolean }) {
-  const p = data.profile;
-  const now = data.now;
-  const formatDateTime = (value: string) => new Date(value).toLocaleString("zh-CN", { timeZone: data.timezone, dateStyle: "medium", timeStyle: "short" });
-
-  const activeApplications = data.applications.filter((item) => !["rejected", "withdrawn", "closed"].includes(item.status));
-  const activeDirections = data.directions.filter((item) => ["active", "exploring"].includes(item.status));
-  const activeTargets = data.interviewTargets.filter((item) => item.status === "active");
-  const focus = useCareerFocus(data.ownerId);
-  const targets = activeTargets.filter((item) => focus.ids.includes(item.id));
   const router = useRouter();
   const [reloading, startReload] = useTransition();
-  const nextActions = getCareerNextActions(data.interviewTargets, data.interviewPreparations, data.milestones, now, data.timezone, new Set(focus.ids));
+  const now = data.now;
+  const formatDate = (value: string) => new Date(value).toLocaleString("zh-CN", {
+    timeZone: data.timezone, dateStyle: "medium",
+  });
+  // A saved preparation or draft must never count as an actual submitted application.
+  const submitted = data.applications.filter(item => submittedStages.has(item.status) && Boolean(item.applied_at));
+  const drafts = data.applications.filter(item => ["draft", "preparing"].includes(item.status));
+  const openOpportunities = data.opportunities.filter(item => item.status !== "closed" && (!item.deadline_at || Date.parse(item.deadline_at) >= now));
+  // A deadline is actionable only when it comes from a sourced opportunity, never
+  // from a speculative interview target. Do not remind about already submitted jobs.
+  const alreadyApplied = new Set(data.applications.filter(item => Boolean(item.applied_at)).map(item => item.opportunity_id));
+  const deadlineActions = openOpportunities
+    .filter(item => item.deadline_at && !alreadyApplied.has(item.id))
+    .map(item => ({
+      key: `opportunity-${item.id}`,
+      href: `/career/opportunities#opportunity-${item.id}`,
+      title: `${item.organization} · ${item.role_title}`,
+      meta: "招聘投递截止（未记录实际提交）",
+      dueAt: item.deadline_at!,
+    }));
+  const milestoneActions = getCareerNextActions([], [], data.milestones, now, data.timezone);
+  const nextActions = [...deadlineActions, ...milestoneActions]
+    .sort((a, b) => (a.dueAt ? Date.parse(a.dueAt) : Infinity) - (b.dueAt ? Date.parse(b.dueAt) : Infinity))
+    .slice(0, 6);
 
-  return (
-    <>
-      <PageHeader
-        title="目标岗位"
-        description={p?.professional_headline || p?.current_stage || undefined}
-        action={<TargetForm timezone={data.timezone} />}
-      />
-      <CareerNav current="/career" />
-      {showContinue ? <CareerContinue /> : null}
+  return <>
+    <PageHeader title="职业中心" description={data.profile?.professional_headline || "职业目标、真实机会、投递进展与面试学习分别管理。"} />
+    <CareerNav current="/career" />
+    {showContinue ? <CareerContinue /> : null}
+    {data.unavailable ? <div role="alert" className="mb-6 flex flex-wrap items-center gap-3 rounded-xl bg-[var(--surface-control)] px-4 py-3 text-sm text-[var(--danger)]">
+      部分职业数据暂时不可用。
+      <button type="button" disabled={reloading} onClick={() => startReload(() => router.refresh())} className="ui-link min-h-11">重新加载</button>
+    </div> : null}
 
-      {data.unavailable ? (
-        <div role="alert" className="mb-6 flex flex-wrap items-center gap-3 rounded-xl bg-[var(--surface-control)] px-4 py-3 text-sm text-[var(--danger)]">部分职业数据暂时不可用。<button type="button" disabled={reloading} onClick={() => startReload(() => router.refresh())} className="ui-link min-h-11">重新加载</button></div>
-      ) : null}
-
-      <div className="mb-10 grid items-start gap-8 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
-      <section aria-labelledby="career-next-heading" className="career-next-panel min-w-0 rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-6">
-        <div className="flex min-h-6 flex-wrap items-baseline justify-between gap-2.5">
-          <h2 id="career-next-heading" className="text-base font-medium text-[var(--text-primary)]">下一步</h2>
-          <Link href="/career/roadmap" className="ui-link inline-flex min-h-11 items-center text-[13px]">路线图 →</Link>
+    <div className="mb-9 grid items-start gap-5 lg:grid-cols-2">
+      <section aria-labelledby="career-directions-heading" className="rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="career-directions-heading" className="text-base font-medium">职业目标</h2>
+          <Link href="/career/directions" className="ui-link inline-flex min-h-11 items-center text-[13px]">管理方向 →</Link>
         </div>
-
-        <div className="mt-3.5 space-y-px">
-          {nextActions.map((item, index) => (
-            <Link key={item.key} href={item.href} className={`ui-record-link group flex min-h-16 items-start gap-3 rounded-[10px] px-2 py-3 hover:bg-[var(--surface-hover)] ${index === 0 ? "mb-2 bg-[var(--accent-soft)] px-4 py-4" : ""}`}>
-              <span className="min-w-0 flex-1"><span className={`block break-words leading-7 text-[var(--text-primary)] ${index === 0 ? "text-lg font-medium" : "text-[15px]"}`}>{item.title}</span>
-              <span className="mt-1 block text-[13px] leading-6 tabular-nums text-[var(--text-secondary)]">{item.dueAt ? `${item.dueAt.length === 10 ? item.dueAt : formatDateTime(item.dueAt)} · ` : ""}{item.meta}</span></span>
-            </Link>
-          ))}
-
-          {!nextActions.length ? (
-            <p className="py-3 text-sm text-[var(--text-tertiary)]">目前没有待推进的职业事项。可先选择近期关注岗位，或阅读通用面试内容。</p>
-          ) : null}
-        </div>
-        {data.pastMilestoneCount > 0 ? (
-          <Link href="/career/roadmap" className="mt-3 inline-flex min-h-11 items-center rounded-[7px] px-2.5 py-1 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]">
-            {data.pastMilestoneCount} 项历史路线计划状态待确认 →
-          </Link>
-        ) : null}
-      </section>
-      <div>
-      <section aria-labelledby="career-targets-heading" className="min-w-0">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 id="career-targets-heading" className="text-base font-medium text-[var(--text-primary)]">近期关注</h2>
-          <CareerFocusPicker targets={activeTargets} focus={focus} />
-        </div>
-
-        <div className="mt-3 grid gap-4">
-          {targets.map((target) => {
-            const preparations = data.interviewPreparations.filter((prep) => prep.context_id === target.id);
-            const { ready, due, unscheduled } = getCareerPreparationCounts(preparations, now);
-            return (
-              <Link key={target.id} href={targetDetailHref(target.id)} className="career-target-card group relative block rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-6">
-                <div className="min-w-0">
-                  <p className="pr-8 text-[13px] leading-6 text-[var(--text-secondary)]">{target.organization_snapshot || target.title}</p>
-                  <h3 className="mt-1 break-words pr-6 font-[family-name:var(--font-serif)] text-[24px] font-normal leading-snug text-[var(--text-primary)]">{target.role_title_snapshot || target.title}</h3>
-                  <ArrowUpRight aria-hidden="true" className="career-target-arrow absolute right-5 top-6 size-5 text-[var(--accent)] sm:right-6" />
-                </div>
-                <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--separator)] pt-4 text-[13px] tabular-nums text-[var(--text-secondary)]">
-                  <span>{preparations.length ? `${ready}/${preparations.length} 已准备` : "尚未开始"}</span>
-                  {due ? <span className="text-amber-700">{due} 到期练习</span> : null}
-                  {unscheduled ? <span>{unscheduled} 待安排练习</span> : null}
-                  {target.next_interview_at ? <span className="flex w-full items-start gap-2 leading-6"><CalendarDays aria-hidden="true" className="mt-1 size-4 shrink-0" /><time dateTime={target.next_interview_at}>{formatDateTime(target.next_interview_at)}</time></span> : null}
-                </div>
-              </Link>
-            );
-          })}
-
-          {!targets.length ? (
-            <div className="rounded-[20px] border border-dashed border-[var(--separator)] p-6"><p className="text-sm leading-7 text-[var(--text-secondary)]">选择近期要推进的岗位。全部岗位仍保留在下方，关注不会更改申请状态。</p><Link href="/career/interview" className="ui-link mt-3 inline-flex min-h-11 items-center text-sm">先阅读通用面试内容 →</Link></div>
-          ) : null}
+        <p className="mt-1 text-[12px] leading-5 text-[var(--text-tertiary)]">长期选择与判断，不等于企业正在招聘。</p>
+        <div className="mt-4 divide-y divide-[var(--separator)]">
+          {data.directions.map(item => <Link key={item.id} href="/career/directions" className="ui-record-link block py-3">
+            <span className="block text-[15px] font-medium leading-6">{item.name}</span>
+            <span className="mt-1 block text-[12px] leading-5 text-[var(--text-secondary)]">{item.current_decision || (item.status === "active" ? "主攻方向" : "探索方向")}</span>
+          </Link>)}
+          {!data.directions.length ? <p className="py-3 text-sm leading-6 text-[var(--text-secondary)]">暂无职业方向。先明确目标，再筛真实岗位。</p> : null}
         </div>
       </section>
-      </div>
-      </div>
 
-      <TargetLibrary targets={data.interviewTargets} preparations={data.interviewPreparations} now={now} timezone={data.timezone} unavailable={data.unavailable} />
-
-      <details className="border-t border-[var(--separator)] pt-2">
-        <DisclosureSummary className="min-h-11 text-sm">职业资料与管理</DisclosureSummary>
-        <div className="pt-5">
-          <section className="mb-10">
-            <h2 className="text-[15px] font-medium text-[var(--text-primary)]">关键资产</h2>
-            <div className="mt-3.5 grid grid-cols-2 gap-x-8 gap-y-3.5 sm:grid-cols-4">
-              <Asset href="/career/experiences" label="经历" value={data.experienceCount} />
-              <Asset href="/career/resumes" label="简历" value={data.resumeCount} />
-              <Asset href="/career/skills" label="能力" value={data.skillCount} />
-              <Asset href="/career/applications" label="申请" value={activeApplications.length} />
-            </div>
-          </section>
-
-          {activeDirections.length ? (
-            <section className="pt-2">
-              <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <h2 className="text-[15px] font-medium text-[var(--text-primary)]">职业方向</h2>
-                <Link href="/career/directions" className="pressable rounded-[7px] px-1 py-0.5 text-[12px] font-medium text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">管理 →</Link>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">
-                {activeDirections.slice(0, 3).map((item) => item.name).join(" · ")}
-              </p>
-            </section>
-          ) : null}
+      <section aria-labelledby="career-opportunities-heading" className="rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="career-opportunities-heading" className="text-base font-medium">真实招聘机会</h2>
+          <Link href="/career/opportunities" className="ui-link inline-flex min-h-11 items-center text-[13px]">查看机会 →</Link>
         </div>
-      </details>
-    </>
-  );
+        <p className="mt-1 text-[12px] leading-5 text-[var(--text-tertiary)]">只展示已单独记录招聘来源、届次的职位，不自动导入面试占位。</p>
+        <div className="mt-4 divide-y divide-[var(--separator)]">
+          {openOpportunities.slice(0, 4).map(item => <Link key={item.id} href={`/career/opportunities#opportunity-${item.id}`} className="ui-record-link flex min-w-0 items-start justify-between gap-3 py-3">
+            <span className="min-w-0"><span className="block text-[14px] font-medium leading-6">{item.role_title}</span>
+              <span className="mt-1 block text-[12px] leading-5 text-[var(--text-secondary)]">{item.organization}{item.recruitment_cycle ? ` · ${item.recruitment_cycle}` : ""}</span>
+            </span>
+            <span className="shrink-0 text-[12px] leading-6 text-[var(--text-tertiary)]">{item.deadline_at ? `${formatDate(item.deadline_at)} 截止` : "未公布截止"}</span>
+          </Link>)}
+          {!openOpportunities.length ? <p className="py-3 text-sm leading-6 text-[var(--text-secondary)]">尚无记录的开放机会。面试准备中的历史题库情境不会自动算作在招岗位。</p> : null}
+        </div>
+      </section>
+
+      <section aria-labelledby="career-applications-heading" className="rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="career-applications-heading" className="text-base font-medium">投递记录</h2>
+          <Link href="/career/applications" className="ui-link inline-flex min-h-11 items-center text-[13px]">查看进展 →</Link>
+        </div>
+        <p className="mt-1 text-[12px] leading-5 text-[var(--text-tertiary)]">真实提交与选拔进展；保存草稿不等于已申请。</p>
+        <p className="mt-5 text-[14px] leading-7"><span className="text-[25px] font-semibold tabular-nums">{submitted.length}</span> <span className="text-[var(--text-secondary)]">有投递时间的申请</span></p>
+        <p className="mt-1 text-[13px] text-[var(--text-secondary)]">{drafts.length} 条尚未提交的草稿／准备记录</p>
+      </section>
+
+      <section aria-labelledby="career-interview-heading" className="rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="career-interview-heading" className="text-base font-medium">面试准备情境</h2>
+          <Link href="/career/interview/targets" className="ui-link inline-flex min-h-11 items-center text-[13px]">管理情境 →</Link>
+        </div>
+        <p className="mt-1 text-[12px] leading-5 text-[var(--text-tertiary)]">题目、答案、故事与练习放在 Interview Lab；准备状态不代表岗位开放或已投递。</p>
+        <Link href="/career/interview" className="ui-action-secondary mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-[13px]">进入 Interview Lab <ArrowUpRight size={14} /></Link>
+      </section>
+    </div>
+
+    <section aria-labelledby="career-next-heading" className="mb-9 rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-6">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="career-next-heading" className="text-base font-medium">下一步</h2>
+        <Link href="/career/roadmap" className="ui-link inline-flex min-h-11 items-center text-[13px]">路线图 →</Link>
+      </div>
+      <div className="mt-3 divide-y divide-[var(--separator)]">
+        {nextActions.map(item => <Link key={item.key} href={item.href} className="ui-record-link block py-3">
+          <span className="block text-sm font-medium">{item.title}</span>
+          <span className="mt-1 block text-xs text-[var(--text-secondary)]">{item.dueAt ? `${item.dueAt} · ` : ""}{item.meta}</span>
+        </Link>)}
+        {!nextActions.length ? <p className="py-3 text-sm text-[var(--text-secondary)]">当前没有到期的路线事项。真实机会和申请进展分别在上方查看。</p> : null}
+      </div>
+      {data.pastMilestoneCount > 0 ? <Link href="/career/roadmap" className="ui-link mt-2 inline-flex min-h-11 items-center text-[12px]">{data.pastMilestoneCount} 项历史路线计划状态待确认 →</Link> : null}
+    </section>
+
+    <details className="border-t border-[var(--separator)] pt-2">
+      <DisclosureSummary className="min-h-11 text-sm">职业资料与管理</DisclosureSummary>
+      <div className="grid grid-cols-2 gap-x-8 gap-y-4 py-5 sm:grid-cols-4">
+        <Asset href="/career/experiences" label="经历" value={data.experienceCount} />
+        <Asset href="/career/resumes" label="简历" value={data.resumeCount} />
+        <Asset href="/career/skills" label="能力" value={data.skillCount} />
+        <Asset href="/career/applications" label="投递记录" value={submitted.length} />
+      </div>
+    </details>
+  </>;
 }
 
 function Asset({ href, label, value }: { href: string; label: string; value: number }) {
-  return (
-    <Link href={href} className="group">
-      <p className="text-[23px] font-semibold leading-none tracking-[-0.025em] text-[var(--text-primary)]">{value}</p>
-      <p className="mt-1.5 text-[12px] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]">{label}</p>
-    </Link>
-  );
+  return <Link href={href} className="group">
+    <p className="text-[23px] font-semibold tabular-nums leading-none tracking-[-0.025em] text-[var(--text-primary)]">{value}</p>
+    <p className="mt-1.5 text-[12px] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]">{label}</p>
+  </Link>;
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getCareerHome, getResumeVersions } from "@/features/career/queries";
+import { getCareerHome, getInterviewTargetIndex, getResumeVersions } from "@/features/career/queries";
 
 const mocks = vi.hoisted(() => ({ owner: vi.fn() }));
 vi.mock("@/lib/auth/require-owner", () => ({ requireOwner: mocks.owner }));
@@ -16,7 +16,7 @@ function harness(rows: Row[], timezone: string | null = "America/Los_Angeles", f
   const from = vi.fn((table: string) => {
     const read: QueryRead = { table, steps: [] };
     const query: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "is", "neq", "order", "limit", "in", "lt", "gte", "not", "maybeSingle", "range"]) {
+    for (const method of ["select", "eq", "is", "neq", "or", "order", "limit", "in", "lt", "gte", "not", "maybeSingle", "range"]) {
       query[method] = (...args: unknown[]) => { read.steps.push({ method, args }); return query; };
     }
     query.then = (resolve: (value: QueryResult) => unknown) => {
@@ -70,10 +70,13 @@ describe("career home milestone reads", () => {
     expect(upcoming.steps.findIndex((step) => step.method === "gte")).toBeLessThan(upcoming.steps.findIndex((step) => step.method === "limit"));
     expect(mocks.owner).toHaveBeenCalledTimes(1);
     expect(data.ownerId).toBe("owner");
-    const targets = h.reads.find(read => read.table === "interview_contexts")!;
-    expect(targets.steps).toContainEqual({ method: "range", args: [0, 499] });
-    expect(targets.steps).not.toContainEqual({ method: "eq", args: ["status", "active"] });
-    expect(targets.steps).toContainEqual({ method: "order", args: ["id"] });
+    expect(h.reads.find(read => read.table === "interview_contexts")).toBeUndefined();
+    expect(h.reads.find(read => read.table === "interview_question_preparations")).toBeUndefined();
+    const openings = h.reads.find(read => read.table === "career_opportunities")!;
+    expect(openings.steps).toContainEqual({ method: "neq", args: ["status", "closed"] });
+    expect(openings.steps.findIndex(step => step.method === "or" && String(step.args[0]).includes("deadline_at.gte.")))
+      .toBeLessThan(openings.steps.findIndex(step => step.method === "limit"));
+    expect(h.reads.some(read => read.table === "career_opportunities")).toBe(true);
   });
 
   it("uses the standard timezone fallback when no profile timezone is stored", async () => {
@@ -101,5 +104,21 @@ describe("resume workspace partial reads", () => {
   it.each(["resume_versions", "career_directions", "experience_bullets", "resume_version_bullets", "career_applications", "documents"] as const)("reports an incomplete result if %s is unavailable", async table => {
     harness([], "Asia/Shanghai", table);
     expect((await getResumeVersions()).unavailable).toBe(true);
+  });
+});
+
+
+describe("Interview context index isolation", () => {
+  it("reads the historic preparation list only when the interview scenarios page requests it", async () => {
+    const h = harness([]);
+    const data = await getInterviewTargetIndex();
+    expect(data.unavailable).toBe(false);
+    const contexts = h.reads.find(read => read.table === "interview_contexts")!;
+    const preparations = h.reads.find(read => read.table === "interview_question_preparations")!;
+    expect(contexts.steps).toContainEqual({ method: "range", args: [0, 499] });
+    expect(contexts.steps).toContainEqual({ method: "neq", args: ["context_type", "general"] });
+    expect(preparations.steps).toContainEqual({ method: "range", args: [0, 499] });
+    expect(h.reads.some(read => read.table === "career_opportunities")).toBe(false);
+    expect(h.reads.some(read => read.table === "career_applications")).toBe(false);
   });
 });

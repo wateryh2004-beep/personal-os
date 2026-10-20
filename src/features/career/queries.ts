@@ -77,87 +77,40 @@ export async function getExperience(id: string) {
 export async function getCareerHome() {
   const { supabase, userId } = await requireOwner();
   const now = Date.now();
-  // Only the date-scoped reads wait for the timezone; other home reads stay parallel.
+  // Career home intentionally reads decisions, opportunities and applications only.
+  // Legacy target snapshots remain in Interview Lab; they are not job openings.
   const roadmapPromise = (async () => {
     const profile = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
     const timezone = profile.data?.timezone || "Asia/Shanghai";
     const today = getDateKeyInTimeZone(new Date(now), timezone)!;
     const [milestones, pastMilestones] = await Promise.all([
-      supabase
-        .from("career_milestones")
-        .select("id,title,target_date,status")
-        .eq("user_id", userId)
-        .is("archived_at", null)
-        .in("status", ["planned", "in_progress"])
-        .gte("target_date", today)
-        .order("target_date")
-        .limit(5),
-      supabase
-        .from("career_milestones")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .is("archived_at", null)
-        .in("status", ["planned", "in_progress"])
-        .lt("target_date", today),
+      supabase.from("career_milestones").select("id,title,target_date,status").eq("user_id", userId)
+        .is("archived_at", null).in("status", ["planned", "in_progress"])
+        .gte("target_date", today).order("target_date").limit(5),
+      supabase.from("career_milestones").select("id", { count: "exact", head: true })
+        .eq("user_id", userId).is("archived_at", null)
+        .in("status", ["planned", "in_progress"]).lt("target_date", today),
     ]);
     return { timezone, milestones, pastMilestones, unavailable: Boolean(profile.error || milestones.error || pastMilestones.error) };
   })();
-
-  const [
-    profile,
-    directions,
-    experiencesCount,
-    skillsCount,
-    resumesCount,
-    applications,
-    roadmap,
-    interviewTargets,
-    interviewPreparations,
-  ] = await Promise.all([
-    supabase
-      .from("career_profiles")
-      .select("professional_headline,current_stage")
-      .eq("user_id", userId)
-      .maybeSingle(),
-    supabase
-      .from("career_directions")
-      .select("id,name,status")
-      .in("status", ["active", "exploring"])
-      .is("archived_at", null)
-      .order("priority", { ascending: false })
-      .limit(3),
-    supabase
-      .from("experiences")
-      .select("id", { count: "exact", head: true })
-      .is("archived_at", null),
-    supabase
-      .from("skills")
-      .select("id", { count: "exact", head: true })
-      .is("archived_at", null),
-    supabase
-      .from("resume_versions")
-      .select("id", { count: "exact", head: true })
-      .is("archived_at", null),
-    supabase
-      .from("career_applications")
-      .select("id,status")
-      .is("archived_at", null),
+  const [profile, directions, experiencesCount, skillsCount, resumesCount, opportunities, applications, roadmap] = await Promise.all([
+    supabase.from("career_profiles").select("professional_headline,current_stage").eq("user_id", userId).maybeSingle(),
+    supabase.from("career_directions").select("id,name,status,current_decision")
+      .in("status", ["active", "exploring"]).is("archived_at", null)
+      .order("priority", { ascending: false }).limit(3),
+    supabase.from("experiences").select("id", { count: "exact", head: true }).is("archived_at", null),
+    supabase.from("skills").select("id", { count: "exact", head: true }).is("archived_at", null),
+    supabase.from("resume_versions").select("id", { count: "exact", head: true }).is("archived_at", null),
+    supabase.from("career_opportunities")
+      .select("id,organization,role_title,source_url,recruitment_cycle,status,deadline_at")
+      .is("archived_at", null).neq("status", "archived").neq("status", "closed")
+      // Apply freshness before limiting; old expired postings cannot hide new deadlines.
+      .or(`deadline_at.is.null,deadline_at.gte.${new Date(now).toISOString()}`)
+      .order("deadline_at", { ascending: true, nullsFirst: false }).limit(8),
+    supabase.from("career_applications").select("id,status,applied_at,opportunity_id")
+      .is("archived_at", null).order("updated_at", { ascending: false }),
     roadmapPromise,
-    readAllRows(supabase
-      .from("interview_contexts")
-      .select("id,title,organization_snapshot,role_title_snapshot,status,next_interview_at")
-      .neq("context_type", "general")
-      .is("archived_at", null)
-      .order("priority", { ascending: false })
-      .order("next_interview_at", { ascending: true, nullsFirst: false })
-      .order("id")),
-    readAllRows(supabase
-      .from("interview_question_preparations")
-      .select("id,context_id,status,next_practice_at")
-      .not("context_id", "is", null)
-      .is("archived_at", null).order("id")),
   ]);
-
   return {
     ownerId: userId,
     now,
@@ -167,22 +120,35 @@ export async function getCareerHome() {
     experienceCount: experiencesCount.count ?? 0,
     skillCount: skillsCount.count ?? 0,
     resumeCount: resumesCount.count ?? 0,
+    opportunities: opportunities.data ?? [],
     applications: applications.data ?? [],
     milestones: roadmap.milestones.data ?? [],
     pastMilestoneCount: roadmap.pastMilestones.count ?? 0,
-    interviewTargets: interviewTargets.data ?? [],
-    interviewPreparations: interviewPreparations.data ?? [],
-    unavailable: Boolean(
-      profile.error
-      || directions.error
-      || experiencesCount.error
-      || skillsCount.error
-      || resumesCount.error
-      || applications.error
-      || roadmap.unavailable
-      || interviewTargets.error
-      || interviewPreparations.error
-    ),
+    unavailable: Boolean(profile.error || directions.error || experiencesCount.error || skillsCount.error
+      || resumesCount.error || opportunities.error || applications.error || roadmap.unavailable),
+  };
+}
+
+/** Interview-only scope: old target snapshots are practice contexts, not recruitment listings. */
+export async function getInterviewTargetIndex() {
+  const { supabase, userId } = await requireOwner();
+  const [contexts, preparations, profile] = await Promise.all([
+    readAllRows(supabase.from("interview_contexts")
+      .select("id,title,organization_snapshot,role_title_snapshot,status,priority,context_type,next_interview_at")
+      .neq("context_type", "general").is("archived_at", null)
+      .order("priority", { ascending: false }).order("title").order("id")),
+    readAllRows(supabase.from("interview_question_preparations")
+      .select("id,context_id,status,next_practice_at").not("context_id", "is", null)
+      .is("archived_at", null).order("id")),
+    supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle(),
+  ]);
+  return {
+    ownerId: userId,
+    targets: contexts.data ?? [],
+    preparations: preparations.data ?? [],
+    timezone: profile.data?.timezone || "Asia/Shanghai",
+    now: Date.now(),
+    unavailable: Boolean(contexts.error || preparations.error || profile.error),
   };
 }
 

@@ -165,12 +165,13 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
     <div className="interview-workspace -mx-2 sm:-mx-3">
       <header className="mx-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[var(--separator)] pb-4 sm:mx-3">
         <div className="flex min-w-0 items-center gap-3">
-          <Link href="/career" prefetch className="inline-flex min-h-11 items-center text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">← 目标岗位</Link>
+          <Link href="/career" prefetch className="inline-flex min-h-11 items-center text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">← 职业中心</Link>
           <span className="h-4 w-px bg-[var(--separator)]" aria-hidden="true" />
           <h1 className="font-serif text-[28px] font-medium leading-tight">面试学习</h1>
         </div>
         <nav aria-label="面试学习导航" className="flex items-center gap-1 text-[12px]">
           <span aria-current="page" className="ui-navigation-item">学习库</span>
+          <Link href="/career/interview/targets" className="ui-navigation-item">准备情境</Link>
           <Link href="/career/interview/questions" className="ui-navigation-item">题目管理</Link>
           <Link href={`/career/interview/practice?context=${encodeURIComponent(contextId || "general")}`} className="ui-navigation-item">练习</Link>
           <Link href={`/career/interview/insights?context=${encodeURIComponent(contextId || "general")}`} className="ui-navigation-item">复盘</Link>
@@ -180,7 +181,7 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
 
       <div className="grid items-start gap-6 pt-5 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-8 xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-12">
         <aside data-testid="interview-question-list" className={`${mobileDetailOpen ? "hidden lg:block" : ""} min-w-0 self-start px-2 sm:px-3 lg:sticky lg:top-[calc(var(--toolbar-height)+1rem)]`}>
-          <label className="block text-[12px] font-medium text-[var(--text-tertiary)]">面试方向
+          <label className="block text-[12px] font-medium text-[var(--text-tertiary)]">面试情境
             <select aria-label="面试岗位" value={contextId} onChange={(event) => handleContextChange(event.target.value)} className="ui-field mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--separator)] bg-[var(--surface-canvas)] px-3 text-[13px] font-medium text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]">
               <option value="">通用面试</option>
               {targets.map((target) => <option key={target.id} value={target.id}>{target.organization ? target.organization + " · " : ""}{target.role || target.title}</option>)}

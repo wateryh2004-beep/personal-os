@@ -23,7 +23,7 @@ export const careerFieldLabels: Record<string, string> = {
   experience_id: "经历", opportunity_id: "机会", resume_version_id: "简历版本", career_direction_id: "职业方向",
   target_direction_id: "目标方向", fact_type: "事实类型", verification_status: "验证状态", metric_value: "量化数值",
   metric_unit: "单位", occurred_at: "发生日期", source_document_id: "来源文件", public_url: "公开链接",
-  source_url: "来源链接", deadline_at: "截止时间", applied_at: "投递时间", language: "语言", source: "来源",
+  source_url: "岗位来源链接", recruitment_cycle: "招聘届次", deadline_at: "截止时间", applied_at: "实际投递时间", language: "语言", source: "来源",
   requirement_text: "岗位要求", requirement_type: "要求类型", status: "状态", notes_markdown: "备注",
   content_markdown: "正文", document_id: "关联文件", file: "文件", description_markdown: "描述",
   result_markdown: "结果", output_type: "成果类型", confidentiality_level: "保密级别", version_label: "版本标签",

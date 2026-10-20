@@ -71,8 +71,8 @@ export const requirementTypes = ["must_have", "preferred", "responsibility", "ex
 export const opportunitySchema = z.object({
   organization: z.string().trim().min(1).max(200), role_title: z.string().trim().min(1).max(200),
   opportunity_type: z.enum(["internship", "full_time", "graduate_program", "public_sector", "research", "part_time", "other"]),
-  source_name: optionalText(160), source_url: z.string().trim().url().nullable().optional().or(z.literal("")), location: optionalText(200),
-  work_mode: optionalText(80), compensation_text: optionalText(240), recruitment_cycle: optionalText(120),
+  source_name: optionalText(160), source_url: z.string().trim().url({ message: "真实招聘机会必须附可追溯的职位或项目来源链接。" }).refine((url) => /^https?:\/\//i.test(url), "只接受 HTTP(S) 招聘来源链接。"), location: optionalText(200),
+  work_mode: optionalText(80), compensation_text: optionalText(240), recruitment_cycle: z.string().trim().min(1, "请明确招聘届次或项目年份。").max(120),
   career_direction_id: z.string().uuid().nullable().optional(), jd_markdown: optionalText(50_000), notes_markdown: optionalText(20_000),
   deadline_at: z.string().trim().datetime({ offset: true }).nullable().optional().or(z.literal("")), expected_start_date: optionalDate,
   status: z.enum(opportunityStatuses),
@@ -86,6 +86,9 @@ export const requirementSchema = z.object({
 export const applicationSchema = z.object({
   opportunity_id: z.string().uuid(), resume_version_id: z.string().uuid().nullable().optional(),
   status: z.enum(applicationStatuses), applied_at: z.string().trim().datetime({ offset: true }).nullable().optional().or(z.literal("")), notes_markdown: optionalText(20_000),
+}).superRefine((value, ctx) => {
+  if (["submitted", "interviewing", "offer"].includes(value.status) && !value.applied_at) ctx.addIssue({ code: "custom", path: ["applied_at"], message: "只有真实完成投递并记录提交时间后才能标记已投递。" });
+  if (["draft", "preparing"].includes(value.status) && value.applied_at) ctx.addIssue({ code: "custom", path: ["applied_at"], message: "尚未提交的草稿不应填写实际投递时间。" });
 });
 
 export const resumeVersionSchema = z.object({

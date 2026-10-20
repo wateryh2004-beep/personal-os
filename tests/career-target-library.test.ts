@@ -12,7 +12,7 @@ describe("target discovery",()=>{
   it("keeps multiword input and only builds fixed internal return URLs",()=>{
     const f={target_q:"Example 北京 ",target_status:"paused"};
     expect(targetFilters(new URLSearchParams(targetQuery(f)))).toEqual(f);
-    expect(targetLibraryHref(f)).toMatch(/^\/career\?/);
+    expect(targetLibraryHref(f)).toMatch(/^\/career\/interview\/targets\?/);
     expect(targetDetailHref("a/b",f)).toContain("a%2Fb?");
     expect(targetFilters(new URLSearchParams("return=https://evil.test"))).toEqual(emptyTargetFilters);
   });

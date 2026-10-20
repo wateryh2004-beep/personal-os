@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const items = [
   ["学习库", "/career/interview"],
+  ["准备情境", "/career/interview/targets"],
   ["题目管理", "/career/interview/questions"],
   ["故事库", "/career/interview/stories"],
   ["练习", "/career/interview/practice"],
@@ -9,7 +10,7 @@ const items = [
 ] as const;
 
 function active(current: string, href: string) {
-  if (href === "/career/interview") return current === href || current.startsWith("/career/interview/targets/");
+  if (href === "/career/interview") return current === href;
   if (href === "/career/interview/questions") return current === href || current.startsWith("/career/interview/questions/");
   return current === href || current.startsWith(`${href}/`) || (href === "/career/interview/practice" && current.startsWith("/career/interview/sessions"));
 }

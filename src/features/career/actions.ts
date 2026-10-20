@@ -201,9 +201,21 @@ export async function createCareerApplication(formData: FormData) {
 }
 
 export async function transitionCareerApplication(formData: FormData) {
-  const { supabase, userId } = await requireOwner(); const value = parse(applicationTransitionSchema, formObject(formData)); await own(supabase, "career_applications", value.application_id);
+  const { supabase, userId } = await requireOwner();
+  const value = parse(applicationTransitionSchema, formObject(formData));
+  const { data: existing, error: readError } = await supabase.from("career_applications")
+    .select("id,applied_at").eq("id", value.application_id).is("archived_at", null).maybeSingle();
+  if (readError || !existing) failed(readError);
+  // Do not let an untouched draft jump to an interview or offer by relabelling.
+  // The existing RPC records a submission timestamp only on an explicit
+  // transition to "submitted"; this branch must not guess it.
+  if (["interviewing", "offer"].includes(value.status) && !existing.applied_at) {
+    throw new CareerInputError({ status: "请先确认实际提交并将申请更新为已投递，再记录后续面试或录用。" });
+  }
   const { error } = await supabase.rpc("transition_career_application", { p_application_id: value.application_id, p_to_status: value.status, p_note: value.note });
-  if (error) failed(error); await audit(supabase, userId, "transition", "career_application", value.application_id, { status: value.status }); revalidatePath("/career"); revalidatePath("/career/applications");
+  if (error) failed(error);
+  await audit(supabase, userId, "transition", "career_application", value.application_id, { status: value.status });
+  revalidatePath("/career"); revalidatePath("/career/applications");
 }
 
 export async function createResumeVersion(formData: FormData) {
