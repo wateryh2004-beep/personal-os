@@ -21,7 +21,7 @@ it("preserves linked context and full notes on failed editing with a target-spec
   const target={id:"t",title:"原显示名",context_type:"opportunity",opportunity_id:"linked",career_direction_id:null,application_id:null,organization_snapshot:"示例",role_title_snapshot:"研究",priority:4,status:"paused",default_language:"bilingual",next_interview_at:"2026-10-20T02:00:45.123Z",notes_markdown:"# 完整岗位备注\n\n末尾"} as Tables<"interview_contexts">;
   actions.submit.mockResolvedValue({status:"error",message:"未保存"});
   await act(async()=>root.render(createElement(TargetForm,{target,timezone:"Asia/Shanghai"})));
-  await act(async()=>button("编辑岗位").click());
+  await act(async()=>button("编辑面试情境").click());
   const snapshot=new FormData(form());
   expect(snapshot.get("interview_wall_time")).toBe("2026-10-20T10:00");
   expect(snapshot.get("next_interview_at")).toBe(target.next_interview_at);
