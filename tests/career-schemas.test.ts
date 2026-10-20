@@ -23,6 +23,7 @@ describe("Career four-layer recording rules", () => {
     expect(opportunitySchema.safeParse({ ...vacancy, source_url: "" }).success).toBe(false);
     expect(opportunitySchema.safeParse({ ...vacancy, recruitment_cycle: "" }).success).toBe(false);
     expect(opportunitySchema.safeParse({ ...vacancy, source_url: "not-a-url" }).success).toBe(false);
+    expect(opportunitySchema.safeParse({ ...vacancy, source_url: "javascript:alert(1)" }).success).toBe(false);
   });
 
   it("treats preparing an application as a draft, never a submitted application", () => {
