@@ -70,10 +70,9 @@ describe("career home milestone reads", () => {
     expect(upcoming.steps.findIndex((step) => step.method === "gte")).toBeLessThan(upcoming.steps.findIndex((step) => step.method === "limit"));
     expect(mocks.owner).toHaveBeenCalledTimes(1);
     expect(data.ownerId).toBe("owner");
-    const targets = h.reads.find(read => read.table === "interview_contexts")!;
-    expect(targets.steps).toContainEqual({ method: "range", args: [0, 499] });
-    expect(targets.steps).not.toContainEqual({ method: "eq", args: ["status", "active"] });
-    expect(targets.steps).toContainEqual({ method: "order", args: ["id"] });
+    expect(h.reads.find(read => read.table === "interview_contexts")).toBeUndefined();
+    expect(h.reads.find(read => read.table === "interview_question_preparations")).toBeUndefined();
+    expect(h.reads.some(read => read.table === "career_opportunities")).toBe(true);
   });
 
   it("uses the standard timezone fallback when no profile timezone is stored", async () => {
