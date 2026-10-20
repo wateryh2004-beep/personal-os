@@ -59,14 +59,25 @@ async function goto(page, scene) {
         assert.deepEqual(result.errors, [], `${name}: no hydration or runtime errors`);
       };
       await goto(page, "career-filled");
-      await page.getByRole("button", { name: "选择关注岗位", exact: true }).click();
+      for (const heading of ["职业目标", "真实招聘机会", "投递记录", "面试准备情境"]) {
+        assert.equal(await page.getByRole("heading", { name: heading, exact: true }).count(), 1, `Career layer ${heading} exists`);
+      }
+      await page.locator('a[href="/career/opportunities#opportunity-e2e-job"]').waitFor();
+      assert.equal(await page.locator(".career-target-card").count(), 0, "historical interview contexts must not appear as job cards");
+      assert.ok(await page.getByText("保存草稿不等于已申请。").isVisible());
+      await capture("career");
+      result.checks.push("four-layer-home-job-and-submission-separation");
+
+      await goto(page, "career-scenarios");
+      await page.getByRole("heading", { name: "全部面试准备情境", exact: true }).waitFor();
+      assert.equal(await page.locator('#target-library li a[href*="e2e-historical"]').count(), 1);
+      await page.getByRole("button", { name: "选择近期准备", exact: true }).click();
       await page.getByRole("dialog").getByRole("checkbox").first().check();
       await page.getByRole("button", { name: "保存关注", exact: true }).click();
-      await page.locator(".career-target-card").waitFor();
-      assert.equal(await page.getByRole("heading", { name: "近期关注", exact: true }).count(), 1);
-      assert.ok(await page.locator(".career-target-card time").isVisible());
-      await capture("career");
-      result.checks.push("target-card-date-and-next-actions");
+      await page.waitForFunction(() => document.querySelector("#target-library li")?.textContent?.includes("近期准备"));
+      assert.match(await page.locator("#target-library li").first().innerText(), /实习项目练习/);
+      await capture("career-scenarios");
+      result.checks.push("browser-focus-moved-to-interview-scenarios");
 
       await goto(page, "interview-reading");
       if (width < 1024) await page.getByRole("navigation", { name: "面试题目", exact: true }).getByRole("button").first().click();
