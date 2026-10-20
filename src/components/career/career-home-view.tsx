@@ -25,8 +25,22 @@ export function CareerHomeView({ data, showContinue = true }: { data: CareerHome
   const submitted = data.applications.filter(item => submittedStages.has(item.status) && Boolean(item.applied_at));
   const drafts = data.applications.filter(item => ["draft", "preparing"].includes(item.status));
   const openOpportunities = data.opportunities.filter(item => item.status !== "closed" && (!item.deadline_at || Date.parse(item.deadline_at) >= now));
-  // Interview draft queues are intentionally excluded from Career-level next actions.
-  const nextActions = getCareerNextActions([], [], data.milestones, now, data.timezone);
+  // A deadline is actionable only when it comes from a sourced opportunity, never
+  // from a speculative interview target. Do not remind about already submitted jobs.
+  const alreadyApplied = new Set(data.applications.filter(item => Boolean(item.applied_at)).map(item => item.opportunity_id));
+  const deadlineActions = openOpportunities
+    .filter(item => item.deadline_at && !alreadyApplied.has(item.id))
+    .map(item => ({
+      key: `opportunity-${item.id}`,
+      href: `/career/opportunities#opportunity-${item.id}`,
+      title: `${item.organization} · ${item.role_title}`,
+      meta: "招聘投递截止（未记录实际提交）",
+      dueAt: item.deadline_at!,
+    }));
+  const milestoneActions = getCareerNextActions([], [], data.milestones, now, data.timezone);
+  const nextActions = [...deadlineActions, ...milestoneActions]
+    .sort((a, b) => (a.dueAt ? Date.parse(a.dueAt) : Infinity) - (b.dueAt ? Date.parse(b.dueAt) : Infinity))
+    .slice(0, 6);
 
   return <>
     <PageHeader title="职业中心" description={data.profile?.professional_headline || "职业目标、真实机会、投递进展与面试学习分别管理。"} />
