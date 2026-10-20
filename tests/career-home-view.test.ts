@@ -60,6 +60,30 @@ describe("Career home four-layer boundary", () => {
     expect(host.querySelector('a[href="/career/opportunities#opportunity-o"]')).not.toBeNull();
   });
 
+  it("promotes real unsubmitted opportunity deadlines but never historical interview preparations", () => {
+    const host = render({
+      ...base,
+      opportunities: [{
+        id: "unsubmitted", organization: "Example Bank", role_title: "Summer internship",
+        status: "watching", deadline_at: "2026-10-08T00:00:00Z", recruitment_cycle: "2027暑期",
+        source_url: "https://example.com/jobs/role",
+      }],
+    });
+    const action = [...host.querySelectorAll("a")].find(node => node.textContent?.includes("招聘投递截止"))!;
+    expect(action).toBeDefined();
+    expect(action.getAttribute("href")).toBe("/career/opportunities#opportunity-unsubmitted");
+    const completed = render({
+      ...base,
+      opportunities: [{
+        id: "submitted", organization: "Example Bank", role_title: "Already submitted",
+        status: "watching", deadline_at: "2026-10-08T00:00:00Z", recruitment_cycle: "2027暑期",
+        source_url: "https://example.com/jobs/role",
+      }],
+      applications: [{ id: "a", status: "submitted", applied_at: "2026-10-03T04:00:00Z", opportunity_id: "submitted" }],
+    });
+    expect(completed.textContent).not.toContain("招聘投递截止");
+  });
+
   it("keeps partial-load feedback and overdue milestone review outside interview metrics", () => {
     const host = render({ ...base, unavailable: true, pastMilestoneCount: 7 });
     expect(host.textContent).toContain("部分职业数据暂时不可用");
