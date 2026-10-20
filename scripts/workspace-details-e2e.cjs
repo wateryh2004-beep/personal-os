@@ -62,7 +62,7 @@ async function goto(page, scene) {
       for (const heading of ["职业目标", "真实招聘机会", "投递记录", "面试准备情境"]) {
         assert.equal(await page.getByRole("heading", { name: heading, exact: true }).count(), 1, `Career layer ${heading} exists`);
       }
-      await page.locator('a[href="/career/opportunities#opportunity-e2e-job"]').waitFor();
+      await page.locator('a[href="/career/opportunities#opportunity-e2e-job"]').first().waitFor();
       assert.equal(await page.locator(".career-target-card").count(), 0, "historical interview contexts must not appear as job cards");
       assert.ok(await page.getByText("保存草稿不等于已申请。").isVisible());
       await capture("career");
