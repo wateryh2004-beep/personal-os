@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CareerForm } from "@/components/career/career-form";
 import { submitCareerForm } from "@/features/career/form-actions";
 import { PageHeader } from "@/components/shared/page-header";
-import { CareerNav, CareerOpportunityNav } from "@/components/career/career-nav";
+import { CareerNav } from "@/components/career/career-nav";
 import { getApplications } from "@/features/career/queries";
 
 const stages = [
@@ -26,9 +26,8 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
 
   return (
     <>
-      <PageHeader title="机会与申请" description="只保留真实投递和阶段变化。" />
+      <PageHeader title="投递记录" description="申请草稿、实际提交与后续选拔分开统计。只有完成投递后才能标记已投递。" />
       <CareerNav current="/career/applications" />
-      <CareerOpportunityNav current="applications" />
 
       {data.unavailable ? (
         <p className="mb-6 rounded-[10px] bg-amber-50 px-3.5 py-2.5 text-[12px] leading-5 text-amber-800">
@@ -41,7 +40,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
           <summary className="pressable cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
             + 新建申请
           </summary>
-          <CareerForm action={submitCareerForm.bind(null, "createCareerApplication")} resetOnSuccess successMessage="申请已建立，可在下方查看。" successTargetId="application-list" className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
+          <CareerForm action={submitCareerForm.bind(null, "createCareerApplication")} resetOnSuccess successMessage="申请草稿已建立；只有实际提交后才更新为已投递。" successTargetId="application-list" className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
             <label className={labelClass}>
               <span>机会</span>
               <select required name="opportunity_id" defaultValue={selectedOpportunity?.id ?? ""} className={controlClass}>
@@ -57,13 +56,13 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
               </select>
             </label>
             <label className={labelClass}>
-              <span>初始阶段</span>
+              <span>申请阶段（仅真实提交后选已投递）</span>
               <select name="status" defaultValue="preparing" className={controlClass}>
                 {stages.slice(0,3).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
             <label className={labelClass}>
-              <span>投递时间</span>
+              <span>实际提交时间（未提交请留空）</span>
               <input name="applied_at" type="datetime-local" className={controlClass}/>
             </label>
             <label className={`${labelClass} md:col-span-3`}>
@@ -90,13 +89,13 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                   <h2 className="text-[14px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{opportunity?.role_title || "未知岗位"}</h2>
                   <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">{opportunity?.organization || "未知组织"}</p>
                 </div>
-                <p className="text-[12px] leading-5 text-[var(--text-tertiary)]">{stageLabel[application.status] ?? application.status}</p>
+                <p className="text-[12px] leading-5 text-[var(--text-tertiary)]">{!application.applied_at && ["submitted", "interviewing", "offer"].includes(application.status) ? "缺投递时间 · 待核实" : stageLabel[application.status] ?? application.status}</p>
               </div>
 
               <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[var(--text-tertiary)]">
                 {resume?.title && application.resume_version_id ? <Link href={`/career/resumes#resume-${application.resume_version_id}`} className="inline-flex min-h-9 items-center text-[var(--accent)]">简历：{resume.title} →</Link> : null}
                 {application.opportunity_id ? <Link href={`/career/opportunities#opportunity-${application.opportunity_id}`} className="inline-flex min-h-9 items-center text-[var(--accent)]">查看机会 →</Link> : null}
-                {application.applied_at ? <span>{new Date(application.applied_at).toLocaleString("zh-CN")}</span> : null}
+                {application.applied_at ? <span>提交：{new Date(application.applied_at).toLocaleString("zh-CN")}</span> : <span>尚未记录实际提交时间</span>}
               </div>
 
               <details className="mt-2">
