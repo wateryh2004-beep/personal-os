@@ -141,6 +141,7 @@ export async function getInterviewTargetIndex() {
     supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle(),
   ]);
   return {
+    ownerId: userId,
     targets: contexts.data ?? [],
     preparations: preparations.data ?? [],
     timezone: profile.data?.timezone || "Asia/Shanghai",
