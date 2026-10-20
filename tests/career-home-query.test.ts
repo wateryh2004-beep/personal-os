@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getCareerHome, getResumeVersions } from "@/features/career/queries";
+import { getCareerHome, getInterviewTargetIndex, getResumeVersions } from "@/features/career/queries";
 
 const mocks = vi.hoisted(() => ({ owner: vi.fn() }));
 vi.mock("@/lib/auth/require-owner", () => ({ requireOwner: mocks.owner }));
@@ -100,5 +100,21 @@ describe("resume workspace partial reads", () => {
   it.each(["resume_versions", "career_directions", "experience_bullets", "resume_version_bullets", "career_applications", "documents"] as const)("reports an incomplete result if %s is unavailable", async table => {
     harness([], "Asia/Shanghai", table);
     expect((await getResumeVersions()).unavailable).toBe(true);
+  });
+});
+
+
+describe("Interview context index isolation", () => {
+  it("reads the historic preparation list only when the interview scenarios page requests it", async () => {
+    const h = harness([]);
+    const data = await getInterviewTargetIndex();
+    expect(data.unavailable).toBe(false);
+    const contexts = h.reads.find(read => read.table === "interview_contexts")!;
+    const preparations = h.reads.find(read => read.table === "interview_question_preparations")!;
+    expect(contexts.steps).toContainEqual({ method: "range", args: [0, 499] });
+    expect(contexts.steps).toContainEqual({ method: "neq", args: ["context_type", "general"] });
+    expect(preparations.steps).toContainEqual({ method: "range", args: [0, 499] });
+    expect(h.reads.some(read => read.table === "career_opportunities")).toBe(false);
+    expect(h.reads.some(read => read.table === "career_applications")).toBe(false);
   });
 });
