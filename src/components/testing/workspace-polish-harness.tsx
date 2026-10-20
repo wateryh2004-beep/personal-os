@@ -64,14 +64,14 @@ const categories: [] = [];
 const career: CareerHomeData = {
   ownerId: "synthetic-owner",
   now: Date.parse("2026-10-03T08:00:00Z"), timezone: "Asia/Shanghai", pastMilestoneCount: 0, profile: null, directions: [], experienceCount: 0,
-  skillCount: 0, resumeCount: 0, applications: [], milestones: [], interviewTargets: [], interviewPreparations: [], unavailable: false,
+  skillCount: 0, resumeCount: 0, opportunities: [], applications: [], milestones: [], unavailable: false,
 };
 const filledCareer: CareerHomeData = {
   ...career,
   pastMilestoneCount: 3,
   profile: { professional_headline: "Synthetic fixture · 仅用于职业工作台布局验证", current_stage: null },
-  interviewTargets: [{ id: "e2e-target", title: "示例面试准备", organization_snapshot: "布局测试组织", role_title_snapshot: "Synthetic fixture / 示例岗位", status: "active", next_interview_at: "2026-10-04T06:00:00Z" }],
-  interviewPreparations: [{ id: "e2e-prep", context_id: "e2e-target", status: "draft", next_practice_at: null }],
+  directions: [{ id: "e2e-direction", name: "Synthetic career direction", status: "active", current_decision: "这是长期职业方向，不是招聘岗位。" }],
+  opportunities: [{ id: "e2e-job", organization: "Synthetic org", role_title: "示例2027暑期实习", source_url: "https://example.test/jobs/synthetic", recruitment_cycle: "2027暑期", status: "watching", deadline_at: "2026-10-10T12:00:00Z" }],
   milestones: [{ id: "e2e-milestone", title: "示例事项：核对准备材料与接下来的计划", target_date: "2026-10-03", status: "planned" }],
 };
 
