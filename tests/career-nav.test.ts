@@ -24,7 +24,7 @@ describe("Career reading navigation", () => {
   it.each([
     ["/career/interview/questions/example", "/career/interview", null],
     ["/career/interview/targets/example", "/career/interview", null],
-    ["/career/experiences/example", "/career/experiences", null],
+    ["/career/experiences/example", "/career/experiences", "简历与经历"],
     ["/career/applications", "/career/applications", null],
     ["/career/resumes", "/career/resumes", null],
     ["/career/materials", "/career/materials", "证明材料"],
