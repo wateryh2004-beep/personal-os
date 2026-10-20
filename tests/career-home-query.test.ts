@@ -72,6 +72,10 @@ describe("career home milestone reads", () => {
     expect(data.ownerId).toBe("owner");
     expect(h.reads.find(read => read.table === "interview_contexts")).toBeUndefined();
     expect(h.reads.find(read => read.table === "interview_question_preparations")).toBeUndefined();
+    const openings = h.reads.find(read => read.table === "career_opportunities")!;
+    expect(openings.steps).toContainEqual({ method: "neq", args: ["status", "closed"] });
+    expect(openings.steps.findIndex(step => step.method === "or" && String(step.args[0]).includes("deadline_at.gte.")))
+      .toBeLessThan(openings.steps.findIndex(step => step.method === "limit"));
     expect(h.reads.some(read => read.table === "career_opportunities")).toBe(true);
   });
 
