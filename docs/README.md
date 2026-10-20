@@ -115,6 +115,7 @@
 | --- | --- |
 | [Cached private PDF covers (test branch)](cached-pdf-covers.md) | 领域参考/专门契约；核对当前实现与适用范围 |
 | [Outlook Calendar 同步运行手册](calendar-sync-operations.md) | 领域参考/专门契约；核对当前实现与适用范围 |
+| [Career 四层事实边界（当前有效）](career/FOUR_LAYERS.md) | 当前 Career 职业方向、招聘机会、申请、面试准备的规范；覆盖下列历史说明中冲突的导航与分类语义 |
 | [投递与面试工作流](career/APPLICATION_WORKFLOW.md) | 领域参考/专门契约；核对当前实现与适用范围 |
 | [Career 数据模型与保留计划](career/DATA_MODEL.md) | 领域参考/专门契约；核对当前实现与适用范围 |
 | [Career 信息架构](career/INFORMATION_ARCHITECTURE.md) | 领域参考/专门契约；核对当前实现与适用范围 |
