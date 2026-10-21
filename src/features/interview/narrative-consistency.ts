@@ -186,7 +186,7 @@ export function evaluateNarrativeConsistency(input: {
         f.code === "baseline_changed" || f.code === "fact_version_changed"
       ) ? "stale" : findings.some((f) =>
         f.code === "no_spoken" || f.code === "no_baseline" || f.code === "unlinked"
-      ) ? "needs_link" : findings.some((f) => f.level === "review" || f.level === "information")
+      ) ? "needs_link" : findings.some((f) => f.level === "review")
         ? "needs_review" : "linked";
       return { preparation, answer, link, narrative, findings, factReferenceCount: factRefs.length, state };
     }).sort((a, b) => {
