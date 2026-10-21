@@ -73,10 +73,12 @@ begin
     join public.interview_answer_versions base on base.preparation_id = n.master_preparation_id
     join public.interview_answer_versions target on target.id = new.answer_version_id
     join public.interview_question_preparations p on p.id = target.preparation_id
+    join public.interview_question_preparations master_p on master_p.id = n.master_preparation_id
     where n.id = new.narrative_id and n.user_id = new.user_id
       and base.id = new.based_on_version_id and base.user_id = new.user_id
       and target.user_id = new.user_id and p.user_id = new.user_id
-      and p.context_id is not null
+      and p.context_id is not null and p.question_id = master_p.question_id
+      and master_p.user_id = new.user_id
       and base.answer_mode = 'spoken' and target.answer_mode = 'spoken'
       and target.archived_at is null
   ) then
@@ -190,6 +192,8 @@ select v.user_id, n.id, v.id, n.selected_version_id, 'unreviewed'
 from public.interview_answer_versions v
 join public.interview_question_preparations p on p.id = v.preparation_id and p.user_id = v.user_id
 join public.interview_narratives n on n.user_id = v.user_id and n.archived_at is null
+join public.interview_question_preparations master_p on master_p.id = n.master_preparation_id
+  and master_p.question_id = p.question_id
 where p.context_id is not null and p.archived_at is null
   and v.answer_mode = 'spoken' and v.archived_at is null
   and v.change_note like 'NARRATIVE_20261021_V1_TARGET%'
