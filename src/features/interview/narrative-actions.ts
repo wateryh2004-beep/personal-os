@@ -106,6 +106,9 @@ export async function registerNarrativeReference(data: FormData) {
 
 /** Human attestation is separate from generating, reading, or linking a draft. */
 export async function confirmNarrativeReference(data: FormData) {
+  if (String(data.get("review_ack") ?? "") !== "yes") {
+    throw new Error("请在对照母版和岗位答案后明确勾选已核对。");
+  }
   const linkId = field(data, "link_id");
   const { db, userId } = await ownerDb();
   const { data: link, error } = await db.from("interview_answer_narrative_links")
