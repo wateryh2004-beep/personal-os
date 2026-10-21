@@ -13,7 +13,7 @@ const statusLabels = {
   stale: "引用版本已变化",
   needs_link: "需要建立关联",
   needs_review: "待人工核对",
-  linked: "已登记并核对",
+  linked: "已核对母版引用",
 } as const;
 
 export default async function InterviewConsistencyPage() {
@@ -91,7 +91,7 @@ export default async function InterviewConsistencyPage() {
           </span>
         </div>
         <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-          “版本已变化”是可以确定的结构性差异；“待人工核对”表示缺少语义确认，均不代表发现了真实履历矛盾。
+          “版本已变化”是结构性差异；“待人工核对”表示引用关系未确认。缺少事实绑定单独统计，不算作真实履历矛盾。
           旧版答案和历史快照继续保留。
         </p>
         <div className="mt-5 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
