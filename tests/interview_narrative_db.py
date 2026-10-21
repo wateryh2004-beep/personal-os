@@ -7,7 +7,7 @@ import os
 import psycopg
 
 ROOT = Path(__file__).resolve().parents[1]
-MIGRATION = ROOT / "supabase/migrations/20261021053000_interview_narrative_lineage.sql"
+MIGRATION = ROOT / "supabase/migrations/20261021075728_interview_narrative_lineage.sql"
 A = "00000000-0000-4000-8000-000000000001"
 B = "00000000-0000-4000-8000-000000000002"
 QP = "00000000-0000-4000-8000-000000000011"
