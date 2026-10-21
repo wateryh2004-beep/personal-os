@@ -1,6 +1,6 @@
 {
   "format": "personal-os-system/v1",
-  "schemaRevision": "2026-10-private-vault/v1",
+  "schemaRevision": "2026-10-interview-narrative/v1",
   "tables": {
     "activity_events": {
       "columns": {
@@ -3741,6 +3741,152 @@
       ],
       "excludedColumns": []
     },
+    "interview_answer_fact_links": {
+      "columns": {
+        "answer_version_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "fact_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "fact_version_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "review_state": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "answer_version_id"
+          ],
+          "table": "interview_answer_versions",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "fact_id"
+          ],
+          "table": "experience_facts",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "fact_version_id"
+          ],
+          "table": "experience_fact_versions",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "interview_answer_narrative_links": {
+      "columns": {
+        "answer_version_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "based_on_version_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "narrative_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "review_state": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "narrative_id"
+          ],
+          "table": "interview_narratives",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "answer_version_id"
+          ],
+          "table": "interview_answer_versions",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "based_on_version_id"
+          ],
+          "table": "interview_answer_versions",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
     "interview_answer_versions": {
       "columns": {
         "answer_mode": {
@@ -4153,6 +4299,70 @@
         "id"
       ],
       "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "interview_narratives": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "master_preparation_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "review_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "selected_version_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "master_preparation_id"
+          ],
+          "table": "interview_question_preparations",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "selected_version_id"
+          ],
+          "table": "interview_answer_versions",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
       "excludedColumns": []
     },
     "interview_practice_attempts": {
