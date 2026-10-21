@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "supabase/migrations/20261021053000_interview_narrative_lineage.sql"
+      - "supabase/migrations/20261021075728_interview_narrative_lineage.sql"
       - "tests/interview_narrative_db.py"
       - ".github/workflows/interview-narrative-lineage.yml"
   workflow_dispatch:
