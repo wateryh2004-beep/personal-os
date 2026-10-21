@@ -5,6 +5,7 @@ const items = [
   ["准备情境", "/career/interview/targets"],
   ["题目管理", "/career/interview/questions"],
   ["故事库", "/career/interview/stories"],
+  ["内容一致性", "/career/interview/consistency"],
   ["练习", "/career/interview/practice"],
   ["复盘", "/career/interview/insights"],
 ] as const;
@@ -23,7 +24,7 @@ export function InterviewNav({ current, context }: { current: string; context?: 
         return (
           <Link
             key={href}
-            href={context && href !== "/career/interview/questions" && href !== "/career/interview/stories" && !(context === "general" && href === "/career/interview") ? `${href}?context=${encodeURIComponent(context)}` : href}
+            href={context && href !== "/career/interview/questions" && href !== "/career/interview/stories" && href !== "/career/interview/consistency" && !(context === "general" && href === "/career/interview") ? `${href}?context=${encodeURIComponent(context)}` : href}
             aria-current={isCurrent ? "page" : undefined}
             className="ui-navigation-item"
           >
