@@ -73,7 +73,7 @@ describe("version-pinned interview narrative consistency", () => {
 
   it("does not claim a factual contradiction when no supporting facts have been linked", () => {
     const result = audit({ links: [{ ...link, review_state: "reviewed" }] });
-    expect(result.rows[0].state).toBe("needs_review");
+    expect(result.rows[0].state).toBe("linked");
     expect(result.rows[0].findings.map(f => f.code)).toEqual(["fact_missing"]);
   });
 
