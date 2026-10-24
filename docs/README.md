@@ -177,6 +177,10 @@
 
 ## 当前实现排查
 
+[笔记与公共导航动效 · 第一批](specs/workspace-motion-v2.md) 规定 2026-10-24 笔记排版、标题共享过渡、导航选中与搜索面板的范围、完整运动和验证边界；本地截图、连续录屏及未覆盖项见 [2026-10-25 验收记录](verification/2026-10-25-workspace-motion-v2.md)。
+
+[工作区补充验证与发布](verification/2026-10-25-workspace-release.md) 记录 8 项测试环境失败的修复、真实 200% 缩放、系统减少动态效果与 GitHub/生产状态。
+
 [职业、笔记与日历工作区细化](specs/workspace-details-v2.md) 衔接全局迁移，规定页面内部的具体行为；结果与限制见 [2026-10-15 验收记录](verification/2026-10-15-workspace-details-v2.md)。
 
 [依赖与部署闭包复核](security/runtime-dependencies-2026-10-14.md) 记录安全补丁、未使用 CLI 的移除及剩余告警判断。

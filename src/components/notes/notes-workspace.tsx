@@ -35,6 +35,7 @@ import { saveWorkspaceSession } from "@/lib/workspace-session";
 import { useNotesListing } from "@/features/notes/use-notes-listing";
 import { NotesChildFolders, NotesFolderBreadcrumbs } from "@/components/notes/notes-folder-navigation";
 import { VaultHideButton, VaultHideMenuItem } from "@/components/vault/vault-provider";
+import { NoteTitleMotion, NotesSurfaceMotion } from "./notes-motion";
 
 type Folder = { id: string; name: string; parent_id: string | null };
 type WorkspaceState = "ready" | "base" | "unavailable";
@@ -119,11 +120,13 @@ function NoteRow({
           ) : (
             <Link
               href={`/notes/${note.id}`}
+              transitionTypes={["note-open"]}
+              scroll={false}
               data-note-result
               onClick={onOpen}
               className="line-clamp-2 break-words text-[16px] font-medium leading-7 text-[var(--text-primary)] transition-colors ui-transition hover:text-[var(--accent)] focus-visible:outline-none focus-visible:after:rounded-[var(--radius-md)] focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--accent)] after:absolute after:inset-0 after:content-['']"
             >
-              <SearchText text={note.title || "无标题笔记"} query={searchQuery} />
+              <NoteTitleMotion noteId={note.id}><SearchText text={note.title || "无标题笔记"} query={searchQuery} /></NoteTitleMotion>
             </Link>
           )}
           {note.content_origin === "ai_generated" ? (
@@ -310,13 +313,13 @@ export function NotesWorkspace({
   );
 
   return (
-    <main
+    <NotesSurfaceMotion><main
       ref={listScrollRef}
       data-searching={Boolean(normalizedQuery)}
       data-previews={showPreviews}
-      className="notes-library notes-list-workspace workspace-scroll h-full overflow-y-auto bg-[var(--surface-canvas)] px-4 pb-24 pt-16 sm:px-7 md:pb-6 md:pt-7 lg:px-10"
+      className="notes-library notes-list-workspace workspace-scroll h-full overflow-y-auto bg-[var(--surface-canvas)]"
     >
-      <div className="mx-auto max-w-[748px]">
+      <div className="notes-library-content mx-auto">
         {state === "base" ? (
           <p role="status" className="mb-4 rounded-[9px] bg-amber-50 px-3 py-2 text-[12px] leading-5 text-amber-800">
             笔记基础功能正在使用兼容模式；文件夹与链接功能会在迁移启用后完整可用。
@@ -340,7 +343,7 @@ export function NotesWorkspace({
         {pending ? <p role="status" className="mb-2 text-[12px] text-[var(--text-tertiary)]">正在处理，请稍候…</p> : null}
 
         {selectedFolder ? <NotesFolderBreadcrumbs folder={selectedFolder} folders={folders} /> : null}
-        <header className="flex min-h-11 flex-wrap items-end gap-2.5">
+        <header className="notes-library-heading flex min-h-11 flex-wrap items-end gap-2.5">
           <div className="mr-auto min-w-0">
             <h1 className="page-title break-words">
               {title}
@@ -353,11 +356,11 @@ export function NotesWorkspace({
           <AskNotesButton onClick={() => router.push("/notes/ask")} />
           {newNoteForm("shrink-0", true)}
         </header>
-        <div aria-live="polite" className="mt-1 min-h-5 text-[12px] leading-5 text-[var(--text-secondary)]">
+        <div aria-live="polite" className="notes-list-status mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
           {!normalizedQuery && listing.loaded && listing.error ? <>列表暂未更新，保留上次内容。<button type="button" onClick={listing.retry} className="ml-2 rounded-[var(--radius-sm)] text-[var(--accent)] underline underline-offset-2">重试更新</button></> : !normalizedQuery && listing.refreshing ? "正在更新列表…" : null}
         </div>
 
-        <div className="mt-5 flex items-center gap-2">
+        <div className="notes-library-search flex items-center gap-2">
           <label className="relative min-w-0 flex-1">
             <span className="sr-only">搜索内容</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]" aria-hidden="true" />
@@ -531,6 +534,6 @@ export function NotesWorkspace({
         </DialogContent> : null}
       </Dialog>
 
-    </main>
+    </main></NotesSurfaceMotion>
   );
 }

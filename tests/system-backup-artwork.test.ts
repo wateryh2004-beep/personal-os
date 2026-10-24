@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -18,7 +18,7 @@ vi.mock("@/features/leisure/artwork-storage", () => ({ readArtworkManifest: vi.f
 const sha = (data: Buffer | string) => createHash("sha256").update(data).digest("hex");
 const first = artworkImportRegistry[0];
 const dirs: string[] = [];
-function temp() { const dir = mkdtempSync(path.join(tmpdir(), "system-artwork-")); dirs.push(dir); return dir; }
+function temp() { const dir = mkdtempSync(path.join(realpathSync(tmpdir()), "system-artwork-")); dirs.push(dir); return dir; }
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 beforeEach(() => {
   vi.mocked(readArtworkManifest).mockClear();

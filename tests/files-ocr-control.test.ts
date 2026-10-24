@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { createHash, webcrypto } from "node:crypto";
+import { Buffer } from "node:buffer";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,7 +24,10 @@ const button = (label: string) => [...document.querySelectorAll("button")].find(
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.stubGlobal("crypto", webcrypto);
+  // JSDOM/undici can return an ArrayBuffer from a different VM realm. Bridge
+  // those exact bytes to Node's Buffer; still run the real SHA-256 engine.
+  vi.stubGlobal("crypto", { subtle: { digest: (algorithm: AlgorithmIdentifier, data: ArrayBuffer) =>
+    webcrypto.subtle.digest(algorithm, Buffer.from(new Uint8Array(data))) } });
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   source = new Response(bytes, { headers: { "X-Ocr-Sha256": sha256 } });
   actions = []; completed = vi.fn();

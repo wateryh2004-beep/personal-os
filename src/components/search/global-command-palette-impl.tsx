@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, ShoppingBag, Sparkles, SquareKanban, Plane } from "lucide-react";
-import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
+import { Command, CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { createNote } from "@/features/notes/actions";
 import { useGlobalSearch } from "@/features/search/use-global-search";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
@@ -15,18 +15,22 @@ import {
 } from "@/lib/navigation-registry";
 
 export type CommandCenterSection = "search" | "quick";
-const domainLabels: Record<string, string> = { notes: "Notes", career: "Career", files: "Files", tasks: "Tasks", calendar: "Calendar", reviews: "Reviews", projects: "Projects", shopping: "Shopping", travel: "Travel", leisure: "Leisure", briefing: "Briefing", investment: "Investment" };
+const domainLabels: Record<string, string> = { notes: "笔记", career: "职业", files: "文件", tasks: "任务", calendar: "日历", reviews: "回顾", projects: "项目", shopping: "购物", travel: "旅行", leisure: "闲暇", briefing: "简报", investment: "投资" };
 
-export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search", contentOnly = false }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection; contentOnly?: boolean }) {
+export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search", contentOnly = false, embedded = false }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection; contentOnly?: boolean; embedded?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
+  const input = useRef<HTMLInputElement>(null);
   const [recents, setRecents] = useState<RecentNavigationItem[]>([]);
   const [, startTransition] = useTransition();
   const search = useGlobalSearch({ query, enabled: open, debounceMs: 160 });
   const results = search.results;
   const loading = search.status === "loading";
-  useEffect(() => { if (!open) return; const timer = window.setTimeout(() => { setQuery(""); try { setRecents(parseRecentNavigation(localStorage.getItem(RECENT_NAVIGATION_STORAGE_KEY))); } catch { setRecents([]); } }, 0); return () => window.clearTimeout(timer); }, [initialSection, open]);
+  useLayoutEffect(() => {
+    if (open && input.current && window.matchMedia("(min-width: 768px)").matches) input.current.focus({ preventScroll: true });
+  }, [open]);
+  useEffect(() => { if (!open) return; const timer = window.setTimeout(() => { try { setRecents(parseRecentNavigation(localStorage.getItem(RECENT_NAVIGATION_STORAGE_KEY))); } catch { setRecents([]); } }, 0); return () => window.clearTimeout(timer); }, [initialSection, open]);
   const go = (href: string) => {
     releaseMobileBackLayerForNavigation("dialog");
     onOpenChange(false);
@@ -44,16 +48,15 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
   const showQuick = !query && initialSection === "quick";
   const contextActions = pathname.startsWith("/notes") ? [["新建笔记", () => openCreate("note")], ["问笔记库", () => { onOpenChange(false); go("/notes/ask"); }]] as const : pathname === "/calendar" ? [["新建日程", () => openCreate("calendar")], ["回到今天", () => go("/calendar")]] as const : pathname === "/tasks" ? [["新建任务", () => openCreate("task")], ["询问今日任务", () => askAgent("请总结我今天的任务")]] as const : [];
 
-  return <CommandDialog contentOnly={contentOnly} open={open} onOpenChange={onOpenChange} title="Personal OS Command Center" description="搜索、导航或快速新建" className="max-h-[min(78dvh,680px)] border-white/55 bg-[var(--material-thick)] sm:max-w-2xl">
-    <Command shouldFilter={!query} label="Personal OS Command Center">
-      <CommandInput value={query} onValueChange={setQuery} autoFocus placeholder={showQuick ? "选择要新建的内容…" : "搜索 Personal OS 或输入命令…"} aria-label="搜索或执行命令" />
+  const content = <Command shouldFilter={!query} label="搜索与导航">
+      <CommandInput ref={input} value={query} onValueChange={setQuery} placeholder={showQuick ? "选择要新建的内容…" : "搜索 Personal OS 或输入命令…"} aria-label="搜索或执行命令" />
       <CommandList className="max-h-[min(68dvh,580px)] py-1">
         {query && loading ? <p role="status" aria-live="polite" className="px-4 py-8 text-center text-sm text-[var(--text-tertiary)]">正在搜索…</p> : null}
         {query && search.status === "error" ? <p role="alert" className="px-4 py-8 text-center text-sm text-[var(--danger)]">{search.error}</p> : null}
-        {query && search.status === "success" && !results.length ? <CommandEmpty>没有找到相关内容。尝试更短或不同的关键词。</CommandEmpty> : null}
+        {query && search.status === "success" && !results.length ? <p role="status" aria-live="polite" className="px-4 py-8 text-center text-sm text-[var(--text-secondary)]">没有找到相关内容。尝试更短或不同的关键词。</p> : null}
         {!query && contextActions.length ? <CommandGroup heading="当前页面">{contextActions.map(([label, action]) => <CommandItem key={label} onSelect={action}><Sparkles aria-hidden="true" />{label}</CommandItem>)}</CommandGroup> : null}
         {!query ? <CommandGroup heading="新建">
-          <CommandItem onSelect={() => askAgent("我现在最需要关注什么？")}><Sparkles aria-hidden="true" />Ask Personal OS<CommandShortcut>⌘ J</CommandShortcut></CommandItem>
+          <CommandItem onSelect={() => askAgent("我现在最需要关注什么？")}><Sparkles aria-hidden="true" />询问 Personal OS<CommandShortcut>⌘ J</CommandShortcut></CommandItem>
           <CommandItem onSelect={newNote}><FilePlus2 aria-hidden="true" />新建笔记<CommandShortcut>直接进入编辑器</CommandShortcut></CommandItem>
           <CommandItem onSelect={() => openCreate("task")}><CheckSquare2 aria-hidden="true" />新建任务<CommandShortcut>Microsoft To Do</CommandShortcut></CommandItem>
           <CommandItem onSelect={() => openCreate("calendar")}><CalendarPlus aria-hidden="true" />新建日程<CommandShortcut>Outlook</CommandShortcut></CommandItem>
@@ -69,9 +72,9 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
           const Icon = item.icon;
           return <CommandItem key={item.href} onSelect={() => go(item.href)}><Icon aria-hidden="true" />{item.name}<CommandShortcut>{item.href}</CommandShortcut></CommandItem>;
         })}</CommandGroup></> : null}
-        {query && !loading ? <CommandGroup heading="询问"><CommandItem value={`ask ${query}`} onSelect={() => askAgent(query)}><Sparkles aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">Ask Personal OS</p><p className="mt-0.5 truncate text-xs text-[var(--text-tertiary)]">“{query}”</p></div><CommandShortcut>AI</CommandShortcut></CommandItem></CommandGroup> : null}
+        {query && !loading ? <CommandGroup heading="询问"><CommandItem value={`ask ${query}`} onSelect={() => askAgent(query)}><Sparkles aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">询问 Personal OS</p><p className="mt-0.5 truncate text-xs text-[var(--text-tertiary)]">“{query}”</p></div><CommandShortcut>AI</CommandShortcut></CommandItem></CommandGroup> : null}
         {query && !loading ? groups.map(([label, items]) => <CommandGroup key={label} heading={label}>{(items ?? []).map((result) => <CommandItem key={result.id} value={`${result.domain} ${result.title} ${result.subtitle ?? ""} ${result.snippet ?? ""}`} onSelect={() => go(result.href)}><FileText aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{result.title}</p>{result.subtitle || result.snippet ? <p className="mt-0.5 line-clamp-2 text-xs text-[var(--text-tertiary)]">{result.subtitle ?? result.snippet}</p> : null}</div><CommandShortcut>{label}</CommandShortcut></CommandItem>)}</CommandGroup>) : null}
       </CommandList>
-    </Command>
-  </CommandDialog>;
+    </Command>;
+  return embedded ? content : <CommandDialog contentOnly={contentOnly} open={open} onOpenChange={onOpenChange} title="搜索" description="搜索、导航或快速新建" className="max-h-[min(78dvh,680px)] sm:max-w-2xl">{content}</CommandDialog>;
 }

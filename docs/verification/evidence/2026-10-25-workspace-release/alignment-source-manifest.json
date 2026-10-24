@@ -1,0 +1,15 @@
+{
+  "parentCommit": "8ac8caa66936e856f55749a32d9f6c2ff110e4c2",
+  "reason": "CI reading alignment and default navigator width regression fixes; original exact assertions unchanged",
+  "buildId": "Vcc3d5sc7n2CGlBE29JWR",
+  "files": [
+    {
+      "path": "src/app/workspace-motion.css",
+      "sha256": "505eaa14d4fa71f0e003092f1f570c82fe2a5daffeec995c8bc294dee8c64bda"
+    },
+    {
+      "path": "src/components/notes/notes-workspace-shell.tsx",
+      "sha256": "c0a4290417edb9e2db9d0ac6471cec79e375b707c3401be3c8dd174cc4c53639"
+    }
+  ]
+}

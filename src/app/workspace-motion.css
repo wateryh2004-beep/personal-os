@@ -1,0 +1,111 @@
+/* First workspace batch: quiet surfaces, clear titles and continuous objects. */
+.notes-library { padding:24px clamp(20px,3vw,48px) 40px; }
+.notes-library-content { max-width:840px; }
+.notes-library-heading { gap:12px; align-items:center; }
+.notes-library-heading .page-title { font-size:36px; line-height:1.35; }
+.notes-library-search { margin-top:20px; }
+.notes-list-status:empty { margin-top:0; }
+.notes-list-row-content { padding-block:18px; }
+.notes-list-row .note-title-anchor { text-wrap:pretty; }
+.notes-navigator-panel { max-width:360px; }
+.notes-navigator { padding-top:18px; }
+.notes-document-location { border-bottom:1px solid var(--border-subtle); }
+.notes-editor-title-row { max-width:760px; }
+.notes-document-shell .note-reading-pane > div { max-width:760px; }
+.notes-document-shell .life-codemirror .cm-content { max-width:824px; margin-inline:auto; padding-top:24px; }
+.notes-editor-toolbar { padding-top:24px; }
+
+.app-sidebar { overflow-x:clip; transition:width 360ms var(--ease-emphasized); }
+.app-workspace-frame { transition:margin-left 360ms var(--ease-emphasized); }
+.navigation-rail { position:relative; isolation:isolate; }
+.navigation-rail-horizontal { position:fixed; }
+.navigation-rail-horizontal .navigation-indicator { border-radius:12px; }
+.navigation-indicator { position:absolute; inset:0 0 auto; z-index:-1; border-radius:11px; opacity:0; background:var(--surface-selected); pointer-events:none; }
+.navigation-rail[data-indicator-ready] .navigation-indicator { opacity:1; transition:transform 340ms var(--ease-emphasized),height 220ms var(--ease-standard); }
+.navigation-rail[data-indicator-ready] [data-nav-selected=true] { background:transparent; }
+.navigation-rail .navigation-link { transition:color 160ms,background-color 160ms,padding 360ms var(--ease-emphasized),gap 360ms var(--ease-emphasized); }
+.navigation-label { max-width:170px; opacity:1; transition:opacity 140ms var(--ease-standard),max-width 360ms var(--ease-emphasized); }
+.navigation-collapsed { gap:0; padding-inline:14px; }
+.navigation-collapsed .navigation-label { max-width:0; opacity:0; }
+.navigation-group-heading { white-space:nowrap; }
+
+/* CSS transitions reverse from the current frame on rapid close/reopen.
+   The non-visual lifetime animation lets Radix retain the exiting dialog. */
+[data-slot=dialog-content].global-command-surface {
+  --command-origin-x:0px; --command-origin-y:-64px; --command-origin-scale:.92;
+  --command-field-height:48px; --command-field-radius:12px;
+  --tw-translate-x:-50%; --tw-translate-y:0px;
+  left:50%; top:clamp(72px,16vh,160px); bottom:auto; width:min(680px,calc(100vw - 48px)); max-width:none;
+  translate:-50% 0; padding:0; gap:0; overflow:hidden; border-radius:24px;
+  background:var(--surface-elevated); border-color:var(--separator); transform-origin:top center;
+  opacity:1; transform:none; clip-path:inset(0 round 24px);
+  transition:transform 460ms var(--ease-emphasized),clip-path 460ms var(--ease-emphasized),opacity 180ms var(--ease-standard);
+  animation:none;
+}
+@starting-style {
+  [data-slot=dialog-content].global-command-surface[data-state=open] { opacity:0; transform:translate(var(--command-origin-x),var(--command-origin-y)) scale(var(--command-origin-scale),.96); clip-path:inset(0 0 calc(100% - 52px) round 14px); }
+}
+[data-slot=dialog-content].global-command-surface[data-state=closed] {
+  opacity:0; transform:translate(var(--command-origin-x),var(--command-origin-y)) scale(var(--command-origin-scale),.96);
+  clip-path:inset(0 0 calc(100% - 52px) round 14px); transition-duration:240ms; animation:command-presence 240ms linear;
+}
+.command-surface-heading { padding:22px 56px 12px 24px; }
+.command-surface-heading [data-slot=dialog-title] { font:400 26px/1.4 var(--font-serif); letter-spacing:-.02em; }
+.global-command-surface [data-slot=dialog-close] { width:44px; height:44px; top:12px; right:12px; }
+.command-surface-body { min-height:160px; min-width:0; }
+.global-command-surface [data-slot=command] { padding:0 12px 12px; }
+.global-command-surface [data-slot=command-input-wrapper] { padding:0 12px 12px; }
+.global-command-surface [data-slot=input-group] { border-color:var(--control-border); background:var(--surface-control); }
+.global-command-surface [data-slot=input-group]:focus-within { outline:2px solid var(--focus-ring); outline-offset:2px; }
+.global-command-surface [data-slot=command-input] { min-width:0; height:100%; font-size:16px; padding-block:0; outline:none; }
+.global-command-surface [data-slot=command-list] { max-height:min(56dvh,480px); padding-top:6px; border-top:1px solid var(--separator); scrollbar-gutter:stable; }
+.global-command-surface [data-slot=command-item] { min-height:44px; padding:10px 12px; border-radius:10px; cursor:pointer; }
+.global-command-surface [data-slot=command-item][data-selected=false] { background:transparent; color:var(--text-secondary); }
+.global-command-surface [data-slot=command-item][data-selected=true] { background:var(--surface-selected); color:var(--text-primary); }
+.global-command-surface [cmdk-group-heading] { padding-block:12px 6px; }
+.global-command-surface [data-slot=command-shortcut] { letter-spacing:normal; }
+.command-loading { padding:0 24px 28px; color:var(--text-secondary); font-size:13px; }
+.command-loading-field { height:48px; border:1px solid var(--control-border); border-radius:12px; background:var(--surface-control); margin-bottom:24px; }
+@keyframes command-presence { from { visibility:visible; } to { visibility:visible; } }
+
+::view-transition-group(.note-title) { animation-duration:540ms; overflow:clip; }
+::view-transition-old(.note-title) { animation:note-title-out 150ms var(--ease-standard) both; }
+::view-transition-new(.note-title) { animation:note-title-in 300ms 80ms var(--ease-standard) both; }
+::view-transition-old(.notes-open),::view-transition-new(.notes-return) { --note-travel:-24px; }
+::view-transition-new(.notes-open),::view-transition-old(.notes-return) { --note-travel:32px; }
+::view-transition-old(.notes-open),::view-transition-old(.notes-return) { animation:note-surface-out 220ms var(--ease-standard) both; }
+::view-transition-new(.notes-open),::view-transition-new(.notes-return) { animation:note-surface-in 540ms var(--ease-emphasized) both; }
+::view-transition-old(.notes-crossfade) { animation:note-title-out 180ms var(--ease-standard) both; }
+::view-transition-new(.notes-crossfade) { animation:note-title-in 320ms var(--ease-standard) both; }
+@keyframes note-title-out { to { opacity:0; } }
+@keyframes note-title-in { from { opacity:0; } to { opacity:1; } }
+@keyframes note-surface-out { to { opacity:0; transform:translateX(var(--note-travel)) scale(.99); } }
+@keyframes note-surface-in { from { opacity:0; transform:translateX(var(--note-travel)) scale(.985); } to { opacity:1; transform:none; } }
+@media(max-width:767px) {
+  .app-workspace-frame { transition:none; }
+  .notes-library { padding:64px 20px calc(var(--tab-bar-height) + 24px); }
+  .notes-library-heading .page-title { font-size:30px; }
+  .notes-library-search { margin-top:16px; }
+  .notes-list-row-content { padding-block:16px; }
+  .notes-editor-toolbar { padding-top:18px; }
+  [data-slot=dialog-content].global-command-surface { --tw-translate-x:0px; --tw-translate-y:0px; left:0; top:auto; bottom:0; width:100%; translate:0; max-height:calc(var(--app-viewport-height) - 24px); border-radius:24px 24px 0 0; padding-bottom:env(safe-area-inset-bottom); transform-origin:center bottom; }
+  .global-command-surface [data-slot=command-list] { max-height:min(54dvh,440px); }
+  .command-surface-heading { padding-top:20px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .app-sidebar,.app-workspace-frame,.navigation-indicator,.navigation-label,.navigation-rail .navigation-link { transition:none!important; }
+  [data-slot=dialog-content].global-command-surface[data-state] { animation:none!important; transition:none!important; transform:none; clip-path:none; }
+}
+/* Browser zoom and a landscape keyboard can leave very little vertical space.
+   Let the document chrome scroll away instead of reducing the live editor to
+   zero height. Reading/editing still share the same mounted editor instance. */
+@media(max-height:600px) {
+  .notes-document-main { overflow-y:auto; overscroll-behavior-y:contain; }
+  .notes-document-editor-slot { flex:0 0 auto; }
+  .notes-document-editor-slot > .notes-editor-surface:not(:fullscreen):not(.fixed) { height:auto; min-height:480px; }
+  .notes-editor-surface:not(:fullscreen):not(.fixed) .notes-document-body { flex:none; height:320px; }
+}
+@media(forced-colors:active) {
+  .navigation-rail [data-nav-selected=true] { outline:2px solid Highlight; outline-offset:-2px; }
+  .navigation-indicator { display:none; }
+}

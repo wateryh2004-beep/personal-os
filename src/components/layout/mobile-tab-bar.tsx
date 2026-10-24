@@ -7,6 +7,7 @@ import { mobileTabNavigation } from "@/lib/navigation-registry";
 import { navActive } from "@/lib/navigation";
 import type { ShellNavigationEvent } from "@/components/layout/use-shell-navigation";
 import { cn } from "@/lib/utils";
+import { NavigationRail } from "./navigation-rail";
 
 const itemClass = "navigation-tab pressable relative flex min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-[12px] text-[12px] font-medium tracking-[-0.01em]";
 
@@ -33,7 +34,7 @@ export function MobileTabBar({ onOpenMore, presentationPathname, pendingHref, on
       && !mobileTabNavigation.some((tab) => navActive(pendingPathname, tab.href)),
   );
 
-  return <nav aria-label="底部导航" className="mobile-tab-bar fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-[var(--border-subtle)] bg-[var(--material-toolbar)] px-1.5 pt-1 md:hidden" style={{ height: "var(--tab-bar-height)", paddingBottom: "var(--safe-area-bottom)" }}>
+  return <NavigationRail horizontal label="底部导航" selection={pendingPathname ?? pathname} className="mobile-tab-bar fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-[var(--border-subtle)] bg-[var(--material-toolbar)] px-1.5 pt-1 md:hidden" style={{ height: "var(--tab-bar-height)", paddingBottom: "var(--safe-area-bottom)" }}>
     {mobileTabNavigation.map(({ mobileName, name, href, icon: Icon }) => {
       const active = navActive(pathname, href);
       const pending = pendingPathname ? navActive(pendingPathname, href) : false;
@@ -49,6 +50,7 @@ export function MobileTabBar({ onOpenMore, presentationPathname, pendingHref, on
         aria-current={active ? "page" : undefined}
         aria-busy={pending || undefined}
         data-pending={pending || undefined}
+        data-nav-selected={pendingPathname ? pending : active}
         className={cn(
           itemClass,
           (pendingPathname ? pending : active)
@@ -66,6 +68,7 @@ export function MobileTabBar({ onOpenMore, presentationPathname, pendingHref, on
       aria-current={moreActive ? "page" : undefined}
       aria-busy={morePending || undefined}
       data-pending={morePending || undefined}
+      data-nav-selected={pendingPathname ? morePending : moreActive}
       className={cn(
         itemClass,
         (pendingPathname ? morePending : moreActive)
@@ -76,5 +79,5 @@ export function MobileTabBar({ onOpenMore, presentationPathname, pendingHref, on
       <MoreHorizontal className="size-5" strokeWidth={moreActive || morePending ? 2.2 : 1.85} aria-hidden="true" />
       <span className="truncate">更多</span>
     </button>
-  </nav>;
+  </NavigationRail>;
 }

@@ -1,0 +1,108 @@
+{
+  "base": "f52a69ae2e01844f155c030cc0713fae74e85bb2",
+  "branch": "codex/workspace-motion-v2",
+  "state": "uncommitted working tree",
+  "buildId": "ak3Qj1zUvrXXAWOWCoTM9",
+  "files": [
+    {
+      "path": "src/app/workspace-motion.css",
+      "sha256": "9ddfe55b33f182f103b07e5be075feb387b88d68f55a7dd6c5c696a36999e336"
+    },
+    {
+      "path": "src/components/layout/navigation-rail.tsx",
+      "sha256": "55e1644950a93be15339b99fb9e45ab3507d268f6a031407b2d67902b25a6769"
+    },
+    {
+      "path": "src/components/notes/notes-motion.tsx",
+      "sha256": "da754726078aba8b2b73ae6368413d254f9f62448283ba355513e5fdd944934e"
+    },
+    {
+      "path": "src/components/shared/use-anchored-dialog.ts",
+      "sha256": "2055f394d31c1bbebd4d8167e97348678bea32baa1e3cb0a81569cdb20e3c07f"
+    },
+    {
+      "path": "src/components/testing/workspace-motion-fixture.tsx",
+      "sha256": "c5588c72ef5c7e0d12e6193997554865c2d9bd781420e554e1c2c1b8e915e38f"
+    },
+    {
+      "path": "tests/command-search-empty.test.tsx",
+      "sha256": "94dea21199ac130db39526aafdb9333d3583363d91235840f6a080e6e8e70adf"
+    },
+    {
+      "path": "tests/command-surface-lifecycle.test.tsx",
+      "sha256": "17c4a8665d4842a59e45e1a587cea2cbfe42ab612538fdd8f59bff15f634e499"
+    },
+    {
+      "path": "tests/workspace-motion-navigation.test.tsx",
+      "sha256": "06670d8857496389822e99e4414e2f664d2fc8070a12e56459311d6f64b17664"
+    },
+    {
+      "path": "src/app/layout.tsx",
+      "sha256": "88a4c32a475fa0c18218cd757e2eddc00e0428dae9c741544adbc8e6f3bb688d"
+    },
+    {
+      "path": "src/app/mobile-native-e2e/page.tsx",
+      "sha256": "f35999bb40488b6922afa24a25e733df4e8dc54a47aae41542e157a004881f28"
+    },
+    {
+      "path": "src/components/layout/app-shell.tsx",
+      "sha256": "a308962700957f46c4b7726e749f8da30c455597afc62a7aca301b7fc01f79fc"
+    },
+    {
+      "path": "src/components/layout/mobile-tab-bar.tsx",
+      "sha256": "f5f8b90b8cc96e408300d0ae38bde91f6b669f04dcf71a7ea268e89067098f46"
+    },
+    {
+      "path": "src/components/notes/note-document-shell.tsx",
+      "sha256": "1823872c67769bf54624173fe67fca0146d71941cc4ca6b2351a610a3ec69659"
+    },
+    {
+      "path": "src/components/notes/note-editor.tsx",
+      "sha256": "c3a2cf02fecb8d7684361be58a5dd6d3326df36bb89f754ddc281f7708ad0700"
+    },
+    {
+      "path": "src/components/notes/notes-workspace-shell.tsx",
+      "sha256": "2f54260134dabb76d7b4ccf1c7adb2e486ae7b1f8ef5dafcb2013519ce642784"
+    },
+    {
+      "path": "src/components/notes/notes-workspace.tsx",
+      "sha256": "a362781eaaad9ae60700aad3d92bb575aa1511f3ba4020c5442b0308b9e6af11"
+    },
+    {
+      "path": "src/components/search/global-command-palette-impl.tsx",
+      "sha256": "7196d5fa10b18442037410eecbd06fbfad2cb5ad61b4b0e98376c2931108259e"
+    },
+    {
+      "path": "src/components/search/global-command-palette.tsx",
+      "sha256": "31ac06a3ee74eff7555b6deec762d5a8028c25b084e5ffd529840f42ba66a16f"
+    },
+    {
+      "path": "src/components/shared/use-dialog-return-focus.ts",
+      "sha256": "6a66297933f678f12c974d3bb041680953170ac83e32a5c5b14ccd40b0d1a8a7"
+    },
+    {
+      "path": "src/components/shared/use-workspace-scroll-restoration.ts",
+      "sha256": "4aeb4ecf20f48053d9d6f80962b6f435ee22c1a2428f8771c74d8e059b531877"
+    },
+    {
+      "path": "src/components/ui/command.tsx",
+      "sha256": "acfc8ef5965b51f46767a9e12d2dc98fa34def4418b9f20b13fe1551ec5cdfc3"
+    },
+    {
+      "path": "tests/lazy-global-overlays.test.ts",
+      "sha256": "f4bea9fff1d6901ef22acd3baa4c5c089ab8c1073dd3c3ce643eb59973231b75"
+    },
+    {
+      "path": "tests/notes-search-navigation.test.ts",
+      "sha256": "611c3e71d65aa6840ea9fa0456df9ac81e46671af7b03f66c7499bd7c0838163"
+    },
+    {
+      "path": "tests/workspace-mobile-geometry.test.ts",
+      "sha256": "a3749ab816b28a44ce67ab288fe1ab75a388015467175b440cb9fd8e09d20f56"
+    },
+    {
+      "path": "vitest.config.ts",
+      "sha256": "7346ab676d52dd3a17af7ca2bc5ac457f1c521a60f961d2cef334ffc5395031f"
+    }
+  ]
+}

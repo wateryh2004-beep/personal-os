@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PanelPresence } from "@/components/shared/panel-presence";
+import { NavigationRail } from "./navigation-rail";
+import { useDialogReturnFocus } from "@/components/shared/use-dialog-return-focus";
 import { MotionBoundary } from "@/components/shared/motion-boundary";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -98,8 +100,8 @@ function pathnameFromHref(href: string | null | undefined) {
 function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent, groups = desktopNavigationGroups }: NavigationProps) {
   const pendingPathname = pathnameFromHref(pendingHref);
 
-  return <nav aria-label="主导航" className="space-y-5.5">{groups.map((group, groupIndex) => <div key={group.label ?? groupIndex}>
-    {group.label && !collapsed ? <p className="mb-1.5 px-2.5 text-[12px] font-semibold tracking-[0.015em] text-[var(--text-tertiary)]">{group.label}</p> : null}
+  return <NavigationRail selection={`${pendingPathname ?? pathname}:${collapsed}`}>{groups.map((group, groupIndex) => <div key={group.label ?? groupIndex}>
+    {group.label ? <p aria-hidden={collapsed || undefined} className={cn("navigation-group-heading mb-1.5 px-2.5 text-[12px] font-semibold tracking-[0.015em] text-[var(--text-tertiary)]", collapsed && "invisible")}>{group.label}</p> : null}
     <div className="space-y-px">{group.items.map(({ name, href, icon: Icon }) => {
       const active = navActive(pathname, href);
       const pending = pendingPathname ? navActive(pendingPathname, href) : false;
@@ -115,23 +117,24 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent, gr
         aria-current={active ? "page" : undefined}
         aria-busy={pending || undefined}
         data-pending={pending || undefined}
+        data-nav-selected={selected}
         aria-label={collapsed ? name : undefined}
         className={cn(
           "navigation-link pressable relative flex h-[36px] min-w-0 items-center gap-2.5 rounded-[11px] px-2.5 text-[13px] font-medium tracking-[-0.007em]",
           selected
             ? "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
-          collapsed && "justify-center px-0",
+          collapsed && "navigation-collapsed",
         )}
       >
         <Icon className="size-4 shrink-0 text-[var(--text-tertiary)] transition-colors ui-transition" strokeWidth={active || pending ? 2 : 1.8} aria-hidden="true" />
-        {collapsed ? null : <span className="truncate">{name}</span>}
+        <span className="navigation-label truncate" aria-hidden={collapsed || undefined}>{name}</span>
       </Link>;
       return collapsed
         ? <Tooltip key={href}><TooltipTrigger asChild>{link}</TooltipTrigger><TooltipContent side="right">{name}</TooltipContent></Tooltip>
         : <div key={href}>{link}</div>;
     })}</div>
-  </div>)}</nav>;
+  </div>)}</NavigationRail>;
 }
 
 function shellContentClass(pathname: string) {
@@ -192,6 +195,8 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
   useEffect(() => () => { clearTimeout(privateHold.timer); clearTimeout(deferredPrivateOpen.current); }, []);
   const [collapsed, setCollapsed] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const commandAnchor = useRef<HTMLButtonElement>(null);
+  const { rememberTrigger: rememberCommandTrigger, restoreFocus: restoreCommandFocus } = useDialogReturnFocus();
   const [commandSection, setCommandSection] = useState<CommandCenterSection>("search");
   const { navigate, pendingHref: visiblePendingHref } = useShellNavigation(pathname, router);
   const [recentNavigation, setRecentNavigation] = useState<RecentNavigationItem[]>([]);
@@ -243,6 +248,9 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
       if (event.defaultPrevented) return;
       if (matchesShortcut(event, "command")) {
         event.preventDefault();
+        // A repeated shortcut inside this surface must retain its original
+        // launcher, including a shortcut that reverses an in-flight close.
+        if (document.activeElement instanceof HTMLElement && !document.activeElement.closest("#global-command-palette")) rememberCommandTrigger(document.activeElement);
         setCommandSection("search");
         setCommandOpen(true);
       }
@@ -258,7 +266,7 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [openGlobalAgent, pathname]);
+  }, [openGlobalAgent, pathname, rememberCommandTrigger]);
 
   useEffect(() => {
     const openAgent = () => openGlobalAgent();
@@ -361,6 +369,7 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
     return next;
   });
   const openCommand = (section: CommandCenterSection) => {
+    if (document.activeElement instanceof HTMLElement) rememberCommandTrigger(document.activeElement);
     setCommandSection(section);
     setCommandOpen(true);
   };
@@ -372,7 +381,7 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
     [pathname, recentNavigation],
   );
 
-  const desktopSidebar = useMemo(() => <aside style={{ width: desktopWidth }} className="app-sidebar fixed inset-y-0 left-0 z-30 hidden shrink-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--material-sidebar)] md:flex">
+  const desktopSidebar = useMemo(() => <aside data-collapsed={collapsed} style={{ width: desktopWidth }} className="app-sidebar fixed inset-y-0 left-0 z-30 hidden shrink-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--material-sidebar)] md:flex">
     <div className={cn("flex h-12 items-center px-2.5", collapsed ? "justify-center" : "justify-between")}>
       <Link
         href="/today"
@@ -478,11 +487,11 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
         </Link>
       </SheetContent>
     </Sheet>
-    <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="min-h-[var(--app-viewport-height)] min-w-0 bg-[var(--surface-app)] md:ml-[var(--shell-width)]">
+    <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="app-workspace-frame min-h-[var(--app-viewport-height)] min-w-0 bg-[var(--surface-app)] md:ml-[var(--shell-width)]">
       <header className="app-toolbar sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-2.5 border-b border-[var(--border-subtle)] bg-[var(--material-toolbar)] px-3 pt-[env(safe-area-inset-top)] sm:px-4">
         <Button variant="ghost" size="icon-sm" className="today-mobile-menu md:hidden" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu aria-hidden="true" /></Button>
         {pathname === "/today" ? <span className="today-mobile-brand" aria-hidden="true">Life of HANG</span> : null}
-        <button type="button" aria-label="搜索 Personal OS" onClick={() => openCommand("search")} className="today-search pressable mx-auto flex h-8 w-full max-w-lg items-center gap-2 rounded-[11px] bg-[var(--surface-control)] px-2.5 text-left text-[13px] text-[var(--text-tertiary)] shadow-[inset_0_1px_0_rgba(255,255,255,.36)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-secondary)]"><Search className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden font-sans text-[12px] font-medium text-[var(--text-tertiary)] sm:inline">⌘K</kbd></button>
+        <button ref={commandAnchor} type="button" aria-haspopup="dialog" aria-expanded={commandOpen} aria-controls="global-command-palette" aria-label="搜索 Personal OS" onClick={() => openCommand("search")} className="today-search pressable mx-auto flex h-8 w-full max-w-lg items-center gap-2 rounded-[11px] bg-[var(--surface-control)] px-2.5 text-left text-[13px] text-[var(--text-tertiary)] shadow-[inset_0_1px_0_rgba(255,255,255,.36)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-secondary)]"><Search className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden font-sans text-[12px] font-medium text-[var(--text-tertiary)] sm:inline">⌘K</kbd></button>
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={openGlobalAgent} aria-label="询问 Personal OS" className="gap-1.5"><Sparkles className="size-3.5" aria-hidden="true"/><span className="hidden sm:inline">询问</span><kbd className="hidden font-sans text-[12px] font-medium text-[var(--text-tertiary)] lg:inline">⌘J</kbd></Button></TooltipTrigger><TooltipContent>询问 Personal OS（⌘J）</TooltipContent></Tooltip>
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" onClick={openContextualCreate} aria-label="快速新建"><Plus aria-hidden="true" /></Button></TooltipTrigger><TooltipContent>快速新建（⌘N）</TooltipContent></Tooltip>
       </header>
@@ -494,7 +503,7 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
       </div>
     </div>
     <MobileTabBar presentationPathname={presentationPathname} onOpenMore={() => setMobileOpen(true)} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget} />
-    <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} initialSection={commandSection} />
+    <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} initialSection={commandSection} anchorRef={commandAnchor} onCloseAutoFocus={restoreCommandFocus} />
     <GlobalCreateLayer />
   </div>;
 }

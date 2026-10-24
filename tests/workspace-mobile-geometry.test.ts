@@ -5,8 +5,8 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 describe("mobile workspace geometry ownership", () => {
   it("lets the Notes list reserve folder-control space without row-dependent top overrides", () => {
-    expect(read("src/components/notes/notes-workspace.tsx")).toContain("pt-16");
-    for (const file of ["globals", "workspaces", "responsive"]) {
+    expect(read("src/app/workspace-motion.css")).toMatch(/@media\(max-width:767px\)[\s\S]*\.notes-library\s*\{\s*padding:64px/);
+    for (const file of ["globals", "workspaces", "responsive", "workspace-motion"]) {
       const css = read(`src/app/${file}.css`);
       const noteRules = [...css.matchAll(/main\.workspace-scroll:has\(article a\[href\^="\/notes\/"\]\)\s*\{([^}]+)\}/g)];
       for (const [, declarations] of noteRules) expect(declarations).not.toContain("padding-top");

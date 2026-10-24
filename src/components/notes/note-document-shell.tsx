@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, PanelRight, ExternalLink, Download, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { noteAttachmentUrl, notePdfAttachments, type NoteAttachment } from "@/features/notes/attachments";
+import { NotesSurfaceMotion } from "./notes-motion";
 
 export function NoteDocumentShell({ noteId, editor, inspector, attachments = [], location }: {
   noteId: string; editor: React.ReactNode; inspector: React.ReactNode; attachments?: NoteAttachment[]; location?: { href: string; label: string };
@@ -33,16 +34,16 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
 
   const returnToNotesList = () => {
     const session = loadWorkspaceSession<{ href?: string }>(lastNotesListSessionKey);
-    router.replace(notesListHref(session));
+    router.replace(notesListHref(session), { scroll: false, transitionTypes: ["note-return"] });
   };
 
   return (
-    <section
+    <NotesSurfaceMotion><section
       onInputCapture={handleEditorInput}
       className="notes-document-shell relative flex h-full min-h-0 overflow-hidden bg-[var(--surface-canvas)]"
     >
-      <div className="relative flex min-w-0 flex-1 flex-col">
-        <div className="flex h-11 shrink-0 items-center gap-1 px-2.5">
+      <div className="notes-document-main relative flex min-w-0 flex-1 flex-col">
+        <div className="notes-document-location flex h-11 shrink-0 items-center gap-1 px-2.5">
           <button
             type="button"
             onClick={returnToNotesList}
@@ -70,7 +71,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
           <span className="ml-2 hidden truncate text-[12px] text-[var(--text-tertiary)] sm:block">{selectedPdf?.role === "pdf_snapshot" ? "飞书导入时的原始排版" : selectedPdf?.title}</span>
         </div> : null}
         {/* Keep the editor mounted so drafts and in-flight autosaves survive view changes. */}
-        <div className="min-h-0 flex-1" hidden={view === "pdf" && !!selectedPdf}>{editorVisited || !selectedPdf ? editor : null}</div>
+        <div className="notes-document-editor-slot min-h-0 flex-1" hidden={view === "pdf" && !!selectedPdf}>{editorVisited || !selectedPdf ? editor : null}</div>
         {pdfVisited && selectedPdf ? <div hidden={view !== "pdf"} aria-busy={loadedReader !== `${selectedPdf.id}:${readerVersion}`} className="flex min-h-0 flex-1 flex-col">
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--separator)] px-3 py-2 text-[12px]">
             {pdfs.length > 1 ? <select aria-label="选择 PDF" value={selectedPdf.id} onChange={(event) => setPdfId(event.target.value)} className="ui-field min-w-0 max-w-full flex-1 rounded-[8px] bg-[var(--surface-control)] px-2 py-1.5 text-[var(--text-primary)]">{pdfs.map((pdf) => <option key={pdf.id} value={pdf.id}>{pdf.title}</option>)}</select> : <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">{selectedPdf.original_filename}</span>}
@@ -91,6 +92,6 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
       >
         {inspector}
       </Inspector>
-    </section>
+    </section></NotesSurfaceMotion>
   );
 }

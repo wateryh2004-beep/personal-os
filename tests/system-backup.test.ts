@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, readFileSync, writeFileSync, readdirSync, rmSync, mkdirSync, symlinkSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, readdirSync, rmSync, mkdirSync, symlinkSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -10,7 +10,9 @@ import { exportArchive, type ExportDocument } from "@/features/files/export/port
 import { backupOwner, backupId, backupRow, backupSource, backupFixture, noArtwork } from "./helpers/system-backup-fixtures";
 
 const dirs: string[] = [];
-function temp() { const dir = mkdtempSync(path.join(tmpdir(), "system-backup-test-")); dirs.push(dir); return dir; }
+// macOS exposes /var via a symlink. Create controlled fixtures under its actual
+// parent; the recovery CLI must continue refusing every symlink input path.
+function temp() { const dir = mkdtempSync(path.join(realpathSync(tmpdir()), "system-backup-test-")); dirs.push(dir); return dir; }
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 async function bytes(data: Record<string, BackupRow[]> = backupFixture()) {
   const chunks: Uint8Array[] = [];
