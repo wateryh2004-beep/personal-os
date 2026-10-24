@@ -76,21 +76,21 @@ grant execute on function public.mutate_note_atomic(text,uuid,integer,text,text,
 
 create function public.move_note_new_folder_atomic(p_note_id uuid,p_expected_revision integer,p_folder_name text)
 returns jsonb language plpgsql security invoker set search_path='' as $$
-declare folder_id uuid; note_revision integer;
+declare target_folder_id uuid; note_revision integer;
 begin
   if auth.uid() is null or length(btrim(p_folder_name)) not between 1 and 120 then raise exception 'invalid_note_operation'; end if;
   perform pg_advisory_xact_lock(hashtextextended(auth.uid()::text||lower(btrim(p_folder_name)),782));
-  select revision into note_revision from public.notes where id=p_note_id and user_id=auth.uid()
-    and folder_id is null and status='active' and deleted_at is null and archived_at is null for update;
+  select n.revision into note_revision from public.notes n where n.id=p_note_id and n.user_id=auth.uid()
+    and n.folder_id is null and n.status='active' and n.deleted_at is null and n.archived_at is null for update;
   if note_revision is distinct from p_expected_revision then raise exception 'note_revision_conflict'; end if;
-  select id into folder_id from public.note_folders where user_id=auth.uid() and parent_id is null
+  select id into target_folder_id from public.note_folders where user_id=auth.uid() and parent_id is null
     and lower(name)=lower(btrim(p_folder_name)) and archived_at is null limit 1;
-  if folder_id is null then
-    insert into public.note_folders(user_id,name) values(auth.uid(),btrim(p_folder_name)) returning id into folder_id;
+  if target_folder_id is null then
+    insert into public.note_folders(user_id,name) values(auth.uid(),btrim(p_folder_name)) returning id into target_folder_id;
     insert into public.audit_logs(user_id,action,entity_type,entity_id,actor_type,after_data)
-      values(auth.uid(),'create','note_folder',folder_id,'user','{}');
+      values(auth.uid(),'create','note_folder',target_folder_id,'user','{}');
   end if;
-  return public.mutate_note_atomic('move',p_note_id,p_expected_revision,null,null,folder_id,null,'assistant_confirmed');
+  return public.mutate_note_atomic('move',p_note_id,p_expected_revision,null,null,target_folder_id,null,'assistant_confirmed');
 end $$;
 revoke all on function public.move_note_new_folder_atomic(uuid,integer,text) from public,anon;
 grant execute on function public.move_note_new_folder_atomic(uuid,integer,text) to authenticated;

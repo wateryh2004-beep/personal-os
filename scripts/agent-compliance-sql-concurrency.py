@@ -71,4 +71,6 @@ checked(f"insert into public.agent_runs(id,user_id,surface) values('{run}','{own
 payload_hash = checked(f"select payload_hash from public.agent_actions where id='{action}'")
 results = race([f"select public.transition_agent_action('{owner}','{action}','{payload_hash}','executing')"] * 8, "service_role")
 assert sum(ok for ok, _ in results) == 1
+checked((root / "scripts/agent-compliance-production-verification.sql").read_text())
 print("PASS PostgreSQL multi-session quota reservation, note CAS/restore race, and single proposal claim")
+print("PASS rollback-only full RPC verification, including new-folder move and Inbox conversion")
