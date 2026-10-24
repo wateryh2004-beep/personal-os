@@ -292,7 +292,7 @@ export async function getAgentRun(
       .order("created_at"),
     supabase
       .from("agent_actions")
-      .select("id,run_id,domain,action_type,status,preview_json,risk_level,error_code,result_json,created_at")
+      .select("id,run_id,domain,action_type,status,payload_hash,preview_json,risk_level,error_code,result_json,created_at")
       .eq("run_id", runId)
       .order("created_at"),
   ]);
@@ -321,6 +321,7 @@ export async function getAgentRun(
       actionType: action.action_type,
       status: action.status,
       preview: action.preview_json,
+      payloadHash: action.payload_hash,
       riskLevel: action.risk_level,
       errorCode: action.error_code,
       result: action.result_json,

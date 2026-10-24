@@ -8,6 +8,8 @@ import {
 } from "./registry";
 import type { AssistantSupabase } from "./types";
 import type { AssistantStreamSource } from "../stream-metadata";
+import { createRetrievalBudget } from "../retrieval/budget";
+import { defaultAiGovernance, getAiGovernance, type AiGovernance } from "@/features/ai/governance";
 
 const moduleHref: Record<string, string> = {
   notes: "/notes",
@@ -71,10 +73,18 @@ function collectResultSources(
     "opportunities",
     "items",
     "lists",
+    "rootNotes",
+    "profileAndWorking",
+    "currentDecisions",
+    "decisions",
   ]) {
     const value = record[key];
     if (!Array.isArray(value)) continue;
     for (const item of value) if (item && typeof item === "object") rows.push(item as Record<string, unknown>);
+  }
+  for (const key of ["note", "file", "career"]) {
+    const value = record[key];
+    if (value && typeof value === "object") rows.push(value as Record<string, unknown>);
   }
   if (!rows.length && sourceTitle(record)) rows.push(record);
 
@@ -83,6 +93,10 @@ function collectResultSources(
     const title = sourceTitle(row);
     if (!title) return [];
     return [{
+      entityId: typeof row.entityId === "string" ? row.entityId : typeof row.id === "string" ? row.id : null,
+      entityType: typeof row.entityType === "string" ? row.entityType : moduleId === "notes" ? "note" : moduleId === "files" ? "document" : null,
+      timestamp: typeof row.updatedAt === "string" ? row.updatedAt : typeof row.updated_at === "string" ? row.updated_at : null,
+      reasons: ["本轮工具检索"],
       title,
       domain: typeof row.domain === "string" ? row.domain : moduleId,
       href: typeof row.href === "string" ? row.href : defaultHref,
@@ -102,6 +116,9 @@ export function buildAssistantTools(input: {
   onToolsDiscovered?: (toolNames: string[]) => void;
   onSources?: (sources: AssistantStreamSource[]) => void;
   onDuplicateRead?: (toolName: string) => void;
+  governance?: AiGovernance;
+  initialContextChars?: number;
+  onContextChars?: (chars: number) => void;
 }) {
   assertNoExecuteToolsExposed(input.policy.tools);
   const groups = new Set(input.policy.tools);
@@ -110,6 +127,8 @@ export function buildAssistantTools(input: {
     definitionsForNames(input.toolNames ?? []).map((definition) => [definition.name, definition]),
   );
   const readMemo = new Map<string, Promise<unknown>>();
+  const governance = input.governance ?? defaultAiGovernance;
+  const retrievalBudget = createRetrievalBudget(governance.maxContextCharsPerRequest, input.initialContextChars);
 
   const tools = Object.assign(
     {},
@@ -152,11 +171,17 @@ export function buildAssistantTools(input: {
               input.onDuplicateRead?.(name);
               return existing;
             }
-            const pending = Promise.resolve(originalExecute(toolInput, options)).then((result) => {
+            const pending = (async () => {
+              if (definition.group === "memory_read" || name === "getCurrentPersonalState" || (name === "inspectModule" && toolInput && typeof toolInput === "object" && "module" in toolInput && toolInput.module === "memory")) {
+                if (!(await getAiGovernance(input.userId ?? "")).longTermMemoryOptIn) return { blocked: "memory_opt_in_required", unavailable: false };
+              }
+              const result = await originalExecute(toolInput, options);
+              if (!retrievalBudget.accept(result)) return { blocked: "ai_context_limit", unavailable: true };
+              input.onContextChars?.(retrievalBudget.usedChars);
               const sources = collectResultSources(result, definition.module ?? "meta");
               if (sources.length) input.onSources?.(sources);
               return result;
-            });
+            })();
             readMemo.set(key, pending);
             return pending;
           },

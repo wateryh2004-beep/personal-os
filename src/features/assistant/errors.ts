@@ -39,6 +39,9 @@ function assistantErrorSignals(error: unknown) {
 
 export function normalizeAssistantError(error: unknown) {
   const { status, value } = assistantErrorSignals(error);
+  if (/daily_call_limit|monthly_call_limit|daily_cost_limit|monthly_cost_limit|ai_budget_blocked/.test(value)) return { code: "ai_budget_blocked", message: "已达到 AI 调用或费用上限，请在设置中核对预算。" };
+  if (/ai_budget_unavailable|ai_governance_unavailable|ai_audit/.test(value)) return { code: "ai_governance_unavailable", message: "暂时无法核对 AI 预算或记录审计，本次已停止，请稍后重试。" };
+  if (value.includes("ai_context_limit")) return { code: "ai_context_limit", message: "本次检索内容超过设置的上下文上限，请缩小范围后重试。" };
   if (value.includes("current_surface_too_long"))
     return {
       code: "current_surface_too_long",

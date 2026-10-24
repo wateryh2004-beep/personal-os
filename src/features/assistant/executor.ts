@@ -1,5 +1,5 @@
 import "server-only";
-import { contentHash } from "@/features/notes/utils";
+import { mutateNoteAtomic } from "@/features/notes/atomic";
 import { calendarPayload, calendarUpdatePayload } from "@/features/calendar/utils";
 import { normalizeMemoryKey } from "@/features/memory/types";
 import {
@@ -189,175 +189,39 @@ async function executeTask(input: {
 }
 
 async function executeNote(input: {
-  supabase: Supabase;
-  userId: string;
+  supabase: Supabase; userId: string; actionId?: string;
   actionType: "notes.create" | "notes.update" | "notes.move";
   payload: Record<string, unknown>;
 }) {
-  const now = new Date().toISOString();
-  if (input.actionType === "notes.create") {
-    const value = noteCreateProposalSchema.parse(input.payload);
-    if (value.folderId) {
-      const { data: folder } = await input.supabase
-        .from("note_folders")
-        .select("id")
-        .eq("id", value.folderId)
-        .is("archived_at", null)
-        .maybeSingle();
-      if (!folder) throw new AgentActionConflict("folder_changed");
+  try {
+    if (input.actionType === "notes.create") {
+      const value = noteCreateProposalSchema.parse(input.payload);
+      const note = await mutateNoteAtomic(input.supabase, { operation: "create", noteId: input.actionId, title: value.title, body: value.bodyMarkdown, folderId: value.folderId, reason: "assistant_confirmed" });
+      return { noteId: note.id, revision: note.revision, href: `/notes/${note.id}` };
     }
-    const body = value.bodyMarkdown;
-    const hash = contentHash(body);
-    const { data: note, error } = await input.supabase
-      .from("notes")
-      .insert({
-        user_id: input.userId,
-        folder_id: value.folderId,
-        title: value.title,
-        body_markdown: body,
-        status: "active",
-        revision: 1,
-        content_hash: hash,
-        word_count: body.trim() ? body.trim().split(/\s+/).length : 0,
-        character_count: body.length,
-        last_saved_at: now,
-      })
-      .select("id")
-      .single();
-    if (error || !note) throw new Error("note_create_failed");
-    const version = await input.supabase.from("note_versions").insert({
-      user_id: input.userId,
-      note_id: note.id,
-      title: value.title,
-      body_markdown: body,
-      version_number: 1,
-      created_by: input.userId,
-      content_hash: hash,
-      revision: 1,
-      reason: "assistant_confirmed",
-    });
-    if (version.error) throw new Error("note_version_failed");
-    return { noteId: note.id, href: `/notes/${note.id}` };
-  }
-  if (input.actionType === "notes.move") {
-    const value = noteMoveProposalSchema.parse(input.payload);
-    const { data: note } = await input.supabase
-      .from("notes")
-      .select("id")
-      .eq("id", value.noteId)
-      .eq("status", "active")
-      .is("deleted_at", null)
-      .is("archived_at", null)
-      .maybeSingle();
-    if (!note) throw new AgentActionConflict("note_not_found");
-    let targetFolderId: string | null = null;
-    if (value.newFolderName) {
-      // 新建文件夹：复用根级同名已有文件夹，避免重复建夹；否则新建（parent_id null）。
-      const { data: existing } = await input.supabase
-        .from("note_folders")
-        .select("id")
-        .eq("user_id", input.userId)
-        .is("parent_id", null)
-        .is("archived_at", null)
-        .ilike("name", value.newFolderName.trim())
-        .maybeSingle();
-      if (existing) {
-        targetFolderId = existing.id;
+    if (input.actionType === "notes.move") {
+      const value = noteMoveProposalSchema.parse(input.payload);
+      const { data: note } = await input.supabase.from("notes").select("id,revision,folder_id").eq("id", value.noteId).eq("status", "active").is("deleted_at", null).is("archived_at", null).maybeSingle();
+      if (!note || note.folder_id) throw new AgentActionConflict("note_revision_conflict");
+      const folderId = value.destinationFolderId;
+      if (value.newFolderName) {
+        const { data, error } = await input.supabase.rpc("move_note_new_folder_atomic", { p_note_id: note.id, p_expected_revision: note.revision, p_folder_name: value.newFolderName.trim() });
+        if (error || !data) throw new Error(error?.message.includes("note_revision_conflict") ? "note_revision_conflict" : "note_transaction_failed");
       } else {
-        const { data: folder, error } = await input.supabase
-          .from("note_folders")
-          .insert({
-            user_id: input.userId,
-            parent_id: null,
-            name: value.newFolderName.trim(),
-            position: 0,
-          })
-          .select("id")
-          .single();
-        if (error || !folder) throw new Error("folder_create_failed");
-        targetFolderId = folder.id;
+        if (!folderId) throw new AgentActionConflict("folder_required");
+        await mutateNoteAtomic(input.supabase, { operation: "move", noteId: note.id, expectedRevision: note.revision, folderId, reason: "assistant_confirmed" });
       }
-    } else if (value.destinationFolderId) {
-      const { data: folder } = await input.supabase
-        .from("note_folders")
-        .select("id")
-        .eq("id", value.destinationFolderId)
-        .is("archived_at", null)
-        .maybeSingle();
-      if (!folder) throw new AgentActionConflict("folder_changed");
-      targetFolderId = folder.id;
-    } else {
-      throw new AgentActionConflict("folder_required");
+      return { noteId: note.id, href: `/notes/${note.id}` };
     }
-    const { error } = await input.supabase
-      .from("notes")
-      .update({ folder_id: targetFolderId })
-      .eq("id", value.noteId)
-      .eq("user_id", input.userId)
-      .eq("status", "active")
-      .is("deleted_at", null)
-      .is("archived_at", null);
-    if (error) throw new Error("note_move_failed");
-    return { noteId: note.id, href: `/notes/${note.id}` };
+    const value = noteUpdateProposalSchema.parse(input.payload);
+    const { data: note } = await input.supabase.from("notes").select("revision,body_markdown,content_hash").eq("id", value.noteId).maybeSingle();
+    if (!noteRevisionMatches(note ? { revision: note.revision, bodyMarkdown: note.body_markdown, contentHash: note.content_hash } : null, { revision: value.expectedRevision, contentHash: value.currentBodyHash })) throw new AgentActionConflict("note_revision_conflict");
+    const updated = await mutateNoteAtomic(input.supabase, { operation: "update", noteId: value.noteId, expectedRevision: value.expectedRevision, title: value.newTitle, body: value.suggestedBody, reason: "assistant_confirmed" });
+    return { noteId: updated.id, revision: updated.revision, href: `/notes/${updated.id}` };
+  } catch (error) {
+    if (error instanceof Error && error.message === "note_revision_conflict") throw new AgentActionConflict("note_revision_conflict");
+    throw error;
   }
-  const value = noteUpdateProposalSchema.parse(input.payload);
-  const { data: note } = await input.supabase
-    .from("notes")
-    .select("id,title,body_markdown,revision,content_hash")
-    .eq("id", value.noteId)
-    .eq("revision", value.expectedRevision)
-    .eq("status", "active")
-    .is("deleted_at", null)
-    .is("archived_at", null)
-    .maybeSingle();
-  if (!note || !noteRevisionMatches({
-    revision: note.revision,
-    bodyMarkdown: note.body_markdown,
-    contentHash: note.content_hash,
-  }, {
-    revision: value.expectedRevision,
-    contentHash: value.currentBodyHash,
-  }))
-    throw new AgentActionConflict("note_revision_conflict");
-  const { data: latest } = await input.supabase
-    .from("note_versions")
-    .select("version_number")
-    .eq("note_id", note.id)
-    .order("version_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const snapshot = await input.supabase.from("note_versions").insert({
-    user_id: input.userId,
-    note_id: note.id,
-    title: note.title,
-    body_markdown: note.body_markdown,
-    version_number: (latest?.version_number ?? 0) + 1,
-    created_by: input.userId,
-    content_hash: note.content_hash || contentHash(note.body_markdown),
-    revision: note.revision,
-    reason: "before_assistant_update",
-  });
-  if (snapshot.error) throw new Error("note_version_failed");
-  const title = value.newTitle ?? note.title;
-  const body = value.suggestedBody;
-  const { data: updated, error } = await input.supabase
-    .from("notes")
-    .update({
-      title,
-      body_markdown: body,
-      revision: value.expectedRevision + 1,
-      content_hash: contentHash(body),
-      word_count: body.trim() ? body.trim().split(/\s+/).length : 0,
-      character_count: body.length,
-      last_saved_at: now,
-    })
-    .eq("id", note.id)
-    .eq("revision", value.expectedRevision)
-    .select("id,revision")
-    .maybeSingle();
-  if (error) throw new Error("note_update_failed");
-  if (!updated) throw new AgentActionConflict("note_revision_conflict");
-  return { noteId: note.id, revision: updated.revision, href: `/notes/${note.id}` };
 }
 
 async function executeCareer(input: {
@@ -567,6 +431,7 @@ export async function executeFrozenAgentAction(input: {
   supabase: Supabase;
   userId: string;
   actionType: string;
+  actionId?: string;
   payload: Record<string, unknown>;
   timezone: string;
 }) {

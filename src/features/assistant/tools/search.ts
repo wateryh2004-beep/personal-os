@@ -1,4 +1,5 @@
 import "server-only";
+import { getAiGovernance } from "@/features/ai/governance";
 import { tool } from "ai";
 import { z } from "zod";
 import { searchPersonalOs } from "@/features/search/queries";
@@ -18,7 +19,8 @@ export const searchTools: AssistantToolModule = {
       description: "跨 Notes、Career、Files、Tasks、Calendar、Reviews、Memory、Projects、Shopping 与 Travel 搜索。返回紧凑来源，不返回整篇正文。",
       inputSchema: z.object({ query: z.string().trim().min(1).max(200), domains: z.array(z.enum(domains)).max(domains.length).optional(), limit: z.number().int().min(1).max(20).default(10) }),
       execute: async ({ query, domains: requested, limit }) => {
-        const selected = requested ?? [...domains];
+        const consent = await getAiGovernance(context.userId);
+        const selected = (requested ?? [...domains]).filter(domain => domain !== "memory" || consent.longTermMemoryOptIn);
         const baseDomains = selected.filter((domain) => indexed.has(domain as SearchDomain)) as SearchDomain[];
         const [base, memory, projects] = await Promise.all([
           baseDomains.length ? searchPersonalOs({ query, domains: baseDomains, limit }).catch(() => []) : [],

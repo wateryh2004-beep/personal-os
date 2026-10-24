@@ -1,3 +1,5 @@
+import { normalizeAssistantError } from "@/features/assistant/errors";
+import { withGovernedAiCall } from "@/features/ai/governance";
 import "server-only";
 
 import { generateObject } from "ai";
@@ -155,17 +157,18 @@ export async function classifyInboxItem(input: {
       now: input.now,
       todoListNames: todoLists.map((list) => list.display_name),
     });
-    const result = await generateObject({
+    const result = await withGovernedAiCall({ userId: input.userId, surface: "inbox", purpose: "classify", model: configured.modelId, prompt, system }, ({ maxOutputTokens }) => generateObject({
+      maxOutputTokens,
       model: configured.model,
       schema: inboxClassifySchema,
       system,
       prompt,
-    });
+    }));
     classification = result.object;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown_error";
-    await markFailed(input.supabase, input.userId, input.inboxId, `AI 识别失败：${message}`);
-    return { status: "failed", error: message };
+    const failure = normalizeAssistantError(error);
+    await markFailed(input.supabase, input.userId, input.inboxId, failure.message);
+    return { status: "failed", error: failure.code };
   }
 
   if (classification.target === "none") {

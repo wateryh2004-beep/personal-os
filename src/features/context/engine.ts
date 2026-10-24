@@ -451,7 +451,7 @@ export async function buildPersonalContext(
         request.currentEntity.id,
         request.currentSurface?.title || request.message,
       );
-      graph = resolved.related.slice(0, 5).map((row) =>
+      graph = (await excludeAiGeneratedNoteResults(supabase, resolved.related.map(row => ({ ...row, entityType: row.type, entityId: row.id })))).slice(0, 5).map((row) =>
         candidate({
           key: `${row.type}:${row.id}`,
           entityType: row.type,
@@ -504,12 +504,14 @@ export async function buildPersonalContext(
         : 0,
   }));
   const ranked = rankContextCandidates(withRecurrence, now, plan.recipe);
-  let used = 0;
+  let usedChars = 0;
+  let selectedCount = 0;
   const selected = ranked
     .filter((item) => {
-      if (used + item.content.length > Math.min(limits.total, governance.maxContextCharsPerRequest) || used >= limits.items)
+      if (usedChars + item.content.length > Math.min(limits.total, governance.maxContextCharsPerRequest) || selectedCount >= limits.items)
         return false;
-      used += item.content.length;
+      usedChars += item.content.length;
+      selectedCount += 1;
       return true;
     })
     .map((item, index) => ({ ...item, id: `S${index + 1}` }));
@@ -523,7 +525,7 @@ export async function buildPersonalContext(
     diagnostics: {
       candidateCount: ranked.length,
       selectedCount: selected.length,
-      totalChars: used,
+      totalChars: usedChars,
       truncated: selected.length < ranked.length,
       available: {
         workingMemory:

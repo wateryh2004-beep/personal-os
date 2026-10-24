@@ -1,0 +1,50 @@
+name: Agent compliance
+on:
+  pull_request:
+    paths:
+      - 'src/features/ai/**'
+      - 'src/features/assistant/**'
+      - 'src/features/notes/**'
+      - 'src/features/inbox/**'
+      - 'src/features/briefing/**'
+      - 'src/features/today/**'
+      - 'src/components/assistant/**'
+      - 'supabase/migrations/**'
+      - 'tests/*compliance*'
+      - 'tests/ai-governance*'
+      - 'tests/assistant-*'
+      - 'tests/notes-atomic*'
+      - 'scripts/agent-compliance-*'
+      - '.github/workflows/agent-compliance.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ephemeral-fixture-only
+          POSTGRES_DB: agent_compliance_test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx vitest run tests/assistant-compliance-tools.test.ts tests/assistant-context-packing.test.ts tests/ai-governance-runtime.test.ts tests/assistant-source-controls.test.ts tests/assistant-confirmation-runtime.test.ts tests/notes-atomic-actions.test.ts
+      - run: npm install --prefix "$RUNNER_TEMP/compliance-tests" --no-save --ignore-scripts @electric-sql/pglite@0.5.10
+      - run: COMPLIANCE_PGLITE_ROOT="$RUNNER_TEMP/compliance-tests/node_modules/@electric-sql/pglite" node tests/agent-compliance-database.mjs
+      - run: python3 scripts/agent-compliance-sql-concurrency.py
+        env:
+          AGENT_COMPLIANCE_EPHEMERAL: '1'
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGDATABASE: agent_compliance_test
+          PGUSER: postgres
+          PGPASSWORD: ephemeral-fixture-only

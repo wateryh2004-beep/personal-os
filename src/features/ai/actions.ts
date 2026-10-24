@@ -58,12 +58,10 @@ export async function submitAiFeedback(formData: FormData) {
 export async function blockAiSource(formData: FormData) {
   const parsed = blockSourceSchema.safeParse({ sourceId: formData.get("source_id"), domain: formData.get("domain") });
   if (!parsed.success) throw new Error("来源信息无效。");
-  const { supabase, userId } = await requireOwner();
-  const table = parsed.data.domain === "notes" ? "notes" : "documents";
-  const { data, error } = await supabase.from(table).update({ ai_visibility: "never" }).eq("id", parsed.data.sourceId).select("id").maybeSingle();
+  const { supabase } = await requireOwner();
+  const { data, error } = await supabase.rpc("block_ai_source_atomic", { p_domain: parsed.data.domain, p_source_id: parsed.data.sourceId });
   if (error || !data) throw new Error("无法禁止该来源供 AI 使用，请确认最新 migration 已应用。");
-  await supabase.from("audit_logs").insert({ user_id: userId, action: "block_ai_source", entity_type: parsed.data.domain === "notes" ? "note" : "document", entity_id: data.id, actor_type: "user", after_data: { ai_visibility: "never", source: "assistant_sources" } });
-  revalidatePath(parsed.data.domain === "notes" ? `/notes/${data.id}` : "/files");
+  revalidatePath(parsed.data.domain === "notes" ? `/notes/${parsed.data.sourceId}` : "/files");
 }
 
 export async function saveDeepSeekKey(formData: FormData) {

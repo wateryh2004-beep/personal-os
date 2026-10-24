@@ -21,6 +21,7 @@ export function mapPersonalContextSources(
   if (!pack) return [];
   return pack.sources.map((source) => ({
     id: source.id,
+    entityId: source.entityId,
     title: source.title,
     domain: source.domain,
     href: source.href,

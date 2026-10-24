@@ -21,7 +21,8 @@ describe("AI governance guardrails", () => {
 
   it("keeps assistant writes behind proposals and exposes a per-source opt-out", () => {
     expect(read("src/features/assistant/tools/notes.ts")).toContain("不会直接创建");
-    expect(read("src/components/assistant/agent-sources.tsx")).toContain("不再使用");
+    expect(read("src/components/assistant/agent-sources.tsx")).toContain("SourceBlockButton");
+    expect(read("src/components/assistant/source-block-button.tsx")).toContain("不再使用");
     expect(read("src/features/ai/actions.ts")).toContain("blockAiSource");
   });
 });

@@ -177,6 +177,10 @@
 
 ## 当前实现排查
 
+[2026-10-24 Agent 合规修复与验收](verification/2026-10-24-agent-compliance-fixes.md) 对照 11 项审查问题记录实现、隔离数据库、原生多连接、界面证据与存量失败；本地修复完成，生产迁移与发布尚未执行。
+
+[2026-10-24 Agent 规范与网站实现审查](verification/2026-10-24-agent-compliance-audit.md) 记录固定生产提交对应源码、数据库只读权限检查与合成复现发现的 11 项偏差；这是审查快照，未修复、未发布，不代表全站浏览器验收。
+
 [职业、笔记与日历工作区细化](specs/workspace-details-v2.md) 衔接全局迁移，规定页面内部的具体行为；结果与限制见 [2026-10-15 验收记录](verification/2026-10-15-workspace-details-v2.md)。
 
 [依赖与部署闭包复核](security/runtime-dependencies-2026-10-14.md) 记录安全补丁、未使用 CLI 的移除及剩余告警判断。

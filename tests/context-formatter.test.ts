@@ -19,7 +19,7 @@ describe("mapPersonalContextSources", () => {
     expect(mapPersonalContextSources(null)).toEqual([]);
   });
 
-  it("maps each source to the id/title/domain/href/reasons subset", () => {
+  it("keeps citation labels and entity identifiers separate in displayed sources", () => {
     const pack = makePack([
       {
         id: "S1",
@@ -49,6 +49,7 @@ describe("mapPersonalContextSources", () => {
     expect(mapPersonalContextSources(pack)).toEqual([
       {
         id: "S1",
+        entityId: "note-1",
         title: "关于 REITs 的想法",
         domain: "notes",
         href: "/notes/note-1",
@@ -56,6 +57,7 @@ describe("mapPersonalContextSources", () => {
       },
       {
         id: "S2",
+        entityId: null,
         title: "Working · 华夏REITs实习",
         domain: "memory",
         href: null,

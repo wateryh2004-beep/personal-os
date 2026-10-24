@@ -68,9 +68,9 @@ function details(action: AgentAction) {
 export function AgentActionCard({ action, onChanged }: { action: AgentAction; onChanged: (result: AgentActionResult) => void }) {
   const [result, setResult] = useState<AgentActionResult | null>(null);
   const [pending, startTransition] = useTransition();
-  const currentStatus = result?.status === "success" ? "succeeded" : result?.status === "conflict" ? "conflict" : result?.status === "rejected" ? "rejected" : action.status;
+  const currentStatus = result?.status === "success" ? "succeeded" : result?.status === "conflict" ? "conflict" : result?.status === "rejected" ? "rejected" : result?.status === "error" ? "failed" : action.status;
   const run = (kind: "approve" | "reject") => startTransition(async () => {
-    const next = kind === "approve" ? await approveAgentAction(action.id) : await rejectAgentAction(action.id);
+    const next = kind === "approve" ? await approveAgentAction(action.id, action.payloadHash) : await rejectAgentAction(action.id, action.payloadHash);
     setResult(next);
     onChanged(next);
   });

@@ -3,11 +3,12 @@
 import { revalidatePath } from "@/lib/workspace-revalidation";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AgentActionConflict, executeFrozenAgentAction } from "./executor";
 import { parseAgentActionPayload } from "./tools/schemas";
 
-const idSchema = z.string().uuid();
-const actionIdsSchema = z.array(idSchema).min(1).max(20).transform((ids) => [...new Set(ids)]);
+const confirmationSchema = z.object({ id: z.string().uuid(), payloadHash: z.string().regex(/^[a-f0-9]{64}$/) });
+const claimedSchema = z.object({ id: z.string().uuid(), run_id: z.string().uuid(), action_type: z.string(), payload_json: z.record(z.string(), z.unknown()) });
 export type AgentActionResult = {
   status: "success" | "error" | "conflict" | "rejected";
   message: string;
@@ -15,95 +16,55 @@ export type AgentActionResult = {
   href?: string;
 };
 
-async function audit(input: {
-  supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"];
-  userId: string;
-  action: string;
-  actionId: string;
-  data: Record<string, unknown>;
-}) {
-  await input.supabase.from("audit_logs").insert({
-    user_id: input.userId,
-    action: input.action,
-    entity_type: "agent_action",
-    entity_id: input.actionId,
-    actor_type: "user",
-    after_data: input.data,
-  });
-}
-
-export async function approveAgentAction(actionId: string): Promise<AgentActionResult> {
-  const parsedId = idSchema.safeParse(actionId);
-  if (!parsedId.success)
-    return { status: "error", message: "无效的操作提案。", actionId };
+export async function approveAgentAction(actionId: string, payloadHash?: string): Promise<AgentActionResult> {
+  const parsed = confirmationSchema.safeParse({ id: actionId, payloadHash });
+  if (!parsed.success) return { status: "error", message: "提案版本已失效，请刷新后重新确认。", actionId };
   const { supabase, userId } = await requireOwner();
-  const { data: action, error } = await supabase
-    .from("agent_actions")
-    .select("id,run_id,domain,action_type,status,payload_json,expires_at")
-    .eq("id", parsedId.data)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error || !action || action.status !== "proposed")
-    return { status: "error", message: "这项提案已处理或不存在。", actionId };
-  if (action.expires_at && Date.parse(action.expires_at) <= Date.now()) {
-    await supabase.from("agent_actions").update({ status: "failed", error_code: "proposal_expired", executed_at: new Date().toISOString() }).eq("id", action.id).eq("status", "proposed");
-    return { status: "error", message: "这项提案已过期，请重新生成。", actionId };
-  }
+  // Resolve visibility with the session client first. The privileged client below
+  // only advances this owned technical operation, never arbitrary domain rows.
+  const { data: action, error } = await supabase.from("agent_actions")
+    .select("id,payload_hash,action_type,payload_json,status").eq("id", actionId).eq("user_id", userId).maybeSingle();
+  if (error || !action || action.payload_hash !== parsed.data.payloadHash || action.status !== "proposed")
+    return { status: "error", message: "这项提案已处理、已变化或不存在，请刷新查看。", actionId };
   if (!parseAgentActionPayload(action.action_type, action.payload_json).success)
     return { status: "error", message: "提案数据已失效，未执行任何修改。", actionId };
-  const { data: approved } = await supabase
-    .from("agent_actions")
-    .update({ status: "approved", approved_at: new Date().toISOString() })
-    .eq("id", action.id)
-    .eq("status", "proposed")
-    .select("id")
-    .maybeSingle();
-  if (!approved)
-    return { status: "error", message: "这项提案已被其他操作处理。", actionId };
-  await audit({ supabase, userId, action: "agent_action_approved", actionId, data: { run_id: action.run_id, domain: action.domain, action_type: action.action_type } });
-  await supabase.from("agent_actions").update({ status: "executing" }).eq("id", action.id).eq("status", "approved");
+  const admin = createAdminClient();
+  const args = { p_user_id: userId, p_action_id: actionId, p_hash: parsed.data.payloadHash };
+  const claim = await admin.rpc("transition_agent_action", { ...args, p_status: "executing" });
+  if (claim.error) return { status: "error", message: "提案已过期或已被处理，请刷新查看。", actionId };
+  const claimed = claimedSchema.parse(claim.data);
+  let result: Record<string, unknown>;
   try {
     const { data: profile } = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
-    const result = await executeFrozenAgentAction({
-      supabase,
-      userId,
-      actionType: action.action_type,
-      payload: action.payload_json as Record<string, unknown>,
-      timezone: profile?.timezone || "Asia/Shanghai",
-    });
-    await supabase.from("agent_actions").update({ status: "succeeded", result_json: result, executed_at: new Date().toISOString(), error_code: null }).eq("id", action.id).eq("status", "executing");
-    await audit({ supabase, userId, action: "agent_action_succeeded", actionId, data: { run_id: action.run_id, domain: action.domain, action_type: action.action_type } });
-    const { count } = await supabase.from("agent_actions").select("id", { count: "exact", head: true }).eq("run_id", action.run_id).eq("status", "proposed");
-    if ((count ?? 0) === 0) await supabase.from("agent_runs").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", action.run_id);
-    await revalidatePath("/calendar"); await revalidatePath("/tasks"); await revalidatePath("/notes"); await revalidatePath("/today"); await revalidatePath("/career"); await revalidatePath("/memory");
-    const href = typeof result === "object" && result && "href" in result ? String(result.href) : undefined;
-    return { status: "success", message: "已确认并完成。", actionId, href };
+    result = await executeFrozenAgentAction({ supabase, userId, actionId, actionType: claimed.action_type, payload: claimed.payload_json, timezone: profile?.timezone || "Asia/Shanghai" });
   } catch (executionError) {
     const conflict = executionError instanceof AgentActionConflict;
-    const code = executionError instanceof Error ? executionError.message.slice(0, 120) : "execution_failed";
-    await supabase.from("agent_actions").update({ status: conflict ? "conflict" : "failed", error_code: code, executed_at: new Date().toISOString() }).eq("id", action.id);
-    await audit({ supabase, userId, action: conflict ? "agent_action_conflict" : "agent_action_failed", actionId, data: { run_id: action.run_id, domain: action.domain, action_type: action.action_type, error_code: code } });
-    return { status: conflict ? "conflict" : "error", message: conflict ? "原始内容在提案后已经变化。为保护你的新修改，本次没有覆盖，请重新生成。" : code === "microsoft_disconnected" ? "Outlook / Microsoft To Do 当前未连接，未执行修改。" : "执行失败，未将提案标记为成功。请检查连接后重试。", actionId };
+    const disconnected = executionError instanceof Error && executionError.message === "microsoft_disconnected";
+    const completion = await admin.rpc("transition_agent_action", { ...args, p_status: conflict ? "conflict" : "failed", p_error: conflict ? "content_conflict" : disconnected ? "microsoft_disconnected" : "execution_failed" });
+    return { status: conflict ? "conflict" : "error", message: completion.error ? "无法确认操作记录，请刷新核对结果，暂勿重复执行。" : conflict ? "内容已变化，本次未覆盖，请重新生成。" : disconnected ? "Microsoft 当前未连接，未执行修改。" : "操作未完成，请核对原记录后再处理。", actionId };
   }
+  const completion = await admin.rpc("transition_agent_action", { ...args, p_status: "succeeded", p_result: result });
+  if (completion.error) return { status: "error", message: "操作已执行，但确认记录尚未保存。请刷新核对，暂勿重复执行。", actionId };
+  const { count, error: pendingError } = await supabase.from("agent_actions").select("id", { count: "exact", head: true }).eq("run_id", claimed.run_id).in("status", ["proposed", "approved", "executing"]);
+  if (!pendingError && count === 0) await supabase.from("agent_runs").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", claimed.run_id).eq("user_id", userId);
+  for (const path of ["/calendar", "/tasks", "/notes", "/today", "/career", "/memory", "/shopping", "/travel"]) await revalidatePath(path);
+  return { status: "success", message: "已确认并完成。", actionId, href: typeof result.href === "string" ? result.href : undefined };
 }
 
-export async function rejectAgentAction(actionId: string): Promise<AgentActionResult> {
-  const parsedId = idSchema.safeParse(actionId);
-  if (!parsedId.success) return { status: "error", message: "无效的操作提案。", actionId };
+export async function rejectAgentAction(actionId: string, payloadHash?: string): Promise<AgentActionResult> {
+  const parsed = confirmationSchema.safeParse({ id: actionId, payloadHash });
+  if (!parsed.success) return { status: "error", message: "提案版本已失效，请刷新查看。", actionId };
   const { supabase, userId } = await requireOwner();
-  const { data } = await supabase.from("agent_actions").update({ status: "rejected", executed_at: new Date().toISOString() }).eq("id", parsedId.data).eq("user_id", userId).eq("status", "proposed").select("id,run_id,domain,action_type").maybeSingle();
-  if (!data) return { status: "error", message: "这项提案已处理或不存在。", actionId };
-  await audit({ supabase, userId, action: "agent_action_rejected", actionId, data: { run_id: data.run_id, domain: data.domain, action_type: data.action_type } });
-  return { status: "rejected", message: "已取消这项提案。", actionId };
+  const { data } = await supabase.from("agent_actions").select("id").eq("id", actionId).eq("user_id", userId).maybeSingle();
+  if (!data) return { status: "error", message: "这项提案不存在。", actionId };
+  const { error } = await createAdminClient().rpc("transition_agent_action", { p_user_id: userId, p_action_id: actionId, p_hash: parsed.data.payloadHash, p_status: "rejected" });
+  return error ? { status: "error", message: "这项提案已处理或已过期，请刷新查看。", actionId } : { status: "rejected", message: "已取消这项提案。", actionId };
 }
 
-export async function approveAgentActions(actionIds: string[]) {
-  const parsed = actionIdsSchema.safeParse(actionIds);
-  if (!parsed.success)
-    return [{ status: "error", message: "操作列表无效。", actionId: "" }] satisfies AgentActionResult[];
+export async function approveAgentActions(confirmations: Array<{ id: string; payloadHash?: string }>) {
+  const parsed = z.array(confirmationSchema).min(1).max(20).safeParse(confirmations);
+  if (!parsed.success) return [{ status: "error", message: "提案版本已失效，请刷新后重新确认。", actionId: "" }] satisfies AgentActionResult[];
   const results: AgentActionResult[] = [];
-  for (const actionId of parsed.data) {
-    results.push(await approveAgentAction(actionId));
-  }
+  for (const confirmation of new Map(parsed.data.map(item => [item.id, item])).values()) results.push(await approveAgentAction(confirmation.id, confirmation.payloadHash));
   return results;
 }

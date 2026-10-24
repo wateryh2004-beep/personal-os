@@ -94,6 +94,7 @@ export type AgentSource = {
 };
 export type AgentAction = {
   id: string;
+  payloadHash?: string;
   runId: string;
   domain: "calendar" | "tasks" | "notes" | "career" | "memory" | "projects" | "shopping" | "travel";
   actionType: string;
@@ -111,6 +112,7 @@ export type AssistantResult = {
   finishReason?: "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other" | "unknown";
   contextSources: Array<{
     id: string;
+    entityId?: string | null;
     title: string;
     domain: string;
     href?: string | null;
