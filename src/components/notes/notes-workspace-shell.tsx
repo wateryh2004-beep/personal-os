@@ -245,8 +245,8 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
 
 export function NotesWorkspaceShell({ folders, notes, children, documentView }: { folders: NotesNavigatorFolder[]; notes: NotesNavigatorNote[]; children: React.ReactNode; documentView?: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [navigatorWidth, setNavigatorWidth] = useState(240);
-  const navigatorWidthRef = useRef(240);
+  const [navigatorWidth, setNavigatorWidth] = useState(272);
+  const navigatorWidthRef = useRef(272);
   const pathname = usePathname();
   const isEditorRoute = documentView ?? /^\/notes\/[0-9a-f-]{36}$/i.test(pathname);
   const router = useRouter();
@@ -296,8 +296,8 @@ export function NotesWorkspaceShell({ folders, notes, children, documentView }: 
     window.addEventListener("pointerup", onEnd, { once: true });
   };
   const resetNavigator = () => {
-    navigatorWidthRef.current = 240;
-    setNavigatorWidth(240);
+    navigatorWidthRef.current = 272;
+    setNavigatorWidth(272);
     try { localStorage.removeItem("personal-os:notes-navigator-width:v1"); } catch { /* no-op */ }
   };
   return <section className="notes-workspace-shell flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">

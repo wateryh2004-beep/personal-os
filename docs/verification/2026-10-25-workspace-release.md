@@ -50,8 +50,14 @@
 
 摘要见 [检查结果](evidence/2026-10-25-workspace-release/checks.json)。全部界面正文为合成材料；门控场景拒绝真实写入。没有向公开缓存放私人内容、改动 owner 认证或扩大测试路由 allowlist。
 
+## 首轮远端 CI 发现的阅读对齐回归
+
+PR [#87](https://github.com/wateryh2004-beep/personal-os/pull/87) 的首轮 `design-and-code` 在 `workspace-details-e2e.cjs:129` 失败：1440px 桌面标题左缘 563px、阅读正文 583px，超过原 2px 要求。阅读容器仍使用旧 720px，现统一到标题与编辑正文的 760px；没有改动断言、容差或测试选择。重新构建后，360、390、768、1440px 的标题与阅读正文左缘差均为 0px，无横向溢出，见 [测量](evidence/2026-10-25-workspace-release/reading-alignment.json) 与 [截图](evidence/2026-10-25-workspace-release/reading-alignment-desktop.jpg)。原始来源清单保留，修复后来源另记于 [清单](evidence/2026-10-25-workspace-release/alignment-source-manifest.json)。
+
+首轮 `verify` 还发现首次进入笔记的默认导航宽度从既有 272px 变成了 240px。现恢复默认及双击重置为 272px，导航上限也保留原 360px，避免窄桌面 CSS 限宽覆盖默认值；保留用户保存宽度与拖动，不修改原 `mobile-native-e2e.cjs` 的精确断言。排版与动效优化继续保留。重新构建后，768、1024、1440px 的首次宽度均为 272px，无横向溢出，见 [测量](evidence/2026-10-25-workspace-release/navigator-width.json)。两项修复后全量 Vitest 再次通过：316 文件、2,101 项、0 失败。
+
 ## GitHub、生产与回退
 
 发布前核对远端 `main` 与当前生产仍为基线 `f52a69a`；原生产部署为 `dpl_6CY6CwAFN12q94LMJPRCEC3kEayd`。执行顺序：本地检查通过 → 推送并建立 PR → 当前 head 的 CI 通过 → 合并 PR → 核对生产部署与正式域名提交、认证拒绝、测试门控关闭及相关页面。
 
-实际 PR、提交、CI 与生产检查结果在完成后追加，不以当前计划冒充执行结果。只读生产验证不触发 AI、数据库写入、重设密码或真实外部服务操作。纯界面/测试夹具变更可回滚到原部署，无数据库回退；不清空草稿、私人笔记或已存宽度。
+实际 PR 为 [#87](https://github.com/wateryh2004-beep/personal-os/pull/87)。最终 head、CI、merge commit、生产部署与正式域名验证结果在发布完成后记录于该 PR 的发布记录，避免把将来状态写进待发布源码；本地本记录同步补充，不以当前计划冒充执行结果。只读生产验证不触发 AI、数据库写入、重设密码或真实外部服务操作。纯界面/测试夹具变更可回滚到原部署，无数据库回退；不清空草稿、私人笔记或已存宽度。

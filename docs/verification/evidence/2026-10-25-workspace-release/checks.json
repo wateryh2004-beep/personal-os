@@ -40,5 +40,29 @@
     "documents": 106,
     "links": 418,
     "exitCode": 0
+  },
+  "postCiFixVitest": {
+    "files": 316,
+    "tests": 2101,
+    "passed": 2101,
+    "failed": 0,
+    "exitCode": 0
+  },
+  "readingAlignment": {
+    "widths": [
+      360,
+      390,
+      768,
+      1440
+    ],
+    "maxDifferencePx": 0
+  },
+  "defaultNavigatorWidth": {
+    "widths": [
+      768,
+      1024,
+      1440
+    ],
+    "measuredPx": 272
   }
 }

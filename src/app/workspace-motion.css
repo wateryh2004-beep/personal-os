@@ -7,10 +7,11 @@
 .notes-list-status:empty { margin-top:0; }
 .notes-list-row-content { padding-block:18px; }
 .notes-list-row .note-title-anchor { text-wrap:pretty; }
-.notes-navigator-panel { max-width:min(28vw,360px); }
+.notes-navigator-panel { max-width:360px; }
 .notes-navigator { padding-top:18px; }
 .notes-document-location { border-bottom:1px solid var(--border-subtle); }
 .notes-editor-title-row { max-width:760px; }
+.notes-document-shell .note-reading-pane > div { max-width:760px; }
 .notes-document-shell .life-codemirror .cm-content { max-width:824px; margin-inline:auto; padding-top:24px; }
 .notes-editor-toolbar { padding-top:24px; }
 
