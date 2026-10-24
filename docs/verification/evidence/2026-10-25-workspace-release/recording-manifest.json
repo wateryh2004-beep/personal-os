@@ -1,0 +1,17 @@
+{
+  "method": "CUA continuous browser capture; actual frame intervals, no interpolation",
+  "recordings": [
+    {
+      "name": "reduced-desktop",
+      "frames": 140,
+      "lastFrameMs": 15015,
+      "captureFps": 9.3
+    },
+    {
+      "name": "reduced-mobile",
+      "frames": 224,
+      "lastFrameMs": 23270,
+      "captureFps": 9.6
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+[
+  {
+    "mode": "reduced desktop",
+    "animation": "none",
+    "clip": "none",
+    "transform": "none",
+    "transition": "0s",
+    "width": 1440
+  },
+  {
+    "mode": "reduced desktop close",
+    "dialogs": 0,
+    "focus": "搜索 Personal OS"
+  },
+  {
+    "mode": "reduced mobile open",
+    "animation": "none",
+    "focus": "H2",
+    "overflow": false,
+    "transform": "none",
+    "transition": "0s",
+    "width": 390
+  },
+  {
+    "mode": "preference changed while dialog open, restored original off",
+    "dialogs": 1,
+    "transition": "0.46s, 0.46s, 0.18s",
+    "value": "判断"
+  },
+  {
+    "mode": "short viewport after fix",
+    "bodyHeight": 320,
+    "documentWidth": 637,
+    "height": 334,
+    "mainClient": 214,
+    "mainScroll": 524,
+    "width": 637
+  },
+  {
+    "mode": "native Chrome 200% page zoom",
+    "control": "native browser zoom bubble confirmed 200%",
+    "passed": [
+      "list reflow",
+      "search input and results",
+      "ArrowDown/Enter opens exact note",
+      "reading toggle",
+      "document chrome scrolls away and body is readable",
+      "no visible horizontal clipping"
+    ],
+    "cleanup": "localhost zoom reset to 100%; independent window closed"
+  }
+]

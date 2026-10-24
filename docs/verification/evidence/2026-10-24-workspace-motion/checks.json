@@ -1,0 +1,60 @@
+{
+  "typecheck": {
+    "exitCode": 0
+  },
+  "lint": {
+    "exitCode": 0
+  },
+  "focused": {
+    "files": 8,
+    "passed": 51,
+    "exitCode": 0
+  },
+  "vitest": {
+    "exitCode": 1,
+    "files": 316,
+    "total": 2101,
+    "passed": 2093,
+    "failed": 8,
+    "failedFiles": [
+      "tests/files-ocr-control.test.ts",
+      "tests/system-backup-artwork.test.ts",
+      "tests/system-backup.test.ts"
+    ]
+  },
+  "productionBuild": {
+    "command": "E2E_MOBILE_HARNESS=1 npm run build -- --webpack",
+    "exitCode": 0
+  },
+  "runtimeClosure": {
+    "exitCode": 0,
+    "traces": 127,
+    "checkedPaths": 25791,
+    "cliAdvisoryChainLoaded": false,
+    "cliAdvisoryChainTraced": false
+  },
+  "systemStandards": {
+    "exitCode": 0,
+    "manualTraceFindings": 6
+  },
+  "uiAudit": {
+    "exitCode": 0,
+    "warningOnly": true
+  },
+  "projectDocs": {
+    "exitCode": 0
+  },
+  "diffCheck": {
+    "exitCode": 0
+  },
+  "notVerified": [
+    "200% browser zoom content",
+    "reduced-motion browser media preference",
+    "forced-colors browser media preference",
+    "real iOS/Android/touch hardware",
+    "screen reader",
+    "background tab recovery",
+    "production deployment",
+    "real network performance"
+  ]
+}

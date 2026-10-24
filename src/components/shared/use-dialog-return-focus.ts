@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 /** Manual dialogs return to their actual launcher, never a stale route/control. */
 export function useDialogReturnFocus() {
@@ -24,10 +24,10 @@ export function useDialogReturnFocus() {
     };
   }, []);
 
-  const rememberTrigger = (element: HTMLElement) => {
+  const rememberTrigger = useCallback((element: HTMLElement) => {
     launcher.current = { element, href: window.location.href };
-  };
-  const restoreFocus = (event: Event) => {
+  }, []);
+  const restoreFocus = useCallback((event: Event) => {
     // Radix has no trigger ref for these manually controlled dialogs.
     event.preventDefault();
     const target = launcher.current;
@@ -37,6 +37,6 @@ export function useDialogReturnFocus() {
     // Respect newer focus established outside the closing dialog.
     if (active && active !== document.body && !(event.target instanceof Element && event.target.contains(active))) return;
     target.element.focus({ preventScroll: true });
-  };
+  }, []);
   return { rememberTrigger, restoreFocus };
 }

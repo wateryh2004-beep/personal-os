@@ -1,0 +1,82 @@
+[
+  {
+    "file": "checks.json",
+    "sha256": "68a1795d4f27b7216992c73853cf1ceeeaaf618049e34e039192ef01e3da9334"
+  },
+  {
+    "file": "desktop-motion.mp4",
+    "sha256": "15cf77420a570384122e446017b2b5dad3d3b3d9f084795abb00548e1ea10eb8"
+  },
+  {
+    "file": "desktop-note.jpg",
+    "sha256": "c3fff6f8aa7e4e3ab6c8da2c315a85d87bd7c65a27b5ac5e8e814e385829157e"
+  },
+  {
+    "file": "desktop-notes.jpg",
+    "sha256": "4120d12cf89f29e0695888da5be92635c3ce12a9b1039f544254f6479ede64ca"
+  },
+  {
+    "file": "desktop-search.jpg",
+    "sha256": "18624043ce8b15087343f105d60d7aba93fc8ec0ec97b9a6dede56ad1ea312fb"
+  },
+  {
+    "file": "interruptions-motion.mp4",
+    "sha256": "8be29b6297326e4756665499a2eb1ab692e6e3169ffc23ecb411663ed006d222"
+  },
+  {
+    "file": "mobile-folders.jpg",
+    "sha256": "517c3d2c5733b2333239179bff170b38fde73abea9dcbe4fd6b616f170598de5"
+  },
+  {
+    "file": "mobile-long-title.jpg",
+    "sha256": "5bc17c83c5e0045275e6b08d6dfc0b95e4279d124632f4373e4a78977aa1d309"
+  },
+  {
+    "file": "mobile-motion.mp4",
+    "sha256": "823aa8ed152be0fdace8094d7b6b82e6a9aafa6ea848270dbd721ddf5877537d"
+  },
+  {
+    "file": "mobile-note.jpg",
+    "sha256": "e9ed7e6ab8b9277e964e1acc8c8f0c19b70e863dfd3c98fd3454583853b7b2df"
+  },
+  {
+    "file": "mobile-notes.jpg",
+    "sha256": "f7e6e76baec23a10e2a2a95ec78f1a11ab89dd16db0ed2d30314ab4471e956ec"
+  },
+  {
+    "file": "mobile-search-empty.jpg",
+    "sha256": "739c4a32da9d7fcdf92a1638f4143f1ae4729983e3676d65633329ad6ef243c4"
+  },
+  {
+    "file": "mobile-search-failure.jpg",
+    "sha256": "87ec067e667bf1917df8d9c56a78221f7d2127b0199f0a9cf0287765f675a559"
+  },
+  {
+    "file": "mobile-search.jpg",
+    "sha256": "543f34109fe7c48bfd4c3bc8a4a05def1be828e902b7d915c17c6523bee14202"
+  },
+  {
+    "file": "notes-360x780.jpg",
+    "sha256": "0b367c856f06ae5d303a87caa4fa8127f23b50bfe75a76b4e3be5263d95cc751"
+  },
+  {
+    "file": "notes-390x600.jpg",
+    "sha256": "86ec45dc8628e443afed8adfa95b71c2ac1595804a588b3280c46c56acd49ddc"
+  },
+  {
+    "file": "notes-768x1024.jpg",
+    "sha256": "27ced68eab2c579fae74965c86425088fd6401f3ee4085c48dc744d38164e0e7"
+  },
+  {
+    "file": "observations.json",
+    "sha256": "db3ddf730e069a790906d3f6cf7287cafb72051ae6cd50ee84c93ced3c65b623"
+  },
+  {
+    "file": "recording-manifest.json",
+    "sha256": "c0945cbd11d3edaf80fbd9511858edb6fa6ebb722605c02eae466714b57fbf10"
+  },
+  {
+    "file": "source-manifest.json",
+    "sha256": "cc527ede0de7ee3ac5f859c614ecef000b811ebabce7c26adcb6576f531c3dcc"
+  }
+]

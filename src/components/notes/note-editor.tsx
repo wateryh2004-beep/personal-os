@@ -18,6 +18,7 @@ import {
   PenLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NoteTitleMotion } from "@/components/notes/notes-motion";
 import { NoteReadingView } from "@/components/notes/note-reading-view";
 import {
   DropdownMenu,
@@ -497,7 +498,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
         <div className="notes-editor-toolbar flex shrink-0 flex-col gap-3 border-b border-[var(--separator)] bg-[var(--surface-canvas)] px-5 pb-3 pt-5 md:px-8 md:pt-7">
           <div className="notes-editor-title-row mx-auto flex min-h-10 w-full min-w-0 max-w-[720px] items-center gap-2">
             {aiGenerated ? <span title="AI 生成内容不会被 AI 读取为背景" className="shrink-0 text-[12px] text-[var(--accent)]"><Sparkles aria-label="AI 生成内容" className="size-4" /></span> : null}
-            <input
+            <NoteTitleMotion noteId={note.id} className="flex-1"><input
               aria-label="笔记标题"
               hidden={reading}
               readOnly={reading}
@@ -511,10 +512,10 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
                 publishNotesNavigatorTitle(note.id, nextTitle);
                 dirty(nextTitle, body);
               }}
-              className="notes-title-input min-w-0 flex-1 rounded-[var(--radius-sm)] bg-transparent py-1 font-[family-name:var(--font-serif)] text-[28px] font-normal leading-[1.4] tracking-[-0.015em] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] md:text-[32px]"
+              className="notes-title-input w-full min-w-0 rounded-[var(--radius-sm)] bg-transparent py-1 font-[family-name:var(--font-serif)] text-[28px] font-normal leading-[1.4] tracking-[-0.015em] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] md:text-[32px]"
               placeholder="无标题笔记"
             />
-            {reading ? <h1 className="notes-reading-title min-w-0 flex-1 break-words py-1">{title || "无标题笔记"}</h1> : null}
+            {reading ? <h1 className="notes-reading-title min-w-0 break-words py-1">{title || "无标题笔记"}</h1> : null}</NoteTitleMotion>
           </div>
           <div className="flex min-h-11 flex-wrap items-center gap-1">
             <div role="group" aria-label="笔记阅读方式" className="mr-auto flex shrink-0 gap-1 md:mr-3">
@@ -562,7 +563,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
           </div>
         ) : null}
         {/* Keep CodeMirror and its undo/selection/scroll state mounted in both views. */}
-        <div hidden={reading} className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-canvas)]">
+        <div hidden={reading} className="notes-document-body min-h-0 flex-1 overflow-hidden bg-[var(--surface-canvas)]">
           <VisualMarkdownEditor
             markdown={body}
             noteId={note.id}
@@ -572,7 +573,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             onChange={handleBodyChange}
           />
         </div>
-        {reading ? <div className="min-h-0 flex-1 overflow-hidden"><NoteReadingView body={body} /></div> : null}
+        {reading ? <div className="notes-document-body min-h-0 flex-1 overflow-hidden"><NoteReadingView body={body} /></div> : null}
       </div>
       <NoteAiAssistant
         key={note.id}

@@ -407,7 +407,7 @@ describe("Notes open and return context", () => {
       location: { href: `/notes?folder=${folder.id}`, label: folder.name },
     })));
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="返回笔记列表"]')!.click());
-    expect(mocks.router.replace).toHaveBeenCalledExactlyOnceWith(href);
+    expect(mocks.router.replace).toHaveBeenCalledExactlyOnceWith(href, { scroll: false, transitionTypes: ["note-return"] });
     await setUrl(href);
     await renderWorkspace();
     expect(container.querySelector("main")!.scrollTop).toBe(487);

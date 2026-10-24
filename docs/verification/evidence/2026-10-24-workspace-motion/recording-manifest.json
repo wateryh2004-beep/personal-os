@@ -1,0 +1,23 @@
+{
+  "method": "Continuous browser viewport JPEG capture via CUA; actual frame intervals retained; ffmpeg VFR encoding; no interpolation",
+  "recordings": [
+    {
+      "name": "desktop",
+      "frames": 66,
+      "lastFrameMs": 7528,
+      "captureFps": 8.8
+    },
+    {
+      "name": "mobile",
+      "frames": 52,
+      "lastFrameMs": 6562,
+      "captureFps": 7.9
+    },
+    {
+      "name": "interruptions",
+      "frames": 22,
+      "lastFrameMs": 2435,
+      "captureFps": 9.0
+    }
+  ]
+}

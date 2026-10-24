@@ -10,7 +10,9 @@ describe("global overlay bundle boundaries", () => {
   it("keeps the command palette entrypoint lightweight", () => {
     const entry = source("src/components/search/global-command-palette.tsx");
     expect(entry).toContain("lazy(");
-    expect(entry).toContain("<Suspense fallback={<LazyDialogPlaceholder");
+    expect(entry).toContain('<Suspense fallback={<div role="status"');
+    expect(entry).toContain('<PanelPresence open={props.open}>');
+    expect(entry.match(/<DialogContent /g)).toHaveLength(1);
     expect(entry).toContain("global-command-palette-impl");
     expect(entry).not.toContain("useGlobalSearch");
     expect(entry).not.toContain("@/components/ui/command");

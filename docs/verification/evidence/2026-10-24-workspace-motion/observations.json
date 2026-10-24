@@ -1,0 +1,143 @@
+{
+  "environment": "local production build; synthetic data only; no real business writes",
+  "observations": [
+    {
+      "check": "list responsive",
+      "contentLeft": 0,
+      "documentWidth": 360,
+      "height": 780,
+      "search": {
+        "height": 44,
+        "left": 20,
+        "right": 329
+      },
+      "width": 360
+    },
+    {
+      "check": "list responsive",
+      "contentLeft": 43.8671875,
+      "documentWidth": 768,
+      "height": 1024,
+      "search": {
+        "height": 36,
+        "left": 281.9453125,
+        "right": 733.9609375
+      },
+      "width": 768
+    },
+    {
+      "check": "list responsive",
+      "contentLeft": 0,
+      "documentWidth": 390,
+      "height": 600,
+      "search": {
+        "height": 44,
+        "left": 20,
+        "right": 359
+      },
+      "width": 390
+    },
+    {
+      "check": "search escape return focus",
+      "focus": "搜索 Personal OS"
+    },
+    {
+      "check": "768 stable",
+      "contentLeft": 216,
+      "documentWidth": 768,
+      "width": 768
+    },
+    {
+      "check": "short dialog empty",
+      "dialog": {
+        "h": 336.3984375,
+        "w": 390,
+        "x": 0,
+        "y": 263.6015625
+      },
+      "height": 600,
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "check": "rapid search reversal preserves query",
+      "elapsedMs": 63,
+      "dialogs": 1,
+      "value": "判断"
+    },
+    {
+      "check": "rapid navigation final selection",
+      "indicatorCount": 2,
+      "selected": [
+        {
+          "href": "/notes",
+          "text": "笔记"
+        },
+        {
+          "href": "/notes",
+          "text": "笔记"
+        }
+      ]
+    },
+    {
+      "check": "deep list browser return",
+      "scrollTop": 1099.5,
+      "visible": 512.09375
+    },
+    {
+      "check": "repeated command shortcut retains original launcher",
+      "focused": "搜索 Personal OS"
+    },
+    {
+      "check": "mobile long title reading",
+      "documentWidth": 390,
+      "editorRetained": true,
+      "titleHeight": 164.78125,
+      "width": 390
+    },
+    {
+      "check": "note title caret after search",
+      "before": {
+        "caret": 40,
+        "value": "在阅读与工作之间，持续记录观察、核对事实，并把复杂问题整理成能够继续推进的清晰判断"
+      },
+      "after": {
+        "caret": 40,
+        "focus": "笔记标题",
+        "value": "在阅读与工作之间，持续记录观察、核对事实，并把复杂问题整理成能够继续推进的清晰判断"
+      }
+    },
+    {
+      "check": "draft restored after browser return",
+      "status": [
+        "保存失败，本机恢复草稿已保留。请检查网络后点击保存。重试保存复制当前草稿"
+      ],
+      "title": "在阅读与工作之间，持续记录观察、核对事实，并把复杂问题整理成能够继续推进的清晰判断"
+    },
+    {
+      "check": "final rapid reversal",
+      "elapsedMs": 74,
+      "dialogs": 1,
+      "value": "判断"
+    },
+    {
+      "check": "final repeated shortcut focus",
+      "focused": "搜索 Personal OS"
+    },
+    {
+      "check": "saved navigator width after reload",
+      "width": 340
+    },
+    {
+      "check": "keyboard search result navigation",
+      "dialogs": 1,
+      "title": "把观察变成清晰的判断"
+    },
+    {
+      "check": "keyboard search result after overlay exit",
+      "dialogs": 0,
+      "title": "把观察变成清晰的判断"
+    }
+  ],
+  "console": []
+}

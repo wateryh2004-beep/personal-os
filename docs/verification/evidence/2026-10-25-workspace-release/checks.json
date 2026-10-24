@@ -1,0 +1,44 @@
+{
+  "vitest": {
+    "files": 316,
+    "tests": 2101,
+    "passed": 2101,
+    "failed": 0,
+    "exitCode": 0
+  },
+  "typecheck": {
+    "exitCode": 0
+  },
+  "lint": {
+    "exitCode": 0
+  },
+  "build": {
+    "command": "E2E_MOBILE_HARNESS=1 npm run build -- --webpack",
+    "exitCode": 0
+  },
+  "runtimeClosure": {
+    "traces": 127,
+    "checkedPaths": 25791,
+    "exitCode": 0
+  },
+  "systemStandards": {
+    "exitCode": 0,
+    "manualTraceFindings": 6
+  },
+  "diffCheck": {
+    "exitCode": 0
+  },
+  "ocrRuntime": {
+    "passed": true,
+    "engine": "tesseract.js@7.0.0",
+    "models": "local chi_sim+eng",
+    "source": "synthetic PNG and image-only two-page PDF",
+    "font": "STHeiti Medium.ttc",
+    "exitCode": 0
+  },
+  "docs": {
+    "documents": 106,
+    "links": 418,
+    "exitCode": 0
+  }
+}
