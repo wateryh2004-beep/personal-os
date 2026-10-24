@@ -67,6 +67,7 @@ export type NoteAiState = {
   truncated?: boolean;
   contextSources?: Array<{
     id: string;
+    entityId?: string | null;
     title: string;
     domain: string;
     entityType?: string | null;

@@ -31,7 +31,7 @@ export function AgentActionGroup({
         type="button"
         disabled={pending}
         onClick={() => startTransition(async () => {
-          const results = await approveAgentActions(proposed.map((action) => action.id));
+          const results = await approveAgentActions(proposed.map((action) => ({ id: action.id, payloadHash: action.payloadHash })));
           const succeeded = results.filter((result) => result.status === "success").length;
           const conflicts = results.filter((result) => result.status === "conflict").length;
           setMessage(

@@ -1,3 +1,4 @@
+import { withGovernedAiCall } from "@/features/ai/governance";
 import "server-only";
 import { generateObject } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -61,6 +62,7 @@ function inputs(items: FeedCandidate[]) { return items.map((item) => ({ id: item
 function validById<T extends { id: string }>(items: T[], candidates: FeedCandidate[]) { const ids = new Set(candidates.map((item) => item.itemId)); const seen = new Set<string>(); return items.filter((item) => ids.has(item.id) && !seen.has(item.id) && (seen.add(item.id), true)); }
 export function briefingAiFailureCode(error: unknown): BriefingAiFailureCode {
   const message = error instanceof Error ? error.message : "";
+  if (/daily_call_limit|monthly_call_limit|daily_cost_limit|monthly_cost_limit|ai_context_limit|ai_budget/.test(message)) return "ai_budget_exhausted";
   if ((briefingAiFailureCodes as readonly string[]).includes(message)) return message as BriefingAiFailureCode;
   return "ai_provider_request_failed";
 }
@@ -122,9 +124,7 @@ export async function evaluateBriefingWithAi({ supabase, userId, candidates, int
     const cachedById = new Map((cached ?? []).filter((row) => hashes.get(row.feed_item_id) === row.content_hash).map((row) => [row.feed_item_id, rowToEvaluation(row)]));
     const missing = prefiltered.filter((item) => !cachedById.has(item.itemId));
     if (missing.length) {
-      const result = await generateObject({
-        model, schema: evaluationsSchema, system,
-        prompt: `评估候选资讯，输出 JSON 对象 {"evaluations":[{"id":"<输入的 id>","topicBucket":"...","informationValue":0-100,"learningValue":0-100,"decisionValue":0-100,"novelty":0-100,"sourceConfidence":0-100,"whyWorthReading":"≤300字","keyQuestion":"≤300字","uncertainty":"≤200字","confidence":0-1}]}。
+      const resultPrompt = `评估候选资讯，输出 JSON 对象 {"evaluations":[{"id":"<输入的 id>","topicBucket":"...","informationValue":0-100,"learningValue":0-100,"decisionValue":0-100,"novelty":0-100,"sourceConfidence":0-100,"whyWorthReading":"≤300字","keyQuestion":"≤300字","uncertainty":"≤200字","confidence":0-1}]}。
 
 topicBucket 含义：
 - ai_tech：AI、Agent、软件、硬件、芯片、机器人、科研、前沿技术
@@ -139,8 +139,8 @@ decisionValue=是否足以让用户形成或修改一个明确判断。
 novelty=是否提供用户过去没有接触过的证据/机制/观点/行业/反方论证（不是发布时间新）。
 keyQuestion 必须是真正值得用户自己想的具体问题，围绕 why now / moat / distribution / economics / substitution / market structure / incentives / second-order effects / falsification，不要写"你怎么看这件事"。
 
-id 必须来自下方候选列表。候选：\n${JSON.stringify(inputs(missing))}`,
-      });
+id 必须来自下方候选列表。候选：\n${JSON.stringify(inputs(missing))}`;
+      const result = await withGovernedAiCall({ userId, surface: "briefing", purpose: "result", sourceCount: missing.length, model: configuredModel.modelId, prompt: resultPrompt, system }, ({ maxOutputTokens }) => generateObject({ model, schema: evaluationsSchema, system, prompt: resultPrompt, maxOutputTokens }));
       calls++; inputTokens += result.usage.inputTokens ?? 0; outputTokens += result.usage.outputTokens ?? 0; usageReported = result.usage.inputTokens !== undefined || result.usage.outputTokens !== undefined;
       const values = validById(result.object.evaluations, missing);
       values.forEach((value) => cachedById.set(value.id, value));
@@ -152,10 +152,8 @@ id 必须来自下方候选列表。候选：\n${JSON.stringify(inputs(missing))
     const evaluated = prefiltered.map((item) => ({ ...item, ai: cachedById.get(item.itemId) })).filter((item): item is RankedCandidate & { ai: AiEvaluation } => Boolean(item.ai));
     const selected = selectDiverseByQuota(evaluated, maxSelected);
     if (!selected.length) return fallback("ai_provider_request_failed", { model: modelId, calls, inputTokens, outputTokens, usageReported });
-    const summary = await generateObject({
-      model, schema: summariesSchema, system,
-      prompt: `为最终条目写三层认知摘要，只依据 RSS 信息，不得补充事实。输出 JSON 对象 {"summaries":[{"id":"<输入的 id>","whatHappened":"1-2句，只说明文章真正提供的新信息，禁止大段复述","whyItMatters":"1-2句，为什么值得关注、它改变了什么、可能影响哪个行业/公司/技术/投资判断","keyQuestion":"一个具体、值得用户自己想的问题"}]}，id 必须来自下方条目列表。条目：\n${JSON.stringify(inputs(selected))}`,
-    });
+    const summaryPrompt = `为最终条目写三层认知摘要，只依据 RSS 信息，不得补充事实。输出 JSON 对象 {"summaries":[{"id":"<输入的 id>","whatHappened":"1-2句，只说明文章真正提供的新信息，禁止大段复述","whyItMatters":"1-2句，为什么值得关注、它改变了什么、可能影响哪个行业/公司/技术/投资判断","keyQuestion":"一个具体、值得用户自己想的问题"}]}，id 必须来自下方条目列表。条目：\n${JSON.stringify(inputs(selected))}`;
+    const summary = await withGovernedAiCall({ userId, surface: "briefing", purpose: "summary", sourceCount: selected.length, model: configuredModel.modelId, prompt: summaryPrompt, system }, ({ maxOutputTokens }) => generateObject({ model, schema: summariesSchema, system, prompt: summaryPrompt, maxOutputTokens }));
     calls++; inputTokens += summary.usage.inputTokens ?? 0; outputTokens += summary.usage.outputTokens ?? 0; usageReported ||= summary.usage.inputTokens !== undefined || summary.usage.outputTokens !== undefined;
     const summaries = new Map(validById(summary.object.summaries, selected).map((item) => [item.id, item]));
     return {

@@ -1,4 +1,5 @@
 import "server-only";
+import { getAiGovernance } from "@/features/ai/governance";
 import { tool } from "ai";
 import { z } from "zod";
 import { normalizeMemoryKey } from "@/features/memory/types";
@@ -19,6 +20,7 @@ export const memoryTools: AssistantToolModule = {
       description: "搜索已确认且允许 AI 使用的 Profile/Working Memory 与当前 Decision。",
       inputSchema: z.object({ query: z.string().trim().min(1).max(200), limit: z.number().int().min(1).max(20).default(8) }),
       execute: async ({ query, limit }) => {
+        if (!(await getAiGovernance(context.userId)).longTermMemoryOptIn) return { results: [], unavailable: false, blocked: "memory_opt_in_required" };
         const escaped = query.replaceAll("%", "\\%").replaceAll("_", "\\_");
         const [memories, decisions] = await Promise.all([
           context.supabase.from("personal_memories").select("id,memory_type,title,content,valid_until,review_at,confirmed_at,updated_at").or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`).eq("status", "active").eq("ai_visibility", "normal").is("archived_at", null).limit(limit),
@@ -36,6 +38,7 @@ export const memoryTools: AssistantToolModule = {
       description: "读取当前有效且 AI 可使用的 Memory 和最新 Decision；不返回敏感或永不使用的记录。",
       inputSchema: z.object({ includeProfile: z.boolean().default(true), includeWorking: z.boolean().default(true), includeDecisions: z.boolean().default(true), limit: z.number().int().min(1).max(30).default(12) }),
       execute: async ({ includeProfile, includeWorking, includeDecisions, limit }) => {
+        if (!(await getAiGovernance(context.userId)).longTermMemoryOptIn) return { profileAndWorking: [], currentDecisions: [], unavailable: false, blocked: "memory_opt_in_required" };
         const memoryTypes = [includeProfile ? "profile" : null, includeWorking ? "working" : null].filter((value): value is string => Boolean(value));
         const [memories, decisions] = await Promise.all([
           memoryTypes.length ? context.supabase.from("personal_memories").select("id,memory_type,title,content,valid_from,valid_until,review_at,confirmed_at,updated_at").in("memory_type", memoryTypes).eq("status", "active").eq("ai_visibility", "normal").is("archived_at", null).order("confirmed_at", { ascending: false }).limit(limit) : Promise.resolve({ data: [], error: null }),

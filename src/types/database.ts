@@ -1,4 +1,4 @@
-// Generated from the deployed public schema on 2026-10-14. Do not hand-edit.
+// Generated from isolated migration replay through 20261023163055 on 2026-10-24. Do not hand-edit.
 export type Json =
   | string
   | number
@@ -8,11 +8,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.15"
-  }
   public: {
     Tables: {
       activity_events: {
@@ -61,6 +56,7 @@ export type Database = {
           executed_at: string | null
           expires_at: string | null
           id: string
+          payload_hash: string
           payload_json: Json
           preview_json: Json
           result_json: Json
@@ -79,6 +75,7 @@ export type Database = {
           executed_at?: string | null
           expires_at?: string | null
           id?: string
+          payload_hash: string
           payload_json: Json
           preview_json?: Json
           result_json?: Json
@@ -97,6 +94,7 @@ export type Database = {
           executed_at?: string | null
           expires_at?: string | null
           id?: string
+          payload_hash?: string
           payload_json?: Json
           preview_json?: Json
           result_json?: Json
@@ -424,6 +422,7 @@ export type Database = {
           output_token_limit: number
           output_tokens: number | null
           purpose: string
+          reserved_cost_usd: number
           retrieval_mode: string
           retrieval_reason: string
           run_id: string | null
@@ -448,6 +447,7 @@ export type Database = {
           output_token_limit?: number
           output_tokens?: number | null
           purpose: string
+          reserved_cost_usd?: number
           retrieval_mode: string
           retrieval_reason?: string
           run_id?: string | null
@@ -472,6 +472,7 @@ export type Database = {
           output_token_limit?: number
           output_tokens?: number | null
           purpose?: string
+          reserved_cost_usd?: number
           retrieval_mode?: string
           retrieval_reason?: string
           run_id?: string | null
@@ -2224,6 +2225,7 @@ export type Database = {
           upload_mode: string
           uploaded_at: string
           user_id: string
+          vault_group_id: string | null
         }
         Insert: {
           ai_visibility?: string
@@ -2258,6 +2260,7 @@ export type Database = {
           upload_mode?: string
           uploaded_at?: string
           user_id: string
+          vault_group_id?: string | null
         }
         Update: {
           ai_visibility?: string
@@ -2292,6 +2295,7 @@ export type Database = {
           upload_mode?: string
           uploaded_at?: string
           user_id?: string
+          vault_group_id?: string | null
         }
         Relationships: [
           {
@@ -3024,6 +3028,7 @@ export type Database = {
           position: number
           updated_at: string
           user_id: string
+          vault_group_id: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -3034,6 +3039,7 @@ export type Database = {
           position?: number
           updated_at?: string
           user_id: string
+          vault_group_id?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -3044,6 +3050,7 @@ export type Database = {
           position?: number
           updated_at?: string
           user_id?: string
+          vault_group_id?: string | null
         }
         Relationships: [
           {
@@ -5101,6 +5108,7 @@ export type Database = {
           position: number
           updated_at: string
           user_id: string
+          vault_group_id: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -5111,6 +5119,7 @@ export type Database = {
           position?: number
           updated_at?: string
           user_id: string
+          vault_group_id?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -5121,6 +5130,7 @@ export type Database = {
           position?: number
           updated_at?: string
           user_id?: string
+          vault_group_id?: string | null
         }
         Relationships: [
           {
@@ -5313,6 +5323,7 @@ export type Database = {
           title: string
           updated_at: string
           user_id: string
+          vault_group_id: string | null
           word_count: number
         }
         Insert: {
@@ -5334,6 +5345,7 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id: string
+          vault_group_id?: string | null
           word_count?: number
         }
         Update: {
@@ -5355,6 +5367,7 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+          vault_group_id?: string | null
           word_count?: number
         }
         Relationships: [
@@ -6653,11 +6666,81 @@ export type Database = {
         }
         Relationships: []
       }
+      vault_attempts: {
+        Row: {
+          attempts: number
+          user_id: string
+          window_started_at: string
+        }
+        Insert: {
+          attempts?: number
+          user_id: string
+          window_started_at?: string
+        }
+        Update: {
+          attempts?: number
+          user_id?: string
+          window_started_at?: string
+        }
+        Relationships: []
+      }
+      vault_credentials: {
+        Row: {
+          created_at: string
+          draft_salt: string
+          password_hash: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          draft_salt: string
+          password_hash: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          draft_salt?: string
+          password_hash?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vault_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          last_seen_at: string
+          login_session: string
+          tab_hash: string
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          last_seen_at?: string
+          login_session: string
+          tab_hash: string
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          last_seen_at?: string
+          login_session?: string
+          tab_hash?: string
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      accept_review_proposal: { Args: { p_proposal_id: string }; Returns: Json }
       append_investment_cash: {
         Args: { p_account_id: string; p_entry: Json }
         Returns: Json
@@ -6692,6 +6775,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: number
+      }
+      block_ai_source_atomic: {
+        Args: { p_domain: string; p_source_id: string }
+        Returns: string
       }
       claim_file_upload_operation: {
         Args: {
@@ -6767,7 +6854,30 @@ export type Database = {
         }
         Returns: string
       }
+      complete_review_with_sources: {
+        Args: {
+          p_content_markdown: string
+          p_generated_with_ai: boolean
+          p_period_end: string
+          p_period_start: string
+          p_review_key: string
+          p_review_type: string
+          p_sources: Json
+          p_structured_data: Json
+          p_title: string
+        }
+        Returns: Json
+      }
       consume_question_recovery_attempt: { Args: never; Returns: boolean }
+      convert_inbox_note_atomic: {
+        Args: { p_body: string; p_inbox_id: string; p_title: string }
+        Returns: string
+      }
+      dearmor: { Args: { "": string }; Returns: string }
+      dismiss_review_proposal: {
+        Args: { p_proposal_id: string }
+        Returns: string
+      }
       enqueue_pdf_cover: {
         Args: {
           p_bucket: string
@@ -6850,6 +6960,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      gen_random_uuid: { Args: never; Returns: string }
+      gen_salt: { Args: { "": string }; Returns: string }
       get_calendar_workspace_read_model: { Args: never; Returns: Json }
       get_tasks_workspace_read_model: { Args: never; Returns: Json }
       get_today_workspace_read_model: {
@@ -6888,6 +7000,31 @@ export type Database = {
           title: string
           updated_at: string
         }[]
+      }
+      move_note_new_folder_atomic: {
+        Args: {
+          p_expected_revision: number
+          p_folder_name: string
+          p_note_id: string
+        }
+        Returns: Json
+      }
+      mutate_note_atomic: {
+        Args: {
+          p_body?: string
+          p_expected_revision?: number
+          p_folder_id?: string
+          p_note_id: string
+          p_operation: string
+          p_reason?: string
+          p_title?: string
+          p_version_id?: string
+        }
+        Returns: Json
+      }
+      pgp_armor_headers: {
+        Args: { "": string }
+        Returns: Record<string, unknown>[]
       }
       prepare_file_upload_session: {
         Args: {
@@ -6936,6 +7073,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      reserve_ai_request: {
+        Args: { p_metadata: Json; p_user_id: string }
+        Returns: Json
+      }
       reverse_decision: {
         Args: {
           p_decision_id: string
@@ -6971,6 +7112,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      review_source_is_owned: {
+        Args: { p_source_id: string; p_source_type: string; p_user_id: string }
+        Returns: boolean
       }
       save_document_reading_progress: {
         Args: {
@@ -7128,6 +7273,17 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      transition_agent_action: {
+        Args: {
+          p_action_id: string
+          p_error?: string
+          p_hash: string
+          p_result?: Json
+          p_status: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       transition_career_application: {
         Args: { p_application_id: string; p_note?: string; p_to_status: string }
         Returns: {
@@ -7172,6 +7328,45 @@ export type Database = {
           p_sources: Json
         }
         Returns: boolean
+      }
+      vault_assert_session: {
+        Args: { p_login: string; p_token: string; p_user_id: string }
+        Returns: undefined
+      }
+      vault_consume_attempt: { Args: { p_user_id: string }; Returns: boolean }
+      vault_create_item: {
+        Args: {
+          p_folder: string
+          p_kind: string
+          p_login: string
+          p_name: string
+          p_token: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      vault_save_note: {
+        Args: {
+          p_body: string
+          p_id: string
+          p_login: string
+          p_revision: number
+          p_title: string
+          p_token: string
+          p_user_id: string
+        }
+        Returns: number
+      }
+      vault_set_hidden: {
+        Args: {
+          p_hidden: boolean
+          p_id: string
+          p_kind: string
+          p_login: string
+          p_token: string
+          p_user_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {
@@ -7292,12 +7487,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -7321,11 +7516,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -7346,11 +7541,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -7371,11 +7566,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -7388,11 +7583,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

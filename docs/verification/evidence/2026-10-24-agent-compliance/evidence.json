@@ -1,0 +1,18 @@
+[
+  {
+    "width": 390,
+    "postsIntercepted": 3,
+    "keyboard": true,
+    "retry": true,
+    "streamingAndPersistedSources": true,
+    "productionWrites": 0
+  },
+  {
+    "width": 1440,
+    "postsIntercepted": 3,
+    "keyboard": true,
+    "retry": true,
+    "streamingAndPersistedSources": true,
+    "productionWrites": 0
+  }
+]

@@ -232,6 +232,8 @@ export const noteTools: AssistantToolModule = {
           context.supabase
             .from("notes")
             .select("folder_id")
+            .eq("ai_visibility", "normal")
+            .eq("content_origin", "human")
             .eq("user_id", context.userId)
             .eq("status", "active")
             .is("deleted_at", null)
@@ -240,6 +242,8 @@ export const noteTools: AssistantToolModule = {
           context.supabase
             .from("notes")
             .select("folder_id,title")
+            .eq("ai_visibility", "normal")
+            .eq("content_origin", "human")
             .eq("user_id", context.userId)
             .eq("status", "active")
             .is("deleted_at", null)
@@ -250,6 +254,8 @@ export const noteTools: AssistantToolModule = {
           context.supabase
             .from("notes")
             .select("id,title,updated_at")
+            .eq("ai_visibility", "normal")
+            .eq("content_origin", "human")
             .eq("user_id", context.userId)
             .eq("status", "active")
             .is("deleted_at", null)
@@ -260,6 +266,8 @@ export const noteTools: AssistantToolModule = {
           context.supabase
             .from("notes")
             .select("id", { count: "exact", head: true })
+            .eq("ai_visibility", "normal")
+            .eq("content_origin", "human")
             .eq("user_id", context.userId)
             .eq("status", "active")
             .is("deleted_at", null)
@@ -302,7 +310,7 @@ export const noteTools: AssistantToolModule = {
           output: { folderCount: folders.length, rootNoteCount: rootNotes.length, rootNoteIds: rootNotes.map((note) => note.id) },
           status: foldersResult.error ? "failed" : "succeeded",
         });
-        return { folders, rootNotes, rootTotal: totalRoot, unavailable: Boolean(foldersResult.error) };
+        return { folders, rootNotes, rootTotal: totalRoot, unavailable: Boolean(foldersResult.error || folderAssignments.error || recentTitled.error || rootResult.error || rootCountResult.error) };
       },
     }),
     proposeNoteMove: tool({

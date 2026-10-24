@@ -10,6 +10,7 @@ import {
   completeAiRequestWithUsage,
   getAiGovernance,
   summarizeContextSources,
+  estimateAiCostUsd,
 } from "@/features/ai/governance";
 import { getDeepSeekModel } from "@/lib/ai/deepseek";
 import { requireOwner } from "@/lib/auth/require-owner";
@@ -170,6 +171,18 @@ async function setup(request: AssistantRequest) {
     }
   }
 
+  if (personalContextPack) {
+    while (personalContextPack.sources.length && formatPersonalContextForModel(personalContextPack).length > governance.maxContextCharsPerRequest) {
+      personalContextPack.sources.pop();
+      const retainedIds = new Set(personalContextPack.sources.map(source => source.entityId));
+      personalContextPack.diagnostics.recurringTopics = personalContextPack.diagnostics.recurringTopics.filter(topic => topic.sourceIds.every(id => retainedIds.has(id)));
+      personalContextPack.diagnostics.topicTrends = personalContextPack.diagnostics.topicTrends.filter(topic => topic.sourceIds.every(id => retainedIds.has(id)));
+      personalContextPack.diagnostics.truncated = true;
+    }
+    personalContextPack.diagnostics.selectedCount = personalContextPack.sources.length;
+    personalContextPack.diagnostics.totalChars = personalContextPack.sources.reduce((sum, source) => sum + source.content.length, 0);
+    if (formatPersonalContextForModel(personalContextPack).length > governance.maxContextCharsPerRequest) personalContextPack = null;
+  }
   const sourceSummary = summarizeContextSources(personalContextPack);
   const retrievalMode = gate.mode === "none" ? "none" : gate.mode === "local" ? "local" : personalContextPack?.plan.expansionReason ? "expanded" : "targeted";
   const budget = await assertAiBudget(userId, governance);
@@ -191,11 +204,13 @@ async function setup(request: AssistantRequest) {
     timezone, now, userName, sessionState, gateDecision: gate,
     currentSurfaceSummary: gate.needsCurrentSurface || includeSelectedSurface ? formatCurrentSurfaceForModel(executionContext) : null,
   })}${surfaceRules}${personalContextBlock}`;
-  const initial = gate.needsTools ? initialToolNames(gate) : [];
+  const initial = (gate.needsTools ? initialToolNames(gate) : []).filter(name => governance.longTermMemoryOptIn || !["searchMemory", "getRelevantMemories", "getCurrentPersonalState"].includes(name));
 
+  const invocationSteps = initial.length ? policy.maxSteps : 1;
   const auditId = await auditAiRequest({
     userId, runId: request.runId, surface: request.surface, purpose: request.operation ?? request.mode,
     model: resolved.modelId, status: "allowed", retrievalMode, sourceSummary,
+    reservedCostUsd: estimateAiCostUsd(governance, (Buffer.byteLength(system + JSON.stringify(request.messages ?? []), "utf8") + governance.maxContextCharsPerRequest * 4) * invocationSteps, governance.maxOutputTokensPerRequest * invocationSteps),
     retrievalReason: personalContextPack?.plan.expansionReason,
     contextChars: personalContextPack?.diagnostics.totalChars ?? 0,
     outputTokenLimit: governance.maxOutputTokensPerRequest,
@@ -215,7 +230,7 @@ async function setup(request: AssistantRequest) {
         activeSkills: sessionState.activeSkills, initialToolNames: initial,
         personalDataAccessed: Boolean(personalContextPack), promptChars: system.length,
         contextChars: personalContextPack?.diagnostics.totalChars ?? 0, sourceSummary,
-        sources: (personalContextPack?.sources ?? []).map(({ id, title, domain, href }) => ({ id, title, domain, href })),
+        sources: (personalContextPack?.sources ?? []).map(({ id, entityId, entityType, title, domain, href, timestamp, reasons }) => ({ id, entityId, entityType, title, domain, href, timestamp, reasons })),
         retrievalReason: personalContextPack?.plan.expansionReason, auditId,
       },
     });
@@ -225,6 +240,7 @@ async function setup(request: AssistantRequest) {
     supabase, userId, timezone, policy, gate, sessionState, model: resolved.model, modelId: resolved.modelId,
     system, currentSurface, initial, personalContextPack, sourceSummary, retrievalMode, auditId,
     maxOutputTokens: governance.maxOutputTokensPerRequest, governance,
+    initialContextChars: personalContextPack ? formatPersonalContextForModel(personalContextPack).length : 0,
   };
 }
 
@@ -232,9 +248,10 @@ export async function createAssistantAgent(request: AssistantRequest) {
   const runtime = await setup(request);
   const streamSources = new Map<string, AssistantStreamSource>();
   for (const source of runtime.personalContextPack?.sources ?? []) {
-    streamSources.set(`${source.domain}:${source.href ?? ""}:${source.title}`, { title: source.title, domain: source.domain, href: source.href });
+    streamSources.set(`${source.domain}:${source.href ?? ""}:${source.title}`, { entityId: source.entityId, entityType: source.entityType, title: source.title, domain: source.domain, href: source.href, timestamp: source.timestamp, reasons: source.reasons });
   }
   let duplicateReadCalls = 0;
+  let contextChars = runtime.initialContextChars;
   const selectedDefinitions = definitionsForNames(runtime.initial);
   const toolGroups = [...new Set(selectedDefinitions.map((definition) => definition.group))];
   const allTools = runtime.initial.length
@@ -245,6 +262,9 @@ export async function createAssistantAgent(request: AssistantRequest) {
         timezone: runtime.timezone,
         runId: request.runId,
         toolNames: runtime.initial,
+        governance: runtime.governance,
+        initialContextChars: runtime.initialContextChars,
+        onContextChars: (chars) => { contextChars = chars; },
         onSources: (sources) => {
           for (const source of sources) streamSources.set(`${source.domain}:${source.href ?? ""}:${source.title}`, source);
         },
@@ -255,8 +275,9 @@ export async function createAssistantAgent(request: AssistantRequest) {
 
   return {
     ...runtime,
-    getStreamSources: () => [...streamSources.values()].slice(0, 24),
+    getStreamSources: () => [...streamSources.values()],
     getDuplicateReadCalls: () => duplicateReadCalls,
+    getContextChars: () => contextChars,
     agent: new ToolLoopAgent({
       model: runtime.model,
       stopWhen: isStepCount(toolNames.length ? runtime.policy.maxSteps : 1),
@@ -296,7 +317,7 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
     });
     return { status: "success", text: text.trim(), finishReason, modelId: runtime.modelId, contextSources: mapPersonalContextSources(runtime.personalContextPack) };
   } catch (error) {
-    await completeAiRequestWithUsage(runtime.auditId, "failed", {}, error instanceof Error ? error.message : "ai_request_failed", runtime.governance);
+    await completeAiRequestWithUsage(runtime.auditId, "failed", {}, "ai_provider_request_failed", runtime.governance);
     throw error;
   }
 }

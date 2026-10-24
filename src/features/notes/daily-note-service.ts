@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { createClient } from "@/lib/supabase/server";
-import { contentHash } from "./utils";
+import { mutateNoteAtomic } from "./atomic";
 import {
   appendInboxEntryToDailyNote,
   dailyNoteTemplate,
@@ -10,25 +10,6 @@ import {
 } from "./daily-note-utils";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
-
-async function audit(
-  supabase: Supabase,
-  userId: string,
-  action: string,
-  entityType: string,
-  entityId: string,
-  afterData: Record<string, unknown>,
-) {
-  const { error } = await supabase.from("audit_logs").insert({
-    user_id: userId,
-    action,
-    entity_type: entityType,
-    entity_id: entityId,
-    actor_type: "user",
-    after_data: afterData,
-  });
-  if (error) throw new Error("daily_note_audit_failed");
-}
 
 async function getOrCreateJournalFolder(
   supabase: Supabase,
@@ -128,41 +109,9 @@ export async function getOrCreateDailyNote(
   }
 
   const bodyMarkdown = dailyNoteTemplate(date);
-  const hash = contentHash(bodyMarkdown);
-  const { data: note, error } = await supabase
-    .from("notes")
-    .insert({
-      user_id: userId,
-      folder_id: monthFolderId,
-      title,
-      body_markdown: bodyMarkdown,
-      status: "active",
-      revision: 1,
-      content_hash: hash,
-      word_count: bodyMarkdown.trim().split(/\s+/).length,
-      character_count: bodyMarkdown.length,
-      last_saved_at: new Date().toISOString(),
-    })
-    .select("id,title,body_markdown,revision")
-    .single();
-  if (error || !note) throw new Error("daily_note_create_failed");
-  const version = await supabase.from("note_versions").insert({
-    user_id: userId,
-    note_id: note.id,
-    title,
-    body_markdown: bodyMarkdown,
-    version_number: 1,
-    created_by: userId,
-    content_hash: hash,
-    revision: 1,
-    reason: "initial",
-  });
-  if (version.error) throw new Error("daily_note_version_failed");
-  await audit(supabase, userId, "create_daily_note", "note", note.id, {
-    date,
-    folder: `日记/${year}/${month}`,
-  });
-  return { ...note, date, created: true };
+  const created = await mutateNoteAtomic(supabase, { operation: "create", title, body: bodyMarkdown, folderId: monthFolderId, reason: "initial" });
+  return { id: created.id, title, body_markdown: bodyMarkdown, revision: created.revision, date, created: true };
+
 }
 
 export async function appendInboxToDailyNote(
@@ -184,59 +133,12 @@ export async function appendInboxToDailyNote(
       inboxId,
       content,
     );
-    const { data: latest } = await supabase
-      .from("note_versions")
-      .select("version_number")
-      .eq("user_id", userId)
-      .eq("note_id", daily.id)
-      .order("version_number", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const snapshot = await supabase.from("note_versions").insert({
-      user_id: userId,
-      note_id: daily.id,
-      title: daily.title,
-      body_markdown: daily.body_markdown,
-      version_number: (latest?.version_number ?? 0) + 1,
-      created_by: userId,
-      content_hash: contentHash(daily.body_markdown),
-      revision: daily.revision,
-      reason: "before_inbox_append",
-    });
-    if (snapshot.error) throw new Error("daily_note_snapshot_failed");
-
-    const now = new Date().toISOString();
-    const { data: updated, error } = await supabase
-      .from("notes")
-      .update({
-        body_markdown: bodyMarkdown,
-        content_hash: contentHash(bodyMarkdown),
-        word_count: bodyMarkdown.trim().split(/\s+/).length,
-        character_count: bodyMarkdown.length,
-        last_saved_at: now,
-        revision: daily.revision + 1,
-      })
-      .eq("user_id", userId)
-      .eq("id", daily.id)
-      .eq("revision", daily.revision)
-      .select("id")
-      .maybeSingle();
-    if (error) throw new Error("daily_note_update_failed");
-    if (!updated) {
-      const { data: concurrent } = await supabase
-        .from("notes")
-        .select("body_markdown")
-        .eq("user_id", userId)
-        .eq("id", daily.id)
-        .maybeSingle();
-      if (!concurrent?.body_markdown.includes(marker)) {
-        throw new Error("daily_note_conflict");
-      }
-    } else {
-      await audit(supabase, userId, "append_inbox", "note", daily.id, {
-        inbox_id: inboxId,
-        date: daily.date,
-      });
+    try {
+      await mutateNoteAtomic(supabase, { operation: "update", noteId: daily.id, expectedRevision: daily.revision, body: bodyMarkdown, reason: "inbox_append" });
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "note_revision_conflict") throw error;
+      const { data: concurrent } = await supabase.from("notes").select("body_markdown").eq("user_id", userId).eq("id", daily.id).maybeSingle();
+      if (!concurrent?.body_markdown.includes(marker)) throw new Error("daily_note_conflict");
     }
   }
 

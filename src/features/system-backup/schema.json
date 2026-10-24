@@ -112,6 +112,10 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "payload_hash": {
+          "type": "string",
+          "nullable": false
         }
       },
       "primaryKey": [
@@ -537,6 +541,10 @@
         },
         "user_id": {
           "type": "uuid",
+          "nullable": false
+        },
+        "reserved_cost_usd": {
+          "type": "number",
           "nullable": false
         }
       },

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import type { AssistantStreamSource } from "@/features/assistant/stream-metadata";
+import { SourceBlockButton } from "./source-block-button";
 
 export function AssistantStreamSources({ sources }: { sources: AssistantStreamSource[] }) {
   const unique = [
@@ -11,7 +12,7 @@ export function AssistantStreamSources({ sources }: { sources: AssistantStreamSo
         .filter((source) => source.title.trim())
         .map((source) => [`${source.domain}:${source.href ?? ""}:${source.title}`, source]),
     ).values(),
-  ].slice(0, 16);
+  ];
   if (!unique.length) return null;
 
   return (
@@ -33,6 +34,7 @@ export function AssistantStreamSources({ sources }: { sources: AssistantStreamSo
             ) : (
               <span className="max-w-[240px] truncate">{source.title}</span>
             )}
+            {source.entityId && (source.domain === "notes" || source.domain === "files") ? <SourceBlockButton entityId={source.entityId} domain={source.domain} /> : null}
           </span>
         ))}
       </div>

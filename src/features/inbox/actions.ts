@@ -148,28 +148,9 @@ export async function convertInboxToNote(_: InboxCaptureState, formData: FormDat
   const parsed = noteConversionSchema.safeParse({ inboxId: formData.get("inbox_id"), title: formData.get("title"), bodyMarkdown: formData.get("body_markdown") });
   if (!parsed.success) return { status: "error", message: "笔记内容无效。" };
   try {
-    const { supabase, userId } = await requireOwner();
-    const { data: item } = await supabase.from("inbox_items").select("id,content_markdown").eq("id", parsed.data.inboxId).is("archived_at", null).maybeSingle();
-    if (!item) throw new Error("inbox_not_found");
-    const body = parsed.data.bodyMarkdown || item.content_markdown;
-    const now = new Date().toISOString();
-    const { data: note, error } = await supabase.from("notes").insert({
-      user_id: userId,
-      title: parsed.data.title,
-      body_markdown: body,
-      status: "active",
-      revision: 1,
-      content_hash: contentHash(body),
-      word_count: body.trim() ? body.trim().split(/\s+/).length : 0,
-      character_count: body.length,
-      last_saved_at: now,
-    }).select("id").single();
-    if (error || !note) throw new Error("note_insert_failed");
-    const version = await supabase.from("note_versions").insert({ user_id: userId, note_id: note.id, title: parsed.data.title, body_markdown: body, version_number: 1, created_by: userId, content_hash: contentHash(body), revision: 1, reason: "initial" });
-    if (version.error) throw new Error("version_insert_failed");
-    const { error: processedError } = await supabase.from("inbox_items").update({ converted_note_id: note.id, processed_at: now }).eq("id", item.id);
-    if (processedError) throw new Error("inbox_update_failed");
-    await audit(supabase, userId, "convert_to_note", item.id, { note_id: note.id, content_hash: contentHash(body) });
+    const { supabase } = await requireOwner();
+    const { data: noteId, error } = await supabase.rpc("convert_inbox_note_atomic", { p_inbox_id: parsed.data.inboxId, p_title: parsed.data.title, p_body: parsed.data.bodyMarkdown });
+    if (error || !noteId) throw new Error("inbox_conversion_failed");
     await revalidatePath("/inbox");
     await revalidatePath("/notes");
     await revalidatePath("/today");

@@ -1,3 +1,4 @@
+import { normalizeAssistantError } from "@/features/assistant/errors";
 import { NextResponse } from "next/server";
 import { synthesizeTodayBrief } from "@/features/today/ai-synthesis";
 import { getTodayWorkspace } from "@/features/today/queries";
@@ -31,6 +32,8 @@ export async function POST() {
   } catch (error) {
     const auth = apiAuthenticationFailure(error);
     if (auth) return auth;
+    const failure = normalizeAssistantError(error);
+    if (failure.code === "ai_budget_blocked" || failure.code === "ai_context_limit" || failure.code === "ai_governance_unavailable") return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.code === "ai_budget_blocked" ? 429 : 503, headers });
     const code = error instanceof Error ? error.message : "";
     const message = code.includes("deepseek")
       ? "DeepSeek 尚未配置或凭据不可用。"

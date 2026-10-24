@@ -1,0 +1,111 @@
+import assert from "node:assert/strict";
+import { readFile, readdir } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
+const runtime = process.env.COMPLIANCE_PGLITE_ROOT;
+const load = path => import(runtime ? pathToFileURL(`${runtime}/dist/${path}.js`).href : `@electric-sql/pglite${path === "index" ? "" : `/${path}`}`);
+const { PGlite } = await load("index");
+const { pgcrypto } = await load("contrib/pgcrypto");
+const { pg_trgm } = await load("contrib/pg_trgm");
+const db = new PGlite({ extensions: { pgcrypto, pg_trgm } });
+const migration = "20261023163055_agent_compliance_boundaries.sql";
+const owner = "00000000-0000-4000-8000-000000000001", other = "00000000-0000-4000-8000-000000000002";
+const note = "10000000-0000-4000-8000-000000000001", failNote = "10000000-0000-4000-8000-000000000002";
+const run = "20000000-0000-4000-8000-000000000001", action = "30000000-0000-4000-8000-000000000001";
+const query = async (sql, params) => (await db.query(sql, params)).rows;
+const scalar = async sql => Object.values((await query(sql))[0])[0];
+const asRole = async (role, user = owner) => db.exec(`reset role; set request.jwt.claim.sub='${user}'; set role ${role};`);
+try {
+  await db.exec("create role anon; create role authenticated; create role service_role bypassrls;");
+  await db.exec(await readFile(new URL("./fixtures/system-backup-sql/bootstrap.sql", import.meta.url), "utf8"));
+  for (const name of (await readdir(new URL("../supabase/migrations/", import.meta.url))).filter(name => name.endsWith(".sql") && name !== migration).sort())
+    await db.exec(await readFile(new URL(`../supabase/migrations/${name}`, import.meta.url), "utf8"));
+  await db.exec(`insert into auth.users(id) values('${owner}'),('${other}');
+    insert into public.notes(id,user_id,title,body_markdown,revision) values('${note}','${owner}','Synthetic existing note','before upgrade',1);
+    insert into public.note_versions(user_id,note_id,title,body_markdown,version_number,created_by,revision) values('${owner}','${note}','Synthetic v1','before upgrade',1,'${owner}',1);
+    insert into public.agent_runs(id,user_id,surface,status) values('${run}','${owner}','global','pending');
+    insert into public.agent_actions(id,user_id,run_id,domain,action_type,payload_json,preview_json,risk_level,status,expires_at)
+      values('${action}','${owner}','${run}','notes','notes.create','{"title":"Synthetic frozen"}','{"title":"Synthetic frozen"}','low','proposed',now()+interval '1 day');`);
+  await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`, import.meta.url), "utf8"));
+  assert.equal(await scalar(`select body_markdown from public.notes where id='${note}'`), "before upgrade");
+  assert.equal(await scalar(`select count(*) from public.note_versions where note_id='${note}'`), 1);
+  assert.equal(await scalar("select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p') and (not relrowsecurity or not relforcerowsecurity)"), 0);
+  const hash = await scalar(`select payload_hash from public.agent_actions where id='${action}'`);
+  assert.match(hash, /^[a-f0-9]{64}$/);
+  const backup = JSON.parse(await readFile(new URL("../src/features/system-backup/schema.json", import.meta.url), "utf8"));
+  for (const [table, column] of [["agent_actions", "payload_hash"], ["ai_request_audits", "reserved_cost_usd"]]) {
+    assert.ok(backup.tables[table].columns[column]);
+    assert.equal(await scalar(`select is_nullable from information_schema.columns where table_schema='public' and table_name='${table}' and column_name='${column}'`), "NO");
+  }
+  console.log("PASS upgrade preserves originals/versions/proposals and forces RLS on every public table");
+
+  await asRole("authenticated");
+  await assert.rejects(query(`update public.agent_actions set status='succeeded' where id='${action}'`), /permission denied/);
+  await assert.rejects(query(`update public.agent_actions set payload_json='{}' where id='${action}'`), /permission denied/);
+  await assert.rejects(query(`select public.transition_agent_action('${owner}','${action}','${hash}','executing')`), /permission denied/);
+  await assert.rejects(query(`insert into public.agent_actions(user_id,run_id,domain,action_type,payload_json,preview_json,risk_level,status) values('${owner}','${run}','notes','notes.create','{}','{}','low','succeeded')`), /invalid_proposal_state/);
+  await asRole("service_role");
+  await assert.rejects(query(`update public.agent_actions set payload_json='{}' where id='${action}'`), /frozen_proposal/);
+  await assert.rejects(query(`select public.transition_agent_action('${other}','${action}','${hash}','executing')`), /proposal_changed/);
+  await assert.rejects(query(`select public.transition_agent_action('${owner}','${action}','${"0".repeat(64)}','executing')`), /proposal_changed/);
+  const claims = await Promise.allSettled(Array.from({ length: 8 }, () => query(`select public.transition_agent_action('${owner}','${action}','${hash}','executing')`)));
+  assert.equal(claims.filter(result => result.status === "fulfilled").length, 1);
+  await query(`select public.transition_agent_action('${owner}','${action}','${hash}','succeeded','{"noteId":"${note}"}')`);
+  assert.equal(await scalar(`select count(*) from public.audit_logs where entity_id='${action}' and action='agent_action_succeeded'`), 1);
+  console.log("PASS frozen payload, denied client execution forgery, hash/owner checks, one claim and atomic completion audit");
+
+  await asRole("authenticated");
+  const created = (await query(`select public.mutate_note_atomic('create','${failNote}',null,'Synthetic created','body') result`))[0].result;
+  assert.equal(created.revision, 1);
+  assert.equal((await query(`select public.mutate_note_atomic('create','${failNote}',null,'Synthetic created','body') result`))[0].result.duplicate, true);
+  assert.equal(await scalar(`select count(*) from public.note_versions where note_id='${failNote}'`), 1);
+  const oldVersion = await scalar(`select id from public.note_versions where note_id='${note}' and version_number=1`);
+  await query(`select public.mutate_note_atomic('update','${note}',1,'Synthetic v2','new concurrent body')`);
+  await assert.rejects(query(`select public.mutate_note_atomic('restore','${note}',1,null,null,null,'${oldVersion}')`), /note_revision_conflict/);
+  assert.equal(await scalar(`select body_markdown from public.notes where id='${note}'`), "new concurrent body");
+  await query(`select public.mutate_note_atomic('restore','${note}',2,null,null,null,'${oldVersion}')`);
+  assert.equal(await scalar(`select body_markdown from public.notes where id='${note}'`), "before upgrade");
+  assert.equal(await scalar(`select count(*) from public.note_versions where note_id='${note}' and body_markdown='new concurrent body'`), 2);
+  await asRole("authenticated", other);
+  assert.equal(await scalar(`select count(*) from public.notes where id='${note}'`), 0);
+  await assert.rejects(query(`select public.mutate_note_atomic('restore','${note}',3,null,null,null,'${oldVersion}')`), /note_not_found/);
+  await asRole("anon", "");
+  await assert.rejects(query(`select public.mutate_note_atomic('create',gen_random_uuid(),null,'Anonymous','body')`), /permission denied/);
+  console.log("PASS note idempotency, stale-revision refusal, restored/new version retention and anonymous/cross-owner denial");
+
+  await db.exec(`reset role; create function public.synthetic_version_failure() returns trigger language plpgsql as $$ begin if new.reason='synthetic_fail' then raise exception 'synthetic_version_failure'; end if; return new; end $$;
+    create trigger synthetic_version_failure before insert on public.note_versions for each row execute function public.synthetic_version_failure();`);
+  await asRole("authenticated");
+  const failedId = "10000000-0000-4000-8000-000000000003";
+  await assert.rejects(query(`select public.mutate_note_atomic('create','${failedId}',null,'Failed synthetic','body',null,null,'synthetic_fail')`), /synthetic_version_failure/);
+  assert.equal(await scalar(`select count(*) from public.notes where id='${failedId}'`), 0);
+  assert.equal(await scalar(`select count(*) from public.audit_logs where entity_id='${failedId}'`), 0);
+  const before = await scalar(`select body_markdown from public.notes where id='${note}'`);
+  const countBefore = await scalar(`select count(*) from public.note_versions where note_id='${note}'`);
+  await assert.rejects(query(`select public.mutate_note_atomic('update','${note}',3,'Failed','would overwrite',null,null,'synthetic_fail')`), /synthetic_version_failure/);
+  assert.equal(await scalar(`select body_markdown from public.notes where id='${note}'`), before);
+  assert.equal(await scalar(`select count(*) from public.note_versions where note_id='${note}'`), countBefore);
+  console.log("PASS injected version failure rolls back note creation/update and every snapshot/audit");
+
+  await query(`insert into public.ai_governance_settings(user_id,daily_call_limit,monthly_call_limit,daily_cost_limit_usd,monthly_cost_limit_usd) values('${owner}',1,10,1,10)`);
+  await asRole("service_role");
+  const metadata = JSON.stringify({ surface: "synthetic", purpose: "budget", model: "synthetic", retrieval_mode: "none", source_summary: {}, context_chars: 10, output_token_limit: 100, reserved_cost_usd: 0.1 });
+  const reservations = await Promise.all(Array.from({ length: 10 }, () => query("select public.reserve_ai_request($1,$2) result", [owner, metadata])));
+  assert.equal(reservations.filter(rows => rows[0].result.allowed).length, 1);
+  assert.equal(await scalar(`select count(*) from public.ai_request_audits where user_id='${owner}' and status='blocked_budget'`), 9);
+  await asRole("authenticated");
+  await assert.rejects(query("select public.reserve_ai_request($1,$2)", [owner, metadata]), /permission denied/);
+  assert.equal((await query("select * from public.ai_request_audits where user_id=$1", [other])).length, 0);
+  console.log("PASS queued quota contention admits one call, records blocked calls, and denies client reservation");
+  await asRole("authenticated", other);
+  await assert.rejects(query(`select public.block_ai_source_atomic('notes','${note}')`), /source_not_found/);
+  await asRole("authenticated");
+  await query(`select public.block_ai_source_atomic('notes','${note}')`);
+  assert.equal(await scalar(`select ai_visibility from public.notes where id='${note}'`), "never");
+  assert.equal(await scalar(`select count(*) from public.audit_logs where entity_id='${note}' and action='block_ai_source'`), 1);
+  await db.exec(`reset role; insert into public.ai_governance_settings(user_id,daily_cost_limit_usd,estimated_input_cost_per_million_usd,estimated_output_cost_per_million_usd) values('${other}',0,0,0);`);
+  await asRole("service_role");
+  const blocked = (await query("select public.reserve_ai_request($1,$2) result", [other, JSON.stringify({ ...JSON.parse(metadata), reserved_cost_usd: 0 })]))[0].result;
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.code, "daily_cost_limit");
+  console.log("PASS atomic source opt-out/owner isolation and a zero-cost cap remains a hard stop");
+} finally { await db.close(); }

@@ -56,8 +56,11 @@ function summaryWithStreamSources(base: SafeSourceSummary, sources: AssistantStr
   if (!sources.length) return base;
   const entitiesByModule: Record<string, number> = {};
   for (const source of sources) entitiesByModule[source.domain] = (entitiesByModule[source.domain] ?? 0) + 1;
+  const timestamps = sources.flatMap(source => source.timestamp ? [source.timestamp] : []).sort();
   return {
     ...base,
+    timeRange: { from: timestamps.at(0) ?? null, to: timestamps.at(-1) ?? null },
+    reasons: [...new Set(sources.flatMap(source => source.reasons ?? ["本轮工具检索"]))],
     modules: Object.keys(entitiesByModule).sort(),
     entitiesByModule,
     sourceCount: sources.length,
@@ -127,6 +130,7 @@ export async function POST(request: Request) {
 
     let streamFailure: ReturnType<typeof normalizeAssistantError> | null = null;
     const usage = { inputTokens: 0, outputTokens: 0 };
+    let usageReported = false;
     const metadata = (finish = false): AssistantMessageMetadata => {
       const sources = assistantRuntime.getStreamSources();
       const now = performance.now();
@@ -135,7 +139,7 @@ export async function POST(request: Request) {
         model: assistantRuntime.modelId,
         auditId: assistantRuntime.auditId,
         retrievalMode: assistantRuntime.retrievalMode,
-        contextChars: assistantRuntime.personalContextPack?.diagnostics.totalChars ?? 0,
+        contextChars: assistantRuntime.getContextChars(),
         sources: finish ? sources : undefined,
         setupMs,
         ttftMs: firstTextAt === null ? null : Math.round(firstTextAt - requestStartedAt),
@@ -166,6 +170,7 @@ export async function POST(request: Request) {
         return undefined;
       },
       onStepEnd: ({ usage: stepUsage }) => {
+        usageReported ||= stepUsage.inputTokens !== undefined && stepUsage.outputTokens !== undefined;
         usage.inputTokens += stepUsage.inputTokens ?? 0;
         usage.outputTokens += stepUsage.outputTokens ?? 0;
       },
@@ -182,10 +187,10 @@ export async function POST(request: Request) {
         await completeAiRequestWithUsage(
           assistantRuntime.auditId,
           streamFailure ? "failed" : isAborted ? "cancelled" : "completed",
-          usage,
+          usageReported ? usage : {},
           streamFailure?.code ?? null,
           assistantRuntime.governance,
-          { sourceSummary: finalSummary, telemetry: { setupMs, ttftMs, durationMs, duplicateReadCalls, streamSourceCount: sources.length } },
+          { contextChars: assistantRuntime.getContextChars(), sourceSummary: finalSummary, telemetry: { setupMs, ttftMs, durationMs, duplicateReadCalls, streamSourceCount: sources.length } },
         );
 
         console.info(JSON.stringify({
@@ -203,6 +208,7 @@ export async function POST(request: Request) {
         }));
 
         if (runId) {
+          await recordAgentStep({ supabase: owner.supabase, userId: owner.userId, runId, stepType: "context", title: "本次实际来源", summary: `共 ${sources.length} 项来源`, output: { sourceSummary: finalSummary, auditId: assistantRuntime.auditId, sources: sources.map((source, index) => ({ ...source, id: source.entityId ?? `S${index + 1}` })) } });
           await persistAgentMessage({ supabase: owner.supabase, userId: owner.userId, runId, message: responseMessage });
           const { count } = await owner.supabase.from("agent_actions").select("id", { count: "exact", head: true }).eq("run_id", runId).eq("status", "proposed");
           if (streamFailure) await recordAgentStep({ supabase: owner.supabase, userId: owner.userId, runId, stepType: "error", title: "模型请求未完成", summary: streamFailure.message, output: { errorCode: streamFailure.code }, status: "failed" });

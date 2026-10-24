@@ -1,4 +1,5 @@
 "use client";
+import { SourceBlockButton } from "@/components/assistant/source-block-button";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
@@ -735,6 +736,7 @@ export function NoteAiAssistant({
                             {source.reasons.join("；")}
                           </p>
                         </div>
+                        {source.entityId && (source.domain === "notes" || source.domain === "files") ? <SourceBlockButton entityId={source.entityId} domain={source.domain} /> : null}
                         {source.href ? (
                           <a
                             className="text-[var(--accent)] hover:underline"

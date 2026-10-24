@@ -1,3 +1,4 @@
+import { withGovernedAiCall } from "@/features/ai/governance";
 import "server-only";
 
 import { generateText } from "ai";
@@ -25,13 +26,14 @@ export async function synthesizeTodayBrief(input: {
   items: TodayBriefItem[];
 }) {
   const { model, modelId } = await getDeepSeekModel(input.userId, "deepseek-v4-flash");
-  const result = await generateText({
+  const prompt = buildTodayBriefSynthesisPrompt(input.items, input.timezone);
+  const result = await withGovernedAiCall({ userId: input.userId, surface: "today", sourceCount: input.items.slice(0, 4).length, purpose: "brief_synthesis", model: modelId, prompt, system: TODAY_BRIEF_AI_SYSTEM, maxOutputTokens: 220 }, ({ maxOutputTokens }) => generateText({
     model,
     system: TODAY_BRIEF_AI_SYSTEM,
-    prompt: buildTodayBriefSynthesisPrompt(input.items, input.timezone),
-    maxOutputTokens: 220,
+    prompt,
+    maxOutputTokens,
     temperature: 0.2,
-  });
+  }));
   const summary = result.text.trim().slice(0, 500);
   if (!summary) throw new Error("today_brief_empty_response");
   return { summary, modelId };
