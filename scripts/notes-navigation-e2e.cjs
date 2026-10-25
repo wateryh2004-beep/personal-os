@@ -115,6 +115,6 @@ const out = 'test-results/notes-navigation';
     }
     await writeFile(`${out}/evidence.json`, JSON.stringify({ scope: 'Next production build, synthetic 180-section document. All writes blocked. Real local note navigation is checked through its anonymous login boundary. Actual chapter glyphs doubled; not native browser zoom. Normal-motion recordings and runtime reduced-motion/forced-colors checks.', evidence }, null, 2));
     console.log('PASS: notes quick open, mobile drawer continuity, searchable outline, focus/reversal, short screen, 200% chapter text, reduced motion and forced colors at 360/390/768/1440');
-  } catch (error) { if (activePage) await activePage.screenshot({ path: `${out}/failure.png` }).catch(() => {}); await writeFile(`${out}/failure.json`, JSON.stringify({ error: String(error), evidence }, null, 2)); throw error; }
+  } catch (error) { if (activePage) await activePage.screenshot({ path: `${out}/failure.png` }).catch(() => {}); await writeFile(`${out}/failure.json`, JSON.stringify({ error: String(error), url: activePage?.url(), evidence }, null, 2)); throw error; }
   finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
