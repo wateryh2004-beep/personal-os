@@ -5,6 +5,13 @@ const { chromium } = require('playwright');
 const base = process.env.E2E_BASE_URL || 'http://127.0.0.1:3000';
 assert.match(base, /^http:\/\/127\.0\.0\.1:/);
 const out = 'test-results/notes-navigation';
+async function assertContainedFocusRing(locator) {
+  const ring = await locator.evaluate(el => {
+    const style = getComputedStyle(el);
+    return { width: parseFloat(style.outlineWidth), offset: parseFloat(style.outlineOffset), style: style.outlineStyle };
+  });
+  assert.ok(ring.width > 0 && ring.style !== 'none' && ring.offset <= -ring.width, `focus ring stays inside the scrolling item: ${JSON.stringify(ring)}`);
+}
 async function capture(page, path) {
   // Interactions stay immediate; only static evidence waits for finite overlay motion.
   await page.evaluate(async () => {
@@ -43,6 +50,7 @@ async function capture(page, path) {
       assert.equal(await panel.locator('[data-outline-index]').count(), 1, 'filters 180 headings');
       await input.press('ArrowDown');
       assert.ok(await panel.getByRole('button', { name: '第 120 节', exact: true }).evaluate(el => el === document.activeElement));
+      await assertContainedFocusRing(panel.getByRole('button', { name: '第 120 节', exact: true }));
       await capture(page, `${out}/chapter-filter-${width}.png`);
       await page.keyboard.press('Enter');
       await panel.waitFor({ state: 'hidden' });
@@ -102,6 +110,7 @@ async function capture(page, path) {
       await quick.press('ArrowDown');
       const results = navigation.locator('[aria-label="快速打开结果"] a');
       assert.ok(await results.nth(0).evaluate(el => el === document.activeElement));
+      await assertContainedFocusRing(results.nth(0));
       await page.keyboard.press('End'); assert.ok(await results.nth(1).evaluate(el => el === document.activeElement));
       await page.keyboard.press('Home'); await page.keyboard.press('ArrowUp'); assert.ok(await quick.evaluate(el => el === document.activeElement));
       await capture(page, `${out}/quick-open-${width}.png`);

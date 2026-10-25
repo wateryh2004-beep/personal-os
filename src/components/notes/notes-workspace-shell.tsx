@@ -262,7 +262,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
               onNavigate={() => { setNavigatorQuery(""); closeForNavigation(`/notes/${note.id}`); }}
               transitionTypes={["note-open"]}
               scroll={false}
-              className={`group flex min-h-11 items-center gap-2 rounded-[8px] px-2 py-1.5 transition-colors ui-transition focus-visible:bg-[var(--surface-selected)] focus-visible:outline-offset-[-2px] md:min-h-10 ${activeNoteId === note.id ? "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
+              className={`notes-quick-open-result group flex min-h-11 items-center gap-2 rounded-[8px] px-2 py-1.5 transition-colors ui-transition focus-visible:bg-[var(--surface-selected)] md:min-h-10 ${activeNoteId === note.id ? "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
             >
               <FileText className="size-3.5 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1">
