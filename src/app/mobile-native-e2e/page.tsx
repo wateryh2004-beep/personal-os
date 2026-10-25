@@ -14,6 +14,7 @@ import { notFound } from "next/navigation";
 import { MobileNativeHarness } from "@/components/testing/mobile-native-harness";
 import { WorkspacePolishHarness, type PolishScene } from "@/components/testing/workspace-polish-harness";
 
+import { NoteContinuityFixture } from "@/components/testing/note-continuity-fixture";
 import { VaultFixture } from "@/components/testing/vault-fixture";
 import { WorkspaceMotionFixture } from "@/components/testing/workspace-motion-fixture";
 
@@ -22,6 +23,7 @@ export const dynamic = "force-dynamic";
 export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string; item?: string }> }) {
   if (process.env.E2E_MOBILE_HARNESS !== "1") notFound();
   const { scene, workspace, mode, item, delay: rawDelay } = await searchParams;
+  if (scene === "note-continuity") return <NoteContinuityFixture />;
   if (scene === "workspace-motion") return <WorkspaceMotionFixture />;
   if (scene === "notes-bootstrap") {
     const bootstrap = mode === "streamed" && workspace !== "home" ? new Promise<{

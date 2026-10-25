@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useNoteContinuity } from "./use-note-continuity";
+import { noteDocumentCache } from "@/features/notes/document-resource";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -52,7 +54,7 @@ const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-mar
   ssr: false,
   loading: () => <div aria-label="正在载入编辑器" className="notes-editor-loading min-h-80 bg-[var(--surface-canvas)]" />,
 });
-const NoteAiAssistant = dynamic(() => import("@/components/notes/note-ai-assistant").then((module) => module.NoteAiAssistant), { ssr: false });
+const NoteAiAssistant = dynamic(() => import("@/components/notes/note-assistant-loader").then((module) => module.NoteAssistantLoader), { ssr: false });
 
 type Note = { id: string; title: string; body_markdown: string; revision: number; last_saved_at: string | null; content_origin?: "human" | "ai_generated" };
 type PdfSnapshot = { title: string; body: string };
@@ -122,12 +124,15 @@ async function copyText(value: string) {
   if (!copied) throw new Error("copy_failed");
 }
 
-export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDefaultModel: DeepSeekModelId }) {
+export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false }: { note: Note; noteAiDefaultModel: DeepSeekModelId; loadAiPreferences?: boolean }) {
   const feedback = useActionFeedback();
   const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
-  const [reading, setReading] = useState(false);
+  const [bodyRevision, setBodyRevision] = useState(0);
+  const [draftBaseline] = useState(() => ({ title: note.title, body: note.body_markdown }));
+  const replaceBody = useCallback((value: string) => { setBody(value); setBodyRevision((revision) => revision + 1); }, []);
+  const { reading, switchReading, readingPaneRef, rememberReading, rememberPosition, onEditorReady, interruptEditorRestore } = useNoteContinuity(note.id);
   const [titleUndoStack, setTitleUndoStack] = useState<string[]>([]);
   const titleUndoStackRef = useRef<string[]>([]);
   const [state, setState] = useState<SaveState>("已保存");
@@ -137,6 +142,9 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isFallbackFullscreen, setIsFallbackFullscreen] = useState(false);
   const noteAiPanel = useWorkspacePanel(`note-ai:${note.id}`);
+  const [aiVisited, setAiVisited] = useState(false);
+  const openAi = useCallback(() => { setAiVisited(true); noteAiPanel.open(); }, [noteAiPanel]);
+  const toggleAi = () => { setAiVisited(true); noteAiPanel.toggle(); };
   const [selection, setSelection] = useState<NoteSelection | null>(null);
   const [contentOrigin, setContentOrigin] = useState(note.content_origin ?? "human");
   const [isChangingContentOrigin, startContentOriginTransition] = useTransition();
@@ -151,12 +159,32 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   }, []);
   const latestContentRef = useRef({ title: note.title, body: note.body_markdown });
   const revisionRef = useRef(note.revision);
+  const knownRemoteRevisionRef = useRef(note.revision);
   const saveInFlightRef = useRef<Promise<void> | null>(null);
   const saveQueuedRef = useRef(false);
   const isDirtyRef = useRef(false);
   const pendingDraftRef = useRef<NoteDraftSession | null>(null);
   const draftTimerRef = useRef<number | null>(null);
   const noteSessionKey = `notes:draft:${note.id}`;
+
+  useEffect(() => {
+    knownRemoteRevisionRef.current = Math.max(knownRemoteRevisionRef.current, note.revision);
+    if (note.revision <= revisionRef.current) return;
+    if (isDirtyRef.current) {
+      // Keep the optimistic revision unchanged so a subsequent save cannot overwrite remote edits.
+      const timer = window.setTimeout(() => setState("版本冲突"), 0);
+      return () => window.clearTimeout(timer);
+    }
+    const timer = window.setTimeout(() => {
+      if (isDirtyRef.current) { if (note.revision > revisionRef.current) setState("版本冲突"); return; }
+      if (note.revision <= revisionRef.current) return;
+      latestContentRef.current = { title: note.title, body: note.body_markdown };
+      revisionRef.current = note.revision;
+      setTitle(note.title); replaceBody(note.body_markdown); setLastSavedAt(note.last_saved_at);
+      publishNotesNavigatorTitle(note.id, note.title);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [note.id, note.revision, note.title, note.body_markdown, note.last_saved_at, replaceBody]);
 
   const persistDraft = useCallback((draft: NoteDraftSession) => {
     saveWorkspaceSession<NoteDraftSession>(noteSessionKey, draft, noteDraftRecoveryTtlMs);
@@ -193,7 +221,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
 
   useEffect(() => {
     const draft = loadWorkspaceSession<NoteDraftSession>(noteSessionKey);
-    if (!draft || (draft.title === note.title && draft.body === note.body_markdown)) return;
+    if (!draft || (draft.title === draftBaseline.title && draft.body === draftBaseline.body)) return;
     const timer = window.setTimeout(() => {
       latestContentRef.current = { title: draft.title, body: draft.body };
       if (Number.isInteger(draft.baseRevision) && draft.baseRevision >= 0) {
@@ -201,13 +229,13 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
       }
       setTitle(draft.title);
       publishNotesNavigatorTitle(note.id, draft.title);
-      setBody(draft.body);
+      replaceBody(draft.body);
       isDirtyRef.current = true;
       setState("有未保存修改");
       setEditVersion((version) => version + 1);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [note.body_markdown, note.id, note.title, noteSessionKey]);
+  }, [draftBaseline, note.id, noteSessionKey, replaceBody]);
 
   const save = useCallback(async () => {
     if (saveInFlightRef.current) {
@@ -215,6 +243,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
       return saveInFlightRef.current;
     }
     if (!isDirtyRef.current) return;
+    if (knownRemoteRevisionRef.current > revisionRef.current) { flushDraft(); setState("版本冲突"); return; }
     const scopeIsCurrent = captureWorkspaceScope();
 
     const operation = (async () => {
@@ -238,11 +267,19 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             setState("版本冲突");
             return;
           }
+          if (result.revision < knownRemoteRevisionRef.current) {
+            revisionRef.current = result.revision;
+            isDirtyRef.current = true;
+            const latest = latestContentRef.current;
+            pendingDraftRef.current = { ...latest, baseRevision: result.revision };
+            flushDraft(); setState("版本冲突"); return;
+          }
           notesWorkspaceResource.mutate((workspace) => workspace ? { ...workspace,
             notes: workspace.notes.map((row) => row.id === note.id ? { ...row, title: snapshot.title, updated_at: result.lastSavedAt } : row),
             navigatorNotes: workspace.navigatorNotes.map((row) => row.id === note.id ? { ...row, title: snapshot.title, updated_at: result.lastSavedAt } : row),
           } : workspace);
           notesWorkspaceResource.invalidate();
+          noteDocumentCache.saved(note.id, snapshot, result.revision, result.lastSavedAt);
           revisionRef.current = result.revision;
           setLastSavedAt(result.lastSavedAt);
           perfMark("note-autosave-end", { noteId: note.id, revision: result.revision });
@@ -264,7 +301,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
           isDirtyRef.current = true;
           pendingDraftRef.current = { title: latest.title, body: latest.body, baseRevision: revisionRef.current };
           flushDraft();
-          setState("保存失败");
+          setState(knownRemoteRevisionRef.current > revisionRef.current ? "版本冲突" : "保存失败");
           return;
         }
       } while (saveQueuedRef.current && isDirtyRef.current);
@@ -389,8 +426,8 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   }, [queueDraft]);
   const handleBodyChange = useCallback((value: string) => {
     setBody(value);
-    dirty(title, value);
-  }, [dirty, title]);
+    dirty(latestContentRef.current.title, value);
+  }, [dirty]);
   // AI 生成标题：直接替换标题，旧标题压栈供撤回（支持连续多次生成逐步撤回）。
   const handleAiReplaceTitle = useCallback((newTitle: string) => {
     const next = newTitle
@@ -403,8 +440,8 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
     setTitleUndoStack([...titleUndoStackRef.current]);
     setTitle(next);
     publishNotesNavigatorTitle(note.id, next);
-    dirty(next, body);
-  }, [body, dirty, note.id, title]);
+    dirty(next, latestContentRef.current.body);
+  }, [dirty, note.id, title]);
   const handleAiUndoTitle = useCallback(() => {
     const stack = titleUndoStackRef.current;
     if (!stack.length) return;
@@ -413,8 +450,8 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
     setTitleUndoStack([...titleUndoStackRef.current]);
     setTitle(prev);
     publishNotesNavigatorTitle(note.id, prev);
-    dirty(prev, body);
-  }, [body, dirty, note.id]);
+    dirty(prev, latestContentRef.current.body);
+  }, [dirty, note.id]);
   const isExporting = Boolean(pdfSnapshot);
   const fullscreenActive = isFullscreen || isFallbackFullscreen;
   useEffect(() => {
@@ -510,7 +547,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
                 setTitleUndoStack([]);
                 setTitle(nextTitle);
                 publishNotesNavigatorTitle(note.id, nextTitle);
-                dirty(nextTitle, body);
+                dirty(nextTitle, latestContentRef.current.body);
               }}
               className="notes-title-input w-full min-w-0 rounded-[var(--radius-sm)] bg-transparent py-1 font-[family-name:var(--font-serif)] text-[28px] font-normal leading-[1.4] tracking-[-0.015em] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] md:text-[32px]"
               placeholder="无标题笔记"
@@ -519,8 +556,8 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
           </div>
           <div className="flex min-h-11 flex-wrap items-center gap-1">
             <div role="group" aria-label="笔记阅读方式" className="mr-auto flex shrink-0 gap-1 md:mr-3">
-              <button type="button" aria-pressed={!reading} onClick={() => setReading(false)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${!reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><PenLine aria-hidden="true" className="hidden size-4 sm:block" />编辑</button>
-              <button type="button" aria-pressed={reading} onClick={() => setReading(true)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><BookOpen aria-hidden="true" className="hidden size-4 sm:block" />阅读</button>
+              <button type="button" aria-pressed={!reading} onClick={() => switchReading(false)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${!reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><PenLine aria-hidden="true" className="hidden size-4 sm:block" />编辑</button>
+              <button type="button" aria-pressed={reading} onClick={() => switchReading(true)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><BookOpen aria-hidden="true" className="hidden size-4 sm:block" />阅读</button>
             </div>
             <span aria-live="polite" title={statusLabel} className={`order-last basis-full pt-1 text-[12px] tabular-nums md:order-none md:mr-auto md:basis-auto md:pt-0 ${saveHasError ? "text-[var(--danger)]" : saveNeedsAttention ? "text-[var(--warning)]" : "text-[var(--text-secondary)]"}`}>
               {statusLabel}
@@ -528,7 +565,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             <Button variant={state === "已保存" ? "ghost" : "outline"} size="sm" className="max-md:size-11 max-md:px-0" onClick={() => { flushDraft(); void save(); }} aria-label={`立即保存，当前状态：${statusLabel}`} title="立即保存">
               <SaveIcon aria-hidden="true" /><span className="hidden lg:inline">保存</span>
             </Button>
-            <Button variant="ghost" size="sm" className="max-md:size-11 max-md:px-0" disabled={aiGenerated} onClick={noteAiPanel.toggle} aria-label={aiGenerated ? "AI 生成内容不会作为 AI 上下文读取" : "打开笔记 AI"} title="笔记 AI" aria-pressed={noteAiPanel.isOpen}>
+            <Button variant="ghost" size="sm" className="max-md:size-11 max-md:px-0" disabled={aiGenerated} onClick={toggleAi} aria-label={aiGenerated ? "AI 生成内容不会作为 AI 上下文读取" : "打开笔记 AI"} title="笔记 AI" aria-pressed={noteAiPanel.isOpen}>
               <Sparkles aria-hidden="true" /><span className="hidden lg:inline">AI</span>
             </Button>
             <Button ref={fullscreenTriggerRef} variant="ghost" size="sm" className="max-md:size-11 max-md:px-0" onClick={() => void toggleFullscreen()} aria-label={fullscreenActive ? "退出专注" : "进入专注"} title={fullscreenActive ? "退出专注" : "专注编辑"}>
@@ -566,37 +603,42 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
         <div hidden={reading} className="notes-document-body min-h-0 flex-1 overflow-hidden bg-[var(--surface-canvas)]">
           <VisualMarkdownEditor
             markdown={body}
+            contentRevision={bodyRevision}
             noteId={note.id}
+            onEditorReady={onEditorReady}
+            onPositionIntent={interruptEditorRestore}
+            onPositionChange={rememberPosition}
             onImageUploadStatus={handleImageUploadStatus}
-            onOpenAi={aiGenerated ? undefined : noteAiPanel.open}
+            onOpenAi={aiGenerated ? undefined : openAi}
             onSelectionChange={setSelection}
             onChange={handleBodyChange}
           />
         </div>
-        {reading ? <div className="notes-document-body min-h-0 flex-1 overflow-hidden"><NoteReadingView body={body} /></div> : null}
+        {reading ? <div className="notes-document-body min-h-0 flex-1 overflow-hidden"><NoteReadingView body={body} paneRef={readingPaneRef} onScroll={rememberReading} /></div> : null}
       </div>
-      <NoteAiAssistant
+      {(!aiGenerated && (aiVisited || noteAiPanel.isOpen || selection)) ? <NoteAiAssistant
         key={note.id}
         open={aiGenerated ? false : noteAiPanel.isOpen}
-        onOpen={noteAiPanel.open}
+        onOpen={openAi}
         onClose={noteAiPanel.close}
         noteId={note.id}
         title={title}
         bodyMarkdown={body}
         defaultModel={noteAiDefaultModel}
+        loadPreferences={loadAiPreferences}
         selection={selection}
         onClearSelection={() => setSelection(null)}
         onReplaceNote={(suggestion) => {
-          setBody(suggestion);
+          replaceBody(suggestion);
           dirty(title, suggestion);
         }}
         onReplaceTitle={handleAiReplaceTitle}
         onInsertNote={(suggestion) => {
           const nextBody = `${body}${body.trim() ? "\n\n" : ""}${suggestion}`;
-          setBody(nextBody);
+          replaceBody(nextBody);
           dirty(title, nextBody);
         }}
-      />
+      /> : null}
       {pdfSnapshot ? (
         <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-[var(--surface-canvas)] p-12 text-[15px]">
           <h1 className="mb-7 text-3xl font-semibold text-[var(--text-primary)]">{pdfSnapshot.title}</h1>
