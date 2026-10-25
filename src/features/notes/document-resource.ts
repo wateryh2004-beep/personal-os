@@ -56,8 +56,9 @@ export function createNoteDocumentCache(read = (id: string, signal?: AbortSignal
 export const noteDocumentCache = createNoteDocumentCache();
 
 /** Router history can retain an old Flight payload after the tab snapshot expires. */
-export function reconcileNoteDocumentSeed(resource: WorkspaceResource<NoteDocumentData | null>, seed: WorkspaceBootstrap<NoteDocumentData | null>) {
+export function reconcileNoteDocumentSeed(resource: WorkspaceResource<NoteDocumentData | null>, seed: WorkspaceBootstrap<NoteDocumentData | null> & { unavailable?: boolean }) {
   if (!workspaceOwnerIsCurrent(seed.ownerId)) return;
+  if (seed.unavailable) return resource.revalidate({ force: true }).catch(() => undefined);
   if (!workspaceBootstrapIsCurrent(seed)) return resource.revalidate().catch(() => undefined);
   const current = resource.get();
   if (current.data && seed.data) {

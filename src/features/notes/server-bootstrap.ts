@@ -12,5 +12,11 @@ export async function getNotesServerBootstrap() {
 export async function getNoteDocumentBootstrap(noteId: string) {
   const owner = await requireOwner();
   const generatedAt = Date.now();
-  return { ownerId: owner.userId, generatedAt, data: await getNoteDocument(noteId, owner) };
+  try {
+    return { ownerId: owner.userId, generatedAt, data: await getNoteDocument(noteId, owner) };
+  } catch {
+    // Keep a warm document mounted when the server read fails. The client retries
+    // through the owner-guarded API; authentication redirects above are not swallowed.
+    return { ownerId: owner.userId, generatedAt, data: null, unavailable: true as const };
+  }
 }

@@ -12,7 +12,7 @@ import { noteFolderPath } from "@/features/notes/local-search";
 import { useWorkspaceResource, type WorkspaceBootstrap, type WorkspaceResource } from "@/lib/workspace-resource-cache";
 
 type Document = NoteDocumentData | null;
-type Bootstrap = WorkspaceBootstrap<Document>;
+type Bootstrap = WorkspaceBootstrap<Document> & { unavailable?: boolean };
 const NoteDetails = dynamic(() => import("./note-details-loader").then((m) => m.NoteDetailsLoader));
 // SSR has no tab cache: a stable empty snapshot, with no per-request global registry entry.
 const serverResource: WorkspaceResource<Document> = { key: "notes:server-document", get: () => ({}), subscribe: () => () => {}, set: () => {}, mutate: () => {}, invalidate: () => {}, prefetch: async () => undefined, revalidate: async () => null };

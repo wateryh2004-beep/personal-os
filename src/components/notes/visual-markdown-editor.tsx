@@ -5,7 +5,7 @@ import CodeMirror, { ExternalChange, type ReactCodeMirrorRef } from "@uiw/react-
 import { captureEditorPosition, type EditorPosition } from "@/features/notes/editor/continuity";
 import { sourceLineAttributes } from "@/features/notes/editor/source-line-attributes";
 import { documentCharacterCount } from "@/features/notes/editor/document-statistics";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { indentUnit } from "@codemirror/language";
 import { markdown as markdownExtension, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
@@ -38,7 +38,7 @@ import { extractPastedUrl } from "@/features/links/link-url";
 type VisualMarkdownEditorProps = {
   markdown: string;
   /** Changes only for draft recovery, remote reconciliation or an explicit replacement. */
-  contentRevision?: number;
+  contentRevision: number;
   noteId: string;
   onChange: (value: string) => void;
   onEditorReady?: (view: EditorView) => void;
@@ -116,7 +116,7 @@ function safeImageAlt(filename: string) {
 
 export function VisualMarkdownEditor({
   markdown,
-  contentRevision = 0,
+  contentRevision,
   noteId,
   onChange,
   onImageUploadStatus,
@@ -125,6 +125,7 @@ export function VisualMarkdownEditor({
   onEditorReady, onPositionChange, onPositionIntent,
 }: VisualMarkdownEditorProps) {
   const [initialMarkdown] = useState(markdown);
+  const [eventHandlers] = useState(() => new Compartment());
   const appliedContentRevision = useRef(contentRevision);
   const updateRef = useRef<(update: ViewUpdate) => void>(() => {});
   const handleUpdate = useCallback((update: ViewUpdate) => updateRef.current(update), []);
@@ -537,7 +538,14 @@ export function VisualMarkdownEditor({
         autocorrect: "on",
         "data-note-editor": "markdown",
       }),
-      EditorView.domEventHandlers({
+      eventHandlers.of([]),
+    ],
+    [eventHandlers, noteLinkCompletion],
+  );
+
+  useEffect(() => {
+    if (!view) return;
+    view.dispatch({ effects: eventHandlers.reconfigure(EditorView.domEventHandlers({
         wheel: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
         touchstart: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
         pointerdown: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
@@ -586,10 +594,8 @@ export function VisualMarkdownEditor({
           });
           return false;
         },
-      }),
-    ],
-    [insertTitledLink, insertUploadedImage, noteLinkCompletion],
-  );
+      })) });
+  }, [eventHandlers, extensions, insertTitledLink, insertUploadedImage, view]);
 
   const insertTable = () => {
     const currentView = editorRef.current?.view;
