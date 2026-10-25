@@ -126,6 +126,9 @@ export function VisualMarkdownEditor({
     outlineTimerRef.current = setTimeout(() => { outlineTimerRef.current = null; if (currentView.dom.isConnected) refreshOutline(currentView); }, 160);
   }, [refreshOutline]);
   useEffect(() => () => { if (outlineTimerRef.current) clearTimeout(outlineTimerRef.current); }, []);
+  useEffect(() => {
+    if (!outlineOpen && outlineTimerRef.current) { clearTimeout(outlineTimerRef.current); outlineTimerRef.current = null; }
+  }, [outlineOpen]);
 
   // 点面板外部或按 Esc 关闭目录；点工具栏本身（含目录按钮）不触发外部关闭，
   // 关闭/打开交给按钮的 toggle 处理，避免开关行为错乱。

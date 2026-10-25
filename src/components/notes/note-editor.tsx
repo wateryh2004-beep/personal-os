@@ -164,14 +164,15 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
       restoreReadingAnchor(readingPaneRef.current, position.reader ?? position.editor?.viewport ?? { line: 1, offset: 0 });
       readerStart.current = captureReadingAnchor(readingPaneRef.current);
     } else if (!reading && codeMirrorRef.current && position.editor) {
-      const viewport = position.reader ?? position.editor.viewport;
+      const readerMoved = readerStart.current && position.reader && (position.reader.line !== readerStart.current.line || Math.abs(position.reader.offset - readerStart.current.offset) > 2);
+      const viewport = readerMoved ? position.reader! : position.editor.viewport;
       const view = codeMirrorRef.current;
       // Retain the selection when it is still in the paragraph being read; otherwise
       // place the caret at the newly read paragraph, preserving a useful return target.
       const caretLine = view.state.doc.lineAt(Math.min(view.state.doc.length, position.editor.head)).number;
       const caret = view.state.doc.line(Math.min(view.state.doc.lines, Math.max(1, viewport.line))).from;
       restoreEditorPosition(view, { ...position.editor, viewport,
-        ...((readerStart.current && (viewport.line !== readerStart.current.line || Math.abs(viewport.offset - readerStart.current.offset) > 2)) && Math.abs(caretLine - viewport.line) > 2 ? { anchor: caret, head: caret } : {}) });
+        ...(readerMoved && Math.abs(caretLine - viewport.line) > 2 ? { anchor: caret, head: caret } : {}) });
     }
   }, [reading]);
   const [titleUndoStack, setTitleUndoStack] = useState<string[]>([]);
