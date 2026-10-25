@@ -1,3 +1,4 @@
+import { forceParsing, syntaxTreeAvailable } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
 
 export type SourceAnchor = { line: number; offset: number };
@@ -17,6 +18,7 @@ export function captureEditorPosition(view: EditorView): EditorPosition {
 }
 export function restoreEditorPosition(view: EditorView, position: EditorPosition, done: () => void = () => {}, isCurrent: () => boolean = () => true, deferred: () => void = () => {}) {
   let attempts = 0;
+  let stableFrames = 0;
   const available = () => isCurrent() && view.dom.isConnected;
   const measure = () => {
     if (!available()) return;
@@ -28,7 +30,11 @@ export function restoreEditorPosition(view: EditorView, position: EditorPosition
         if (!available()) return;
         const doc = view.state.doc;
         const line = doc.line(Math.max(1, Math.min(doc.lines, position.viewport.line)));
-        if (current.viewport.line === line.number && Math.abs(current.viewport.offset - position.viewport.offset) < 1) { done(); return; }
+        if (current.viewport.line === line.number && Math.abs(current.viewport.offset - position.viewport.offset) < 1 && syntaxTreeAvailable(view.state, line.to)) {
+          if (++stableFrames >= 2) { done(); return; }
+          requestAnimationFrame(measure); return;
+        }
+        stableFrames = 0;
         if (++attempts >= 12) { deferred(); return; }
         if (current.viewport.line === line.number) {
           view.scrollDOM.scrollTop += position.viewport.offset - current.viewport.offset;
@@ -49,6 +55,8 @@ export function restoreEditorPosition(view: EditorView, position: EditorPosition
     if (view.hasFocus) { done(); return; }
     const doc = view.state.doc;
     const line = doc.line(Math.max(1, Math.min(doc.lines, position.viewport.line)));
+    // Finish the target paragraph's syntax before accepting its measured height.
+    forceParsing(view, line.to, 25);
     const snapshot = position.documentLength === doc.length ? position.scrollEffect : undefined;
     view.dispatch({ effects: snapshot ?? EditorView.scrollIntoView(line.from, { y: "start", yMargin: 0 }),
       selection: { anchor: Math.max(0, Math.min(doc.length, position.anchor)), head: Math.max(0, Math.min(doc.length, position.head)) } });

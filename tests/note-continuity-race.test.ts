@@ -57,3 +57,14 @@ it("rejects a restored position after its owner scope has been cleared", async (
   await act(async () => pending.done());
   expect(f.position).toBeUndefined();
 });
+
+
+it("lets an explicit scroll/touch interrupt restoration and keeps the user's new position", async () => {
+  await mount(); const editor = view(); await act(async () => api.onEditorReady(editor));
+  const old = f.completions[0];
+  await act(async () => api.interruptEditorRestore(editor));
+  expect(old.current()).toBe(false);
+  expect(f.position?.editor?.viewport.line).toBe(524);
+  await act(async () => old.done());
+  expect(f.position?.editor?.viewport.line).toBe(524);
+});

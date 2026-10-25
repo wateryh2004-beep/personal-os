@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import CodeMirror, { ExternalChange, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { captureEditorPosition, type EditorPosition } from "@/features/notes/editor/continuity";
 import { sourceLineAttributes } from "@/features/notes/editor/source-line-attributes";
 import { documentCharacterCount } from "@/features/notes/editor/document-statistics";
@@ -9,7 +9,7 @@ import { EditorState } from "@codemirror/state";
 import { indentUnit } from "@codemirror/language";
 import { markdown as markdownExtension, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import { EditorView } from "@codemirror/view";
+import { EditorView, type ViewUpdate } from "@codemirror/view";
 import { startCompletion } from "@codemirror/autocomplete";
 import { GFM } from "@lezer/markdown";
 import { X } from "lucide-react";
@@ -37,14 +37,38 @@ import { extractPastedUrl } from "@/features/links/link-url";
 
 type VisualMarkdownEditorProps = {
   markdown: string;
+  /** Changes only for draft recovery, remote reconciliation or an explicit replacement. */
+  contentRevision?: number;
   noteId: string;
   onChange: (value: string) => void;
   onEditorReady?: (view: EditorView) => void;
+  onPositionIntent?: (view: EditorView) => void;
   onPositionChange?: (position: EditorPosition) => void;
   onImageUploadStatus?: (message: string) => void;
   onOpenAi?: () => void;
   onSelectionChange?: (selection: NoteSelection | null) => void;
 };
+
+const markdownBasicSetup = {
+  lineNumbers: false,
+  highlightActiveLineGutter: false,
+  foldGutter: false,
+  dropCursor: true,
+  allowMultipleSelections: true,
+  indentOnInput: false,
+  bracketMatching: true,
+  closeBrackets: true,
+  autocompletion: false,
+  rectangularSelection: false,
+  crosshairCursor: false,
+  highlightActiveLine: true,
+  highlightSelectionMatches: false,
+  searchKeymap: true,
+  foldKeymap: false,
+  completionKeymap: false,
+  lintKeymap: false,
+  tabSize: 3,
+} as const;
 
 let imageUploadSequence = 0;
 
@@ -92,18 +116,36 @@ function safeImageAlt(filename: string) {
 
 export function VisualMarkdownEditor({
   markdown,
+  contentRevision = 0,
   noteId,
   onChange,
   onImageUploadStatus,
   onOpenAi,
   onSelectionChange,
-  onEditorReady, onPositionChange,
+  onEditorReady, onPositionChange, onPositionIntent,
 }: VisualMarkdownEditorProps) {
+  const [initialMarkdown] = useState(markdown);
+  const appliedContentRevision = useRef(contentRevision);
+  const updateRef = useRef<(update: ViewUpdate) => void>(() => {});
+  const handleUpdate = useCallback((update: ViewUpdate) => updateRef.current(update), []);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const positionMeasureKey = useRef({});
   const changeRef = useRef(onChange);
+  const positionIntentRef = useRef(onPositionIntent);
   const selectionRef = useRef(onSelectionChange);
   const [view, setView] = useState<EditorView | null>(null);
+  // The editor owns keystrokes. React echoes must not enter UIW's delayed value replay.
+  useEffect(() => {
+    if (!view || appliedContentRevision.current === contentRevision) return;
+    appliedContentRevision.current = contentRevision;
+    if (view.state.doc.toString() !== markdown) view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: markdown },
+      annotations: ExternalChange.of(true),
+    });
+  }, [contentRevision, markdown, view]);
+  const handleCodeMirrorChange = useCallback((value: string, update: ViewUpdate) => {
+    if (!update.view.composing) changeRef.current(value);
+  }, []);
   // Toolbar commands only need a fresh version after document changes. Cursor
   // and viewport updates stay inside CodeMirror instead of rerendering React.
   const [stateVersion, setStateVersion] = useState(0);
@@ -230,6 +272,7 @@ export function VisualMarkdownEditor({
   }, [syncStatusCount, syncStatusCursor, view]);
 
   useEffect(() => { changeRef.current = onChange; }, [onChange]);
+  useEffect(() => { positionIntentRef.current = onPositionIntent; }, [onPositionIntent]);
   useEffect(() => { selectionRef.current = onSelectionChange; }, [onSelectionChange]);
   useEffect(() => {
     if (!view) return;
@@ -495,6 +538,9 @@ export function VisualMarkdownEditor({
         "data-note-editor": "markdown",
       }),
       EditorView.domEventHandlers({
+        wheel: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
+        touchstart: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
+        pointerdown: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
         paste(event, currentView) {
           const image = [...(event.clipboardData?.files ?? [])].find((file) =>
             file.type.startsWith("image/"),
@@ -533,7 +579,7 @@ export function VisualMarkdownEditor({
         compositionend(_event, currentView) {
           queueMicrotask(() => {
             if (!currentView.dom.isConnected) return;
-            onChange(currentView.state.doc.toString());
+            changeRef.current(currentView.state.doc.toString());
             if (extractNoteLinkQuery(currentView.state.doc.toString(), currentView.state.selection.main.head))
               startCompletion(currentView);
             centerMobileCursor(currentView);
@@ -542,7 +588,7 @@ export function VisualMarkdownEditor({
         },
       }),
     ],
-    [insertTitledLink, insertUploadedImage, noteLinkCompletion, onChange],
+    [insertTitledLink, insertUploadedImage, noteLinkCompletion],
   );
 
   const insertTable = () => {
@@ -557,6 +603,34 @@ export function VisualMarkdownEditor({
       userEvent: "input",
     });
   };
+
+  useEffect(() => {
+    updateRef.current = (update: ViewUpdate) => {
+      if (update.geometryChanged || update.selectionSet) onEditorReady?.(update.view);
+      if (onPositionChange && (update.selectionSet || update.viewportChanged)) update.view.requestMeasure({
+        key: positionMeasureKey.current,
+        read: (current) => current.scrollDOM.clientHeight > 0 ? captureEditorPosition(current) : null,
+        write: (position) => { if (position) onPositionChange(position); },
+      });
+      if (update.selectionSet || update.viewportChanged || update.geometryChanged)
+        reportSelection(update.view);
+      if (update.docChanged) {
+        setStateVersion((version) => version + 1);
+        syncStatusCount(update.view);
+        if (outlineOpen)
+          queueOutline(update.view);
+      }
+      if (update.selectionSet) syncStatusCursor(update.view);
+      if (
+        outlineOpen &&
+        (update.viewportChanged || update.geometryChanged || update.docChanged || update.selectionSet)
+      )
+        syncOutlineHighlight(update.view);
+      if (update.selectionSet || update.docChanged) {
+        centerMobileCursor(update.view);
+      }
+    };
+  });
 
   return (
     <div className="life-markdown-editor relative">
@@ -574,31 +648,12 @@ export function VisualMarkdownEditor({
       />
       <CodeMirror
         ref={editorRef}
-        value={markdown}
+        value={initialMarkdown}
         theme="none"
         placeholder="开始写作…"
         spellCheck
         className="life-codemirror"
-        basicSetup={{
-          lineNumbers: false,
-          highlightActiveLineGutter: false,
-          foldGutter: false,
-          dropCursor: true,
-          allowMultipleSelections: true,
-          indentOnInput: false,
-          bracketMatching: true,
-          closeBrackets: true,
-          autocompletion: false,
-          rectangularSelection: false,
-          crosshairCursor: false,
-          highlightActiveLine: true,
-          highlightSelectionMatches: false,
-          searchKeymap: true,
-          foldKeymap: false,
-          completionKeymap: false,
-          lintKeymap: false,
-          tabSize: 3,
-        }}
+        basicSetup={markdownBasicSetup}
         indentWithTab={false}
         extensions={extensions}
         onCreateEditor={(createdView) => {
@@ -606,37 +661,8 @@ export function VisualMarkdownEditor({
           setView(createdView);
           setStateVersion((version) => version + 1);
         }}
-        onUpdate={(update) => {
-          if (update.geometryChanged || update.selectionSet) onEditorReady?.(update.view);
-          if (onPositionChange && (update.selectionSet || update.viewportChanged)) update.view.requestMeasure({
-            key: positionMeasureKey.current,
-            read: (current) => current.scrollDOM.clientHeight > 0 ? captureEditorPosition(current) : null,
-            write: (position) => { if (position) onPositionChange(position); },
-          });
-          if (update.selectionSet || update.viewportChanged || update.geometryChanged)
-            reportSelection(update.view);
-          if (update.docChanged) {
-            setStateVersion((version) => version + 1);
-            syncStatusCount(update.view);
-            if (outlineOpen)
-              queueOutline(update.view);
-          }
-          if (update.selectionSet) syncStatusCursor(update.view);
-          if (
-            outlineOpen &&
-            (update.viewportChanged || update.geometryChanged || update.docChanged || update.selectionSet)
-          )
-            syncOutlineHighlight(update.view);
-          if (update.selectionSet || update.docChanged) {
-            centerMobileCursor(update.view);
-          }
-        }}
-        onChange={(value, update) => {
-          if (update.view.composing) {
-            return;
-          }
-          changeRef.current(value);
-        }}
+        onUpdate={handleUpdate}
+        onChange={handleCodeMirrorChange}
       />
       <div ref={statusBarRef} className="life-markdown-statusbar">
         <span data-status="count">0 字 · 0 行</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { WorkspaceIdentityBoundary } from "@/components/layout/workspace-identity-boundary";
 import { NotesWorkspaceShell } from "@/components/notes/notes-workspace-shell";
@@ -20,16 +20,21 @@ function seed(data: NoteDocumentData, delay = 0): Promise<WorkspaceBootstrap<Not
 }
 /** Existing gated synthetic route only. Test runners block all writes; failed-save recovery is intentional. */
 export function NoteContinuityFixture() {
+  const traceRoot = useRef<HTMLDivElement>(null);
+  const traces = useRef<unknown[]>([]);
   const [current, setCurrent] = useState(() => ({ index: 0, bootstrap: seed(continuityDocuments[0]) }));
   const open = (index: number) => {
     const previous = noteDocumentCache.position(continuityDocuments[current.index].note.id)?.editor;
-    performance.mark("continuity-leave", { detail: { index: current.index, viewport: previous?.viewport, anchor: previous?.anchor, head: previous?.head, snapshotFrom: previous?.scrollEffect?.value.range.from } });
+    const detail = { index: current.index, viewport: previous?.viewport, anchor: previous?.anchor, head: previous?.head, snapshotFrom: previous?.scrollEffect?.value.range.from };
+    performance.mark("continuity-leave", { detail });
+    traces.current = [...traces.current, detail].slice(-8);
+    traceRoot.current?.setAttribute("data-leave-positions", JSON.stringify(traces.current));
     performance.mark("continuity-open");
     setCurrent({ index, bootstrap: seed(continuityDocuments[index], 1500) });
   };
   const data = continuityDocuments[current.index];
   return <WorkspaceIdentityBoundary ownerId={ownerId} revision="continuity-1"><AppShell presentationPathname="/notes/10000000-0000-4000-8000-000000000001">
-    <NotesWorkspaceShell documentView folders={[]} notes={continuityDocuments.map(({ note }) => ({ ...note, updated_at: note.updated_at }))}><div className="flex h-full min-h-0 flex-col" data-testid="note-continuity">
+    <NotesWorkspaceShell documentView folders={[]} notes={continuityDocuments.map(({ note }) => ({ ...note, updated_at: note.updated_at }))}><div ref={traceRoot} className="flex h-full min-h-0 flex-col" data-testid="note-continuity">
       <nav aria-label="合成验证控制" className="flex shrink-0 flex-wrap gap-2 border-b px-3 text-xs">
         {[0, 1].map((index) => <button className="pressable min-h-11 px-2" key={index} onClick={() => open(index)}>打开练习 {index + 1}</button>)}
         <button className="pressable min-h-11 px-2" onClick={() => noteDocumentCache.get(data.note.id).set({ ...data, note: { ...data.note, revision: 9, body_markdown: `${data.note.body_markdown}\n\n远端新版本` } })}>模拟远端更新</button>

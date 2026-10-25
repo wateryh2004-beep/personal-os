@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-const fixture = vi.hoisted(() => ({ mounts: 0, unmounts: 0, save: vi.fn(), show: vi.fn(), noop: vi.fn() }));
+const fixture = vi.hoisted(() => ({ mounts: 0, unmounts: 0, save: vi.fn(), show: vi.fn(), noop: vi.fn(), loadDraft: vi.fn() }));
 vi.mock("next/dynamic", () => ({ default: (loader: () => Promise<unknown>) => loader.toString().includes("visual-markdown-editor")
   ? function Editor({ markdown, onChange }: { markdown: string; onChange: (body: string) => void }) {
     useEffect(() => { fixture.mounts++; return () => { fixture.unmounts++; }; }, []);
@@ -15,7 +15,7 @@ vi.mock("@/components/shared/action-feedback", () => ({ useActionFeedback: () =>
 vi.mock("@/components/layout/workspace-panel-provider", () => ({ useWorkspacePanel: () => ({ isOpen: false, open: fixture.noop, close: fixture.noop, toggle: fixture.noop }) }));
 vi.mock("@/features/notes/workspace-resource", () => ({ notesWorkspaceResource: { mutate: fixture.noop, invalidate: fixture.noop } }));
 vi.mock("@/lib/workspace-resource-cache", () => ({ captureWorkspaceScope: () => () => true }));
-vi.mock("@/lib/workspace-session", () => ({ loadWorkspaceSession: () => null, saveWorkspaceSession: vi.fn(), removeWorkspaceSession: vi.fn() }));
+vi.mock("@/lib/workspace-session", () => ({ loadWorkspaceSession: fixture.loadDraft, saveWorkspaceSession: vi.fn(), removeWorkspaceSession: vi.fn() }));
 
 import { NoteEditor } from "@/components/notes/note-editor";
 
@@ -23,6 +23,7 @@ let host: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
   vi.useFakeTimers();
+  fixture.loadDraft.mockReset().mockReturnValue(null);
   fixture.mounts = 0; fixture.unmounts = 0; fixture.save.mockReset().mockRejectedValue(new Error("Synthetic offline"));
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
@@ -114,4 +115,16 @@ it("does not confirm an old save over an already observed newer remote revision"
   expect(fixture.save).toHaveBeenCalledOnce();
   await act(async () => button("阅读").click());
   expect(host.querySelector('[aria-label="笔记正文"]')?.textContent).toContain("尚未保存的新内容");
+});
+
+
+it("does not replay an older recovery checkpoint over current typing on background reconciliation", async () => {
+  await render();
+  fixture.loadDraft.mockReturnValue({ title: "示例笔记", body: "较早的本机检查点", baseRevision: 1 });
+  await act(async () => button("模拟正文输入").click());
+  await render({ revision: 9, body_markdown: "远端新内容" });
+  await act(async () => vi.advanceTimersByTimeAsync(1));
+  await act(async () => button("阅读").click());
+  expect(host.querySelector('[aria-label="笔记正文"]')?.textContent).toContain("尚未保存的新内容");
+  expect(fixture.loadDraft).toHaveBeenCalledOnce();
 });

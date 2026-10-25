@@ -75,12 +75,15 @@ async function viewportAnchor(page) {
       await content.press('Control+End'); await content.press('End');
       const inputStarted = Date.now(); await content.pressSequentially(' synthetic typing continuity', { delay: 12 });
       row.typingMs = Date.now() - inputStarted;
+      await page.waitForTimeout(350);
+      await content.pressSequentially(' continued', { delay: 12 });
       await page.getByRole('button', { name: '模拟远端更新', exact: true }).click();
       await page.getByRole('alert').filter({ hasText: '检测到其他设备修改' }).waitFor();
       await page.waitForTimeout(1000);
       assert.ok(await page.getByRole('alert').filter({ hasText: '检测到其他设备修改' }).isVisible(), 'late failed autosave cannot replace a known revision conflict');
       await mode.getByRole('button', { name: '阅读', exact: true }).click();
-      assert.ok((await page.locator('.note-reading-pane').innerText()).includes('synthetic typing continuity'), 'dirty draft survives background revision');
+      row.readingTail = (await page.locator('.note-reading-pane').innerText()).slice(-180);
+      assert.ok((await page.locator('.note-reading-pane').innerText()).includes('synthetic typing continuity continued'), 'dirty draft survives background revision');
       assert.ok(!(await page.locator('.note-reading-pane').innerText()).includes('远端新版本'), 'dirty draft is not silently overwritten');
       await page.screenshot({ path: `${out}/reading-${width}.png` });
       await page.getByRole('button', { name: '打开笔记详情', exact: true }).click();
@@ -101,6 +104,13 @@ async function viewportAnchor(page) {
     await page.locator('.cm-content').waitFor();
     const mode = page.getByRole('group', { name: '笔记阅读方式' });
     for (let i = 0; i < 3; i++) { await mode.getByRole('button', { name: '阅读', exact: true }).click(); await mode.getByRole('button', { name: '编辑', exact: true }).click(); }
+    await page.getByRole('button', { name: '模拟远端更新', exact: true }).click();
+    await mode.getByRole('button', { name: '阅读', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('.note-reading-pane')?.textContent.includes('远端新版本'));
+    await mode.getByRole('button', { name: '编辑', exact: true }).click();
+    await page.locator('.cm-content').press('Control+End');
+    await page.waitForFunction(() => document.querySelector('.cm-content')?.textContent.includes('远端新版本'));
+    assert.ok((await page.locator('.notes-editor-toolbar [aria-live]').innerText()).includes('已保存'), 'clean external replacement does not become a user edit');
     await page.screenshot({ path: `${out}/normal-motion-desktop.png` });
     const video = page.video(); await context.close(); await video.saveAs(`${out}/flow-normal-desktop.webm`);
     await writeFile(`${out}/evidence.json`, JSON.stringify({ scope: 'Next production build, synthetic 180-section documents; 1500ms delayed route reconciliation, cloud CI Chromium. Typing elapsed includes 12ms artificial delay; not production latency. 200% root text size, not native browser zoom.', evidence }, null, 2));

@@ -41,6 +41,11 @@ export function useNoteContinuity(noteId: string) {
       if (generation.current === lease) running.current = false;
     });
   }, [rememberPosition]);
+  const interruptEditorRestore = useCallback((view: EditorView) => {
+    if (!pending.current) return;
+    generation.current += 1; running.current = false; pending.current = undefined;
+    rememberPosition(captureEditorPosition(view));
+  }, [rememberPosition]);
   const switchReading = useCallback((next: boolean) => {
     if (next === position.current.reading) return;
     if (position.current.reading) rememberReading();
@@ -76,5 +81,5 @@ export function useNoteContinuity(noteId: string) {
     if (view?.dom.isConnected && !position.current.reading && !pending.current) rememberPosition(captureEditorPosition(view));
     generation.current += 1;
   }, [rememberPosition]);
-  return { reading, switchReading, readingPaneRef, rememberReading, rememberPosition, onEditorReady };
+  return { reading, switchReading, readingPaneRef, rememberReading, rememberPosition, onEditorReady, interruptEditorRestore };
 }

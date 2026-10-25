@@ -129,7 +129,10 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
-  const { reading, switchReading, readingPaneRef, rememberReading, rememberPosition, onEditorReady } = useNoteContinuity(note.id);
+  const [bodyRevision, setBodyRevision] = useState(0);
+  const [draftBaseline] = useState(() => ({ title: note.title, body: note.body_markdown }));
+  const replaceBody = useCallback((value: string) => { setBody(value); setBodyRevision((revision) => revision + 1); }, []);
+  const { reading, switchReading, readingPaneRef, rememberReading, rememberPosition, onEditorReady, interruptEditorRestore } = useNoteContinuity(note.id);
   const [titleUndoStack, setTitleUndoStack] = useState<string[]>([]);
   const titleUndoStackRef = useRef<string[]>([]);
   const [state, setState] = useState<SaveState>("已保存");
@@ -173,14 +176,15 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
       return () => window.clearTimeout(timer);
     }
     const timer = window.setTimeout(() => {
-      if (isDirtyRef.current || note.revision <= revisionRef.current) return;
+      if (isDirtyRef.current) { if (note.revision > revisionRef.current) setState("版本冲突"); return; }
+      if (note.revision <= revisionRef.current) return;
       latestContentRef.current = { title: note.title, body: note.body_markdown };
       revisionRef.current = note.revision;
-      setTitle(note.title); setBody(note.body_markdown); setLastSavedAt(note.last_saved_at);
+      setTitle(note.title); replaceBody(note.body_markdown); setLastSavedAt(note.last_saved_at);
       publishNotesNavigatorTitle(note.id, note.title);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [note.id, note.revision, note.title, note.body_markdown, note.last_saved_at]);
+  }, [note.id, note.revision, note.title, note.body_markdown, note.last_saved_at, replaceBody]);
 
   const persistDraft = useCallback((draft: NoteDraftSession) => {
     saveWorkspaceSession<NoteDraftSession>(noteSessionKey, draft, noteDraftRecoveryTtlMs);
@@ -217,7 +221,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
 
   useEffect(() => {
     const draft = loadWorkspaceSession<NoteDraftSession>(noteSessionKey);
-    if (!draft || (draft.title === note.title && draft.body === note.body_markdown)) return;
+    if (!draft || (draft.title === draftBaseline.title && draft.body === draftBaseline.body)) return;
     const timer = window.setTimeout(() => {
       latestContentRef.current = { title: draft.title, body: draft.body };
       if (Number.isInteger(draft.baseRevision) && draft.baseRevision >= 0) {
@@ -225,13 +229,13 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
       }
       setTitle(draft.title);
       publishNotesNavigatorTitle(note.id, draft.title);
-      setBody(draft.body);
+      replaceBody(draft.body);
       isDirtyRef.current = true;
       setState("有未保存修改");
       setEditVersion((version) => version + 1);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [note.body_markdown, note.id, note.title, noteSessionKey]);
+  }, [draftBaseline, note.id, noteSessionKey, replaceBody]);
 
   const save = useCallback(async () => {
     if (saveInFlightRef.current) {
@@ -422,8 +426,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   }, [queueDraft]);
   const handleBodyChange = useCallback((value: string) => {
     setBody(value);
-    dirty(title, value);
-  }, [dirty, title]);
+    dirty(latestContentRef.current.title, value);
+  }, [dirty]);
   // AI 生成标题：直接替换标题，旧标题压栈供撤回（支持连续多次生成逐步撤回）。
   const handleAiReplaceTitle = useCallback((newTitle: string) => {
     const next = newTitle
@@ -436,8 +440,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     setTitleUndoStack([...titleUndoStackRef.current]);
     setTitle(next);
     publishNotesNavigatorTitle(note.id, next);
-    dirty(next, body);
-  }, [body, dirty, note.id, title]);
+    dirty(next, latestContentRef.current.body);
+  }, [dirty, note.id, title]);
   const handleAiUndoTitle = useCallback(() => {
     const stack = titleUndoStackRef.current;
     if (!stack.length) return;
@@ -446,8 +450,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     setTitleUndoStack([...titleUndoStackRef.current]);
     setTitle(prev);
     publishNotesNavigatorTitle(note.id, prev);
-    dirty(prev, body);
-  }, [body, dirty, note.id]);
+    dirty(prev, latestContentRef.current.body);
+  }, [dirty, note.id]);
   const isExporting = Boolean(pdfSnapshot);
   const fullscreenActive = isFullscreen || isFallbackFullscreen;
   useEffect(() => {
@@ -543,7 +547,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
                 setTitleUndoStack([]);
                 setTitle(nextTitle);
                 publishNotesNavigatorTitle(note.id, nextTitle);
-                dirty(nextTitle, body);
+                dirty(nextTitle, latestContentRef.current.body);
               }}
               className="notes-title-input w-full min-w-0 rounded-[var(--radius-sm)] bg-transparent py-1 font-[family-name:var(--font-serif)] text-[28px] font-normal leading-[1.4] tracking-[-0.015em] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] md:text-[32px]"
               placeholder="无标题笔记"
@@ -599,8 +603,10 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         <div hidden={reading} className="notes-document-body min-h-0 flex-1 overflow-hidden bg-[var(--surface-canvas)]">
           <VisualMarkdownEditor
             markdown={body}
+            contentRevision={bodyRevision}
             noteId={note.id}
             onEditorReady={onEditorReady}
+            onPositionIntent={interruptEditorRestore}
             onPositionChange={rememberPosition}
             onImageUploadStatus={handleImageUploadStatus}
             onOpenAi={aiGenerated ? undefined : openAi}
@@ -623,13 +629,13 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         selection={selection}
         onClearSelection={() => setSelection(null)}
         onReplaceNote={(suggestion) => {
-          setBody(suggestion);
+          replaceBody(suggestion);
           dirty(title, suggestion);
         }}
         onReplaceTitle={handleAiReplaceTitle}
         onInsertNote={(suggestion) => {
           const nextBody = `${body}${body.trim() ? "\n\n" : ""}${suggestion}`;
-          setBody(nextBody);
+          replaceBody(nextBody);
           dirty(title, nextBody);
         }}
       /> : null}
