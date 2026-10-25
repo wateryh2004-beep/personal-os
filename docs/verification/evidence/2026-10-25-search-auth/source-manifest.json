@@ -1,0 +1,54 @@
+{
+  "baseline": "606df7596fdad8450aef85a36977c818d3989d4a",
+  "buildId": "oBn_rhlKChnVFaJ83HZOw",
+  "files": [
+    {
+      "path": "src/lib/adapters/supabase-read-recovery.ts",
+      "sha256": "43566ddcd89ab953db7ed6cc907047ffa3e10e76c2ff14d37f64152b1566794e"
+    },
+    {
+      "path": "src/lib/supabase/server.ts",
+      "sha256": "4232c0edcd03827c131af49d7eb33cf034df6bb5106a1c339fa427f433a29753"
+    },
+    {
+      "path": "src/lib/supabase/proxy.ts",
+      "sha256": "9fde5cbb384cb1aed9bad4a9f4694bc352431e1ec9bbe5a5a556486e5c18dbc2"
+    },
+    {
+      "path": "src/app/api/search/route.ts",
+      "sha256": "bc9a9749b83748ff56bf214b29b18b06ac1cf5e01ab453220866f380ecf2230e"
+    },
+    {
+      "path": "src/features/search/queries.ts",
+      "sha256": "d321bb44930b92428b9bffb895405469e6f64565c53cc5c1fbe335cb7dedd42e"
+    },
+    {
+      "path": "scripts/auth-search-http-smoke.mjs",
+      "sha256": "2aa3cbbd1f4609b28e877fbb45b0eb062d78e6af805effc4dd123509a441819f"
+    },
+    {
+      "path": "tests/supabase-session-sdk.test.ts",
+      "sha256": "48ac6d42b4c98be8ac65bd5281928a46bb084bd384e0f9c031a139289a3c1500"
+    },
+    {
+      "path": "tests/search-route-auth.test.ts",
+      "sha256": "f375e9507dc8bbfa388c5c8ffe42730ccbd4e135c3c7fed9614a53bc6dfbcb8e"
+    },
+    {
+      "path": "tests/supabase-read-recovery.test.ts",
+      "sha256": "c464bf56c0a8d4ee2f4aa0bd3d291c5a5379762e4115e4a32aa2f1087f69ff16"
+    },
+    {
+      "path": "tests/auth-refresh-boundary.test.ts",
+      "sha256": "6e85c3ed8ba308a03c4e01d550e6f8a719496103b8d7e6ba04f4df9eeec62dff"
+    },
+    {
+      "path": "tests/fixtures/module-search/regression.sql",
+      "sha256": "d149a9a4febcb65c5e76c038a0a6cffde17da4d143598900e50a6a4f661255bf"
+    },
+    {
+      "path": ".github/workflows/verify.yml",
+      "sha256": "aeede0283ad61824722e3ef990ee267aaf311f243657de40a1779be77eda9d3f"
+    }
+  ]
+}

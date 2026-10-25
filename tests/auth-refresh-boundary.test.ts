@@ -128,4 +128,12 @@ describe("refreshed session preserves owner boundary", () => {
     }
     expect(headers.has(verifiedOwnerIdHeader)).toBe(false);
   });
+  it.each(["owner", "non-owner"])("keeps the %s login response private even without a refresh callback", async state => {
+    mocks.refresh = false;
+    if (state === "owner") mocks.claims = { sub: ownerId, email: "owner@example.com" };
+    const response = await updateSession(spoofedRequest("/login"));
+    expect(response.headers.get("cache-control")).toMatch(/private.*no-store/);
+    if (state === "owner") expect(response.headers.get("location")).toBe("https://personal-os.test/today");
+    else expect(response.cookies.get("sb-test-auth-token")?.maxAge).toBe(0);
+  });
 });

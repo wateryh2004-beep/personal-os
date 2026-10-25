@@ -43,8 +43,12 @@ export function safeRedirectPath(value: string | null | undefined, fallback = "/
   }
 }
 
-function copySessionCookies(from: NextResponse, to: NextResponse) {
+function copySessionState(from: NextResponse, to: NextResponse) {
   from.cookies.getAll().forEach((cookie) => to.cookies.set(cookie));
+  for (const name of ["Cache-Control", "Expires", "Pragma"]) {
+    const value = from.headers.get(name);
+    if (value) to.headers.set(name, value);
+  }
   return to;
 }
 
@@ -58,7 +62,9 @@ function clearSupabaseCookies(request: NextRequest, response: NextResponse) {
 function loginRedirect(request: NextRequest, error?: "configuration" | "not-authorized") {
   const url = new URL("/login", request.url);
   if (error) url.searchParams.set("error", error);
-  return NextResponse.redirect(url);
+  const response = NextResponse.redirect(url);
+  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  return response;
 }
 
 function attachPrivateProxyTiming(
@@ -100,10 +106,13 @@ export async function updateSession(request: NextRequest) {
   }
 
   let response = NextResponse.next({ request: { headers: requestHeaders } });
+  // Any configured auth request can issue or clear session cookies. Keep this
+  // on every response recreation, including authenticated login redirects.
+  response.headers.set("Cache-Control", "private, no-store, max-age=0");
   const supabase = createServerClient(env.supabaseUrl!, env.supabasePublishableKey!, {
     cookies: {
       getAll: () => request.cookies.getAll(),
-      setAll: (items) => {
+      setAll: (items, cacheHeaders = {}) => {
         items.forEach(({ name, value }) => request.cookies.set(name, value));
         // Refresh cookies without restoring browser-supplied identity headers.
         // The downstream request must see both the sanitized headers and the
@@ -111,8 +120,9 @@ export async function updateSession(request: NextRequest) {
         const cookieHeader = request.headers.get("cookie");
         if (cookieHeader) requestHeaders.set("cookie", cookieHeader);
         else requestHeaders.delete("cookie");
-        response = copySessionCookies(response, NextResponse.next({ request: { headers: requestHeaders } }));
+        response = copySessionState(response, NextResponse.next({ request: { headers: requestHeaders } }));
         items.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        Object.entries(cacheHeaders).forEach(([name, value]) => response.headers.set(name, value));
       },
     },
   });
@@ -124,7 +134,7 @@ export async function updateSession(request: NextRequest) {
 
   if (privateAppPath && !isOwner) {
     const redirectResponse = loginRedirect(request, data?.claims.sub ? "not-authorized" : undefined);
-    copySessionCookies(response, redirectResponse);
+    copySessionState(response, redirectResponse);
     const cleared = clearSupabaseCookies(request, redirectResponse);
     return attachPrivateProxyTiming(cleared, proxyStartedAt, authMs);
   }
@@ -135,13 +145,13 @@ export async function updateSession(request: NextRequest) {
     // remote getClaims() calls without weakening the authorization boundary.
     requestHeaders.set(verifiedOwnerIdHeader, data.claims.sub);
     requestHeaders.set(verifiedOwnerEmailHeader, email);
-    response = copySessionCookies(response, NextResponse.next({ request: { headers: requestHeaders } }));
+    response = copySessionState(response, NextResponse.next({ request: { headers: requestHeaders } }));
   }
 
   if (isPublicPath(pathname) && data?.claims.sub) {
     if (isOwner) {
       const redirectResponse = NextResponse.redirect(new URL("/today", request.url));
-      return copySessionCookies(response, redirectResponse);
+      return copySessionState(response, redirectResponse);
     }
     // A non-owner never gets an authenticated login response. The response
     // clears stale session cookies; the next request is fully anonymous. A
@@ -150,7 +160,7 @@ export async function updateSession(request: NextRequest) {
     const headers = new Headers(requestHeaders);
     headers.set("x-personal-os-auth-notice", "not-authorized");
     const unauthorizedLoginResponse = NextResponse.next({ request: { headers } });
-    copySessionCookies(response, unauthorizedLoginResponse);
+    copySessionState(response, unauthorizedLoginResponse);
     return clearSupabaseCookies(request, unauthorizedLoginResponse);
   }
 

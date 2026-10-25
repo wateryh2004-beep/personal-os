@@ -31,6 +31,16 @@
 
 ## RLS 基线
 
+### 搜索协议与受限只读恢复
+
+`/api/search` 使用 `requireOwnerApi()`，再把同一个已验证 owner 交给领域查询；空查询也经过认证。匿名/无效会话返回 JSON 401，非 owner 返回 403，参数错误返回 400，真实服务故障保持 503；全部响应使用 private/no-store，不把页面重定向捕获成服务故障。Data API 持续返回 JWT 验证拒绝（PGRST301/303）时保留 401，不冒充空结果。
+
+服务端客户端按请求创建。对已由 Proxy 验证为 owner 的请求，Data API 出现 PGRST303 时，先对实际发出的同一 JWT 重新验签、检查有效期/相同 user ID/owner 邮箱，并通过 Auth `getUser(jwt)` 核对；成功才允许对同一读取和同一凭据重放一次。并发失败只共享本请求、本客户端的核对 Promise，不跨请求缓存身份。未通过核对、缺少可信桥接或持续失败均保留拒绝。
+
+仅允许 Data API GET 与经过审查、当前函数体只有 SELECT 的 `list_notes_workspace`、`search_personal_os` RPC；未知 RPC、其他 POST、PATCH、DELETE、403/42501、非目标 origin 和非 PGRST303 错误不自动重放。RPC 加入写入或外部副作用前必须移出该允许列表并复核契约，不能以“RPC 使用 POST”或“原来可重试”推导写入重试权限。
+
+刷新令牌仍只由可写回 Cookie 的 Proxy 等认证边界负责；页面渲染中的只读恢复不旋转 refresh token、不使用 service role、不忽略过期/签名检查。Proxy 将刷新后的请求 Cookie、响应 Cookie 以及 SDK 的 Cache-Control/Pragma/Expires 一起传递，重建响应或重定向时不能丢失。实现及实际验证见 [搜索与认证恢复记录](verification/2026-10-25-search-auth-recovery.md)。
+
 每张 `public` 业务表（包括 versions、events、audit、export jobs）启用并强制 RLS。标准策略为：
 
 ```sql

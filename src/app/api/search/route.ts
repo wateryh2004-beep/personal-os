@@ -1,3 +1,31 @@
-import { NextResponse } from "next/server"; import { z } from "zod"; import { apiAuthenticationFailure } from "@/lib/auth/require-owner"; import { searchPersonalOs } from "@/features/search/queries"; import { searchDomains } from "@/features/search/types";
-const schema=z.object({q:z.string().trim().max(200),domains:z.array(z.enum(searchDomains)).optional(),limit:z.coerce.number().int().min(1).max(50).default(30)});
-export async function GET(request:Request){try{const url=new URL(request.url);const parsed=schema.safeParse({q:url.searchParams.get("q")??"",domains:url.searchParams.get("domains")?.split(",").filter(Boolean),limit:url.searchParams.get("limit")??undefined});if(!parsed.success)return NextResponse.json({error:"搜索参数无效。"},{status:400});return NextResponse.json({query:parsed.data.q,results:await searchPersonalOs({query:parsed.data.q,domains:parsed.data.domains,limit:parsed.data.limit})},{headers:{"Cache-Control":"private, no-store"}})}catch(error){return apiAuthenticationFailure(error)??NextResponse.json({error:"搜索暂时不可用。"},{status:503})}}
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-owner";
+import { searchPersonalOs } from "@/features/search/queries";
+import { searchDomains } from "@/features/search/types";
+
+const schema = z.object({
+  q: z.string().trim().max(200),
+  domains: z.array(z.enum(searchDomains)).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(30),
+});
+const headers = { "Cache-Control": "private, no-store, max-age=0" };
+
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const parsed = schema.safeParse({
+      q: url.searchParams.get("q") ?? "",
+      domains: url.searchParams.get("domains")?.split(",").filter(Boolean),
+      limit: url.searchParams.get("limit") ?? undefined,
+    });
+    if (!parsed.success) return NextResponse.json({ error: "搜索参数无效。" }, { status: 400, headers });
+    // Empty searches authenticate too. Page redirects must never be caught
+    // and mislabeled as a temporary outage by this HTTP boundary.
+    const owner = await requireOwnerApi();
+    const results = await searchPersonalOs({ query: parsed.data.q, domains: parsed.data.domains, limit: parsed.data.limit }, owner);
+    return NextResponse.json({ query: parsed.data.q, results }, { headers });
+  } catch (error) {
+    return apiAuthenticationFailure(error) ?? NextResponse.json({ error: "搜索暂时不可用。" }, { status: 503, headers });
+  }
+}

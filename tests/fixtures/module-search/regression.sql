@@ -19,3 +19,12 @@ set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',false);
 do $$ begin if (select count(*) from search_personal_os('共同关键词'))<>3 then raise exception 'parent archival freshness'; end if; end $$;
 reset role;
+
+-- Recovery may replay this RPC only while its body remains read-only.
+begin read only;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
+do $$ begin
+ if (select count(*) from search_personal_os('共同关键词'))<>3 then raise exception 'read-only search result'; end if;
+end $$;
+rollback;
