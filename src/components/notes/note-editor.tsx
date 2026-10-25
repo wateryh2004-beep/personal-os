@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import type { EditorView } from "@codemirror/view";
+import { captureEditorPosition, captureReadingAnchor, restoreEditorPosition, restoreReadingAnchor, type EditorPosition, type SourceAnchor, type NoteContinuity } from "@/features/notes/editor/continuity";
+import { noteDocumentCache } from "@/features/notes/document-resource";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -52,7 +55,7 @@ const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-mar
   ssr: false,
   loading: () => <div aria-label="正在载入编辑器" className="notes-editor-loading min-h-80 bg-[var(--surface-canvas)]" />,
 });
-const NoteAiAssistant = dynamic(() => import("@/components/notes/note-ai-assistant").then((module) => module.NoteAiAssistant), { ssr: false });
+const NoteAiAssistant = dynamic(() => import("@/components/notes/note-assistant-loader").then((module) => module.NoteAssistantLoader), { ssr: false });
 
 type Note = { id: string; title: string; body_markdown: string; revision: number; last_saved_at: string | null; content_origin?: "human" | "ai_generated" };
 type PdfSnapshot = { title: string; body: string };
@@ -122,12 +125,55 @@ async function copyText(value: string) {
   if (!copied) throw new Error("copy_failed");
 }
 
-export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDefaultModel: DeepSeekModelId }) {
+export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false }: { note: Note; noteAiDefaultModel: DeepSeekModelId; loadAiPreferences?: boolean }) {
   const feedback = useActionFeedback();
   const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
-  const [reading, setReading] = useState(false);
+  const [initialContinuity] = useState(() => noteDocumentCache.position(note.id));
+  const [reading, setReading] = useState(initialContinuity?.reading ?? false);
+  const codeMirrorRef = useRef<EditorView | null>(null);
+  const readingPaneRef = useRef<HTMLElement | null>(null);
+  const continuityRef = useRef<NoteContinuity>({ ...initialContinuity, reading: initialContinuity?.reading ?? false });
+  const readerStart = useRef<SourceAnchor | null>(null);
+  const pendingModeRestore = useRef(Boolean(initialContinuity?.reading));
+  const continuityScope = useRef(captureWorkspaceScope());
+  const rememberPosition = useCallback((position: EditorPosition) => {
+    continuityRef.current.editor = position;
+    if (continuityScope.current()) noteDocumentCache.remember(note.id, continuityRef.current);
+  }, [note.id]);
+  const rememberReading = useCallback(() => {
+    if (readingPaneRef.current) continuityRef.current.reader = captureReadingAnchor(readingPaneRef.current);
+    if (continuityScope.current()) noteDocumentCache.remember(note.id, continuityRef.current);
+  }, [note.id]);
+  const switchReading = (next: boolean) => {
+    if (next === reading) return;
+    if (reading) rememberReading();
+    else if (codeMirrorRef.current) rememberPosition(captureEditorPosition(codeMirrorRef.current));
+    if (next && continuityRef.current.editor) continuityRef.current.reader = continuityRef.current.editor.viewport;
+    continuityRef.current.reading = next;
+    pendingModeRestore.current = true;
+    setReading(next);
+    if (continuityScope.current()) noteDocumentCache.remember(note.id, continuityRef.current);
+  };
+  useLayoutEffect(() => {
+    if (!pendingModeRestore.current) return;
+    pendingModeRestore.current = false;
+    const position = continuityRef.current;
+    if (reading && readingPaneRef.current) {
+      restoreReadingAnchor(readingPaneRef.current, position.reader ?? position.editor?.viewport ?? { line: 1, offset: 0 });
+      readerStart.current = captureReadingAnchor(readingPaneRef.current);
+    } else if (!reading && codeMirrorRef.current && position.editor) {
+      const viewport = position.reader ?? position.editor.viewport;
+      const view = codeMirrorRef.current;
+      // Retain the selection when it is still in the paragraph being read; otherwise
+      // place the caret at the newly read paragraph, preserving a useful return target.
+      const caretLine = view.state.doc.lineAt(Math.min(view.state.doc.length, position.editor.head)).number;
+      const caret = view.state.doc.line(Math.min(view.state.doc.lines, Math.max(1, viewport.line))).from;
+      restoreEditorPosition(view, { ...position.editor, viewport,
+        ...((readerStart.current && (viewport.line !== readerStart.current.line || Math.abs(viewport.offset - readerStart.current.offset) > 2)) && Math.abs(caretLine - viewport.line) > 2 ? { anchor: caret, head: caret } : {}) });
+    }
+  }, [reading]);
   const [titleUndoStack, setTitleUndoStack] = useState<string[]>([]);
   const titleUndoStackRef = useRef<string[]>([]);
   const [state, setState] = useState<SaveState>("已保存");
@@ -137,6 +183,9 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isFallbackFullscreen, setIsFallbackFullscreen] = useState(false);
   const noteAiPanel = useWorkspacePanel(`note-ai:${note.id}`);
+  const [aiVisited, setAiVisited] = useState(false);
+  const openAi = useCallback(() => { setAiVisited(true); noteAiPanel.open(); }, [noteAiPanel]);
+  const toggleAi = () => { setAiVisited(true); noteAiPanel.toggle(); };
   const [selection, setSelection] = useState<NoteSelection | null>(null);
   const [contentOrigin, setContentOrigin] = useState(note.content_origin ?? "human");
   const [isChangingContentOrigin, startContentOriginTransition] = useTransition();
@@ -157,6 +206,23 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
   const pendingDraftRef = useRef<NoteDraftSession | null>(null);
   const draftTimerRef = useRef<number | null>(null);
   const noteSessionKey = `notes:draft:${note.id}`;
+
+  useEffect(() => {
+    if (note.revision <= revisionRef.current) return;
+    if (isDirtyRef.current) {
+      // Keep the optimistic revision unchanged so a subsequent save cannot overwrite remote edits.
+      const timer = window.setTimeout(() => setState("版本冲突"), 0);
+      return () => window.clearTimeout(timer);
+    }
+    const timer = window.setTimeout(() => {
+      if (isDirtyRef.current || note.revision <= revisionRef.current) return;
+      latestContentRef.current = { title: note.title, body: note.body_markdown };
+      revisionRef.current = note.revision;
+      setTitle(note.title); setBody(note.body_markdown); setLastSavedAt(note.last_saved_at);
+      publishNotesNavigatorTitle(note.id, note.title);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [note.id, note.revision, note.title, note.body_markdown, note.last_saved_at]);
 
   const persistDraft = useCallback((draft: NoteDraftSession) => {
     saveWorkspaceSession<NoteDraftSession>(noteSessionKey, draft, noteDraftRecoveryTtlMs);
@@ -243,6 +309,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             navigatorNotes: workspace.navigatorNotes.map((row) => row.id === note.id ? { ...row, title: snapshot.title, updated_at: result.lastSavedAt } : row),
           } : workspace);
           notesWorkspaceResource.invalidate();
+          noteDocumentCache.saved(note.id, snapshot, result.revision, result.lastSavedAt);
           revisionRef.current = result.revision;
           setLastSavedAt(result.lastSavedAt);
           perfMark("note-autosave-end", { noteId: note.id, revision: result.revision });
@@ -519,8 +586,8 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
           </div>
           <div className="flex min-h-11 flex-wrap items-center gap-1">
             <div role="group" aria-label="笔记阅读方式" className="mr-auto flex shrink-0 gap-1 md:mr-3">
-              <button type="button" aria-pressed={!reading} onClick={() => setReading(false)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${!reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><PenLine aria-hidden="true" className="hidden size-4 sm:block" />编辑</button>
-              <button type="button" aria-pressed={reading} onClick={() => setReading(true)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><BookOpen aria-hidden="true" className="hidden size-4 sm:block" />阅读</button>
+              <button type="button" aria-pressed={!reading} onClick={() => switchReading(false)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${!reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><PenLine aria-hidden="true" className="hidden size-4 sm:block" />编辑</button>
+              <button type="button" aria-pressed={reading} onClick={() => switchReading(true)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><BookOpen aria-hidden="true" className="hidden size-4 sm:block" />阅读</button>
             </div>
             <span aria-live="polite" title={statusLabel} className={`order-last basis-full pt-1 text-[12px] tabular-nums md:order-none md:mr-auto md:basis-auto md:pt-0 ${saveHasError ? "text-[var(--danger)]" : saveNeedsAttention ? "text-[var(--warning)]" : "text-[var(--text-secondary)]"}`}>
               {statusLabel}
@@ -528,7 +595,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
             <Button variant={state === "已保存" ? "ghost" : "outline"} size="sm" className="max-md:size-11 max-md:px-0" onClick={() => { flushDraft(); void save(); }} aria-label={`立即保存，当前状态：${statusLabel}`} title="立即保存">
               <SaveIcon aria-hidden="true" /><span className="hidden lg:inline">保存</span>
             </Button>
-            <Button variant="ghost" size="sm" className="max-md:size-11 max-md:px-0" disabled={aiGenerated} onClick={noteAiPanel.toggle} aria-label={aiGenerated ? "AI 生成内容不会作为 AI 上下文读取" : "打开笔记 AI"} title="笔记 AI" aria-pressed={noteAiPanel.isOpen}>
+            <Button variant="ghost" size="sm" className="max-md:size-11 max-md:px-0" disabled={aiGenerated} onClick={toggleAi} aria-label={aiGenerated ? "AI 生成内容不会作为 AI 上下文读取" : "打开笔记 AI"} title="笔记 AI" aria-pressed={noteAiPanel.isOpen}>
               <Sparkles aria-hidden="true" /><span className="hidden lg:inline">AI</span>
             </Button>
             <Button ref={fullscreenTriggerRef} variant="ghost" size="sm" className="max-md:size-11 max-md:px-0" onClick={() => void toggleFullscreen()} aria-label={fullscreenActive ? "退出专注" : "进入专注"} title={fullscreenActive ? "退出专注" : "专注编辑"}>
@@ -567,23 +634,27 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
           <VisualMarkdownEditor
             markdown={body}
             noteId={note.id}
+            positionRef={codeMirrorRef}
+            initialPosition={initialContinuity?.editor}
+            onPositionChange={rememberPosition}
             onImageUploadStatus={handleImageUploadStatus}
-            onOpenAi={aiGenerated ? undefined : noteAiPanel.open}
+            onOpenAi={aiGenerated ? undefined : openAi}
             onSelectionChange={setSelection}
             onChange={handleBodyChange}
           />
         </div>
-        {reading ? <div className="notes-document-body min-h-0 flex-1 overflow-hidden"><NoteReadingView body={body} /></div> : null}
+        {reading ? <div className="notes-document-body min-h-0 flex-1 overflow-hidden"><NoteReadingView body={body} paneRef={readingPaneRef} onScroll={rememberReading} /></div> : null}
       </div>
-      <NoteAiAssistant
+      {(!aiGenerated && (aiVisited || noteAiPanel.isOpen || selection)) ? <NoteAiAssistant
         key={note.id}
         open={aiGenerated ? false : noteAiPanel.isOpen}
-        onOpen={noteAiPanel.open}
+        onOpen={openAi}
         onClose={noteAiPanel.close}
         noteId={note.id}
         title={title}
         bodyMarkdown={body}
         defaultModel={noteAiDefaultModel}
+        loadPreferences={loadAiPreferences}
         selection={selection}
         onClearSelection={() => setSelection(null)}
         onReplaceNote={(suggestion) => {
@@ -596,7 +667,7 @@ export function NoteEditor({ note, noteAiDefaultModel }: { note: Note; noteAiDef
           setBody(nextBody);
           dirty(title, nextBody);
         }}
-      />
+      /> : null}
       {pdfSnapshot ? (
         <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-[var(--surface-canvas)] p-12 text-[15px]">
           <h1 className="mb-7 text-3xl font-semibold text-[var(--text-primary)]">{pdfSnapshot.title}</h1>

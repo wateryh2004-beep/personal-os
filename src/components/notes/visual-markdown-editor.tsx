@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import { captureEditorPosition, restoreEditorPosition, type EditorPosition } from "@/features/notes/editor/continuity";
+import { documentCharacterCount } from "@/features/notes/editor/document-statistics";
 import { EditorState } from "@codemirror/state";
 import { indentUnit } from "@codemirror/language";
 import { markdown as markdownExtension, markdownLanguage } from "@codemirror/lang-markdown";
@@ -13,7 +15,7 @@ import { X } from "lucide-react";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import {
   activeHeadingIndexAtLine,
-  parseMarkdownOutline,
+  parseEditorOutline,
   type MarkdownOutlineItem,
 } from "@/features/notes/editor/markdown-outline";
 import { markdownEditorKeymap } from "@/features/notes/editor/markdown-keymap";
@@ -36,6 +38,9 @@ type VisualMarkdownEditorProps = {
   markdown: string;
   noteId: string;
   onChange: (value: string) => void;
+  positionRef?: MutableRefObject<EditorView | null>;
+  initialPosition?: EditorPosition;
+  onPositionChange?: (position: EditorPosition) => void;
   onImageUploadStatus?: (message: string) => void;
   onOpenAi?: () => void;
   onSelectionChange?: (selection: NoteSelection | null) => void;
@@ -92,6 +97,7 @@ export function VisualMarkdownEditor({
   onImageUploadStatus,
   onOpenAi,
   onSelectionChange,
+  positionRef, initialPosition, onPositionChange,
 }: VisualMarkdownEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const changeRef = useRef(onChange);
@@ -108,10 +114,18 @@ export function VisualMarkdownEditor({
   const outlineHeadingsRef = useRef<MarkdownOutlineItem[]>([]);
   const activeOutlineIndexRef = useRef(-1);
   const statusBarRef = useRef<HTMLDivElement>(null);
-  const outlineItems = useMemo(
-    () => (outlineOpen ? parseMarkdownOutline(markdown) : []),
-    [markdown, outlineOpen],
-  );
+  const [outlineItems, setOutlineItems] = useState<MarkdownOutlineItem[]>([]);
+  const outlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshOutline = useCallback((currentView: EditorView) => {
+    const items = parseEditorOutline(currentView.state);
+    outlineHeadingsRef.current = items;
+    setOutlineItems(items);
+  }, []);
+  const queueOutline = useCallback((currentView: EditorView) => {
+    if (outlineTimerRef.current) clearTimeout(outlineTimerRef.current);
+    outlineTimerRef.current = setTimeout(() => { outlineTimerRef.current = null; if (currentView.dom.isConnected) refreshOutline(currentView); }, 160);
+  }, [refreshOutline]);
+  useEffect(() => () => { if (outlineTimerRef.current) clearTimeout(outlineTimerRef.current); }, []);
 
   // 点面板外部或按 Esc 关闭目录；点工具栏本身（含目录按钮）不触发外部关闭，
   // 关闭/打开交给按钮的 toggle 处理，避免开关行为错乱。
@@ -140,7 +154,7 @@ export function VisualMarkdownEditor({
   const jumpToOutlineHeading = useCallback((item: MarkdownOutlineItem) => {
     const currentView = editorRef.current?.view;
     if (!currentView) return;
-    const fresh = parseMarkdownOutline(currentView.state.doc.toString());
+    const fresh = parseEditorOutline(currentView.state);
     const target = fresh.find(
       (heading) =>
         heading.level === item.level &&
@@ -160,7 +174,7 @@ export function VisualMarkdownEditor({
     const slot = statusBarRef.current?.querySelector<HTMLElement>('[data-status="count"]');
     if (!slot) return;
     const doc = currentView.state.doc;
-    const chars = doc.toString().replace(/\s+/g, "").length;
+    const chars = currentView.state.field(documentCharacterCount);
     slot.textContent = `${chars.toLocaleString("zh-CN")} 字 · ${doc.lines} 行`;
   }, []);
 
@@ -199,10 +213,10 @@ export function VisualMarkdownEditor({
     if (!outlineOpen) return;
     const currentView = editorRef.current?.view;
     if (!currentView) return;
-    outlineHeadingsRef.current = parseMarkdownOutline(currentView.state.doc.toString());
+    refreshOutline(currentView);
     activeOutlineIndexRef.current = -1;
     syncOutlineHighlight(currentView);
-  }, [outlineOpen, syncOutlineHighlight]);
+  }, [outlineOpen, refreshOutline, syncOutlineHighlight]);
 
   // 编辑器就绪后同步一次状态栏（onCreateEditor 触发时状态栏 DOM 可能尚未挂载）。
   useEffect(() => {
@@ -466,6 +480,7 @@ export function VisualMarkdownEditor({
       noteLinkDecoration,
       noteLinkCompletion,
       markdownUploadPlaceholder,
+      documentCharacterCount,
       EditorView.cursorScrollMargin.of({ x: 8, y: 32 }),
       EditorView.contentAttributes.of({
         "aria-label": "Markdown 正文编辑器",
@@ -582,17 +597,20 @@ export function VisualMarkdownEditor({
         indentWithTab={false}
         extensions={extensions}
         onCreateEditor={(createdView) => {
+          if (positionRef) positionRef.current = createdView;
+          if (initialPosition) restoreEditorPosition(createdView, initialPosition);
           setView(createdView);
           setStateVersion((version) => version + 1);
         }}
         onUpdate={(update) => {
+          if (update.selectionSet || update.viewportChanged) onPositionChange?.(captureEditorPosition(update.view));
           if (update.selectionSet || update.viewportChanged || update.geometryChanged)
             reportSelection(update.view);
           if (update.docChanged) {
             setStateVersion((version) => version + 1);
             syncStatusCount(update.view);
             if (outlineOpen)
-              outlineHeadingsRef.current = parseMarkdownOutline(update.view.state.doc.toString());
+              queueOutline(update.view);
           }
           if (update.selectionSet) syncStatusCursor(update.view);
           if (

@@ -1,3 +1,5 @@
+import { ensureSyntaxTree } from "@codemirror/language";
+import type { EditorState } from "@codemirror/state";
 import { markdownLanguage } from "@codemirror/lang-markdown";
 
 /**
@@ -35,12 +37,22 @@ function cleanHeadingText(text: string): string {
  */
 export function parseMarkdownOutline(markdown: string): MarkdownOutlineItem[] {
   const tree = markdownLanguage.parser.parse(markdown);
+  return outlineFromTree(tree, (from, to) => markdown.slice(from, to));
+}
+
+/** Reuse CodeMirror's incremental syntax tree; run after input settles, only while open. */
+export function parseEditorOutline(state: EditorState): MarkdownOutlineItem[] {
+  const tree = ensureSyntaxTree(state, state.doc.length, 25);
+  return tree ? outlineFromTree(tree, (from, to) => state.sliceDoc(from, to)) : parseMarkdownOutline(state.doc.toString());
+}
+
+function outlineFromTree(tree: ReturnType<typeof markdownLanguage.parser.parse>, slice: (from: number, to: number) => string): MarkdownOutlineItem[] {
   const items: MarkdownOutlineItem[] = [];
   tree.iterate({
     enter(node) {
       const atx = ATX_RE.exec(node.name);
       if (atx) {
-        const raw = markdown.slice(node.from, node.to).replace(/^\s*#{1,6}\s*/, "");
+        const raw = slice(node.from, node.to).replace(/^\s*#{1,6}\s*/, "");
         items.push({
           level: Number(atx[1]) as MarkdownOutlineItem["level"],
           text: cleanHeadingText(raw),
@@ -50,7 +62,7 @@ export function parseMarkdownOutline(markdown: string): MarkdownOutlineItem[] {
         return false;
       }
       if (node.name === "SetextHeading1" || node.name === "SetextHeading2") {
-        const raw = markdown.slice(node.from, node.to).replace(/\s*\n\s*[=-]+\s*$/, "");
+        const raw = slice(node.from, node.to).replace(/\s*\n\s*[=-]+\s*$/, "");
         items.push({
           level: node.name === "SetextHeading1" ? 1 : 2,
           text: cleanHeadingText(raw),

@@ -22,6 +22,8 @@ export type WorkspaceResource<T> = {
   invalidate: () => void;
   prefetch: () => Promise<T | undefined>;
   revalidate: (options?: { force?: boolean }) => Promise<T>;
+  /** Dynamic families may release an inactive resource and its registry entry. */
+  dispose?: () => boolean;
 };
 
 export class WorkspaceAuthenticationError extends Error {}
@@ -44,7 +46,7 @@ export function createWorkspaceResource<T>(
   key: string,
   fetcher: (signal?: AbortSignal) => Promise<T>,
   staleMs: number,
-  options: { prefetchStrategy?: "network" | "route-owned" } = {},
+  options: { prefetchStrategy?: "network" | "route-owned"; onClear?: () => void } = {},
 ): WorkspaceResource<T> {
   let entry: WorkspaceCacheEntry<T> = {};
   let controller: AbortController | undefined;
@@ -101,12 +103,18 @@ export function createWorkspaceResource<T>(
     invalidate,
     prefetch: options.prefetchStrategy === "route-owned" ? async () => entry.data : () => revalidate(),
     revalidate,
+    dispose: () => {
+      if (listeners.size) return false;
+      detach(); entry = {}; resources.delete(registration);
+      return true;
+    },
   };
-  resources.add({
-    clear: () => { detach(); entry = {}; notify(); },
+  const registration = {
+    clear: () => { detach(); entry = {}; options.onClear?.(); notify(); },
     invalidate,
     refreshActive: () => { if (listeners.size) void revalidate().catch(() => {}); },
-  });
+  };
+  resources.add(registration);
   return resource;
 }
 
@@ -150,12 +158,15 @@ const emptyServerSnapshot = {};
 /** SSR must never observe a browser's module-level in-memory data. */
 export type WorkspaceBootstrap<T> = { ownerId: string; generatedAt: number; data: T };
 
+export function workspaceBootstrapIsCurrent(bootstrap: WorkspaceBootstrap<unknown>) {
+  const age = Date.now() - bootstrap.generatedAt;
+  return ownerScope === bootstrap.ownerId && age >= -60_000 && age <= 45_000;
+}
+
 /** A streamed, owner-checked read can remove the hydration→API waterfall. */
 export function useWorkspaceResource<T>(resource: WorkspaceResource<T>, name: string | null, bootstrap?: WorkspaceBootstrap<T>, deferInitialRead = false) {
   useEffect(() => {
-    if (!bootstrap || ownerScope !== bootstrap.ownerId) return;
-    const age = Date.now() - bootstrap.generatedAt;
-    if (age < -60_000 || age > 45_000) return;
+    if (!bootstrap || !workspaceBootstrapIsCurrent(bootstrap)) return;
     const current = resource.get();
     // Never overwrite a newer mutation, active fetch or another identity.
     if (current.data === undefined && !current.promise) resource.set(bootstrap.data);

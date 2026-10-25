@@ -148,13 +148,14 @@ describe("interaction performance guardrails", () => {
     expect(proxy).toContain("requestHeaders.delete(verifiedOwnerIdHeader)");
     expect(auth).toContain("requestHeaders.get(verifiedOwnerIdHeader)");
     expect(auth).toContain("supabase.auth.getClaims()");
-    expect(noteQueries).toContain("const notePromise = supabase.from");
-    expect(noteQueries).toContain("const versionsPromise = supabase");
-    expect(noteQueries).toContain("const relationsPromise = getNoteLinkRelations");
-    expect(noteQueries).toContain("const [noteResult, versionsResult, relations, attachments] = await Promise.all");
-    expect(notePage).toContain("const dataPromise = getNote(noteId)");
-    expect(notePage).toContain("const foldersPromise = getActiveNoteFolders()");
-    expect(notePage).toContain("const aiPromise = getAiSettings()");
+    const primary = noteQueries.slice(noteQueries.indexOf("export async function getNoteDocument"), noteQueries.indexOf("export async function getNoteDetails"));
+    expect(primary).toContain("await Promise.all");
+    expect(primary).not.toContain('from("note_versions")');
+    expect(primary).not.toContain("getNoteLinkRelations");
+    expect(source("src/features/notes/server-bootstrap.ts")).toContain("getNoteDocument(noteId, owner)");
+    expect(notePage).not.toContain("getActiveNoteFolders");
+    expect(notePage).not.toContain("getAiSettings");
+    expect(notePage).toContain("<NoteRouteDocument");
   });
 
   it("lets authorized workspace shells mount before the data read", () => {

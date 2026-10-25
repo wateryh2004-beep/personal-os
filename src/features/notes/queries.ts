@@ -266,15 +266,16 @@ export async function searchNotesWorkspace(
 }
 
 /** Folder metadata for controls that move an already-authorized note. */
-export async function getActiveNoteFolders() {
-  const { supabase } = await requireOwner();
+export async function getActiveNoteFolders(verifiedOwner?: Owner) {
+  const { supabase, userId } = verifiedOwner ?? await requireOwner();
   const result = await supabase
     .from("note_folders")
-    .select("id,name,parent_id")
+    .select("id,name,parent_id").eq("user_id", userId)
     .is("archived_at", null)
     .order("position")
     .order("name");
 
+  if (result.error && verifiedOwner && !isNotesWorkspaceSchemaMissing(result.error)) throw new Error("note_folders_unavailable");
   if (isNotesWorkspaceSchemaMissing(result.error) || result.error) return [];
   return result.data ?? [];
 }
@@ -293,58 +294,58 @@ async function getNoteAttachments(supabase: Supabase, userId: string, noteId: st
     .eq("user_id", userId).eq("source_type", "note").eq("source_id", noteId)
     .eq("target_type", "document").in("relationship_type", ["attachment", "source"])
     .is("archived_at", null);
-  if (links.error || !links.data?.length) return [];
+  if (links.error) throw new Error("note_attachments_unavailable");
+  if (!links.data?.length) return [];
   const files = await supabase.from("documents")
     .select("id,title,original_filename,mime_type,file_size")
     .eq("user_id", userId).eq("storage_provider", "cloudflare_r2")
     .eq("storage_state", "available").is("archived_at", null)
     .in("id", [...new Set(links.data.map((link) => link.target_id))]);
-  if (files.error) return [];
+  if (files.error) throw new Error("note_attachments_unavailable");
   return (files.data ?? []).map((file) => ({ ...file,
     role: attachmentRole(links.data.find((link) => link.target_id === file.id)?.metadata),
   }));
 }
 
-export async function getNote(id: string) {
+/** Only the current document and the metadata needed to preserve primary-PDF routing. */
+export async function getNoteDocument(id: string, verifiedOwner?: Owner) {
   if (!noteIdSchema.safeParse(id).success) return null;
-  const { supabase, userId } = await requireOwner();
-
-  // Independent reads start together, including owner-scoped file metadata. This removes a
-  // full Vercel ↔ Supabase round-trip from the document-open critical path.
-  const notePromise = supabase.from("notes").select("*").eq("id", id).maybeSingle();
-  const versionsPromise = supabase
-    .from("note_versions")
-    .select("id,version_number,title,body_markdown,reason,created_at")
-    .eq("note_id", id)
-    .order("version_number", { ascending: false });
-  const relationsPromise = getNoteLinkRelations(supabase, id);
-  const attachmentsPromise = getNoteAttachments(supabase, userId, id);
-  const [noteResult, versionsResult, relations, attachments] = await Promise.all([
-    notePromise,
-    versionsPromise,
-    relationsPromise,
-    attachmentsPromise,
+  const { supabase, userId } = verifiedOwner ?? await requireOwner();
+  const [result, attachments] = await Promise.all([
+    supabase.from("notes").select("*").eq("user_id", userId).eq("id", id).maybeSingle(),
+    getNoteAttachments(supabase, userId, id),
   ]);
+  if (result.error) throw new Error("note_document_unavailable");
+  if (!result.data) return null;
+  return { note: { ...result.data, revision: result.data.revision ?? 0, last_saved_at: result.data.last_saved_at ?? null }, attachments };
+}
 
-  if (noteResult.error || !noteResult.data) return null;
-  const note = noteResult.data;
+/** Loaded on inspector intent; snapshot bodies are read only by the restore action. */
+export async function getNoteDetails(id: string, verifiedOwner?: Owner) {
+  if (!noteIdSchema.safeParse(id).success) return null;
+  const owner = verifiedOwner ?? await requireOwner();
+  const { supabase, userId } = owner;
+  const present = await supabase.from("notes").select("id").eq("user_id", userId).eq("id", id).maybeSingle();
+  if (present.error) throw new Error("note_details_unavailable");
+  if (!present.data) return null;
+  const [versionsResult, relations, folders] = await Promise.all([
+    supabase.from("note_versions").select("id,version_number,reason,created_at").eq("note_id", id).order("version_number", { ascending: false }).limit(6),
+    getNoteLinkRelations(supabase, id),
+    getActiveNoteFolders(owner),
+  ]);
   const versions = isNotesWorkspaceSchemaMissing(versionsResult.error)
-    ? await supabase
-      .from("note_versions")
-      .select("id,version_number,title,body_markdown,created_at")
-      .eq("note_id", id)
-      .order("version_number", { ascending: false })
+    ? await supabase.from("note_versions").select("id,version_number,created_at").eq("note_id", id).order("version_number", { ascending: false }).limit(6)
     : versionsResult;
-  const linksUnavailable = relations.unavailable;
+  if (versions.error && !isNotesWorkspaceSchemaMissing(versions.error)) throw new Error("note_versions_unavailable");
   return {
-    note: { ...note, revision: note.revision ?? 0, last_saved_at: note.last_saved_at ?? null },
     versions: (versions.data ?? []).map((version) => ({ ...version, reason: (version as { reason?: string }).reason ?? "initial" })),
-    links: relations.referenced,
-    backlinks: relations.backlinks,
-    attachments,
-    state: isNotesWorkspaceSchemaMissing(versionsResult.error) || linksUnavailable ? "base" as const : "ready" as const,
+    links: relations.referenced, backlinks: relations.backlinks, folders,
+    state: isNotesWorkspaceSchemaMissing(versionsResult.error) || relations.unavailable ? "base" as const : "ready" as const,
   };
 }
+
+export type NoteDocumentData = NonNullable<Awaited<ReturnType<typeof getNoteDocument>>>;
+export type NoteDetailsData = NonNullable<Awaited<ReturnType<typeof getNoteDetails>>>;
 
 export async function getTrashedNotes() {
   const { supabase } = await requireOwner();
