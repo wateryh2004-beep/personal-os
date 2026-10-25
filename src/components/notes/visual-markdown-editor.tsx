@@ -606,7 +606,7 @@ export function VisualMarkdownEditor({
           setStateVersion((version) => version + 1);
         }}
         onUpdate={(update) => {
-          if (update.selectionSet || update.viewportChanged) onPositionChange?.(captureEditorPosition(update.view));
+          if ((update.selectionSet || update.viewportChanged) && update.view.scrollDOM.clientHeight > 0) onPositionChange?.(captureEditorPosition(update.view));
           if (update.selectionSet || update.viewportChanged || update.geometryChanged)
             reportSelection(update.view);
           if (update.docChanged) {

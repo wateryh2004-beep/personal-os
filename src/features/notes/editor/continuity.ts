@@ -12,7 +12,7 @@ export function captureEditorPosition(view: EditorView): EditorPosition {
 export function restoreEditorPosition(view: EditorView, position: EditorPosition) {
   const doc = view.state.doc;
   const line = doc.line(Math.max(1, Math.min(doc.lines, position.viewport.line)));
-  view.dispatch({ selection: { anchor: Math.min(doc.length, position.anchor), head: Math.min(doc.length, position.head) } });
+  view.dispatch({ selection: { anchor: Math.max(0, Math.min(doc.length, position.anchor)), head: Math.max(0, Math.min(doc.length, position.head)) } });
   view.requestMeasure({ read: (current) => current.lineBlockAt(line.from).top, write: (top, current) => {
     current.scrollDOM.scrollTop = top + position.viewport.offset;
     current.scrollDOM.scrollLeft = position.scrollLeft;

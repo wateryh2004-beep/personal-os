@@ -139,6 +139,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const pendingModeRestore = useRef(Boolean(initialContinuity?.reading));
   const continuityScope = useRef(captureWorkspaceScope());
   const rememberPosition = useCallback((position: EditorPosition) => {
+    if (continuityRef.current.reading) return;
     continuityRef.current.editor = position;
     if (continuityScope.current()) noteDocumentCache.remember(note.id, continuityRef.current);
   }, [note.id]);

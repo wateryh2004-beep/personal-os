@@ -31,6 +31,7 @@ const out = 'test-results/notes-continuity';
       assert.ok(!row.requests.some(p => /\/details$|\/ai\/preferences/.test(p)), 'closed inspector and AI do not read data');
       // Move into the long document using actual keyboard input, no view replacement.
       await content.press('Control+End'); await content.press('ArrowUp');
+      await page.waitForTimeout(250); // CodeMirror completes its measured keyboard scroll before the baseline.
       const before = await page.locator('.cm-scroller').evaluate(el => el.scrollTop);
       assert.ok(before > 1000, 'long document is scrolled');
       await mode.getByRole('button', { name: '阅读', exact: true }).click();
