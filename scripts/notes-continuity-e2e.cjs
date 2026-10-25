@@ -57,9 +57,18 @@ async function viewportAnchor(page) {
       for (let sample = 0; sample < 3; sample++) {
         const wanted = sample % 2 ? '2' : '1';
         await page.getByRole('button', { name: `打开练习 ${wanted}`, exact: true }).click();
-        await page.waitForFunction(value => document.querySelector('[aria-label="笔记标题"]')?.value.includes(value), wanted);
+        await page.waitForFunction(value => {
+          const title = document.querySelector('[aria-label="笔记标题"]');
+          const pane = document.querySelector('.cm-scroller');
+          if (!title?.value.includes(value) || !pane || pane.clientHeight <= 0) return false;
+          const bounds = pane.getBoundingClientRect();
+          return [...pane.querySelectorAll('.cm-content[contenteditable=true] .cm-line')].some(line => {
+            const rect = line.getBoundingClientRect();
+            return line.textContent.trim().length > 0 && rect.bottom > bounds.top && rect.top < bounds.bottom;
+          });
+        }, wanted);
         const duration = await page.evaluate(() => performance.now() - performance.getEntriesByName('continuity-open').at(-1).startTime);
-        row.samples.push(duration); assert.ok(duration <= 200, `warm body restored within budget: ${duration}`);
+        row.samples.push(duration); assert.ok(duration <= 200, `warm visible body restored within budget: ${duration}`);
       }
       await content.waitFor({ state: 'visible' }); await page.waitForTimeout(250);
       const warmTop = await page.locator('.cm-scroller').evaluate(el => el.scrollTop);
@@ -113,7 +122,7 @@ async function viewportAnchor(page) {
     assert.ok((await page.locator('.notes-editor-toolbar [aria-live]').innerText()).includes('已保存'), 'clean external replacement does not become a user edit');
     await page.screenshot({ path: `${out}/normal-motion-desktop.png` });
     const video = page.video(); await context.close(); await video.saveAs(`${out}/flow-normal-desktop.webm`);
-    await writeFile(`${out}/evidence.json`, JSON.stringify({ scope: 'Next production build, synthetic 180-section documents; 1500ms delayed route reconciliation, cloud CI Chromium. Typing elapsed includes 12ms artificial delay; not production latency. 200% root text size, not native browser zoom.', evidence }, null, 2));
+    await writeFile(`${out}/evidence.json`, JSON.stringify({ scope: 'Next production build, synthetic 180-section documents; 1500ms delayed route reconciliation, cloud CI Chromium. Warm timing ends only when the matching title and a non-empty editable source line are actually visible. Typing elapsed includes 12ms artificial delay; not production latency. 200% root text size, not native browser zoom.', evidence }, null, 2));
     console.log('PASS: note body cache, paragraph continuity, draft/conflict, long typing, lazy reads, 360/390/768/1440 screenshots, motion and text-zoom evidence');
   } catch (error) {
     await activePage?.screenshot({ path: `${out}/failure.png` }).catch(() => {});
