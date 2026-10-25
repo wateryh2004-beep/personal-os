@@ -202,6 +202,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   }, []);
   const latestContentRef = useRef({ title: note.title, body: note.body_markdown });
   const revisionRef = useRef(note.revision);
+  const knownRemoteRevisionRef = useRef(note.revision);
   const saveInFlightRef = useRef<Promise<void> | null>(null);
   const saveQueuedRef = useRef(false);
   const isDirtyRef = useRef(false);
@@ -210,6 +211,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const noteSessionKey = `notes:draft:${note.id}`;
 
   useEffect(() => {
+    knownRemoteRevisionRef.current = Math.max(knownRemoteRevisionRef.current, note.revision);
     if (note.revision <= revisionRef.current) return;
     if (isDirtyRef.current) {
       // Keep the optimistic revision unchanged so a subsequent save cannot overwrite remote edits.
@@ -283,6 +285,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
       return saveInFlightRef.current;
     }
     if (!isDirtyRef.current) return;
+    if (knownRemoteRevisionRef.current > revisionRef.current) { flushDraft(); setState("版本冲突"); return; }
     const scopeIsCurrent = captureWorkspaceScope();
 
     const operation = (async () => {
@@ -305,6 +308,13 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
             flushDraft();
             setState("版本冲突");
             return;
+          }
+          if (result.revision < knownRemoteRevisionRef.current) {
+            revisionRef.current = result.revision;
+            isDirtyRef.current = true;
+            const latest = latestContentRef.current;
+            pendingDraftRef.current = { ...latest, baseRevision: result.revision };
+            flushDraft(); setState("版本冲突"); return;
           }
           notesWorkspaceResource.mutate((workspace) => workspace ? { ...workspace,
             notes: workspace.notes.map((row) => row.id === note.id ? { ...row, title: snapshot.title, updated_at: result.lastSavedAt } : row),
@@ -333,7 +343,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
           isDirtyRef.current = true;
           pendingDraftRef.current = { title: latest.title, body: latest.body, baseRevision: revisionRef.current };
           flushDraft();
-          setState("保存失败");
+          setState(knownRemoteRevisionRef.current > revisionRef.current ? "版本冲突" : "保存失败");
           return;
         }
       } while (saveQueuedRef.current && isDirtyRef.current);

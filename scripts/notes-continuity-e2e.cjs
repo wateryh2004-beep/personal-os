@@ -63,6 +63,8 @@ const out = 'test-results/notes-continuity';
       row.typingMs = Date.now() - inputStarted;
       await page.getByRole('button', { name: '模拟远端更新', exact: true }).click();
       await page.getByRole('alert').filter({ hasText: '检测到其他设备修改' }).waitFor();
+      await page.waitForTimeout(1000);
+      assert.ok(await page.getByRole('alert').filter({ hasText: '检测到其他设备修改' }).isVisible(), 'late failed autosave cannot replace a known revision conflict');
       await mode.getByRole('button', { name: '阅读', exact: true }).click();
       assert.ok((await page.locator('.note-reading-pane').innerText()).includes('synthetic typing continuity'), 'dirty draft survives background revision');
       assert.ok(!(await page.locator('.note-reading-pane').innerText()).includes('远端新版本'), 'dirty draft is not silently overwritten');

@@ -29,6 +29,7 @@ export function captureReadingAnchor(pane: HTMLElement): SourceAnchor {
   return anchor;
 }
 export function restoreReadingAnchor(pane: HTMLElement, anchor: SourceAnchor) {
+  if (anchor.line <= 1 && anchor.offset <= 0) { pane.scrollTop = 0; return; }
   let target: HTMLElement | undefined;
   for (const node of pane.querySelectorAll<HTMLElement>("[data-source-line]")) {
     if (Number(node.dataset.sourceLine) > anchor.line) break;
