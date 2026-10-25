@@ -5,6 +5,7 @@ import { noteSearchMatchRanges } from "./local-search";
 const noteListItemSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
+  mutation_revision: z.number().int().nonnegative().optional(),
   // Always null from the RPC listing (browsing shows no snippet); search and
   // the fallback listing populate it via excerptFromMarkdown.
   excerpt: z.string().nullable(),
@@ -18,6 +19,7 @@ const noteListItemSchema = z.object({
 const fallbackNoteSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
+  mutation_revision: z.number().int().nonnegative().optional(),
   body_markdown: z.string(),
   updated_at: z.string(),
   pinned_at: z.string().nullable(),
@@ -70,6 +72,7 @@ export function parseNoteListItems(input: unknown): NoteListItem[] {
   return z.array(noteListItemSchema).parse(input).map((note) => ({
     id: note.id,
     title: note.title,
+    ...(note.mutation_revision !== undefined ? { mutation_revision: note.mutation_revision } : {}),
     excerpt: note.excerpt,
     updated_at: note.updated_at,
     pinned_at: note.pinned_at,
@@ -88,6 +91,7 @@ export function parseFallbackNoteListItems(input: unknown, query?: string): Note
   return z.array(fallbackNoteSchema).parse(input).map((note) => ({
     id: note.id,
     title: note.title,
+    ...(note.mutation_revision !== undefined ? { mutation_revision: note.mutation_revision } : {}),
     excerpt: query ? searchExcerptFromMarkdown(note.body_markdown, query) : excerptFromMarkdown(note.body_markdown),
     updated_at: note.updated_at,
     pinned_at: note.pinned_at,

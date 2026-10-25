@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import "./file-pdf-preview.css";
+import { useWorkbenchActive } from "@/components/workbench/workbench-activity";
 import { getReadingProgress, saveReadingProgress } from "@/features/files/reading-progress-actions";
 import { createReadingProgressQueue, type ReadingProgress } from "@/features/files/reading-progress";
 import type { OnProgressParameters, PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, RenderTask } from "unpdf/pdfjs";
@@ -21,24 +23,46 @@ function preflightMessage(status: number) {
 }
 
 /** A keyed session prevents old document loads from painting a newer selection. */
-export function FilePdfPreview(props: { documentId: string; title: string }) {
-  return <PdfPreviewSession key={props.documentId} {...props} />;
+type PdfPreviewProps = { documentId: string; title: string; embedded?: boolean; active?: boolean; persistProgress?: boolean; initialPage?: number; initialSourceVersion?: string; onPageChange?: (page: number, sourceVersion: string | null) => void };
+export function FilePdfPreview(props: PdfPreviewProps) {
+  const paneActive = useWorkbenchActive();
+  const [resume, setResume] = useState(() => ({ id: props.documentId, page: props.initialPage, source: props.initialSourceVersion }));
+  const active = paneActive && (props.active ?? true);
+  const remember = (page: number, source: string | null) => {
+    setResume({ id: props.documentId, page, source: source ?? undefined });
+    props.onPageChange?.(page, source);
+  };
+  const current = resume.id === props.documentId ? resume : { id: props.documentId, page: props.initialPage, source: props.initialSourceVersion };
+  const page = current.page && Number.isInteger(current.page) && current.page >= 1 && current.page <= maxInlinePdfPages ? current.page : undefined;
+  // The boxless wrapper retains only this document's numeric reading metadata.
+  // The heavy session/proxy still fully unmounts while its pane is inactive.
+  return <div className="contents" data-pdf-document-id={current.id} data-pdf-source-version={current.source} data-pdf-page={page}>
+    {active ? <PdfPreviewSession key={props.documentId} {...props} active initialPage={current.page} initialSourceVersion={current.source} onPageChange={remember} /> : <p className="p-4 text-sm text-[var(--text-secondary)]">返回此区域后继续阅读 PDF。</p>}
+  </div>;
 }
 
-function PdfPreviewSession({ documentId, title }: { documentId: string; title: string }) {
+function PdfPreviewSession({ documentId, title, embedded = false, active: paneActive = true, persistProgress = true, initialPage: restoredPage, initialSourceVersion, onPageChange }: PdfPreviewProps) {
   const url = `/api/files/${documentId}/preview`;
+  const [initialRestore] = useState(() => ({ page: restoredPage, source: initialSourceVersion }));
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState("");
   const [nativeAvailable, setNativeAvailable] = useState(false);
-  const [pageNumber, setPageNumber] = useState(1);
+  const [pageNumber, setPageNumber] = useState(restoredPage ?? 1);
+  const resumePage = useRef(1);
+  const previousSource = useRef<string | null>(null);
+  const [sourceVersion, setSourceVersion] = useState<string | null>(null);
+  const onPageRef = useRef(onPageChange);
+  useEffect(() => { onPageRef.current = onPageChange; }, [onPageChange]);
   const [readingMessage, setReadingMessage] = useState("");
   const [conflict, setConflict] = useState<ReadingProgress | null>(null);
   const progressQueue = useRef<ReturnType<typeof createReadingProgressQueue> | null>(null);
   const initialPage = useRef(1);
   const userNavigated = useRef(false);
   const onRendered = useCallback((page: number) => {
-    if (userNavigated.current) progressQueue.current?.record(page);
-  }, []);
+    resumePage.current = page;
+    onPageRef.current?.(page, previousSource.current);
+    if (persistProgress && userNavigated.current) progressQueue.current?.record(page);
+  }, [persistProgress]);
   const navigate = (page: number) => { userNavigated.current = true; setPageNumber(page); };
   const [zoom, setZoom] = useState(1);
   const [width, setWidth] = useState(640);
@@ -56,6 +80,7 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
   }, [destroy]);
 
   useEffect(() => {
+    if (!paneActive) return;
     let active = true;
     const controller = new AbortController();
     const timer = setTimeout(() => {
@@ -71,6 +96,12 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
         if (!response.ok) { fail(preflightMessage(response.status)); return; }
         setNativeAvailable(true);
         const sourceVersion = response.headers.get("X-Reading-Source-Version");
+        if (!sourceVersion || previousSource.current !== sourceVersion) {
+          resumePage.current = sourceVersion && sourceVersion === initialRestore.source ? initialRestore.page ?? 1 : 1;
+        }
+        if (initialRestore.page && initialRestore.page > 1 && sourceVersion !== initialRestore.source) setReadingMessage("原文件版本已变化，已从第一页开始");
+        previousSource.current = sourceVersion;
+        setSourceVersion(sourceVersion);
         const size = Number(response.headers.get("content-length"));
         if (response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/pdf" ||
             !Number.isSafeInteger(size) || size < 8) { fail(fallbackMessage); return; }
@@ -101,12 +132,12 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
           return;
         }
         // Old deployments remain readable without pretending progress was saved.
-        const snapshot = sourceVersion ? await getReadingProgress(documentId) : null;
+        const snapshot = persistProgress && sourceVersion ? await getReadingProgress(documentId).catch(() => null) : null;
         if (!active) return;
         if (snapshot && snapshot.sourceVersion === sourceVersion &&
             (!snapshot.progress || snapshot.progress.totalPages === document.numPages)) {
           const saved = snapshot.progress;
-          initialPage.current = saved?.page ?? 1;
+          initialPage.current = Math.min(document.numPages, resumePage.current > 1 ? resumePage.current : saved?.page ?? 1);
           setPageNumber(initialPage.current);
           if (saved && saved.page > 1) setReadingMessage(`已接续第 ${saved.page} 页`);
           progressQueue.current = createReadingProgressQueue({
@@ -119,7 +150,11 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
               else setReadingMessage(result.status === "source_changed" ? "原文件已变化，请重新打开后继续" : "阅读进度暂未同步，请重新打开后重试");
             },
           });
-        } else setReadingMessage("阅读进度暂不可用；本次仍可阅读");
+        } else {
+          setPageNumber(Math.min(document.numPages, resumePage.current));
+          if (persistProgress) setReadingMessage("阅读进度暂不可用；本次仍可阅读");
+        }
+        setError("");
         setPdf(document);
       } catch (error) {
         if (active) fail(error instanceof Error && error.name === "PasswordException"
@@ -132,7 +167,18 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
       controller.abort();
       destroy();
     };
-  }, [url, documentId, destroy, fail]);
+  }, [url, documentId, destroy, fail, paneActive, persistProgress, initialRestore]);
+
+  useEffect(() => {
+    const restore = (event: Event) => {
+      if (!(event instanceof CustomEvent) || event.detail?.documentId !== documentId || !pdf) return;
+      const page = event.detail.page;
+      if (!sourceVersion || event.detail.sourceVersion !== sourceVersion || !Number.isInteger(page) || page < 1 || page > pdf.numPages) return;
+      userNavigated.current = false; resumePage.current = page; setPageNumber(page);
+    };
+    window.addEventListener("personal-os:restore-pdf-position", restore);
+    return () => window.removeEventListener("personal-os:restore-pdf-position", restore);
+  }, [documentId, pdf, sourceVersion]);
 
   useEffect(() => {
     const element = container.current;
@@ -151,7 +197,8 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
     return () => observer.disconnect();
   }, []);
 
-  return <div className="min-w-0 space-y-2">
+  if (!paneActive) return <p className="p-4 text-sm text-[var(--text-secondary)]">返回此区域后继续阅读 PDF。</p>;
+  return <div data-pdf-document-id={documentId} data-pdf-source-version={sourceVersion ?? undefined} data-embedded={embedded || undefined} className={`file-pdf-preview min-w-0 ${embedded ? "" : "space-y-2"}`}>
     {pdf ? <div className="flex flex-wrap items-center gap-1 text-[12px]" aria-label="PDF 阅读控制">
       <button type="button" className={buttonClass} disabled={pageNumber <= 1} onClick={() => navigate(Math.max(1, pageNumber - 1))}>上一页</button>
       <span className="px-1 tabular-nums" aria-live="polite">第 {pageNumber} / {pdf.numPages} 页</span>
@@ -175,7 +222,7 @@ function PdfPreviewSession({ documentId, title }: { documentId: string; title: s
         }}>以本页继续</button>
       </> : pageNumber > 1 ? <button type="button" className={buttonClass} onClick={() => navigate(1)}>从头阅读</button> : null}
     </div> : null}
-    <div ref={container} className="max-h-[60dvh] min-h-64 overflow-auto rounded-[10px] border border-[var(--separator)] bg-[var(--surface-control)] p-3">
+    <div ref={container} className="file-pdf-viewport max-h-[60dvh] min-h-64 overflow-auto rounded-[10px] border border-[var(--separator)] bg-[var(--surface-control)] p-3">
       {error ? <p role="alert" className="text-[12px] leading-5">{error}</p> : pdf ?
         <PdfCanvasPage key={`${pageNumber}:${zoom}:${width}`} pdf={pdf} pageNumber={pageNumber} title={title} width={width * zoom} onFailure={fail} onRendered={onRendered} /> :
         <p role="status" className="flex min-h-56 items-center justify-center text-[13px] text-[var(--text-secondary)]">正在准备 PDF 预览…</p>}

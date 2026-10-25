@@ -43,7 +43,9 @@ describe("interaction continuity contracts", () => {
   it("uses optimistic archive with truthful uncertain-write feedback for files", () => {
     const files = source("src/components/files/files-workspace.tsx");
     expect(files).toContain("setArchivedRows");
-    expect(files).toContain('result?.warning ?? "文件已归档"');
+    expect(files).toContain('if(result.receiptId)publishOperationReceipt');
+    expect(files).toContain('readWorkbenchReceiptState(receiptId)');
+    expect(files).toContain('if(!scopeCurrent())return');
     expect(files).toContain("归档结果未确认，请刷新后检查文件状态");
     expect(files).not.toContain("归档失败，文件仍保留在原位置");
   });

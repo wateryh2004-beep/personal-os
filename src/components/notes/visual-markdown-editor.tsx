@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useWorkbenchActive } from "@/components/workbench/workbench-activity";
 import CodeMirror, { ExternalChange, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { captureEditorPosition, type EditorPosition } from "@/features/notes/editor/continuity";
 import { sourceLineAttributes } from "@/features/notes/editor/source-line-attributes";
@@ -124,6 +125,7 @@ export function VisualMarkdownEditor({
   onSelectionChange,
   onEditorReady, onPositionChange, onPositionIntent,
 }: VisualMarkdownEditorProps) {
+  const paneActive = useWorkbenchActive();
   const [initialMarkdown] = useState(markdown);
   const [eventHandlers] = useState(() => new Compartment());
   const appliedContentRevision = useRef(contentRevision);
@@ -263,7 +265,7 @@ export function VisualMarkdownEditor({
   useEffect(() => { positionIntentRef.current = onPositionIntent; }, [onPositionIntent]);
   useEffect(() => { selectionRef.current = onSelectionChange; }, [onSelectionChange]);
   useEffect(() => {
-    if (!view) return;
+    if (!view || !paneActive) return;
     const visualViewport = window.visualViewport;
     const handleViewportResize = () => {
       view.requestMeasure();
@@ -271,7 +273,7 @@ export function VisualMarkdownEditor({
     };
     visualViewport?.addEventListener("resize", handleViewportResize);
     return () => visualViewport?.removeEventListener("resize", handleViewportResize);
-  }, [view]);
+  }, [view, paneActive]);
 
   const reportSelection = (currentView: EditorView) => {
     if (currentView.composing) return;
@@ -599,6 +601,7 @@ export function VisualMarkdownEditor({
 
   useEffect(() => {
     updateRef.current = (update: ViewUpdate) => {
+      if (!paneActive) return;
       if (update.geometryChanged || update.selectionSet) onEditorReady?.(update.view);
       if (onPositionChange && (update.selectionSet || update.viewportChanged)) update.view.requestMeasure({
         key: positionMeasureKey.current,

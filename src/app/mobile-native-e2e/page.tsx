@@ -1,3 +1,5 @@
+import { LifeWorkbenchFixture } from "@/components/testing/life-workbench-fixture";
+import { WorkbenchFixture } from "@/components/testing/workbench-fixture";
 import { notesBootstrapFixture } from "@/components/testing/notes-bootstrap-data";
 import { NotesBootstrapFixture } from "@/components/testing/notes-bootstrap-fixture";
 import { R2StorageSettings } from "@/components/settings/r2-storage-settings";
@@ -23,6 +25,9 @@ export const dynamic = "force-dynamic";
 export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string; item?: string }> }) {
   if (process.env.E2E_MOBILE_HARNESS !== "1") notFound();
   const { scene, workspace, mode, item, delay: rawDelay } = await searchParams;
+  if (scene === "life-workbench") return <LifeWorkbenchFixture workspace={workspace} />;
+  if (scene === "workbench-pdf") return <WorkbenchFixture pdf />;
+  if (scene === "workbench") return <WorkbenchFixture />;
   if (scene === "note-continuity") return <NoteContinuityFixture />;
   if (scene === "workspace-motion") return <WorkspaceMotionFixture />;
   if (scene === "notes-bootstrap") {

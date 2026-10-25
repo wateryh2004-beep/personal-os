@@ -17,5 +17,5 @@ export function WorkspaceIdentityBoundary({ ownerId, revision, children }: { own
     window.addEventListener("personal-os:workspace-auth-failed", leave);
     return () => window.removeEventListener("personal-os:workspace-auth-failed", leave);
   }, []);
-  return readyOwner === ownerId ? children : <div aria-busy="true" aria-label="正在打开工作区" className="min-h-[100dvh] bg-[var(--surface-canvas)]" />;
+  return readyOwner === ownerId ? <div key={ownerId} className="contents">{children}</div> : <div aria-busy="true" aria-label="正在打开工作区" className="min-h-[100dvh] bg-[var(--surface-canvas)]" />;
 }

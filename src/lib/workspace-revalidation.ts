@@ -8,7 +8,7 @@ export const workspaceRevisionCookie = "personal-os-workspace-revision";
  * This is an opaque cache revision, never an authentication/authorization input.
  */
 export async function revalidatePath(path: string, type?: "page" | "layout") {
-  if (/^\/(today|tasks|calendar|notes)(?:\/|$)/.test(path)) {
+  if (/^\/(today|tasks|calendar|notes|shopping|travel|leisure)(?:\/|$)/.test(path)) {
     (await cookies()).set(workspaceRevisionCookie, crypto.randomUUID(), {
       httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/",
     });

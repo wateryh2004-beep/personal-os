@@ -7,7 +7,7 @@ import type { LeisureExperience, LeisureFeedback, LeisureSummary } from "./types
 
 const summaryColumns = "id,title,kind,why,how_to_start,duration_minutes,platform,location,starts_at,cost_text,setting,company,budget,content_revision,created_at,updated_at";
 const contentColumns = "id,title,kind,why,body_markdown,how_to_start,duration_minutes,platform,location,starts_at,cost_text,setting,company,budget,sources,ratings,content_revision,created_at,updated_at";
-const feedbackColumns = "experience_id,status,reaction,personal_note,linked_note_id,revision,updated_at";
+const feedbackColumns = "experience_id,status,reaction,personal_note,linked_note_id,revision,updated_at,progress_unit,progress_value,progress_total";
 const feedbackRowSchema = leisureFeedbackSchema.extend({ experience_id: z.uuid() });
 type OwnerContext = Awaited<ReturnType<typeof requireOwner>>;
 

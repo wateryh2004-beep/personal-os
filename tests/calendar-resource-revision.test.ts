@@ -2,6 +2,8 @@
 import { act, createElement, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { captureWorkbenchViewState,restoreWorkbenchViewState } from "@/features/workbench/view-state-registry";
+import { primaryCalendarCategories } from "@/features/calendar/classification/taxonomy";
 import type { CalendarEventRecord } from "@/features/calendar/types";
 import type { CalendarFullView } from "@/components/calendar/calendar-full-view";
 
@@ -11,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router, usePathname: () => "/calendar" }));
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
-vi.mock("@/features/calendar/actions", () => ({ updateCalendarEvent: mocks.move, syncAndBackupMicrosoftAction: vi.fn() }));
+vi.mock("@/features/calendar/actions", () => ({ updateCalendarEvent: mocks.move, syncAndBackupMicrosoftAction: vi.fn(), readPendingCalendarTasks: vi.fn().mockResolvedValue({tasks:[],timezone:"UTC"}) }));
 vi.mock("@/components/shared/inspector", () => ({ Inspector: ({ open, children }: { open: boolean; children: ReactNode }) => open ? createElement("aside", null, children) : null }));
 vi.mock("@/components/links/entity-backlinks", () => ({ EntityBacklinks: () => null }));
 vi.mock("@/components/ai/ai-sidecar", () => ({ AISidecar: () => null }));
@@ -80,6 +82,15 @@ afterEach(async () => {
 });
 
 describe("Calendar active range resources", () => {
+  it("captures and restores scene date, view and filters through the mounted calendar",async()=>{
+    await render();const original=captureWorkbenchViewState("/calendar");expect(original?.kind).toBe("calendar");
+    const state={kind:"calendar" as const,view:"month" as const,cursor:"2026-11-04",selectedCategories:[primaryCalendarCategories[0].displayName,"Removed category"],hideInternship:true};
+    await act(async()=>restoreWorkbenchViewState(state));
+    expect(captureWorkbenchViewState("/calendar")).toEqual({...state,selectedCategories:[primaryCalendarCategories[0].displayName]});
+    await act(async()=>restoreWorkbenchViewState(original!));expect(captureWorkbenchViewState("/calendar")).toEqual(original);
+    expect(window.location.pathname+window.location.search).toBe("/calendar");
+  });
+
   it("refreshes an active range for each server revision while retaining the selected editor, unsaved input, and original mutation baseline", async () => {
     resourceFor().set({ events: [event("a")], truncated: false });
     resourceFor(otherRange).set({ events: [event("inactive")], truncated: false });
@@ -174,6 +185,9 @@ describe("Calendar active range resources", () => {
     let moving!: Promise<void>;
     const move = { startsAt: "2026-10-02T13:00:00Z", endsAt: "2026-10-02T14:00:00Z", isAllDay: false };
     await act(async () => { moving = mocks.fullView!.onMove(a, move); });
+    expect(mocks.move).not.toHaveBeenCalled();
+    await act(async () => { document.querySelectorAll("button").forEach(button => { if(button.textContent === "确认更新到Outlook")button.click(); }); });
+    expect(mocks.move).toHaveBeenCalledOnce();
     fetcher.mockResolvedValueOnce(response([a, event("b", { subject: "Fresh unrelated row" })]));
     await revision("during-drag");
     expect(mocks.fullView!.events.find((item) => item.id === "a")?.starts_at).toBe(move.startsAt);
@@ -191,10 +205,13 @@ describe("Calendar active range resources", () => {
     await render(); await activate();
     let moving!: Promise<void>;
     await act(async () => { moving = mocks.fullView!.onMove(a, { startsAt: "2026-10-02T13:00:00Z", endsAt: "2026-10-02T14:00:00Z", isAllDay: false }); });
+    expect(mocks.move).not.toHaveBeenCalled();
+    await act(async () => { document.querySelectorAll("button").forEach(button => { if(button.textContent === "确认更新到Outlook")button.click(); }); });
+    expect(mocks.move).toHaveBeenCalledOnce();
     fetcher.mockResolvedValueOnce(response([event("a", { subject: "Updated title", starts_at: "2026-10-02T11:00:00Z" }), event("new")]));
     await revision("drag-baseline");
     expect(mocks.fullView!.events[0].starts_at).toBe("2026-10-02T13:00:00Z");
-    await act(async () => { save.resolve({ status: "error", message: "Not saved" }); await expect(moving).rejects.toThrow("Not saved"); });
+    await act(async () => { save.resolve({ status: "error", message: "Not saved" }); await moving; });
     expect(mocks.fullView!.events[0]).toMatchObject({ subject: "Updated title", starts_at: "2026-10-02T11:00:00Z" });
     expect(mocks.fullView!.events[1].id).toBe("new");
     expect(container.textContent).toContain("Not saved");

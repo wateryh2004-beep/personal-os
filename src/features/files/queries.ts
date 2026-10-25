@@ -3,7 +3,7 @@ import { requireOwner } from "@/lib/auth/require-owner";
 import { isR2Configured } from "@/lib/adapters/cloudflare-r2";
 
 export type FileFolder = { id: string; name: string; parent_id: string | null };
-export type FileRecord = { id: string; title: string; original_filename: string; mime_type: string; file_size: number; folder_id: string | null; uploaded_at: string; created_at: string; archived_at: string | null; ai_visibility: "normal" | "sensitive" | "never"; text_extraction_status: "not_requested" | "pending" | "processing" | "completed" | "unsupported" | "too_large" | "failed"; extracted_character_count: number };
+export type FileRecord = { mutation_revision?: number; id: string; title: string; original_filename: string; mime_type: string; file_size: number; folder_id: string | null; uploaded_at: string; created_at: string; archived_at: string | null; ai_visibility: "normal" | "sensitive" | "never"; text_extraction_status: "not_requested" | "pending" | "processing" | "completed" | "unsupported" | "too_large" | "failed"; extracted_character_count: number };
 
 export async function getFilesWorkspace() {
   const { supabase } = await requireOwner();
@@ -13,7 +13,7 @@ export async function getFilesWorkspace() {
   // 注：supabase-js 的 .in()/.not() 不支持查询构建器子查询（会把 builder 拼成 [object Object]），
   // 所以这里并行查关联 ID，再在客户端过滤。
   try {
-    const columns = "id,title,original_filename,mime_type,file_size,folder_id,uploaded_at,created_at,archived_at,ai_visibility,text_extraction_status,extracted_character_count";
+    const columns = "id,title,original_filename,mime_type,file_size,folder_id,uploaded_at,created_at,archived_at,ai_visibility,text_extraction_status,extracted_character_count,mutation_revision";
     const [folders, files, archivedFiles, noteLinks] = await Promise.all([
       readAllFilePages<FileFolder>((after, limit) => {
         let query = supabase.from("file_folders").select("id,name,parent_id").is("archived_at", null).order("id").limit(limit);

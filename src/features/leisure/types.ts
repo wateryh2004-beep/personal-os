@@ -42,6 +42,9 @@ export type LeisureContent = {
 };
 
 export type LeisureFeedback = {
+  progress_unit?: "page" | "episode" | "minute" | null;
+  progress_value?: number | null;
+  progress_total?: number | null;
   status: LeisureStatus | null;
   reaction: LeisureReaction;
   personal_note: string;

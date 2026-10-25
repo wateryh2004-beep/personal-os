@@ -32,7 +32,7 @@ vi.mock("@/components/ui/dropdown-menu", () => {
   };
 });
 
-const note = { id: "00000000-0000-4000-8000-000000000001", title: "已有笔记", excerpt: null, updated_at: "2026-10-01T08:00:00Z", pinned_at: null, folder_id: null, content_origin: "human" };
+const note = { id: "00000000-0000-4000-8000-000000000001", title: "已有笔记", mutation_revision:7, excerpt: null, updated_at: "2026-10-01T08:00:00Z", pinned_at: null, folder_id: null, content_origin: "human" };
 let root: Root;
 let container: HTMLDivElement;
 const button = (label: string) => [...container.querySelectorAll("button")].find((item) => item.textContent === label)!;
@@ -67,10 +67,11 @@ describe("Notes library retry flows", () => {
   });
 
   it("keeps the selected folder open on failed move and only closes after acknowledged save", async () => {
-    vi.mocked(moveNote).mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(undefined);
+    vi.mocked(moveNote).mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({saved:true,receiptId:"10000000-0000-4000-8000-000000000001"});
     await act(async () => renderWorkspace());
     await act(async () => button("移动到…").click());
     const select = document.body.querySelector("select")!;
+    await act(async()=>root.render(createElement(NotesWorkspace,{notes:[{...note,mutation_revision:8,title:"Concurrent title"}],folders:[{id:"folder",name:"研究",parent_id:null}],timezone:"UTC",state:"ready",selectedFolder:null,initialView:"all",dailyError:false,initialHasMore:true})));
     await act(async () => { select.value = "folder"; select.dispatchEvent(new Event("change", { bubbles: true })); });
     await act(async () => select.closest("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     expect(document.body.textContent).toContain("操作未能确认");
@@ -78,7 +79,10 @@ describe("Notes library retry flows", () => {
     expect(mocks.show).not.toHaveBeenCalled();
     await act(async () => select.closest("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     expect(vi.mocked(moveNote).mock.calls[1][0].get("folder_id")).toBe("folder");
+    expect(vi.mocked(moveNote).mock.calls[0][0].get("expected_revision")).toBe("7");
+    expect(vi.mocked(moveNote).mock.calls[1][0].get("expected_revision")).toBe("7");
+    expect(vi.mocked(moveNote).mock.calls[1][0].get("request_id")).toBe(vi.mocked(moveNote).mock.calls[0][0].get("request_id"));
     expect(document.body.querySelector("select")).toBeNull();
-    expect(mocks.show).toHaveBeenCalledWith({ message: "笔记位置已更新", tone: "success" });
+    expect(mocks.show).not.toHaveBeenCalled(); // Receipt notice owns the global toast including Undo.
   });
 });

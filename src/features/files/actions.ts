@@ -1,11 +1,12 @@
 "use server";
 
+import { runMetadataForm } from "@/features/workbench/operation-actions";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { readR2ObjectStream } from "@/lib/adapters/cloudflare-r2";
 import { verifyFileStream } from "./integrity";
-import { folderSchema, moveFileSchema, renameFileSchema } from "./schemas";
+import { folderSchema } from "./schemas";
 
 function fail(): never { throw new Error("操作未能完成，请检查权限或输入后重试。"); }
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, id: string, afterData: Record<string, unknown> = {}) {
@@ -44,33 +45,11 @@ export async function createFileFolder(formData: FormData) {
   revalidatePath("/files"); return result;
 }
 
-export async function renameFile(formData: FormData) {
-  const value = renameFileSchema.safeParse({ documentId: formData.get("document_id"), title: formData.get("title") });
-  if (!value.success) fail();
-  const { supabase, userId } = await requireOwner();
-  const { data, error } = await supabase.from("documents").update({ title: value.data.title }).eq("id", value.data.documentId).eq("storage_provider", "cloudflare_r2").is("archived_at", null).select("id").maybeSingle();
-  if (error || !data) fail();
-  const result = await audit(supabase, userId, "rename", data.id, { title: value.data.title }); revalidatePath("/files"); return result;
-}
+export async function renameFile(formData: FormData) { return runMetadataForm("file_rename", formData, "document"); }
 
-export async function moveFile(formData: FormData) {
-  const value = moveFileSchema.safeParse({ documentId: formData.get("document_id"), folderId: formData.get("folder_id") || null });
-  if (!value.success) fail();
-  const { supabase, userId } = await requireOwner();
-  if (value.data.folderId) await ownFolder(supabase, value.data.folderId);
-  const { data, error } = await supabase.from("documents").update({ folder_id: value.data.folderId }).eq("id", value.data.documentId).eq("storage_provider", "cloudflare_r2").is("archived_at", null).select("id").maybeSingle();
-  if (error || !data) fail();
-  const result = await audit(supabase, userId, "move", data.id, { folder_id: value.data.folderId }); revalidatePath("/files"); return result;
-}
+export async function moveFile(formData: FormData) { return runMetadataForm("file_move", formData, "document"); }
 
-export async function archiveFile(formData: FormData) {
-  const documentId = String(formData.get("document_id") || "");
-  if (!/^[0-9a-f-]{36}$/i.test(documentId)) fail();
-  const { supabase, userId } = await requireOwner();
-  const { data, error } = await supabase.from("documents").update({ archived_at: new Date().toISOString(), storage_state: "archived" }).eq("id", documentId).eq("user_id", userId).eq("storage_provider", "cloudflare_r2").eq("storage_state", "available").is("archived_at", null).select("id").maybeSingle();
-  if (error || !data) fail();
-  const result = await audit(supabase, userId, "archive", data.id); revalidatePath("/files"); return result;
-}
+export async function archiveFile(formData: FormData) { return runMetadataForm("file_archive", formData, "document"); }
 
 export async function restoreFile(formData: FormData) {
   const documentId = String(formData.get("document_id") || "");

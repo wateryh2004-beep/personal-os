@@ -49,6 +49,7 @@ vi.mock("next/navigation", async () => {
   };
 });
 
+vi.mock("@/components/files/file-pdf-preview", () => ({ FilePdfPreview: ({ documentId, active }: { documentId: string; active: boolean }) => createElement("div", { "data-pdf-widget": documentId, "data-active": String(active) }) }));
 vi.mock("next/link", () => ({
   default: ({ onClick, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) => createElement("a", {
     ...props,
@@ -78,6 +79,7 @@ vi.mock("@/features/notes/use-notes-search", () => ({
   },
 }));
 vi.mock("@/lib/workspace-resource-cache", () => ({
+  captureWorkspaceScope: () => () => true,
   useWorkspaceResourceLease: () => ({ invalidate: vi.fn(), revalidate: vi.fn() }),
 }));
 vi.mock("@/features/notes/workspace-resource", () => ({ notesWorkspaceResource: {} }));
@@ -429,16 +431,18 @@ describe("Notes open and return context", () => {
     const editor = container.querySelector("textarea")!;
     editor.value = "Unsaved fixture draft";
     await act(async () => button("PDF").click());
-    const reader = container.querySelector("iframe")!;
-    expect(reader.getAttribute("src")).toBe(`/api/files/${pdf.id}/download?inline=1#view=FitH`);
+    const reader = container.querySelector("[data-pdf-widget]")!;
+    expect(reader.getAttribute("data-pdf-widget")).toBe(pdf.id);
+    expect(reader.getAttribute("data-active")).toBe("true");
+    expect(container.querySelector("iframe")).toBeNull();
     expect(container.querySelector("textarea")).toBe(editor);
     expect(editor.parentElement!.hidden).toBe(true);
     await act(async () => button("正文").click());
     expect(container.querySelector("textarea")).toBe(editor);
     expect(editor.value).toBe("Unsaved fixture draft");
     expect(editor.parentElement!.hidden).toBe(false);
-    expect(container.querySelector("iframe")).toBe(reader);
-    expect(reader.parentElement!.hidden).toBe(true);
+    expect(container.querySelector("[data-pdf-widget]")).toBe(reader);
+    expect(reader.getAttribute("data-active")).toBe("false");
     expect(container.querySelector('nav[aria-label="文档位置"] a')).toBe(breadcrumb);
   });
 });

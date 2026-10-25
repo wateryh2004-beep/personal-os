@@ -1,0 +1,39 @@
+name: Workbench PostgreSQL
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'src/features/system-backup/schema.json'
+      - 'scripts/workbench-postgres-verify.py'
+      - 'scripts/rehearse-system-backup-postgres.py'
+      - 'tests/fixtures/system-backup-sql/**'
+      - 'tests/fixtures/workbench/**'
+      - 'tests/*workbench*.sql'
+      - 'tests/life-field*.sql'
+      - '.github/workflows/workbench-postgres.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    name: Actual schema, upgrade, receipts and concurrent writers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch official disposable PostgreSQL image
+        run: docker pull postgres:17
+      - name: Replay real migrations and test overlapping transactions
+        run: python3 scripts/workbench-postgres-verify.py
+      - name: Save synthetic PostgreSQL evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workbench-postgres-evidence
+          path: test-results/workbench-postgres
+          if-no-files-found: ignore
+          retention-days: 7

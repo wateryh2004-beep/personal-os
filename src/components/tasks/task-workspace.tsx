@@ -1,4 +1,11 @@
 "use client";
+import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
+import { registerWorkbenchViewState } from "@/features/workbench/view-state-registry";
+import { useOperationTimezone } from "@/features/workbench/use-operation-timezone";
+import { instantToDate, wallTimeToIso } from "@/features/calendar/timezone";
+import { WorkbenchRecord } from "@/components/workbench/workbench-record";
+import { OperationTaskBatch } from "@/components/workbench/operation-task-batch";
+import { publishOperationReceipt } from "@/features/workbench/operation-contracts";
 
 import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
 
@@ -85,6 +92,7 @@ const quickDueAt = (dayOffset: number) => {
 
 function TaskRow({
   task,
+  timezone,
   selected,
   pending,
   onOpen,
@@ -92,6 +100,7 @@ function TaskRow({
   onUpdate,
 }: {
   task: TodoTask;
+  timezone: string|null;
   selected: boolean;
   pending: boolean;
   onOpen: () => void;
@@ -169,6 +178,10 @@ function TaskRow({
         ) : null}
       </div>
 
+      <div className="col-span-3 flex flex-wrap gap-2 pl-9" onClick={event=>event.stopPropagation()} onKeyDown={event=>event.stopPropagation()}>
+        <label className="flex min-h-11 items-center gap-2 text-xs text-[var(--text-secondary)]">截止<input aria-label={`${task.title}的截止日期`} type="date" disabled={pending||!timezone} value={task.dueAt&&timezone?instantToDate(task.dueAt,timezone):""} className="ui-field min-h-11 max-w-40 text-base" onChange={event=>{if(timezone)onUpdate({dueAt:event.target.value?wallTimeToIso(`${event.target.value}T23:59`,timezone):null});}}/></label>
+        <label className="flex min-h-11 items-center gap-2 text-xs text-[var(--text-secondary)]">重要性<select aria-label={`${task.title}的重要性`} disabled={pending} className="ui-field min-h-11 text-base" value={task.importance} onChange={event=>onUpdate({importance:event.target.value as TodoTask["importance"]})}><option value="normal">普通</option><option value="high">高</option><option value="low">低</option></select></label>
+      </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -586,6 +599,9 @@ export function TaskWorkspace({
 }) {
 
   const tasksWorkspaceResource = useWorkspaceResourceLease(tasksResource);
+  const operationTimezone=useOperationTimezone();
+  useEffect(()=>{const listener=()=>{const current=captureWorkspaceScope();tasksWorkspaceResource.invalidate();void tasksWorkspaceResource.revalidate({force:true}).catch(()=>{if(current()){/* Existing stale/error read model remains visible. */}});};window.addEventListener("personal-os:operation-undone",listener);return()=>window.removeEventListener("personal-os:operation-undone",listener);},[tasksWorkspaceResource]);
+
   const router = useRouter();
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -666,6 +682,18 @@ export function TaskWorkspace({
   useEffect(() => {
     if (sessionReady) saveWorkspaceSession("tasks:workspace", { view, listId, selectedId });
   }, [listId, selectedId, sessionReady, view]);
+  useEffect(() => {
+    if (!sessionReady) return;
+    return registerWorkbenchViewState("tasks", {
+      capture: () => ({ kind: "tasks", view, listId }),
+      restore: state => {
+        if (state.kind !== "tasks") return;
+        setView(state.view);
+        setListId(state.listId && lists.some(list => list.id === state.listId) ? state.listId : null);
+      },
+    });
+  }, [sessionReady, view, listId, lists]);
+
 
   useEffect(() => {
     // Search-param navigation reuses the mounted workspace, including Back/Forward.
@@ -828,8 +856,9 @@ export function TaskWorkspace({
   const mutate = async (
     id: string,
     apply: (task: TodoTask) => TodoTask,
-    request: () => Promise<void>,
+    request: () => Promise<unknown>,
   ) => {
+    const scopeCurrent=captureWorkspaceScope();
     if (pendingPatches.current.has(id)) return;
     const before = rowsRef.current.find((task) => task.id === id);
     if (!before || id.startsWith("optimistic-")) return;
@@ -841,8 +870,15 @@ export function TaskWorkspace({
     setPendingIds(new Set(pendingPatches.current.keys()));
     updateRows((current) => current.map((task) => task.id === id ? { ...task, ...patch } : task));
     try {
-      await request();
+      const result=await request();
+      if(!scopeCurrent())return;
+      if(result && typeof result==="object" && "receiptId" in result && typeof result.receiptId==="string") publishOperationReceipt({receiptId:result.receiptId,message:"任务已保存"});
+      if(result && typeof result==="object" && "rows" in result && Array.isArray(result.rows)) {
+        const canonical=result.rows.find((row:Record<string,unknown>)=>row.id===id);
+        if(canonical)updateRows(current=>current.map(task=>task.id===id?{...task,...canonical}:task));
+      }
     } catch (error) {
+      if(!scopeCurrent())return;
       setTaskError("操作结果尚未确认；本地显示已回退，请重新读取后检查。");
       // Only roll back fields still owned by this optimistic edit. Other rows
       // and newer agent/server changes must survive a failed request.
@@ -860,10 +896,13 @@ export function TaskWorkspace({
     }
   };
 
+  const mutationRequests=useRef(new Map<string,string>());
+  const taskRequestId=(task:TodoTask,patch:unknown)=>{const key=JSON.stringify({id:task.id,modified:task.lastModifiedAt,status:task.status,patch});if(!mutationRequests.current.has(key))mutationRequests.current.set(key,crypto.randomUUID());return mutationRequests.current.get(key)!;};
   const toggle = async (task: TodoTask) => {
     if (pendingPatches.current.has(task.id) || task.id.startsWith("optimistic-")) return;
     const form = new FormData();
     form.set("task_id", task.id);
+    form.set("request_id",taskRequestId(task,{status:"completed"})); form.set("expected_status",task.status); form.set("expected_title",task.title); form.set("expected_modified",task.lastModifiedAt??"");
     try {
       await mutate(
         task.id,
@@ -876,23 +915,7 @@ export function TaskWorkspace({
             ? reopenMicrosoftTodoTaskAction(form)
             : completeMicrosoftTodoTaskAction(form),
       );
-      if (task.status !== "completed") {
-        show({
-          message: "任务已完成",
-          tone: "success",
-          undo: () => {
-            const undo = new FormData();
-            undo.set("task_id", task.id);
-            void mutate(
-              task.id,
-              (row) => ({ ...row, status: "notStarted", completedAt: null }),
-              () => reopenMicrosoftTodoTaskAction(undo),
-            ).catch(() =>
-              show({ message: "恢复结果尚未确认，请重新读取后检查。", tone: "error" }),
-            );
-          },
-        });
-      }
+
     } catch {
       show({ message: "更新结果尚未确认，请重新读取后检查。", tone: "error" });
     }
@@ -960,7 +983,7 @@ export function TaskWorkspace({
     void mutate(
       task.id,
       (row) => ({ ...row, ...patch }),
-      () => updateMicrosoftTodoTaskAction({ taskId: task.id, ...patch }),
+      () => updateMicrosoftTodoTaskAction({ taskId: task.id, ...patch, requestId:taskRequestId(task,patch),expected:{title:task.title,status:task.status,lastModifiedAt:task.lastModifiedAt} }),
     ).catch(() => show({ message: "更新结果尚未确认，请重新读取后检查。", tone: "error" }));
   };
 
@@ -1097,18 +1120,19 @@ export function TaskWorkspace({
                 </p>
               ) : null}
               {taskError ? <p role="status" className="mb-3 text-xs leading-5 text-[var(--warning)]">{taskError} <button type="button" disabled={retrying} onClick={() => void retryTasks()} className="ml-2 font-medium underline">{retrying ? "读取中…" : "重新读取"}</button></p> : null}
+              <OperationTaskBatch tasks={rows} />
               <div className="border-t border-[var(--separator)]">
                 {visible.length ? (
                   visible.map((task) => (
-                    <TaskRow
-                      key={task.id}
+                    <WorkbenchRecord key={task.id} entity={{kind:"task",id:task.id}} title={task.title} group={`tasks:${view}:${listId}`}><TaskRow
                       task={task}
+                      timezone={operationTimezone}
                       selected={task.id === selectedId}
                       pending={pendingIds.has(task.id) || task.id.startsWith("optimistic-")}
                       onOpen={() => openTask(task)}
                       onToggle={() => void toggle(task)}
                       onUpdate={(patch) => updateFromRow(task, patch)}
-                    />
+                    /></WorkbenchRecord>
                   ))
                 ) : (
                   <div className="flex min-h-60 flex-col justify-center py-14 text-left">
@@ -1185,7 +1209,7 @@ export function TaskWorkspace({
             mutate(
               selected.id,
               (task) => ({ ...task, ...patch }),
-              () => updateMicrosoftTodoTaskAction({ taskId: selected.id, ...patch }),
+              () => updateMicrosoftTodoTaskAction({ taskId: selected.id, ...patch, requestId:taskRequestId(selected,patch),expected:{title:selected.title,status:selected.status,lastModifiedAt:selected.lastModifiedAt} }),
             )
           }
           remove={async () => {

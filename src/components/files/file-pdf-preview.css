@@ -1,0 +1,21 @@
+/* A bounded pane allocates the reader's height. The canvas scrolls within that
+   allocation; if text/chrome grows, the complete widget remains scrollable. */
+.file-pdf-preview[data-embedded="true"] {
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  height:100%;
+  min-height:0;
+  max-height:100%;
+  min-width:0;
+  overflow:auto;
+  overscroll-behavior:contain;
+}
+.file-pdf-preview[data-embedded="true"] > :not(.file-pdf-viewport) { flex-shrink:0; }
+.file-pdf-preview[data-embedded="true"] > .file-pdf-viewport {
+  flex:1 0 128px;
+  min-height:128px;
+  max-height:none;
+  min-width:0;
+  overflow:auto;
+}

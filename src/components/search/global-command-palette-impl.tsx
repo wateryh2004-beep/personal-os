@@ -4,6 +4,8 @@ import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "rea
 import { usePathname, useRouter } from "next/navigation";
 import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, ShoppingBag, Sparkles, SquareKanban, Plane } from "lucide-react";
 import { Command, CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
+import { isWorkbenchCommandCandidate } from "@/features/workbench/operation-command-parser";
+import { previewWorkbenchCommand } from "@/features/workbench/operation-command-actions";
 import { createNote } from "@/features/notes/actions";
 import { useGlobalSearch } from "@/features/search/use-global-search";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
@@ -23,6 +25,8 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const [recents, setRecents] = useState<RecentNavigationItem[]>([]);
+  const [commandMessage,setCommandMessage]=useState("");
+  const [commandBusy,startCommand]=useTransition();
   const [, startTransition] = useTransition();
   const search = useGlobalSearch({ query, enabled: open, debounceMs: 160 });
   const results = search.results;
@@ -51,6 +55,7 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
   const content = <Command shouldFilter={!query} label="搜索与导航">
       <CommandInput ref={input} value={query} onValueChange={setQuery} placeholder={showQuick ? "选择要新建的内容…" : "搜索 Personal OS 或输入命令…"} aria-label="搜索或执行命令" />
       <CommandList className="max-h-[min(68dvh,580px)] py-1">
+        {isWorkbenchCommandCandidate(query) ? <CommandGroup heading="参数命令"><CommandItem disabled={commandBusy} value={`command ${query}`} onSelect={()=>startCommand(async()=>{try{const preview=await previewWorkbenchCommand(query);if(!preview){setCommandMessage("可输入：周五15点模拟面试45分钟，或把选中任务移到明天。");return;}onOpenChange(false);window.dispatchEvent(new CustomEvent(preview.kind==="calendar"?"personal-os:calendar-command-preview":"personal-os:todo-command-preview",{detail:preview}));}catch{setCommandMessage("命令预览暂不可用，未执行修改。");}})}><CalendarPlus aria-hidden="true"/>{commandBusy?"解析中…":"预览参数命令"}<CommandShortcut>确认后执行</CommandShortcut></CommandItem>{commandMessage?<p role="status" className="px-3 py-2 text-sm">{commandMessage}</p>:null}</CommandGroup>:null}
         {query && loading ? <p role="status" aria-live="polite" className="px-4 py-8 text-center text-sm text-[var(--text-tertiary)]">正在搜索…</p> : null}
         {query && search.status === "error" ? <p role="alert" className="px-4 py-8 text-center text-sm text-[var(--danger)]">{search.error}</p> : null}
         {query && search.status === "success" && !results.length ? <p role="status" aria-live="polite" className="px-4 py-8 text-center text-sm text-[var(--text-secondary)]">没有找到相关内容。尝试更短或不同的关键词。</p> : null}

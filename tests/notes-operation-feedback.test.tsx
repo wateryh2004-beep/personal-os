@@ -1,0 +1,31 @@
+// @vitest-environment jsdom
+import { act, createElement, type ReactNode } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, expect, it, vi } from "vitest";
+import { NotesWorkspace } from "@/components/notes/notes-workspace";
+import { OperationHistory } from "@/components/workbench/operation-history";
+import { ActionFeedbackProvider } from "@/components/shared/action-feedback";
+const receipt="10000000-0000-4000-8000-000000000001";
+vi.mock("next/link",()=>({default:(props:Record<string,unknown>)=>createElement("a",props)}));
+vi.mock("next/navigation",()=>({useRouter:()=>({push:vi.fn()}),useSearchParams:()=>new URLSearchParams(),unstable_rethrow:()=>{}}));
+vi.mock("next/dynamic",()=>({default:()=>()=>null}));
+vi.mock("@/components/shared/use-workspace-scroll-restoration",()=>({useWorkspaceScrollRestoration:()=>null}));
+vi.mock("@/features/notes/workspace-resource",()=>({notesWorkspaceResource:{revalidate:vi.fn().mockResolvedValue(undefined),invalidate:vi.fn()}}));
+vi.mock("@/features/notes/actions",()=>({createNoteInFolder:vi.fn(),moveNote:vi.fn(async()=>({saved:true,receiptId:"10000000-0000-4000-8000-000000000001"})),renameNote:vi.fn(),toggleNotePinned:vi.fn(),trashNote:vi.fn()}));
+vi.mock("@/features/workbench/operation-actions",()=>({listWorkbenchOperations:async()=>[],undoWorkbenchOperation:vi.fn(),previewWorkbenchUndo:async()=>({receiptId:"10000000-0000-4000-8000-000000000001",title:"Owned note",count:1,status:"available",provider:false,changes:[{label:"文件夹",before:"研究",after:"根目录"}]})}));
+vi.mock("@/features/workbench/operation-command-actions",()=>({readWorkbenchTimezone:async()=>"UTC"}));
+vi.mock("@/components/ui/dropdown-menu",()=>{const pass=({children}:{children:ReactNode})=>children;return {DropdownMenu:pass,DropdownMenuContent:pass,DropdownMenuTrigger:pass,DropdownMenuSeparator:()=>null,DropdownMenuItem:({children,onSelect}:{children:ReactNode;onSelect:()=>void})=>createElement("button",{onClick:onSelect},children)};});
+let root:Root|undefined,host:HTMLDivElement|undefined;
+afterEach(async()=>{await act(async()=>root?.unmount());host?.remove();vi.unstubAllGlobals();});
+it("retains the receipt toast Undo after a real Notes mutation and opens its trusted preview",async()=>{
+ Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});vi.stubGlobal("matchMedia",()=>({matches:false,addEventListener(){},removeEventListener(){}}));host=document.createElement("div");document.body.append(host);root=createRoot(host);
+ const note={id:receipt,title:"Owned note",mutation_revision:2,excerpt:null,updated_at:"2026-10-01T00:00:00Z",pinned_at:null,folder_id:null,content_origin:"human"};
+ await act(async()=>root!.render(createElement(ActionFeedbackProvider,null,createElement(OperationHistory),createElement(NotesWorkspace,{notes:[note],folders:[],timezone:"UTC",state:"ready",selectedFolder:null,initialView:"all",dailyError:false,initialHasMore:false}))));
+ const button=(label:string)=>[...document.body.querySelectorAll("button")].find(node=>node.textContent===label)!;
+ await act(async()=>button("移动到…").click());
+ const form=document.querySelector('input[name="note_id"]')!.closest("form")!;
+ await act(async()=>form.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
+ expect(button("撤回")).toBeDefined();expect(document.body.textContent).toContain("笔记位置已更新");
+ await act(async()=>button("撤回").click());
+ expect(document.body.textContent).toContain("Owned note");expect(document.body.textContent).toContain("研究 → 根目录");expect(button("确认撤销")).toBeDefined();
+});

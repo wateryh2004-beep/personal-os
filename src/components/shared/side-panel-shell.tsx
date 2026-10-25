@@ -9,7 +9,7 @@ import { useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
 
 type SidePanelShellProps = {
   open: boolean;
-  onClose: () => void;
+  onClose: () => void | boolean;
   title: string;
   ariaLabel?: string;
   leading?: React.ReactNode;

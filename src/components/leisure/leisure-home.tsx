@@ -10,19 +10,21 @@ import type { LeisureKind, LeisureSummary } from "@/features/leisure/types";
 import { emptyLeisureContext, formatLeisureDuration, hasLeisureMemory, leisureKindLabels, leisureStatusLabels, matchesLeisureContext, type LeisureContext } from "@/features/leisure/presentation";
 import { getLeisureArtwork } from "@/features/leisure/artwork";
 import { LeisureArtwork } from "./leisure-artwork";
+import { WorkbenchRecord } from "@/components/workbench/workbench-record";
+import { LeisureFieldMode } from "./leisure-field-mode";
 import styles from "./leisure.module.css";
 
 function Poster({ item, href, index }: { item: LeisureSummary; href: string; index: number }) {
   const art = getLeisureArtwork(item);
   return <li className={styles.posterCard}>
-    <LeisureCollectionLink itemId={item.id} id={`leisure-item-${item.id}`} href={href} className={styles.posterLink}>
+    <WorkbenchRecord entity={{kind:"leisure",id:item.id}} title={item.title} group="leisure:gallery" draggable={false}><LeisureCollectionLink itemId={item.id} id={`leisure-item-${item.id}`} href={href} className={styles.posterLink}>
       <div className={styles.posterFrame} style={{ aspectRatio: art ? `${art.width} / ${art.height}` : "3 / 4" }}>
         <LeisureArtwork item={item} sizes="(max-width: 599px) 46vw, (max-width: 767px) 30vw, (max-width: 1200px) 27vw, 365px" />
         <span className={styles.posterNumber} aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
         <span className={styles.posterOpen} aria-hidden="true"><ArrowUpRight size={21} /></span>
       </div>
       <div className={styles.posterText}><span className={styles.kind}>{leisureKindLabels[item.kind]}{item.duration_minutes ? ` · ${formatLeisureDuration(item.duration_minutes)}` : ""}</span><h3>{item.title}</h3>{item.feedback?.status || item.feedback?.reaction !== undefined && item.feedback.reaction !== "none" ? <span className={styles.posterPersonal}>{item.feedback?.status ? <span>{leisureStatusLabels[item.feedback.status]}</span> : null}{item.feedback?.reaction === "liked" ? <span>♡ 喜欢</span> : item.feedback?.reaction === "not_for_me" ? <span>不太适合我</span> : null}</span> : null}{item.why ? <p>{item.why}</p> : null}</div>
-    </LeisureCollectionLink>
+    </LeisureCollectionLink></WorkbenchRecord>
   </li>;
 }
 
@@ -34,6 +36,7 @@ export function LeisureHome({ experiences, unavailable = false, hasMore = false,
     return () => cancelAnimationFrame(frame);
   }, []);
   const searchParams = useSearchParams();
+  const fieldMode=searchParams.get("mode")==="field";
   const browse = readLeisureBrowse(searchParams);
   const { context, kind } = browse;
   const changeBrowse = (nextKind: LeisureKind | "all", nextContext: LeisureContext) => {
@@ -58,6 +61,8 @@ export function LeisureHome({ experiences, unavailable = false, hasMore = false,
     <header className={styles.homeHeader}>
       <div className={styles.introRow}><h1>闲暇</h1></div>
     </header>
+    {!unavailable ? <LeisureFieldMode experiences={experiences} /> : null}
+    <div hidden={fieldMode} inert={fieldMode}>
     {unavailable ? <section className={styles.empty} role="status"><h2>这页暂时没能打开</h2><p>闲暇数据目前无法读取。已保存的内容不会因此被改动，请稍后重试。</p><button type="button" className={styles.quietButton} onClick={() => router.refresh()}>重新打开闲暇</button></section> : experiences.length === 0 ? <section className={styles.empty}>
       <span className={styles.emptyMark} aria-hidden="true">✳</span><h2>下次有空，<br />想做一点什么？</h2><p>这里会放下想看的作品、想玩的游戏，以及值得出门的地方。</p><p className={styles.caption}>还没有添加体验。先把想法留在笔记里，等内容整理好后再来慢慢选。</p><Link href="/notes" className={styles.link}>去笔记里记下来 <ArrowUpRight size={15} aria-hidden="true" /></Link>
     </section> : <>
@@ -93,5 +98,6 @@ export function LeisureHome({ experiences, unavailable = false, hasMore = false,
       </div> : null}
     </>}
     <footer className={styles.footer}><div><Link href="/travel" className={styles.link}>旅行计划 <ArrowUpRight size={13} aria-hidden="true" /></Link><Link href="/shopping" className={styles.link}>购物清单 <ArrowUpRight size={13} aria-hidden="true" /></Link><Link href="/notes" className={styles.link}>回到笔记 <ArrowUpRight size={13} aria-hidden="true" /></Link></div></footer>
+    </div>
   </div>;
 }

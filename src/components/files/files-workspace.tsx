@@ -1,5 +1,10 @@
 "use client";
+import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
 
+import { readWorkbenchReceiptState } from "@/features/workbench/operation-actions";
+import { WorkbenchRecord } from "@/components/workbench/workbench-record";
+import { OperationMetadataBar } from "@/components/workbench/operation-metadata-bar";
+import { publishOperationReceipt } from "@/features/workbench/operation-contracts";
 import { FileOcrControl } from "./file-ocr-control";
 import { WorkspaceReadyMetric } from "@/components/performance/workspace-ready-metric";
 import { FileResumableUploads } from "./file-resumable-uploads";
@@ -78,16 +83,17 @@ async function browserR2NetworkMessage() {
 
 function FileOperations({ file, folders, onArchive }: { file: FileRecord; folders: FileFolder[]; onArchive: (file: FileRecord) => void }) {
   const [open, setOpen] = useState(false);
+  const [baseline,setBaseline] = useState(file);
   const close = () => setOpen(false);
   useMobileBackLayer(open, close, `file-operations:${file.id}`);
-  return <Popover open={open} onOpenChange={setOpen}>
+  return <Popover open={open} onOpenChange={next=>{if(next)setBaseline(file);setOpen(next);}}>
     <PopoverTrigger asChild><button type="button" aria-label={`操作 ${file.title}`} className="pressable flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><MoreHorizontal size={15} /></button></PopoverTrigger>
     <PopoverContent aria-label={`操作 ${file.title}`} align="end" collisionPadding={12} onOpenAutoFocus={(event) => { if (window.matchMedia("(pointer: coarse)").matches) event.preventDefault(); }} className="files-actions-popover w-60 max-h-[min(65dvh,var(--radix-popover-content-available-height))] overflow-y-auto overscroll-contain">
-      <FileMutationForm action={renameFile} onSuccess={close} className="space-y-2"><input aria-label="文件名称" name="title" required maxLength={240} defaultValue={file.title} className="ui-field h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2.5 text-[12px] outline-none" /><input type="hidden" name="document_id" value={file.id} /><button className="text-[12px] font-medium text-[var(--accent)]">重命名</button></FileMutationForm>
-      <FileMutationForm action={moveFile} onSuccess={close} className="mt-2 border-t border-[var(--separator)] pt-2"><input type="hidden" name="document_id" value={file.id} /><select aria-label="目标文件夹" name="folder_id" defaultValue={file.folder_id ?? ""} className="ui-field h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2 text-[12px] outline-none"><option value="">根目录</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{"　".repeat(folderDepth(folder, folders))}{folder.name}</option>)}</select><button className="mt-1.5 text-[12px] font-medium text-[var(--accent)]">移动文件</button></FileMutationForm>
+      <FileMutationForm action={renameFile} onSuccess={close} className="space-y-2"><input aria-label="文件名称" name="title" required maxLength={240} defaultValue={baseline.title} className="ui-field h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2.5 text-[12px] outline-none" /><input type="hidden" name="document_id" value={file.id} /><input type="hidden" name="expected_revision" value={baseline.mutation_revision ?? ""} /><button className="text-[12px] font-medium text-[var(--accent)]">重命名</button></FileMutationForm>
+      <FileMutationForm action={moveFile} onSuccess={close} className="mt-2 border-t border-[var(--separator)] pt-2"><input type="hidden" name="document_id" value={file.id} /><input type="hidden" name="expected_revision" value={baseline.mutation_revision ?? ""} /><select aria-label="目标文件夹" name="folder_id" defaultValue={baseline.folder_id ?? ""} className="ui-field h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2 text-[12px] outline-none"><option value="">根目录</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{"　".repeat(folderDepth(folder, folders))}{folder.name}</option>)}</select><button className="mt-1.5 text-[12px] font-medium text-[var(--accent)]">移动文件</button></FileMutationForm>
       <FileMutationForm action={setFileAiVisibility} onSuccess={close} className="mt-2 border-t border-[var(--separator)] pt-2"><input type="hidden" name="document_id" value={file.id}/><select aria-label="文件 AI 可见性" name="ai_visibility" defaultValue={file.ai_visibility} className="ui-field h-8 w-full rounded-[8px] bg-[var(--surface-control)] px-2 text-[12px] outline-none"><option value="normal">AI 可正常使用</option><option value="sensitive">敏感：默认不发送</option><option value="never">永不发送给 AI</option></select><button className="mt-1.5 text-[12px] font-medium text-[var(--accent)]">保存隐私设置</button></FileMutationForm>
       <VaultHideButton kind="document" id={file.id} onDone={close} className="w-full text-left" />
-      <button type="button" onClick={() => { close(); onArchive(file); }} className="mt-2 inline-flex items-center gap-1 border-t border-[var(--separator)] pt-2 text-[12px] text-[var(--danger)]"><Archive size={12} />归档</button>
+      <button type="button" onClick={() => { close(); onArchive(baseline); }} className="mt-2 inline-flex items-center gap-1 border-t border-[var(--separator)] pt-2 text-[12px] text-[var(--danger)]"><Archive size={12} />归档</button>
 
     </PopoverContent>
   </Popover>;
@@ -117,6 +123,8 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
   const [stage, setStage] = useState<UploadStage>("idle");
   const uploadBusy = ["preparing", "uploading", "verifying", "extracting"].includes(stage);
   const [fileRows, setFileRows] = useFileRows(files, uploadBusy);
+
+
   const [archivedRows, setArchivedRows] = useFileRows(archivedFiles);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
@@ -124,6 +132,9 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const { show } = useActionFeedback();
+  const canonicalRevisions=useRef(new Map<string,number>());
+  useEffect(()=>{for(const row of [...fileRows,...archivedRows]){const revision=row.mutation_revision;if(revision!==undefined)canonicalRevisions.current.set(row.id,Math.max(revision,canonicalRevisions.current.get(row.id)??-1));}},[fileRows,archivedRows]);
+  useEffect(()=>{const listener=(event:Event)=>{const receiptId=(event as CustomEvent<{receiptId:string}>).detail?.receiptId;if(!receiptId)return;const current=captureWorkspaceScope();void readWorkbenchReceiptState(receiptId).then(value=>{if(!current()||value.kind!=="document")return;const canonical=(value.rows as FileRecord[]).filter(row=>{const revision=row.mutation_revision;if(revision===undefined||revision<(canonicalRevisions.current.get(row.id)??-1))return false;canonicalRevisions.current.set(row.id,revision);return true;});const ids=new Set(canonical.map(row=>row.id));setFileRows(rows=>[...rows.filter(row=>!ids.has(row.id)),...canonical.filter(row=>!row.archived_at)]);setArchivedRows(rows=>[...rows.filter(row=>!ids.has(row.id)),...canonical.filter(row=>Boolean(row.archived_at))]);}).catch(()=>{if(current())show({message:"文件状态暂未重新读取，请稍后重试。",tone:"error"});});};window.addEventListener("personal-os:operation-undone",listener);window.addEventListener("personal-os:operation-completed",listener);return()=>{window.removeEventListener("personal-os:operation-undone",listener);window.removeEventListener("personal-os:operation-completed",listener);};},[setFileRows,setArchivedRows,show]);
   const sortedFolders = useMemo(() => [...folders].sort((a, b) => folderDepth(a, folders) - folderDepth(b, folders) || a.name.localeCompare(b.name, "zh-CN")), [folders]);
   const selection = useMemo(() => selectFiles(fileRows, { ...browser, folderId }), [fileRows, browser, folderId]);
   const visibleFiles = selection.visible;
@@ -286,15 +297,15 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
   }
 
   const archive = (file: FileRecord) => {
+    const scopeCurrent=captureWorkspaceScope();
     if (previewId === file.id) setPreviewId(null);
     const archived = { ...file, archived_at: new Date().toISOString() };
     setFileRows((current) => current.filter((item) => item.id !== file.id));
     setArchivedRows((current) => [archived, ...current.filter((item) => item.id !== file.id)]);
     const form = new FormData(); form.set("document_id", file.id);
-    void archiveFile(form).then((result) => show({ message: result?.warning ?? "文件已归档", tone: result?.warning ? "error" : "success", undo: () => {
-      const restore = new FormData(); restore.set("document_id", file.id);
-      void restoreFile(restore).then((result) => { if (result?.warning) show({ message: result.warning, tone: "error" }); setArchivedRows((current) => current.filter((item) => item.id !== file.id)); setFileRows((current) => [file, ...current]); }).catch(() => show({ message: "恢复结果未确认，请刷新后检查文件状态。", tone: "error" }));
-    } })).catch(() => { setArchivedRows((current) => current.filter((item) => item.id !== file.id)); setFileRows((current) => [file, ...current]); show({ message: "归档结果未确认，请刷新后检查文件状态。", tone: "error" }); });
+    form.set("request_id",crypto.randomUUID());
+    form.set("expected_revision",String(file.mutation_revision ?? ""));
+    void archiveFile(form).then((result) => {if(!scopeCurrent())return;if(result.receiptId)publishOperationReceipt({receiptId:result.receiptId,message:"文件已归档"});else show({message:"文件已归档",tone:"success"});}).catch(() => { if(!scopeCurrent())return;setArchivedRows((current) => current.filter((item) => item.id !== file.id)); setFileRows((current) => [file, ...current]); show({ message: "归档结果未确认，请刷新后检查文件状态。", tone: "error" }); });
   };
 
   return (
@@ -366,6 +377,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
 
         {message ? <p role="status" className={`mt-2.5 text-[12px] ${messageTone === "error" ? "text-[var(--danger)]" : messageTone === "success" ? "text-[var(--success)]" : "text-[var(--text-secondary)]"}`}>{message}</p> : null}
 
+        <OperationMetadataBar kind="document" folders={folders} />
         {!visibleFiles.length ? (
           <div className="flex min-h-56 flex-col items-center justify-center text-center">
             <FilePlus2 size={24} className="text-[var(--text-tertiary)]" />
@@ -376,17 +388,17 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
         ) : browser.view === "grid" ? (
           <ul aria-label="文件网格" className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
             {displayedFiles.map(file => <li id={`file-${file.id}`} key={file.id} className={`min-w-0 overflow-hidden rounded-[12px] border border-[var(--separator)] bg-[var(--surface-canvas)] ${file.id === highlightId ? "ring-2 ring-[var(--accent)]" : ""}`}>
-              {classifyFile(file) === "photo" ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="block w-full"><FilePhoto file={file} className="aspect-square w-full" /></button> : isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="block w-full"><FilePdfCover file={file} /></button> : <div className="flex aspect-square items-center justify-center bg-[var(--surface-control)] text-[var(--text-tertiary)]"><File size={36} /></div>}
+              <WorkbenchRecord entity={{kind:"document",id:file.id}} title={file.title} group={`files:${folderId}:${browser.sort}:${browser.query}`} >{classifyFile(file) === "photo" ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="block w-full"><FilePhoto file={file} className="aspect-square w-full" /></button> : isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="block w-full"><FilePdfCover file={file} /></button> : <div className="flex aspect-square items-center justify-center bg-[var(--surface-control)] text-[var(--text-tertiary)]"><File size={36} /></div>}
               <div className="min-w-0 p-2.5">{classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} aria-label={`打开预览：${file.title}`} title={file.title} className="block w-full truncate text-left text-[12.5px] font-medium hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[12.5px] font-medium" title={file.title}>{file.title}</p>}<p className="mt-1 text-[12px] text-[var(--text-tertiary)]">{fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)}</p><p className="mt-1 text-[12px] text-[var(--text-tertiary)]">上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}</p>
                 <div className="mt-1 flex justify-end gap-1"><a href={`/api/files/${file.id}/download`} aria-label={`下载 ${file.title}`} className="pressable flex size-9 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Download size={14} /></a><FileOcrControl file={file} onComplete={count => setFileRows(current => current.map(item => item.id === file.id ? { ...item, text_extraction_status: "completed", extracted_character_count: count } : item))} /><FileOperations file={file} folders={sortedFolders} onArchive={archive} /></div>
-              </div>
+              </div></WorkbenchRecord>
             </li>)}
           </ul>
         ) : (
           <ul aria-label="文件列表" className="divide-y divide-[var(--separator)]">
             {displayedFiles.map((file) => (
               <li id={`file-${file.id}`} className={`flex min-h-[52px] items-center gap-2.5 px-2 py-2.5 transition-colors ui-transition ${file.id === highlightId ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]"}`} key={file.id}>
-                <File size={16} className="shrink-0 text-[var(--text-tertiary)]" />
+                <WorkbenchRecord entity={{kind:"document",id:file.id}} title={file.title} group={`files:${folderId}:${browser.sort}:${browser.query}`} className="w-full"><div className="flex w-full items-center gap-2.5"><File size={16} className="shrink-0 text-[var(--text-tertiary)]" />
                 <div className="min-w-0 flex-1">
                   {classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} aria-label={`打开预览：${file.title}`} className="block max-w-full truncate text-left text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[13px] font-medium text-[var(--text-primary)]">{file.title}</p>}
                   <p className="mt-0.5 font-mono text-[12px] leading-4 tabular-nums text-[var(--text-tertiary)]">
@@ -398,7 +410,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
                 {["failed", "pending", "not_requested"].includes(file.text_extraction_status) ? <button type="button" disabled={extractingId === file.id} onClick={() => void retryExtraction(file.id)} className="pressable h-8 rounded-[8px] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50">{extractingId === file.id ? "解析中…" : "解析文本"}</button> : null}
                 <a href={`/api/files/${file.id}/download`} className="pressable flex size-8 items-center justify-center rounded-[8px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]" aria-label={`下载 ${file.title}`}><Download size={14} /></a>
                 <FileOcrControl file={file} onComplete={count => setFileRows(current => current.map(item => item.id === file.id ? { ...item, text_extraction_status: "completed", extracted_character_count: count } : item))} />
-                <FileOperations file={file} folders={sortedFolders} onArchive={archive} />
+                <FileOperations file={file} folders={sortedFolders} onArchive={archive} /></div></WorkbenchRecord>
               </li>
             ))}
           </ul>
@@ -420,7 +432,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
                   <File size={14} className="shrink-0 text-[var(--text-tertiary)]" />
                   <div className="min-w-0 flex-1"><p className="truncate text-[12.5px] text-[var(--text-primary)]">{file.title}</p><p className="mt-0.5 font-mono text-[12px] tabular-nums text-[var(--text-tertiary)]">{formatBytes(file.file_size)} · 归档于 {new Date(file.archived_at ?? file.uploaded_at).toLocaleDateString("zh-CN")}</p></div>
                   <span className="text-[12px] text-[var(--text-tertiary)]">恢复后下载</span>
-                  <FileMutationForm action={restoreFile}><input type="hidden" name="document_id" value={file.id} /><button className="pressable h-8 rounded-[8px] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">恢复</button></FileMutationForm>
+                  <FileMutationForm action={restoreFile}><input type="hidden" name="document_id" value={file.id} /><input type="hidden" name="expected_revision" value={file.mutation_revision ?? ""} /><button className="pressable h-8 rounded-[8px] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">恢复</button></FileMutationForm>
                 </li>
               ))}
             </ul>

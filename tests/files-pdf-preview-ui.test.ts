@@ -9,6 +9,7 @@ vi.mock("unpdf/pdfjs", () => ({ getDocument: mocks.getDocument }));
 import {
   FilePdfPreview, maxInlinePdfBytes, maxInlinePdfPages, maxPdfCanvasPixels, pdfLoadTimeoutMs, pdfRenderTimeoutMs,
 } from "@/components/files/file-pdf-preview";
+import { captureWorkbenchPosition, restoreWorkbenchPosition } from "@/components/workbench/workbench-position";
 import { photoPreviewMime, isPdfFile } from "@/features/files/preview-format";
 
 function deferred<T>() {
@@ -315,4 +316,84 @@ describe("durable reading continuity", () => {
     await act(async () => saved.resolve({ status: "saved", progress: { page: 3, revision: 2 } }));
     expect(host.textContent).toBe(""); expect(task.destroy).toHaveBeenCalled();
   });
+});
+
+
+it("quicklook PDF never reads or writes the authoritative reading position", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { headers: { "content-type": "application/pdf", "content-length": "1000", "X-Reading-Source-Version": "00000000-0000-4000-8000-000000000001" } })));
+  await act(async () => root.render(createElement(FilePdfPreview, { documentId: "quicklook", title: "只读", persistProgress: false, initialPage: 2, initialSourceVersion: "00000000-0000-4000-8000-000000000001" })));
+  expect(mocks.getProgress).not.toHaveBeenCalled();
+  await click("下一页");
+  expect(mocks.saveProgress).not.toHaveBeenCalled();
+  expect(renderedCanvas()?.getAttribute("aria-label")).toContain("第 3 页");
+});
+it("a hidden workbench PDF pauses heavy loading and destroys its task, then resumes its page", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { headers: { "content-type": "application/pdf", "content-length": "1000", "X-Reading-Source-Version": "00000000-0000-4000-8000-000000000001" } })));
+  await act(async () => root.render(createElement(FilePdfPreview, { documentId: "paused", title: "暂停", persistProgress: false, active: false, initialPage: 2, initialSourceVersion: "00000000-0000-4000-8000-000000000001" })));
+  expect(fetch).not.toHaveBeenCalled();
+  await act(async () => root.render(createElement(FilePdfPreview, { documentId: "paused", title: "暂停", persistProgress: false, active: true, initialPage: 2, initialSourceVersion: "00000000-0000-4000-8000-000000000001" })));
+  expect(renderedCanvas()?.getAttribute("aria-label")).toContain("第 2 页");
+  await click("下一页");
+  await act(async () => root.render(createElement(FilePdfPreview, { documentId: "paused", title: "暂停", persistProgress: false, active: false, initialPage: 2, initialSourceVersion: "00000000-0000-4000-8000-000000000001" })));
+  expect(task.destroy).toHaveBeenCalled(); expect(host.querySelector("canvas")).toBeNull();
+  await act(async () => root.render(createElement(FilePdfPreview, { documentId: "paused", title: "暂停", persistProgress: false, active: true, initialPage: 2, initialSourceVersion: "00000000-0000-4000-8000-000000000001" })));
+  expect(renderedCanvas()?.getAttribute("aria-label")).toContain("第 3 页");
+});
+
+it("resumes with a fresh PDF proxy and ignores a destroyed proxy's late getPage rejection", async () => {
+  let destroyed = false;
+  const oldGetPage = vi.fn(async () => { if (destroyed) throw new Error("destroyed proxy"); return firstPage; });
+  const oldTask = { promise: Promise.resolve({ numPages: 3, getPage: oldGetPage }), destroy: vi.fn(async () => { destroyed = true; }) };
+  const freshGetPage = vi.fn(async () => firstPage);
+  const freshTask = { promise: Promise.resolve({ numPages: 3, getPage: freshGetPage }), destroy: vi.fn(async () => {}) };
+  mocks.getDocument.mockReset().mockReturnValueOnce(oldTask).mockReturnValueOnce(freshTask);
+  const props = { documentId: "fresh-resume", title: "Synthetic resume", persistProgress: false };
+  await act(async () => root.render(createElement(FilePdfPreview, { ...props, active: true })));
+  expect(renderedCanvas()).not.toBeNull();
+  await act(async () => root.render(createElement(FilePdfPreview, { ...props, active: false })));
+  expect(oldTask.destroy).toHaveBeenCalledOnce();
+  const oldCalls = oldGetPage.mock.calls.length;
+  await act(async () => root.render(createElement(FilePdfPreview, { ...props, active: true })));
+  expect(oldGetPage).toHaveBeenCalledTimes(oldCalls);
+  expect(freshGetPage).toHaveBeenCalled(); expect(freshTask.destroy).not.toHaveBeenCalled();
+  expect(host.querySelector('[role="alert"]')).toBeNull(); expect(renderedCanvas()).not.toBeNull();
+});
+
+it("recovers a failed session on pause/resume and can read when progress retrieval fails", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(head(1000, 503)).mockResolvedValueOnce(new Response(null, { headers: { "content-type": "application/pdf", "content-length": "1000", "X-Reading-Source-Version": "00000000-0000-4000-8000-000000000001" } })));
+  const props = { documentId: "retry-after-pause", title: "Synthetic recover" };
+  await act(async () => root.render(createElement(FilePdfPreview, { ...props, active: true })));
+  expect(host.querySelector('[role="alert"]')).not.toBeNull();
+  await act(async () => root.render(createElement(FilePdfPreview, { ...props, active: false })));
+  mocks.getProgress.mockRejectedValueOnce(new Error("offline progress read"));
+  await act(async () => root.render(createElement(FilePdfPreview, { ...props, active: true })));
+  expect(host.querySelector('[role="alert"]')).toBeNull(); expect(renderedCanvas()).not.toBeNull();
+  expect(host.textContent).toContain("阅读进度暂不可用");
+});
+
+
+it("captures a hidden main PDF's page/source without retaining its session or borrowing another document's position", async () => {
+  const documentId = "70000000-0000-4000-8000-000000000001";
+  const otherId = "70000000-0000-4000-8000-000000000002";
+  const sourceVersion = "71000000-0000-4000-8000-000000000001";
+  vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { headers: { "content-type": "application/pdf", "content-length": "1000", "X-Reading-Source-Version": sourceVersion } })));
+  const showReader = async (id: string, active: boolean) => act(async () => root.render(createElement("section", { "data-note-reader-view": "pdf" }, createElement(FilePdfPreview, { documentId: id, title: "Hidden source capture", persistProgress: false, active }))));
+  await showReader(documentId, true); await click("下一页");
+  expect(renderedCanvas()?.dataset.pdfPage).toBe("2");
+  await showReader(documentId, false); host.hidden = true;
+  expect(host.querySelector("canvas")).toBeNull(); expect(task.destroy).toHaveBeenCalled();
+  const snapshot = await captureWorkbenchPosition(host, "main");
+  expect(snapshot).toMatchObject({ noteReaderView: "pdf", pdfDocumentId: documentId, pdfSourceVersion: sourceVersion, pdfPage: 2 });
+  await showReader(otherId, false);
+  const other = await captureWorkbenchPosition(host, "main");
+  expect(other.pdfDocumentId).toBe(otherId); expect(other.pdfPage).toBeUndefined(); expect(other.pdfSourceVersion).toBeUndefined();
+  host.hidden = false; await showReader(documentId, true); await click("上一页");
+  await act(async () => { restoreWorkbenchPosition(host, snapshot, { scope: "main" }); });
+  expect(renderedCanvas()?.dataset.pdfPage).toBe("2");
+  expect(mocks.getProgress).not.toHaveBeenCalled(); expect(mocks.saveProgress).not.toHaveBeenCalled();
+  // A retained but inactive PDF must not override the current Markdown reader.
+  host.querySelector<HTMLElement>("[data-note-reader-view]")!.dataset.noteReaderView = "markdown";
+  const markdown = await captureWorkbenchPosition(host, "main");
+  expect(markdown.pdfPage).toBeUndefined(); expect(markdown.pdfDocumentId).toBeUndefined(); expect(markdown.pdfSourceVersion).toBeUndefined();
 });

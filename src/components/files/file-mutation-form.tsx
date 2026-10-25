@@ -1,25 +1,32 @@
 "use client";
+import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
 
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { publishOperationReceipt } from "@/features/workbench/operation-contracts";
 import { unstable_rethrow } from "next/navigation";
 
 /** Catch action failures locally and retain the user's input for another attempt. */
 export function FileMutationForm({ action, children, className, onSuccess }: {
-  action: (data: FormData) => Promise<void | { saved: true; warning?: string }>; children?: ReactNode; className?: string; onSuccess?: () => void;
+  action: (data: FormData) => Promise<void | { saved: true; warning?: string; receiptId?: string }>; children?: ReactNode; className?: string; onSuccess?: () => void;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [savedWithWarning, setSavedWithWarning] = useState(false);
   const inFlight = useRef(false);
+  const request=useRef<{key:string;id:string}|null>(null);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const scopeCurrent=captureWorkspaceScope();
     if (inFlight.current || savedWithWarning) return;
     const form = event.currentTarget;
     const data = new FormData(form);
+    const key=JSON.stringify([...data.entries()]); if(request.current?.key!==key) request.current={key,id:crypto.randomUUID()}; data.set("request_id",request.current.id);
     inFlight.current = true;
     setPending(true); setError("");
     try {
       const result = await action(data);
+      if(!scopeCurrent())return;
+      if(result?.receiptId) publishOperationReceipt({receiptId:result.receiptId,message:"文件变更已保存"});
       if (result?.warning) { setError(result.warning); setSavedWithWarning(true); }
       else onSuccess?.();
     } catch (reason) {

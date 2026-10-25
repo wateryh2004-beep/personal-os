@@ -118,8 +118,16 @@ export function createWorkspaceResource<T>(
   return resource;
 }
 
+const scopeCleanups = new Set<() => void>();
+/** Technical registries must discard owner-scoped callbacks on logout, Vault changes, and owner replacement. */
+export function registerWorkspaceScopeCleanup(cleanup: () => void) {
+  scopeCleanups.add(cleanup);
+  return () => { scopeCleanups.delete(cleanup); };
+}
+
 export function clearWorkspaceResources() {
   scopeEpoch += 1;
+  scopeCleanups.forEach(cleanup => cleanup());
   ownerScope = undefined;
   serverRevision = undefined;
   resources.forEach((resource) => resource.clear());

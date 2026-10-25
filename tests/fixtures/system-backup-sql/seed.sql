@@ -25,4 +25,22 @@ insert into public.investment_quotes(id,user_id,account_id,sequence,symbol,curre
 -- Terminally cancelled upload: retained evidence, no committed object needed.
 insert into public.documents(id,user_id,title,original_filename,storage_bucket,storage_path,mime_type,file_size,storage_provider,storage_state,upload_mode)
 values ('10000000-0000-4000-8000-000000000080','00000000-0000-4000-8000-000000000001','Synthetic cancelled upload','cancelled.pdf','fixture-bucket','00000000-0000-4000-8000-000000000001/files/cancelled.pdf','application/pdf',123,'cloudflare_r2','cancelled','multipart');
+-- Workbench v2 round-trip data: domain values are explicit synthetic records.
+insert into public.purchase_items(id,user_id,title,quantity,quantity_unit,price_cny,status)
+values ('10000000-0000-4000-8000-000000000090','00000000-0000-4000-8000-000000000001','Synthetic pantry quantity','2.125','kg',12.50,'ready');
+insert into public.trips(id,user_id,title,start_date,end_date,budget_cny)
+values ('10000000-0000-4000-8000-000000000091','00000000-0000-4000-8000-000000000001','Synthetic journey','2026-11-01','2026-11-02',125.50);
+insert into public.trip_stops(id,user_id,trip_id,place_name,day_number,planned_time,duration_minutes,arrived_at)
+values ('10000000-0000-4000-8000-000000000092','00000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000091','Synthetic current stop',1,'09:15',45,'2026-11-01T01:15:00Z'),
+('10000000-0000-4000-8000-000000000093','00000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000091','Synthetic next stop',2,'13:30',60,null);
+update public.trips set current_stop_id='10000000-0000-4000-8000-000000000092',next_stop_id='10000000-0000-4000-8000-000000000093' where id='10000000-0000-4000-8000-000000000091';
+-- Historical archived relationship to the existing cancelled upload. This tests
+-- retained links; it does not invent an available ticket or missing original bytes.
+insert into public.trip_documents(id,user_id,trip_id,document_id,archived_at)
+values ('10000000-0000-4000-8000-000000000094','00000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000091','10000000-0000-4000-8000-000000000080','2026-10-24T00:00:00Z');
+select public.save_leisure_content('10000000-0000-4000-8000-000000000095',0,'{"title":"Synthetic book progress","kind":"book","why":"Recovery fixture","body_markdown":"Synthetic editorial source","how_to_start":null,"duration_minutes":null,"platform":null,"location":null,"starts_at":null,"cost_text":null,"setting":null,"company":null,"budget":"unknown","sources":[],"ratings":[]}'::jsonb);
+select public.save_leisure_feedback('10000000-0000-4000-8000-000000000095',0,'current','liked','Synthetic personal reflection',null);
+update public.leisure_feedback set progress_unit='page',progress_value=42,progress_total=200 where experience_id='10000000-0000-4000-8000-000000000095';
+insert into public.workspace_scenes(id,user_id,name,snapshot,last_mutation_id)
+values ('10000000-0000-4000-8000-000000000096','00000000-0000-4000-8000-000000000001','Synthetic field scene','{"version":1,"main":{"href":"/shopping?mode=field","position":{"scrollTop":128}},"reference":{"ref":{"kind":"trip","id":"10000000-0000-4000-8000-000000000091"}},"layout":{"referenceFirst":false,"referenceWidth":42,"mobilePane":"main"}}'::jsonb,'10000000-0000-4000-8000-000000000097');
 commit;
