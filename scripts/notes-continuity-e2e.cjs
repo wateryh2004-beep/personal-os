@@ -64,6 +64,7 @@ async function viewportAnchor(page) {
       await content.waitFor({ state: 'visible' }); await page.waitForTimeout(250);
       const warmTop = await page.locator('.cm-scroller').evaluate(el => el.scrollTop);
       const warmAnchor = await viewportAnchor(page); row.warmAnchor = warmAnchor; row.rawScroll = { before, warmTop };
+      row.savedPositions = await page.evaluate(() => performance.getEntriesByName("continuity-leave").map(entry => entry.detail));
       // Virtual scrollTop changes when unseen line heights are re-estimated on remount.
       // Compare the actual source line, its screen offset and exact caret instead.
       assert.equal(warmAnchor.line, beforeAnchor.line, 'cached note restores the same visible source line');

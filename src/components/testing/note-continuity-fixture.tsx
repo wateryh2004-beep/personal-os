@@ -22,6 +22,8 @@ function seed(data: NoteDocumentData, delay = 0): Promise<WorkspaceBootstrap<Not
 export function NoteContinuityFixture() {
   const [current, setCurrent] = useState(() => ({ index: 0, bootstrap: seed(continuityDocuments[0]) }));
   const open = (index: number) => {
+    const previous = noteDocumentCache.position(continuityDocuments[current.index].note.id)?.editor;
+    performance.mark("continuity-leave", { detail: { index: current.index, viewport: previous?.viewport, anchor: previous?.anchor, head: previous?.head, snapshotFrom: previous?.scrollEffect?.value.range.from } });
     performance.mark("continuity-open");
     setCurrent({ index, bootstrap: seed(continuityDocuments[index], 1500) });
   };

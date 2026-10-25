@@ -7,20 +7,55 @@ export type NoteContinuity = { reading: boolean; editor?: EditorPosition; reader
 export function captureEditorPosition(view: EditorView): EditorPosition {
   const top = view.scrollDOM.getBoundingClientRect().top - view.documentTop;
   const block = view.lineBlockAtHeight(top);
+  const screenTop = view.scrollDOM.getBoundingClientRect().top;
+  const visibleLine = [...view.scrollDOM.querySelectorAll<HTMLElement>(".cm-line[data-source-line]")].find((node) => node.getBoundingClientRect().bottom > screenTop + 1);
+  const viewport = visibleLine
+    ? { line: Number(visibleLine.dataset.sourceLine), offset: screenTop - visibleLine.getBoundingClientRect().top }
+    : { line: view.state.doc.lineAt(block.from).number, offset: top - block.top };
   return { anchor: view.state.selection.main.anchor, head: view.state.selection.main.head,
-    viewport: { line: view.state.doc.lineAt(block.from).number, offset: top - block.top }, scrollLeft: view.scrollDOM.scrollLeft, documentLength: view.state.doc.length, scrollEffect: view.scrollSnapshot() };
+    viewport, scrollLeft: view.scrollDOM.scrollLeft, documentLength: view.state.doc.length, scrollEffect: view.scrollSnapshot() };
 }
-export function restoreEditorPosition(view: EditorView, position: EditorPosition) {
-  const doc = view.state.doc;
-  const line = doc.line(Math.max(1, Math.min(doc.lines, position.viewport.line)));
-  const snapshot = position.documentLength === doc.length ? position.scrollEffect : undefined;
-  view.dispatch({ effects: snapshot ?? EditorView.scrollIntoView(line.from, { y: "start", yMargin: 0 }), selection: { anchor: Math.max(0, Math.min(doc.length, position.anchor)), head: Math.max(0, Math.min(doc.length, position.head)) } });
-  if (snapshot) return;
-  view.requestMeasure({ read: (current) => current.documentTop + current.lineBlockAt(line.from).top - current.scrollDOM.getBoundingClientRect().top, write: (offset, current) => {
-    current.scrollDOM.scrollTop += offset + position.viewport.offset;
-    current.scrollDOM.scrollLeft = position.scrollLeft;
-  } });
+export function restoreEditorPosition(view: EditorView, position: EditorPosition, done: () => void = () => {}, isCurrent: () => boolean = () => true, deferred: () => void = () => {}) {
+  let attempts = 0;
+  const available = () => isCurrent() && view.dom.isConnected;
+  const measure = () => {
+    if (!available()) return;
+    if (view.scrollDOM.clientHeight <= 0) { deferred(); return; }
+    if (view.hasFocus) { done(); return; }
+    view.requestMeasure({
+      read: (current) => captureEditorPosition(current),
+      write: (current) => {
+        if (!available()) return;
+        const doc = view.state.doc;
+        const line = doc.line(Math.max(1, Math.min(doc.lines, position.viewport.line)));
+        if (current.viewport.line === line.number && Math.abs(current.viewport.offset - position.viewport.offset) < 1) { done(); return; }
+        if (++attempts >= 12) { deferred(); return; }
+        if (current.viewport.line === line.number) {
+          view.scrollDOM.scrollTop += position.viewport.offset - current.viewport.offset;
+          view.scrollDOM.scrollLeft = position.scrollLeft;
+          requestAnimationFrame(measure);
+        } else requestAnimationFrame(() => {
+          if (!available()) return;
+          view.dispatch({ effects: EditorView.scrollIntoView(line.from, { y: "start", yMargin: 0 }) });
+          measure();
+        });
+      },
+    });
+  };
+  requestAnimationFrame(() => {
+    if (!available()) return;
+    if (view.scrollDOM.clientHeight <= 0) { deferred(); return; }
+    // Taking focus interrupts restoration instead of fighting the user's input.
+    if (view.hasFocus) { done(); return; }
+    const doc = view.state.doc;
+    const line = doc.line(Math.max(1, Math.min(doc.lines, position.viewport.line)));
+    const snapshot = position.documentLength === doc.length ? position.scrollEffect : undefined;
+    view.dispatch({ effects: snapshot ?? EditorView.scrollIntoView(line.from, { y: "start", yMargin: 0 }),
+      selection: { anchor: Math.max(0, Math.min(doc.length, position.anchor)), head: Math.max(0, Math.min(doc.length, position.head)) } });
+    measure();
+  });
 }
+
 export function captureReadingAnchor(pane: HTMLElement): SourceAnchor {
   const top = pane.getBoundingClientRect().top;
   let anchor: SourceAnchor = { line: 1, offset: 0 };

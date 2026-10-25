@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
-import type { EditorView } from "@codemirror/view";
-import { captureEditorPosition, captureReadingAnchor, restoreEditorPosition, restoreReadingAnchor, type EditorPosition, type SourceAnchor, type NoteContinuity } from "@/features/notes/editor/continuity";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useNoteContinuity } from "./use-note-continuity";
 import { noteDocumentCache } from "@/features/notes/document-resource";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
@@ -130,56 +129,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body_markdown);
-  const [initialContinuity] = useState(() => noteDocumentCache.position(note.id));
-  const [reading, setReading] = useState(initialContinuity?.reading ?? false);
-  const codeMirrorRef = useRef<EditorView | null>(null);
-  const readingPaneRef = useRef<HTMLElement | null>(null);
-  const continuityRef = useRef<NoteContinuity>({ ...initialContinuity, reading: initialContinuity?.reading ?? false });
-  const readerStart = useRef<SourceAnchor | null>(null);
-  const pendingModeRestore = useRef(Boolean(initialContinuity?.reading));
-  const continuityScope = useRef(captureWorkspaceScope());
-  const rememberPosition = useCallback((position: EditorPosition) => {
-    if (continuityRef.current.reading) return;
-    continuityRef.current.editor = position;
-    if (continuityScope.current()) noteDocumentCache.remember(note.id, continuityRef.current);
-  }, [note.id]);
-  useLayoutEffect(() => () => {
-    const view = codeMirrorRef.current;
-    if (view?.dom.isConnected && !continuityRef.current.reading) rememberPosition(captureEditorPosition(view));
-  }, [rememberPosition]);
-  const rememberReading = useCallback(() => {
-    if (readingPaneRef.current) continuityRef.current.reader = captureReadingAnchor(readingPaneRef.current);
-    if (continuityScope.current()) noteDocumentCache.remember(note.id, continuityRef.current);
-  }, [note.id]);
-  const switchReading = (next: boolean) => {
-    if (next === reading) return;
-    if (reading) rememberReading();
-    else if (codeMirrorRef.current) rememberPosition(captureEditorPosition(codeMirrorRef.current));
-    if (next && continuityRef.current.editor) continuityRef.current.reader = continuityRef.current.editor.viewport;
-    continuityRef.current.reading = next;
-    pendingModeRestore.current = true;
-    setReading(next);
-    if (continuityScope.current()) noteDocumentCache.remember(note.id, continuityRef.current);
-  };
-  useLayoutEffect(() => {
-    if (!pendingModeRestore.current) return;
-    pendingModeRestore.current = false;
-    const position = continuityRef.current;
-    if (reading && readingPaneRef.current) {
-      restoreReadingAnchor(readingPaneRef.current, position.reader ?? position.editor?.viewport ?? { line: 1, offset: 0 });
-      readerStart.current = captureReadingAnchor(readingPaneRef.current);
-    } else if (!reading && codeMirrorRef.current && position.editor) {
-      const readerMoved = readerStart.current && position.reader && (position.reader.line !== readerStart.current.line || Math.abs(position.reader.offset - readerStart.current.offset) > 2);
-      const viewport = readerMoved ? position.reader! : position.editor.viewport;
-      const view = codeMirrorRef.current;
-      // Retain the selection when it is still in the paragraph being read; otherwise
-      // place the caret at the newly read paragraph, preserving a useful return target.
-      const caretLine = view.state.doc.lineAt(Math.min(view.state.doc.length, position.editor.head)).number;
-      const caret = view.state.doc.line(Math.min(view.state.doc.lines, Math.max(1, viewport.line))).from;
-      restoreEditorPosition(view, { ...position.editor, viewport, scrollEffect: readerMoved ? undefined : position.editor.scrollEffect,
-        ...(readerMoved && Math.abs(caretLine - viewport.line) > 2 ? { anchor: caret, head: caret } : {}) });
-    }
-  }, [reading]);
+  const { reading, switchReading, readingPaneRef, rememberReading, rememberPosition, onEditorReady } = useNoteContinuity(note.id);
   const [titleUndoStack, setTitleUndoStack] = useState<string[]>([]);
   const titleUndoStackRef = useRef<string[]>([]);
   const [state, setState] = useState<SaveState>("已保存");
@@ -650,8 +600,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
           <VisualMarkdownEditor
             markdown={body}
             noteId={note.id}
-            positionRef={codeMirrorRef}
-            initialPosition={initialContinuity?.editor}
+            onEditorReady={onEditorReady}
             onPositionChange={rememberPosition}
             onImageUploadStatus={handleImageUploadStatus}
             onOpenAi={aiGenerated ? undefined : openAi}

@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { captureEditorPosition, restoreEditorPosition, type EditorPosition } from "@/features/notes/editor/continuity";
+import { captureEditorPosition, type EditorPosition } from "@/features/notes/editor/continuity";
 import { sourceLineAttributes } from "@/features/notes/editor/source-line-attributes";
 import { documentCharacterCount } from "@/features/notes/editor/document-statistics";
 import { EditorState } from "@codemirror/state";
@@ -39,8 +39,7 @@ type VisualMarkdownEditorProps = {
   markdown: string;
   noteId: string;
   onChange: (value: string) => void;
-  positionRef?: MutableRefObject<EditorView | null>;
-  initialPosition?: EditorPosition;
+  onEditorReady?: (view: EditorView) => void;
   onPositionChange?: (position: EditorPosition) => void;
   onImageUploadStatus?: (message: string) => void;
   onOpenAi?: () => void;
@@ -98,7 +97,7 @@ export function VisualMarkdownEditor({
   onImageUploadStatus,
   onOpenAi,
   onSelectionChange,
-  positionRef, initialPosition, onPositionChange,
+  onEditorReady, onPositionChange,
 }: VisualMarkdownEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const positionMeasureKey = useRef({});
@@ -603,12 +602,12 @@ export function VisualMarkdownEditor({
         indentWithTab={false}
         extensions={extensions}
         onCreateEditor={(createdView) => {
-          if (positionRef) positionRef.current = createdView;
-          if (initialPosition) restoreEditorPosition(createdView, initialPosition);
+          onEditorReady?.(createdView);
           setView(createdView);
           setStateVersion((version) => version + 1);
         }}
         onUpdate={(update) => {
+          if (update.geometryChanged || update.selectionSet) onEditorReady?.(update.view);
           if (onPositionChange && (update.selectionSet || update.viewportChanged)) update.view.requestMeasure({
             key: positionMeasureKey.current,
             read: (current) => current.scrollDOM.clientHeight > 0 ? captureEditorPosition(current) : null,
