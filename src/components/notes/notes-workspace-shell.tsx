@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { ChevronDown, ChevronRight, Clock3, FilePlus2, FileText, Folder, FolderPlus, Menu, MoreHorizontal, Search, Sparkles, Star, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -15,6 +15,7 @@ import { isNotesSearchShortcut } from "@/features/notes/search-shortcut";
 import { lastNotesListSessionKey, notesListHref } from "@/features/notes/navigation";
 import { loadWorkspaceSession } from "@/lib/workspace-session";
 import { filterNotesByMetadata, createNoteFolderPathResolver } from "@/features/notes/local-search";
+import { NotesNavigationContext } from "./notes-navigation-context";
 
 export type NotesNavigatorFolder = { id: string; name: string; parent_id: string | null };
 export type NotesNavigatorNote = { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null };
@@ -33,6 +34,9 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [navigatorQuery, setNavigatorQuery] = useState("");
+  const quickOpenInput = useRef<HTMLInputElement>(null);
+  const quickOpenResults = useRef<HTMLDivElement>(null);
+  const quickOpenId = useId();
   const [optimisticMove, setOptimisticMove] = useState<{ item: DraggedNavigatorItem; targetId: string | null } | null>(null);
   const [dragging, setDragging] = useState<DraggedNavigatorItem | null>(null);
   const [dropTarget, setDropTarget] = useState<string | "root" | null>(null);
@@ -196,14 +200,27 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
       <span className="sr-only">快速打开</span>
       <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]" aria-hidden="true" />
       <input
+        ref={quickOpenInput}
+        aria-label="快速打开"
+        aria-controls={searchActive ? quickOpenId : undefined}
+        aria-describedby={searchActive ? `${quickOpenId}-hint` : undefined}
         value={navigatorQuery}
         onChange={(event) => setNavigatorQuery(event.target.value)}
-        onKeyDown={(event) => { if (event.key === "Escape") setNavigatorQuery(""); }}
+        onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing || event.keyCode === 229 || event.altKey || event.ctrlKey || event.metaKey) return;
+          if (event.key === "Escape" && navigatorQuery) { event.preventDefault(); event.stopPropagation(); setNavigatorQuery(""); }
+          if (!searchActive) return;
+          const choices = quickOpenResults.current?.querySelectorAll<HTMLAnchorElement>("a[href]");
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            choices?.[event.key === "ArrowDown" ? 0 : choices.length - 1]?.focus();
+          } else if (event.key === "Enter" && choices?.length) { event.preventDefault(); choices[0].click(); }
+        }}
         autoComplete="off"
         placeholder="快速打开…"
-        className="ui-field h-8 w-full rounded-[9px] border border-transparent bg-[var(--surface-control)] pl-8 pr-8 text-[12px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+        className="ui-field min-h-11 w-full rounded-[9px] border border-transparent bg-[var(--surface-control)] pl-8 pr-11 text-[16px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)] md:min-h-8 md:pr-8 md:text-[12px]"
       />
-      {navigatorQuery ? <button type="button" onClick={() => setNavigatorQuery("")} className="pressable absolute right-1 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" aria-label="清空切换搜索"><X className="size-3" aria-hidden="true" /></button> : null}
+      {navigatorQuery ? <button type="button" onClick={() => { setNavigatorQuery(""); quickOpenInput.current?.focus(); }} className="pressable absolute right-0 top-1/2 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] md:right-1 md:size-6" aria-label="清空切换搜索"><X className="size-3" aria-hidden="true" /></button> : null}
     </label>
     <nav className="mt-2.5 space-y-px" aria-label="笔记视图">
       <Link onClick={onNavigate} href="/notes" className={`pressable flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${pathname === "/notes" && !selectedFolderId && !activeView ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><FileText className="size-3.5" />全部笔记</Link>
@@ -217,13 +234,28 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
         {!searchActive ? <button type="button" onClick={() => { setCreatingIn(null); setFolderName(""); }} className="pressable inline-flex size-11 items-center justify-center rounded-[6px] p-1 md:size-7 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" aria-label="新建根文件夹"><FolderPlus className="size-3.5" /></button> : null}
       </div>
       {searchActive ? (
-        <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto">
+        <div id={quickOpenId} ref={quickOpenResults} aria-label="快速打开结果" className="workspace-scroll min-h-0 flex-1 overflow-y-auto" onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+          if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setNavigatorQuery(""); quickOpenInput.current?.focus(); return; }
+          const choices = Array.from(event.currentTarget.querySelectorAll<HTMLAnchorElement>("a[href]"));
+          const index = choices.indexOf(event.target as HTMLAnchorElement);
+          if (index < 0) return;
+          if (event.key === "ArrowUp" && index === 0) { event.preventDefault(); quickOpenInput.current?.focus(); }
+          else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+            event.preventDefault();
+            const next = event.key === "Home" ? 0 : event.key === "End" ? choices.length - 1 : Math.max(0, Math.min(choices.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)));
+            choices[next]?.focus();
+          }
+        }}>
+          <p id={`${quickOpenId}-hint`} className="px-2 pb-2 text-[12px] leading-5 text-[var(--text-secondary)]"><span className="hidden md:inline">↑ ↓ 选择 · Enter 打开 · </span>Esc 回到文件树</p>
           {navigatorMatches.length ? navigatorMatches.map((note) => (
             <Link
               key={note.id}
               href={`/notes/${note.id}`}
-              onClick={() => { setNavigatorQuery(""); onNavigate?.(); }}
-              className={`group flex min-h-10 items-center gap-2 rounded-[8px] px-2 py-1.5 transition-colors ui-transition ${activeNoteId === note.id ? "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
+              onNavigate={() => { setNavigatorQuery(""); onNavigate?.(); }}
+              transitionTypes={["note-open"]}
+              scroll={false}
+              className={`group flex min-h-11 items-center gap-2 rounded-[8px] px-2 py-1.5 transition-colors ui-transition focus-visible:bg-[var(--surface-selected)] focus-visible:outline-offset-[-2px] md:min-h-10 ${activeNoteId === note.id ? "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
             >
               <FileText className="size-3.5 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1">
@@ -300,9 +332,9 @@ export function NotesWorkspaceShell({ folders, notes, children, documentView }: 
     setNavigatorWidth(272);
     try { localStorage.removeItem("personal-os:notes-navigator-width:v1"); } catch { /* no-op */ }
   };
-  return <section className="notes-workspace-shell flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
+  return <NotesNavigationContext value={() => setMobileOpen(true)}><section className="notes-workspace-shell flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
     <aside style={{ width: navigatorWidth }} className="notes-navigator-panel relative hidden h-full shrink-0 border-r border-[var(--separator)] bg-[var(--surface-sidebar)] md:block"><NotesNavigator folders={folders} notes={notes} /><button type="button" onPointerDown={resizeNavigator} onDoubleClick={resetNavigator} className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none" aria-label="调整笔记导航宽度，双击恢复默认" /></aside>
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" showCloseButton className="notes-navigation-sheet w-[min(88vw,340px)] p-0"><SheetTitle className="sr-only">笔记文件</SheetTitle><NotesNavigator folders={folders} notes={notes} onNavigate={() => setMobileOpen(false)} /></SheetContent></Sheet>
     <div className="relative min-w-0 flex-1">{isEditorRoute ? null : <button type="button" onClick={() => setMobileOpen(true)} className="notes-folder-trigger pressable absolute left-3 top-2 z-10 flex h-11 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--separator)] bg-[var(--surface-canvas)] px-3 text-[13px] font-medium text-[var(--text-secondary)] md:hidden" aria-label="打开笔记文件"><Menu className="size-4" />文件夹</button>}{children}</div>
-  </section>;
+  </section></NotesNavigationContext>;
 }

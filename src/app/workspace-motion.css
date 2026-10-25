@@ -15,6 +15,26 @@
 .notes-document-shell .life-codemirror .cm-content { max-width:824px; margin-inline:auto; padding-top:24px; }
 .notes-editor-toolbar { padding-top:24px; }
 
+/* Anchored chapter picker: CSS reverses from the current frame, Radix owns focus. */
+[data-slot=popover-content].note-outline-surface {
+  --outline-offset:-6px;
+  opacity:1; transform:none; overflow:hidden;
+  transition:transform 320ms var(--ease-emphasized),opacity 160ms var(--ease-standard);
+  animation:none;
+}
+[data-slot=popover-content].note-outline-surface[data-side=top] { --outline-offset:6px; }
+@starting-style {
+  [data-slot=popover-content].note-outline-surface[data-state=open] { opacity:0; transform:translateY(var(--outline-offset)) scale(.96); }
+}
+[data-slot=popover-content].note-outline-surface[data-state=closed] {
+  opacity:0; transform:translateY(var(--outline-offset)) scale(.96); pointer-events:none;
+  transition-duration:180ms; animation:note-outline-presence 180ms linear;
+}
+@keyframes note-outline-presence { from { --outline-present:1; } to { --outline-present:0; } }
+@media (prefers-reduced-motion:reduce) {
+  [data-slot=popover-content].note-outline-surface { transform:none!important; }
+}
+
 .app-sidebar { overflow-x:clip; transition:width 360ms var(--ease-emphasized); }
 .app-workspace-frame { transition:margin-left 360ms var(--ease-emphasized); }
 .navigation-rail { position:relative; isolation:isolate; }

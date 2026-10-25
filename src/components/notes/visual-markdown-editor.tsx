@@ -12,7 +12,7 @@ import { languages } from "@codemirror/language-data";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
 import { startCompletion } from "@codemirror/autocomplete";
 import { GFM } from "@lezer/markdown";
-import { X } from "lucide-react";
+import { NoteOutline } from "@/components/notes/note-outline";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import {
   activeHeadingIndexAtLine,
@@ -153,10 +153,10 @@ export function VisualMarkdownEditor({
   // 目录浮层：默认不占任何空间（避免"附着在旁边"），点工具栏目录按钮才出现。
   // 只在面板打开时才解析标题，不打开就不付解析成本。
   const [outlineOpen, setOutlineOpen] = useState(false);
-  const outlinePanelRef = useRef<HTMLDivElement>(null);
   const outlineListRef = useRef<HTMLUListElement>(null);
   const outlineHeadingsRef = useRef<MarkdownOutlineItem[]>([]);
   const activeOutlineIndexRef = useRef(-1);
+  const outlineMeasureKey = useRef({});
   const statusBarRef = useRef<HTMLDivElement>(null);
   const [outlineItems, setOutlineItems] = useState<MarkdownOutlineItem[]>([]);
   const outlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,33 +174,11 @@ export function VisualMarkdownEditor({
     if (!outlineOpen && outlineTimerRef.current) { clearTimeout(outlineTimerRef.current); outlineTimerRef.current = null; }
   }, [outlineOpen]);
 
-  // 点面板外部或按 Esc 关闭目录；点工具栏本身（含目录按钮）不触发外部关闭，
-  // 关闭/打开交给按钮的 toggle 处理，避免开关行为错乱。
-  useEffect(() => {
-    if (!outlineOpen) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (outlinePanelRef.current?.contains(target)) return;
-      if ((target as Element).closest?.(".life-markdown-toolbar")) return;
-      setOutlineOpen(false);
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOutlineOpen(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [outlineOpen]);
-
   // 跳转目录项：用编辑器当前的 doc 重新定位（body state 可能滞后于刚输入的内容），
   // 命中后把光标放到标题行并滚动到视口中央，activeLine 高亮会自然标出目标位置。
   const jumpToOutlineHeading = useCallback((item: MarkdownOutlineItem) => {
     const currentView = editorRef.current?.view;
-    if (!currentView) return;
+    if (!currentView) return false;
     const fresh = parseEditorOutline(currentView.state);
     const target = fresh.find(
       (heading) =>
@@ -208,13 +186,14 @@ export function VisualMarkdownEditor({
         heading.text === item.text &&
         heading.index === item.index,
     );
-    if (!target) return;
+    if (!target) { refreshOutline(currentView); return false; }
     currentView.dispatch({
       selection: { anchor: target.from },
       effects: EditorView.scrollIntoView(target.from, { y: "center" }),
     });
     currentView.focus();
-  }, []);
+    return true;
+  }, [refreshOutline]);
 
   // 底部状态栏：字数/行数、光标行列。直接写 DOM，避免光标高频移动触发 React 重渲染。
   const syncStatusCount = useCallback((currentView: EditorView) => {
@@ -236,24 +215,32 @@ export function VisualMarkdownEditor({
 
   // 目录跟随：以视口顶部行为准，高亮当前所在章节，并把目录滚动到该项可见。
   const syncOutlineHighlight = useCallback((currentView: EditorView) => {
-    const listEl = outlineListRef.current;
-    if (!listEl) return;
-    const headings = outlineHeadingsRef.current;
-    if (!headings.length) return;
-    const doc = currentView.state.doc;
-    const topLine = doc.lineAt(currentView.lineBlockAtHeight(0).from).number;
-    const activeIndex = activeHeadingIndexAtLine(
-      headings.map((heading) => doc.lineAt(heading.from).number),
-      topLine,
-    );
-    if (activeIndex === activeOutlineIndexRef.current) return;
-    activeOutlineIndexRef.current = activeIndex;
-    for (const button of listEl.querySelectorAll<HTMLButtonElement>("[data-outline-index]")) {
-      const isActive = Number(button.dataset.outlineIndex) === activeIndex;
-      button.classList.toggle("is-active", isActive);
-      if (isActive) button.scrollIntoView({ block: "nearest" });
-    }
+    if (!outlineListRef.current) return;
+    currentView.requestMeasure({
+      key: outlineMeasureKey.current,
+      read: (measuredView) => {
+        const doc = measuredView.state.doc;
+        const top = Math.max(0, measuredView.scrollDOM.getBoundingClientRect().top - measuredView.documentTop);
+        const topLine = doc.lineAt(measuredView.lineBlockAtHeight(top).from).number;
+        return activeHeadingIndexAtLine(outlineHeadingsRef.current.map((heading) => doc.lineAt(Math.min(heading.from, doc.length)).number), topLine);
+      },
+      write: (activeIndex) => {
+        if (activeIndex === activeOutlineIndexRef.current) return;
+        activeOutlineIndexRef.current = activeIndex;
+        for (const button of outlineListRef.current?.querySelectorAll<HTMLButtonElement>("[data-outline-index]") ?? []) {
+          const isActive = Number(button.dataset.outlineIndex) === activeIndex;
+          button.classList.toggle("is-active", isActive);
+          if (isActive) button.setAttribute("aria-current", "location"); else button.removeAttribute("aria-current");
+          if (isActive) button.scrollIntoView({ block: "nearest" });
+        }
+      },
+    });
   }, []);
+
+  const refreshOutlineHighlight = useCallback(() => {
+    activeOutlineIndexRef.current = -1;
+    if (editorRef.current?.view) syncOutlineHighlight(editorRef.current.view);
+  }, [syncOutlineHighlight]);
 
   // 打开目录时用编辑器当前文档初始化标题索引并高亮当前章节。
   useEffect(() => {
@@ -649,8 +636,7 @@ export function VisualMarkdownEditor({
         }}
         onInsertTable={insertTable}
         onOpenAi={onOpenAi}
-        outlineOpen={outlineOpen}
-        onToggleOutline={() => setOutlineOpen((open) => !open)}
+        outlineControl={<NoteOutline open={outlineOpen} onOpenChange={setOutlineOpen} disabled={!view} items={outlineItems} listRef={outlineListRef} onSelect={jumpToOutlineHeading} onListChange={refreshOutlineHighlight} portalContainer={view?.dom.closest<HTMLElement>(".notes-editor-surface")} />}
       />
       <CodeMirror
         ref={editorRef}
@@ -674,51 +660,7 @@ export function VisualMarkdownEditor({
         <span data-status="count">0 字 · 0 行</span>
         <span data-status="cursor">第 1 行 第 1 列</span>
       </div>
-      {outlineOpen ? (
-        <div
-          ref={outlinePanelRef}
-          role="navigation"
-          aria-label="笔记目录"
-          className="absolute right-2 top-[42px] z-30 flex max-h-[min(356px,60vh)] w-60 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[12px] border border-[var(--separator)] bg-[var(--material-popover)] shadow-[var(--shadow-popover)] backdrop-blur-2xl backdrop-saturate-[180%]"
-        >
-          <div className="flex h-8 shrink-0 items-center justify-between border-b border-[var(--separator)] pl-3 pr-1.5">
-            <span className="text-[12px] font-semibold text-[var(--text-secondary)]">目录</span>
-            <button
-              type="button"
-              onClick={() => setOutlineOpen(false)}
-              aria-label="关闭目录"
-              className="pressable inline-flex size-6 shrink-0 items-center justify-center rounded-[7px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
-            >
-              <X aria-hidden="true" className="size-3.5" />
-            </button>
-          </div>
-          <div className="overflow-y-auto overscroll-contain p-1.5 pt-1">
-            {outlineItems.length === 0 ? (
-              <p className="px-2 py-3 text-xs leading-5 text-[var(--text-tertiary)]">
-                笔记里还没有标题。用 <span className="font-mono"># 章节名</span>{" "}
-                开头就会出现在目录里。
-              </p>
-            ) : (
-              <ul ref={outlineListRef} className="space-y-0.5">
-                {outlineItems.map((item) => (
-                  <li key={`${item.index}-${item.text}`}>
-                    <button
-                      type="button"
-                      data-outline-index={item.index}
-                      onClick={() => jumpToOutlineHeading(item)}
-                      title={item.text}
-                      style={{ paddingLeft: `${(item.level - 1) * 12 + 8}px` }}
-                      className="note-outline-item block min-h-8 w-full truncate rounded-[8px] py-1.5 pr-2 text-left text-[12.5px] leading-5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
-                    >
-                      {item.text}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      ) : null}
+
     </div>
   );
 }

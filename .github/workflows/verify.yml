@@ -88,6 +88,7 @@ jobs:
           done
           NODE_PATH="$(npm root -g)" timeout 180s node scripts/notes-bootstrap-e2e.cjs
           NODE_PATH="$(npm root -g)" timeout 240s node scripts/notes-continuity-e2e.cjs
+          NODE_PATH="$(npm root -g)" timeout 240s node scripts/notes-navigation-e2e.cjs
       - name: Save Notes startup measurements
         if: always()
         uses: actions/upload-artifact@v4
@@ -96,6 +97,7 @@ jobs:
           path: |
             test-results/notes-bootstrap
             test-results/notes-continuity
+            test-results/notes-navigation
           if-no-files-found: ignore
           retention-days: 7
       - name: Verify isolated Settings workspace
