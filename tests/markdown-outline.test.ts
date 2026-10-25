@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activeHeadingIndexAtLine,
+  filterOutlineItems,
   parseMarkdownOutline,
 } from "@/features/notes/editor/markdown-outline";
 
@@ -47,6 +48,17 @@ describe("parseMarkdownOutline", () => {
   it("空内容返回空目录", () => {
     expect(parseMarkdownOutline("")).toEqual([]);
     expect(parseMarkdownOutline("只有一段正文，没有标题")).toEqual([]);
+  });
+});
+
+describe("outline filtering", () => {
+  it("matches normalized title tokens while keeping duplicate source targets distinct", () => {
+    const items = parseMarkdownOutline("# ＡＢＣ 计划\n\n## ABC 计划\n\n## ABC 回顾\n\n```\n# ABC 计划\n```\n");
+    const matches = filterOutlineItems(items, "abc  计划");
+    expect(matches.map(({ index, from }) => ({ index, from }))).toEqual([{ index: 0, from: items[0].from }, { index: 1, from: items[1].from }]);
+    expect(matches[0]).toBe(items[0]);
+    expect(filterOutlineItems(items, "abc 不存在")).toEqual([]);
+    expect(filterOutlineItems(items, "  ")).toBe(items);
   });
 });
 

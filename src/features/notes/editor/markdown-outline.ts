@@ -20,6 +20,16 @@ export type MarkdownOutlineItem = {
 
 const ATX_RE = /^ATXHeading([1-6])$/;
 
+/** Match title tokens only; keep source indices so duplicate headings stay distinct. */
+export function filterOutlineItems(items: MarkdownOutlineItem[], query: string): MarkdownOutlineItem[] {
+  const tokens = query.normalize("NFKC").toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return items;
+  return items.filter((item) => {
+    const text = item.text.normalize("NFKC").toLocaleLowerCase();
+    return tokens.every((token) => text.includes(token));
+  });
+}
+
 /** 去掉标题里的 Markdown 内联标记，让目录展示的是"读到的字"，不是"源码"。 */
 function cleanHeadingText(text: string): string {
   return text

@@ -58,6 +58,7 @@
 .notes-document-shell .life-markdown-toolbar { background:var(--surface-canvas); }
 .notes-document-shell .life-markdown-statusbar { background:var(--surface-canvas); }
 .note-outline-item.is-active { background:var(--accent-soft); color:var(--accent); }
+.note-outline-item:focus-visible,.notes-quick-open-result:focus-visible { outline:2px solid var(--focus-ring); outline-offset:-2px; }
 .career-surface summary { list-style:none; }
 .career-surface summary::-webkit-details-marker { display:none; }
 .career-surface h1,.career-surface h2,.career-surface h3 { text-wrap:balance; }

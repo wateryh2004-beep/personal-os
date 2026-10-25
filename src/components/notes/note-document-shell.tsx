@@ -7,10 +7,11 @@ import { publishNotesNavigatorTitle } from "@/features/notes/navigator-title-syn
 import { lastNotesListSessionKey, notesListHref } from "@/features/notes/navigation";
 import { loadWorkspaceSession } from "@/lib/workspace-session";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, PanelRight, ExternalLink, Download, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { ChevronLeft, PanelRight, ExternalLink, Download, RefreshCw, PanelLeft } from "lucide-react";
+import { useContext, useState } from "react";
 import { noteAttachmentUrl, notePdfAttachments, type NoteAttachment } from "@/features/notes/attachments";
 import { NotesSurfaceMotion } from "./notes-motion";
+import { NotesNavigationContext } from "./notes-navigation-context";
 
 export function NoteDocumentShell({ noteId, editor, inspector, attachments = [], location }: {
   noteId: string; editor: React.ReactNode; inspector: React.ReactNode; attachments?: NoteAttachment[]; location?: { href: string; label: string };
@@ -25,6 +26,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
   const selectedPdf = pdfs.find((file) => file.id === pdfId) ?? pdfs[0];
   const noteInspector = useWorkspacePanel(`note-inspector:${noteId}`);
   const router = useRouter();
+  const openNavigation = useContext(NotesNavigationContext);
 
   const handleEditorInput = (event: React.FormEvent<HTMLElement>) => {
     const target = event.target;
@@ -52,6 +54,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
           >
             <ChevronLeft className="size-[18px]" aria-hidden="true" />
           </button>
+          {openNavigation ? <button type="button" onClick={openNavigation} aria-label="打开笔记文件" className="pressable inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] md:hidden"><PanelLeft aria-hidden="true" className="size-[18px]" /></button> : null}
           <nav aria-label="文档位置" className="min-w-0 flex-1">
             {location ? <Link href={location.href} title={location.label} aria-label={`返回文件夹：${location.label}`} className="block truncate rounded-[var(--radius-sm)] py-2 text-[12px] leading-7 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]">{location.label}</Link> : null}
           </nav>

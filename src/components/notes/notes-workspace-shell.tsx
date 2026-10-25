@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { ChevronDown, ChevronRight, Clock3, FilePlus2, FileText, Folder, FolderPlus, Menu, MoreHorizontal, Search, Sparkles, Star, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -15,6 +15,8 @@ import { isNotesSearchShortcut } from "@/features/notes/search-shortcut";
 import { lastNotesListSessionKey, notesListHref } from "@/features/notes/navigation";
 import { loadWorkspaceSession } from "@/lib/workspace-session";
 import { filterNotesByMetadata, createNoteFolderPathResolver } from "@/features/notes/local-search";
+import { NotesNavigationContext } from "./notes-navigation-context";
+import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
 
 export type NotesNavigatorFolder = { id: string; name: string; parent_id: string | null };
 export type NotesNavigatorNote = { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null };
@@ -24,6 +26,12 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const closeForNavigation = (href: string) => {
+    if (!onNavigate) return;
+    // A route change owns the history step; drawer cleanup must not race it with Back.
+    if (new URL(href, window.location.href).href !== window.location.href) releaseMobileBackLayerForNavigation("sheet");
+    onNavigate();
+  };
   const selectedFolderId = searchParams.get("folder");
   const activeView = searchParams.get("view");
   const [expanded, setExpanded] = useState<Set<string>>(() => expandedFolderPath(folders, selectedFolderId));
@@ -33,6 +41,9 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [navigatorQuery, setNavigatorQuery] = useState("");
+  const quickOpenInput = useRef<HTMLInputElement>(null);
+  const quickOpenResults = useRef<HTMLDivElement>(null);
+  const quickOpenId = useId();
   const [optimisticMove, setOptimisticMove] = useState<{ item: DraggedNavigatorItem; targetId: string | null } | null>(null);
   const [dragging, setDragging] = useState<DraggedNavigatorItem | null>(null);
   const [dropTarget, setDropTarget] = useState<string | "root" | null>(null);
@@ -181,13 +192,13 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
       return <div key={folder.id}>
         <div draggable={renaming !== folder.id} onDragStart={(event) => beginDrag(event, { kind: "folder", id: folder.id, title: folder.name, parentId: folder.parent_id })} onDragEnd={clearDrag} onDragOver={(event) => { if (!dragging) return; updateDragAutoScroll(event.clientY); if (!canDropOn(folder.id)) return; event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget(folder.id); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node) && dropTarget === folder.id) setDropTarget(null); }} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); moveDraggedTo(folder.id, `文件夹“${folder.name}”`); }} className={`group flex h-11 md:h-[30px] items-center rounded-[8px] transition-colors ${dropTarget === folder.id ? "bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--accent)_32%,transparent)]" : ""}`} style={{ paddingLeft: `${depth * 16}px` }}>
           <button type="button" onClick={() => expandable && toggleFolder(folder.id)} aria-label={`${isOpen ? "收起" : "展开"} ${folder.name}`} aria-expanded={expandable ? isOpen : undefined} className="pressable flex size-11 shrink-0 md:size-5 items-center justify-center rounded-[6px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">{expandable ? isOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" /> : null}</button>
-          {renaming === folder.id ? <input aria-label="文件夹名称" autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={() => commitRename(folder)} onKeyDown={(event) => { if (event.key === "Enter") commitRename(folder); if (event.key === "Escape") setRenaming(null); }} className="h-6 min-w-0 flex-1 border-b border-[var(--accent)] bg-transparent px-1 text-[12.5px] text-[var(--text-primary)] outline-none" /> : <Link  onClick={onNavigate} href={`/notes?folder=${folder.id}`} className={`flex h-11 min-w-0 md:h-7 flex-1 items-center gap-1.5 rounded-[7px] px-1.5 text-[12.5px] transition-colors ui-transition ${selectedFolderId === folder.id ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><Folder  className="size-3.5 shrink-0" aria-hidden="true" /><span  className="truncate">{folder.name}</span></Link>}
+          {renaming === folder.id ? <input aria-label="文件夹名称" autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={() => commitRename(folder)} onKeyDown={(event) => { if (event.key === "Enter") commitRename(folder); if (event.key === "Escape") setRenaming(null); }} className="h-6 min-w-0 flex-1 border-b border-[var(--accent)] bg-transparent px-1 text-[12.5px] text-[var(--text-primary)] outline-none" /> : <Link  onNavigate={() => closeForNavigation(`/notes?folder=${folder.id}`)} href={`/notes?folder=${folder.id}`} className={`flex h-11 min-w-0 md:h-7 flex-1 items-center gap-1.5 rounded-[7px] px-1.5 text-[12.5px] transition-colors ui-transition ${selectedFolderId === folder.id ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><Folder  className="size-3.5 shrink-0" aria-hidden="true" /><span  className="truncate">{folder.name}</span></Link>}
           <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="pressable flex size-11 shrink-0 md:size-6 items-center justify-center rounded-[7px] text-[var(--text-tertiary)] opacity-100 hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100" aria-label={`管理文件夹 ${folder.name}`}><MoreHorizontal className="size-3.5" /></button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => { setRenaming(folder.id); setRenameValue(folder.name); }}>重命名</DropdownMenuItem><DropdownMenuItem onSelect={() => { setCreatingIn(folder.id); setFolderName(""); setExpanded((current) => new Set([...current, folder.id])); }}>新建子文件夹</DropdownMenuItem><DropdownMenuItem onSelect={() => createNoteForFolder(folder)}>新建笔记</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
         </div>
-        {isOpen ? <>{renderBranch(folder.id, depth + 1)}{directNotes.map((note) => <Link key={note.id} draggable onDragStart={(event) => beginDrag(event, { kind: "note", id: note.id, title: note.title || "无标题笔记", parentId: note.folder_id })} onDragEnd={clearDrag} onClick={onNavigate} href={`/notes/${note.id}`} className={`pressable flex h-11 md:h-[30px] cursor-grab items-center gap-1.5 truncate rounded-[8px] pr-2 text-[12.5px] active:cursor-grabbing ${dragging?.kind === "note" && dragging.id === note.id ? "opacity-45" : ""} ${activeNoteId === note.id ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`} style={{ paddingLeft: `${37 + depth * 16}px` }}><FileText className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{note.title || "无标题笔记"}</span>{note.content_origin === "ai_generated" ? <Sparkles className="size-3 shrink-0 text-[var(--ai-accent)]" aria-label="AI 生成" /> : null}</Link>)}{createFolderRow(folder.id, depth + 1)}</> : null}
+        {isOpen ? <>{renderBranch(folder.id, depth + 1)}{directNotes.map((note) => <Link key={note.id} draggable onDragStart={(event) => beginDrag(event, { kind: "note", id: note.id, title: note.title || "无标题笔记", parentId: note.folder_id })} onDragEnd={clearDrag} onNavigate={() => closeForNavigation(`/notes/${note.id}`)} href={`/notes/${note.id}`} className={`pressable flex h-11 md:h-[30px] cursor-grab items-center gap-1.5 truncate rounded-[8px] pr-2 text-[12.5px] active:cursor-grabbing ${dragging?.kind === "note" && dragging.id === note.id ? "opacity-45" : ""} ${activeNoteId === note.id ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`} style={{ paddingLeft: `${37 + depth * 16}px` }}><FileText className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{note.title || "无标题笔记"}</span>{note.content_origin === "ai_generated" ? <Sparkles className="size-3 shrink-0 text-[var(--ai-accent)]" aria-label="AI 生成" /> : null}</Link>)}{createFolderRow(folder.id, depth + 1)}</> : null}
       </div>;
     })}
-    {parentId === null ? <>{(notesByFolder.get(null) ?? []).map((note) => <Link key={note.id} draggable onDragStart={(event) => beginDrag(event, { kind: "note", id: note.id, title: note.title || "无标题笔记", parentId: note.folder_id })} onDragEnd={clearDrag} onClick={onNavigate} href={`/notes/${note.id}`} className={`pressable flex h-11 md:h-[30px] cursor-grab items-center gap-1.5 truncate rounded-[8px] px-3 text-[12.5px] active:cursor-grabbing ${dragging?.kind === "note" && dragging.id === note.id ? "opacity-45" : ""} ${activeNoteId === note.id ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><FileText className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{note.title || "无标题笔记"}</span>{note.content_origin === "ai_generated" ? <Sparkles className="size-3 shrink-0 text-[var(--ai-accent)]" aria-label="AI 生成" /> : null}</Link>)}{createFolderRow(null, 0)}</> : null}
+    {parentId === null ? <>{(notesByFolder.get(null) ?? []).map((note) => <Link key={note.id} draggable onDragStart={(event) => beginDrag(event, { kind: "note", id: note.id, title: note.title || "无标题笔记", parentId: note.folder_id })} onDragEnd={clearDrag} onNavigate={() => closeForNavigation(`/notes/${note.id}`)} href={`/notes/${note.id}`} className={`pressable flex h-11 md:h-[30px] cursor-grab items-center gap-1.5 truncate rounded-[8px] px-3 text-[12.5px] active:cursor-grabbing ${dragging?.kind === "note" && dragging.id === note.id ? "opacity-45" : ""} ${activeNoteId === note.id ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><FileText className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{note.title || "无标题笔记"}</span>{note.content_origin === "ai_generated" ? <Sparkles className="size-3 shrink-0 text-[var(--ai-accent)]" aria-label="AI 生成" /> : null}</Link>)}{createFolderRow(null, 0)}</> : null}
   </>;
 
   return <div className="notes-navigator flex h-full min-h-0 flex-col bg-[var(--surface-sidebar)] px-2.5 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)]">
@@ -196,20 +207,33 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
       <span className="sr-only">快速打开</span>
       <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]" aria-hidden="true" />
       <input
+        ref={quickOpenInput}
+        aria-label="快速打开"
+        aria-controls={searchActive ? quickOpenId : undefined}
+        aria-describedby={searchActive ? `${quickOpenId}-hint` : undefined}
         value={navigatorQuery}
         onChange={(event) => setNavigatorQuery(event.target.value)}
-        onKeyDown={(event) => { if (event.key === "Escape") setNavigatorQuery(""); }}
+        onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing || event.keyCode === 229 || event.altKey || event.ctrlKey || event.metaKey) return;
+          if (event.key === "Escape" && navigatorQuery) { event.preventDefault(); event.stopPropagation(); setNavigatorQuery(""); }
+          if (!searchActive) return;
+          const choices = quickOpenResults.current?.querySelectorAll<HTMLAnchorElement>("a[href]");
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            choices?.[event.key === "ArrowDown" ? 0 : choices.length - 1]?.focus();
+          } else if (event.key === "Enter" && choices?.length) { event.preventDefault(); choices[0].click(); }
+        }}
         autoComplete="off"
         placeholder="快速打开…"
-        className="ui-field h-8 w-full rounded-[9px] border border-transparent bg-[var(--surface-control)] pl-8 pr-8 text-[12px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+        className="ui-field min-h-11 w-full rounded-[9px] border border-transparent bg-[var(--surface-control)] pl-8 pr-11 text-[16px] text-[var(--text-primary)] outline-none transition-[background-color,box-shadow] ui-transition placeholder:text-[var(--text-tertiary)] hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)] md:min-h-8 md:pr-8 md:text-[12px]"
       />
-      {navigatorQuery ? <button type="button" onClick={() => setNavigatorQuery("")} className="pressable absolute right-1 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" aria-label="清空切换搜索"><X className="size-3" aria-hidden="true" /></button> : null}
+      {navigatorQuery ? <button type="button" onClick={() => { setNavigatorQuery(""); quickOpenInput.current?.focus(); }} className="pressable absolute right-0 top-1/2 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] md:right-1 md:size-6" aria-label="清空切换搜索"><X className="size-3" aria-hidden="true" /></button> : null}
     </label>
     <nav className="mt-2.5 space-y-px" aria-label="笔记视图">
-      <Link onClick={onNavigate} href="/notes" className={`pressable flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${pathname === "/notes" && !selectedFolderId && !activeView ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><FileText className="size-3.5" />全部笔记</Link>
+      <Link onNavigate={() => closeForNavigation("/notes")} href="/notes" className={`pressable flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${pathname === "/notes" && !selectedFolderId && !activeView ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><FileText className="size-3.5" />全部笔记</Link>
       <form action={openDailyNote}><button className="pressable flex h-11 md:h-[30px] w-full items-center gap-2 rounded-[8px] px-2 text-left text-[12.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">今日日记</button></form>
-      <Link onClick={onNavigate} href="/notes?view=favorites" className={`pressable flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${activeView === "favorites" ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><Star className="size-3.5" />收藏</Link>
-      <Link onClick={onNavigate} href="/notes?view=recent" className={`pressable flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${activeView === "recent" ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><Clock3 className="size-3.5" />最近编辑</Link>
+      <Link onNavigate={() => closeForNavigation("/notes?view=favorites")} href="/notes?view=favorites" className={`pressable flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${activeView === "favorites" ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><Star className="size-3.5" />收藏</Link>
+      <Link onNavigate={() => closeForNavigation("/notes?view=recent")} href="/notes?view=recent" className={`pressable flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${activeView === "recent" ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><Clock3 className="size-3.5" />最近编辑</Link>
     </nav>
     <div className="mt-4.5 flex min-h-0 flex-1 flex-col">
       <div className="mb-1.5 flex h-6 items-center justify-between px-2">
@@ -217,13 +241,28 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
         {!searchActive ? <button type="button" onClick={() => { setCreatingIn(null); setFolderName(""); }} className="pressable inline-flex size-11 items-center justify-center rounded-[6px] p-1 md:size-7 text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]" aria-label="新建根文件夹"><FolderPlus className="size-3.5" /></button> : null}
       </div>
       {searchActive ? (
-        <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto">
+        <div id={quickOpenId} ref={quickOpenResults} aria-label="快速打开结果" className="workspace-scroll min-h-0 flex-1 overflow-y-auto" onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+          if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setNavigatorQuery(""); quickOpenInput.current?.focus(); return; }
+          const choices = Array.from(event.currentTarget.querySelectorAll<HTMLAnchorElement>("a[href]"));
+          const index = choices.indexOf(event.target as HTMLAnchorElement);
+          if (index < 0) return;
+          if (event.key === "ArrowUp" && index === 0) { event.preventDefault(); quickOpenInput.current?.focus(); }
+          else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+            event.preventDefault();
+            const next = event.key === "Home" ? 0 : event.key === "End" ? choices.length - 1 : Math.max(0, Math.min(choices.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)));
+            choices[next]?.focus();
+          }
+        }}>
+          <p id={`${quickOpenId}-hint`} className="px-2 pb-2 text-[12px] leading-5 text-[var(--text-secondary)]"><span className="hidden md:inline">↑ ↓ 选择 · Enter 打开 · </span>Esc 回到文件树</p>
           {navigatorMatches.length ? navigatorMatches.map((note) => (
             <Link
               key={note.id}
               href={`/notes/${note.id}`}
-              onClick={() => { setNavigatorQuery(""); onNavigate?.(); }}
-              className={`group flex min-h-10 items-center gap-2 rounded-[8px] px-2 py-1.5 transition-colors ui-transition ${activeNoteId === note.id ? "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
+              onNavigate={() => { setNavigatorQuery(""); closeForNavigation(`/notes/${note.id}`); }}
+              transitionTypes={["note-open"]}
+              scroll={false}
+              className={`notes-quick-open-result group flex min-h-11 items-center gap-2 rounded-[8px] px-2 py-1.5 transition-colors ui-transition focus-visible:bg-[var(--surface-selected)] md:min-h-10 ${activeNoteId === note.id ? "bg-[var(--surface-selected)] text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}
             >
               <FileText className="size-3.5 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1">
@@ -238,7 +277,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
         <div ref={treeScrollRef} onDragOver={(event) => { if (!dragging) return; updateDragAutoScroll(event.clientY); if (event.target !== event.currentTarget || !canDropOn(null)) return; event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget("root"); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) { stopDragAutoScroll(); if (dropTarget === "root") setDropTarget(null); } }} onDrop={(event) => { if (event.target !== event.currentTarget) return; event.preventDefault(); moveDraggedTo(null, "根目录"); }} className={`workspace-scroll min-h-0 flex-1 overflow-y-auto rounded-[8px] ${dropTarget === "root" ? "bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--accent)_28%,transparent)]" : ""}`}>{renderBranch(null)}</div>
       )}
     </div>
-    <Link onClick={onNavigate} href="/notes/trash" className={`pressable mt-3 flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${pathname === "/notes/trash" ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><Trash2 className="size-3.5" />回收站</Link>
+    <Link onNavigate={() => closeForNavigation("/notes/trash")} href="/notes/trash" className={`pressable mt-3 flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${pathname === "/notes/trash" ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><Trash2 className="size-3.5" />回收站</Link>
     <p aria-live="polite" className="sr-only">{notice}</p>
   </div>;
 }
@@ -300,9 +339,9 @@ export function NotesWorkspaceShell({ folders, notes, children, documentView }: 
     setNavigatorWidth(272);
     try { localStorage.removeItem("personal-os:notes-navigator-width:v1"); } catch { /* no-op */ }
   };
-  return <section className="notes-workspace-shell flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
+  return <NotesNavigationContext value={() => setMobileOpen(true)}><section className="notes-workspace-shell flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
     <aside style={{ width: navigatorWidth }} className="notes-navigator-panel relative hidden h-full shrink-0 border-r border-[var(--separator)] bg-[var(--surface-sidebar)] md:block"><NotesNavigator folders={folders} notes={notes} /><button type="button" onPointerDown={resizeNavigator} onDoubleClick={resetNavigator} className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none" aria-label="调整笔记导航宽度，双击恢复默认" /></aside>
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" showCloseButton className="notes-navigation-sheet w-[min(88vw,340px)] p-0"><SheetTitle className="sr-only">笔记文件</SheetTitle><NotesNavigator folders={folders} notes={notes} onNavigate={() => setMobileOpen(false)} /></SheetContent></Sheet>
     <div className="relative min-w-0 flex-1">{isEditorRoute ? null : <button type="button" onClick={() => setMobileOpen(true)} className="notes-folder-trigger pressable absolute left-3 top-2 z-10 flex h-11 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--separator)] bg-[var(--surface-canvas)] px-3 text-[13px] font-medium text-[var(--text-secondary)] md:hidden" aria-label="打开笔记文件"><Menu className="size-4" />文件夹</button>}{children}</div>
-  </section>;
+  </section></NotesNavigationContext>;
 }
