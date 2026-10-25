@@ -53,7 +53,7 @@ function OutlineContents({ items, listRef, onSelect, onClose, onListChange }: {
       }
     }}>
       {!items.length ? <p className="px-2 py-3 text-[13px] leading-6 text-[var(--text-secondary)]">还没有章节标题。以 # 章节名开头的行会出现在这里。</p> : !matches.length ? <p className="px-2 py-3 text-[13px] leading-6 text-[var(--text-secondary)]">没有匹配的章节。换一个关键词，或清空筛选。</p> : <ul ref={listRef} className="space-y-0.5">{matches.map((item) => <li key={item.index}>
-        <button type="button" data-outline-index={item.index} onClick={() => onSelect(item)} title={item.text} style={{ paddingLeft: `${(item.level - 1) * 12 + 8}px` }} className="note-outline-item block min-h-11 w-full break-words rounded-[8px] py-2 pr-2 text-left text-[13px] leading-5 text-[var(--text-secondary)] transition-colors ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] md:min-h-8 md:py-1.5">{item.text || "无文字标题"}</button>
+        <button type="button" data-outline-index={item.index} onClick={() => onSelect(item)} title={item.text} style={{ paddingLeft: `${(item.level - 1) * 12 + 8}px` }} className="note-outline-item focus-visible:outline-offset-[-2px] block min-h-11 w-full break-words rounded-[8px] py-2 pr-2 text-left text-[13px] leading-5 text-[var(--text-secondary)] transition-colors ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] md:min-h-8 md:py-1.5">{item.text || "无文字标题"}</button>
       </li>)}</ul>}
     </div>
     <p className="hidden shrink-0 border-t border-[var(--separator)] px-2 pt-2 text-[12px] text-[var(--text-secondary)] md:block">↑ ↓ 选择 · Enter 跳转 · Esc 关闭</p>

@@ -5,6 +5,14 @@ const { chromium } = require('playwright');
 const base = process.env.E2E_BASE_URL || 'http://127.0.0.1:3000';
 assert.match(base, /^http:\/\/127\.0\.0\.1:/);
 const out = 'test-results/notes-navigation';
+async function capture(page, path) {
+  // Interactions stay immediate; only static evidence waits for finite overlay motion.
+  await page.evaluate(async () => {
+    const animations = [...document.querySelectorAll('.note-outline-surface, .notes-navigation-sheet, [data-slot=sheet-overlay]')].flatMap(el => el.getAnimations({ subtree: true }));
+    await Promise.allSettled(animations.map(animation => animation.finished));
+  });
+  await page.screenshot({ path });
+}
 (async () => {
   await mkdir(out, { recursive: true });
   const browser = await chromium.launch({ headless: true });
@@ -35,7 +43,7 @@ const out = 'test-results/notes-navigation';
       assert.equal(await panel.locator('[data-outline-index]').count(), 1, 'filters 180 headings');
       await input.press('ArrowDown');
       assert.ok(await panel.getByRole('button', { name: '第 120 节', exact: true }).evaluate(el => el === document.activeElement));
-      await page.screenshot({ path: `${out}/chapter-filter-${width}.png` });
+      await capture(page, `${out}/chapter-filter-${width}.png`);
       await page.keyboard.press('Enter');
       await panel.waitFor({ state: 'hidden' });
       assert.ok(await content.evaluate(el => el === document.activeElement), 'jump focuses editor, not trigger');
@@ -70,7 +78,7 @@ const out = 'test-results/notes-navigation';
       assert.ok(await input.evaluate(el => parseFloat(getComputedStyle(el).fontSize) >= 32));
       await input.fill('第 180 节');
       assert.ok(await panel.getByRole('button', { name: '第 180 节', exact: true }).isVisible());
-      await page.screenshot({ path: `${out}/chapter-text-200-${width}.png` });
+      await capture(page, `${out}/chapter-text-200-${width}.png`);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
       await input.press('Enter'); await panel.waitFor({ state: 'hidden' }); await zoom.evaluate(el => el.remove());
       row.checks.push('short-screen-and-actual-200-percent-chapter-text');
@@ -79,7 +87,7 @@ const out = 'test-results/notes-navigation';
       const motion = await panel.evaluate(el => ({ transform: getComputedStyle(el).transform, duration: getComputedStyle(el).transitionDuration }));
       assert.equal(motion.transform, 'none');
       assert.ok(motion.duration.split(',').every(s => parseFloat(s) < 0.01));
-      await page.screenshot({ path: `${out}/chapter-reduced-forced-${width}.png` });
+      await capture(page, `${out}/chapter-reduced-forced-${width}.png`);
       await input.press('Escape'); await panel.waitFor({ state: 'hidden' });
       await page.emulateMedia({ reducedMotion: 'no-preference', forcedColors: 'none' });
       const cursorBeforeDrawer = await page.locator('[data-status=cursor]').innerText();
@@ -96,7 +104,7 @@ const out = 'test-results/notes-navigation';
       assert.ok(await results.nth(0).evaluate(el => el === document.activeElement));
       await page.keyboard.press('End'); assert.ok(await results.nth(1).evaluate(el => el === document.activeElement));
       await page.keyboard.press('Home'); await page.keyboard.press('ArrowUp'); assert.ok(await quick.evaluate(el => el === document.activeElement));
-      await page.screenshot({ path: `${out}/quick-open-${width}.png` });
+      await capture(page, `${out}/quick-open-${width}.png`);
       await quick.press('Escape'); assert.equal(await quick.inputValue(), '');
       if (width < 768) {
         await quick.press('Escape'); await navigation.waitFor({ state: 'hidden' });
