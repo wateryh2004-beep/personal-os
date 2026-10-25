@@ -27,6 +27,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: E2E_MOBILE_HARNESS=1 npm run build
+      - name: Verify search and session recovery against signed local Auth HTTP contracts
+        run: node scripts/auth-search-http-smoke.mjs
       - name: Verify traced PDF renderer in a cold package copy
         run: node scripts/verify-pdf-cover-package.mjs
       - name: Install mobile E2E browser

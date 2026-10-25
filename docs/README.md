@@ -177,6 +177,8 @@
 
 ## 当前实现排查
 
+[全局搜索协议与偶发 Data API 401](verification/2026-10-25-search-auth-recovery.md) 记录匿名/空查询认证、受限只读恢复、刷新 Cookie/防缓存头与合成及生产验证边界。
+
 [笔记与公共导航动效 · 第一批](specs/workspace-motion-v2.md) 规定 2026-10-24 笔记排版、标题共享过渡、导航选中与搜索面板的范围、完整运动和验证边界；本地截图、连续录屏及未覆盖项见 [2026-10-25 验收记录](verification/2026-10-25-workspace-motion-v2.md)。
 
 [工作区补充验证与发布](verification/2026-10-25-workspace-release.md) 记录 8 项测试环境失败的修复、真实 200% 缩放、系统减少动态效果与 GitHub/生产状态。

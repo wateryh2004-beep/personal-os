@@ -1,0 +1,48 @@
+{
+  "baseline": "606df7596fdad8450aef85a36977c818d3989d4a",
+  "vitest": {
+    "files": 319,
+    "tests": 2139,
+    "passed": 2139,
+    "failed": 0,
+    "exitCode": 0
+  },
+  "lint": {
+    "exitCode": 0
+  },
+  "typecheck": {
+    "exitCode": 0
+  },
+  "build": {
+    "command": "E2E_MOBILE_HARNESS=1 npm run build -- --webpack",
+    "exitCode": 0
+  },
+  "closure": {
+    "traces": 127,
+    "checkedPaths": 25859,
+    "cliAdvisoryChainLoaded": false,
+    "cliAdvisoryChainTraced": false
+  },
+  "standards": {
+    "exitCode": 0,
+    "existingManualTraceFindings": 6
+  },
+  "http": {
+    "environment": "localhost Next production build + real SSR/Auth SDK + signed ES256 fixtures",
+    "passed": true,
+    "checks": [
+      "anonymous-and-empty-search-401-no-private-read-no-redirect",
+      "non-owner-and-invalid-signature-forgery-rejected-before-data",
+      "expired-session-proxy-refresh-both-cookie-transports-and-cache-headers",
+      "signed-owner-read-revalidation-one-replay-no-second-rotation-no-secret-leak",
+      "revoked-preserves-actual-refusal-and-bounded-calls",
+      "persistent-preserves-actual-refusal-and-bounded-calls",
+      "outage-preserves-actual-refusal-and-bounded-calls",
+      "refresh-denied-preserves-actual-refusal-and-bounded-calls"
+    ]
+  },
+  "sqlReadOnly": {
+    "local": "not run: no psql/PGlite installed",
+    "ci": "required actual PostgreSQL regression before merge"
+  }
+}

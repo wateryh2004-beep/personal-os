@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireOwner } from "@/lib/auth/require-owner";
+import { OwnerAuthenticationError, requireOwner } from "@/lib/auth/require-owner";
 import {
   searchDomains,
   searchInputSchema,
@@ -43,11 +43,12 @@ export function entityHref(entityType: string, entityId: string, domain: string,
   return "/career";
 }
 
-export async function searchPersonalOs(input: z.input<typeof searchInputSchema>): Promise<GlobalSearchResult[]> {
+export async function searchPersonalOs(input: z.input<typeof searchInputSchema>, owner?: Awaited<ReturnType<typeof requireOwner>>): Promise<GlobalSearchResult[]> {
   const parsed = searchInputSchema.parse(input);
   if (!parsed.query) return [];
-  const { supabase } = await requireOwner();
+  const { supabase } = owner ?? await requireOwner();
   const { data, error } = await supabase.rpc("search_personal_os", { p_query: parsed.query, p_limit: parsed.limit, p_domains: parsed.domains ?? null });
+  if (error?.code === "PGRST301" || error?.code === "PGRST303") throw new OwnerAuthenticationError("unauthenticated");
   if (error) throw new Error("search_unavailable");
   return z.array(row).parse(data ?? []).map((item) => ({ id: `${item.entity_type}:${item.entity_id}`, domain: item.domain, entityType: item.entity_type, entityId: item.entity_id, title: item.title || "未命名", subtitle: item.subtitle || null, snippet: item.snippet || null, href: entityHref(item.entity_type, item.entity_id, item.domain, item.metadata), score: item.score, sourceUpdatedAt: item.source_updated_at, metadata: item.metadata }));
 }
