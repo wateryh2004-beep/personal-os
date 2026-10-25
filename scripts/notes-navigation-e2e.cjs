@@ -77,6 +77,13 @@ async function capture(page, path) {
       row.checks.push('escape-outside-and-rapid-reversal-focus');
       await trigger.click(); await input.waitFor({ state: 'visible' });
       await page.setViewportSize({ width, height: 568 });
+      // setViewportSize acknowledges the viewport, not Radix's ResizeObserver
+      // and entrance transition. Check the same bounds after that layout settles.
+      await panel.evaluate(async el => { await Promise.allSettled(el.getAnimations({ subtree: true }).map(animation => animation.finished)); });
+      await page.waitForFunction(() => {
+        const bounds = document.querySelector('.note-outline-surface')?.getBoundingClientRect();
+        return bounds && bounds.top >= -1 && bounds.bottom <= innerHeight + 1;
+      });
       const rect = await panel.boundingBox(); assert.ok(rect.y >= -1 && rect.y + rect.height <= 569, `short viewport bounds: ${JSON.stringify(rect)}`);
       await input.fill('第 180 节'); await input.press('Enter'); await panel.waitFor({ state: 'hidden' });
       await page.setViewportSize({ width, height: 900 });
