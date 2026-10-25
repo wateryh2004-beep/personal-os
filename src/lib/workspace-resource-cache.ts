@@ -158,6 +158,10 @@ const emptyServerSnapshot = {};
 /** SSR must never observe a browser's module-level in-memory data. */
 export type WorkspaceBootstrap<T> = { ownerId: string; generatedAt: number; data: T };
 
+export function workspaceOwnerIsCurrent(ownerId: string) {
+  return ownerScope === ownerId;
+}
+
 export function workspaceBootstrapIsCurrent(bootstrap: WorkspaceBootstrap<unknown>) {
   const age = Date.now() - bootstrap.generatedAt;
   return ownerScope === bootstrap.ownerId && age >= -60_000 && age <= 45_000;

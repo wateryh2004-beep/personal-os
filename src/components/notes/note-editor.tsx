@@ -143,6 +143,10 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     continuityRef.current.editor = position;
     if (continuityScope.current()) noteDocumentCache.remember(note.id, continuityRef.current);
   }, [note.id]);
+  useLayoutEffect(() => () => {
+    const view = codeMirrorRef.current;
+    if (view?.dom.isConnected && !continuityRef.current.reading) rememberPosition(captureEditorPosition(view));
+  }, [rememberPosition]);
   const rememberReading = useCallback(() => {
     if (readingPaneRef.current) continuityRef.current.reader = captureReadingAnchor(readingPaneRef.current);
     if (continuityScope.current()) noteDocumentCache.remember(note.id, continuityRef.current);
@@ -172,7 +176,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
       // place the caret at the newly read paragraph, preserving a useful return target.
       const caretLine = view.state.doc.lineAt(Math.min(view.state.doc.length, position.editor.head)).number;
       const caret = view.state.doc.line(Math.min(view.state.doc.lines, Math.max(1, viewport.line))).from;
-      restoreEditorPosition(view, { ...position.editor, viewport,
+      restoreEditorPosition(view, { ...position.editor, viewport, scrollEffect: readerMoved ? undefined : position.editor.scrollEffect,
         ...(readerMoved && Math.abs(caretLine - viewport.line) > 2 ? { anchor: caret, head: caret } : {}) });
     }
   }, [reading]);

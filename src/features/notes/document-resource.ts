@@ -1,6 +1,6 @@
 "use client";
 
-import { createWorkspaceResource, readWorkspaceResponse, type WorkspaceResource } from "@/lib/workspace-resource-cache";
+import { createWorkspaceResource, readWorkspaceResponse, workspaceBootstrapIsCurrent, workspaceOwnerIsCurrent, type WorkspaceBootstrap, type WorkspaceResource } from "@/lib/workspace-resource-cache";
 import type { NoteDocumentData } from "./queries";
 import type { NoteContinuity } from "./editor/continuity";
 
@@ -54,3 +54,17 @@ export function createNoteDocumentCache(read = (id: string, signal?: AbortSignal
   };
 }
 export const noteDocumentCache = createNoteDocumentCache();
+
+/** Router history can retain an old Flight payload after the tab snapshot expires. */
+export function reconcileNoteDocumentSeed(resource: WorkspaceResource<NoteDocumentData | null>, seed: WorkspaceBootstrap<NoteDocumentData | null>) {
+  if (!workspaceOwnerIsCurrent(seed.ownerId)) return;
+  if (!workspaceBootstrapIsCurrent(seed)) return resource.revalidate().catch(() => undefined);
+  const current = resource.get();
+  if (current.data && seed.data) {
+    if (current.data.note.revision > seed.data.note.revision) return;
+    // A higher authoritative revision beats wall-clock ordering and detaches old reads.
+    if (seed.data.note.revision > current.data.note.revision) { resource.set(seed.data); return; }
+  }
+  if (current.promise || (current.fetchedAt ?? 0) > seed.generatedAt) return;
+  resource.set(seed.data);
+}

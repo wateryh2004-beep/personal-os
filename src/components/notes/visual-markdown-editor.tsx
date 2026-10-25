@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { captureEditorPosition, restoreEditorPosition, type EditorPosition } from "@/features/notes/editor/continuity";
+import { sourceLineAttributes } from "@/features/notes/editor/source-line-attributes";
 import { documentCharacterCount } from "@/features/notes/editor/document-statistics";
 import { EditorState } from "@codemirror/state";
 import { indentUnit } from "@codemirror/language";
@@ -100,6 +101,7 @@ export function VisualMarkdownEditor({
   positionRef, initialPosition, onPositionChange,
 }: VisualMarkdownEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const positionMeasureKey = useRef({});
   const changeRef = useRef(onChange);
   const selectionRef = useRef(onSelectionChange);
   const [view, setView] = useState<EditorView | null>(null);
@@ -484,6 +486,7 @@ export function VisualMarkdownEditor({
       noteLinkCompletion,
       markdownUploadPlaceholder,
       documentCharacterCount,
+      sourceLineAttributes,
       EditorView.cursorScrollMargin.of({ x: 8, y: 32 }),
       EditorView.contentAttributes.of({
         "aria-label": "Markdown 正文编辑器",
@@ -606,7 +609,11 @@ export function VisualMarkdownEditor({
           setStateVersion((version) => version + 1);
         }}
         onUpdate={(update) => {
-          if ((update.selectionSet || update.viewportChanged) && update.view.scrollDOM.clientHeight > 0) onPositionChange?.(captureEditorPosition(update.view));
+          if (onPositionChange && (update.selectionSet || update.viewportChanged)) update.view.requestMeasure({
+            key: positionMeasureKey.current,
+            read: (current) => current.scrollDOM.clientHeight > 0 ? captureEditorPosition(current) : null,
+            write: (position) => { if (position) onPositionChange(position); },
+          });
           if (update.selectionSet || update.viewportChanged || update.geometryChanged)
             reportSelection(update.view);
           if (update.docChanged) {

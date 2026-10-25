@@ -5,6 +5,13 @@ const { chromium } = require('playwright');
 const base = process.env.E2E_BASE_URL || 'http://127.0.0.1:3000';
 assert.match(base, /^http:\/\/127\.0\.0\.1:/);
 const out = 'test-results/notes-continuity';
+async function viewportAnchor(page) {
+  return page.locator('.cm-scroller').evaluate(pane => {
+    const top = pane.getBoundingClientRect().top;
+    const line = [...pane.querySelectorAll('.cm-line[data-source-line]')].find(node => node.getBoundingClientRect().bottom > top + 1);
+    return { line: Number(line?.dataset.sourceLine), offset: line ? top - line.getBoundingClientRect().top : 0, cursor: document.querySelector('[data-status="cursor"]')?.textContent };
+  });
+}
 (async () => {
   await mkdir(out, { recursive: true });
   const browser = await chromium.launch({ headless: true }); const evidence = [];
@@ -34,6 +41,7 @@ const out = 'test-results/notes-continuity';
       await page.waitForTimeout(250); // CodeMirror completes its measured keyboard scroll before the baseline.
       const before = await page.locator('.cm-scroller').evaluate(el => el.scrollTop);
       assert.ok(before > 1000, 'long document is scrolled');
+      const beforeAnchor = await viewportAnchor(page); row.beforeAnchor = beforeAnchor;
       await mode.getByRole('button', { name: '阅读', exact: true }).click();
       await page.locator('.note-reading-pane').waitFor({ state: 'visible' });
       const readerTop = await page.locator('.note-reading-pane').evaluate(el => el.scrollTop);
@@ -55,7 +63,12 @@ const out = 'test-results/notes-continuity';
       }
       await content.waitFor({ state: 'visible' }); await page.waitForTimeout(250);
       const warmTop = await page.locator('.cm-scroller').evaluate(el => el.scrollTop);
-      assert.ok(Math.abs(warmTop - before) < 100, 'cached note restores cursor/scroll on remount');
+      const warmAnchor = await viewportAnchor(page); row.warmAnchor = warmAnchor; row.rawScroll = { before, warmTop };
+      // Virtual scrollTop changes when unseen line heights are re-estimated on remount.
+      // Compare the actual source line, its screen offset and exact caret instead.
+      assert.equal(warmAnchor.line, beforeAnchor.line, 'cached note restores the same visible source line');
+      assert.equal(warmAnchor.cursor, beforeAnchor.cursor, 'cached note restores the exact caret');
+      assert.ok(Math.abs(warmAnchor.offset - beforeAnchor.offset) < 20, 'cached source line retains its screen offset within 20px');
       await page.screenshot({ path: `${out}/editor-${width}.png` });
       // Long-doc typing, failed autosave, dirty remote revision and restore after leaving.
       await content.press('Control+End'); await content.press('End');

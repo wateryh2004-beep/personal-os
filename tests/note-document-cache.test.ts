@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createNoteDocumentCache } from "@/features/notes/document-resource";
+import { createNoteDocumentCache, reconcileNoteDocumentSeed } from "@/features/notes/document-resource";
 import { clearWorkspaceResources, reconcileWorkspaceScope } from "@/lib/workspace-resource-cache";
 import type { NoteDocumentData } from "@/features/notes/queries";
 
@@ -42,4 +42,24 @@ describe("private recent documents", () => {
     reconcileWorkspaceScope("owner-b", "1");
     expect(resource.get().data).toBeUndefined(); expect(cache.position("one")).toBeUndefined();
   });
+});
+
+
+it("revalidates an expired router-history seed instead of leaving a stale document indefinitely", async () => {
+  reconcileWorkspaceScope("owner-a", "1");
+  const read = vi.fn().mockResolvedValue(doc("one", "最新正文", 2));
+  const cache = createNoteDocumentCache(read); const resource = cache.get("one");
+  await reconcileNoteDocumentSeed(resource, { ownerId: "owner-a", generatedAt: Date.now() - 60_000, data: doc("one") });
+  expect(read).toHaveBeenCalledOnce(); expect(resource.get().data?.note.revision).toBe(2);
+  await reconcileNoteDocumentSeed(resource, { ownerId: "other", generatedAt: Date.now(), data: doc("one", "其他身份", 9) });
+  expect(resource.get().data?.note.revision).toBe(2); expect(read).toHaveBeenCalledOnce();
+});
+
+it("accepts a higher server revision while rejecting a late pre-save route response", async () => {
+  reconcileWorkspaceScope("owner-a", "1"); const cache = createNoteDocumentCache(vi.fn()); const resource = cache.get("one");
+  resource.set(doc("one", "本次保存", 2));
+  await reconcileNoteDocumentSeed(resource, { ownerId: "owner-a", generatedAt: Date.now() - 1000, data: doc("one", "旧正文", 1) });
+  expect(resource.get().data?.note.revision).toBe(2);
+  await reconcileNoteDocumentSeed(resource, { ownerId: "owner-a", generatedAt: Date.now() - 1000, data: doc("one", "更高修订", 3) });
+  expect(resource.get().data?.note.revision).toBe(3);
 });

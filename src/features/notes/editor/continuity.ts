@@ -1,20 +1,23 @@
-import type { EditorView } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 
 export type SourceAnchor = { line: number; offset: number };
-export type EditorPosition = { anchor: number; head: number; viewport: SourceAnchor; scrollLeft: number };
+export type EditorPosition = { anchor: number; head: number; viewport: SourceAnchor; scrollLeft: number; documentLength?: number; scrollEffect?: ReturnType<EditorView["scrollSnapshot"]> };
 export type NoteContinuity = { reading: boolean; editor?: EditorPosition; reader?: SourceAnchor };
 
 export function captureEditorPosition(view: EditorView): EditorPosition {
-  const block = view.lineBlockAtHeight(view.scrollDOM.scrollTop);
+  const top = view.scrollDOM.getBoundingClientRect().top - view.documentTop;
+  const block = view.lineBlockAtHeight(top);
   return { anchor: view.state.selection.main.anchor, head: view.state.selection.main.head,
-    viewport: { line: view.state.doc.lineAt(block.from).number, offset: view.scrollDOM.scrollTop - block.top }, scrollLeft: view.scrollDOM.scrollLeft };
+    viewport: { line: view.state.doc.lineAt(block.from).number, offset: top - block.top }, scrollLeft: view.scrollDOM.scrollLeft, documentLength: view.state.doc.length, scrollEffect: view.scrollSnapshot() };
 }
 export function restoreEditorPosition(view: EditorView, position: EditorPosition) {
   const doc = view.state.doc;
   const line = doc.line(Math.max(1, Math.min(doc.lines, position.viewport.line)));
-  view.dispatch({ selection: { anchor: Math.max(0, Math.min(doc.length, position.anchor)), head: Math.max(0, Math.min(doc.length, position.head)) } });
-  view.requestMeasure({ read: (current) => current.lineBlockAt(line.from).top, write: (top, current) => {
-    current.scrollDOM.scrollTop = top + position.viewport.offset;
+  const snapshot = position.documentLength === doc.length ? position.scrollEffect : undefined;
+  view.dispatch({ effects: snapshot ?? EditorView.scrollIntoView(line.from, { y: "start", yMargin: 0 }), selection: { anchor: Math.max(0, Math.min(doc.length, position.anchor)), head: Math.max(0, Math.min(doc.length, position.head)) } });
+  if (snapshot) return;
+  view.requestMeasure({ read: (current) => current.documentTop + current.lineBlockAt(line.from).top - current.scrollDOM.getBoundingClientRect().top, write: (offset, current) => {
+    current.scrollDOM.scrollTop += offset + position.viewport.offset;
     current.scrollDOM.scrollLeft = position.scrollLeft;
   } });
 }

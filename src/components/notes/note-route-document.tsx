@@ -5,11 +5,11 @@ import { notFound } from "next/navigation";
 import { Suspense, use, useEffect, useMemo } from "react";
 import { NoteEditor } from "./note-editor";
 import { NoteDocumentShell } from "./note-document-shell";
-import { noteDocumentCache } from "@/features/notes/document-resource";
+import { noteDocumentCache, reconcileNoteDocumentSeed } from "@/features/notes/document-resource";
 import type { NoteDocumentData } from "@/features/notes/queries";
 import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
 import { noteFolderPath } from "@/features/notes/local-search";
-import { useWorkspaceResource, workspaceBootstrapIsCurrent, type WorkspaceBootstrap, type WorkspaceResource } from "@/lib/workspace-resource-cache";
+import { useWorkspaceResource, type WorkspaceBootstrap, type WorkspaceResource } from "@/lib/workspace-resource-cache";
 
 type Document = NoteDocumentData | null;
 type Bootstrap = WorkspaceBootstrap<Document>;
@@ -19,12 +19,7 @@ const serverResource: WorkspaceResource<Document> = { key: "notes:server-documen
 function DocumentSeed({ bootstrap, resource }: { bootstrap: Promise<Bootstrap>; resource: WorkspaceResource<Document> }) {
   const seed = use(bootstrap);
   useEffect(() => {
-    if (!workspaceBootstrapIsCurrent(seed)) return;
-    const current = resource.get();
-    // A late route response cannot undo a confirmed save or a newer API read.
-    if (current.promise || (current.fetchedAt ?? 0) > seed.generatedAt) return;
-    if (current.data && seed.data && current.data.note.revision > seed.data.note.revision) return;
-    resource.set(seed.data);
+    void reconcileNoteDocumentSeed(resource, seed);
   }, [resource, seed]);
   return null;
 }
