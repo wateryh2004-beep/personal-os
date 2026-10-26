@@ -16,7 +16,7 @@
   let activePage;
   try {
     for (const width of [360, 390, 768, 1440]) for (const mode of ["normal", "text200", "reduced"]) {
-      const row = { width, mode, errors: [], requests: [], paperFrames: [], imageFrames: [], textSizes: [], pdfGeometry: [] }; evidence.push(row);
+      const row = { width, mode, errors: [], requests: [], paperFrames: [], imageFrames: [], textSizes: [], pdfGeometry: [], alignment: [], listRecovery: {} }; evidence.push(row);
       const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: mode === "reduced" ? "reduce" : "no-preference", recordVideo: { dir: `${output}/video`, size: { width: Math.min(width, 1000), height: 900 } } });
       await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
       try {
@@ -41,36 +41,85 @@
         });
         const page = await context.newPage(); activePage = page;
         page.on("pageerror", error => row.errors.push(error.message));
-        // Enlarge actual computed text rather than only changing root rem units:
-        // much of the product deliberately uses fixed px typography. Restore the
-        // preceding state first, read ALL baselines before writing any ancestor,
-        // then double each element once. Reapply after dynamic content mounts.
+        // Install a persistent typography stylesheet before the first list
+        // checkpoint. New route/read/PDF nodes receive 200% from CSS during
+        // layout, before the product restores scrolling; no post-layout font
+        // patching, observer, scroll correction or root-rem-only simulation.
         const scale = "";
         const scaleText = async label => {
           if (mode !== "text200") return;
-          const measurements = await page.evaluate(() => {
-            window.__editorialRestoreFonts?.();
-            const nodes = [...document.querySelectorAll("body,body *")].filter(node => node instanceof HTMLElement);
-            const baselines = nodes.map(node => ({ node, size: parseFloat(getComputedStyle(node).fontSize), previous: node.style.getPropertyValue("font-size"), priority: node.style.getPropertyPriority("font-size") }));
-            const selectors = [".notes-list-row .note-title-anchor", ".notes-title-input", ".notes-reading-title", ".note-reading-prose", ".file-preview-surface [data-slot=dialog-title]", ".file-pdf-page-count"];
-            const samples = selectors.flatMap(selector => { const node = document.querySelector(selector); return node ? [{ selector, node, before: parseFloat(getComputedStyle(node).fontSize) }] : []; });
-            for (const { node, size } of baselines) if (Number.isFinite(size) && size > 0) node.style.setProperty("font-size", `${size * 2}px`, "important");
-            window.__editorialRestoreFonts = () => { for (const { node, previous, priority } of baselines) { if (previous) node.style.setProperty("font-size", previous, priority); else node.style.removeProperty("font-size"); } };
-            return samples.map(({ selector, node, before }) => ({ selector, before, after: parseFloat(getComputedStyle(node).fontSize) }));
+          const result = await page.evaluate(() => {
+            if (!document.querySelector("#editorial-stable-text-200")) {
+              let declarations = 0;
+              const rules = entries => [...entries].map(rule => {
+                if (rule instanceof CSSStyleRule) {
+                  const size = rule.style.getPropertyValue("font-size");
+                  // Relative em/percent/inherited sizes already follow the
+                  // doubled parent. Doubling those again would make 400%.
+                  const relative = /(?<!r)em\b|%|^(inherit|initial|unset|revert|revert-layer)$/i.test(size);
+                  const root = rule.selectorText.split(",").some(selector => ["html", ":root", ":host"].includes(selector.trim()));
+                  const priority = rule.style.getPropertyPriority("font-size");
+                  const declaration = size && !relative && !root ? `font-size:calc((${size}) * 2)${priority ? " !important" : ""};` : "";
+                  if (declaration) declarations++;
+                  const children = rule.cssRules ? rules(rule.cssRules) : "";
+                  return declaration || children ? `${rule.selectorText}{${declaration}${children}}` : "";
+                }
+                if (rule.cssRules) {
+                  const children = rules(rule.cssRules);
+                  return children ? `${rule.cssText.slice(0, rule.cssText.indexOf("{"))}{${children}}` : "";
+                }
+                return "";
+              }).join("\n");
+              // All application styles are same-origin. A blocked stylesheet is
+              // a failed test, never an silently incomplete accessibility pass.
+              const styles = [...document.styleSheets].map(sheet => rules(sheet.cssRules)).join("\n");
+              if (declarations < 10) throw new Error("The stable typography fixture did not inspect the actual application stylesheet");
+              const bodySize = parseFloat(getComputedStyle(document.body).fontSize);
+              const style = document.createElement("style"); style.id = "editorial-stable-text-200";
+              style.dataset.declarations = String(declarations);
+              style.textContent = `body{font-size:${bodySize * 2}px;}\n${styles}`;
+              document.head.append(style);
+            }
+            const title = innerWidth < 768 ? 28 : Math.max(28, Math.min(36, innerWidth * .025));
+            const expected = [
+              [".notes-list-row .note-title-anchor", innerWidth < 768 ? 20 : 21],
+              [".notes-title-input", title], [".note-title-motion-face", title], [".notes-reading-title", title],
+              [".notes-editor-surface .cm-scroller", 16], [".notes-editor-surface .cm-content", 16],
+              [".note-reading-prose", 16], [".file-preview-surface [data-slot=dialog-title]", 26], [".file-pdf-page-count", 12],
+            ];
+            const measurements = expected.flatMap(([selector, normal]) => {
+              const node = document.querySelector(selector);
+              return node ? [{ selector, normalExpected: normal, after: parseFloat(getComputedStyle(node).fontSize) }] : [];
+            });
+            return { declarations: Number(document.querySelector("#editorial-stable-text-200").dataset.declarations), measurements };
           });
-          for (const measurement of measurements) assert.ok(Math.abs(measurement.after - measurement.before * 2) < .1, `${label}/${measurement.selector} must be exactly 200% actual text`);
-          row.textSizes.push({ label, measurements });
+          for (const measurement of result.measurements) assert.ok(Math.abs(measurement.after - measurement.normalExpected * 2) < .1, `${label}/${measurement.selector} must have stable 200% actual text: ${JSON.stringify(measurement)}`);
+          row.textSizes.push({ label, ...result });
         };
         const noOverflow = async label => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${label} has no root horizontal overflow`);
+        const aligned = async (label, reading = false, scope = null) => {
+          const geometry = await page.evaluate(({ isReading, selector }) => {
+            const host = selector ? document.querySelector(selector) : document;
+            const title = host.querySelector(isReading ? ".notes-reading-title" : ".notes-title-input");
+            const content = host.querySelector(isReading ? ".note-reading-prose" : ".notes-editor-surface .cm-content");
+            return { title: title.getBoundingClientRect().left + parseFloat(getComputedStyle(title).paddingLeft), text: content.getBoundingClientRect().left + parseFloat(getComputedStyle(content).paddingLeft), titleWidth: title.getBoundingClientRect().width, textWidth: content.getBoundingClientRect().width };
+          }, { isReading: reading, selector: scope });
+          row.alignment.push({ label, ...geometry });
+          assert.ok(geometry.titleWidth > 0 && geometry.textWidth > 0, `${label}: alignment measures the live, visible pane`);
+          assert.ok(Math.abs(geometry.title - geometry.text) <= 2, `${label}: the title and actual prose/editor must share one axis ${JSON.stringify(geometry)}`);
+        };
         const capture = async label => { await scaleText(label); await noOverflow(label); await page.screenshot({ path: `${output}/${label}-${width}-${mode}.png` }); };
         await page.goto(`${base}/mobile-native-e2e?scene=workspace-motion${scale}`);
         const list = page.locator(".notes-library");
         await list.getByRole("heading", { name: "全部笔记", exact: true }).waitFor();
         await page.evaluate(() => document.fonts.ready);
+        assert.equal(new URL(page.url()).searchParams.get("workspace"), "notes", "the fixture canonicalizes the Notes URL before taking a recovery checkpoint");
+        const listRoute = await page.evaluate(() => location.pathname + location.search);
         await scaleText("notes-list"); await noOverflow("notes-list");
         const link = page.locator('a[data-note-result]').nth(5);
         await link.scrollIntoViewIfNeeded();
         const listTop = await list.evaluate(node => node.scrollTop);
+        row.listRecovery = { sourceRoute: listRoute, before: listTop };
         const id = (await link.getAttribute("href")).split("/").at(-1);
         // Sample every presented frame, including native pseudo-element geometry.
         await page.evaluate(noteId => {
@@ -85,7 +134,16 @@
         }, id);
         await link.click();
         await page.getByRole("textbox", { name: "笔记标题", exact: true }).waitFor();
+        await page.locator('.notes-editor-surface .cm-content[contenteditable="true"] .cm-line').first().waitFor();
         await scaleText("notes-editor");
+        await aligned("notes-editor");
+        const saved = await page.evaluate(sourceRoute => {
+          const key = `life-of-hang:workspace:scroll:notes:list:${sourceRoute}`;
+          const snapshot = sessionStorage.getItem(key);
+          return { key, scrollTop: snapshot ? JSON.parse(snapshot).value?.scrollTop : null };
+        }, listRoute);
+        row.listRecovery.saved = saved;
+        assert.ok(typeof saved.scrollTop === "number" && Math.abs(saved.scrollTop - listTop) < 3, "the real click saves the actual list position under the source URL");
         if (mode === "text200") assert.equal(await page.getByRole("textbox", { name: "笔记标题", exact: true }).evaluate(node => parseFloat(getComputedStyle(node).fontSize)), width === 1440 ? 72 : 56, "the actual title is enlarged from 28/36px to 56/72px");
         await page.waitForFunction(() => window.__editorialPaperDone);
         row.paperFrames = await page.evaluate(() => window.__editorialPaperFrames);
@@ -101,11 +159,16 @@
         await page.locator(".note-reading-prose table").first().waitFor();
         await page.locator(".note-reading-prose pre").first().waitFor();
         await capture("notes-reading");
+        await aligned("notes-reading", true);
         if (mode === "text200") assert.equal(await page.locator(".note-reading-prose").evaluate(node => getComputedStyle(node).fontSize), "32px", "the real reading prose is doubled from 16px to 32px");
         await readerMode.getByRole("button", { name: "编辑", exact: true }).click();
         await page.getByRole("button", { name: "返回笔记列表", exact: true }).click();
         await list.waitFor();
-        assert.ok(Math.abs(await list.evaluate(node => node.scrollTop) - listTop) < 3, "return preserves list position");
+        await scaleText("notes-list-return");
+        row.listRecovery.returnRoute = await page.evaluate(() => location.pathname + location.search);
+        row.listRecovery.after = await list.evaluate(node => node.scrollTop);
+        assert.equal(row.listRecovery.returnRoute, listRoute, "the return tests the same canonical list URL and its recovery key");
+        assert.ok(Math.abs(row.listRecovery.after - listTop) < 3, `return preserves list position ${JSON.stringify(row.listRecovery)}`);
         // A visible destination must work immediately while its paper is moving.
         // Do not wait for animation completion before clicking Reading or Back.
         await page.locator(`a[data-note-result][href="/notes/${id}"]`).click();
@@ -180,6 +243,22 @@
         assert.equal(await dialog.evaluate(node => getComputedStyle(node).transform), "none");
         await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
         assert.ok(!row.requests.some(request => request.path.endsWith("/download")), "viewing never downloads an original");
+        await page.goto(`${base}/mobile-native-e2e?scene=workbench`);
+        await page.getByTestId("workbench-fixture").waitFor();
+        await page.locator('.workbench-main-pane .cm-content[contenteditable="true"] .cm-line').first().waitFor();
+        await scaleText("standalone-editor");
+        await aligned("standalone-editor", false, ".workbench-main-pane");
+        const mainEditor = await page.locator(".workbench-main-pane .cm-editor").elementHandle();
+        await page.locator('[data-workbench-record^="note:"]').getByRole("button", { name: /更多操作/ }).click();
+        await page.getByRole("menuitem", { name: "放到参考区", exact: true }).click();
+        await page.getByRole("button", { name: "编辑笔记", exact: true }).click();
+        await page.locator('.workbench-reference-pane .cm-content[contenteditable="true"] .cm-line').first().waitFor();
+        await scaleText("dual-reference-editor");
+        await aligned("dual-reference-editor", false, ".workbench-reference-pane");
+        if (width < 768) await page.getByRole("button", { name: "主区", exact: true }).click();
+        await aligned("warm-main-editor", false, ".workbench-main-pane");
+        assert.ok(await mainEditor.evaluate(node => node.isConnected), "the warm main editor survives opening a second note");
+        await capture("notes-dual");
         assert.deepEqual(row.errors, []);
       } catch (error) {
         await activePage?.screenshot({ path: `${output}/failure-${width}-${mode}.png` }).catch(() => {});

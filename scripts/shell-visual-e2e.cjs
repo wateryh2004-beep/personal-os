@@ -38,20 +38,25 @@ async function contained(page, label) {
         await page.goto(`${base}/mobile-native-e2e?scene=workspace-motion`);
         await page.getByTestId('workspace-motion-fixture').waitFor();
         const navigation = page.getByRole('navigation', { name: width < 768 ? '底部导航' : '主导航', exact: true });
-        for (const [name, direction] of [['职业', 'navigation-forward'], ['今日', 'navigation-backward']]) {
+        for (const [name, workspace, direction] of [['职业', 'career', 'navigation-forward'], ['今日', 'today', 'navigation-backward']]) {
           await navigation.getByRole('link', { name, exact: true }).click();
-          const probe = page.getByRole('button', { name: '验证即时操作', exact: true });
+          // The previous route has the same button label. Await destination
+          // commit and destination-owned DOM, never the previous visible probe.
+          await page.waitForURL(url => url.searchParams.get('workspace') === workspace);
+          const destination = page.locator(`[data-navigation-probe="${workspace}"]`);
+          const probe = destination.getByRole('button', { name: '验证即时操作', exact: true });
           await probe.waitFor({ state: 'visible' });
           const frame = await probe.evaluate(node => {
             const bounds = node.getBoundingClientRect();
             const surface = node.closest('.workspace-live-surface');
-            return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, direction: surface.dataset.navigationMotion, animations: surface.getAnimations().map(animation => ({ playState: animation.playState, currentTime: animation.currentTime })) };
+            return { workspace: node.closest('[data-navigation-probe]').dataset.navigationProbe, url: location.pathname + location.search, x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, direction: surface.dataset.navigationMotion, animations: surface.getAnimations().map(animation => ({ playState: animation.playState, currentTime: animation.currentTime })) };
           });
+          assert.equal(frame.workspace, workspace);
           assert.equal(frame.direction, direction);
           assert.ok(frame.animations.some(animation => animation.playState === 'running'), 'probe must be clicked during the real movement, without waiting for stability');
           // Raw trusted pointer input intentionally bypasses locator.click's stability wait.
           await page.mouse.click(frame.x, frame.y);
-          assert.equal(await page.getByTestId('navigation-immediate-count').textContent(), '1', 'the first pointer click during navigation must work');
+          assert.equal(await destination.getByTestId('navigation-immediate-count').textContent(), '1', 'the first pointer click during navigation must work');
           row.navigation.push(frame);
           await contained(page, `immediate-navigation-${name}-${width}`);
         }

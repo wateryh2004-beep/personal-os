@@ -13,11 +13,12 @@
 .notes-list-row > [data-slot="dropdown-menu-trigger"] { position:absolute; }
 .notes-list-row:hover > .note-paper-background { background:var(--surface-hover); }
 .notes-library .workbench-record-actions { padding:0 16px 12px; justify-content:flex-start; }
-.notes-editor-toolbar { position:relative; }
+.notes-editor-surface { --note-column-width:760px; --note-page-gutter:32px; }
+.notes-editor-toolbar { position:relative; padding-inline:var(--note-page-gutter); }
 .notes-editor-toolbar::after { content:""; position:absolute; inset:auto 24px -1px; height:1px; background:var(--separator); pointer-events:none; }
-.notes-editor-title-row { max-width:760px; padding-block:6px 10px; }
+.notes-editor-title-row { max-width:var(--note-column-width,760px); padding-block:6px 10px; }
 .notes-editor-title-row :is(.notes-title-input,.notes-reading-title) { margin:0; font-family:var(--font-serif); font-size:clamp(28px,2.5vw,36px); font-weight:400; line-height:1.45; letter-spacing:-.02em; }
-.note-editable-title-anchor { position:relative; font:400 clamp(28px,2.5vw,36px)/1.45 var(--font-serif); letter-spacing:-.02em; }
+.note-editable-title-anchor { position:relative; font-family:var(--font-serif); font-size:clamp(28px,2.5vw,36px); font-weight:400; line-height:1.45; letter-spacing:-.02em; }
 .note-title-motion-face { position:absolute; inset:0; overflow:hidden; padding-block:4px; white-space:nowrap; text-overflow:ellipsis; pointer-events:none; }
 .note-title-live { position:relative; }
 .note-editable-title-anchor .note-title-live :is(.notes-title-input,.notes-reading-title) { color:transparent; }
@@ -31,8 +32,8 @@
 .notes-mode-control[data-mode="reading"]::before { transform:translateX(100%); }
 .notes-mode-control > button { flex:1; justify-content:center; min-width:64px; background:transparent; }
 .notes-mode-control > button[aria-pressed="true"] { background:transparent; color:var(--accent); }
-.note-reading-pane { padding-top:32px; scroll-padding-top:24px; }
-.note-reading-pane > div { max-width:760px; }
+.note-reading-pane { padding-top:32px; padding-inline:var(--note-page-gutter,32px); scroll-padding-top:24px; }
+.note-reading-pane > div { max-width:var(--note-column-width,760px); }
 .note-reading-prose { font-size:16px; line-height:1.95; color:var(--text-primary); }
 .note-reading-prose > :first-child { margin-top:0; }
 .note-reading-prose :is(p,li) { color:var(--text-primary); line-height:1.95; }
@@ -55,10 +56,13 @@
 .note-reading-prose th { background:var(--surface-control); }
 .note-reading-prose img { margin:24px auto; max-width:100%; border:1px solid var(--separator); border-radius:12px; background:var(--surface-control); }
 .note-reading-prose a { text-decoration-thickness:1px; text-underline-offset:4px; }
-.notes-document-shell .life-codemirror .cm-content { max-width:840px; padding:32px 40px 96px; }
-.notes-document-shell .life-codemirror .cm-scroller { font-size:16px; line-height:1.95; }
-.notes-document-shell .life-codemirror .cm-line { line-height:1.95; }
-.notes-document-shell .life-markdown-toolbar { padding-inline:max(12px,calc((100% - 760px)/2)); background:var(--surface-control); }
+/* Both standalone and document-shell editors share one axis. At narrow desktop
+   widths the padding, rather than max-width centering, determines the text edge.
+   The header and editor also reserve the same thin scrollbar gutter. */
+.notes-editor-surface .life-codemirror .cm-content { max-width:calc(var(--note-column-width) + 2 * var(--note-page-gutter)); padding:32px var(--note-page-gutter) 96px; }
+.notes-editor-surface .life-codemirror .cm-scroller { font-size:16px; line-height:1.95; scrollbar-width:thin; scrollbar-gutter:stable; }
+.notes-editor-surface .life-codemirror .cm-line { line-height:1.95; }
+.notes-editor-surface .life-markdown-toolbar { padding-inline:max(12px,calc((100% - 760px)/2)); background:var(--surface-control); }
 
 /* The native route transition morphs the actual row into the actual paper.
    Nested title identity keeps text from stretching with the surrounding page. */
@@ -71,7 +75,7 @@
 
 /* The viewer keeps its shell while the protected original is being prepared. */
 [data-slot="dialog-content"].file-preview-surface { --file-origin-x:0px; --file-origin-y:24px; --file-origin-scale-x:.96; --file-origin-scale-y:.96; max-height:calc(100dvh - 48px); overflow:auto; background:var(--surface-elevated); border-radius:24px; opacity:1; transform:none; translate:-50% -50%; transition:transform 460ms var(--ease-emphasized),opacity 180ms var(--ease-standard); animation:none; }
-[data-slot="dialog-content"].file-preview-surface [data-slot="dialog-title"] { font:400 26px/1.45 var(--font-serif); letter-spacing:-.02em; }
+[data-slot="dialog-content"].file-preview-surface [data-slot="dialog-title"] { font-family:var(--font-serif); font-size:26px; font-weight:400; line-height:1.45; letter-spacing:-.02em; }
 [data-slot="dialog-content"].file-preview-surface [data-slot="dialog-close"] { width:44px; height:44px; }
 @starting-style {
   [data-slot="dialog-content"].file-preview-surface[data-state="open"] { opacity:0; transform:translate(var(--file-origin-x),var(--file-origin-y)) scale(var(--file-origin-scale-x),var(--file-origin-scale-y)); }
@@ -101,6 +105,7 @@
   .notes-library .workbench-record-actions { padding:0; gap:4px; }
 }
 @media(max-width:767px) {
+  .notes-editor-surface { --note-page-gutter:20px; }
   .notes-library .notes-list-row { padding-inline:8px; }
   .notes-library .notes-list-row-content { padding-block:16px 10px; }
   .notes-library .notes-list-row .note-title-anchor { font-size:20px; }
@@ -111,7 +116,8 @@
   .note-reading-pane { padding-block:24px 48px; }
   .note-reading-prose blockquote { padding:12px 16px; }
   .note-reading-prose pre { padding:16px; }
-  .notes-document-shell .life-codemirror .cm-content { padding:24px 20px max(72px,env(safe-area-inset-bottom)); }
+  .notes-editor-surface .life-codemirror .cm-content { padding:24px var(--note-page-gutter) max(72px,env(safe-area-inset-bottom)); }
+  .notes-editor-surface .life-codemirror .cm-scroller { scrollbar-gutter:auto; }
   .notes-mode-control > button { min-width:56px; }
 }
 @media(max-width:639px) {
