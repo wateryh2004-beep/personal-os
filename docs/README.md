@@ -198,3 +198,5 @@
 [笔记连续操作 P1](specs/notes-continuity-p1.md) 规定正文优先、最近正文缓存、阅读/编辑位置衔接和长文输入减负；检查范围与限制见 [2026-10-25 验证记录](verification/2026-10-25-notes-continuity-p1.md)。
 
 [笔记切换与章节定位 · 第二批](specs/notes-navigation-v2.md) 规定快速打开的键盘导航、手机文档内文件入口与可搜索目录；实际检查见 [验收记录](verification/2026-10-25-notes-navigation-v2.md)。
+
+[全系统工作台与连续操作 · 十项升级](specs/system-workbench-v2.md) 固定双工作区、拖放关联、现场恢复、速览、排程、列表批处理、撤销、参数命令、比较与生活现场模式的授权范围、阶段与验收账本；当前实施中，不能据此宣称已上线。

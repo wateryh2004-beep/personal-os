@@ -15,6 +15,144 @@ export type Database = {
   }
   public: {
     Tables: {
+      trip_documents: {
+        Row: {
+          id: string
+          user_id: string
+          trip_id: string
+          document_id: string
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          trip_id: string
+          document_id: string
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          trip_id?: string
+          document_id?: string
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
+      workspace_scenes: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          snapshot: Json
+          revision: number
+          last_mutation_id: string
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          snapshot: Json
+          revision?: number
+          last_mutation_id: string
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          snapshot?: Json
+          revision?: number
+          last_mutation_id?: string
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
+      workspace_action_receipts: {
+        Row: {
+          id: string
+          user_id: string
+          request_id: string
+          request_hash: string
+          operation: string
+          target_id: string
+          before_data: Json
+          after_data: Json
+          after_revision: number
+          status: string
+          created_at: string
+          expires_at: string
+          undone_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          request_id: string
+          request_hash: string
+          operation: string
+          target_id: string
+          before_data?: Json
+          after_data?: Json
+          after_revision?: number
+          status?: string
+          created_at?: string
+          expires_at?: string
+          undone_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          request_id?: string
+          request_hash?: string
+          operation?: string
+          target_id?: string
+          before_data?: Json
+          after_data?: Json
+          after_revision?: number
+          status?: string
+          created_at?: string
+          expires_at?: string
+          undone_at?: string | null
+        }
+        Relationships: []
+      }
+      workspace_original_checks: {
+        Row: {
+          receipt_id: string
+          document_id: string
+          user_id: string
+          mutation_revision: number
+          checked_at: string
+        }
+        Insert: {
+          receipt_id: string
+          document_id: string
+          user_id: string
+          mutation_revision: number
+          checked_at?: string
+        }
+        Update: {
+          receipt_id?: string
+          document_id?: string
+          user_id?: string
+          mutation_revision?: number
+          checked_at?: string
+        }
+        Relationships: []
+      }
       activity_events: {
         Row: {
           action: string
@@ -1254,6 +1392,8 @@ export type Database = {
       }
       calendar_operations: {
         Row: {
+          request_id: string | null
+          request_hash: string | null
           archived_at: string | null
           cache_committed_at: string | null
           calendar_id: string | null
@@ -1276,6 +1416,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          request_id?: string | null
+          request_hash?: string | null
           archived_at?: string | null
           cache_committed_at?: string | null
           calendar_id?: string | null
@@ -1298,6 +1440,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          request_id?: string | null
+          request_hash?: string | null
           archived_at?: string | null
           cache_committed_at?: string | null
           calendar_id?: string | null
@@ -2192,6 +2336,7 @@ export type Database = {
       }
       documents: {
         Row: {
+          mutation_revision: number
           ai_visibility: string
           archived_at: string | null
           checksum: string | null
@@ -2226,6 +2371,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          mutation_revision?: number
           ai_visibility?: string
           archived_at?: string | null
           checksum?: string | null
@@ -2260,6 +2406,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          mutation_revision?: number
           ai_visibility?: string
           archived_at?: string | null
           checksum?: string | null
@@ -2335,6 +2482,7 @@ export type Database = {
       }
       entity_links: {
         Row: {
+          mutation_revision: number
           archived_at: string | null
           created_at: string
           created_via: string
@@ -2349,6 +2497,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          mutation_revision?: number
           archived_at?: string | null
           created_at?: string
           created_via?: string
@@ -2363,6 +2512,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          mutation_revision?: number
           archived_at?: string | null
           created_at?: string
           created_via?: string
@@ -4809,6 +4959,9 @@ export type Database = {
       }
       leisure_feedback: {
         Row: {
+          progress_unit: string | null
+          progress_value: number | null
+          progress_total: number | null
           archived_at: string | null
           created_at: string
           experience_id: string
@@ -4821,6 +4974,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          progress_unit?: string | null
+          progress_value?: number | null
+          progress_total?: number | null
           archived_at?: string | null
           created_at?: string
           experience_id: string
@@ -4833,6 +4989,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          progress_unit?: string | null
+          progress_value?: number | null
+          progress_total?: number | null
           archived_at?: string | null
           created_at?: string
           experience_id?: string
@@ -5295,6 +5454,7 @@ export type Database = {
       }
       notes: {
         Row: {
+          mutation_revision: number
           ai_visibility: string
           archived_at: string | null
           body_markdown: string
@@ -5316,6 +5476,7 @@ export type Database = {
           word_count: number
         }
         Insert: {
+          mutation_revision?: number
           ai_visibility?: string
           archived_at?: string | null
           body_markdown?: string
@@ -5337,6 +5498,7 @@ export type Database = {
           word_count?: number
         }
         Update: {
+          mutation_revision?: number
           ai_visibility?: string
           archived_at?: string | null
           body_markdown?: string
@@ -5816,6 +5978,9 @@ export type Database = {
       }
       purchase_items: {
         Row: {
+          quantity: string | null
+          quantity_unit: string | null
+          mutation_revision: number
           abandoned_at: string | null
           ai_metadata: Json
           archived_at: string | null
@@ -5841,6 +6006,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          quantity?: string | null
+          quantity_unit?: string | null
+          mutation_revision?: number
           abandoned_at?: string | null
           ai_metadata?: Json
           archived_at?: string | null
@@ -5866,6 +6034,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          quantity?: string | null
+          quantity_unit?: string | null
+          mutation_revision?: number
           abandoned_at?: string | null
           ai_metadata?: Json
           archived_at?: string | null
@@ -6527,6 +6698,8 @@ export type Database = {
       }
       trip_stops: {
         Row: {
+          mutation_revision: number
+          arrived_at: string | null
           address: string | null
           created_at: string
           day_number: number | null
@@ -6545,6 +6718,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          mutation_revision?: number
+          arrived_at?: string | null
           address?: string | null
           created_at?: string
           day_number?: number | null
@@ -6563,6 +6738,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          mutation_revision?: number
+          arrived_at?: string | null
           address?: string | null
           created_at?: string
           day_number?: number | null
@@ -6592,6 +6769,9 @@ export type Database = {
       }
       trips: {
         Row: {
+          mutation_revision: number
+          current_stop_id: string | null
+          next_stop_id: string | null
           archived_at: string | null
           budget_cny: number | null
           completed_at: string | null
@@ -6612,6 +6792,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          mutation_revision?: number
+          current_stop_id?: string | null
+          next_stop_id?: string | null
           archived_at?: string | null
           budget_cny?: number | null
           completed_at?: string | null
@@ -6632,6 +6815,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          mutation_revision?: number
+          current_stop_id?: string | null
+          next_stop_id?: string | null
           archived_at?: string | null
           budget_cny?: number | null
           completed_at?: string | null
@@ -6658,6 +6844,43 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _workbench_receipt_visible: { Args: { p_owner: string; p_operation: string; p_target: string; p_before: Json; p_after: Json }; Returns: boolean }
+      read_life_receipt_state: { Args: { p_receipt_id: string }; Returns: Json }
+      valid_workbench_href: { Args: { p_href: string }; Returns: boolean }
+      finish_workbench_provider_receipt: { Args: { p_receipt_id: string; p_owner: string; p_after: Json; p_status: string }; Returns: undefined }
+      undo_workbench_operation: { Args: { p_receipt_id: string }; Returns: Json }
+      valid_workbench_ref: { Args: { p_value: Json }; Returns: boolean }
+      valid_workbench_position: { Args: { p_value: Json }; Returns: boolean }
+      valid_workbench_view_state: { Args: { p_value: Json }; Returns: boolean }
+      valid_workspace_scene_snapshot: { Args: { p_value: Json }; Returns: boolean }
+      apply_life_field_operation: {
+        Args: { p_request_id: string; p_operation: string; p_items: Json }
+        Returns: Json
+      }
+      save_workspace_scene: {
+        Args: { p_id: string; p_request_id: string; p_expected_revision: number; p_name: string; p_snapshot: Json; p_archive?: boolean }
+        Returns: Json
+      }
+      apply_workbench_metadata: {
+        Args: { p_request_id: string; p_operation: string; p_items: Json }
+        Returns: Json
+      }
+      apply_workbench_link: {
+        Args: { p_request_id: string; p_source_type: string; p_source_id: string; p_target_type: string; p_target_id: string }
+        Returns: Json
+      }
+      _undo_life_field_operation: {
+        Args: { p_receipt_id: string }
+        Returns: Json
+      }
+      _undo_core_workbench_operation: {
+        Args: { p_receipt_id: string }
+        Returns: Json
+      }
+      _record_workbench_receipt: {
+        Args: { p_owner: string; p_request_id: string; p_request_hash: string; p_operation: string; p_target: string; p_before: Json; p_after: Json; p_after_revision: number }
+        Returns: string
+      }
       append_investment_cash: {
         Args: { p_account_id: string; p_entry: Json }
         Returns: Json
@@ -6880,6 +7103,7 @@ export type Database = {
       list_notes_workspace: {
         Args: { p_limit?: number; p_offset?: number }
         Returns: {
+          mutation_revision: number
           content_origin: string
           excerpt: string
           folder_id: string

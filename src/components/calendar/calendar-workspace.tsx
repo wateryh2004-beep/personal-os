@@ -1,10 +1,16 @@
 "use client";
 
+import { publishOperationReceipt } from "@/features/workbench/operation-contracts";
+import { CalendarPendingTasks, type PendingCalendarTask } from "./calendar-pending-tasks";
+import { Button } from "@/components/ui/button";
+import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PanelPresence } from "@/components/shared/panel-presence";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { Bot, ChevronDown, ChevronLeft, ChevronRight, EyeOff, MoreHorizontal, Plus, RefreshCw, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { readCalendarTaskForSchedule } from "@/features/workbench/operation-read-resource";
+import { registerWorkbenchViewState } from "@/features/workbench/view-state-registry";
 import { CalendarCreateForm } from "@/components/calendar/calendar-create-form";
 import { CalendarEventEditForm } from "@/components/calendar/calendar-event-edit-form";
 import { CalendarFullView } from "@/components/calendar/calendar-full-view";
@@ -19,7 +25,7 @@ import { Inspector } from "@/components/shared/inspector";
 import { loadWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { formatWallDate, fullCalendarDateToInstant, instantToWallTime, shiftCalendarCursor, shiftCalendarMonth, wallTimeToIso, weekRangeInTimeZone } from "@/features/calendar/timezone";
+import { formatWallDate, fullCalendarDateToInstant, instantToDate, instantToWallTime, shiftCalendarCursor, shiftCalendarMonth, wallTimeToIso, weekRangeInTimeZone } from "@/features/calendar/timezone";
 import { calendarRangeKey, filterCalendarEvents, isCurrentCalendarRangeResponse, reconcileCalendarMutationRange, removeCalendarEvent, replaceCalendarEvent } from "@/features/calendar/client-state";
 import { primaryCalendarCategories } from "@/features/calendar/classification/taxonomy";
 import { outlookCategoryDot } from "@/features/calendar/categories/visual";
@@ -31,7 +37,7 @@ import { captureWorkspaceScope, WorkspaceReadSupersededError } from "@/lib/works
 const CalendarAssistant = dynamic(() => import("@/components/calendar/calendar-assistant").then((module) => module.CalendarAssistant), { ssr: false });
 
 type View = "day" | "week" | "month";
-type Draft = { startsAt: string; endsAt: string; isAllDay?: boolean };
+type Draft = { startsAt: string; endsAt: string; isAllDay?: boolean; subject?:string; description?:string; sourceTask?:{id:string;modified:string|null} };
 type Range = { start: Date; end: Date };
 
 const fullCalendarView = (view: View) => view === "day" ? "timeGridDay" as const : view === "week" ? "timeGridWeek" as const : "dayGridMonth" as const;
@@ -58,6 +64,13 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   const [eventState, setEventState] = useState(events);
   const [selected, setSelected] = useState<CalendarEventRecord | null>(null);
   const [draft, setDraft] = useState<Draft | null>(() => initialCreateOpen ? initialDraft(timezone) : null);
+  const [movePreview,setMovePreview]=useState<{event:CalendarEventRecord;range:Draft & {isAllDay:boolean}}|null>(null);
+  const [moveBusy,setMoveBusy]=useState(false);
+  const sourceTaskRead=useRef<AbortController|null>(null);
+  useEffect(()=>()=>sourceTaskRead.current?.abort(),[]);
+  const draftDirtyRef=useRef(false);
+  const createPendingRef=useRef(false);const [createPending,setCreatePending]=useState(false);
+  const deferredCreateNavigation=useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
@@ -79,6 +92,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   const selectedRef = useRef(selected);
   const draftRef = useRef(draft);
   const movingIds = useRef(new Set<string>());
+  const moveRequests=useRef(new Map<string,string>());
   const pendingMoves = useRef(new Map<string, Draft & { isAllDay: boolean }>());
   const rangeSubscription = useRef<{ resource: ReturnType<typeof calendarRangeResource>; unsubscribe: () => void; reconcile: (reapply?: boolean) => void } | null>(null);
   const syncingRef = useRef(false);
@@ -127,6 +141,21 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   }, []);
 
   useEffect(() => { if (sessionReady) saveWorkspaceSession("calendar:workspace", { view, cursor: cursor.toISOString(), categories: [...selectedCategories], hideInternship }); }, [cursor, hideInternship, selectedCategories, sessionReady, view]);
+  useEffect(() => {
+    if (!sessionReady) return;
+    return registerWorkbenchViewState("calendar", {
+      capture: () => ({kind:"calendar",view,cursor:instantToDate(cursor.toISOString(),timezone),selectedCategories:[...selectedCategories],hideInternship}),
+      restore: state => {
+        if (state.kind !== "calendar") return;
+        setView(window.matchMedia("(max-width: 767px)").matches && state.view === "week" ? "day" : state.view);
+        setCursor(new Date(wallTimeToIso(`${state.cursor}T12:00`,timezone)));
+        const known=new Set(primaryCalendarCategories.map(category=>category.displayName));
+        setSelectedCategories(new Set(state.selectedCategories.filter(category=>known.has(category))));
+        setHideInternship(state.hideInternship);
+      },
+    });
+  }, [sessionReady,view,cursor,selectedCategories,hideInternship,timezone]);
+
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
@@ -140,6 +169,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   }, []);
 
   useEffect(() => {
+    if(createPendingRef.current){deferredCreateNavigation.current=true;return;}
     const intent = calendarNavigationIntent.current;
     if (intent !== undefined) {
       const incoming = initialEventId ?? (initialCreateOpen ? "create" : null);
@@ -245,6 +275,8 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   };
 
   const closeDetails = () => {
+    if(createPendingRef.current)return false;
+    sourceTaskRead.current?.abort();
     linkedEventRequest.current?.abort();
     setLookup(null);
     selectedRef.current = null;
@@ -262,6 +294,12 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
       router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
     }
   };
+
+  const reportCreatePending=useCallback((pending:boolean)=>{
+    createPendingRef.current=pending;setCreatePending(pending);
+    if(!pending&&deferredCreateNavigation.current){deferredCreateNavigation.current=false;setLookupAttempt(value=>value+1);}
+  },[]);
+  useEffect(()=>{const block=(event:KeyboardEvent)=>{if(event.key==="Escape"&&createPendingRef.current)event.preventDefault();};window.addEventListener("keydown",block,true);return()=>window.removeEventListener("keydown",block,true);},[]);
 
   useEffect(() => {
     if (!inspector.isOpen) return;
@@ -356,6 +394,8 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   }, [fetchRange, invalidateCalendarCache]);
 
   const openEvent = (event: CalendarEventRecord) => {
+    if(createPendingRef.current)return;
+    sourceTaskRead.current?.abort();
     linkedEventRequest.current?.abort();
     selectedRef.current = event; draftRef.current = null;
     setLookup(null); setSelected(event); setDraft(null); openInspector();
@@ -369,10 +409,13 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     }
   };
   const openDraft = (range: Draft) => {
+    if(createPendingRef.current)return;
+    sourceTaskRead.current?.abort();
     setMoreOpen(false);
     linkedEventRequest.current?.abort();
-    selectedRef.current = null; draftRef.current = range;
+    selectedRef.current = null; draftRef.current = range;draftDirtyRef.current=false;
     setLookup(null); setSelected(null); setDraft(range); openInspector();
+    if(range.sourceTask){const current=captureWorkspaceScope();const controller=new AbortController();sourceTaskRead.current=controller;void readCalendarTaskForSchedule(range.sourceTask.id,controller.signal).then(task=>{if(!current()||createPendingRef.current||draftDirtyRef.current||draftRef.current!==range)return;if(task.status==="completed"){setCalendarError("来源任务已完成，请重新核对安排。");return;}const next={...range,subject:task.title,description:`[来源任务](/tasks?task=${task.id})`,sourceTask:{id:task.id,modified:task.lastModifiedAt}};draftRef.current=next;setDraft(next);}).catch(()=>{if(current()&&!controller.signal.aborted)setCalendarError("来源任务暂未完成实时核对，创建时会再次检查。");});}
     if (initialEventId || initialCreateOpen || calendarNavigationIntent.current !== undefined) {
       beginCalendarNavigation(null);
       preserveDraftOnNavigation.current = true;
@@ -416,8 +459,9 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     const scopeCurrent = captureWorkspaceScope();
     try {
       const form = new FormData();
+      const key=JSON.stringify({id:event.id,from:event.starts_at,to:range});if(!moveRequests.current.has(key))moveRequests.current.set(key,crypto.randomUUID());form.set("request_id",moveRequests.current.get(key)!);
       form.set("provider_event_id", event.provider_event_id); form.set("original_subject", event.subject); form.set("original_starts_at", event.starts_at); form.set("original_ends_at", event.ends_at);
-      form.set("subject", event.subject); form.set("description", event.body_text ?? ""); form.set("location_name", event.location_name ?? ""); form.set("starts_at", range.startsAt); form.set("ends_at", range.endsAt);
+      form.set("subject", event.subject); form.set("starts_at", range.startsAt); form.set("ends_at", range.endsAt);
       form.set("is_all_day_present", "true"); if (range.isAllDay) form.set("is_all_day", "on"); form.set("importance", event.importance); form.set("show_as", event.show_as === "unknown" ? "busy" : event.show_as); form.set("classification_mode", "auto"); form.set("preserve_categories", "true");
       const result = await updateCalendarEvent({ status: "idle", message: "" }, form);
       if (!scopeCurrent()) return;
@@ -425,6 +469,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
         setCalendarError(`移动结果尚未确认：${result.message} 请重新读取后检查。`);
         throw new Error(result.message);
       }
+      if(result.receiptId)publishOperationReceipt({receiptId:result.receiptId,message:result.message});
       const refreshed = await refetchActiveRange();
       if (!scopeCurrent()) return;
       if (!refreshed) {
@@ -576,11 +621,13 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
         </header>
 
         {calendarError ? <div role="status" className="shrink-0 border-b border-[var(--separator)] bg-[var(--warning-soft)] px-4 py-2 text-[13px] leading-6 text-[var(--warning)]"><p>{calendarError} <button type="button" disabled={loadingRange} onClick={() => void refetchActiveRange()} className="inline-flex min-h-11 items-center px-2 font-medium underline">{loadingRange ? "读取中…" : "重新读取"}</button></p></div> : null}
-        <CalendarFullView events={filtered} categories={categories} timezone={timezone} initialView={fullCalendarView(view)} initialDate={cursor} onOpen={openEvent} onCreate={openDraft} onMove={moveEvent} onRangeChange={onRangeChange} loadingRange={loadingRange} />
+        <CalendarPendingTasks onSchedule={(task:PendingCalendarTask)=>{const range=initialDraft(timezone);openDraft({...range,subject:task.title,description:`[来源任务](/tasks?task=${task.id})`,sourceTask:{id:task.id,modified:task.provider_last_modified_at}});}}/>
+        <CalendarFullView events={filtered} categories={categories} timezone={timezone} initialView={fullCalendarView(view)} initialDate={cursor} onOpen={openEvent} onCreate={openDraft} onMove={async(event,range)=>{if(moveBusy||movingIds.current.has(event.id))throw new Error("calendar_event_update_pending");setMovePreview({event,range});}} onTaskDrop={(task,startsAt)=>openDraft({startsAt,endsAt:new Date(Date.parse(startsAt)+45*60000).toISOString(),subject:task.title,description:`[来源任务](/tasks?task=${task.id})`,sourceTask:{id:task.id,modified:task.modified}})} onRangeChange={onRangeChange} loadingRange={loadingRange} />
         {rangeTruncated ? <p className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[rgba(255,249,235,.94)] px-2.5 py-1 text-[12px] text-[var(--warning)] shadow-sm backdrop-blur-md">当前范围仅显示前 1,000 条日程</p> : null}
       </div>
 
-      <Inspector open={inspector.isOpen} title={selected || lookup ? "日程详情" : "新建日程"} onClose={closeDetails} className="calendar-inspector w-[min(380px,calc(100vw-8px))]">{selected ? <><CalendarEventEditForm key={selected.id} event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={reconcileInspectorMutation} /><EntityBacklinks type="calendar_event" id={selected.id} /></> : draft ? <CalendarCreateForm key={`${draft.startsAt}:${draft.endsAt}:${draft.isAllDay ? "all-day" : "timed"}`} timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} onCreated={reconcileCreatedEvent} /> : lookup ? <div role="status" className="space-y-3 text-sm text-[var(--text-secondary)]"><p>{lookup.error ?? "正在读取日程…"}</p>{lookup.error ? <button type="button" onClick={() => setLookupAttempt((current) => current + 1)} className="font-medium text-[var(--accent)]">重新读取</button> : null}</div> : null}</Inspector>
+      <Inspector open={inspector.isOpen||createPending} title={selected || lookup ? "日程详情" : "新建日程"} onClose={closeDetails} className="calendar-inspector w-[min(380px,calc(100vw-8px))]">{selected ? <><CalendarEventEditForm key={selected.id} event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={reconcileInspectorMutation} /><EntityBacklinks type="calendar_event" id={selected.id} /></> : draft ? <CalendarCreateForm key={`${draft.startsAt}:${draft.endsAt}:${draft.sourceTask?.id??""}:${draft.sourceTask?.modified??""}:${draft.isAllDay ? "all-day" : "timed"}`} timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} initialSubject={draft.subject} initialDescription={draft.description} sourceTask={draft.sourceTask} onPending={reportCreatePending} onDirty={()=>{draftDirtyRef.current=true;}} onCreated={reconcileCreatedEvent} /> : lookup ? <div role="status" className="space-y-3 text-sm text-[var(--text-secondary)]"><p>{lookup.error ?? "正在读取日程…"}</p>{lookup.error ? <button type="button" onClick={() => setLookupAttempt((current) => current + 1)} className="font-medium text-[var(--accent)]">重新读取</button> : null}</div> : null}</Inspector>
+      <Dialog open={Boolean(movePreview)} onOpenChange={next=>{if(moveBusy)return false;if(!next)setMovePreview(null);}}><DialogContent><DialogHeader><DialogTitle>预览日程变更</DialogTitle><DialogDescription>核对后才写入Outlook。取消保留原安排。</DialogDescription></DialogHeader>{movePreview?<><p>{movePreview.event.subject}</p><p className="text-sm">原安排：{instantToWallTime(movePreview.event.starts_at,timezone)} — {instantToWallTime(movePreview.event.ends_at,timezone)}</p><p className="text-sm">新安排：{instantToWallTime(movePreview.range.startsAt,timezone)} — {instantToWallTime(movePreview.range.endsAt,timezone)} · {timezone}</p><div className="flex justify-end gap-2"><Button variant="outline" disabled={moveBusy} onClick={()=>setMovePreview(null)}>取消</Button><Button disabled={moveBusy} onClick={async()=>{setMoveBusy(true);try{await moveEvent(movePreview.event,movePreview.range);setMovePreview(null);}catch{/* Existing calendar error retains the preview. */}finally{setMoveBusy(false);}}}>{moveBusy?"保存中…":"确认更新到Outlook"}</Button></div></>:null}</DialogContent></Dialog>
       <PanelPresence open={ai.isOpen}><AISidecar open={ai.isOpen} onClose={ai.close} context="Calendar"><CalendarAssistant timezone={timezone} categories={categories} /></AISidecar></PanelPresence>
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent className="max-h-[82dvh] overflow-y-auto sm:max-w-2xl"><CalendarCategoryManager categories={categories} timezone={timezone} scopeReady={scopeReady} events={eventState} referenceTime={cursor.getTime()} /></DialogContent></Dialog>
     </section>

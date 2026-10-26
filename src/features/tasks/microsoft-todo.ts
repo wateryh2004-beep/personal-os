@@ -1,5 +1,6 @@
 "use server";
 
+import { runTodoMetadataOperation } from "@/features/workbench/operation-provider";
 import { revalidatePath } from "@/lib/workspace-revalidation";
 import { z } from "zod";
 import { syncMicrosoftTodo } from "@/lib/adapters/microsoft-graph/todo";
@@ -43,6 +44,8 @@ const deferSchema = z.object({ taskId: z.string().uuid(), dueAt: z.string().date
 const deleteSchema = z.object({ taskId: z.string().uuid() });
 const updateSchema = z.object({
   taskId: z.string().uuid(),
+  requestId: z.string().uuid().optional(),
+  expected: z.object({title:z.string().optional(),lastModifiedAt:z.string().nullable().optional(),status:z.string().optional()}).optional(),
   title: z.string().trim().min(1).max(500).optional(),
   bodyText: z.string().max(10_000).nullable().optional(),
   importance: z.enum(["low", "normal", "high"]).optional(),
@@ -88,14 +91,12 @@ export async function createMicrosoftTodoTaskAction(_: TodoCreateState, formData
 }
 
 export async function completeMicrosoftTodoTaskAction(formData: FormData) {
-  const parsed = completeSchema.safeParse({ taskId: formData.get("task_id") });
-  if (!parsed.success) fail();
-  const { supabase, userId } = await requireOwner();
-  const connection = await activeConnection(supabase);
-  await microsoftTodoRepository.complete(connection.id, userId, parsed.data.taskId);
-  await audit(supabase, userId, "complete", parsed.data.taskId, { provider: "microsoft_todo" });
-  await revalidatePath("/tasks");
-  await revalidatePath("/today");
+  const taskId = z.string().uuid().parse(formData.get("task_id"));
+  const { userId } = await requireOwner();
+  const result = await runTodoMetadataOperation({userId,taskId,requestId:z.string().uuid().parse(formData.get("request_id") || crypto.randomUUID()),operation:"tasks_complete",patch:{status:"completed"},...(formData.has("expected_status")?{expected:{status:String(formData.get("expected_status")),title:String(formData.get("expected_title")),lastModifiedAt:String(formData.get("expected_modified")||"")||null}}:{})});
+  if(result.status!=="success") throw new Error(result.message);
+  await revalidatePath("/tasks"); await revalidatePath("/today");
+  return result;
 }
 
 /** User-triggered defer; the provider-backed task remains the sole authority. */
@@ -117,6 +118,12 @@ export async function updateMicrosoftTodoTaskAction(input: unknown) {
   const { supabase, userId } = await requireOwner();
   const connection = await activeConnection(supabase);
   const { data: before } = await supabase.from("microsoft_todo_tasks").select("title,body_text,importance,due_at").eq("id", parsed.data.taskId).is("archived_at", null).maybeSingle();
+  if (parsed.data.bodyText === undefined) {
+    const patch={...(parsed.data.title!==undefined?{title:parsed.data.title}:{}),...(parsed.data.importance!==undefined?{importance:parsed.data.importance}:{}),...(parsed.data.dueAt!==undefined?{dueAt:parsed.data.dueAt}:{})};
+    const result=await runTodoMetadataOperation({userId,taskId:parsed.data.taskId,requestId:parsed.data.requestId??crypto.randomUUID(),patch,expected:parsed.data.expected});
+    if(result.status!=="success") throw new Error(result.message);
+    await revalidatePath("/tasks"); await revalidatePath("/today"); return result;
+  }
   await microsoftTodoRepository.update(connection.id, userId, parsed.data.taskId, parsed.data);
   await audit(supabase, userId, "update", parsed.data.taskId, { provider: "microsoft_todo", before, patch: parsed.data });
   if (parsed.data.bodyText !== undefined) {
@@ -148,4 +155,13 @@ export async function reopenMicrosoftTodoTaskAction(formData: FormData) {
   await audit(supabase, userId, "reopen", parsed.data.taskId, { provider: "microsoft_todo" });
   await revalidatePath("/tasks");
   await revalidatePath("/today");
+}
+
+const batchSchema=z.object({requestId:z.string().uuid(),items:z.array(z.object({requestId:z.string().uuid(),taskId:z.string().uuid(),expected:z.object({title:z.string(),lastModifiedAt:z.string().nullable(),status:z.string()}),patch:z.object({dueAt:z.string().datetime({offset:true}).nullable().optional(),importance:z.enum(["low","normal","high"]).optional()}).refine(p=>Object.keys(p).length>0)})).min(1).max(20)}).strict();
+/** Provider batch is intentionally per-item. Never retry a dispatched unknown write. */
+export async function applyTodoBatch(input:unknown) {
+ const value=batchSchema.parse(input); if(new Set(value.items.map(row=>row.taskId)).size!==value.items.length || new Set(value.items.map(row=>row.requestId)).size!==value.items.length) throw new Error("任务不能重复。");
+ const {userId}=await requireOwner(); const results=[];
+ for(const item of value.items) { try{const result=await runTodoMetadataOperation({userId,...item}); results.push({taskId:item.taskId,...result});}catch{results.push({taskId:item.taskId,status:"error" as const,message:"该项未能确认，其他项结果保留。",requestId:item.requestId});} }
+ await revalidatePath("/tasks"); await revalidatePath("/today"); return results;
 }

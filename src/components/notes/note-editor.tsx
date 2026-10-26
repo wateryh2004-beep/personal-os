@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { workbenchPositionSchema } from "@/features/workbench/contracts";
+import { useWorkbenchActive } from "@/components/workbench/workbench-activity";
 import { useNoteContinuity } from "./use-note-continuity";
 import { noteDocumentCache } from "@/features/notes/document-resource";
 import dynamic from "next/dynamic";
@@ -62,14 +64,14 @@ type NoteDraftSession = { title: string; body: string; baseRevision: number };
 type SaveState = "已保存" | "有未保存修改" | "正在保存" | "保存失败" | "版本冲突";
 
 const pdfCloneStyles = `
-  #note-pdf-preview, #note-pdf-preview * { color: #27272a !important; border-color: #e7e5e4 !important; }
-  #note-pdf-preview { position: absolute !important; left: 0 !important; top: 0 !important; z-index: 1 !important; width: 794px !important; min-height: 1px !important; background: #ffffff !important; }
-  #note-pdf-preview h1, #note-pdf-preview h2, #note-pdf-preview h3 { color: #18181b !important; }
-  #note-pdf-preview pre { background: #18181b !important; color: #f4f4f5 !important; }
-  #note-pdf-preview pre * { color: #f4f4f5 !important; }
-  #note-pdf-preview code { background: #f4f4f5 !important; }
-  #note-pdf-preview pre code { background: transparent !important; }
-  #note-pdf-preview th { background: #f4f4f5 !important; }
+  .note-pdf-export-preview, .note-pdf-export-preview * { color: #27272a !important; border-color: #e7e5e4 !important; }
+  .note-pdf-export-preview { position: absolute !important; left: 0 !important; top: 0 !important; z-index: 1 !important; width: 794px !important; min-height: 1px !important; background: #ffffff !important; }
+  .note-pdf-export-preview h1, .note-pdf-export-preview h2, .note-pdf-export-preview h3 { color: #18181b !important; }
+  .note-pdf-export-preview pre { background: #18181b !important; color: #f4f4f5 !important; }
+  .note-pdf-export-preview pre * { color: #f4f4f5 !important; }
+  .note-pdf-export-preview code { background: #f4f4f5 !important; }
+  .note-pdf-export-preview pre code { background: transparent !important; }
+  .note-pdf-export-preview th { background: #f4f4f5 !important; }
 `;
 
 function MarkdownDocument({ body }: { body: string }) {
@@ -125,6 +127,7 @@ async function copyText(value: string) {
 }
 
 export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false }: { note: Note; noteAiDefaultModel: DeepSeekModelId; loadAiPreferences?: boolean }) {
+  const paneActive = useWorkbenchActive();
   const feedback = useActionFeedback();
   const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const [title, setTitle] = useState(note.title);
@@ -132,7 +135,18 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const [bodyRevision, setBodyRevision] = useState(0);
   const [draftBaseline] = useState(() => ({ title: note.title, body: note.body_markdown }));
   const replaceBody = useCallback((value: string) => { setBody(value); setBodyRevision((revision) => revision + 1); }, []);
-  const { reading, switchReading, readingPaneRef, rememberReading, rememberPosition, onEditorReady, interruptEditorRestore } = useNoteContinuity(note.id);
+  const { reading, switchReading, restoreContinuity, readingPaneRef, rememberReading, rememberPosition, onEditorReady, interruptEditorRestore } = useNoteContinuity(note.id);
+  useEffect(() => {
+    const restore = (event: Event) => {
+      if (!(event instanceof CustomEvent) || event.detail?.noteId !== note.id) return;
+      const parsed = workbenchPositionSchema.safeParse(event.detail.position);
+      if (!parsed.success) return;
+      const position = parsed.data;
+      restoreContinuity({ reading: position.reading ?? false, ...(position.sourceLine ? { reader: { line: position.sourceLine, offset: position.sourceOffset ?? 0 } } : {}), ...(position.anchor !== undefined ? { editor: { anchor: position.anchor, head: position.head ?? position.anchor, viewport: { line: position.sourceLine ?? 1, offset: position.sourceOffset ?? 0 }, scrollLeft: 0 } } : {}) });
+    };
+    window.addEventListener("personal-os:restore-note-position", restore);
+    return () => window.removeEventListener("personal-os:restore-note-position", restore);
+  }, [note.id, restoreContinuity]);
   const [titleUndoStack, setTitleUndoStack] = useState<string[]>([]);
   const titleUndoStackRef = useRef<string[]>([]);
   const [state, setState] = useState<SaveState>("已保存");
@@ -326,7 +340,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     }, noteAutosaveMaxWaitMs);
     return () => window.clearInterval(timer);
   }, [save]);
-  useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); flushDraft(); void save(); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [flushDraft, save]);
+  useEffect(() => { const handler = (event: KeyboardEvent) => { if (paneActive && editorSurfaceRef.current?.contains(document.activeElement) && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); flushDraft(); void save(); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [flushDraft, save, paneActive]);
   useEffect(() => {
     const flush = () => {
       flushDraft();
@@ -527,7 +541,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const startPdfExport = () => setPdfSnapshot({ title: title || "无标题笔记", body });
 
   return (
-    <section
+    <section data-note-editor-id={note.id}
       ref={attachEditorSurface}
       className={`notes-editor-surface flex h-full min-w-0 overflow-hidden bg-[var(--surface-canvas)] ${isFallbackFullscreen ? "fixed inset-0 z-[80] h-[var(--app-viewport-height)]" : ""}`}
     >
@@ -616,7 +630,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         </div>
         {reading ? <div className="notes-document-body min-h-0 flex-1 overflow-hidden"><NoteReadingView body={body} paneRef={readingPaneRef} onScroll={rememberReading} /></div> : null}
       </div>
-      {(!aiGenerated && (aiVisited || noteAiPanel.isOpen || selection)) ? <NoteAiAssistant
+      {(paneActive && !aiGenerated && (aiVisited || noteAiPanel.isOpen || selection)) ? <NoteAiAssistant
         key={note.id}
         open={aiGenerated ? false : noteAiPanel.isOpen}
         onOpen={openAi}
@@ -640,7 +654,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         }}
       /> : null}
       {pdfSnapshot ? (
-        <article id="note-pdf-preview" ref={pdfPreviewRef} className="fixed -left-[10000px] top-0 w-[794px] bg-[var(--surface-canvas)] p-12 text-[15px]">
+        <article ref={pdfPreviewRef} className="note-pdf-export-preview fixed -left-[10000px] top-0 w-[794px] bg-[var(--surface-canvas)] p-12 text-[15px]">
           <h1 className="mb-7 text-3xl font-semibold text-[var(--text-primary)]">{pdfSnapshot.title}</h1>
           <MarkdownDocument body={pdfSnapshot.body} />
         </article>

@@ -1,8 +1,12 @@
 "use client";
+import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
 
 import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
 
 import Link from "next/link";
+import { WorkbenchRecord } from "@/components/workbench/workbench-record";
+import { OperationMetadataBar } from "@/components/workbench/operation-metadata-bar";
+import { publishOperationReceipt } from "@/features/workbench/operation-contracts";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { unstable_rethrow, useRouter, useSearchParams } from "next/navigation";
 import { AlignJustify, FilePlus2, List, LoaderCircle, MoreHorizontal, Pin, Search, Sparkles, X } from "lucide-react";
@@ -211,6 +215,9 @@ export function NotesWorkspace({
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [showPreviews, setShowPreviews] = useState(true);
   const mutationInFlight = useRef(false);
+  useEffect(()=>{const listener=()=>{const current=captureWorkspaceScope();notesWorkspaceResource.invalidate();void notesWorkspaceResource.revalidate({force:true}).catch(()=>{if(current()){/* Existing stale/error read model remains visible. */}});};window.addEventListener("personal-os:operation-undone",listener);return()=>window.removeEventListener("personal-os:operation-undone",listener);},[notesWorkspaceResource]);
+
+  const metadataRequest = useRef<{key:string;id:string}|null>(null);
   const [renaming, setRenaming] = useState<NoteListItem | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [moving, setMoving] = useState<NoteListItem | null>(null);
@@ -271,15 +278,21 @@ export function NotesWorkspace({
     syncSearchUrl(value, scope);
   };
 
-  const mutate = (action: (form: FormData) => Promise<void>, form: FormData, message: string, onSuccess?: () => void) => {
+  const mutate = (action: (form: FormData) => Promise<void | { receiptId?: string }>, form: FormData, message: string, onSuccess?: () => void) => {
+    const scopeCurrent=captureWorkspaceScope();
     if (mutationInFlight.current) return;
+    const key=JSON.stringify([...form.entries()]);
+    if(metadataRequest.current?.key!==key) metadataRequest.current={key,id:crypto.randomUUID()};
+    form.set("request_id",metadataRequest.current.id);
     mutationInFlight.current = true;
     setMutationError(null);
     startTransition(async () => {
       try {
-        await action(form);
+        const result = await action(form);
+        if(!scopeCurrent())return;
+        if(result?.receiptId) publishOperationReceipt({receiptId:result.receiptId,message});
         onSuccess?.();
-        feedback.show({ message, tone: "success" });
+        if(!result?.receiptId)feedback.show({ message, tone: "success" });
         notesWorkspaceResource.invalidate();
         // A refresh failure must not relabel an acknowledged write as failed.
         void notesWorkspaceResource.revalidate().catch(() => {
@@ -340,6 +353,7 @@ export function NotesWorkspace({
           <p>{mutationError}</p>
           <Button variant="ghost" size="sm" disabled={pending} onClick={refreshList}>重新读取列表</Button>
         </div> : null}
+        <OperationMetadataBar kind="note" folders={folders} />
         {pending ? <p role="status" className="mb-2 text-[12px] text-[var(--text-tertiary)]">正在处理，请稍候…</p> : null}
 
         {selectedFolder ? <NotesFolderBreadcrumbs folder={selectedFolder} folders={folders} /> : null}
@@ -441,8 +455,7 @@ export function NotesWorkspace({
             if (event.key === "Escape") { event.preventDefault(); searchInput.current?.focus(); }
           }}>
             {visible.map((note) => (
-              <NoteRow
-                key={note.id}
+              <WorkbenchRecord key={note.id} entity={{kind:"note",id:note.id}} title={note.title || "无标题笔记"} group={`notes:${selectedFolder?.id ?? initialView}:${normalizedQuery}`}><NoteRow
                 note={note}
                 folders={folders}
                 timezone={timezone}
@@ -456,6 +469,7 @@ export function NotesWorkspace({
                     const form = new FormData();
                     form.set("note_id", note.id);
                     form.set("title", nextTitle);
+                    form.set("expected_revision", String(renaming.mutation_revision ?? ""));
                     mutate(renameNote, form, "笔记标题已保存", () => setRenaming(null));
                   } else {
                     setRenaming(null);
@@ -475,13 +489,14 @@ export function NotesWorkspace({
                 onTrash={(item) => {
                   const form = new FormData();
                   form.set("note_id", item.id);
+                  form.set("expected_revision",String(item.mutation_revision ?? ""));
                   mutate(trashNote, form, "已移到回收站");
                 }}
                 searchQuery={normalizedQuery}
                 onOpen={rememberList}
                 showExcerpt={Boolean(normalizedQuery) || showPreviews}
                 pending={pending}
-              />
+              /></WorkbenchRecord>
             ))}
           </section>
         ) : !normalizedQuery && !listing.loaded ? (
@@ -524,6 +539,7 @@ export function NotesWorkspace({
             className="grid gap-2"
           >
             <input type="hidden" name="note_id" value={moving.id} />
+            <input type="hidden" name="expected_revision" value={moving.mutation_revision ?? ""} />
             {mutationError ? <div role="alert" className="mb-3 text-[12px] leading-5 text-[var(--danger)]"><p>{mutationError}</p><Button type="button" variant="ghost" size="sm" disabled={pending} onClick={refreshList}>重新读取列表</Button></div> : null}
             <FolderPicker folders={folders} initialFolderId={moving.folder_id} idPrefix={`move-${moving.id}`} label="移动到" />
             <div className="mt-4 flex justify-end gap-2">

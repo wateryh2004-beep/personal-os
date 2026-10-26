@@ -155,7 +155,7 @@ describe("creation through the mounted task workspace", () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(due, "2026-10-07T10:45");
       due.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    expect(mocks.update).toHaveBeenCalledWith({ taskId: created.id, dueAt: "2026-10-07T02:45:00.000Z" });
+    expect(mocks.update).toHaveBeenCalledWith({ taskId: created.id, dueAt: "2026-10-07T02:45:00.000Z", requestId: expect.stringMatching(/^[0-9a-f-]{36}$/), expected: { title: created.title, status: created.status, lastModifiedAt: created.lastModifiedAt } });
   });
 
   it("closes the mobile creation entry so the next Back returns to the prior route", async () => {

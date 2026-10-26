@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/shared/page-header";
+import { WorkbenchRecord } from "@/components/workbench/workbench-record";
+import { OperationLinkTarget } from "@/components/workbench/operation-links";
 import { createProject } from "@/features/projects/actions";
 
 type Project = { id: string; name: string; description: string | null; status: string; due_date: string | null; updated_at: string };
@@ -79,7 +81,7 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
       {projects.length ? (
         <div className="ui-card mt-6 divide-y divide-[var(--separator)] px-3">
           {projects.map((project) => (
-            <article key={project.id} className="group grid gap-1.5 px-2 py-3.5 transition-colors ui-transition hover:bg-[var(--surface-hover)] sm:grid-cols-[1fr_auto] sm:items-start">
+            <WorkbenchRecord key={project.id} entity={{kind:"project",id:project.id}} title={project.name} group="projects"><OperationLinkTarget target={{type:"project",id:project.id}} title={project.name}><article className="group grid gap-1.5 px-2 py-3.5 transition-colors ui-transition hover:bg-[var(--surface-hover)] sm:grid-cols-[1fr_auto] sm:items-start">
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <h2 className="truncate text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{project.name}</h2>
@@ -91,7 +93,7 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
                 <p>{project.due_date ? `截止 ${new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(project.due_date))}` : "持续推进"}</p>
                 <p>更新于 {new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(new Date(project.updated_at))}</p>
               </div>
-            </article>
+            </article></OperationLinkTarget></WorkbenchRecord>
           ))}
         </div>
       ) : (

@@ -1,0 +1,13 @@
+/* The workspace or embedded host owns the outer height. This more specific,
+   unlayered rule prevents the mobile viewport-height skin from escaping a
+   shorter parent, including a split pane, zoomed layout or fixture. */
+.notes-document-shell[data-note-document-id] { height:100%; min-height:0; max-height:100%; overflow:hidden; }
+.notes-document-shell[data-note-reader-view="pdf"] .notes-document-main,
+.notes-document-shell .notes-document-pdf-pane,
+.notes-document-shell .notes-document-pdf-slot { min-height:0; min-width:0; overflow:hidden; }
+/* At short heights the whole PDF chrome can scroll without covering siblings;
+   Markdown retains its existing short-screen document-scrolling behavior. */
+@media(max-height:600px) {
+  .notes-document-shell[data-note-reader-view="pdf"] .notes-document-main { overflow-y:auto; }
+  .notes-document-shell[data-note-reader-view="pdf"] .notes-document-pdf-pane { flex:1 0 320px; }
+}

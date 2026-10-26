@@ -1,3 +1,5 @@
+import { LifeWorkbenchFixture } from "@/components/testing/life-workbench-fixture";
+import { WorkbenchFixture } from "@/components/testing/workbench-fixture";
 import { notesBootstrapFixture } from "@/components/testing/notes-bootstrap-data";
 import { NotesBootstrapFixture } from "@/components/testing/notes-bootstrap-fixture";
 import { R2StorageSettings } from "@/components/settings/r2-storage-settings";
@@ -20,10 +22,13 @@ import { WorkspaceMotionFixture } from "@/components/testing/workspace-motion-fi
 
 export const dynamic = "force-dynamic";
 
-export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string; item?: string }> }) {
+export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string; item?: string; textScale?: string }> }) {
   if (process.env.E2E_MOBILE_HARNESS !== "1") notFound();
-  const { scene, workspace, mode, item, delay: rawDelay } = await searchParams;
-  if (scene === "note-continuity") return <NoteContinuityFixture />;
+  const { scene, workspace, mode, item, textScale, delay: rawDelay } = await searchParams;
+  if (scene === "life-workbench") return <LifeWorkbenchFixture workspace={workspace} />;
+  if (scene === "workbench-pdf") return <WorkbenchFixture pdf />;
+  if (scene === "workbench") return <WorkbenchFixture />;
+  if (scene === "note-continuity") return <NoteContinuityFixture textScale={textScale === "200" ? "200" : undefined} />;
   if (scene === "workspace-motion") return <WorkspaceMotionFixture />;
   if (scene === "notes-bootstrap") {
     const bootstrap = mode === "streamed" && workspace !== "home" ? new Promise<{
@@ -47,7 +52,7 @@ export default async function MobileNativeE2EPage({ searchParams }: { searchPara
     return <NavigationLatencyHarness workspace={workspace ?? "home"} mode={mode ?? "resource"} delay={delay} revision={(await cookies()).get(workspaceRevisionCookie)?.value ?? "fixture-v1"} />;
   }
   if (scene && ["projects", "calendar-edit", "heading", "career", "career-filled", "career-scenarios", "today", "today-filled", "tasks", "calendar", "notes", "note-editor", "note-pdf", "files", "files-cached-covers", "today-loading", "tasks-loading", "calendar-loading"].includes(scene)) {
-    return <WorkspacePolishHarness scene={scene as PolishScene} />;
+    return <WorkspacePolishHarness scene={scene as PolishScene} textScale={textScale === "200" ? "200" : undefined} />;
   }
   return <MobileNativeHarness />;
 }

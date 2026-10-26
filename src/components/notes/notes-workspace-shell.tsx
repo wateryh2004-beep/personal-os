@@ -1,4 +1,6 @@
 "use client";
+import { workbenchDragMime } from "@/features/workbench/contracts";
+import { publishOperationReceipt } from "@/features/workbench/operation-contracts";
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -15,15 +17,18 @@ import { isNotesSearchShortcut } from "@/features/notes/search-shortcut";
 import { lastNotesListSessionKey, notesListHref } from "@/features/notes/navigation";
 import { loadWorkspaceSession } from "@/lib/workspace-session";
 import { filterNotesByMetadata, createNoteFolderPathResolver } from "@/features/notes/local-search";
+import { captureWorkspaceScope, useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
+import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
 import { NotesNavigationContext } from "./notes-navigation-context";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
 
 export type NotesNavigatorFolder = { id: string; name: string; parent_id: string | null };
-export type NotesNavigatorNote = { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null };
-type DraggedNavigatorItem = { kind: "note" | "folder"; id: string; title: string; parentId: string | null };
+export type NotesNavigatorNote = { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null; mutation_revision?: number };
+type DraggedNavigatorItem = { kind: "note" | "folder"; id: string; title: string; parentId: string | null; mutation_revision?: number };
 
 function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigatorFolder[]; notes: NotesNavigatorNote[]; onNavigate?: () => void }) {
   const pathname = usePathname();
+  const notesResource=useWorkspaceResourceLease(notesWorkspaceResource);
   const searchParams = useSearchParams();
   const router = useRouter();
   const closeForNavigation = (href: string) => {
@@ -150,6 +155,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   const beginDrag = (event: React.DragEvent<HTMLElement>, item: DraggedNavigatorItem) => {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", item.id);
+    if(item.kind==="note")event.dataTransfer.setData(workbenchDragMime,JSON.stringify({kind:"note",id:item.id}));
     setDragging(item);
     setNotice(`正在移动${item.kind === "note" ? "笔记" : "文件夹"}“${item.title}”`);
   };
@@ -165,15 +171,26 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
     setOptimisticMove({ item, targetId });
     if (targetId) setExpanded((current) => new Set([...current, targetId]));
     clearDrag();
-    setNotice(`已将“${item.title}”移至${targetName}`);
+    setNotice(`正在将“${item.title}”移至${targetName}…`);
     const form = new FormData();
     form.set(item.kind === "note" ? "note_id" : "folder_id", item.id);
     form.set(item.kind === "note" ? "folder_id" : "parent_id", targetId ?? "");
+    if(item.kind === "note")form.set("expected_revision",String(item.mutation_revision ?? ""));
+    const current=captureWorkspaceScope();
     startTransition(async () => {
+      let committed=false;
       try {
-        if (item.kind === "note") await moveNote(form); else await moveFolder(form);
-        router.refresh();
+        if (item.kind === "note") {const result=await moveNote(form);if(current()&&result.receiptId)publishOperationReceipt({receiptId:result.receiptId,message:"笔记归属已更新"});} else await moveFolder(form);
+        committed=true;
+        if(!current())return;
+        notesResource.invalidate();
+        await notesResource.revalidate({force:true});
+        if(!current())return;
+        setOptimisticMove(null);
+        setNotice(`已将“${item.title}”移至${targetName}`);
       } catch {
+        if(!current())return;
+        if(committed){setNotice(`已将“${item.title}”移至${targetName}；列表暂未重新读取，请稍后重试。`);return;}
         setOptimisticMove(null);
         setNotice(`未能移动“${item.title}”，已恢复原位置。`);
       }
@@ -195,10 +212,10 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
           {renaming === folder.id ? <input aria-label="文件夹名称" autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={() => commitRename(folder)} onKeyDown={(event) => { if (event.key === "Enter") commitRename(folder); if (event.key === "Escape") setRenaming(null); }} className="h-6 min-w-0 flex-1 border-b border-[var(--accent)] bg-transparent px-1 text-[12.5px] text-[var(--text-primary)] outline-none" /> : <Link  onNavigate={() => closeForNavigation(`/notes?folder=${folder.id}`)} href={`/notes?folder=${folder.id}`} className={`flex h-11 min-w-0 md:h-7 flex-1 items-center gap-1.5 rounded-[7px] px-1.5 text-[12.5px] transition-colors ui-transition ${selectedFolderId === folder.id ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><Folder  className="size-3.5 shrink-0" aria-hidden="true" /><span  className="truncate">{folder.name}</span></Link>}
           <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="pressable flex size-11 shrink-0 md:size-6 items-center justify-center rounded-[7px] text-[var(--text-tertiary)] opacity-100 hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100" aria-label={`管理文件夹 ${folder.name}`}><MoreHorizontal className="size-3.5" /></button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => { setRenaming(folder.id); setRenameValue(folder.name); }}>重命名</DropdownMenuItem><DropdownMenuItem onSelect={() => { setCreatingIn(folder.id); setFolderName(""); setExpanded((current) => new Set([...current, folder.id])); }}>新建子文件夹</DropdownMenuItem><DropdownMenuItem onSelect={() => createNoteForFolder(folder)}>新建笔记</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
         </div>
-        {isOpen ? <>{renderBranch(folder.id, depth + 1)}{directNotes.map((note) => <Link key={note.id} draggable onDragStart={(event) => beginDrag(event, { kind: "note", id: note.id, title: note.title || "无标题笔记", parentId: note.folder_id })} onDragEnd={clearDrag} onNavigate={() => closeForNavigation(`/notes/${note.id}`)} href={`/notes/${note.id}`} className={`pressable flex h-11 md:h-[30px] cursor-grab items-center gap-1.5 truncate rounded-[8px] pr-2 text-[12.5px] active:cursor-grabbing ${dragging?.kind === "note" && dragging.id === note.id ? "opacity-45" : ""} ${activeNoteId === note.id ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`} style={{ paddingLeft: `${37 + depth * 16}px` }}><FileText className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{note.title || "无标题笔记"}</span>{note.content_origin === "ai_generated" ? <Sparkles className="size-3 shrink-0 text-[var(--ai-accent)]" aria-label="AI 生成" /> : null}</Link>)}{createFolderRow(folder.id, depth + 1)}</> : null}
+        {isOpen ? <>{renderBranch(folder.id, depth + 1)}{directNotes.map((note) => <Link key={note.id} draggable onDragStart={(event) => beginDrag(event, { kind: "note", id: note.id, title: note.title || "无标题笔记", parentId: note.folder_id, mutation_revision: note.mutation_revision })} onDragEnd={clearDrag} onNavigate={() => closeForNavigation(`/notes/${note.id}`)} href={`/notes/${note.id}`} className={`pressable flex h-11 md:h-[30px] cursor-grab items-center gap-1.5 truncate rounded-[8px] pr-2 text-[12.5px] active:cursor-grabbing ${dragging?.kind === "note" && dragging.id === note.id ? "opacity-45" : ""} ${activeNoteId === note.id ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`} style={{ paddingLeft: `${37 + depth * 16}px` }}><FileText className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{note.title || "无标题笔记"}</span>{note.content_origin === "ai_generated" ? <Sparkles className="size-3 shrink-0 text-[var(--ai-accent)]" aria-label="AI 生成" /> : null}</Link>)}{createFolderRow(folder.id, depth + 1)}</> : null}
       </div>;
     })}
-    {parentId === null ? <>{(notesByFolder.get(null) ?? []).map((note) => <Link key={note.id} draggable onDragStart={(event) => beginDrag(event, { kind: "note", id: note.id, title: note.title || "无标题笔记", parentId: note.folder_id })} onDragEnd={clearDrag} onNavigate={() => closeForNavigation(`/notes/${note.id}`)} href={`/notes/${note.id}`} className={`pressable flex h-11 md:h-[30px] cursor-grab items-center gap-1.5 truncate rounded-[8px] px-3 text-[12.5px] active:cursor-grabbing ${dragging?.kind === "note" && dragging.id === note.id ? "opacity-45" : ""} ${activeNoteId === note.id ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><FileText className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{note.title || "无标题笔记"}</span>{note.content_origin === "ai_generated" ? <Sparkles className="size-3 shrink-0 text-[var(--ai-accent)]" aria-label="AI 生成" /> : null}</Link>)}{createFolderRow(null, 0)}</> : null}
+    {parentId === null ? <>{(notesByFolder.get(null) ?? []).map((note) => <Link key={note.id} draggable onDragStart={(event) => beginDrag(event, { kind: "note", id: note.id, title: note.title || "无标题笔记", parentId: note.folder_id, mutation_revision: note.mutation_revision })} onDragEnd={clearDrag} onNavigate={() => closeForNavigation(`/notes/${note.id}`)} href={`/notes/${note.id}`} className={`pressable flex h-11 md:h-[30px] cursor-grab items-center gap-1.5 truncate rounded-[8px] px-3 text-[12.5px] active:cursor-grabbing ${dragging?.kind === "note" && dragging.id === note.id ? "opacity-45" : ""} ${activeNoteId === note.id ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><FileText className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{note.title || "无标题笔记"}</span>{note.content_origin === "ai_generated" ? <Sparkles className="size-3 shrink-0 text-[var(--ai-accent)]" aria-label="AI 生成" /> : null}</Link>)}{createFolderRow(null, 0)}</> : null}
   </>;
 
   return <div className="notes-navigator flex h-full min-h-0 flex-col bg-[var(--surface-sidebar)] px-2.5 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)]">

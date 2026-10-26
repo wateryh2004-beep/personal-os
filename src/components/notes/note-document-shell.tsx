@@ -1,5 +1,8 @@
 "use client";
 
+import "./note-document-shell.css";
+import dynamic from "next/dynamic";
+import { useWorkbenchActive, WorkbenchActivityContext } from "@/components/workbench/workbench-activity";
 import Link from "next/link";
 import { Inspector } from "@/components/shared/inspector";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
@@ -8,25 +11,40 @@ import { lastNotesListSessionKey, notesListHref } from "@/features/notes/navigat
 import { loadWorkspaceSession } from "@/lib/workspace-session";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, PanelRight, ExternalLink, Download, RefreshCw, PanelLeft } from "lucide-react";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { noteAttachmentUrl, notePdfAttachments, type NoteAttachment } from "@/features/notes/attachments";
 import { NotesSurfaceMotion } from "./notes-motion";
 import { NotesNavigationContext } from "./notes-navigation-context";
 
+const FilePdfPreview = dynamic(() => import("@/components/files/file-pdf-preview").then((module) => module.FilePdfPreview), { ssr: false });
+
 export function NoteDocumentShell({ noteId, editor, inspector, attachments = [], location }: {
   noteId: string; editor: React.ReactNode; inspector: React.ReactNode; attachments?: NoteAttachment[]; location?: { href: string; label: string };
 }) {
+  const paneActive = useWorkbenchActive();
   const pdfs = notePdfAttachments(attachments);
   const [view, setView] = useState<"markdown" | "pdf">(pdfs[0]?.role === "primary_pdf" ? "pdf" : "markdown");
   const [editorVisited, setEditorVisited] = useState(view === "markdown");
   const [pdfVisited, setPdfVisited] = useState(view === "pdf");
   const [readerVersion, setReaderVersion] = useState(0);
-  const [loadedReader, setLoadedReader] = useState("");
   const [pdfId, setPdfId] = useState(pdfs[0]?.id ?? "");
   const selectedPdf = pdfs.find((file) => file.id === pdfId) ?? pdfs[0];
   const noteInspector = useWorkspacePanel(`note-inspector:${noteId}`);
   const router = useRouter();
   const openNavigation = useContext(NotesNavigationContext);
+
+  useEffect(() => {
+    const restore = (event: Event) => {
+      if (!(event instanceof CustomEvent) || event.detail?.noteId !== noteId) return;
+      if (event.detail.view === "pdf") {
+        const pdf = pdfs.find((file) => file.id === event.detail.documentId) ?? (!event.detail.documentId ? selectedPdf : undefined);
+        if (!pdf) return;
+        setPdfId(pdf.id); setPdfVisited(true); setView("pdf");
+      } else if (event.detail.view === "markdown") { setEditorVisited(true); setView("markdown"); }
+    };
+    window.addEventListener("personal-os:restore-note-reader", restore);
+    return () => window.removeEventListener("personal-os:restore-note-reader", restore);
+  }, [noteId, pdfs, selectedPdf]);
 
   const handleEditorInput = (event: React.FormEvent<HTMLElement>) => {
     const target = event.target;
@@ -40,11 +58,11 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
   };
 
   return (
-    <NotesSurfaceMotion><section
+    <NotesSurfaceMotion><section data-note-document-id={noteId} data-note-reader-view={view}
       onInputCapture={handleEditorInput}
       className="notes-document-shell relative flex h-full min-h-0 overflow-hidden bg-[var(--surface-canvas)]"
     >
-      <div className="notes-document-main relative flex min-w-0 flex-1 flex-col">
+      <div className="notes-document-main relative flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="notes-document-location flex h-11 shrink-0 items-center gap-1 px-2.5">
           <button
             type="button"
@@ -74,16 +92,16 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
           <span className="ml-2 hidden truncate text-[12px] text-[var(--text-tertiary)] sm:block">{selectedPdf?.role === "pdf_snapshot" ? "飞书导入时的原始排版" : selectedPdf?.title}</span>
         </div> : null}
         {/* Keep the editor mounted so drafts and in-flight autosaves survive view changes. */}
-        <div className="notes-document-editor-slot min-h-0 flex-1" hidden={view === "pdf" && !!selectedPdf}>{editorVisited || !selectedPdf ? editor : null}</div>
-        {pdfVisited && selectedPdf ? <div hidden={view !== "pdf"} aria-busy={loadedReader !== `${selectedPdf.id}:${readerVersion}`} className="flex min-h-0 flex-1 flex-col">
+        <div className="notes-document-editor-slot min-h-0 flex-1" hidden={view === "pdf" && !!selectedPdf}><WorkbenchActivityContext.Provider value={paneActive && (view === "markdown" || !selectedPdf)}>{editorVisited || !selectedPdf ? editor : null}</WorkbenchActivityContext.Provider></div>
+        {/* Internal document tabs retain the visited reader; only the outer pane pauses its session. */}
+        {pdfVisited && selectedPdf ? <div hidden={view !== "pdf"} className="notes-document-pdf-pane flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--separator)] px-3 py-2 text-[12px]">
             {pdfs.length > 1 ? <select aria-label="选择 PDF" value={selectedPdf.id} onChange={(event) => setPdfId(event.target.value)} className="ui-field min-w-0 max-w-full flex-1 rounded-[8px] bg-[var(--surface-control)] px-2 py-1.5 text-[var(--text-primary)]">{pdfs.map((pdf) => <option key={pdf.id} value={pdf.id}>{pdf.title}</option>)}</select> : <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">{selectedPdf.original_filename}</span>}
-            <button type="button" onClick={() => { setLoadedReader(""); setReaderVersion((version) => version + 1); }} aria-label="重新加载 PDF" className="pressable inline-flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><RefreshCw className="size-3.5" aria-hidden="true" /></button>
-            <a href={noteAttachmentUrl(selectedPdf.id, true)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[var(--accent)] hover:bg-[var(--accent-soft)]"><ExternalLink className="size-3.5" aria-hidden="true" />独立窗口</a>
+            <button type="button" onClick={() => setReaderVersion((version) => version + 1)} aria-label="重新加载 PDF" className="pressable inline-flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><RefreshCw className="size-3.5" aria-hidden="true" /></button>
+            <a href={`/api/files/${selectedPdf.id}/preview`} target="_blank" rel="noopener noreferrer" className="pressable inline-flex items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[var(--accent)] hover:bg-[var(--accent-soft)]"><ExternalLink className="size-3.5" aria-hidden="true" />独立窗口</a>
             <a href={noteAttachmentUrl(selectedPdf.id)} className="pressable inline-flex items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[var(--accent)] hover:bg-[var(--accent-soft)]"><Download className="size-3.5" aria-hidden="true" />下载</a>
           </div>
-          <iframe key={`${selectedPdf.id}:${readerVersion}`} onLoad={() => setLoadedReader(`${selectedPdf.id}:${readerVersion}`)} src={`${noteAttachmentUrl(selectedPdf.id, true)}#view=FitH`} title={`PDF 阅读器：${selectedPdf.title}`} className="min-h-0 w-full flex-1 border-0 bg-[var(--surface-hover)]" />
-          {loadedReader !== `${selectedPdf.id}:${readerVersion}` ? <p role="status" className="shrink-0 px-3 py-1.5 text-[12px] text-[var(--text-secondary)]">正在打开 PDF…</p> : null}
+          <div className="notes-document-pdf-slot min-h-0 min-w-0 flex-1 overflow-hidden p-3"><FilePdfPreview key={`${selectedPdf.id}:${readerVersion}`} documentId={selectedPdf.id} title={selectedPdf.title} active={paneActive} embedded persistProgress /></div>
           <p className="shrink-0 px-3 py-1.5 text-[12px] text-[var(--text-tertiary)]">若浏览器无法显示 PDF，可在独立窗口阅读或下载。PDF 原件不会随正文编辑而改变。</p>
         </div> : null}
       </div>

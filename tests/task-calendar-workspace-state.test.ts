@@ -2,6 +2,7 @@
 import { act, createElement, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { captureWorkbenchViewState, restoreWorkbenchViewState } from "@/features/workbench/view-state-registry";
 import type { TodoTask } from "@/features/tasks/types";
 import type { CalendarEventRecord } from "@/features/calendar/types";
 import type { CalendarFullView } from "@/components/calendar/calendar-full-view";
@@ -22,7 +23,8 @@ vi.mock("@/features/tasks/microsoft-todo", () => ({
   createMicrosoftTodoTaskAction: mocks.create, syncMicrosoftTodoAction: vi.fn(), syncAndBackupMicrosoftTodoAction: vi.fn(),
 }));
 vi.mock("@/features/tasks/workspace-resource", () => ({ tasksWorkspaceResource: { mutate: mocks.mutateTasks, revalidate: mocks.revalidateTasks } }));
-vi.mock("@/features/calendar/actions", () => ({ updateCalendarEvent: mocks.updateCalendar, syncAndBackupMicrosoftAction: mocks.syncCalendar }));
+vi.mock("@/features/workbench/operation-read-resource",()=>({readWorkbenchTimezone:async()=>"UTC",readPendingCalendarTasks:async()=>({tasks:[],timezone:"UTC"}),readCalendarTaskForSchedule:vi.fn()}));
+vi.mock("@/features/calendar/actions", () => ({ updateCalendarEvent: mocks.updateCalendar, syncAndBackupMicrosoftAction: mocks.syncCalendar, readPendingCalendarTasks: vi.fn(async()=>({tasks:[],timezone:"UTC"})) }));
 vi.mock("@/features/calendar/workspace-resource", () => ({ calendarRangeResource: mocks.range, invalidateCalendarRangeResources: vi.fn() }));
 vi.mock("@/components/shared/action-feedback", () => ({ useActionFeedback: () => ({ show: mocks.show }) }));
 vi.mock("@/components/shared/use-workspace-scroll-restoration", () => ({ useWorkspaceScrollRestoration: () => null }));
@@ -108,6 +110,35 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => { root.unmount(); }); container.remove(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("Tasks mounted workspace state", () => {
+  it("keeps row menu and inline metadata actions independent from opening the inspector",async()=>{
+    await renderTasks([task("a")]);await flushTimers();
+    await act(async()=>textButton("全部").click());
+    const row=container.querySelector<HTMLElement>('[aria-label="打开任务：Task a"]')!;
+    const menu=row.querySelector<HTMLButtonElement>('[aria-label="Task a 更多操作"]')!;
+    await act(async()=>menu.dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowDown",bubbles:true,cancelable:true})));
+    const tomorrow=[...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item=>item.textContent?.includes("设为明天"))!;
+    expect(tomorrow).toBeDefined();await act(async()=>tomorrow.click());
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({taskId:"a",dueAt:expect.any(String)}));
+    expect(container.querySelector('aside[aria-label="任务详情"]')).toBeNull();
+    const importance=row.querySelector<HTMLSelectElement>('[aria-label="Task a的重要性"]')!;
+    await act(async()=>{importance.value="low";importance.dispatchEvent(new Event("change",{bubbles:true}));});
+    expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({taskId:"a",importance:"low"}));
+    expect(container.querySelector('aside[aria-label="任务详情"]')).toBeNull();
+  });
+
+  it("restores a finite scene view without URL mutation or replay over later choices",async()=>{
+    await renderTasks([task("a")]);await flushTimers();
+    const a=captureWorkbenchViewState("/tasks");expect(a).toMatchObject({kind:"tasks",view:"today",listId:null});
+    await act(async()=>restoreWorkbenchViewState({kind:"tasks",view:"completed",listId:null}));
+    expect(captureWorkbenchViewState("/tasks")).toMatchObject({kind:"tasks",view:"completed"});
+    await act(async()=>restoreWorkbenchViewState(a!));
+    expect(captureWorkbenchViewState("/tasks")).toEqual(a);
+    await act(async()=>textButton("全部").click());
+    expect(captureWorkbenchViewState("/tasks")).toMatchObject({kind:"tasks",view:"all"});
+    await flushTimers();expect(captureWorkbenchViewState("/tasks")).toMatchObject({kind:"tasks",view:"all"});
+    expect(window.location.pathname+window.location.search).toBe("/tasks");
+  });
+
   it("restores once before saving and accepts refreshed rows without resetting the chosen view", async () => {
     saveWorkspaceSession("tasks:workspace", { view: "all", listId: "list", selectedId: "a" });
     await renderTasks([task("a")]);
@@ -188,7 +219,7 @@ describe("Tasks mounted workspace state", () => {
     await renderTasks([task("a", { importance: "normal" })], "a"); await flushTimers();
     const importance = container.querySelector<HTMLSelectElement>("aside select")!;
     await act(async () => { importance.value = "high"; importance.dispatchEvent(new Event("change", { bubbles: true })); });
-    expect(mocks.update).toHaveBeenCalledWith({ taskId: "a", importance: "high" });
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ taskId: "a", importance: "high",requestId:expect.any(String),expected:{title:"Task a",status:"notStarted",lastModifiedAt:null} }));
     await renderTasks([task("a", { importance: "low" })], "a");
     expect(importance.value).toBe("high");
     await act(async () => { request.reject(new Error("offline")); await request.promise.catch(() => {}); });
@@ -417,14 +448,15 @@ describe("Calendar exact-record navigation", () => {
     await act(async () => { mocks.fullView!.onRangeChange({ start: new Date("2026-12-20"), end: new Date("2026-12-21") }); });
     await act(async () => { textButton("Event a").click(); });
     const range = { startsAt: "2026-12-25T09:00:00Z", endsAt: "2026-12-25T10:00:00Z", isAllDay: false };
-    let moving!: Promise<void>;
-    await act(async () => {
-      moving = mocks.fullView!.onMove(eventA, range);
-      await expect(mocks.fullView!.onMove(eventA, range)).rejects.toThrow("calendar_event_update_pending");
-    });
+    await act(async () => { await mocks.fullView!.onMove(eventA, range); });
+    expect(mocks.updateCalendar).not.toHaveBeenCalled();
+    const confirm=[...document.body.querySelectorAll("button")].find(button=>button.textContent==="确认更新到Outlook")!;
+    expect(confirm).not.toBeNull();
+    await act(async()=>{confirm.click();});
+    await act(async()=>{await expect(mocks.fullView!.onMove(eventA,range)).rejects.toThrow("calendar_event_update_pending");});
     expect(mocks.updateCalendar).toHaveBeenCalledTimes(1);
     await act(async () => { textButton("Event b").click(); });
-    await act(async () => { request.resolve({ status: "success", message: "Saved" }); await moving; });
+    await act(async () => { request.resolve({ status: "success", message: "Saved" }); await request.promise; });
     expect(container.querySelector('[data-event-id="b"]')).not.toBeNull();
   });
 

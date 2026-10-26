@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useId, useRef } from "react";
 import type { StateCommand } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import type { EditorView } from "@codemirror/view";
@@ -120,6 +120,7 @@ export function MarkdownToolbar({
   onOpenAi?: () => void;
   outlineControl?: React.ReactNode;
 }) {
+  const blockStyleId = useId();
   void stateVersion;
   const fileRef = useRef<HTMLInputElement>(null);
   const active = stateAtSelection(view);
@@ -141,9 +142,9 @@ export function MarkdownToolbar({
         <ToolbarButton label="撤销（⌘Z）" disabled={!view} onClick={() => run(undo)}><Undo2 aria-hidden="true" className="size-4" /></ToolbarButton>
         <ToolbarButton label="重做（⇧⌘Z）" disabled={!view} onClick={() => run(redo)}><Redo2 aria-hidden="true" className="size-4" /></ToolbarButton>
         <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[var(--border-subtle)]" />
-        <label className="sr-only" htmlFor="markdown-block-style">块样式</label>
+        <label className="sr-only" htmlFor={blockStyleId}>块样式</label>
         <select
-          id="markdown-block-style"
+          id={blockStyleId}
           aria-label="块样式"
           value={block}
           disabled={!view}

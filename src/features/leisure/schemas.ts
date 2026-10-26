@@ -64,6 +64,9 @@ export const leisureFeedbackInputSchema = z.object({
 
 // Database responses are projected, not forwarded: ownership/audit columns stay server-side.
 export const leisureFeedbackSchema = z.object({
+  progress_unit: z.enum(["page", "episode", "minute"]).nullable().optional(),
+  progress_value: z.number().int().min(0).max(1000000).nullable().optional(),
+  progress_total: z.number().int().min(1).max(1000000).nullable().optional(),
   status: z.enum(leisureStatuses).nullable(),
   reaction: z.enum(leisureReactions),
   personal_note: z.string().max(10000),

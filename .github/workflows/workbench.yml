@@ -1,0 +1,61 @@
+name: Workbench continuity
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/components/workbench/**'
+      - 'src/features/workbench/**'
+      - 'src/components/layout/**'
+      - 'src/components/notes/**'
+      - 'src/components/files/file-pdf-preview.tsx'
+      - 'src/components/testing/workbench-fixture.tsx'
+      - 'src/app/mobile-native-e2e/page.tsx'
+      - 'scripts/workbench-e2e.cjs'
+      - '.github/workflows/workbench.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: workbench-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: E2E_MOBILE_HARNESS=1 npm run build
+      - name: Install Chromium
+        run: |
+          npm install --global playwright@1.62.1
+          playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          fc-cache -f
+      - name: Exercise synthetic workbench with all writes blocked
+        env:
+          E2E_MOBILE_HARNESS: '1'
+        run: |
+          node node_modules/next/dist/bin/next start -p 3000 > /tmp/workbench-app.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..45}; do
+            if curl -fsS 'http://127.0.0.1:3000/mobile-native-e2e?scene=workbench' > /dev/null; then break; fi
+            sleep 1
+          done
+          NODE_PATH="$(npm root -g)" WORKBENCH_E2E_BASE_URL=http://127.0.0.1:3000 timeout 240s node scripts/workbench-e2e.cjs
+      - name: Save workbench screenshots and continuous video
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workbench-continuity-evidence
+          path: |
+            test-results/workbench
+            /tmp/workbench-app.log
+          if-no-files-found: ignore
+          retention-days: 7

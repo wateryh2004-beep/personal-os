@@ -1,5 +1,9 @@
 "use server";
 
+import { readPendingCalendarTasksQuery, readCalendarScheduleConflictsQuery, readCalendarScheduleTaskQuery } from "@/features/workbench/operation-read-queries";
+import { calendarScheduleRangeSchema } from "@/features/workbench/operation-read-contracts";
+import { operationRequestHash, runCalendarMetadataOperation } from "@/features/workbench/operation-provider";
+import { readMicrosoftTodoMutationSnapshot, reconcileCalendarOperation, readCalendarMutationSnapshot } from "@/lib/adapters/microsoft-graph/calendar";
 import { revalidatePath } from "@/lib/workspace-revalidation";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { accessTokenForConnection, ensureManagedOutlookCategories, executeCalendarOperation, MicrosoftGraphError, syncOutlookMasterCategories, updateOutlookMasterCategoryColor } from "@/lib/adapters/microsoft-graph/calendar";
@@ -13,7 +17,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncEntityReferenceLinks } from "@/features/links/service";
 
-export type CalendarCreateState = { status: "idle" | "success" | "error"; message: string };
+export type CalendarCreateState = { status: "idle" | "success" | "error"; message: string; operationId?:string; receiptId?:string };
 
 function fail(): never { throw new Error("日历操作未能完成，请检查输入、连接状态或网络后重试。"); }
 function operationFailureMessage(error: unknown, verb: "创建" | "更新" | "删除") {
@@ -26,7 +30,7 @@ function operationFailureMessage(error: unknown, verb: "创建" | "更新" | "�
   if (code === "graph_access_denied")
     return "Outlook 拒绝了本次操作；请检查日历授权。";
   if (code === "graph_unavailable")
-    return "Outlook 暂时不可用，尚未写入本次更改。请稍后重试。";
+    return "Outlook请求结果尚未确认，请重新读取核对，不要重复创建。";
   if (code === "graph_invalid_request" || code === "calendar_timezone_unsupported")
     return "日程时间或时区无效，尚未写入 Outlook。请检查后重试。";
   return `日程未能${verb === "创建" ? "创建" : verb === "更新" ? "更新到 Outlook" : "从 Outlook 删除"}。请检查连接状态后重试。`;
@@ -105,82 +109,62 @@ async function syncCalendarEventLinks(supabase: Awaited<ReturnType<typeof requir
 
 export async function createCalendarEvent(_previousState: CalendarCreateState, formData: FormData): Promise<CalendarCreateState> {
   try {
-    const { supabase, userId } = await requireOwner();
-    const form = formValue(formData);
-    const parsed = createCalendarEventSchema.safeParse(form);
-    if (!parsed.success) return { status: "error", message: "请检查日程标题和开始、结束时间。" };
-    const inboxId = z.string().uuid().optional().safeParse(form.inboxId).data;
-    const activeConnection = await connection(supabase);
-    const categoryOptions = await classificationOptions(supabase, (activeConnection.oauth_scope_version ?? 1) >= 2);
-    const { data: profile } = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
-    const { data: requested, error: requestError } = await supabase.from("calendar_operations").insert({
-      user_id: userId,
-      connection_id: activeConnection.id,
-      operation_type: "create",
-      status: "pending_confirmation",
-      payload: { ...calendarPayload(parsed.data, categoryOptions), timeZone: profile?.timezone || "Asia/Shanghai" },
-    }).select("id").single();
-    if (requestError || !requested) fail();
-    await audit(supabase, userId, "request", requested.id, { operation_type: "create", subject: parsed.data.subject, has_description: Boolean(parsed.data.description), starts_at: parsed.data.startsAt, ends_at: parsed.data.endsAt });
-
-    // 点击“创建日程”即为唯一的用户确认；队列仍保留完整的状态与审计记录。
-    const { data: queued, error: queueError } = await supabase.from("calendar_operations")
-      .update({ status: "queued", confirmed_at: new Date().toISOString() })
-      .eq("id", requested.id).eq("status", "pending_confirmation").select("id,operation_type").maybeSingle();
-    if (queueError || !queued) fail();
-    await audit(supabase, userId, "confirm", queued.id, { operation_type: queued.operation_type, confirmation: "single_step" });
-    try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "创建") }; }
-    await markInboxProcessed(supabase, userId, inboxId, "calendar", queued.id);
-    await syncCalendarEventLinks(supabase, userId, queued.id, parsed.data.description);
-    await revalidatePath("/calendar");
-    await revalidatePath("/inbox");
-    await revalidatePath("/today");
-    return { status: "success", message: "已创建并同步到 Outlook。" };
-  } catch {
-    return { status: "error", message: "日程未能创建。请检查连接状态或网络后重试。" };
-  }
+    const {supabase,userId}=await requireOwner();
+    const form=formValue(formData);const parsed=createCalendarEventSchema.safeParse(form);
+    if(!parsed.success)return {status:"error",message:"请检查日程标题和开始、结束时间。"};
+    const requestId=z.string().uuid().parse(formData.get("request_id")||crypto.randomUUID());
+    const sourceTaskId=z.string().uuid().optional().parse(formData.get("source_task_id")||undefined);
+    const hash=operationRequestHash({event:parsed.data,sourceTaskId:sourceTaskId??null});
+    const {data:old}=await supabase.from("calendar_operations").select("id,status,request_hash").eq("user_id",userId).eq("request_id",requestId).maybeSingle();
+    if(old){
+      if(old.request_hash!==hash)return {status:"error",message:"请求编号已用于其他内容，请重新打开预览。"};
+      if(old.status==="succeeded")return {status:"success",message:"该日程已创建到Outlook，未重复创建。",operationId:old.id};
+      if(["remote_committed","reconciliation_required"].includes(old.status)){try{await reconcileCalendarOperation(old.id,userId);await revalidatePath("/calendar");return {status:"success",message:"Outlook已创建，缓存已重新核对。",operationId:old.id};}catch{return {status:"error",message:"Outlook已接受，缓存仍待核对，请勿重复创建。",operationId:old.id};}}
+      if(old.status!=="pending_confirmation")return {status:"error",message:"请求结果仍待核对，系统不会重复创建。",operationId:old.id};
+    }
+    const activeConnection=await connection(supabase);
+    if(sourceTaskId&&!old){
+      const task=await readMicrosoftTodoMutationSnapshot(activeConnection.id,userId,sourceTaskId);
+      if(task.status==="completed")return {status:"error",message:"来源任务已完成，请重新核对安排。"};
+      if(formData.has("source_task_modified")&&String(formData.get("source_task_modified")||"")!==(task.lastModifiedAt??""))return {status:"error",message:"来源任务已修改，请重新读取后安排。"};
+    }
+    const categoryOptions=await classificationOptions(supabase,(activeConnection.oauth_scope_version??1)>=2);
+    const {data:profile}=await supabase.from("profiles").select("timezone").eq("user_id",userId).maybeSingle();
+    const payload={...calendarPayload(parsed.data,categoryOptions),timeZone:profile?.timezone||"Asia/Shanghai"};
+    if(!old){const {error}=await supabase.from("calendar_operations").upsert({id:requestId,user_id:userId,request_id:requestId,request_hash:hash,connection_id:activeConnection.id,operation_type:"create",status:"pending_confirmation",payload},{onConflict:"id",ignoreDuplicates:true});if(error)fail();}
+    const {data:queued,error}=await supabase.from("calendar_operations").update({status:"queued",confirmed_at:new Date().toISOString()}).eq("id",requestId).eq("user_id",userId).eq("request_hash",hash).eq("status","pending_confirmation").select("id").maybeSingle();
+    if(error||!queued)return {status:"error",message:"该请求正在处理，未重复提交。",operationId:requestId};
+    await audit(supabase,userId,"confirm",requestId,{operation_type:"create",source_task_id:sourceTaskId??null});
+    try{await executeCalendarOperation(requestId,userId);}catch(error){return {status:"error",message:operationFailureMessage(error,"创建"),operationId:requestId};}
+    await markInboxProcessed(supabase,userId,z.string().uuid().optional().safeParse(form.inboxId).data,"calendar",requestId);
+    await syncCalendarEventLinks(supabase,userId,requestId,parsed.data.description);
+    await revalidatePath("/calendar");await revalidatePath("/inbox");await revalidatePath("/today");
+    return {status:"success",message:"已创建并同步到Outlook。",operationId:requestId};
+  }catch{return {status:"error",message:"日程未能确认。请保留输入并重新读取。"};}
 }
 
+export async function readPendingCalendarTasks() {return readPendingCalendarTasksQuery(await requireOwner());}
+
 export async function updateCalendarEvent(_previousState: CalendarCreateState, formData: FormData): Promise<CalendarCreateState> {
-  try {
-    const { supabase, userId } = await requireOwner();
-    const parsed = updateCalendarEventSchema.safeParse(updateFormValue(formData));
-    if (!parsed.success) return { status: "error", message: "请检查标题以及开始、结束时间。" };
-    const value = parsed.data;
-    const { data: existing, error: existingError } = await supabase.from("calendar_events")
-      .select("provider_event_id,subject,body_text,starts_at,ends_at,is_all_day,location_name,categories,importance,show_as")
-      .eq("user_id", userId)
-      .eq("provider_event_id", value.providerEventId)
-      .eq("subject", value.originalSubject)
-      .eq("starts_at", value.originalStartsAt)
-      .eq("ends_at", value.originalEndsAt)
-      .is("archived_at", null)
-      .maybeSingle();
-    if (existingError || !existing) return { status: "error", message: "该日程已发生变化，请刷新后再修改。" };
-    const activeConnection = await connection(supabase);
-    const { data: profile } = await supabase.from("profiles").select("timezone").eq("user_id", userId).maybeSingle();
-    const { data: requested, error: requestError } = await supabase.from("calendar_operations").insert({
-      user_id: userId,
-      connection_id: activeConnection.id,
-      operation_type: "update",
-      status: "pending_confirmation",
-      provider_event_id: existing.provider_event_id,
-      payload: { ...calendarUpdatePayload(value, { categories: existing.categories ?? [], body_text: existing.body_text, location_name: existing.location_name, is_all_day: existing.is_all_day, importance: existing.importance, show_as: existing.show_as }), timeZone: profile?.timezone || "Asia/Shanghai", previous: { subject: existing.subject, startsAt: existing.starts_at, endsAt: existing.ends_at } },
-    }).select("id").single();
-    if (requestError || !requested) fail();
-    await audit(supabase, userId, "request", requested.id, { operation_type: "update", provider_event_id: existing.provider_event_id, starts_at: value.startsAt, ends_at: value.endsAt });
-    const { data: queued, error: queueError } = await supabase.from("calendar_operations")
-      .update({ status: "queued", confirmed_at: new Date().toISOString() })
-      .eq("id", requested.id).eq("status", "pending_confirmation").select("id,operation_type").maybeSingle();
-    if (queueError || !queued) fail();
-    await audit(supabase, userId, "confirm", queued.id, { operation_type: "update", confirmation: "single_step" });
-    try { await executeCalendarOperation(queued.id, userId); } catch (error) { return { status: "error", message: operationFailureMessage(error, "更新") }; }
-    await syncCalendarEventLinks(supabase, userId, queued.id, value.description);
-    await revalidatePath("/calendar"); await revalidatePath("/today");
-    return { status: "success", message: "已更新并同步到 Outlook。" };
-  } catch {
-    return { status: "error", message: "日程未能更新，请检查连接状态或网络后重试。" };
-  }
+ try{
+  const {supabase,userId}=await requireOwner();const parsed=updateCalendarEventSchema.safeParse(updateFormValue(formData));if(!parsed.success)return {status:"error",message:"请检查标题与起止时间。"};const value=parsed.data;
+  const requestId=z.string().uuid().parse(formData.get("request_id")||crypto.randomUUID());
+  const {data:priorReceipt}=await supabase.from("workspace_action_receipts").select("id,status,request_hash").eq("user_id",userId).eq("request_id",requestId).maybeSingle();
+  if(priorReceipt){if(priorReceipt.request_hash!==operationRequestHash(value))return {status:"error",message:"请求编号已用于其他修改，请重新打开预览。"};await revalidatePath("/calendar");return priorReceipt.status==="available"||priorReceipt.status==="undone"?{status:"success",message:"该操作已处理，请以重新读取的日程为准。",receiptId:priorReceipt.status==="available"?priorReceipt.id:undefined}:{status:"error",message:"该修改结果仍待核对，未重复发送。"};}
+  const {data:existing}=await supabase.from("calendar_events").select("id,provider_event_id,provider_change_key,subject,body_text,starts_at,ends_at,is_all_day,location_name,categories,importance,show_as").eq("user_id",userId).eq("provider_event_id",value.providerEventId).eq("subject",value.originalSubject).eq("starts_at",value.originalStartsAt).eq("ends_at",value.originalEndsAt).is("archived_at",null).maybeSingle();
+  if(!existing)return {status:"error",message:"该日程已变化，请重新读取后修改。"};
+  const connectionId=(await connection(supabase)).id;const remote=await readCalendarMutationSnapshot(connectionId,userId,value.providerEventId);
+  if(remote.subject!==existing.subject||Date.parse(remote.startsAt)!==Date.parse(existing.starts_at)||Date.parse(remote.endsAt)!==Date.parse(existing.ends_at)||(existing.provider_change_key&&remote.changeKey!==existing.provider_change_key))return {status:"error",message:"Outlook日程已变化，请重新同步后核对。"};
+  const {data:profile}=await supabase.from("profiles").select("timezone").eq("user_id",userId).maybeSingle();
+  const payload=calendarUpdatePayload(value,{categories:existing.categories??[],body_text:existing.body_text,location_name:existing.location_name,is_all_day:existing.is_all_day,importance:existing.importance,show_as:existing.show_as});
+  const patchFields:string[]=[];
+  for(const [key,old,graphKey] of [["subject",existing.subject,"subject"],["startsAt",existing.starts_at,"start"],["endsAt",existing.ends_at,"end"],["isAllDay",existing.is_all_day,"isAllDay"],["locationName",existing.location_name,"location"],["importance",existing.importance,"importance"],["showAs",existing.show_as,"showAs"]] as const)if(payload[key]!==old)patchFields.push(graphKey);
+  if(value.description!==undefined&&value.description!==existing.body_text)patchFields.push("body");if(payload.categories!==undefined&&JSON.stringify(payload.categories)!==JSON.stringify(existing.categories))patchFields.push("categories");
+  if(!patchFields.length)return {status:"success",message:"日程内容未改变。"};
+  const result=await runCalendarMetadataOperation({userId,requestId,request:value,localEventId:existing.id,expected:remote,payload:{...payload,timeZone:profile?.timezone||"Asia/Shanghai",patchFields},undoAvailable:!patchFields.includes("body")});
+  if(result.status!=="success")return {status:"error",message:result.message};
+  await syncCalendarEventLinks(supabase,userId,String(formData.get("request_id")||""),value.description);await revalidatePath("/calendar");await revalidatePath("/today");return {status:"success",message:result.message,receiptId:result.receiptId};
+ }catch{return {status:"error",message:"修改结果尚未确认，请保留输入并重新读取。"};}
 }
 
 export async function deleteCalendarEvent(_previousState: CalendarCreateState, formData: FormData): Promise<CalendarCreateState> {
@@ -345,3 +329,5 @@ export async function backfillCalendarCategoriesAction(_previousState: CalendarB
     return { status: "error", message: "历史日程分类未能完成，请稍后重试。" };
   }
 }
+export async function readCalendarTaskForSchedule(taskId:string){const owner=await requireOwner();return readCalendarScheduleTaskQuery(owner,z.string().uuid().parse(taskId));}
+export async function readCalendarScheduleConflicts(input:unknown){const owner=await requireOwner();return readCalendarScheduleConflictsQuery(owner,calendarScheduleRangeSchema.parse(input));}

@@ -1,5 +1,8 @@
 "use client";
 
+import { OperationHistory } from "@/components/workbench/operation-history";
+import { WorkbenchProvider, WorkbenchToolbar, WorkbenchLayout } from "@/components/workbench/workbench-provider";
+import "@/components/workbench/workbench.css";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
@@ -173,7 +176,7 @@ async function prefetchWorkspaceData(href: WorkspacePrefetchHref, coldOnly: bool
 }
 
 export function AppShell({ children, presentationPathname }: { children: React.ReactNode; presentationPathname?: string }) {
-  return <ActionFeedbackProvider><WorkspacePanelProvider><AppShellInner presentationPathname={presentationPathname}>{children}</AppShellInner></WorkspacePanelProvider></ActionFeedbackProvider>;
+  return <ActionFeedbackProvider><WorkspacePanelProvider><WorkbenchProvider><AppShellInner presentationPathname={presentationPathname}>{children}</AppShellInner></WorkbenchProvider></WorkspacePanelProvider></ActionFeedbackProvider>;
 }
 
 function AppShellInner({ children, presentationPathname }: { children: React.ReactNode; presentationPathname?: string }) {
@@ -491,19 +494,21 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
       <header className="app-toolbar sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-2.5 border-b border-[var(--border-subtle)] bg-[var(--material-toolbar)] px-3 pt-[env(safe-area-inset-top)] sm:px-4">
         <Button variant="ghost" size="icon-sm" className="today-mobile-menu md:hidden" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu aria-hidden="true" /></Button>
         {pathname === "/today" ? <span className="today-mobile-brand" aria-hidden="true">Life of HANG</span> : null}
-        <button ref={commandAnchor} type="button" aria-haspopup="dialog" aria-expanded={commandOpen} aria-controls="global-command-palette" aria-label="搜索 Personal OS" onClick={() => openCommand("search")} className="today-search pressable mx-auto flex h-8 w-full max-w-lg items-center gap-2 rounded-[11px] bg-[var(--surface-control)] px-2.5 text-left text-[13px] text-[var(--text-tertiary)] shadow-[inset_0_1px_0_rgba(255,255,255,.36)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-secondary)]"><Search className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden font-sans text-[12px] font-medium text-[var(--text-tertiary)] sm:inline">⌘K</kbd></button>
+        <button ref={commandAnchor} type="button" aria-haspopup="dialog" aria-expanded={commandOpen} aria-controls="global-command-palette" aria-label="搜索 Personal OS" onClick={() => openCommand("search")} className="today-search pressable mx-auto flex h-8 w-full min-w-0 max-w-lg flex-1 items-center gap-2 rounded-[11px] bg-[var(--surface-control)] px-2.5 text-left text-[13px] text-[var(--text-tertiary)] shadow-[inset_0_1px_0_rgba(255,255,255,.36)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-secondary)]"><Search className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden font-sans text-[12px] font-medium text-[var(--text-tertiary)] sm:inline">⌘K</kbd></button>
+        <WorkbenchToolbar />
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={openGlobalAgent} aria-label="询问 Personal OS" className="gap-1.5"><Sparkles className="size-3.5" aria-hidden="true"/><span className="hidden sm:inline">询问</span><kbd className="hidden font-sans text-[12px] font-medium text-[var(--text-tertiary)] lg:inline">⌘J</kbd></Button></TooltipTrigger><TooltipContent>询问 Personal OS（⌘J）</TooltipContent></Tooltip>
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" onClick={openContextualCreate} aria-label="快速新建"><Plus aria-hidden="true" /></Button></TooltipTrigger><TooltipContent>快速新建（⌘N）</TooltipContent></Tooltip>
       </header>
       <div className="min-w-0">
-        <MotionBoundary key={pathname.startsWith("/notes/") || pathname === "/notes" ? "notes" : pathname} name="workspace" share="workspace-route" enter={{ "auth-entry": "workspace-entry", default: "workspace-enter" }} exit="workspace-exit">
+        <WorkbenchLayout><MotionBoundary key={pathname.startsWith("/notes/") || pathname === "/notes" ? "notes" : pathname} name="workspace" share="workspace-route" enter={{ "auth-entry": "workspace-entry", default: "workspace-enter" }} exit="workspace-exit">
           <main id="main-content" tabIndex={-1} className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>
-        </MotionBoundary>
+        </MotionBoundary></WorkbenchLayout>
         <PanelPresence open={globalAgentOpen}><GlobalAgent open={globalAgentOpen} onClose={closeGlobalAgent} /></PanelPresence>
       </div>
     </div>
     <MobileTabBar presentationPathname={presentationPathname} onOpenMore={() => setMobileOpen(true)} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget} />
     <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} initialSection={commandSection} anchorRef={commandAnchor} onCloseAutoFocus={restoreCommandFocus} />
     <GlobalCreateLayer />
+    <OperationHistory />
   </div>;
 }

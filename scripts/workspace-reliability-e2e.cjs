@@ -2,13 +2,13 @@
 const assert = require("node:assert/strict");
 const { mkdir } = require("node:fs/promises");
 const { chromium } = require("playwright");
-const { jsPDF } = require("jspdf");
+const { syntheticPdf } = require("./fixtures/pdf-cover-fixtures.cjs");
 
 const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
 const screenshotDir = process.env.E2E_SCREENSHOT_DIR;
-const fixturePdf = new jsPDF();
-fixturePdf.text("Synthetic PDF fixture - no personal data", 20, 20);
-const pdfBytes = Buffer.from(fixturePdf.output("arraybuffer"));
+const pdfBytes = syntheticPdf();
+const pdfId = "10000000-0000-4000-8000-000000000002";
+const sourceVersion = "11000000-0000-4000-8000-000000000002";
 
 async function capture(page, name) {
   if (!screenshotDir) return;
@@ -17,16 +17,28 @@ async function capture(page, name) {
 }
 
 (async () => {
-  // Native PDF reading needs the full browser's new headless mode, not the
-  // default headless shell: https://playwright.dev/docs/browsers#chromium-new-headless-mode
   const browser = await chromium.launch({ channel: "chromium", headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
   try {
     for (const width of [360, 390, 430, 768, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 900 }, isMobile: width < 768, hasTouch: width < 768 });
-      let pdfRequests = 0;
-      await context.route("**/api/files/10000000-0000-4000-8000-000000000002/download?inline=1", (route) => {
-        pdfRequests++;
-        return route.fulfill({ status: 200, contentType: "application/pdf", body: pdfBytes });
+      let pdfRequests = 0, preflightRequests = 0;
+      await context.route("**/*", (route) => {
+        const request = route.request(); const url = new URL(request.url());
+        if (url.pathname === `/api/files/${pdfId}/preview` && ["GET", "HEAD"].includes(request.method())) {
+          const headers = { "Content-Type": "application/pdf", "Content-Length": String(pdfBytes.length), "Cache-Control": "private, no-store", "Accept-Ranges": "bytes", "X-Reading-Source-Version": sourceVersion, ETag: '\"synthetic-reliability-v1\"' };
+          if (request.method() === "HEAD") { preflightRequests++; return route.fulfill({ status: 200, headers }); }
+          pdfRequests++;
+          const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers().range ?? "");
+          if (range) {
+            const start = Number(range[1]); const end = Math.min(pdfBytes.length - 1, range[2] ? Number(range[2]) : pdfBytes.length - 1);
+            const body = pdfBytes.subarray(start, end + 1);
+            headers["Content-Range"] = `bytes ${start}-${end}/${pdfBytes.length}`; headers["Content-Length"] = String(body.length);
+            return route.fulfill({ status: 206, headers, body });
+          }
+          return route.fulfill({ status: 200, headers, body: pdfBytes });
+        }
+        if (url.pathname.startsWith("/api/") || !["GET", "HEAD"].includes(request.method())) return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Isolated synthetic transport blocks live APIs and all writes" }) });
+        return route.continue();
       });
       const page = await context.newPage();
       const errors = [];
@@ -61,23 +73,37 @@ async function capture(page, name) {
       const shellBox = await documentShell.boundingBox();
       const editorBox = await page.locator(".notes-editor-surface").boundingBox();
       assert.ok(shellBox && editorBox && editorBox.y + editorBox.height <= shellBox.y + shellBox.height + 1, `${width}px embedded editor fits below the PDF toolbar`);
-      assert.equal(await page.locator("iframe").count(), 0, "reader loads only when first opened");
+      assert.equal(await documentShell.locator(".file-pdf-preview, canvas[data-pdf-page]").count(), 0, "reader loads only when first opened");
+      assert.equal(pdfRequests + preflightRequests, 0, "unopened PDF makes no preview requests");
       await page.getByRole("button", { name: "PDF", exact: true }).click();
-      const reader = page.locator('iframe[title="PDF 阅读器：示例 PDF"]');
-      await reader.waitFor({ state: "visible" });
-      await page.waitForFunction(() => document.querySelector('iframe[title="PDF 阅读器：示例 PDF"]')?.parentElement?.getAttribute("aria-busy") === "false");
-      const readerBox = await reader.boundingBox();
-      assert.ok(readerBox.height > 300, `${width}px PDF has usable reading height`);
+      const reader = documentShell.locator(`.file-pdf-preview[data-pdf-document-id="${pdfId}"][data-pdf-source-version="${sourceVersion}"]`);
+      const renderedPage = (number) => reader.locator(`canvas[data-pdf-rendered="true"][data-pdf-page="${number}"]`);
+      await renderedPage(1).waitFor({ state: "visible" });
+      assert.equal(preflightRequests, 1, "first opening uses the protected preview HEAD boundary");
+      assert.equal(pdfRequests, 1, "first opening fetches the synthetic PDF once");
+      const readerBox = await reader.locator(".file-pdf-viewport").boundingBox();
+      assert.ok(readerBox && readerBox.height > 300, `${width}px PDF has usable reading height`);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 1, `${width}px PDF has no horizontal overflow`);
-      const beforeSwitch = pdfRequests;
+      await reader.getByRole("button", { name: "下一页", exact: true }).click();
+      await renderedPage(2).waitFor({ state: "visible" });
+      const originalReader = await reader.elementHandle();
+      const originalCanvas = await renderedPage(2).elementHandle();
+      const beforeSwitch = pdfRequests, preflightBeforeSwitch = preflightRequests;
       await page.getByRole("button", { name: "正文", exact: true }).click();
       await reader.waitFor({ state: "hidden" });
       await page.getByRole("button", { name: "PDF", exact: true }).click();
-      await reader.waitFor({ state: "visible" });
-      assert.equal(pdfRequests, beforeSwitch, "switching views preserves the existing PDF reader");
+      await renderedPage(2).waitFor({ state: "visible" });
+      assert.equal(await originalReader.evaluate(node => node.isConnected), true, "switching views preserves the existing PDF reader");
+      assert.equal(await originalCanvas.evaluate(node => node.isConnected), true, "switching views preserves the same rendered page-2 canvas");
+      assert.equal(pdfRequests, beforeSwitch, "switching views preserves the existing PDF reader without refetch");
+      assert.equal(preflightRequests, preflightBeforeSwitch, "switching views makes no redundant preflight");
+      const beforeReload = await renderedPage(2).elementHandle();
       await page.getByRole("button", { name: "重新加载 PDF", exact: true }).click();
-      await page.waitForFunction(() => document.querySelector('iframe[title="PDF 阅读器：示例 PDF"]')?.parentElement?.getAttribute("aria-busy") === "false");
-      assert.equal(pdfRequests, beforeSwitch + 1, "explicit reload requests a fresh reader");
+      await page.waitForFunction(node => !node.isConnected, beforeReload);
+      await renderedPage(1).waitFor({ state: "visible" });
+      assert.equal(await originalReader.evaluate(node => node.isConnected), false, "explicit reload replaces the old reader");
+      assert.equal(pdfRequests, beforeSwitch + 1, "explicit reload fetches a fresh PDF once");
+      assert.equal(preflightRequests, preflightBeforeSwitch + 1, "explicit reload revalidates the protected source");
       await capture(page, `document-pdf-${width}`);
       assert.deepEqual(errors, [], `${width}px has no uncaught client errors`);
       await context.close();

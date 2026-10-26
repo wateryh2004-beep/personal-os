@@ -45,7 +45,7 @@ async function fallbackNotesPage(
   const end = Math.min(offset + limit, maximumFallbackRows - 1);
   const workspaceResult = await supabase
     .from("notes")
-    .select("id,title,body_markdown,updated_at,pinned_at,folder_id,content_origin")
+    .select("id,title,body_markdown,updated_at,pinned_at,folder_id,content_origin,mutation_revision")
     .is("deleted_at", null)
     .neq("status", "archived")
     .order("pinned_at", { ascending: false })
@@ -94,7 +94,7 @@ export async function listNotesWorkspacePage(
   if (folderId || view !== "all") {
     const readScope = async (compatible: boolean) => {
       let query = supabase.from("notes")
-        .select(compatible ? "id,title,updated_at,pinned_at" : "id,title,updated_at,pinned_at,folder_id,content_origin")
+        .select(compatible ? "id,title,updated_at,pinned_at" : "id,title,updated_at,pinned_at,folder_id,content_origin,mutation_revision")
         .neq("status", "archived");
       if (!compatible) query = query.is("deleted_at", null).neq("status", "trashed");
       if (folderId) query = query.eq("folder_id", folderId);
@@ -140,7 +140,7 @@ export async function getNotesWorkspace(owner?: Owner): Promise<{
   timezone: string;
   state: WorkspaceState;
   hasMore: boolean;
-  navigatorNotes: { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null }[];
+  navigatorNotes: { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null; mutation_revision?: number }[];
 }> {
   const { supabase, userId } = owner ?? await withPerfSpan("notes.workspace.auth", () => requireOwner());
   const [profileResult, notesPage, foldersResult, navigatorResult] = await Promise.all([
@@ -155,7 +155,7 @@ export async function getNotesWorkspace(owner?: Owner): Promise<{
       .select("id,name,parent_id")
       .is("archived_at", null)
       .order("position").order("name")),
-    supabase.from("notes").select("id,title,folder_id,updated_at,content_origin")
+    supabase.from("notes").select("id,title,folder_id,updated_at,content_origin,mutation_revision")
       .is("deleted_at", null).neq("status", "archived").order("updated_at", { ascending: false }),
   ]);
   const timezone = profileResult.data?.timezone || "Asia/Shanghai";
@@ -206,7 +206,7 @@ export async function getNotesWorkspace(owner?: Owner): Promise<{
  */
 export async function getNotesNavigator(): Promise<{
   folders: { id: string; name: string; parent_id: string | null }[];
-  notes: { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null }[];
+  notes: { id: string; title: string; folder_id: string | null; updated_at: string; content_origin: string | null; mutation_revision?: number }[];
 }> {
   const { supabase } = await requireOwner();
   const [foldersResult, notesResult] = await Promise.all([
@@ -218,7 +218,7 @@ export async function getNotesNavigator(): Promise<{
       .order("name"),
     supabase
       .from("notes")
-      .select("id,title,folder_id,updated_at,content_origin")
+      .select("id,title,folder_id,updated_at,content_origin,mutation_revision")
       .is("deleted_at", null)
       .neq("status", "archived")
       .order("updated_at", { ascending: false }),
@@ -242,7 +242,7 @@ export async function searchNotesWorkspace(
   const readMatches = (column: "title" | "body_markdown") => {
     let request = supabase
       .from("notes")
-      .select("id,title,body_markdown,updated_at,pinned_at,folder_id,content_origin")
+      .select("id,title,body_markdown,updated_at,pinned_at,folder_id,content_origin,mutation_revision")
       .eq("user_id", userId)
       .is("deleted_at", null)
       .neq("status", "archived")

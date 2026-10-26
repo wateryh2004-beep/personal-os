@@ -6,7 +6,7 @@ import { SidePanelShell } from "@/components/shared/side-panel-shell";
 export function Inspector({ open, title = "详情", onClose, children, className }: {
   open: boolean;
   title?: string;
-  onClose: () => void;
+  onClose: () => void | boolean;
   children: React.ReactNode;
   className?: string;
 }) {

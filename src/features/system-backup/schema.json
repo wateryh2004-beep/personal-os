@@ -1,6 +1,6 @@
 {
   "format": "personal-os-system/v1",
-  "schemaRevision": "2026-10-interview-narrative/v1",
+  "schemaRevision": "2026-10-system-workbench/v2",
   "tables": {
     "activity_events": {
       "columns": {
@@ -1586,6 +1586,14 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "request_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "request_hash": {
+          "type": "string",
+          "nullable": true
         }
       },
       "primaryKey": [
@@ -2498,6 +2506,10 @@
         "vault_group_id": {
           "type": "uuid",
           "nullable": true
+        },
+        "mutation_revision": {
+          "type": "number",
+          "nullable": false
         }
       },
       "primaryKey": [
@@ -2601,6 +2613,10 @@
         },
         "user_id": {
           "type": "uuid",
+          "nullable": false
+        },
+        "mutation_revision": {
+          "type": "number",
           "nullable": false
         }
       },
@@ -5914,6 +5930,18 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "progress_unit": {
+          "type": "string",
+          "nullable": true
+        },
+        "progress_value": {
+          "type": "number",
+          "nullable": true
+        },
+        "progress_total": {
+          "type": "number",
+          "nullable": true
         }
       },
       "primaryKey": [
@@ -6573,6 +6601,10 @@
         "vault_group_id": {
           "type": "uuid",
           "nullable": true
+        },
+        "mutation_revision": {
+          "type": "number",
+          "nullable": false
         }
       },
       "primaryKey": [
@@ -6976,6 +7008,18 @@
         },
         "user_id": {
           "type": "uuid",
+          "nullable": false
+        },
+        "quantity": {
+          "type": "string",
+          "nullable": true
+        },
+        "quantity_unit": {
+          "type": "string",
+          "nullable": true
+        },
+        "mutation_revision": {
+          "type": "number",
           "nullable": false
         }
       },
@@ -7562,6 +7606,66 @@
       ],
       "excludedColumns": []
     },
+    "trip_documents": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "trip_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "document_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "trip_id",
+            "user_id"
+          ],
+          "table": "trips",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        },
+        {
+          "columns": [
+            "document_id",
+            "user_id"
+          ],
+          "table": "documents",
+          "targetColumns": [
+            "id",
+            "user_id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
     "trip_stops": {
       "columns": {
         "address": {
@@ -7627,6 +7731,14 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "mutation_revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "arrived_at": {
+          "type": "string",
+          "nullable": true
         }
       },
       "primaryKey": [
@@ -7718,6 +7830,90 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "mutation_revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "current_stop_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "next_stop_id": {
+          "type": "uuid",
+          "nullable": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "current_stop_id",
+            "id",
+            "user_id"
+          ],
+          "table": "trip_stops",
+          "targetColumns": [
+            "id",
+            "trip_id",
+            "user_id"
+          ]
+        },
+        {
+          "columns": [
+            "next_stop_id",
+            "id",
+            "user_id"
+          ],
+          "table": "trip_stops",
+          "targetColumns": [
+            "id",
+            "trip_id",
+            "user_id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "workspace_scenes": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "name": {
+          "type": "string",
+          "nullable": false
+        },
+        "snapshot": {
+          "type": "json",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "last_mutation_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
         }
       },
       "primaryKey": [
@@ -7745,7 +7941,9 @@
     "document_ocr_jobs": "Transient OCR lease/progress state; durable extracted text remains in documents and is included.",
     "vault_credentials": "Independent verification credentials, session capabilities or throttle; never export or restore.",
     "vault_sessions": "Independent verification credentials, session capabilities or throttle; never export or restore.",
-    "vault_attempts": "Independent verification credentials, session capabilities or throttle; never export or restore."
+    "vault_attempts": "Independent verification credentials, session capabilities or throttle; never export or restore.",
+    "workspace_action_receipts": "Transient undo capabilities and execution state; never restore or replay.",
+    "workspace_original_checks": "Short-lived original-byte verification proofs; never restore or replay."
   },
   "exclusions": [
     "Authentication users, sessions, passwords, API keys, OAuth credentials and deployment configuration.",

@@ -1,0 +1,15 @@
+"use client";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CalendarCreateForm } from "@/components/calendar/calendar-create-form";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { readPendingCalendarTasks, readCalendarTaskForSchedule } from "@/features/workbench/operation-read-resource";
+import { workbenchRefSchema } from "@/features/workbench/contracts";
+import { instantToWallTime, wallTimeToIso } from "@/features/calendar/timezone";
+export type ScheduleCommand = { subject: string; startsAt: string; endsAt: string; timezone: string };
+export function OperationScheduleDialog({initialIntent}:{initialIntent?:Event}) {
+ const busyRef=useRef(false);const [busy,setBusy]=useState(false);
+ const reportPending=useCallback((pending:boolean)=>{busyRef.current=pending;setBusy(pending);},[]);
+ const [draft,setDraft]=useState<(ScheduleCommand & {sourceTask?:{id:string;modified:string|null}})|null>(null);const [message,setMessage]=useState("");
+ useEffect(()=>{let active=true;const controller=new AbortController();const listener=(event:Event)=>{if(busyRef.current)return;const detail=(event as CustomEvent).detail;if(event.type==="personal-os:calendar-command-preview"){if(typeof detail?.subject!=="string"||typeof detail?.startsAt!=="string"||typeof detail?.endsAt!=="string"||typeof detail?.timezone!=="string")return;setDraft(detail);return;}const ref=workbenchRefSchema.safeParse(detail?.ref);if(detail?.kind!=="schedule"||!ref.success||ref.data.kind!=="task")return;setMessage("正在读取待安排任务…");void Promise.all([readPendingCalendarTasks(),readCalendarTaskForSchedule(ref.data.id,controller.signal)]).then(([value,task])=>{if(!active||busyRef.current)return;if(task.status==="completed"){setMessage("任务已完成或不可访问，请重新读取。");return;}const wall=instantToWallTime(new Date().toISOString(),value.timezone);const startsAt=wallTimeToIso(wall,value.timezone);setDraft({subject:task.title,startsAt,endsAt:new Date(Date.parse(startsAt)+45*60000).toISOString(),timezone:value.timezone,sourceTask:{id:task.id,modified:task.lastModifiedAt}});setMessage("");}).catch(()=>{if(active)setMessage("任务暂不可读取。");});};if(initialIntent)listener(initialIntent);return()=>{active=false;controller.abort();};},[initialIntent]);
+ return <>{message?<p role="status" className="fixed bottom-24 right-3 z-40 bg-[var(--surface)] p-3 text-sm">{message}</p>:null}<Dialog open={Boolean(draft)} onOpenChange={next=>{if(busyRef.current)return false;if(!next)setDraft(null);}}><DialogContent showCloseButton={!busy} className="max-h-[85dvh] overflow-auto"><DialogHeader><DialogTitle>预览排程</DialogTitle><DialogDescription>可修改标题、时间与时长。核对冲突后明确确认。</DialogDescription></DialogHeader>{draft?<CalendarCreateForm key={`${draft.subject}:${draft.startsAt}`} timezone={draft.timezone} initialSubject={draft.subject} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialDescription={draft.sourceTask?`[来源任务](/tasks?task=${draft.sourceTask.id})`:""} sourceTask={draft.sourceTask} onPending={reportPending} onCreated={()=>setDraft(null)}/>:null}</DialogContent></Dialog></>;
+}

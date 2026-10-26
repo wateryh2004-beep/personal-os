@@ -1,4 +1,5 @@
 "use client";
+import { publishOperationReceipt } from "@/features/workbench/operation-contracts";
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { deleteCalendarEvent, updateCalendarEvent, type CalendarCreateState } from "@/features/calendar/actions";
@@ -30,11 +31,14 @@ export function CalendarEventEditForm(props: CalendarEventEditProps) {
 // reconciliation (a successful save still closes the workspace inspector).
 function CalendarEventEditSession({ event, timezone, calendarCategories, categoriesEnabled = true, onReconcile, editing, onEditingChange }: CalendarEventEditProps & { editing: boolean; onEditingChange: (editing: boolean) => void }) {
   const [allDay, setAllDay] = useState(event.is_all_day);
+  const [timeError,setTimeError]=useState("");
   const [description, setDescription] = useState(event.body_text ?? "");
   const subjectInputRef = useRef<HTMLInputElement>(null);
   const startRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLInputElement>(null);
   const updateHandledRef = useRef(false);
+  const mutationRequest=useRef<{hash:string;id:string}|null>(null);
+  const mutationRequestInput=useRef<HTMLInputElement>(null);
   const deleteHandledRef = useRef(false);
   const [state, action, pending] = useActionState(updateCalendarEvent, initial);
   const [deleteState, deleteAction, deleting] = useActionState(deleteCalendarEvent, initial);
@@ -48,8 +52,9 @@ function CalendarEventEditSession({ event, timezone, calendarCategories, categor
   useEffect(() => {
     if (state.status !== "success" || updateHandledRef.current) return;
     updateHandledRef.current = true;
+    if(state.receiptId)publishOperationReceipt({receiptId:state.receiptId,message:state.message});
     void onReconcile?.("update");
-  }, [onReconcile, state.status]);
+  }, [onReconcile, state.status,state.receiptId,state.message]);
 
   useEffect(() => {
     if (deleteState.status !== "success" || deleteHandledRef.current) return;
@@ -118,10 +123,12 @@ function CalendarEventEditSession({ event, timezone, calendarCategories, categor
       const start = form.elements.namedItem("starts_at");
       const end = form.elements.namedItem("ends_at");
       if (!(start instanceof HTMLInputElement) || !(end instanceof HTMLInputElement) || !startRef.current?.value || !endRef.current?.value) return;
-      start.value = wallTimeToIso(allDay ? `${startRef.current.value}T00:00` : startRef.current.value, timezone);
+      try{start.value = wallTimeToIso(allDay ? `${startRef.current.value}T00:00` : startRef.current.value, timezone);
       end.value = wallTimeToIso(allDay ? `${endRef.current.value}T00:00` : endRef.current.value, timezone);
+      }catch{submitEvent.preventDefault();setTimeError("该时间存在时区歧义或不可用，请调整后重试。");return;}
+      const hash=JSON.stringify([...new FormData(form).entries()].filter(([key])=>key!=="request_id"));if(mutationRequest.current?.hash!==hash)mutationRequest.current={hash,id:crypto.randomUUID()};if(mutationRequestInput.current)mutationRequestInput.current.value=mutationRequest.current.id;
     }} className="grid gap-0">
-      <input type="hidden" name="provider_event_id" value={event.provider_event_id}/><input type="hidden" name="original_subject" value={event.subject}/><input type="hidden" name="original_starts_at" value={event.starts_at}/><input type="hidden" name="original_ends_at" value={event.ends_at}/><input type="hidden" name="starts_at"/><input type="hidden" name="ends_at"/><input type="hidden" name="preserve_categories" value={categoriesEnabled ? "false" : "true"}/><input type="hidden" name="is_all_day_present" value="true"/>
+      {timeError?<p role="alert">{timeError}</p>:null}<input type="hidden" name="request_id" ref={mutationRequestInput}/><input type="hidden" name="provider_event_id" value={event.provider_event_id}/><input type="hidden" name="original_subject" value={event.subject}/><input type="hidden" name="original_starts_at" value={event.starts_at}/><input type="hidden" name="original_ends_at" value={event.ends_at}/><input type="hidden" name="starts_at"/><input type="hidden" name="ends_at"/><input type="hidden" name="preserve_categories" value={categoriesEnabled ? "false" : "true"}/><input type="hidden" name="is_all_day_present" value="true"/>
 
       <section className="border-b border-[var(--separator)] pb-4">
         <input aria-label="日程标题" ref={subjectInputRef} name="subject" required maxLength={500} defaultValue={event.subject} className="w-full border-0 bg-transparent px-0 text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)] outline-none" />

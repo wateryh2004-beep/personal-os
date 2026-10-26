@@ -1,5 +1,6 @@
 "use client";
 
+import { useFixtureTextScale } from "./use-fixture-text-scale";
 import { ProjectsWorkspace } from "@/components/projects/projects-workspace";
 import { CalendarEventEditForm } from "@/components/calendar/calendar-event-edit-form";
 import { CareerHomeView, type CareerHomeData } from "@/components/career/career-home-view";
@@ -86,7 +87,8 @@ const filledCareer: CareerHomeData = {
   milestones: [{ id: "e2e-milestone", title: "示例事项：核对准备材料与接下来的计划", target_date: "2026-10-03", status: "planned" }],
 };
 
-export function WorkspacePolishHarness({ scene }: { scene: PolishScene }) {
+export function WorkspacePolishHarness({ scene, textScale }: { scene: PolishScene; textScale?: "200" }) {
+  useFixtureTextScale(textScale);
   const pathname = scene === "career-scenarios" ? "/career/interview/targets" : scene === "files-cached-covers" ? "/files" : scene === "heading" ? "/today" : (scene === "note-editor" || scene === "note-pdf") ? "/notes/10000000-0000-4000-8000-000000000001" : `/${scene.replace(/-(loading|filled)$/, "")}`;
   return <div data-testid="workspace-polish-harness" data-scene={scene}>
     <AppShell presentationPathname={pathname}>

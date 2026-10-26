@@ -9,6 +9,7 @@ import { captureEditorPosition, captureReadingAnchor, restoreEditorPosition, res
 /** Keep intended positions until measured restoration finishes; interrupted mounts cannot replace them. */
 export function useNoteContinuity(noteId: string) {
   const [initial] = useState(() => noteDocumentCache.position(noteId));
+  const [restoreRevision, setRestoreRevision] = useState(0);
   const [reading, setReading] = useState(initial?.reading ?? false);
   const position = useRef<NoteContinuity>({ ...initial, reading: initial?.reading ?? false });
   const editor = useRef<EditorView | null>(null);
@@ -55,6 +56,13 @@ export function useNoteContinuity(noteId: string) {
     position.current.reading = next; modeRestore.current = true;
     setReading(next); publish();
   }, [publish, rememberPosition, rememberReading]);
+  const restoreContinuity = useCallback((value: NoteContinuity) => {
+    if (!scope.current()) return;
+    generation.current += 1; running.current = false;
+    position.current = value; pending.current = value.editor;
+    readerStart.current = null; modeRestore.current = true;
+    setReading(value.reading); setRestoreRevision((revision) => revision + 1); publish();
+  }, [publish]);
   useLayoutEffect(() => {
     if (!modeRestore.current) return;
     modeRestore.current = false;
@@ -74,12 +82,12 @@ export function useNoteContinuity(noteId: string) {
       current.editor = target; pending.current = target; publish();
       if (view) onEditorReady(view);
     }
-  }, [reading, onEditorReady, publish]);
+  }, [reading, restoreRevision, onEditorReady, publish]);
   useLayoutEffect(() => () => {
     const view = editor.current;
     // During a rapid route reversal the original intended position remains authoritative.
     if (view?.dom.isConnected && !position.current.reading && !pending.current) rememberPosition(captureEditorPosition(view));
     generation.current += 1;
   }, [rememberPosition]);
-  return { reading, switchReading, readingPaneRef, rememberReading, rememberPosition, onEditorReady, interruptEditorRestore };
+  return { reading, switchReading, restoreContinuity, readingPaneRef, rememberReading, rememberPosition, onEditorReady, interruptEditorRestore };
 }
