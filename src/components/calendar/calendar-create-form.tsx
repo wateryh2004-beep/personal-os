@@ -2,7 +2,8 @@
 
 import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { createCalendarEvent, readCalendarScheduleConflicts, type CalendarCreateState } from "@/features/calendar/actions";
+import { createCalendarEvent, type CalendarCreateState } from "@/features/calendar/actions";
+import { readCalendarScheduleConflicts } from "@/features/workbench/operation-read-resource";
 import { CalendarCategoryPicker } from "@/components/calendar/calendar-category-picker";
 import { dateTimeInputValue, instantToDate, shiftCalendarDate, wallTimeToIso } from "@/features/calendar/timezone";
 import { classifyCalendarEvent } from "@/features/calendar/classification/classifier";
@@ -22,7 +23,7 @@ export function CalendarCreateForm({ timezone, categoriesEnabled = true, initial
   const [timeError,setTimeError]=useState("");
   const [bounds,setBounds]=useState({startsAt:initialStart??"",endsAt:initialEnd??""});
   const [conflicts,setConflicts]=useState<{state:"loading"|"ready"|"error";count:number;titles:string[]}>({state:"loading",count:0,titles:[]});
-  useEffect(()=>{if(!bounds.startsAt||!bounds.endsAt)return;let active=true;const current=captureWorkspaceScope();const timer=window.setTimeout(()=>{void readCalendarScheduleConflicts(bounds).then(value=>{if(active&&current())setConflicts({state:"ready",count:value.events.length,titles:value.events.map(event=>event.subject)});}).catch(()=>{if(active&&current())setConflicts({state:"error",count:0,titles:[]});});},200);return()=>{active=false;window.clearTimeout(timer);};},[bounds]);
+  useEffect(()=>{if(!bounds.startsAt||!bounds.endsAt)return;let active=true;const controller=new AbortController();const current=captureWorkspaceScope();const timer=window.setTimeout(()=>{void readCalendarScheduleConflicts(bounds,controller.signal).then(value=>{if(active&&current())setConflicts({state:"ready",count:value.events.length,titles:value.events.map(event=>event.subject)});}).catch(()=>{if(active&&current())setConflicts({state:"error",count:0,titles:[]});});},200);return()=>{active=false;controller.abort();window.clearTimeout(timer);};},[bounds]);
   const updateConflictBounds=()=>{if(!startInputRef.current?.value||!endInputRef.current?.value)return;try{setConflicts({state:"loading",count:0,titles:[]});setTimeError("");setBounds({startsAt:wallTimeToIso(allDay?`${startInputRef.current.value}T00:00`:startInputRef.current.value,timezone),endsAt:wallTimeToIso(allDay?`${endInputRef.current.value}T00:00`:endInputRef.current.value,timezone)});}catch{setConflicts({state:"error",count:0,titles:[]});}};
 
   const [subject, setSubject] = useState(initialSubject);

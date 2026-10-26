@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router, usePathname: () => "/calendar" }));
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
+vi.mock("@/features/workbench/operation-read-resource",()=>({readPendingCalendarTasks:vi.fn().mockResolvedValue({tasks:[],timezone:"UTC"}),readCalendarTaskForSchedule:vi.fn()}));
 vi.mock("@/features/calendar/actions", () => ({ updateCalendarEvent: mocks.move, syncAndBackupMicrosoftAction: vi.fn(), readPendingCalendarTasks: vi.fn().mockResolvedValue({tasks:[],timezone:"UTC"}) }));
 vi.mock("@/components/shared/inspector", () => ({ Inspector: ({ open, children }: { open: boolean; children: ReactNode }) => open ? createElement("aside", null, children) : null }));
 vi.mock("@/components/links/entity-backlinks", () => ({ EntityBacklinks: () => null }));

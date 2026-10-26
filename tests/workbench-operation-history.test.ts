@@ -8,7 +8,7 @@ const mocks=vi.hoisted(()=>({list:vi.fn(),preview:vi.fn(),undo:vi.fn(),show:vi.f
 vi.mock("next/dynamic",()=>({default:()=>()=>null}));
 vi.mock("@/components/shared/action-feedback",()=>({useActionFeedback:()=>({show:mocks.show})}));
 vi.mock("@/features/workbench/operation-actions",()=>({listWorkbenchOperations:mocks.list,previewWorkbenchUndo:mocks.preview,undoWorkbenchOperation:mocks.undo}));
-vi.mock("@/features/workbench/operation-command-actions",()=>({readWorkbenchTimezone:async()=>"Asia/Shanghai"}));
+vi.mock("@/features/workbench/operation-read-resource",()=>({readWorkbenchTimezone:async()=>"Asia/Shanghai"}));
 const idA="10000000-0000-4000-8000-000000000001",idB="10000000-0000-4000-8000-000000000002";
 const preview=(id:string,title:string)=>({receiptId:id,title,count:1,operation:"note_move",status:"available",expiresAt:"2099-01-01T00:00:00Z",timezone:"Asia/Shanghai",provider:false,changes:[{label:"文件夹",before:"项目资料",after:"根目录"}]});
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(yes=>{resolve=yes;});return {promise,resolve};}

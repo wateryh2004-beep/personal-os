@@ -69,7 +69,7 @@ GUI验证由Agent完成：360/390/768/1440、短屏、实际200%文字、键盘/
 
 ## 本批数据库发布与恢复边界
 
-无新增环境变量、外部权限或付费服务。正式库只执行本批六份兼容扩展，按以下依赖顺序；Supabase 工具分配的实际版本须与源码文件名和交付报告一致，SQL 正文不在部署后改写。
+无新增环境变量、外部权限或付费服务。正式库只执行本批六份兼容扩展及第七份性能跟进，按以下依赖顺序；Supabase 工具分配的实际版本须与源码文件名和交付报告一致，SQL 正文不在部署后改写。
 
 1. `workspace_action_receipts`：临时收据、原件证明及辅助边界。
 2. `workbench_core_metadata`：本地元数据 CAS、历史保护、收据可见性和 Notes 列表 revision。
@@ -77,6 +77,9 @@ GUI验证由Agent完成：360/390/768/1440、短屏、实际200%文字、键盘/
 4. `life_field_operations`：数量、旅行现场/票据、闲暇进度及领域原子操作。
 5. `workspace_scenes`：有限现场偏好、验证器和幂等保存。
 6. `workbench_undo_dispatch`：在所有固定领域逆操作可用后安装统一分派。
+7. `workbench_policy_fk_performance`（平台实际版本 `20261026073240`）：Scene owner SELECT 策略使用请求级身份 InitPlan；为原件证明的 document/user 级联外键补两个前缀索引。角色、RLS/FORCE、谓词含义和服务端专属权限不变。
+
+性能跟进不改写前六份已部署 SQL。`trip_documents` 的 `(user_id,trip_id)` 与 `trip_id` 前缀索引已可定位旅行关联；`trips` 的复合当前/下一站外键包含唯一 `id`，已有主键可先定位单行后核验其余条件，因此不为消除索引列序提示添加重复索引。隔离 PostgreSQL 验证这些实际候选路径和 Scene InitPlan，候选路径检查不等于生产耗时基准。代码回退可保留新增索引与等价策略；无需删除资料或反向变更权限。
 
 旧 Notes/Files 写入同样推进 mutation revision；旧闲暇反馈保留新进度字段。历史购物数量不推断为 1。新增 Calendar 请求列可空，旧代码仍可处理原有操作。现场与票据关系进入可迁移备份；临时收据及原件证明明确排除恢复，恢复后不会重放外部操作。
 

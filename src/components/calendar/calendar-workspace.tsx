@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import dynamic from "next/dynamic";
 import { Bot, ChevronDown, ChevronLeft, ChevronRight, EyeOff, MoreHorizontal, Plus, RefreshCw, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { readCalendarTaskForSchedule } from "@/features/workbench/operation-read-resource";
 import { registerWorkbenchViewState } from "@/features/workbench/view-state-registry";
 import { CalendarCreateForm } from "@/components/calendar/calendar-create-form";
 import { CalendarEventEditForm } from "@/components/calendar/calendar-event-edit-form";
@@ -17,7 +18,7 @@ import type { CalendarEventRecord } from "@/features/calendar/types";
 import { CalendarCategoryManager } from "@/components/calendar/calendar-category-manager";
 import { AISidecar } from "@/components/ai/ai-sidecar";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { syncAndBackupMicrosoftAction, updateCalendarEvent, readCalendarTaskForSchedule } from "@/features/calendar/actions";
+import { syncAndBackupMicrosoftAction, updateCalendarEvent } from "@/features/calendar/actions";
 import type { CalendarCategory } from "@/features/calendar/categories/types";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
 import { Inspector } from "@/components/shared/inspector";
@@ -65,6 +66,8 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   const [draft, setDraft] = useState<Draft | null>(() => initialCreateOpen ? initialDraft(timezone) : null);
   const [movePreview,setMovePreview]=useState<{event:CalendarEventRecord;range:Draft & {isAllDay:boolean}}|null>(null);
   const [moveBusy,setMoveBusy]=useState(false);
+  const sourceTaskRead=useRef<AbortController|null>(null);
+  useEffect(()=>()=>sourceTaskRead.current?.abort(),[]);
   const draftDirtyRef=useRef(false);
   const createPendingRef=useRef(false);const [createPending,setCreatePending]=useState(false);
   const deferredCreateNavigation=useRef(false);
@@ -273,6 +276,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
 
   const closeDetails = () => {
     if(createPendingRef.current)return false;
+    sourceTaskRead.current?.abort();
     linkedEventRequest.current?.abort();
     setLookup(null);
     selectedRef.current = null;
@@ -391,6 +395,7 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
 
   const openEvent = (event: CalendarEventRecord) => {
     if(createPendingRef.current)return;
+    sourceTaskRead.current?.abort();
     linkedEventRequest.current?.abort();
     selectedRef.current = event; draftRef.current = null;
     setLookup(null); setSelected(event); setDraft(null); openInspector();
@@ -405,11 +410,12 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
   };
   const openDraft = (range: Draft) => {
     if(createPendingRef.current)return;
+    sourceTaskRead.current?.abort();
     setMoreOpen(false);
     linkedEventRequest.current?.abort();
     selectedRef.current = null; draftRef.current = range;draftDirtyRef.current=false;
     setLookup(null); setSelected(null); setDraft(range); openInspector();
-    if(range.sourceTask){const current=captureWorkspaceScope();void readCalendarTaskForSchedule(range.sourceTask.id).then(task=>{if(!current()||createPendingRef.current||draftDirtyRef.current||draftRef.current!==range)return;if(task.status==="completed"){setCalendarError("来源任务已完成，请重新核对安排。");return;}const next={...range,subject:task.title,description:`[来源任务](/tasks?task=${task.id})`,sourceTask:{id:task.id,modified:task.lastModifiedAt}};draftRef.current=next;setDraft(next);}).catch(()=>{if(current())setCalendarError("来源任务暂未完成实时核对，创建时会再次检查。");});}
+    if(range.sourceTask){const current=captureWorkspaceScope();const controller=new AbortController();sourceTaskRead.current=controller;void readCalendarTaskForSchedule(range.sourceTask.id,controller.signal).then(task=>{if(!current()||createPendingRef.current||draftDirtyRef.current||draftRef.current!==range)return;if(task.status==="completed"){setCalendarError("来源任务已完成，请重新核对安排。");return;}const next={...range,subject:task.title,description:`[来源任务](/tasks?task=${task.id})`,sourceTask:{id:task.id,modified:task.lastModifiedAt}};draftRef.current=next;setDraft(next);}).catch(()=>{if(current()&&!controller.signal.aborted)setCalendarError("来源任务暂未完成实时核对，创建时会再次检查。");});}
     if (initialEventId || initialCreateOpen || calendarNavigationIntent.current !== undefined) {
       beginCalendarNavigation(null);
       preserveDraftOnNavigation.current = true;

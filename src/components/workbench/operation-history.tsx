@@ -7,7 +7,7 @@ import { useActionFeedback } from "@/components/shared/action-feedback";
 import { listWorkbenchOperations, previewWorkbenchUndo, undoWorkbenchOperation } from "@/features/workbench/operation-actions";
 import { operationLabels, operationStatusLabels, operationNoticeEvent } from "@/features/workbench/operation-contracts";
 import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
-import { readWorkbenchTimezone } from "@/features/workbench/operation-command-actions";
+import { readWorkbenchTimezone } from "@/features/workbench/operation-read-resource";
 const LinkDialog=dynamic(()=>import("./operation-links").then(module=>module.OperationLinkDialog));
 const ScheduleDialog=dynamic(()=>import("./operation-schedule-dialog").then(module=>module.OperationScheduleDialog));
 const CommandTasks=dynamic(()=>import("./operation-command-tasks").then(module=>module.OperationCommandTasks));

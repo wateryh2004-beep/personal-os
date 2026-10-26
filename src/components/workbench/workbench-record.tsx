@@ -26,7 +26,7 @@ export function WorkbenchRecord({ entity, title, group, children, className = ""
     <div className="workbench-record-body">{children}</div>
     <div className="workbench-record-actions" aria-label={`${title}的工作台操作`}>
       {selectable ? <label className="workbench-select-control"><input type="checkbox" aria-label={`选择 ${title}`} checked={selected} onChange={() => workbench.toggleSelection(entity, group)} /></label> : null}
-      <button type="button" aria-label={`预览 ${title}`} title="预览（选择记录后按空格）" onClick={(event) => workbench.openPreview(entity, group, event.currentTarget)}><Eye size={15} aria-hidden="true" /><span>预览</span></button>
+      <button type="button" aria-label={`速览 ${title}`} title="速览（选择记录后按空格）" onClick={(event) => workbench.openPreview(entity, group, event.currentTarget)}><Eye size={15} aria-hidden="true" /><span>速览</span></button>
       <DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label={`${title}的更多操作`}><MoreHorizontal size={15} aria-hidden="true"/><span>操作</span></button></DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="workbench-record-menu"><DropdownMenuItem onSelect={() => workbench.openReference(entity)}>放到参考区</DropdownMenuItem>
           {workbenchComparable(entity) ? <DropdownMenuItem onSelect={() => { if (!selected) workbench.toggleSelection(entity, group); else workbench.compare(); }}>{selected ? "比较已选记录" : "加入比较选择"}</DropdownMenuItem> : null}

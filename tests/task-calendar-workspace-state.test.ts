@@ -23,6 +23,7 @@ vi.mock("@/features/tasks/microsoft-todo", () => ({
   createMicrosoftTodoTaskAction: mocks.create, syncMicrosoftTodoAction: vi.fn(), syncAndBackupMicrosoftTodoAction: vi.fn(),
 }));
 vi.mock("@/features/tasks/workspace-resource", () => ({ tasksWorkspaceResource: { mutate: mocks.mutateTasks, revalidate: mocks.revalidateTasks } }));
+vi.mock("@/features/workbench/operation-read-resource",()=>({readWorkbenchTimezone:async()=>"UTC",readPendingCalendarTasks:async()=>({tasks:[],timezone:"UTC"}),readCalendarTaskForSchedule:vi.fn()}));
 vi.mock("@/features/calendar/actions", () => ({ updateCalendarEvent: mocks.updateCalendar, syncAndBackupMicrosoftAction: mocks.syncCalendar, readPendingCalendarTasks: vi.fn(async()=>({tasks:[],timezone:"UTC"})) }));
 vi.mock("@/features/calendar/workspace-resource", () => ({ calendarRangeResource: mocks.range, invalidateCalendarRangeResources: vi.fn() }));
 vi.mock("@/components/shared/action-feedback", () => ({ useActionFeedback: () => ({ show: mocks.show }) }));

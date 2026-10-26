@@ -13,7 +13,7 @@ vi.mock("@/components/shared/use-workspace-scroll-restoration",()=>({useWorkspac
 vi.mock("@/features/notes/workspace-resource",()=>({notesWorkspaceResource:{revalidate:vi.fn().mockResolvedValue(undefined),invalidate:vi.fn()}}));
 vi.mock("@/features/notes/actions",()=>({createNoteInFolder:vi.fn(),moveNote:vi.fn(async()=>({saved:true,receiptId:"10000000-0000-4000-8000-000000000001"})),renameNote:vi.fn(),toggleNotePinned:vi.fn(),trashNote:vi.fn()}));
 vi.mock("@/features/workbench/operation-actions",()=>({listWorkbenchOperations:async()=>[],undoWorkbenchOperation:vi.fn(),previewWorkbenchUndo:async()=>({receiptId:"10000000-0000-4000-8000-000000000001",title:"Owned note",count:1,status:"available",provider:false,changes:[{label:"文件夹",before:"研究",after:"根目录"}]})}));
-vi.mock("@/features/workbench/operation-command-actions",()=>({readWorkbenchTimezone:async()=>"UTC"}));
+vi.mock("@/features/workbench/operation-read-resource",()=>({readWorkbenchTimezone:async()=>"UTC"}));
 vi.mock("@/components/ui/dropdown-menu",()=>{const pass=({children}:{children:ReactNode})=>children;return {DropdownMenu:pass,DropdownMenuContent:pass,DropdownMenuTrigger:pass,DropdownMenuSeparator:()=>null,DropdownMenuItem:({children,onSelect}:{children:ReactNode;onSelect:()=>void})=>createElement("button",{onClick:onSelect},children)};});
 let root:Root|undefined,host:HTMLDivElement|undefined;
 afterEach(async()=>{await act(async()=>root?.unmount());host?.remove();vi.unstubAllGlobals();});

@@ -22,13 +22,13 @@ import { WorkspaceMotionFixture } from "@/components/testing/workspace-motion-fi
 
 export const dynamic = "force-dynamic";
 
-export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string; item?: string }> }) {
+export default async function MobileNativeE2EPage({ searchParams }: { searchParams: Promise<{ scene?: string; workspace?: string; mode?: string; delay?: string; item?: string; textScale?: string }> }) {
   if (process.env.E2E_MOBILE_HARNESS !== "1") notFound();
-  const { scene, workspace, mode, item, delay: rawDelay } = await searchParams;
+  const { scene, workspace, mode, item, textScale, delay: rawDelay } = await searchParams;
   if (scene === "life-workbench") return <LifeWorkbenchFixture workspace={workspace} />;
   if (scene === "workbench-pdf") return <WorkbenchFixture pdf />;
   if (scene === "workbench") return <WorkbenchFixture />;
-  if (scene === "note-continuity") return <NoteContinuityFixture />;
+  if (scene === "note-continuity") return <NoteContinuityFixture textScale={textScale === "200" ? "200" : undefined} />;
   if (scene === "workspace-motion") return <WorkspaceMotionFixture />;
   if (scene === "notes-bootstrap") {
     const bootstrap = mode === "streamed" && workspace !== "home" ? new Promise<{

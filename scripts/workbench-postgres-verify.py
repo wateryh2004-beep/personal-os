@@ -28,6 +28,7 @@ REGRESSIONS = (
     "tests/workbench-operation-database.sql",
     "tests/fixtures/workbench/scenes-regression.sql",
     "tests/life-field-postgres.sql",
+    "tests/workbench-performance-postgres.sql",
 )
 WORKBENCH_SUFFIXES = (
     "_workspace_action_receipts.sql",
@@ -36,6 +37,7 @@ WORKBENCH_SUFFIXES = (
     "_life_field_operations.sql",
     "_workspace_scenes.sql",
     "_workbench_undo_dispatch.sql",
+    "_workbench_policy_fk_performance.sql",
 )
 OWNER = "a1000000-0000-4000-8000-000000000001"
 SCENE_OWNER = "a1000000-0000-4000-8000-000000000002"

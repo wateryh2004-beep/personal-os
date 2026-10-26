@@ -11,6 +11,7 @@ import {clearWorkspaceResources} from "@/lib/workspace-resource-cache";
 const mocks=vi.hoisted(()=>({create:vi.fn(),fullView:null as ComponentProps<typeof CalendarFullView>|null}));
 vi.mock("next/navigation",()=>({useRouter:()=>({replace:vi.fn()}),usePathname:()=>"/calendar"}));
 vi.mock("next/dynamic",()=>({default:()=>()=>null}));
+vi.mock("@/features/workbench/operation-read-resource",()=>({readCalendarScheduleConflicts:async()=>({events:[]}),readPendingCalendarTasks:async()=>({tasks:[],timezone:"UTC"}),readCalendarTaskForSchedule:vi.fn()}));
 vi.mock("@/features/calendar/actions",()=>({createCalendarEvent:mocks.create,readCalendarScheduleConflicts:async()=>({events:[]}),readPendingCalendarTasks:async()=>({tasks:[],timezone:"UTC"}),readCalendarTaskForSchedule:vi.fn(),updateCalendarEvent:vi.fn(),syncAndBackupMicrosoftAction:vi.fn()}));
 vi.mock("@/components/calendar/calendar-category-picker",()=>({CalendarCategoryPicker:()=>createElement("input",{type:"hidden",name:"category_choice",value:"__none"})}));
 vi.mock("@/components/calendar/calendar-category-manager",()=>({CalendarCategoryManager:()=>null}));

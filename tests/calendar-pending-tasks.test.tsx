@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CalendarPendingTasks } from "@/components/calendar/calendar-pending-tasks";
 const mocks=vi.hoisted(()=>({read:vi.fn()}));
-vi.mock("@/features/calendar/actions",()=>({readPendingCalendarTasks:mocks.read}));
+vi.mock("@/features/workbench/operation-read-resource",()=>({readPendingCalendarTasks:mocks.read}));
 vi.mock("@fullcalendar/interaction",()=>({Draggable:class{destroy(){}}}));
 function deferred<T>(){let resolve!:(value:T)=>void, reject!:(reason:Error)=>void;const promise=new Promise<T>((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};}
 let root:Root,host:HTMLDivElement;

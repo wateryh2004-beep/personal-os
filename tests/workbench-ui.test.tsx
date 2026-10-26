@@ -29,8 +29,14 @@ describe("workbench native record interaction", () => {
   it("opens Space only on the record itself, preserving native inputs, links, buttons and IME", async () => {
     const preview = vi.fn(); const register = vi.fn(() => () => {});
     const value: WorkbenchContextValue = { register, openPreview: preview, openReference: vi.fn(), compare: vi.fn(), toggleSelection: vi.fn(), isSelected: () => false, selected: [], clearSelection: vi.fn() };
-    await act(async () => root.render(<WorkbenchContext.Provider value={value}><WorkbenchRecord entity={ref} title="Item" group="filtered-order"><div><a href="https://example.com/synthetic">Open</a><input aria-label="editable" /></div></WorkbenchRecord></WorkbenchContext.Provider>));
+    await act(async () => root.render(<WorkbenchContext.Provider value={value}><WorkbenchRecord entity={ref} title="Item" group="filtered-order"><div><a href="https://example.com/synthetic">Open</a><input aria-label="editable" /><button aria-label="预览 Item">原件预览</button></div></WorkbenchRecord></WorkbenchContext.Provider>));
     const record = host.querySelector("[data-workbench-record]")!;
+    expect(host.querySelectorAll('button[aria-label="预览 Item"]')).toHaveLength(1);
+    const quicklook = host.querySelector<HTMLButtonElement>('button[aria-label="速览 Item"]')!;
+    expect(quicklook.textContent).toBe("速览");
+    await act(async () => quicklook.click());
+    expect(preview).toHaveBeenCalledWith(ref, "filtered-order", quicklook);
+    preview.mockClear();
     await act(async () => { pressSpace(record); }); expect(preview).toHaveBeenCalledWith(ref, "filtered-order", record);
     preview.mockClear();
     for (const node of [host.querySelector("a")!, host.querySelector("input[aria-label=editable]")!, host.querySelector("button")!]) await act(async () => { pressSpace(node); });

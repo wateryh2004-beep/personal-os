@@ -1,5 +1,7 @@
 "use server";
 
+import { readPendingCalendarTasksQuery, readCalendarScheduleConflictsQuery, readCalendarScheduleTaskQuery } from "@/features/workbench/operation-read-queries";
+import { calendarScheduleRangeSchema } from "@/features/workbench/operation-read-contracts";
 import { operationRequestHash, runCalendarMetadataOperation } from "@/features/workbench/operation-provider";
 import { readMicrosoftTodoMutationSnapshot, reconcileCalendarOperation, readCalendarMutationSnapshot } from "@/lib/adapters/microsoft-graph/calendar";
 import { revalidatePath } from "@/lib/workspace-revalidation";
@@ -141,12 +143,7 @@ export async function createCalendarEvent(_previousState: CalendarCreateState, f
   }catch{return {status:"error",message:"日程未能确认。请保留输入并重新读取。"};}
 }
 
-export async function readPendingCalendarTasks() {
- const {supabase}=await requireOwner();
- const [{data,error},{data:profile}]=await Promise.all([supabase.from("microsoft_todo_tasks").select("id,title,status,provider_last_modified_at").neq("status","completed").is("archived_at",null).order("due_at",{ascending:true}).limit(100),supabase.from("profiles").select("timezone").maybeSingle()]);
- if(error)throw new Error("todo_read_unavailable");
- return {tasks:(data??[]) as {id:string;title:string;status:string;provider_last_modified_at:string|null}[],timezone:(profile?.timezone??"Asia/Shanghai") as string};
-}
+export async function readPendingCalendarTasks() {return readPendingCalendarTasksQuery(await requireOwner());}
 
 export async function updateCalendarEvent(_previousState: CalendarCreateState, formData: FormData): Promise<CalendarCreateState> {
  try{
@@ -332,5 +329,5 @@ export async function backfillCalendarCategoriesAction(_previousState: CalendarB
     return { status: "error", message: "历史日程分类未能完成，请稍后重试。" };
   }
 }
-export async function readCalendarTaskForSchedule(taskId:string){const id=z.string().uuid().parse(taskId);const {supabase,userId}=await requireOwner();return readMicrosoftTodoMutationSnapshot((await connection(supabase)).id,userId,id);}
-export async function readCalendarScheduleConflicts(input:unknown){const value=z.object({startsAt:z.string().datetime({offset:true}),endsAt:z.string().datetime({offset:true})}).refine(row=>Date.parse(row.endsAt)>Date.parse(row.startsAt)).parse(input);const {supabase}=await requireOwner();const {data,error}=await supabase.from("calendar_events").select("id,subject,starts_at,ends_at").lt("starts_at",value.endsAt).gt("ends_at",value.startsAt).is("archived_at",null).order("starts_at").limit(21);if(error)throw new Error("calendar_conflicts_unavailable");return {events:(data??[]).slice(0,20) as {id:string;subject:string;starts_at:string;ends_at:string}[],truncated:(data?.length??0)>20};}
+export async function readCalendarTaskForSchedule(taskId:string){const owner=await requireOwner();return readCalendarScheduleTaskQuery(owner,z.string().uuid().parse(taskId));}
+export async function readCalendarScheduleConflicts(input:unknown){const owner=await requireOwner();return readCalendarScheduleConflictsQuery(owner,calendarScheduleRangeSchema.parse(input));}
