@@ -178,10 +178,6 @@ function TaskRow({
         ) : null}
       </div>
 
-      <div className="col-span-3 flex flex-wrap gap-2 pl-9" onClick={event=>event.stopPropagation()} onKeyDown={event=>event.stopPropagation()}>
-        <label className="flex min-h-11 items-center gap-2 text-xs text-[var(--text-secondary)]">截止<input aria-label={`${task.title}的截止日期`} type="date" disabled={pending||!timezone} value={task.dueAt&&timezone?instantToDate(task.dueAt,timezone):""} className="ui-field min-h-11 max-w-40 text-base" onChange={event=>{if(timezone)onUpdate({dueAt:event.target.value?wallTimeToIso(`${event.target.value}T23:59`,timezone):null});}}/></label>
-        <label className="flex min-h-11 items-center gap-2 text-xs text-[var(--text-secondary)]">重要性<select aria-label={`${task.title}的重要性`} disabled={pending} className="ui-field min-h-11 text-base" value={task.importance} onChange={event=>onUpdate({importance:event.target.value as TodoTask["importance"]})}><option value="normal">普通</option><option value="high">高</option><option value="low">低</option></select></label>
-      </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -196,7 +192,7 @@ function TaskRow({
             <MoreHorizontal className="size-4" aria-hidden="true" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-48">
+        <DropdownMenuContent align="end" className="min-w-48" onClick={event=>event.stopPropagation()}>
           <DropdownMenuItem onSelect={onToggle} className="min-h-11 sm:min-h-9">
             {completed ? <RotateCcw /> : <Check />}
             {completed ? "恢复任务" : "完成任务"}
@@ -229,6 +225,11 @@ function TaskRow({
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <div className="col-span-3 flex flex-wrap gap-2 pl-9" onClick={event=>event.stopPropagation()} onKeyDown={event=>event.stopPropagation()}>
+        <label className="flex min-h-11 items-center gap-2 text-xs text-[var(--text-secondary)]">截止<input aria-label={`${task.title}的截止日期`} type="date" disabled={pending||!timezone} value={task.dueAt&&timezone?instantToDate(task.dueAt,timezone):""} className="ui-field min-h-11 max-w-40 text-base" onChange={event=>{if(timezone)onUpdate({dueAt:event.target.value?wallTimeToIso(`${event.target.value}T23:59`,timezone):null});}}/></label>
+        <label className="flex min-h-11 items-center gap-2 text-xs text-[var(--text-secondary)]">重要性<select aria-label={`${task.title}的重要性`} disabled={pending} className="ui-field min-h-11 text-base" value={task.importance} onChange={event=>onUpdate({importance:event.target.value as TodoTask["importance"]})}><option value="normal">普通</option><option value="high">高</option><option value="low">低</option></select></label>
+      </div>
     </article>
   );
 }

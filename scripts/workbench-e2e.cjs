@@ -37,6 +37,18 @@
     const page = await context.newPage();
     await page.route("**/*", isolatedTransport);
     const assertNoRootOverflow = async (label) => { if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) throw new Error(`root overflow: ${label}`); };
+    const assertReferenceMotionContained = async (label) => {
+      const widest = await page.evaluate(async () => {
+        const pane = document.querySelector(".workbench-reference-pane");
+        let widest = document.documentElement.scrollWidth;
+        while (pane?.getAnimations().some(animation => animation.playState === "running")) {
+          await new Promise(requestAnimationFrame);
+          widest = Math.max(widest, document.documentElement.scrollWidth);
+        }
+        return widest;
+      });
+      if (widest > page.viewportSize().width + 1) throw new Error(`root overflow during reference motion: ${label}/${widest}`);
+    };
     const errors = []; page.on("pageerror", error => errors.push(error.message));
     await page.goto(`${base}/mobile-native-e2e?scene=workbench`);
     await page.getByTestId("workbench-fixture").waitFor();
@@ -60,6 +72,8 @@
     const referenceRecord = page.locator('[data-workbench-record^="note:"]').first();
     await referenceRecord.getByRole("button", { name: /更多操作/ }).click();
     await page.getByRole("menuitem", { name: "放到参考区" }).click();
+    await assertNoRootOverflow("desktop reference opening");
+    await assertReferenceMotionContained("desktop reference opening");
     await page.getByRole("complementary", { name: "参考区" }).getByRole("heading", { name: /长文练习 2/ }).waitFor();
     await page.getByRole("button", { name: "编辑笔记", exact: true }).click();
     await page.locator(".cm-editor").nth(1).waitFor();
@@ -77,9 +91,24 @@
       for (const pane of width < 768 ? ["主区", "参考区"] : [null]) {
         if (pane) await page.getByRole("button", { name: pane, exact: true }).click();
         await assertNoRootOverflow(`${width}/${pane ?? "both"}`);
+        if (pane === "参考区") await assertReferenceMotionContained(`${width}/${pane}`);
         await page.screenshot({ path: path.join(output, `workbench-${width}-${pane ?? "both"}.png`), fullPage: true });
       }
     }
+    // Normal mobile close is recorded before text scaling and reduced motion.
+    await page.getByRole("button", { name: "关闭参考区", exact: true }).click();
+    await assertNoRootOverflow("normal mobile reference close");
+    await assertReferenceMotionContained("normal mobile reference close");
+    await page.locator(".workbench-reference-pane").waitFor({ state: "hidden" });
+    if (!await originalEditor.evaluate(node => node.isConnected)) throw new Error("mobile reference close unmounted the primary editor");
+    if (!await primaryContent.textContent().then(text => text.includes("合成草稿保留验证"))) throw new Error("mobile reference close discarded the primary draft");
+    await referenceRecord.getByRole("button", { name: /更多操作/ }).click();
+    await page.getByRole("menuitem", { name: "放到参考区" }).click();
+    await assertNoRootOverflow("normal mobile reference reopen");
+    await assertReferenceMotionContained("normal mobile reference reopen");
+    await page.getByRole("button", { name: "编辑笔记", exact: true }).click();
+    await page.locator(".workbench-reference-pane .cm-editor").waitFor({ state: "visible" });
+    if (await page.locator(".cm-editor").count() !== 2) throw new Error("mobile reference reopen did not restore two editors");
     await page.setViewportSize({ width: 390, height: 560 });
     await page.getByRole("button", { name: "主区", exact: true }).click();
     await page.screenshot({ path: path.join(output, "short-screen.png"), fullPage: true });

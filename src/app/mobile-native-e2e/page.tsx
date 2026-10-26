@@ -52,7 +52,7 @@ export default async function MobileNativeE2EPage({ searchParams }: { searchPara
     return <NavigationLatencyHarness workspace={workspace ?? "home"} mode={mode ?? "resource"} delay={delay} revision={(await cookies()).get(workspaceRevisionCookie)?.value ?? "fixture-v1"} />;
   }
   if (scene && ["projects", "calendar-edit", "heading", "career", "career-filled", "career-scenarios", "today", "today-filled", "tasks", "calendar", "notes", "note-editor", "note-pdf", "files", "files-cached-covers", "today-loading", "tasks-loading", "calendar-loading"].includes(scene)) {
-    return <WorkspacePolishHarness scene={scene as PolishScene} />;
+    return <WorkspacePolishHarness scene={scene as PolishScene} textScale={textScale === "200" ? "200" : undefined} />;
   }
   return <MobileNativeHarness />;
 }

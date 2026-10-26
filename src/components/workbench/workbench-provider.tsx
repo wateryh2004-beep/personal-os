@@ -14,10 +14,11 @@ import { noteDocumentCache } from "@/features/notes/document-resource";
 const WorkbenchEntityView = dynamic(() => import("./workbench-entity-view").then((m) => m.WorkbenchEntityView));
 const WorkbenchDialogs = dynamic(() => import("./workbench-dialogs").then((m) => m.WorkbenchDialogs));
 type Reference = { ref: WorkbenchRef; editing?: boolean; position?: WorkbenchPosition };
+type ClosingReference = Reference & { exitRect: { left: number; top: number; width: number; height: number; opacity: number } };
 export type PreviewState = { queue: WorkbenchRef[]; index: number; trigger: HTMLElement | null };
 type Layout = WorkspaceSceneSnapshot["layout"];
 type Internal = {
-  reference: Reference | null; closingReference: Reference | null; closeReference(): void; setReference(value: Reference | null | ((current: Reference | null) => Reference | null)): void; layout: Layout; setLayout(value: Layout | ((previous: Layout) => Layout)): void;
+  reference: Reference | null; closingReference: ClosingReference | null; closeReference(): void; finishClosingReference(value: ClosingReference): void; setReference(value: Reference | null | ((current: Reference | null) => Reference | null)): void; layout: Layout; setLayout(value: Layout | ((previous: Layout) => Layout)): void;
   preview: PreviewState | null; setPreview(value: PreviewState | null | ((previous: PreviewState | null) => PreviewState | null)): void;
   comparison: WorkbenchRef[] | null; setComparison(value: WorkbenchRef[] | null): void;
   scenesOpen: boolean; setScenesOpen(value: boolean): void; notice: string; setNotice(value: string): void;
@@ -33,7 +34,9 @@ const getMobile = () => window.matchMedia(mediaQuery).matches;
 export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const router = useRouter(); const pathname = usePathname(); const search = useSearchParams();
   const [reference, setReference] = useState<Reference | null>(null);
-  const [closingReference, setClosingReference] = useState<Reference | null>(null);
+  const [closingReference, setClosingReference] = useState<ClosingReference | null>(null);
+  const referenceTransitionEpoch = useRef(0);
+  const interruptedReferenceEnter = useRef<{ top: number; opacity: string; epoch: number; scope: () => boolean } | null>(null);
   const referenceLauncher = useRef<HTMLElement | null>(null);
   const [layout, setLayout] = useState<Layout>({ referenceFirst: false, referenceWidth: 42, mobilePane: "main" });
   const [preview, setPreview] = useState<PreviewState | null>(null);
@@ -74,23 +77,66 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     if (!workbenchRefSchema.safeParse(ref).success) return;
     if (mainRef.current && !mainRef.current.hidden) mainRef.current.dataset.workbenchDocumentScroll = String(document.scrollingElement?.scrollTop || window.scrollY);
     referenceLauncher.current = [...records.current.values()].find((entry) => workbenchRefKey(entry.ref) === workbenchRefKey(ref))?.element ?? null;
-    referenceRef.current?.style.setProperty("--reference-enter-width", `${referenceRef.current.getBoundingClientRect().width}px`);
+    const epoch = ++referenceTransitionEpoch.current;
+    const pane = referenceRef.current;
+    interruptedReferenceEnter.current = null;
+    if (pane) {
+      const bounds = pane.getBoundingClientRect();
+      const reversing = pane.dataset.state === "closed" && !pane.hidden;
+      const opacity = reversing ? getComputedStyle(pane).opacity : "0";
+      if (reversing) interruptedReferenceEnter.current = { top: bounds.top, opacity, epoch, scope: captureWorkspaceScope() };
+      pane.style.setProperty("--reference-enter-width", `${bounds.width}px`);
+      pane.style.setProperty("--reference-enter-y", "12px");
+      pane.style.setProperty("--reference-enter-opacity", opacity);
+    }
     setClosingReference(null);
-    setReference((current) => current && workbenchRefKey(current.ref) === workbenchRefKey(ref) ? current : { ref });
+    setReference((current) => {
+      if (current && workbenchRefKey(current.ref) === workbenchRefKey(ref)) return current;
+      if (closingReference && workbenchRefKey(closingReference.ref) === workbenchRefKey(ref)) return { ref, editing: closingReference.editing, position: closingReference.position };
+      return { ref };
+    });
     setLayout((value) => ({ ...value, mobilePane: "reference" }));
+  }, [closingReference]);
+  useLayoutEffect(() => {
+    const interrupted = interruptedReferenceEnter.current;
+    if (!interrupted || !reference || closingReference) return;
+    interruptedReferenceEnter.current = null;
+    const pane = referenceRef.current;
+    if (!pane || interrupted.epoch !== referenceTransitionEpoch.current || !interrupted.scope()) return;
+    // Controls have their committed height now. Remove the entering transform
+    // before measuring, so an old animation sample cannot contaminate the target.
+    pane.style.setProperty("--reference-enter-y", "0px");
+    const target = pane.getBoundingClientRect();
+    pane.style.setProperty("--reference-enter-y", `${interrupted.top - target.top}px`);
+    pane.style.setProperty("--reference-enter-opacity", interrupted.opacity);
+  }, [reference, closingReference]);
+  const finishClosingReference = useCallback((value: ClosingReference) => {
+    setClosingReference((current) => current === value ? null : current);
   }, []);
   const closeReference = useCallback(() => {
-    referenceRef.current?.style.setProperty("--reference-exit-width", `${referenceRef.current.getBoundingClientRect().width}px`);
-    setClosingReference(reference); setReference(null); setLayout((value) => ({ ...value, mobilePane: "main" }));
+    if (!reference) return;
+    const pane = referenceRef.current;
+    const bounds = pane?.getBoundingClientRect();
+    const opacity = pane ? Number(getComputedStyle(pane).opacity) : 1;
+    const closing: ClosingReference = { ...reference, exitRect: { left: bounds?.left ?? 0, top: bounds?.top ?? 0, width: bounds?.width ?? 0, height: bounds?.height ?? 0, opacity: Number.isFinite(opacity) ? opacity : 1 } };
+    pane?.style.setProperty("--reference-exit-width", `${closing.exitRect.width}px`);
+    const epoch = ++referenceTransitionEpoch.current;
+    interruptedReferenceEnter.current = null;
+    setClosingReference(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? null : closing);
+    setReference(null); setLayout((value) => ({ ...value, mobilePane: "main" }));
     const scope = captureWorkspaceScope();
-    requestAnimationFrame(() => { if (scope() && referenceLauncher.current?.isConnected) referenceLauncher.current.focus({ preventScroll: true }); });
+    requestAnimationFrame(() => { if (scope() && referenceTransitionEpoch.current === epoch && referenceLauncher.current?.isConnected) referenceLauncher.current.focus({ preventScroll: true }); });
   }, [reference]);
   useEffect(() => {
     if (!closingReference) return;
-    const immediate = window.matchMedia("(prefers-reduced-motion: reduce)").matches || window.matchMedia(mediaQuery).matches;
-    const timer = setTimeout(() => setClosingReference(null), immediate ? 0 : 220);
-    return () => clearTimeout(timer);
-  }, [closingReference]);
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const finish = () => finishClosingReference(closingReference);
+    const reduce = () => { if (preference.matches) finish(); };
+    reduce(); preference.addEventListener("change", reduce);
+    // The native animationend normally finishes the layer; retain a bounded fallback.
+    const timer = setTimeout(finish, 220);
+    return () => { clearTimeout(timer); preference.removeEventListener("change", reduce); };
+  }, [closingReference, finishClosingReference]);
   const toggleSelection = useCallback((ref: WorkbenchRef, group: string) => {
     if (!workbenchRefSchema.safeParse(ref).success) return;
     setSelection((current) => {
@@ -139,6 +185,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       noteDocumentCache.remember(snapshot.reference.ref.id, { reading: refPosition.reading ?? false, ...(refPosition.sourceLine ? { reader: { line: refPosition.sourceLine, offset: refPosition.sourceOffset ?? 0 } } : {}), ...(refPosition.anchor !== undefined ? { editor: { anchor: refPosition.anchor, head: refPosition.head ?? refPosition.anchor, viewport: { line: refPosition.sourceLine ?? 1, offset: refPosition.sourceOffset ?? 0 }, scrollLeft: 0 } } : {}) });
     }
     releaseMobileBackLayerForNavigation("dialog");
+    referenceTransitionEpoch.current += 1; interruptedReferenceEnter.current = null; setClosingReference(null);
     setReference(snapshot.reference); setLayout(snapshot.layout); setScenesOpen(false);
     setPendingRestore(position || snapshot.reference?.position ? { href: snapshot.main.href.split("#")[0], position: position ?? {}, referencePosition: snapshot.reference?.position } : null);
     setNotice("已恢复现场；内容从各自来源重新核对，当前草稿会保留。");
@@ -175,11 +222,11 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   // Scope clear happens synchronously before children can mount for the new identity.
   useEffect(() => {
-    const clear = () => { if (viewRestoreTimer.current) clearTimeout(viewRestoreTimer.current); cancelViewRestore.current?.(); cancelViewRestore.current = null; setPendingRestore(null); setReference(null); setClosingReference(null); setPreview(null); setComparison(null); setScenesOpen(false); setSelection({ group: "", refs: [], location: locationKey }); records.current.clear(); };
+    const clear = () => { referenceTransitionEpoch.current += 1; interruptedReferenceEnter.current = null; if (viewRestoreTimer.current) clearTimeout(viewRestoreTimer.current); cancelViewRestore.current?.(); cancelViewRestore.current = null; setPendingRestore(null); setReference(null); setClosingReference(null); setPreview(null); setComparison(null); setScenesOpen(false); setSelection({ group: "", refs: [], location: locationKey }); records.current.clear(); };
     window.addEventListener("personal-os:workspace-auth-failed", clear);
     return () => window.removeEventListener("personal-os:workspace-auth-failed", clear);
   }, [locationKey]);
-  const host: Internal = { reference, closingReference, closeReference, setReference, layout, setLayout, preview, setPreview, comparison, setComparison, scenesOpen, setScenesOpen: (open) => { if (open) setDialogsVisited(true); setScenesOpen(open); }, notice, setNotice, mainRef, referenceRef, capture, restore };
+  const host: Internal = { reference, closingReference, closeReference, finishClosingReference, setReference, layout, setLayout, preview, setPreview, comparison, setComparison, scenesOpen, setScenesOpen: (open) => { if (open) setDialogsVisited(true); setScenesOpen(open); }, notice, setNotice, mainRef, referenceRef, capture, restore };
   return <WorkbenchContext.Provider value={value}><InternalContext.Provider value={host}>{children}{dialogsVisited ? <WorkbenchDialogs /> : null}</InternalContext.Provider></WorkbenchContext.Provider>;
 }
 export function WorkbenchToolbar() {
@@ -192,7 +239,7 @@ export function WorkbenchLayout({ children }: { children: ReactNode }) {
   const reference = host.reference ?? host.closingReference;
   const referenceOpen = Boolean(host.reference);
   const mainVisible = !referenceOpen || !mobile || host.layout.mobilePane === "main";
-  const referenceVisible = Boolean(reference && (!mobile || host.layout.mobilePane === "reference"));
+  const referenceVisible = Boolean(reference && (!mobile || host.layout.mobilePane === "reference" || host.closingReference));
   const previouslyVisible = useRef(true);
   useLayoutEffect(() => {
     if (mobile && mainVisible && !previouslyVisible.current) {
@@ -234,7 +281,9 @@ export function WorkbenchLayout({ children }: { children: ReactNode }) {
     {referenceOpen ? <div className="workbench-layout-controls"><div className="workbench-mobile-switch" role="group" aria-label="切换工作区域"><button type="button" aria-pressed={host.layout.mobilePane === "main"} onClick={() => switchPane("main")}>主区</button><button type="button" aria-pressed={host.layout.mobilePane === "reference"} onClick={() => switchPane("reference")}>参考区</button></div><button type="button" onClick={() => { prepareGeometry(); host.setLayout((value) => ({ ...value, referenceFirst: !value.referenceFirst })); }}><ArrowLeftRight size={15} aria-hidden="true"/>交换位置</button><label className="workbench-width-control">参考区宽度<input aria-label="参考区宽度" type="range" min={30} max={65} value={host.layout.referenceWidth} onChange={(event) => { prepareGeometry(); host.setLayout((value) => ({ ...value, referenceWidth: Number(event.target.value) })); }}/></label><button type="button" onClick={host.closeReference}><X size={15} aria-hidden="true"/>关闭参考区</button></div> : null}
     <div className="workbench-layout" data-reference={Boolean(reference)} data-reference-first={host.layout.referenceFirst} style={{ "--reference-width": `${host.layout.referenceWidth}%` } as CSSProperties}>
       <div className="workbench-main-pane" ref={mainRef} hidden={!mainVisible} inert={!mainVisible} aria-hidden={!mainVisible || undefined}><WorkbenchActivityContext.Provider value={mainVisible}>{children}</WorkbenchActivityContext.Provider></div>
-      <aside className="workbench-reference-pane" data-state={referenceOpen ? "open" : "closed"} ref={referenceRef} hidden={!referenceVisible} inert={!referenceOpen || !referenceVisible} aria-hidden={!referenceOpen || !referenceVisible || undefined} aria-label="参考区" onKeyDown={(event) => { if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); host.closeReference(); } }}>
+      <aside className="workbench-reference-pane" data-state={referenceOpen ? "open" : "closed"}
+        style={mobile && host.closingReference ? { position: "fixed", left: host.closingReference.exitRect.left, top: host.closingReference.exitRect.top, width: host.closingReference.exitRect.width, height: host.closingReference.exitRect.height, minHeight: 0, zIndex: 21, "--reference-exit-opacity": host.closingReference.exitRect.opacity } as CSSProperties : undefined}
+        onAnimationEnd={(event) => { if (event.target === event.currentTarget && !referenceOpen && host.closingReference && (event.animationName === "workbench-reference-exit" || event.animationName === "workbench-mobile-reference-exit")) host.finishClosingReference(host.closingReference); }} ref={referenceRef} hidden={!referenceVisible} inert={!referenceOpen || !referenceVisible} aria-hidden={!referenceOpen || !referenceVisible || undefined} aria-label="参考区" onKeyDown={(event) => { if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); host.closeReference(); } }}>
         {reference ? <><div className="workbench-reference-controls"><span>参考区</span>{reference.ref.kind === "note" ? <button type="button" aria-pressed={Boolean(reference.editing)} disabled={sameAsMain} onClick={() => host.setReference({ ...reference, editing: !reference.editing })}>{reference.editing ? "阅读" : "编辑笔记"}</button> : null}</div><WorkbenchEntityView key={workbenchRefKey(reference.ref)} entityRef={reference.ref} active={referenceOpen && referenceVisible} editing={Boolean(reference.editing)} sameAsMain={sameAsMain} position={reference.position} onPosition={(position) => host.setReference((current) => current && workbenchRefKey(current.ref) === workbenchRefKey(reference.ref) ? { ...current, position: { ...current.position, ...position } } : current)}/></> : null}
       </aside>
     </div>

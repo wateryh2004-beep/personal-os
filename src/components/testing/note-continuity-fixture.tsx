@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useFixtureTextScale } from "./use-fixture-text-scale";
 import { AppShell } from "@/components/layout/app-shell";
 import { WorkspaceIdentityBoundary } from "@/components/layout/workspace-identity-boundary";
 import { NotesWorkspaceShell } from "@/components/notes/notes-workspace-shell";
@@ -20,17 +21,7 @@ function seed(data: NoteDocumentData, delay = 0): Promise<WorkspaceBootstrap<Not
 }
 /** Existing gated synthetic route only. Test runners block all writes; failed-save recovery is intentional. */
 export function NoteContinuityFixture({ textScale }: { textScale?: "200" }) {
-  useEffect(() => {
-    if (textScale !== "200") return;
-    const style = document.documentElement.style;
-    const previous = style.getPropertyValue("font-size");
-    const priority = style.getPropertyPriority("font-size");
-    style.setProperty("font-size", "200%", "important");
-    return () => {
-      if (previous) style.setProperty("font-size", previous, priority);
-      else style.removeProperty("font-size");
-    };
-  }, [textScale]);
+  useFixtureTextScale(textScale);
   const traceRoot = useRef<HTMLDivElement>(null);
   const traces = useRef<unknown[]>([]);
   const [current, setCurrent] = useState(() => ({ index: 0, bootstrap: seed(continuityDocuments[0]) }));

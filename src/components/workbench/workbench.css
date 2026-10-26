@@ -74,8 +74,10 @@
 .workbench-notice button {min-width:32px;min-height:32px}
 .workbench-selection-bar {position:sticky;bottom:calc(var(--tab-bar-height,0px) + 8px);z-index:19;margin:12px auto;display:flex;align-items:center;justify-content:center;gap:12px;max-width:max-content;padding:8px 14px;background:var(--surface-elevated);border:1px solid var(--control-border);border-radius:14px;box-shadow:var(--shadow-popover);font-size:13px;animation:workbench-content-enter 160ms ease-out}
 .workbench-reference-pane[data-state=closed] {animation:workbench-reference-exit 220ms cubic-bezier(.4,0,.6,1) both;pointer-events:none}
-@keyframes workbench-reference-enter {from{opacity:0;flex-basis:var(--reference-enter-width,0px);min-width:0;transform:translateX(18px)}to{opacity:1;flex-basis:var(--reference-width);min-width:280px;transform:translateX(0)}}
+@keyframes workbench-reference-enter {from{opacity:0;flex-basis:var(--reference-enter-width,0px);min-width:0}to{opacity:1;flex-basis:var(--reference-width);min-width:280px}}
 @keyframes workbench-reference-exit {from{opacity:1;flex-basis:var(--reference-exit-width,var(--reference-width));min-width:0}to{opacity:0;flex-basis:0;min-width:0;width:0}}
+@keyframes workbench-mobile-reference-enter {from{opacity:var(--reference-enter-opacity,0);transform:translateY(var(--reference-enter-y,12px))}to{opacity:1;transform:translateY(0)}}
+@keyframes workbench-mobile-reference-exit {from{opacity:var(--reference-exit-opacity,1);transform:translateY(0)}to{opacity:0;transform:translateY(12px)}}
 @keyframes workbench-content-enter {from{opacity:0}to{opacity:1}}
 @media(max-width:767px) {
  .workbench-toolbar-trigger {min-width:44px;min-height:44px;padding:8px}.workbench-toolbar-trigger span{display:none}
@@ -86,7 +88,8 @@
  .workbench-mobile-switch {display:flex;gap:6px}.workbench-mobile-switch [aria-pressed=true]{background:var(--accent-soft);font-weight:600;outline:1px solid var(--accent)}
  .workbench-width-control {display:none}.workbench-layout-controls{gap:6px;padding:8px}
  .workbench-layout-controls>button {font-size:12px;padding:6px 8px}
- .workbench-layout {display:block}.workbench-reference-pane {width:100%;min-width:0;position:relative;top:0;border:0;height:calc(var(--app-viewport-height) - var(--toolbar-height) - var(--tab-bar-height) - 70px)}
+ .workbench-layout {display:block}.workbench-reference-pane {width:100%;min-width:0;position:relative;top:0;border:0;height:calc(var(--app-viewport-height) - var(--toolbar-height) - var(--tab-bar-height) - 70px);animation-name:workbench-mobile-reference-enter}
+ .workbench-reference-pane[data-state=closed] {animation-name:workbench-mobile-reference-exit}
  .workbench-document {padding:16px}.workbench-document-header h2 {font-size:22px}
  [data-slot=dialog-content].workbench-preview-dialog,[data-slot=dialog-content].workbench-comparison-dialog,[data-slot=dialog-content].workbench-scenes-dialog {width:100%;max-width:none;max-height:90dvh;padding:20px 16px;border-radius:22px 22px 0 0}
  .workbench-preview-body {height:65dvh}.workbench-comparison-table{min-width:760px}

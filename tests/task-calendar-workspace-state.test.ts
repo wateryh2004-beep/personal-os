@@ -110,6 +110,22 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => { root.unmount(); }); container.remove(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("Tasks mounted workspace state", () => {
+  it("keeps row menu and inline metadata actions independent from opening the inspector",async()=>{
+    await renderTasks([task("a")]);await flushTimers();
+    await act(async()=>textButton("全部").click());
+    const row=container.querySelector<HTMLElement>('[aria-label="打开任务：Task a"]')!;
+    const menu=row.querySelector<HTMLButtonElement>('[aria-label="Task a 更多操作"]')!;
+    await act(async()=>menu.dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowDown",bubbles:true,cancelable:true})));
+    const tomorrow=[...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item=>item.textContent?.includes("设为明天"))!;
+    expect(tomorrow).toBeDefined();await act(async()=>tomorrow.click());
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({taskId:"a",dueAt:expect.any(String)}));
+    expect(container.querySelector('aside[aria-label="任务详情"]')).toBeNull();
+    const importance=row.querySelector<HTMLSelectElement>('[aria-label="Task a的重要性"]')!;
+    await act(async()=>{importance.value="low";importance.dispatchEvent(new Event("change",{bubbles:true}));});
+    expect(mocks.update).toHaveBeenLastCalledWith(expect.objectContaining({taskId:"a",importance:"low"}));
+    expect(container.querySelector('aside[aria-label="任务详情"]')).toBeNull();
+  });
+
   it("restores a finite scene view without URL mutation or replay over later choices",async()=>{
     await renderTasks([task("a")]);await flushTimers();
     const a=captureWorkbenchViewState("/tasks");expect(a).toMatchObject({kind:"tasks",view:"today",listId:null});
