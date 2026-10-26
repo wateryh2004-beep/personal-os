@@ -13,6 +13,7 @@ import { resolveCalendarEventVisual } from "@/features/calendar/categories/visua
 import type { CalendarCategory } from "@/features/calendar/categories/types";
 import styles from "./calendar-native.module.css";
 import { calendarDragPreview, calendarDurationLabel } from "./calendar-drag-preview";
+import { observeCalendarGeometry } from "./observe-calendar-geometry";
 
 type CalendarView = "timeGridWeek" | "timeGridDay" | "dayGridMonth";
 type Range = { start: Date; end: Date };
@@ -40,10 +41,16 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
   onTaskDrop?: (task:{id:string;title:string;modified:string|null}, startsAt:string)=>void;
 }) {
   const calendarRef = useRef<FullCalendar>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, readReducedMotion, () => false);
   const visualInitialDate = useMemo(() => instantToFullCalendarDate(initialDate.toISOString(), timezone), [initialDate, timezone]);
 
   const nowFn = useCallback(() => wallNowAsUtcDate(timezone), [timezone]);
+
+  useEffect(() => {
+    const root = canvasRef.current;
+    return root ? observeCalendarGeometry(root, () => calendarRef.current?.getApi().updateSize()) : undefined;
+  }, [initialView]);
 
   useEffect(() => {
     const api = calendarRef.current?.getApi();
@@ -104,7 +111,7 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     }
     if (info.view.type === "dayGridMonth") {
       return (
-        <div className="flex min-w-0 items-center gap-1.5 px-1 py-0.5 text-[12px] leading-4">
+        <div className="flex min-w-0 items-center gap-1.5 px-1 py-0.5 text-[12px] leading-[1.4]">
           <span className="size-[5px] shrink-0 rounded-full" style={{ backgroundColor: visual.dot }} />
           <span className="truncate font-medium text-[var(--text-primary)]">{info.event.title}</span>
         </div>
@@ -128,14 +135,14 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     return (
       <div className="h-full overflow-hidden px-1.5 py-1 text-[12px] leading-[1.25]">
         <p className="line-clamp-2 font-medium tracking-[-0.01em]">{info.event.title}</p>
-        <p className="mt-1 text-[12px] leading-4">{info.timeText}</p>
-        {durationMinutes >= 90 && location ? <p className="mt-1 line-clamp-1 text-[12px] leading-4">{location}</p> : null}
+        <p className="mt-1 text-[12px] leading-[1.4]">{info.timeText}</p>
+        {durationMinutes >= 90 && location ? <p className="mt-1 line-clamp-1 text-[12px] leading-[1.4]">{location}</p> : null}
       </div>
     );
   }, [categories, events, timezone]);
 
   return (
-    <div className={styles.canvas} aria-busy={loadingRange}>
+    <div ref={canvasRef} className={styles.canvas} aria-busy={loadingRange}>
       <FullCalendar
         ref={calendarRef}
         plugins={calendarPlugins}

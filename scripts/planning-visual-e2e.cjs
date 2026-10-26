@@ -41,19 +41,74 @@ async function noOverflow(page, label) {
   assert.ok(geometry.root <= geometry.width + 1, `${label}: ${JSON.stringify(geometry)}`);
   diagnostics.push({ label, ...geometry });
 }
-async function doubleComputedText(locator) {
-  // Snapshot every normal computed size before assigning anything, so child
-  // inheritance cannot accidentally compound the enlargement. This includes
-  // fixed-pixel calendar text, unlike a root rem-only scale.
-  return locator.evaluate(root => {
-    const nodes = [root, ...root.querySelectorAll("*")].filter(node => node instanceof HTMLElement);
-    const before = nodes.map(node => { const style = getComputedStyle(node); return { node, fontSize: parseFloat(style.fontSize), lineHeight: style.lineHeight }; });
-    for (const { node, fontSize, lineHeight } of before) {
-      node.style.fontSize = `${fontSize * 2}px`;
-      if (lineHeight.endsWith("px")) node.style.lineHeight = `${parseFloat(lineHeight) * 2}px`;
+async function textBaseline(locator) {
+  return locator.evaluate(root => [root, ...root.querySelectorAll("*")].filter(node => node instanceof HTMLElement).map(node => ({
+    tag: node.tagName, className: node.className, before: parseFloat(getComputedStyle(node).fontSize),
+    directText: [...node.childNodes].filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join("").trim().slice(0, 200),
+  })));
+}
+async function doubleComputedText(locator, baseline) {
+  // A permanent stylesheet keeps real em inheritance and survives FullCalendar
+  // remeasurement / a new dialog mount. Per-node fixed-px snapshots changed
+  // table structure and were lost when the library reconciled those nodes.
+  // This is one normal -> 200% transformation, never 200% -> 400% on re-entry.
+  return locator.evaluate((root, normal) => {
+    if (!window.__planningStableText200) {
+      let declarations = 0;
+      const resolveSizeVariables = (size, selector) => {
+        let context = document.documentElement;
+        try { context = document.querySelector(selector) ?? context; } catch { /* Pseudo-element / future-state rules use root typography variables. */ }
+        const computed = getComputedStyle(context);
+        const rootComputed = getComputedStyle(document.documentElement);
+        let resolved = size;
+        for (let depth = 0; depth < 8 && resolved.includes("var("); depth++) {
+          const next = resolved.replace(/var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*))?\)/g, (original, name, fallback) => computed.getPropertyValue(name).trim() || rootComputed.getPropertyValue(name).trim() || fallback?.trim() || original);
+          if (next === resolved) break;
+          resolved = next;
+        }
+        return resolved;
+      };
+      const rules = entries => [...entries].map(rule => {
+        if (rule instanceof CSSStyleRule) {
+          const size = rule.style.getPropertyValue("font-size");
+          // FullCalendar stores .85em in --fc-small-font-size. Inspect the
+          // resolved unit so a doubled parent cannot double it a second time.
+          const resolvedSize = size ? resolveSizeVariables(size, rule.selectorText) : "";
+          const relative = /(?<!r)em\b|%|^(inherit|initial|unset|revert|revert-layer)$/i.test(resolvedSize);
+          const rootRule = rule.selectorText.split(",").some(selector => ["html", ":root", ":host"].includes(selector.trim()));
+          const priority = rule.style.getPropertyPriority("font-size");
+          const declaration = size && !relative && !rootRule ? `font-size:calc((${size}) * 2)${priority ? " !important" : ""};` : "";
+          if (declaration) declarations++;
+          const children = rule.cssRules ? rules(rule.cssRules) : "";
+          return declaration || children ? `${rule.selectorText}{${declaration}${children}}` : "";
+        }
+        if (rule.cssRules) { const children = rules(rule.cssRules); return children ? `${rule.cssText.slice(0, rule.cssText.indexOf("{"))}{${children}}` : ""; }
+        return "";
+      }).join("\n");
+      const styles = [...document.styleSheets].map(sheet => rules(sheet.cssRules)).join("\n");
+      if (declarations < 10) throw new Error("Planning typography did not inspect the application's actual stylesheets");
+      const bodySize = parseFloat(getComputedStyle(document.body).fontSize);
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(`body{font-size:${bodySize * 2}px;}\n${styles}`);
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+      window.__planningStableText200 = { sheet, declarations };
     }
-    return before.map(({ node, fontSize }) => ({ tag: node.tagName, before: fontSize, after: parseFloat(getComputedStyle(node).fontSize) }));
-  });
+    const nodes = [root, ...root.querySelectorAll("*")].filter(node => node instanceof HTMLElement);
+    return {
+      declarations: window.__planningStableText200.declarations,
+      normalCount: normal.length, currentCount: nodes.length,
+      rows: normal.map((before, index) => {
+        const node = nodes[index];
+        return { ...before, expected: before.before * 2, after: node ? parseFloat(getComputedStyle(node).fontSize) : null, connected: Boolean(node?.isConnected), currentTag: node?.tagName, currentClass: node?.className };
+      }),
+    };
+  }, baseline);
+}
+async function assertDoubledText(result, label, minimum) {
+  const failed = result.rows.filter(node => !node.connected || node.tag !== node.currentTag || node.className !== node.currentClass || !Number.isFinite(node.after) || Math.abs(node.after - node.expected) >= .1);
+  diagnostics.push({ label, ...result, failed });
+  await writeFile(`${output}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
+  assert.ok(result.normalCount > minimum && result.currentCount === result.normalCount && failed.length === 0, `${label}: every mounted node's actual text must double ${JSON.stringify({ normalCount: result.normalCount, currentCount: result.currentCount, failed })}`);
 }
 async function monitorTransition(page, action) {
   await page.evaluate(() => { window.__planningWidths = []; let active = true; const record = () => { if (!active) return; window.__planningWidths.push([innerWidth, document.documentElement.scrollWidth]); requestAnimationFrame(record); }; requestAnimationFrame(record); window.__stopPlanningWidths = () => { active = false; }; });
@@ -103,24 +158,40 @@ async function monitorTransition(page, action) {
       const dialog = page.getByRole("dialog", { name: "拖放预览", exact: true });
       await dialog.waitFor();
       const normalDialogSizes = await dialog.evaluate(node => ({ title: parseFloat(getComputedStyle(node.querySelector('[data-slot="dialog-title"]')).fontSize), cancel: parseFloat(getComputedStyle([...node.querySelectorAll("button")].find(button => button.textContent === "取消")).fontSize) }));
+      const normalDialogText = await textBaseline(dialog);
       assert.ok((await dialog.innerText()).includes(task.title));
       assert.equal(await page.getByTestId("planning-preview-count").textContent(), "1");
       await dialog.getByRole("button", { name: "取消", exact: true }).click(); await dialog.waitFor({ state: "hidden" });
       await noOverflow(page, `calendar-${width}`);
       await page.screenshot({ path: `${output}/calendar-${width}.png`, fullPage: true });
       const normalCalendarSizes = await page.evaluate(() => ({ label: parseFloat(getComputedStyle(document.querySelector(".fc-timegrid-slot-label-cushion")).fontSize), event: parseFloat(getComputedStyle(document.querySelector(".fc-event-main p")).fontSize), schedule: parseFloat(getComputedStyle([...document.querySelectorAll("button")].find(button => button.textContent === "安排")).fontSize) }));
-      const scaledNodes = await doubleComputedText(page.getByTestId("planning-visual-fixture"));
-      assert.ok(scaledNodes.length > 100 && scaledNodes.every(node => Math.abs(node.after - node.before * 2) < .1), "all mounted calendar text, including fixed px, actually doubles");
+      const normalCalendarText = await textBaseline(page.getByTestId("planning-visual-fixture"));
+      const scaledNodes = await doubleComputedText(page.getByTestId("planning-visual-fixture"), normalCalendarText);
+      await assertDoubledText(scaledNodes, `calendar-computed-200-all-nodes-${width}`, 100);
       const enlargedCalendarSizes = await page.evaluate(() => ({ label: parseFloat(getComputedStyle(document.querySelector(".fc-timegrid-slot-label-cushion")).fontSize), event: parseFloat(getComputedStyle(document.querySelector(".fc-event-main p")).fontSize), schedule: parseFloat(getComputedStyle([...document.querySelectorAll("button")].find(button => button.textContent === "安排")).fontSize) }));
       for (const key of Object.keys(normalCalendarSizes)) assert.equal(enlargedCalendarSizes[key], normalCalendarSizes[key] * 2, `calendar ${key} actually doubles at ${width}px`);
+      await page.waitForFunction(() => {
+        const label = document.querySelector(".fc-timegrid-slot-label-cushion");
+        const cell = label?.closest("td");
+        if (!label || !cell) return false;
+        const text = label.getBoundingClientRect(), column = cell.getBoundingClientRect();
+        return text.left >= column.left - 1 && text.right <= column.right + 1;
+      });
+      const enlargedGeometry = await page.evaluate(() => {
+        const label = document.querySelector(".fc-timegrid-slot-label-cushion"), cell = label.closest("td");
+        return { axisWidth: cell.getBoundingClientRect().width, labelWidth: label.getBoundingClientRect().width, events: [...document.querySelectorAll(".fc-event-main")].map(main => ({ height: main.getBoundingClientRect().height, paragraphs: [...main.querySelectorAll("p")].map(node => ({ top: node.getBoundingClientRect().top - main.getBoundingClientRect().top, bottom: node.getBoundingClientRect().bottom - main.getBoundingClientRect().top, height: node.getBoundingClientRect().height, lineHeight: parseFloat(getComputedStyle(node).lineHeight) })) })) };
+      });
+      diagnostics.push({ label: `calendar-computed-200-readable-geometry-${width}`, ...enlargedGeometry });
+      assert.ok(enlargedGeometry.axisWidth >= enlargedGeometry.labelWidth - 1, "the enlarged time label fits its remeasured axis");
+      assert.ok(enlargedGeometry.events.length === 2 && enlargedGeometry.events.every(event => event.paragraphs.length === 2 && event.paragraphs.every(text => text.top >= -1 && text.bottom <= event.height + 1 && text.height >= text.lineHeight - 1)), "actual enlarged event titles and time ranges remain readable inside their remeasured events");
       await noOverflow(page, `calendar-computed-200-${width}`);
       const schedule = page.getByRole("button", { name: "安排", exact: true });
       await schedule.scrollIntoViewIfNeeded();
       const scheduleBox = await schedule.boundingBox();
       assert.ok(scheduleBox.width >= 44 && scheduleBox.height >= 44, "200% schedule retains a real touch target");
       await schedule.click(); await dialog.waitFor();
-      const scaledDialog = await doubleComputedText(dialog);
-      assert.ok(scaledDialog.every(node => Math.abs(node.after - node.before * 2) < .1), "newly mounted dialog text doubles independently, once");
+      const scaledDialog = await doubleComputedText(dialog, normalDialogText);
+      await assertDoubledText(scaledDialog, `calendar-dynamic-dialog-computed-200-all-nodes-${width}`, 0);
       const enlargedDialogSizes = await dialog.evaluate(node => ({ title: parseFloat(getComputedStyle(node.querySelector('[data-slot="dialog-title"]')).fontSize), cancel: parseFloat(getComputedStyle([...node.querySelectorAll("button")].find(button => button.textContent === "取消")).fontSize) }));
       for (const key of Object.keys(normalDialogSizes)) assert.equal(enlargedDialogSizes[key], normalDialogSizes[key] * 2, `dynamic dialog ${key} actually doubles at ${width}px`);
       await noOverflow(page, `calendar-dialog-computed-200-${width}`);

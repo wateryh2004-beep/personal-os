@@ -1,19 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type Ref } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
 import { ListTree, Search, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { filterOutlineItems, type MarkdownOutlineItem } from "@/features/notes/editor/markdown-outline";
 
-/** Search and focus live only as long as the popover content, including its exit. */
-function OutlineContents({ items, listRef, onSelect, onClose, onListChange }: {
+/** Presence may retain this DOM during exit; the owner supplies each opening's query. */
+function OutlineContents({ items, listRef, onSelect, onClose, onListChange, query, onQueryChange }: {
   items: MarkdownOutlineItem[];
   listRef: Ref<HTMLUListElement>;
   onSelect: (item: MarkdownOutlineItem) => void;
   onClose: () => void;
   onListChange: () => void;
+  query: string;
+  onQueryChange: (value: string) => void;
 }) {
-  const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const matches = useMemo(() => filterOutlineItems(items, query), [items, query]);
@@ -27,7 +28,7 @@ function OutlineContents({ items, listRef, onSelect, onClose, onListChange }: {
     <label className="relative block shrink-0">
       <span className="sr-only">筛选目录</span>
       <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-secondary)]" />
-      <input ref={inputRef} aria-label="筛选目录" value={query} onChange={(event) => setQuery(event.target.value)} autoComplete="off" placeholder="查找章节…" onKeyDown={(event) => {
+      <input ref={inputRef} aria-label="筛选目录" value={query} onChange={(event) => onQueryChange(event.target.value)} autoComplete="off" placeholder="查找章节…" onKeyDown={(event) => {
         if (event.nativeEvent.isComposing || event.keyCode === 229 || event.altKey || event.ctrlKey || event.metaKey) return;
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
           event.preventDefault();
@@ -37,7 +38,7 @@ function OutlineContents({ items, listRef, onSelect, onClose, onListChange }: {
           event.preventDefault(); onSelect(matches[0]);
         }
       }} className="ui-field min-h-11 w-full rounded-[9px] border border-[var(--border-subtle)] bg-[var(--surface-control)] pl-9 pr-11 text-[16px] text-[var(--text-primary)] md:min-h-9 md:text-[13px]" />
-      {query ? <button type="button" aria-label="清空目录筛选" onClick={() => { setQuery(""); inputRef.current?.focus(); }} className="pressable absolute right-0 top-1/2 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] md:right-1 md:size-8"><X aria-hidden="true" className="size-3.5" /></button> : null}
+      {query ? <button type="button" aria-label="清空目录筛选" onClick={() => { onQueryChange(""); inputRef.current?.focus(); }} className="pressable absolute right-0 top-1/2 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] md:right-1 md:size-8"><X aria-hidden="true" className="size-3.5" /></button> : null}
     </label>
     <p role="status" className="shrink-0 px-2 text-[12px] text-[var(--text-secondary)]">{query.trim() ? `${matches.length} / ${items.length} 个章节` : `${items.length} 个章节`}</p>
     <div ref={resultsRef} className="workspace-scroll min-h-0 overflow-y-auto overscroll-contain px-0.5 pb-1" onKeyDown={(event) => {
@@ -71,15 +72,30 @@ export function NoteOutline({ open, onOpenChange, disabled, items, listRef, onSe
   portalContainer?: HTMLElement | null;
 }) {
   const jumped = useRef(false);
-  return <Popover open={open} onOpenChange={(next) => { if (next) jumped.current = false; onOpenChange(next); }}>
+  // An externally controlled reopen can reverse Presence without invoking
+  // onOpenChange. Clear the previous opening's focus exception before paint.
+  useLayoutEffect(() => { if (open) jumped.current = false; }, [open]);
+  const [filter, setFilter] = useState({ open, query: "" });
+  // A semantic close/open resets filtering even when Radix retains the same
+  // content node for a reversible exit animation. Controlled external changes
+  // reconcile before rendering children, rather than waiting for unmount/effect.
+  if (filter.open !== open) setFilter({ open, query: open ? "" : filter.query });
+  const changeOpen = (next: boolean) => {
+    // Keep the outgoing filtered view stable while it exits; a new semantic
+    // opening resets it before that same retained node becomes interactive.
+    setFilter({ open: next, query: next ? "" : filter.query });
+    if (next) jumped.current = false;
+    onOpenChange(next);
+  };
+  return <Popover open={open} onOpenChange={changeOpen}>
     <PopoverTrigger asChild><button type="button" disabled={disabled} aria-label="目录" className={`pressable inline-flex size-[30px] shrink-0 items-center justify-center rounded-[7px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] disabled:opacity-35 ${open ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}><ListTree aria-hidden="true" className="size-4" /></button></PopoverTrigger>
     <PopoverContent align="end" portalContainer={portalContainer} aria-label="笔记目录" className="note-outline-surface w-[min(320px,calc(100vw-2rem))] max-h-[min(440px,var(--radix-popover-content-available-height))]" onOpenAutoFocus={(event) => {
       if (event.target instanceof HTMLElement) { event.preventDefault(); event.target.querySelector("input")?.focus(); }
     }} onCloseAutoFocus={(event) => {
       if (jumped.current) { event.preventDefault(); jumped.current = false; }
     }}>
-      <OutlineContents items={items} listRef={listRef} onListChange={onListChange} onClose={() => onOpenChange(false)} onSelect={(item) => {
-        if (onSelect(item)) { jumped.current = true; onOpenChange(false); }
+      <OutlineContents items={items} listRef={listRef} query={filter.open === open ? filter.query : ""} onQueryChange={(query) => setFilter({ open, query })} onListChange={onListChange} onClose={() => changeOpen(false)} onSelect={(item) => {
+        if (onSelect(item)) { jumped.current = true; changeOpen(false); }
       }} />
     </PopoverContent>
   </Popover>;

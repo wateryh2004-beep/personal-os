@@ -40,6 +40,7 @@
           return route.continue();
         });
         const page = await context.newPage(); activePage = page;
+        let textBootstrapInstalled = false;
         page.on("pageerror", error => row.errors.push(error.message));
         // Install a persistent typography stylesheet before the first list
         // checkpoint. New route/read/PDF nodes receive 200% from CSS during
@@ -48,8 +49,10 @@
         const scale = "";
         const scaleText = async label => {
           if (mode !== "text200") return;
+          if (label === "files-list" || label === "standalone-editor") assert.equal(await page.evaluate(() => window.__editorialText200?.installedAtDocumentEntry), true, `${label}: the new document receives the preference before application layout`);
           const result = await page.evaluate(() => {
-            if (!document.querySelector("#editorial-stable-text-200")) {
+            let bootstrap;
+            if (!window.__editorialText200) {
               let declarations = 0;
               const rules = entries => [...entries].map(rule => {
                 if (rule instanceof CSSStyleRule) {
@@ -68,6 +71,9 @@
                   const children = rules(rule.cssRules);
                   return children ? `${rule.cssText.slice(0, rule.cssText.indexOf("{"))}{${children}}` : "";
                 }
+                // Preserve the app's original layer ordering when the same
+                // font-only CSS is preloaded before a new document's links.
+                if (/^@layer[^{}]+;$/i.test(rule.cssText.trim())) return rule.cssText;
                 return "";
               }).join("\n");
               // All application styles are same-origin. A blocked stylesheet is
@@ -75,10 +81,11 @@
               const styles = [...document.styleSheets].map(sheet => rules(sheet.cssRules)).join("\n");
               if (declarations < 10) throw new Error("The stable typography fixture did not inspect the actual application stylesheet");
               const bodySize = parseFloat(getComputedStyle(document.body).fontSize);
-              const style = document.createElement("style"); style.id = "editorial-stable-text-200";
-              style.dataset.declarations = String(declarations);
-              style.textContent = `body{font-size:${bodySize * 2}px;}\n${styles}`;
-              document.head.append(style);
+              const css = `body{font-size:${bodySize * 2}px;}\n${styles}`;
+              const sheet = new CSSStyleSheet(); sheet.replaceSync(css);
+              document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+              window.__editorialText200 = { declarations };
+              bootstrap = { css, declarations };
             }
             const title = innerWidth < 768 ? 28 : Math.max(28, Math.min(36, innerWidth * .025));
             const expected = [
@@ -91,10 +98,21 @@
               const node = document.querySelector(selector);
               return node ? [{ selector, normalExpected: normal, after: parseFloat(getComputedStyle(node).fontSize) }] : [];
             });
-            return { declarations: Number(document.querySelector("#editorial-stable-text-200").dataset.declarations), measurements };
+            return { declarations: window.__editorialText200.declarations, installedAtDocumentEntry: Boolean(window.__editorialText200.installedAtDocumentEntry), measurements, bootstrap };
           });
+          if (!textBootstrapInstalled && result.bootstrap) {
+            // page.goto creates a new document. Install the SAME pure CSS at
+            // document entry, before Notes/Files/CodeMirror's first layout;
+            // do not re-enlarge an already painted standalone editor later.
+            await context.addInitScript(({ css, declarations }) => {
+              const sheet = new CSSStyleSheet(); sheet.replaceSync(css);
+              document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+              window.__editorialText200 = { declarations, installedAtDocumentEntry: true };
+            }, result.bootstrap);
+            textBootstrapInstalled = true;
+          }
+          row.textSizes.push({ label, declarations: result.declarations, measurements: result.measurements, preferenceInstalledAtDocumentEntry: result.installedAtDocumentEntry, bootstrapRegisteredForNextDocument: textBootstrapInstalled });
           for (const measurement of result.measurements) assert.ok(Math.abs(measurement.after - measurement.normalExpected * 2) < .1, `${label}/${measurement.selector} must have stable 200% actual text: ${JSON.stringify(measurement)}`);
-          row.textSizes.push({ label, ...result });
         };
         const noOverflow = async label => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${label} has no root horizontal overflow`);
         const aligned = async (label, reading = false, scope = null) => {
