@@ -147,3 +147,50 @@
 .today-continue a.ui-link { color:var(--today-action); }
 @media(prefers-color-scheme:dark){.today-shell,.today-calm,.today-calm-sheet { --control-border:#879787; }}
 .today-shell,.today-calm,.today-calm-sheet { --surface-control-hover:var(--surface-hover); }
+/* A date-led desk: one main decision, a quieter agenda, then context.
+   Container queries keep this composition honest inside a narrow workbench pane. */
+.today-desk-container {container-type:inline-size;min-width:0}
+.today-calm.now-workspace {max-width:1120px;display:grid;grid-template-columns:minmax(0,1fr);column-gap:clamp(28px,4vw,56px);align-items:start}
+.today-desk-main,.today-desk-agenda,.today-desk-context {min-width:0}
+.today-header {display:flex;align-items:center;gap:20px;min-width:0}
+.today-calendar-mark {display:flex;align-items:center;gap:12px;color:var(--today-action);flex-shrink:0}
+.today-calendar-day {font-family:var(--font-serif);font-size:clamp(3.25rem,5vw,4.5rem);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.075em}
+.today-calendar-caption {display:grid;gap:4px;padding-top:4px;font-size:.875rem;line-height:1.45}
+.today-calendar-caption>span {font-size:.75rem;color:var(--today-muted)}
+.today-header-copy {border-left:1px solid var(--today-line);padding-left:20px;min-width:0}
+.today-header-copy .today-date {font-size:.75rem;letter-spacing:0}
+.today-header-copy .today-title {margin-top:4px;font-size:2rem}
+.today-desk-main .today-heading-row {align-items:center;row-gap:12px}
+.today-desk-main .today-focus-lead,.today-desk-main .today-lead {padding:28px;margin-top:28px;border-radius:20px;box-shadow:0 8px 24px color-mix(in srgb,var(--today-ink) 3%,transparent);border-top:3px solid var(--today-action)}
+.today-desk-main .today-focus-title,.today-desk-main .today-lead-title {font-size:clamp(1.625rem,2.5vw,2rem);line-height:1.5;max-width:22ch}
+.today-desk-agenda .today-section-heading {padding-bottom:12px;border-bottom:1px solid var(--today-line)}
+.today-desk-agenda .today-ledger-row+.today-ledger-row {border-top:1px solid color-mix(in srgb,var(--today-line) 55%,transparent)}
+.today-desk-agenda .today-ledger-time {color:var(--today-action)}
+.today-continue {align-items:stretch;gap:8px 16px;margin-top:24px;padding:16px 0;border-top:1px solid var(--today-line);border-bottom:0}
+.today-continue>span {width:100%;line-height:1.6}
+.today-continue a {border-radius:10px;padding:8px 12px;background:var(--surface-control);flex:1 1 160px;text-decoration:none}
+@media(min-width:1100px){
+ .today-calm.now-workspace {padding:40px 48px 48px!important}
+}
+@container(min-width:1000px){
+ .today-calm.now-workspace {grid-template-columns:minmax(0,1.18fr) minmax(0,1fr)}
+ .today-desk-main {grid-column:1;grid-row:1 / span 2}
+ .today-desk-agenda {grid-column:2;grid-row:1}
+ .today-desk-context {grid-column:2;grid-row:2}
+ /* Children participate in the root grid without measuring the viewport. */
+ .today-desk-agenda>.today-section {margin-top:0}
+ .today-desk-context>.today-section {margin-top:24px}
+}
+@media(max-width:767px){
+ .today-header {gap:16px;flex-wrap:wrap}
+ .today-header-copy {padding-left:16px}
+ .today-header-copy .today-title {font-size:1.75rem}
+ .today-calendar-day {font-size:3.5rem}
+ .today-desk-main .today-focus-lead,.today-desk-main .today-lead {padding:20px;margin-top:24px}
+ .today-desk-main .today-focus-title,.today-desk-main .today-lead-title {font-size:1.625rem}
+}
+@media(forced-colors:active){
+ .today-calendar-mark {color:CanvasText}
+ .today-desk-main .today-focus-lead,.today-desk-main .today-lead {border-color:CanvasText;box-shadow:none}
+ .today-continue a {border:1px solid ButtonText}
+}

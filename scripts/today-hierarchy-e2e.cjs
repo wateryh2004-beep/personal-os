@@ -68,6 +68,13 @@ async function noOverflow(page, label) {
       const lead = await page.locator(".today-focus-title").boundingBox();
       const obligation = await page.getByRole("link", { name: /^核对需要补充的材料/ }).boundingBox();
       assert.ok(lead.y < 310, "lead must appear near the top");
+      if (width === 1440) {
+        const main = await page.locator(".today-desk-main").boundingBox();
+        const agenda = await page.locator(".today-desk-agenda").boundingBox();
+        assert.ok(main.x + main.width <= agenda.x && agenda.width >= 280, "wide Today is a main focus and a readable agenda column");
+      } else if (width < 768) {
+        assert.ok(lead.y + lead.height <= obligation.y, "phone keeps the current focus before the agenda");
+      }
       if (width < 768) assert.ok(obligation.y < 720, "ordinary overdue obligation must not be buried");
       assert.equal(await page.getByTestId("today-calm").getAttribute("data-enter"), "false", "reduced motion has no entrance");
       assert.equal(await page.locator('[data-motion-group="lead"]').evaluate(node => getComputedStyle(node).animationName), "none");

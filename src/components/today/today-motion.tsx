@@ -12,7 +12,7 @@ export function TodayMotion({ date, children }: { date: string; children: ReactN
     enteredDates.add(date);
     if (root.current) root.current.dataset.enter = !visited && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "true" : "false";
   }, [date]);
-  return <div ref={root} className="today-calm now-workspace" data-testid="today-calm">{children}</div>;
+  return <div className="today-desk-container"><div ref={root} className="today-calm now-workspace" data-testid="today-calm">{children}</div></div>;
 }
 
 /** Native disclosure semantics with an explicitly interruptible height transition. */
@@ -32,7 +32,8 @@ export function TodayReflow({ signature, children }: { signature: string; childr
   useLayoutEffect(() => {
     const next = new Map<string, number>();
     const animations: Animation[] = [];
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const reduced = preference.matches;
     root.current?.querySelectorAll<HTMLElement>("[data-today-row]").forEach(node => {
       const key = node.dataset.todayRow!;
       const top = node.offsetTop;
@@ -43,7 +44,9 @@ export function TodayReflow({ signature, children }: { signature: string; childr
       next.set(key, top);
     });
     positions.current = next;
-    return () => animations.forEach(animation => animation.cancel());
+    const settle = () => { if (preference.matches) animations.forEach(animation => animation.cancel()); };
+    preference.addEventListener?.("change", settle);
+    return () => { preference.removeEventListener?.("change", settle); animations.forEach(animation => animation.cancel()); };
   }, [signature]);
   return <ul ref={root} className="today-ledger-list">{children}</ul>;
 }

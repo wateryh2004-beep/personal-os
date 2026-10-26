@@ -39,7 +39,7 @@ import { saveWorkspaceSession } from "@/lib/workspace-session";
 import { useNotesListing } from "@/features/notes/use-notes-listing";
 import { NotesChildFolders, NotesFolderBreadcrumbs } from "@/components/notes/notes-folder-navigation";
 import { VaultHideButton, VaultHideMenuItem } from "@/components/vault/vault-provider";
-import { NoteTitleMotion, NotesSurfaceMotion } from "./notes-motion";
+import { NoteTitleMotion, NotePaperMotion, NotesSurfaceMotion } from "./notes-motion";
 
 type Folder = { id: string; name: string; parent_id: string | null };
 type WorkspaceState = "ready" | "base" | "unavailable";
@@ -103,7 +103,8 @@ function NoteRow({
   pending: boolean;
 }) {
   return (
-    <article className="notes-list-row group relative -mx-2 rounded-[var(--radius-md)] px-2 transition-[background-color] ui-transition after:absolute after:bottom-0 after:left-2 after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden hover:bg-[var(--surface-hover)]">
+    <article data-note-paper={note.id} className="notes-list-row group relative -mx-2 rounded-[var(--radius-md)] px-2 transition-[background-color] ui-transition after:absolute after:bottom-0 after:left-2 after:right-2 after:h-px after:bg-[var(--separator)] last:after:hidden hover:bg-[var(--surface-hover)]">
+      <NotePaperMotion noteId={note.id} />
       <div className="notes-list-row-content relative min-h-16 py-3 pr-12 md:pr-10">
         <div className="flex min-w-0 items-center gap-2">
           {renaming ? (

@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PanelPresence } from "@/components/shared/panel-presence";
 import { NavigationRail } from "./navigation-rail";
 import { useDialogReturnFocus } from "@/components/shared/use-dialog-return-focus";
-import { MotionBoundary } from "@/components/shared/motion-boundary";
+import { WorkspaceRouteSurface } from "./workspace-route-surface";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
@@ -500,9 +500,9 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
         <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" onClick={openContextualCreate} aria-label="快速新建"><Plus aria-hidden="true" /></Button></TooltipTrigger><TooltipContent>快速新建（⌘N）</TooltipContent></Tooltip>
       </header>
       <div className="min-w-0">
-        <WorkbenchLayout><MotionBoundary key={pathname.startsWith("/notes/") || pathname === "/notes" ? "notes" : pathname} name="workspace" share="workspace-route" enter={{ "auth-entry": "workspace-entry", default: "workspace-enter" }} exit="workspace-exit">
+        <WorkbenchLayout><WorkspaceRouteSurface pathname={pathname}>
           <main id="main-content" tabIndex={-1} className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>
-        </MotionBoundary></WorkbenchLayout>
+        </WorkspaceRouteSurface></WorkbenchLayout>
         <PanelPresence open={globalAgentOpen}><GlobalAgent open={globalAgentOpen} onClose={closeGlobalAgent} /></PanelPresence>
       </div>
     </div>

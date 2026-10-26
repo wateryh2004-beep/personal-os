@@ -199,16 +199,16 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
 
   if (!paneActive) return <p className="p-4 text-sm text-[var(--text-secondary)]">返回此区域后继续阅读 PDF。</p>;
   return <div data-pdf-document-id={documentId} data-pdf-source-version={sourceVersion ?? undefined} data-embedded={embedded || undefined} className={`file-pdf-preview min-w-0 ${embedded ? "" : "space-y-2"}`}>
-    {pdf ? <div className="flex flex-wrap items-center gap-1 text-[12px]" aria-label="PDF 阅读控制">
-      <button type="button" className={buttonClass} disabled={pageNumber <= 1} onClick={() => navigate(Math.max(1, pageNumber - 1))}>上一页</button>
-      <span className="px-1 tabular-nums" aria-live="polite">第 {pageNumber} / {pdf.numPages} 页</span>
-      <button type="button" className={buttonClass} disabled={pageNumber >= pdf.numPages} onClick={() => navigate(Math.min(pdf.numPages, pageNumber + 1))}>下一页</button>
+    <div className="file-pdf-controls flex flex-wrap items-center gap-1 text-[12px]" aria-label="PDF 阅读控制">
+      <button type="button" className={buttonClass} disabled={!pdf || pageNumber <= 1} onClick={() => navigate(Math.max(1, pageNumber - 1))}>上一页</button>
+      <span className="file-pdf-page-count px-1 tabular-nums" aria-live="polite">{pdf ? `第 ${pageNumber} / ${pdf.numPages} 页` : "正在读取页码"}</span>
+      <button type="button" className={buttonClass} disabled={!pdf || pageNumber >= pdf.numPages} onClick={() => pdf && navigate(Math.min(pdf.numPages, pageNumber + 1))}>下一页</button>
       <span className="flex-1" />
-      <button type="button" className={buttonClass} aria-label="缩小 PDF" disabled={zoom <= 0.5} onClick={() => setZoom(value => Math.max(0.5, value - 0.25))}>−</button>
-      <button type="button" className={buttonClass} onClick={() => setZoom(1)}>适合宽度</button>
+      <button type="button" className={buttonClass} aria-label="缩小 PDF" disabled={!pdf || zoom <= 0.5} onClick={() => setZoom(value => Math.max(0.5, value - 0.25))}>−</button>
+      <button type="button" className={buttonClass} disabled={!pdf} onClick={() => setZoom(1)}>适合宽度</button>
       <span className="tabular-nums">{Math.round(zoom * 100)}%</span>
-      <button type="button" className={buttonClass} aria-label="放大 PDF" disabled={zoom >= 2} onClick={() => setZoom(value => Math.min(2, value + 0.25))}>+</button>
-    </div> : null}
+      <button type="button" className={buttonClass} aria-label="放大 PDF" disabled={!pdf || zoom >= 2} onClick={() => setZoom(value => Math.min(2, value + 0.25))}>+</button>
+    </div>
     {pdf && readingMessage ? <div className="flex flex-wrap items-center gap-x-3 text-[12px] text-[var(--text-secondary)]" role="status">
       <span>{readingMessage}</span>
       {conflict ? <>
@@ -225,7 +225,7 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
     <div ref={container} className="file-pdf-viewport max-h-[60dvh] min-h-64 overflow-auto rounded-[10px] border border-[var(--separator)] bg-[var(--surface-control)] p-3">
       {error ? <p role="alert" className="text-[12px] leading-5">{error}</p> : pdf ?
         <PdfCanvasPage key={`${pageNumber}:${zoom}:${width}`} pdf={pdf} pageNumber={pageNumber} title={title} width={width * zoom} onFailure={fail} onRendered={onRendered} /> :
-        <p role="status" className="flex min-h-56 items-center justify-center text-[13px] text-[var(--text-secondary)]">正在准备 PDF 预览…</p>}
+        <div className="file-pdf-paper-placeholder"><p role="status" className="flex min-h-56 items-center justify-center text-[13px] text-[var(--text-secondary)]">正在准备 PDF 预览…</p></div>}
     </div>
     <p className="text-[12px] leading-5 text-[var(--text-secondary)]">逐页显示 PDF；页内预览上限为 25 MiB。文件通过当前登录会话读取，不会发送给第三方阅读服务。</p>
     <div className="flex flex-wrap gap-x-4 text-[12px] text-[var(--accent)]">
@@ -283,6 +283,8 @@ export function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure, onRend
         if (canvas.width * canvas.height > maxPdfCanvasPixels) throw new Error("canvas_too_large");
         canvas.style.width = `${base.width * cssScale}px`;
         canvas.style.height = `${base.height * cssScale}px`;
+        canvas.parentElement?.style.setProperty("--pdf-page-ratio", String(base.width / base.height));
+        canvas.parentElement?.style.setProperty("--pdf-page-width", `${base.width * cssScale}px`);
         if (!canvas.getContext("2d")) throw new Error("canvas_unavailable");
         render = page.render({ canvas, viewport, annotationMode: 0, background: "rgb(255,255,255)" });
         await render.promise;
@@ -298,8 +300,8 @@ export function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure, onRend
     })();
     return () => { active = false; clearTimeout(timer); release(); };
   }, [pdf, pageNumber, width, onFailure, onRendered]);
-  return <div className="w-max min-w-full">
-    {!rendered ? <p role="status" className="py-3 text-[12px] text-[var(--text-secondary)]">正在绘制第 {pageNumber} 页…</p> : null}
+  return <div className="file-pdf-page" data-rendered={rendered || undefined}>
+    {!rendered ? <p role="status" className="file-pdf-drawing-status py-3 text-[12px] text-[var(--text-secondary)]">正在绘制第 {pageNumber} 页…</p> : null}
     <canvas ref={canvasRef} role="img" aria-label={`${title}，第 ${pageNumber} 页`} data-pdf-page={pageNumber}
       className="mx-auto block bg-[var(--surface-canvas)] shadow-sm" style={{ visibility: rendered ? "visible" : "hidden" }} />
   </div>;

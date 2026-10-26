@@ -74,6 +74,10 @@ describe("private PDF canvas preview UI", () => {
     await show();
     expect(mocks.getDocument).not.toHaveBeenCalled();
     expect(host.textContent).toContain("正在准备");
+    const controls = host.querySelector('[aria-label="PDF 阅读控制"]');
+    expect(controls).not.toBeNull();
+    expect([...controls!.querySelectorAll("button")].every(button => button.disabled)).toBe(true);
+    expect(controls!.textContent).toContain("正在读取页码");
     expect(fetch).toHaveBeenCalledWith("/api/files/id/preview", expect.objectContaining({ method: "HEAD", credentials: "same-origin", cache: "no-store" }));
     await act(async () => preflight.resolve(head()));
     expect(host.querySelector("iframe")).toBeNull();
@@ -85,7 +89,13 @@ describe("private PDF canvas preview UI", () => {
       canvasMaxAreaInBytes: 16_000_000, useWorkerFetch: false, useWasm: false,
     }));
     expect(firstPage.render).toHaveBeenCalledWith(expect.objectContaining({ canvas: host.querySelector("canvas"), annotationMode: 0 }));
+    expect(host.querySelector('[aria-label="PDF 阅读控制"]')).toBe(controls);
+    const paper = host.querySelector<HTMLElement>(".file-pdf-page")!;
+    expect(paper.style.getPropertyValue("--pdf-page-ratio")).toBe("0.75");
+    expect(paper.querySelector('[role="status"]')?.textContent).toContain("正在绘制");
     await act(async () => paint.resolve());
+    expect(host.querySelector(".file-pdf-page")).toBe(paper);
+    expect(host.querySelector('[aria-label="PDF 阅读控制"]')).toBe(controls);
     expect(renderedCanvas()?.getAttribute("aria-label")).toContain("第 1 页");
     expect(renderedCanvas()?.style.visibility).toBe("visible");
     expect(host.querySelector('a[target="_blank"]')?.getAttribute("href")).toBe("/api/files/id/preview");
