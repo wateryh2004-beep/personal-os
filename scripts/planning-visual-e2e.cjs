@@ -110,6 +110,70 @@ async function assertDoubledText(result, label, minimum) {
   await writeFile(`${output}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
   assert.ok(result.normalCount > minimum && result.currentCount === result.normalCount && failed.length === 0, `${label}: every mounted node's actual text must double ${JSON.stringify({ normalCount: result.normalCount, currentCount: result.currentCount, failed })}`);
 }
+async function assertReadableDialog(dialog, label) {
+  const geometry = await dialog.evaluate(root => {
+    const rect = box => ({ x: box.x, y: box.y, width: box.width, height: box.height, right: box.right, bottom: box.bottom });
+    const textGeometry = selector => {
+      const element = root.querySelector(selector);
+      if (!element) throw new Error(`Missing dialog typography element: ${selector}`);
+      const style = getComputedStyle(element);
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const fragments = [];
+      while (walker.nextNode()) {
+        if (!walker.currentNode.textContent.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(walker.currentNode);
+        fragments.push(...[...range.getClientRects()].filter(box => box.width > 0 && box.height > 0).map(rect));
+      }
+      // Inline children can produce several fragments for one visual line.
+      // Merge only fragments on that same y; preserve distinct wrapped lines.
+      const lines = [];
+      for (const fragment of fragments.sort((a, b) => a.y - b.y || a.x - b.x)) {
+        const line = lines.find(value => Math.abs(value.y - fragment.y) < .5);
+        if (line) {
+          line.x = Math.min(line.x, fragment.x); line.right = Math.max(line.right, fragment.right);
+          line.bottom = Math.max(line.bottom, fragment.bottom);
+          line.width = line.right - line.x; line.height = line.bottom - line.y;
+        } else lines.push({ ...fragment });
+      }
+      const ancestors = [];
+      for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
+        const computed = getComputedStyle(ancestor), bounds = ancestor.getBoundingClientRect();
+        const clips = value => ["hidden", "clip", "auto", "scroll"].includes(value);
+        const viewport = ancestor === document.body || ancestor === document.documentElement;
+        const x = viewport ? 0 : bounds.x + ancestor.clientLeft;
+        const y = viewport ? 0 : bounds.y + ancestor.clientTop;
+        const clipBounds = { x, y, right: viewport ? innerWidth : x + ancestor.clientWidth, bottom: viewport ? innerHeight : y + ancestor.clientHeight };
+        const scrollsX = ["auto", "scroll"].includes(computed.overflowX), scrollsY = ["auto", "scroll"].includes(computed.overflowY);
+        const visible = lines.every(line => (!clips(computed.overflowX) || (line.x >= x && line.right <= clipBounds.right)) && (!clips(computed.overflowY) || (line.y >= y && line.bottom <= clipBounds.bottom)));
+        const reachable = lines.every(line => (!clips(computed.overflowX) || (scrollsX ? line.x + ancestor.scrollLeft >= x && line.right + ancestor.scrollLeft <= x + ancestor.scrollWidth : line.x >= x && line.right <= clipBounds.right)) && (!clips(computed.overflowY) || (scrollsY ? line.y + ancestor.scrollTop >= y && line.bottom + ancestor.scrollTop <= y + ancestor.scrollHeight : line.y >= y && line.bottom <= clipBounds.bottom)));
+        ancestors.push({
+          tag: ancestor.tagName, slot: ancestor.getAttribute("data-slot"), overflowX: computed.overflowX, overflowY: computed.overflowY,
+          clipsX: clips(computed.overflowX), clipsY: clips(computed.overflowY), bounds: rect(bounds),
+          clipBounds, visible, reachable,
+          scrollTop: ancestor.scrollTop, scrollLeft: ancestor.scrollLeft, clientWidth: ancestor.clientWidth, clientHeight: ancestor.clientHeight, scrollWidth: ancestor.scrollWidth, scrollHeight: ancestor.scrollHeight,
+        });
+      }
+      return { text: element.textContent, fontSize: parseFloat(style.fontSize), lineHeight: parseFloat(style.lineHeight), bounds: rect(element.getBoundingClientRect()), fragments, lines, ancestors };
+    };
+    return { viewport: { width: innerWidth, height: innerHeight }, title: textGeometry('[data-slot="dialog-title"]'), description: textGeometry('[data-slot="dialog-description"]') };
+  });
+  diagnostics.push({ label, ...geometry });
+  await writeFile(`${output}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
+  for (const name of ["title", "description"]) {
+    const text = geometry[name];
+    assert.ok(Number.isFinite(text.fontSize) && text.fontSize > 0 && text.lineHeight >= text.fontSize * 1.2, `${label}: ${name} has a readable computed line height`);
+    assert.ok(text.lines.length > 0 && text.lines.every((line, index) => line.height > 0 && (!index || text.lines[index - 1].bottom <= line.y)), `${label}: ${name}'s actual wrapped text lines do not intersect`);
+    // A Range includes font ascender/descender metrics, not just painted ink.
+    // Overflow-visible line-height boxes are not clipping boundaries; test the
+    // actual viewport and clipping ancestors instead of their nominal height.
+    assert.ok(text.lines.every(line => line.y >= 0 && line.bottom <= geometry.viewport.height && line.x >= 0 && line.right <= geometry.viewport.width), `${label}: ${name}'s text is reachable in the viewport`);
+    assert.ok(text.ancestors.every(ancestor => ancestor.reachable), `${label}: ${name}'s text is reachable within actual clipping or scrolling ancestors`);
+    assert.ok(text.ancestors.every(ancestor => ancestor.visible), `${label}: ${name}'s heading text is currently visible without scrolling its clipping ancestors`);
+  }
+  assert.ok(geometry.title.bounds.bottom <= geometry.description.bounds.y, `${label}: title and description blocks do not overlap`);
+  assert.ok(geometry.title.lines.every(line => line.bottom <= geometry.description.lines[0].y), `${label}: title and description actual text lines do not intersect`);
+}
 async function monitorTransition(page, action) {
   await page.evaluate(() => { window.__planningWidths = []; let active = true; const record = () => { if (!active) return; window.__planningWidths.push([innerWidth, document.documentElement.scrollWidth]); requestAnimationFrame(record); }; requestAnimationFrame(record); window.__stopPlanningWidths = () => { active = false; }; });
   await action();
@@ -157,6 +221,7 @@ async function monitorTransition(page, action) {
       await page.getByRole("button", { name: "安排", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "拖放预览", exact: true });
       await dialog.waitFor();
+      await assertReadableDialog(dialog, `calendar-dialog-normal-readable-${width}`);
       const normalDialogSizes = await dialog.evaluate(node => ({ title: parseFloat(getComputedStyle(node.querySelector('[data-slot="dialog-title"]')).fontSize), cancel: parseFloat(getComputedStyle([...node.querySelectorAll("button")].find(button => button.textContent === "取消")).fontSize) }));
       const normalDialogText = await textBaseline(dialog);
       assert.ok((await dialog.innerText()).includes(task.title));
@@ -194,6 +259,7 @@ async function monitorTransition(page, action) {
       await assertDoubledText(scaledDialog, `calendar-dynamic-dialog-computed-200-all-nodes-${width}`, 0);
       const enlargedDialogSizes = await dialog.evaluate(node => ({ title: parseFloat(getComputedStyle(node.querySelector('[data-slot="dialog-title"]')).fontSize), cancel: parseFloat(getComputedStyle([...node.querySelectorAll("button")].find(button => button.textContent === "取消")).fontSize) }));
       for (const key of Object.keys(normalDialogSizes)) assert.equal(enlargedDialogSizes[key], normalDialogSizes[key] * 2, `dynamic dialog ${key} actually doubles at ${width}px`);
+      await assertReadableDialog(dialog, `calendar-dialog-computed-200-readable-${width}`);
       await noOverflow(page, `calendar-dialog-computed-200-${width}`);
       const cancel = dialog.getByRole("button", { name: "取消", exact: true });
       await cancel.scrollIntoViewIfNeeded();
