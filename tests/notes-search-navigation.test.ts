@@ -442,7 +442,8 @@ describe("Notes open and return context", () => {
     expect(editor.value).toBe("Unsaved fixture draft");
     expect(editor.parentElement!.hidden).toBe(false);
     expect(container.querySelector("[data-pdf-widget]")).toBe(reader);
-    expect(reader.getAttribute("data-active")).toBe("false");
+    expect(reader.getAttribute("data-active")).toBe("true");
+    expect(reader.closest(".notes-document-pdf-pane")?.hasAttribute("hidden")).toBe(true);
     expect(container.querySelector('nav[aria-label="文档位置"] a')).toBe(breadcrumb);
   });
 });

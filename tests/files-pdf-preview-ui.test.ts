@@ -1,14 +1,20 @@
 // @vitest-environment jsdom
-import { act, createElement, StrictMode } from "react";
+import { act, createElement, lazy, StrictMode, Suspense } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ getDocument: vi.fn(), getProgress: vi.fn(), saveProgress: vi.fn() }));
 vi.mock("@/features/files/reading-progress-actions", () => ({ getReadingProgress: mocks.getProgress, saveReadingProgress: mocks.saveProgress }));
 vi.mock("unpdf/pdfjs", () => ({ getDocument: mocks.getDocument }));
+vi.mock("next/dynamic", () => ({ default: (loader: () => Promise<React.ComponentType>) => lazy(async () => ({ default: await loader() })) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+vi.mock("@/components/layout/workspace-panel-provider", () => ({ useWorkspacePanel: () => ({ isOpen: false, toggle: vi.fn(), close: vi.fn() }) }));
+vi.mock("@/components/shared/inspector", () => ({ Inspector: () => null }));
 import {
   FilePdfPreview, maxInlinePdfBytes, maxInlinePdfPages, maxPdfCanvasPixels, pdfLoadTimeoutMs, pdfRenderTimeoutMs,
 } from "@/components/files/file-pdf-preview";
+import { NoteDocumentShell } from "@/components/notes/note-document-shell";
+import { WorkbenchActivityContext } from "@/components/workbench/workbench-activity";
 import { captureWorkbenchPosition, restoreWorkbenchPosition } from "@/components/workbench/workbench-position";
 import { photoPreviewMime, isPdfFile } from "@/features/files/preview-format";
 
@@ -396,4 +402,50 @@ it("captures a hidden main PDF's page/source without retaining its session or bo
   host.querySelector<HTMLElement>("[data-note-reader-view]")!.dataset.noteReaderView = "markdown";
   const markdown = await captureWorkbenchPosition(host, "main");
   expect(markdown.pdfPage).toBeUndefined(); expect(markdown.pdfDocumentId).toBeUndefined(); expect(markdown.pdfSourceVersion).toBeUndefined();
+});
+
+it("keeps a visited document-tab reader warm without refetch, but destroys it when the outer workbench pane pauses", async () => {
+  const id = "10000000-0000-4000-8000-000000000002";
+  const source = "11000000-0000-4000-8000-000000000002";
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { headers: { "content-type": "application/pdf", "content-length": "1000", "X-Reading-Source-Version": source } })));
+  const sessions: Array<{ destroy: ReturnType<typeof vi.fn> }> = [];
+  mocks.getDocument.mockImplementation(() => {
+    let destroyed = false;
+    const session = { promise: Promise.resolve({ numPages: 2, getPage: vi.fn(async () => { if (destroyed) throw new Error("destroyed proxy"); return firstPage; }) }), destroy: vi.fn(async () => { destroyed = true; }) };
+    sessions.push(session); return session;
+  });
+  let hiddenWidth = false;
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, 0, hiddenWidth ? 0 : 624, hiddenWidth ? 0 : 800));
+  const showShell = async (active: boolean) => act(async () => root.render(createElement(Suspense, { fallback: null }, createElement(WorkbenchActivityContext.Provider, { value: active }, createElement(NoteDocumentShell, {
+    noteId: "warm-note", editor: createElement("textarea", { defaultValue: "Draft remains alive" }), inspector: null,
+    attachments: [{ id, title: "合成 PDF", original_filename: "synthetic.pdf", mime_type: "application/pdf", file_size: 1000, role: "pdf_snapshot" }],
+  })))));
+  await showShell(true);
+  expect(fetch).not.toHaveBeenCalled(); expect(mocks.getDocument).not.toHaveBeenCalled(); expect(host.querySelector("canvas")).toBeNull();
+  const draft = host.querySelector("textarea")!; draft.value = "Unsaved draft";
+  await click("PDF"); await click("下一页");
+  const reader = host.querySelector(".file-pdf-preview"); const canvas = renderedCanvas();
+  expect(canvas?.dataset.pdfPage).toBe("2");
+  const paints = firstPage.render.mock.calls.length;
+  hiddenWidth = true; await click("正文");
+  await act(async () => window.dispatchEvent(new Event("resize")));
+  expect(host.querySelector(".notes-document-pdf-pane")?.hasAttribute("hidden")).toBe(true);
+  expect(host.querySelector(".file-pdf-preview")).toBe(reader); expect(renderedCanvas()).toBe(canvas);
+  expect(sessions[0].destroy).not.toHaveBeenCalled(); expect(firstPage.render).toHaveBeenCalledTimes(paints);
+  hiddenWidth = false; await click("PDF");
+  await act(async () => window.dispatchEvent(new Event("resize")));
+  expect(renderedCanvas()).toBe(canvas); expect(canvas?.dataset.pdfPage).toBe("2");
+  expect(fetch).toHaveBeenCalledTimes(1); expect(mocks.getDocument).toHaveBeenCalledTimes(1);
+  expect(host.querySelector("textarea")).toBe(draft); expect(draft.value).toBe("Unsaved draft");
+  await showShell(false);
+  expect(sessions[0].destroy).toHaveBeenCalledOnce(); expect(host.querySelector("canvas")).toBeNull();
+  await showShell(true);
+  expect(fetch).toHaveBeenCalledTimes(2); expect(mocks.getDocument).toHaveBeenCalledTimes(2);
+  expect(renderedCanvas()).not.toBe(canvas); expect(renderedCanvas()?.dataset.pdfPage).toBe("2");
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  const resumed = renderedCanvas(); await click("重新加载 PDF");
+  expect(sessions[1].destroy).toHaveBeenCalledOnce(); expect(fetch).toHaveBeenCalledTimes(3); expect(mocks.getDocument).toHaveBeenCalledTimes(3);
+  expect(renderedCanvas()).not.toBe(resumed); expect(renderedCanvas()?.dataset.pdfPage).toBe("1");
+  await act(async () => root.render(null));
+  expect(sessions[2].destroy).toHaveBeenCalledOnce(); expect(host.querySelector("canvas")).toBeNull();
 });

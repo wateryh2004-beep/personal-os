@@ -93,6 +93,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
         </div> : null}
         {/* Keep the editor mounted so drafts and in-flight autosaves survive view changes. */}
         <div className="notes-document-editor-slot min-h-0 flex-1" hidden={view === "pdf" && !!selectedPdf}><WorkbenchActivityContext.Provider value={paneActive && (view === "markdown" || !selectedPdf)}>{editorVisited || !selectedPdf ? editor : null}</WorkbenchActivityContext.Provider></div>
+        {/* Internal document tabs retain the visited reader; only the outer pane pauses its session. */}
         {pdfVisited && selectedPdf ? <div hidden={view !== "pdf"} className="notes-document-pdf-pane flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--separator)] px-3 py-2 text-[12px]">
             {pdfs.length > 1 ? <select aria-label="选择 PDF" value={selectedPdf.id} onChange={(event) => setPdfId(event.target.value)} className="ui-field min-w-0 max-w-full flex-1 rounded-[8px] bg-[var(--surface-control)] px-2 py-1.5 text-[var(--text-primary)]">{pdfs.map((pdf) => <option key={pdf.id} value={pdf.id}>{pdf.title}</option>)}</select> : <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">{selectedPdf.original_filename}</span>}
@@ -100,7 +101,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
             <a href={`/api/files/${selectedPdf.id}/preview`} target="_blank" rel="noopener noreferrer" className="pressable inline-flex items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[var(--accent)] hover:bg-[var(--accent-soft)]"><ExternalLink className="size-3.5" aria-hidden="true" />独立窗口</a>
             <a href={noteAttachmentUrl(selectedPdf.id)} className="pressable inline-flex items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[var(--accent)] hover:bg-[var(--accent-soft)]"><Download className="size-3.5" aria-hidden="true" />下载</a>
           </div>
-          <div className="notes-document-pdf-slot min-h-0 min-w-0 flex-1 overflow-hidden p-3"><FilePdfPreview key={`${selectedPdf.id}:${readerVersion}`} documentId={selectedPdf.id} title={selectedPdf.title} active={paneActive && view === "pdf"} embedded persistProgress /></div>
+          <div className="notes-document-pdf-slot min-h-0 min-w-0 flex-1 overflow-hidden p-3"><FilePdfPreview key={`${selectedPdf.id}:${readerVersion}`} documentId={selectedPdf.id} title={selectedPdf.title} active={paneActive} embedded persistProgress /></div>
           <p className="shrink-0 px-3 py-1.5 text-[12px] text-[var(--text-tertiary)]">若浏览器无法显示 PDF，可在独立窗口阅读或下载。PDF 原件不会随正文编辑而改变。</p>
         </div> : null}
       </div>

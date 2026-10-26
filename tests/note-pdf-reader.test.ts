@@ -43,7 +43,8 @@ describe("Document PDF reader", () => {
     expect(input.parentElement!.hidden).toBe(false);
     expect(input.value).toBe("新的未保存正文");
     expect(container.querySelector("[data-pdf-widget]")).toBe(reader);
-    expect(reader.getAttribute("data-active")).toBe("false");
+    expect(reader.getAttribute("data-active")).toBe("true");
+    expect(reader.closest(".notes-document-pdf-pane")?.hasAttribute("hidden")).toBe(true);
     await act(async () => button.click());
     expect(container.querySelector("[data-pdf-widget]")).toBe(reader);
     expect(reader.getAttribute("data-active")).toBe("true");

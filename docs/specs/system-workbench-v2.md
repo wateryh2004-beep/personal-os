@@ -24,7 +24,7 @@
 - 单Router边界：`src/components/layout/app-shell.tsx`、安装版 Next 16.3.8 的 `parallel-routes` / `use-router` / `linking-and-navigating` 指南。副区采用显式实体/位置props和领域viewer，不把 `presentationPathname` 当独立Router，不开启全局 cacheComponents 捷径。
 - owner与缓存：复制 `workspace-resource-cache.ts` 的 scope lease / abort / private response 模式；保持 `WorkspaceIdentityBoundary` 的首屏 gate、401/403清理和旧owner拒绝。正文仅使用有界内存资源；现场是经过校验的UI偏好，不是业务副本。
 - 笔记：复制 `getNoteDocument` / document GET 和 `noteDocumentCache`；保持 autosave/CAS、草稿、undo history、输入法、source anchor。双编辑器不得重复DOM id，不允许同笔记的两个独立自动保存器互相覆盖。
-- 文件：复制 `FilePdfPreview` 的字节/大小/页数/渲染预算与卸载清理；抽出可内嵌且能暂停/禁用进度写入的viewer，保留私有原件鉴权。
+- 文件：复制 `FilePdfPreview` 的字节/大小/页数/渲染预算与卸载清理；抽出可内嵌且能暂停/禁用进度写入的viewer，保留私有原件鉴权。同一文档的正文/PDF页签切换保留已访问阅读器的有界暖会话、当前画布和页码，不重复请求；未访问PDF仍懒加载。外层工作台区域 inactive、owner变化或真正离开文档才销毁该会话/代理/画布，保留有限数值位置供恢复；这两层生命周期不得混为同一隐藏状态。
 - 关系：复用 `entity_links.related/manual` 和数据库两端owner trigger；不使用 Markdown 的 `reference/system` 命名空间，不撤销原本已存在的链接。
 - 本地并发：复制 Leisure feedback 原子RPC的owner/revision/审计与冲突状态。新增shopping/travel/metadata写入使用单调revision或可靠CAS；禁止复制Travel两条独立UPDATE换序或仅error为空就声称成功。
 - 外部执行：复制 Calendar `pending_confirmation → queued → processing → remote_committed/reconciliation_required` 与 transactionId；创建增加稳定逻辑request key。所有provider更新只提交本次字段，执行前实时读取并拒绝已观察冲突；超时/丢响应为unknown，只读核对，不盲重发。
