@@ -72,6 +72,7 @@ export function NoteOutline({ open, onOpenChange, disabled, items, listRef, onSe
   portalContainer?: HTMLElement | null;
 }) {
   const jumped = useRef(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   // An externally controlled reopen can reverse Presence without invoking
   // onOpenChange. Clear the previous opening's focus exception before paint.
   useLayoutEffect(() => { if (open) jumped.current = false; }, [open]);
@@ -88,8 +89,14 @@ export function NoteOutline({ open, onOpenChange, disabled, items, listRef, onSe
     onOpenChange(next);
   };
   return <Popover open={open} onOpenChange={changeOpen}>
-    <PopoverTrigger asChild><button type="button" disabled={disabled} aria-label="目录" className={`pressable inline-flex size-[30px] shrink-0 items-center justify-center rounded-[7px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] disabled:opacity-35 ${open ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}><ListTree aria-hidden="true" className="size-4" /></button></PopoverTrigger>
-    <PopoverContent align="end" portalContainer={portalContainer} aria-label="笔记目录" className="note-outline-surface w-[min(320px,calc(100vw-2rem))] max-h-[min(440px,var(--radix-popover-content-available-height))]" onOpenAutoFocus={(event) => {
+    <PopoverTrigger asChild><button ref={triggerRef} type="button" disabled={disabled} aria-label="目录" className={`pressable inline-flex size-[30px] shrink-0 items-center justify-center rounded-[7px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] disabled:opacity-35 ${open ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}><ListTree aria-hidden="true" className="size-4" /></button></PopoverTrigger>
+    <PopoverContent align="end" portalContainer={portalContainer} aria-label="笔记目录" className="note-outline-surface w-[min(320px,calc(100vw-2rem))] max-h-[min(440px,var(--radix-popover-content-available-height))]" onEscapeKeyDown={(event) => {
+      if (event.defaultPrevented) return;
+      // Closed Presence becomes inert before FocusScope's unmount autofocus.
+      // Escape must restore usable focus now, while the outgoing view exits.
+      jumped.current = false;
+      triggerRef.current?.focus({ preventScroll: true });
+    }} onOpenAutoFocus={(event) => {
       if (event.target instanceof HTMLElement) { event.preventDefault(); event.target.querySelector("input")?.focus(); }
     }} onCloseAutoFocus={(event) => {
       if (jumped.current) { event.preventDefault(); jumped.current = false; }

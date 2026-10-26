@@ -81,6 +81,8 @@ it("does not carry a jumped opening's focus veto into an external rapid reopen",
   expect(panel()).toBe(content); expect(input().value).toBe("");
   await act(async () => { input().focus(); input().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
   expect(content.getAttribute("data-state")).toBe("closed");
+  expect(content.isConnected).toBe(true);
+  expect(document.activeElement).toBe(host.querySelector('[aria-label="目录"]'));
   await act(async () => {
     const end = new Event("animationend", { bubbles: true }); Object.defineProperty(end, "animationName", { value: "outline-presence" });
     content.dispatchEvent(end);
@@ -88,4 +90,13 @@ it("does not carry a jumped opening's focus veto into an external rapid reopen",
   // Radix FocusScope defers its unmount autofocus to the next task.
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
   expect(document.activeElement).toBe(host.querySelector('[aria-label="目录"]'));
+});
+
+it("respects an Escape already handled before Radix's document listener", async () => {
+  await act(async () => root.render(<Fixture />)); await toggle();
+  const field = input(); const content = panel();
+  window.addEventListener("keydown", event => event.preventDefault(), { capture: true, once: true });
+  await act(async () => { field.focus(); field.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
+  expect(content.getAttribute("data-state")).toBe("open");
+  expect(document.activeElement).toBe(field);
 });
