@@ -84,6 +84,7 @@
 .moveTimeline p:first-child {font-size:.75rem;color:var(--text-secondary);margin-bottom:4px}
 .moveConflict {font-size:.8125rem;line-height:1.7;color:var(--text-secondary)}
 .moveActions {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.moveActions>button {min-width:44px;min-height:44px;max-width:100%;height:auto;padding-block:8px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
 @media(prefers-reduced-motion:reduce){.canvas :global(.fc-event),.loadingDot {animation:none!important;transition:none!important}}
 @media(forced-colors:active){.canvas :global(.fc-event-mirror) {border-color:Highlight!important;outline:2px solid Highlight}.dragPreview[data-overlap=true] {outline:2px dashed CanvasText}.pendingChip,.moveTimeline>div {border-color:CanvasText}.moveTimeline>div:last-child {outline:2px solid Highlight}}
 

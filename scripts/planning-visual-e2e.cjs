@@ -198,6 +198,13 @@ async function monitorTransition(page, action) {
       const cancel = dialog.getByRole("button", { name: "取消", exact: true });
       await cancel.scrollIntoViewIfNeeded();
       const cancelBox = await cancel.boundingBox();
+      const cancelGeometry = await dialog.evaluate(node => {
+        const button = [...node.querySelectorAll("button")].find(value => value.textContent === "取消");
+        const rect = element => { const box = element.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height, right: box.right, bottom: box.bottom }; };
+        return { viewport: { width: innerWidth, height: innerHeight }, dialog: { ...rect(node), clientHeight: node.clientHeight, scrollHeight: node.scrollHeight, scrollTop: node.scrollTop, overflow: getComputedStyle(node).overflowY }, cancel: { ...rect(button), fontSize: getComputedStyle(button).fontSize, lineHeight: getComputedStyle(button).lineHeight }, range: { ...rect(node.querySelector('[data-testid="planning-preview-range"]')) } };
+      });
+      diagnostics.push({ label: `calendar-computed-200-cancel-geometry-${width}`, ...cancelGeometry });
+      await writeFile(`${output}/diagnostics.json`, JSON.stringify(diagnostics, null, 2));
       assert.ok(cancelBox.width >= 44 && cancelBox.height >= 44 && cancelBox.y >= 0 && cancelBox.y + cancelBox.height <= 1000, "200% preview cancel is touchable and reachable");
       await page.screenshot({ path: `${output}/calendar-dialog-200-${width}.png`, fullPage: true });
       await cancel.click(); await dialog.waitFor({ state: "hidden" });

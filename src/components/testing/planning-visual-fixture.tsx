@@ -8,6 +8,7 @@ import type { ProjectPresentation } from "@/components/projects/project-progress
 import { CalendarFullView } from "@/components/calendar/calendar-full-view";
 import { CalendarPendingTasks } from "@/components/calendar/calendar-pending-tasks";
 import { calendarDragPreview } from "@/components/calendar/calendar-drag-preview";
+import calendarStyles from "@/components/calendar/calendar-native.module.css";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { CalendarEventRecord } from "@/features/calendar/types";
@@ -43,7 +44,7 @@ export function PlanningVisualFixture({ mode = "projects", textScale }: { mode?:
           <CalendarFullView events={events} categories={categories} timezone="Asia/Shanghai" initialView="timeGridDay" initialDate={initialDate} onOpen={record => openPreview({ title: record.subject, startsAt: record.starts_at, endsAt: record.ends_at, eventId: record.id })} onCreate={range => openPreview({ title: "新日程", ...range })} onMove={async (record, range) => openPreview({ title: record.subject, ...range, eventId: record.id })} onTaskDrop={(task, startsAt) => openPreview({ title: task.title, startsAt, endsAt: new Date(Date.parse(startsAt) + 45 * 60_000).toISOString() })} onRangeChange={() => {}} loadingRange={false} />
         </div>
         <output data-testid="planning-preview-count" className="sr-only">{previewCount}</output>
-        <Dialog open={Boolean(preview)} onOpenChange={open => { if (!open) setPreview(null); }}><DialogContent><DialogHeader><DialogTitle>拖放预览</DialogTitle><DialogDescription>合成场景；取消不会创建或移动日程。</DialogDescription></DialogHeader>{preview ? <><p>{preview.title}</p><p data-testid="planning-preview-range">{preview.startsAt} — {preview.endsAt}</p><p>已载入日程重叠 {hint?.overlaps.length ?? 0} 项</p><Button variant="outline" onClick={() => setPreview(null)}>取消</Button></> : null}</DialogContent></Dialog>
+        <Dialog open={Boolean(preview)} onOpenChange={open => { if (!open) setPreview(null); }}><DialogContent><DialogHeader><DialogTitle>拖放预览</DialogTitle><DialogDescription>合成场景；取消不会创建或移动日程。</DialogDescription></DialogHeader>{preview ? <><p>{preview.title}</p><p data-testid="planning-preview-range">{preview.startsAt} — {preview.endsAt}</p><p>已载入日程重叠 {hint?.overlaps.length ?? 0} 项</p><div className={calendarStyles.moveActions}><Button variant="outline" onClick={() => setPreview(null)}>取消</Button></div></> : null}</DialogContent></Dialog>
       </> : <>
         <ProjectsWorkspace projects={records} />
         <div className="mt-6 flex flex-wrap gap-3 border-t border-[var(--separator)] pt-4"><Button variant="outline" onClick={() => setRecords(value => value.map((record, index) => index === 0 ? { ...record, status: record.status === "completed" ? "active" : "completed" } : record))}>模拟已确认的项目状态更新</Button><p className="text-xs text-[var(--text-secondary)]">仅修改此合成场景的输入，用于验证状态过渡。</p></div>

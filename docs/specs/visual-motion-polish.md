@@ -32,6 +32,8 @@
 - Shell / Search / Workbench：`src/components/layout/workspace-route-surface.tsx` 将非交互空间背景与 live 主内容分层，实际内容使用可打断的 CSS 运动，避免整张主区的原生快照吞掉到达后的点击；`src/components/search/search-result-preview.tsx` 与既有命令面板、`src/components/workbench/workbench-provider.tsx` / `workbench-entity-view.tsx` 复用原有读取边界。不另建正文持久缓存，不取消主区正在共享的受保护请求。
 - Today / Calendar / Projects：`src/components/today/`、`src/components/calendar/calendar-drag-preview.ts` 与现有日历组件、`src/components/projects/project-progress.tsx` / `projects-workspace.module.css`。布局使用真实容器宽度，避免宽屏窗口里的窄工作台仍强行双栏。
 
+Today 日期桌面的外层最大宽度为 1120px（含内边距），左右内边距按视口为：低于 375px 时 20px、375–767px 时 24px、768–1023px 时 32px、1024px 起 48px。首个内容轴是 `.today-header` 中的真实日期锚点；“今天”标题位于相邻标题组，不能再用它代替页面左轴。工作台内容容器达到 1000px 时采用重点/日程双栏；加载态复用同一日期标题占位、主栏、日程与上下文结构，不展示假日期或假记录。内容轴及加载/内容标题原点仍按不超过 1px 偏差验收，宽度和内边距目标不从当前 computed style 反推。
+
 ## 验证与发布账本
 
 本轮新增合成浏览器入口仍位于既有 `E2E_MOBILE_HARNESS=1` 门控内。`workspace-motion` 复用真实笔记/应用壳/搜索组件，`planning-visual` 复用真实项目、待安排与 FullCalendar，Files 与 Workbench 继续使用现有合成场景。脚本限制为回环地址，拒绝业务写入与未授权接口；不注入生产登录凭据。
