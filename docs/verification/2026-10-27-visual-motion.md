@@ -58,6 +58,19 @@
 
 修补的独立本地复验：14 个相关测试文件/138 测试、全仓 typecheck、三份脚本语法和默认 Turbopack E2E 生产构建均退出 0。全仓 ESLint 退出 0；构建后闭包退出 0（136 份 trace、28979 个路径）；helper 临时目录合成检查、非 CI 主机跳过保护、Python 语法和五份工作流 YAML/六处安装顺序检查均退出 0。逐文件移除新增 helper 调用后，工作流与候选 head 原文逐字节一致。命令、时间、日志与最终文件 manifest 由 `ci-followup-local.json` 登记。本轮没有本地浏览器连接；新 head 的完整浏览器矩阵、真实 runner 安装结果及既有对齐回归必须由后续 CI 执行，不宣称这些检查已通过。
 
+## 第二次 CI 与第三轮修补
+
+第二次候选 `67bb3f320078794451672384f382b71e756c6c71` 的 21 个 check-run 最终为 15 成功、5 失败、1 取消；Vercel Preview READY 不代表流程通过。该 head 的最终只读快照、日志、六份经过 GitHub digest 核对的 ZIP 及逐文件校验保留在 `work/visual-motion-2026-10-26/ci/67bb3f3/`。主 Verify 单元实际为 353 文件/2317 测试通过；系统规范的两个浏览器子流程、Workbench、OCR 已实际完成。主 Verify 后段导航脚本失败，Document continuity 的阅读浏览器安装 job 取消，因此完整门禁未绿。
+
+APT helper 在三个新增视觉 job、OCR、系统规范和 Workbench 的实际 runner 安装日志中生效，原 Playwright 1.62.1、Chromium with-deps 及中文字库保留，实际从既有 HTTPS 官方 archive 下载。Document continuity 的两个安装入口此前未接入 helper，其中阅读浏览器仍在 Azure 下载依赖时取消、尚未启动业务验证；第三轮给这两个入口补同一 helper，原安装命令、版本、依赖和超时逐字保留。真实新 runner 安装仍待下一候选 CI。前三个视觉 suite 均已越过安装，以下失败来自真实浏览器步骤：
+
+- Notes/Files 点击“上一文件”与独立缓存 PDF 三档点击“下一页”均因控件在视口外超时。实际生产 CSS 优化将独立 `translate` 合入 `transform`，与 Tailwind 平移叠加，导致 Dialog 偏离视口。这是产品样式缺陷。修补将静止定位和开闭运动统一到单一 transform，清零 utility 平移并取消独立 translate；手机与桌面分别使用既有底部/居中坐标。减少动态效果仍保留静止定位 transform，并要求没有运行中的动画；静止定位本身不是动态效果。原真实上一文件/下一页点击继续保留，新增查看器、关闭和队列控件的边界检查，不用 force click 绕过。
+- Shell 在预览内按首次 Esc 后外层搜索一起关闭，后续找不到“预览所选”。这是实际 Radix document capture 与内层 React 冒泡事件顺序冲突的产品问题。修补在真实 DialogContent 的 `onEscapeKeyDown` 消费首次 Esc，只收起预览并保留查询、外层与焦点；第二次 Esc 才退出外层。用真实 Radix portal 测试手机/桌面，保留真实历史返回次数检查，没有新增全局键盘监听。
+- Planning 的浏览器 mock 返回 HTTP 200，但缺少严格 DTO 必填 `status`；fixture 也没有建立受保护资源需要的合成 owner 上下文。这是验证场景缺陷，没有修改生产 schema 或授权规则。修补让脚本与 fixture 共享含 `status:notStarted` 的 JSON，并仅在门控合成场景中建立身份边界；新增真实 Boundary→resource→fetch→schema 测试，完整 DTO 成功，缺 status 的 HTTP 200 仍明确拒绝并显示重试。
+- 主 Verify 最后在 `navigation-refinement-e2e.cjs:44` 用全局 `popover-content` locator 等待隐藏时，匹配到两个仍在退场的 closed Popover，触发严格选择器错误。修补通过各触发器真实 `aria-controls` 分别定位关联弹层，保留一个 open→零个 open、所有 closed 退场层完整卸载和返回正确触发器焦点的要求。同时修复真实共享 Popover 的退出语义：closed Presence 保留绘制期间设置 inert/aria-hidden，使其不能被键盘访问；受控/非受控和快速重开使用真实 Radix 回归，不能只靠 pointer-events 阻断鼠标。没有使用 `.first()`、强点、延长超时或等待固定时长规避歧义。此前 Leisure 首图曾进入 fallback，既有真实图片重试后四视口通过，未将瞬时失败隐藏为首次成功。
+
+前三项修补经过独立源码审查和实际 Lightning CSS minify 核对；新增共享 Popover 修补后重新执行完整本地验收：355 文件/2323 测试、全仓类型、全仓 lint、四份浏览器脚本语法、文档与差异检查均退出 0；默认 Turbopack E2E 生产构建退出 0，29.627 秒；构建后闭包退出 0（136 traces/28979 paths）。Document continuity 的两处安装调用还经过独立 YAML/顺序/原内容逐字节核对与 helper 合成检查。具体实际命令、退出码、时间和最终哈希由 `round3-local.json` 记录。初次针对 11 文件的 354 文件/2321 测试结果保留，最终证据以加入 Popover 后的复验记录为准。此处不把源码/minify/jsdom 成功当作屏幕几何、裁切或动效逐帧通过；下一候选必须重新执行完整远程浏览器矩阵。第二次候选三份新增 suite 均未完成四视口正常连续录屏，Planning 只有失败阶段截图及 trace，trace 不是视频。
+
 ## 数据、安全与发布
 
 本次没有数据库迁移、环境变量、依赖或外部权限变化。验证使用合成资料，三个浏览器脚本限制回环目标、拒绝业务写入和未知 API；不注入生产账号或 provider 凭据。没有真实 Microsoft 写入、生产密码修改、私人正文导出或生产恢复操作。

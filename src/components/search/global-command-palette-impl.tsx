@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { BriefcaseBusiness, CalendarPlus, CheckSquare2, FilePlus2, FileText, FolderUp, LayoutDashboard, ShoppingBag, Sparkles, SquareKanban, Plane } from "lucide-react";
 import { Command, CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
@@ -20,7 +20,7 @@ import {
 export type CommandCenterSection = "search" | "quick";
 const domainLabels: Record<string, string> = { notes: "笔记", career: "职业", files: "文件", tasks: "任务", calendar: "日历", reviews: "回顾", projects: "项目", shopping: "购物", travel: "旅行", leisure: "闲暇", briefing: "简报", investment: "投资" };
 
-export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search", contentOnly = false, embedded = false }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection; contentOnly?: boolean; embedded?: boolean }) {
+export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search", contentOnly = false, embedded = false, registerPreviewDismiss }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection; contentOnly?: boolean; embedded?: boolean; registerPreviewDismiss?: (handler: (() => boolean) | null) => void }) {
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
@@ -39,6 +39,16 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
   const loading = search.status === "loading";
   const selectedResult = results.find((result) => `result:${result.id}` === selectedValue) ?? null;
   const visiblePreview = open && previewOpen && selectedResult;
+  const dismissPreview = useCallback(() => {
+    if (!open || !previewOpen || !selectedResult) return false;
+    setPreviewOpen(false);
+    previewTrigger.current?.focus({ preventScroll: true });
+    return true;
+  }, [open, previewOpen, selectedResult]);
+  useLayoutEffect(() => {
+    registerPreviewDismiss?.(dismissPreview);
+    return () => registerPreviewDismiss?.(null);
+  }, [dismissPreview, registerPreviewDismiss]);
   useLayoutEffect(() => {
     const root = list.current;
     const mark = indicator.current;
@@ -117,9 +127,9 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
         {query && !loading ? <CommandGroup heading="询问"><CommandItem value={`ask ${query}`} onSelect={() => askAgent(query)}><Sparkles aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">询问 Personal OS</p><p className="mt-0.5 truncate text-xs text-[var(--text-tertiary)]">“{query}”</p></div><CommandShortcut>AI</CommandShortcut></CommandItem></CommandGroup> : null}
         {query && !loading ? groups.map(([label, items]) => <CommandGroup key={label} heading={label}>{(items ?? []).map((result) => <CommandItem key={result.id} value={`result:${result.id}`} onSelect={() => go(result.href)}><FileText aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{result.title}</p>{result.subtitle || result.snippet ? <p className="mt-0.5 line-clamp-2 text-xs text-[var(--text-tertiary)]">{result.subtitle ?? result.snippet}</p> : null}</div><CommandShortcut>{label}</CommandShortcut></CommandItem>)}</CommandGroup>) : null}
       </CommandList>
-      {visiblePreview ? <aside className="command-result-preview" id="command-result-preview" aria-label="搜索结果预览" onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setPreviewOpen(false); previewTrigger.current?.focus({ preventScroll: true }); } }}><SearchResultPreview key={visiblePreview.id} result={visiblePreview} onNavigate={(event) => { event.preventDefault(); go(visiblePreview.href); }} /></aside> : null}
+      {visiblePreview ? <aside className="command-result-preview" id="command-result-preview" aria-label="搜索结果预览" onKeyDown={(event) => { if (event.key === "Escape" && dismissPreview()) { event.preventDefault(); event.stopPropagation(); } }}><SearchResultPreview key={visiblePreview.id} result={visiblePreview} onNavigate={(event) => { event.preventDefault(); go(visiblePreview.href); }} /></aside> : null}
       </div>
       {query && results.length ? <div className="command-results-footer"><span className="command-keyboard-hint">↑ ↓ 选择，Enter 打开</span><label className="command-preview-picker"><span className="sr-only">预览内容</span><select aria-label="预览内容" value={selectedResult ? `result:${selectedResult.id}` : ""} onChange={(event) => setSelectedValue(event.target.value)}><option value="" disabled>选择预览内容</option>{results.map((result) => <option key={result.id} value={`result:${result.id}`}>{result.title}</option>)}</select></label><button ref={previewTrigger} type="button" disabled={!selectedResult} aria-expanded={Boolean(visiblePreview)} aria-controls="command-result-preview" onClick={() => setPreviewOpen((value) => !value)}>{visiblePreview ? "收起预览" : "预览所选"}</button></div> : null}
     </Command>;
-  return embedded ? content : <CommandDialog contentOnly={contentOnly} open={open} onOpenChange={onOpenChange} title="搜索" description="搜索、导航或快速新建" className="max-h-[min(78dvh,680px)] sm:max-w-2xl">{content}</CommandDialog>;
+  return embedded ? content : <CommandDialog contentOnly={contentOnly} open={open} onOpenChange={onOpenChange} onEscapeKeyDown={(event) => { if (dismissPreview()) event.preventDefault(); }} title="搜索" description="搜索、导航或快速新建" className="max-h-[min(78dvh,680px)] sm:max-w-2xl">{content}</CommandDialog>;
 }

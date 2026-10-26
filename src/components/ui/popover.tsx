@@ -5,8 +5,16 @@ import { Popover as PopoverPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
-function Popover({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Root>) {
-  return <PopoverPrimitive.Root data-slot="popover" {...props} />
+const PopoverOpenContext = React.createContext(true)
+
+function Popover({ open: controlledOpen, defaultOpen, onOpenChange, ...props }: React.ComponentProps<typeof PopoverPrimitive.Root>) {
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false)
+  const open = controlledOpen ?? internalOpen
+  const changeOpen = React.useCallback((nextOpen: boolean) => {
+    onOpenChange?.(nextOpen)
+    if (controlledOpen === undefined) setInternalOpen(nextOpen)
+  }, [controlledOpen, onOpenChange])
+  return <PopoverOpenContext.Provider value={open}><PopoverPrimitive.Root data-slot="popover" open={open} onOpenChange={changeOpen} {...props} /></PopoverOpenContext.Provider>
 }
 
 function PopoverTrigger({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
@@ -20,6 +28,9 @@ function PopoverContent({
   portalContainer,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content> & { portalContainer?: HTMLElement | null }) {
+  // Radix Presence keeps the closed content for its finite exit. Paint may
+  // continue, but that layer no longer owns focus or accessibility.
+  const open = React.useContext(PopoverOpenContext)
   return (
     <PopoverPrimitive.Portal container={portalContainer}>
       <PopoverPrimitive.Content
@@ -31,6 +42,8 @@ function PopoverContent({
           className,
         )}
         {...props}
+        inert={!open || props.inert || undefined}
+        aria-hidden={open ? props["aria-hidden"] : true}
       />
     </PopoverPrimitive.Portal>
   )

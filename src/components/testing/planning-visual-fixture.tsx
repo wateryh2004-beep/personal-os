@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
+import { WorkspaceIdentityBoundary } from "@/components/layout/workspace-identity-boundary";
 import { ProjectsWorkspace } from "@/components/projects/projects-workspace";
 import type { ProjectPresentation } from "@/components/projects/project-progress";
 import { CalendarFullView } from "@/components/calendar/calendar-full-view";
@@ -33,7 +34,7 @@ export function PlanningVisualFixture({ mode = "projects", textScale }: { mode?:
   const [previewCount, setPreviewCount] = useState(0);
   const openPreview = (next: Preview) => { setPreview(next); setPreviewCount(count => count + 1); };
   const hint = preview ? calendarDragPreview(events, preview) : null;
-  return <AppShell presentationPathname={mode === "calendar" ? "/calendar" : "/projects"}>
+  return <WorkspaceIdentityBoundary ownerId="synthetic-planning-owner" revision="planning-visual-fixture-v1"><AppShell presentationPathname={mode === "calendar" ? "/calendar" : "/projects"}>
     <div data-testid="planning-visual-fixture" className="mx-auto min-w-0 max-w-6xl p-4 sm:p-6">
       <p className="mb-4 text-xs text-[var(--text-secondary)]">合成场景 · 不连接个人资料或 Outlook</p>
       {mode === "calendar" ? <>
@@ -48,5 +49,5 @@ export function PlanningVisualFixture({ mode = "projects", textScale }: { mode?:
         <div className="mt-6 flex flex-wrap gap-3 border-t border-[var(--separator)] pt-4"><Button variant="outline" onClick={() => setRecords(value => value.map((record, index) => index === 0 ? { ...record, status: record.status === "completed" ? "active" : "completed" } : record))}>模拟已确认的项目状态更新</Button><p className="text-xs text-[var(--text-secondary)]">仅修改此合成场景的输入，用于验证状态过渡。</p></div>
       </>}
     </div>
-  </AppShell>;
+  </AppShell></WorkspaceIdentityBoundary>;
 }

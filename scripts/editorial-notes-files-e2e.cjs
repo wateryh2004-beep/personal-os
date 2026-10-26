@@ -16,7 +16,7 @@
   let activePage;
   try {
     for (const width of [360, 390, 768, 1440]) for (const mode of ["normal", "text200", "reduced"]) {
-      const row = { width, mode, errors: [], requests: [], paperFrames: [], imageFrames: [], textSizes: [], pdfGeometry: [], alignment: [], listRecovery: {} }; evidence.push(row);
+      const row = { width, mode, errors: [], requests: [], paperFrames: [], imageFrames: [], textSizes: [], pdfGeometry: [], viewerBounds: [], alignment: [], listRecovery: {} }; evidence.push(row);
       const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: mode === "reduced" ? "reduce" : "no-preference", recordVideo: { dir: `${output}/video`, size: { width: Math.min(width, 1000), height: 900 } } });
       await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
       try {
@@ -195,6 +195,15 @@
         });
         await photoLauncher.click();
         const dialog = page.getByRole("dialog");
+        const viewerContained = async label => {
+          const geometry = await dialog.evaluate(surface => {
+            const box = node => { const bounds = node.getBoundingClientRect(); return { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom, width: bounds.width, height: bounds.height }; };
+            const style = getComputedStyle(surface);
+            return { viewport: { width: innerWidth, height: innerHeight }, surface: box(surface), controls: [...surface.querySelectorAll('.file-preview-navigation button,[data-slot="dialog-close"]')].map(box), translate: style.translate, transform: style.transform, left: style.left, top: style.top };
+          });
+          row.viewerBounds.push({ label, ...geometry });
+          for (const box of [geometry.surface, ...geometry.controls]) assert.ok(box.width > 0 && box.height > 0 && box.left >= -1 && box.top >= -1 && box.right <= geometry.viewport.width + 1 && box.bottom <= geometry.viewport.height + 1, `${label}: viewer and its navigation/close controls are inside the viewport ${JSON.stringify(geometry)}`);
+        };
         await dialog.waitFor();
         await dialog.locator("img").waitFor();
         await page.waitForFunction(() => [...document.querySelectorAll('[role="dialog"] img')].every(image => image.complete && image.naturalWidth > 0));
@@ -204,12 +213,14 @@
         assert.ok(row.imageFrames.at(-1).scale, "the image viewer reads the actual source geometry");
         if (mode === "normal") assert.ok(new Set(row.imageFrames.map(frame => frame.transform)).size > 2, "the actual image viewer geometry changes across presented frames");
         await capture("file-photo");
+        await viewerContained("photo-resting");
         const viewerShell = await dialog.elementHandle();
         await dialog.getByRole("button", { name: "上一文件", exact: true }).click();
         await dialog.getByRole("heading", { name: "示例资料 1 · Synthetic fixture", exact: true }).waitFor();
         await dialog.locator('canvas[data-pdf-rendered="true"]').waitFor();
         assert.ok(await viewerShell.evaluate(node => node === document.querySelector('[role="dialog"]')), "switching files preserves the actual viewer shell");
         await scaleText("file-switch-pdf"); await noOverflow("file-switch-pdf");
+        await viewerContained("switched-pdf-resting");
         await dialog.getByRole("button", { name: "下一文件", exact: true }).focus();
         await page.keyboard.press("ArrowRight");
         await dialog.getByRole("heading", { name: "示例资料 2 · Synthetic fixture", exact: true }).waitFor();
@@ -220,6 +231,7 @@
         await pdfLauncher.click(); await dialog.waitFor();
         await dialog.locator('canvas[data-pdf-rendered="true"]').waitFor();
         await scaleText("file-pdf-loaded");
+        await viewerContained("pdf-resting-before-page-turn");
         const controls = await dialog.getByLabel("PDF 阅读控制", { exact: true }).elementHandle();
         await dialog.getByRole("button", { name: "下一页", exact: true }).click();
         await dialog.locator('canvas[data-pdf-rendered="true"][data-pdf-page="2"]').waitFor();
@@ -239,8 +251,10 @@
         }
         await capture("file-pdf");
         // Preference changes during a live dialog must safely settle.
+        const restingTransform = await dialog.evaluate(node => getComputedStyle(node).transform);
         await page.emulateMedia({ reducedMotion: "reduce" });
-        assert.equal(await dialog.evaluate(node => getComputedStyle(node).transform), "none");
+        assert.equal(await dialog.evaluate(node => getComputedStyle(node).transform), restingTransform, "reduced motion preserves the viewer's resting placement");
+        assert.equal(await dialog.evaluate(node => node.getAnimations().filter(animation => animation.playState === "running").length), 0, "reduced motion leaves no moving viewer animation");
         await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
         assert.ok(!row.requests.some(request => request.path.endsWith("/download")), "viewing never downloads an original");
         await page.goto(`${base}/mobile-native-e2e?scene=workbench`);

@@ -91,6 +91,8 @@ async function contained(page, label) {
         const openLink = preview.getByRole('link', { name: '在主区打开 ↗', exact: true });
         await openLink.focus(); await page.keyboard.press('Escape');
         await preview.waitFor({ state: 'detached' });
+        assert.ok(await dialog.isVisible(), 'first Escape keeps the outer search open');
+        assert.equal(await input.inputValue(), '阅读', 'inner Escape preserves the query');
         assert.ok(await dialog.getByRole('button', { name: '预览所选', exact: true }).evaluate(node => node === document.activeElement), 'preview Escape returns focus without closing search');
         await input.focus(); await input.press('Escape');
         await dialog.waitFor({ state: 'hidden' });

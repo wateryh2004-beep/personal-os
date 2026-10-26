@@ -7,7 +7,8 @@ assert.ok(process.env.CI, "Headless planning verification runs only in remote CI
 assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(new URL(baseURL).hostname), "Synthetic planning verification must target a loopback harness");
 const output = process.env.E2E_PLANNING_SCREENSHOT_DIR || "test-results/planning-visual";
 const title = "把学习记录变成清楚的知识脉络";
-const task = { id: "80000000-0000-4000-8000-000000000021", title: "整理下周计划", provider_last_modified_at: null };
+const pendingTasks = require("../src/components/testing/planning-pending-tasks.json");
+const task = pendingTasks.tasks[0];
 const diagnostics = [];
 const traces = new Map();
 let traceSequence = 0;
@@ -29,7 +30,7 @@ async function isolate(context) {
   await context.route("**/*", route => {
     if (!["GET", "HEAD"].includes(route.request().method())) { writes += 1; return route.fulfill({ status: 409, json: { error: "All writes blocked in synthetic planning verification" } }); }
     const pathname = new URL(route.request().url()).pathname;
-    if (pathname === "/api/calendar/pending-tasks") return route.fulfill({ json: { tasks: [task], timezone: "Asia/Shanghai" } });
+    if (pathname === "/api/calendar/pending-tasks") return route.fulfill({ json: pendingTasks });
     if (pathname.startsWith("/api/")) return route.fulfill({ status: 503, json: { error: "Synthetic fixture does not access a live backend" } });
     return route.continue();
   });
