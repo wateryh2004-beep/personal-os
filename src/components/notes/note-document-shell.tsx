@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, PanelRight, ExternalLink, Download, RefreshCw, PanelLeft } from "lucide-react";
 import { useContext, useEffect, useState } from "react";
 import { noteAttachmentUrl, notePdfAttachments, type NoteAttachment } from "@/features/notes/attachments";
-import { NotesSurfaceMotion } from "./notes-motion";
+import { NotePaperMotion, NotesSurfaceMotion } from "./notes-motion";
 import { NotesNavigationContext } from "./notes-navigation-context";
 
 const FilePdfPreview = dynamic(() => import("@/components/files/file-pdf-preview").then((module) => module.FilePdfPreview), { ssr: false });
@@ -58,10 +58,11 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
   };
 
   return (
-    <NotesSurfaceMotion><section data-note-document-id={noteId} data-note-reader-view={view}
+    <NotesSurfaceMotion><section data-note-document-id={noteId} data-note-paper={noteId} data-note-reader-view={view}
       onInputCapture={handleEditorInput}
       className="notes-document-shell relative flex h-full min-h-0 overflow-hidden bg-[var(--surface-canvas)]"
     >
+      <NotePaperMotion noteId={noteId} />
       <div className="notes-document-main relative flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="notes-document-location flex h-11 shrink-0 items-center gap-1 px-2.5">
           <button

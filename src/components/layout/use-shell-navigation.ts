@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { perfMark, perfMeasure } from "@/lib/perf";
+import { navigationTransitionType } from "./navigation-motion";
 
 export type ShellNavigationEvent = { preventDefault: () => void };
 
-type ShellRouter = { push: (href: string) => void | Promise<void> };
+type ShellRouter = { push: (href: string, options?: { transitionTypes: string[] }) => void | Promise<void> };
 type NavigationRequest = { href: string; from: string };
 const targetPathname = (href: string) => href.split(/[?#]/, 1)[0];
 
@@ -22,7 +23,10 @@ export function useShellNavigation(pathname: string, router: ShellRouter) {
     const unchanged = new URL(href, window.location.href).href === window.location.href;
     setRequest(unchanged ? null : next);
     perfMark("navigation-click", { href });
-    startTransition(() => router.push(href));
+    // Installed Next App Router use-router.md: transitionTypes belongs to the
+    // router transition itself; requests and navigation start immediately.
+    const type = navigationTransitionType(pathname, href);
+    startTransition(() => type ? router.push(href, { transitionTypes: [type] }) : router.push(href));
   }, [pathname, router]);
 
   useEffect(() => {

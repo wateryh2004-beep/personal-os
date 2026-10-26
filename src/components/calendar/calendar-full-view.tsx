@@ -1,21 +1,31 @@
 "use client";
 
 import FullCalendar from "@fullcalendar/react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin, { type EventResizeDoneArg } from "@fullcalendar/interaction";
 import zhCnLocale from "@fullcalendar/core/locales/zh-cn";
-import type { EventDropArg } from "@fullcalendar/core";
+import type { EventContentArg, EventDropArg } from "@fullcalendar/core";
 import type { CalendarEventRecord } from "@/features/calendar/types";
 import { allDayDateToFullCalendarDate, fullCalendarDateToInstant, instantToDate, instantToFullCalendarDate, wallNowAsUtcDate } from "@/features/calendar/timezone";
 import { resolveCalendarEventVisual } from "@/features/calendar/categories/visual";
 import type { CalendarCategory } from "@/features/calendar/categories/types";
 import styles from "./calendar-native.module.css";
+import { calendarDragPreview, calendarDurationLabel } from "./calendar-drag-preview";
+import { observeCalendarGeometry } from "./observe-calendar-geometry";
 
 type CalendarView = "timeGridWeek" | "timeGridDay" | "dayGridMonth";
 type Range = { start: Date; end: Date };
 const calendarPlugins = [timeGridPlugin, dayGridPlugin, interactionPlugin];
+const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
+function readReducedMotion() { return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(reducedMotionQuery).matches; }
+function subscribeReducedMotion(notify: () => void) {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const preference = window.matchMedia(reducedMotionQuery);
+  preference.addEventListener?.("change", notify);
+  return () => preference.removeEventListener?.("change", notify);
+}
 
 export function CalendarFullView({ events, categories, timezone, initialView, initialDate, onOpen, onCreate, onMove, onRangeChange, loadingRange, onTaskDrop }: {
   events: CalendarEventRecord[];
@@ -31,9 +41,16 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
   onTaskDrop?: (task:{id:string;title:string;modified:string|null}, startsAt:string)=>void;
 }) {
   const calendarRef = useRef<FullCalendar>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const reducedMotion = useSyncExternalStore(subscribeReducedMotion, readReducedMotion, () => false);
   const visualInitialDate = useMemo(() => instantToFullCalendarDate(initialDate.toISOString(), timezone), [initialDate, timezone]);
 
   const nowFn = useCallback(() => wallNowAsUtcDate(timezone), [timezone]);
+
+  useEffect(() => {
+    const root = canvasRef.current;
+    return root ? observeCalendarGeometry(root, () => calendarRef.current?.getApi().updateSize()) : undefined;
+  }, [initialView]);
 
   useEffect(() => {
     const api = calendarRef.current?.getApi();
@@ -78,17 +95,30 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     };
   }), [events, categories, timezone]);
 
-  const eventContent = useCallback((info: { event: { title: string; extendedProps: { event: CalendarEventRecord; visual: { dot: string } } }; timeText: string; view: { type: CalendarView } }) => {
-    const visual = info.event.extendedProps.visual;
+  const eventContent = useCallback((info: EventContentArg) => {
+    const visual = info.event.extendedProps.visual ?? resolveCalendarEventVisual([], categories);
+    if (info.isMirror) {
+      const start = info.event.start;
+      const end = info.event.end;
+      const preview = start && end ? calendarDragPreview(events, {
+        startsAt: fullCalendarDateToInstant(start, timezone), endsAt: fullCalendarDateToInstant(end, timezone), eventId: info.event.id,
+      }) : null;
+      return <div className={styles.dragPreview} data-overlap={Boolean(preview?.overlaps.length)} aria-hidden="true">
+        <strong>{info.event.title || "新日程"}</strong>
+        <span>{info.timeText}{info.event.allDay ? "全天" : ` · ${calendarDurationLabel(preview?.durationMinutes ?? null)}`}</span>
+        {preview?.overlaps.length ? <span className={styles.overlapHint}>已载入日程重叠 {preview.overlaps.length} 项</span> : <span>松开后核对</span>}
+      </div>;
+    }
     if (info.view.type === "dayGridMonth") {
       return (
-        <div className="flex min-w-0 items-center gap-1.5 px-1 py-0.5 text-[12px] leading-4">
+        <div className="flex min-w-0 items-center gap-1.5 px-1 py-0.5 text-[12px] leading-[1.4]">
           <span className="size-[5px] shrink-0 rounded-full" style={{ backgroundColor: visual.dot }} />
           <span className="truncate font-medium text-[var(--text-primary)]">{info.event.title}</span>
         </div>
       );
     }
-    const event = info.event.extendedProps.event;
+    const event = info.event.extendedProps.event as CalendarEventRecord | undefined;
+    if (!event) return <span>{info.event.title || "新日程"}</span>;
     const durationMinutes = (Date.parse(event.ends_at) - Date.parse(event.starts_at)) / 60_000;
     if (durationMinutes <= 30) {
       return (
@@ -105,14 +135,14 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
     return (
       <div className="h-full overflow-hidden px-1.5 py-1 text-[12px] leading-[1.25]">
         <p className="line-clamp-2 font-medium tracking-[-0.01em]">{info.event.title}</p>
-        <p className="mt-1 text-[12px] leading-4">{info.timeText}</p>
-        {durationMinutes >= 90 && location ? <p className="mt-1 line-clamp-1 text-[12px] leading-4">{location}</p> : null}
+        <p className="mt-1 text-[12px] leading-[1.4]">{info.timeText}</p>
+        {durationMinutes >= 90 && location ? <p className="mt-1 line-clamp-1 text-[12px] leading-[1.4]">{location}</p> : null}
       </div>
     );
-  }, []);
+  }, [categories, events, timezone]);
 
   return (
-    <div className={styles.canvas} aria-busy={loadingRange}>
+    <div ref={canvasRef} className={styles.canvas} aria-busy={loadingRange}>
       <FullCalendar
         ref={calendarRef}
         plugins={calendarPlugins}
@@ -134,6 +164,8 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
         longPressDelay={450}
         selectLongPressDelay={450}
         eventLongPressDelay={450}
+        eventDragMinDistance={8}
+        dragRevertDuration={reducedMotion ? 0 : 180}
         slotDuration="00:30:00"
         snapDuration="00:15:00"
         slotLabelInterval="01:00"

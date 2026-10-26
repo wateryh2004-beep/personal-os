@@ -232,11 +232,20 @@ async function backCloses(page, trigger, visibleTarget) {
         if (scene === "today") {
           const heading = await page.getByRole("heading", { name: "今天", exact: true }).boundingBox();
           const main = await page.locator("#main-content").boundingBox();
-          assert.ok(heading && main);
-          const inset = heading.x - main.x;
-          const expectedInset = Math.max(0, main.width - (width < 1024 ? 760 : 820)) / 2 + (width < 375 ? 20 : width < 768 ? 24 : width < 1024 ? 32 : 48);
+          const header = await page.locator(".today-header").boundingBox();
+          const date = await page.locator(".today-calendar-mark").boundingBox();
+          const copy = await page.locator(".today-header-copy").boundingBox();
+          assert.ok(heading && main && header && date && copy);
+          // The approved date-led desk starts with its date anchor. The h1 is
+          // deliberately in the adjacent copy column, not the workspace axis.
+          const inset = header.x - main.x;
+          const expectedInset = Math.max(0, main.width - 1120) / 2 + (width < 375 ? 20 : width < 768 ? 24 : width < 1024 ? 32 : 48);
+          visualMetrics.push({ scene, width, todayHeader: header, todayDate: date, todayHeading: heading, todayCopy: copy, inset, expectedInset });
           assert.ok(Math.abs(inset - expectedInset) <= 1, `Today ${width}px has one responsive gutter: ${inset}, expected ${expectedInset}`);
-          todayOrigin = await page.locator(".today-header").boundingBox();
+          assert.ok(Math.abs(date.x - header.x) <= 1 && date.width > 0 && date.height > 0, "the real date anchors the shared page axis");
+          assert.ok(date.x + date.width <= copy.x + 1, "the date and heading copy remain distinct readable columns");
+          assert.ok(heading.width > 0 && heading.height > 0 && heading.x >= copy.x && heading.x + heading.width <= copy.x + copy.width + 1 && heading.y >= copy.y && heading.y + heading.height <= copy.y + copy.height + 1, "the visible h1 remains fully contained in its heading copy");
+          todayOrigin = header;
         }
         if (scene === "today" || scene === "today-filled") {
           assert.equal(await page.getByRole("button", { name: "加入 Inbox", exact: true }).count(), 0, "capture has one global entry point");
@@ -279,9 +288,12 @@ async function backCloses(page, trigger, visibleTarget) {
           assert.ok(title && title.x + title.width <= menu.x, "Notes text and menu hit areas stay separate");
         }
         if (scene === "today-loading") {
-          const skeletonOrigin = await page.locator(".now-workspace > header").boundingBox();
+          const skeletonOrigin = await page.locator(".now-workspace .today-header").boundingBox();
           assert.ok(todayOrigin && skeletonOrigin);
           assert.ok(Math.abs(todayOrigin.x - skeletonOrigin.x) <= 1 && Math.abs(todayOrigin.y - skeletonOrigin.y) <= 1, `Today ${width}px loading and content share an origin`);
+          assert.equal(await page.locator('.today-desk-container [aria-busy="true"][aria-label="正在载入今天"]').count(), 1, "Today loading retains its real loading state in the same desk container");
+          assert.equal(await page.locator(".now-workspace .today-desk-main, .now-workspace .today-desk-agenda, .now-workspace .today-desk-context").count(), 3, "loading reserves the main, agenda and context composition");
+          visualMetrics.push({ scene, width, skeletonOrigin, contentOrigin: todayOrigin });
         }
         if (scene === "notes" && width >= 768) {
           const width = await page.getByRole("button", { name: "调整笔记导航宽度，双击恢复默认" }).evaluate((node) => node.parentElement.getBoundingClientRect().width);
@@ -358,6 +370,19 @@ async function backCloses(page, trigger, visibleTarget) {
       const { writeFile } = await import("node:fs/promises");
       await writeFile(`${process.env.E2E_SCREENSHOT_DIR}/typography-spacing-metrics.json`, JSON.stringify(visualMetrics, null, 2));
     }
+  } catch (error) {
+    // Capture the current synthetic page before closing the browser; previous
+    // runs failed before their success-only capture and left no Today image.
+    const activePage = browser.contexts().flatMap(context => context.pages()).filter(page => !page.isClosed()).at(-1);
+    if (activePage) await capture(activePage, "failure").catch(() => {});
+    if (process.env.E2E_SCREENSHOT_DIR) {
+      const { mkdir, writeFile } = await import("node:fs/promises");
+      await mkdir(process.env.E2E_SCREENSHOT_DIR, { recursive: true });
+      await writeFile(`${process.env.E2E_SCREENSHOT_DIR}/typography-spacing-metrics.json`, JSON.stringify(visualMetrics, null, 2));
+      const current = activePage ? new URL(activePage.url()) : null;
+      await writeFile(`${process.env.E2E_SCREENSHOT_DIR}/failure-context.json`, JSON.stringify({ scene: current?.searchParams.get("scene") ?? null, pathname: current?.pathname ?? null, viewport: activePage?.viewportSize() ?? null, recordedMetrics: visualMetrics.length, error: error instanceof Error ? error.message : String(error) }, null, 2));
+    }
+    throw error;
   } finally {
     await browser.close();
   }

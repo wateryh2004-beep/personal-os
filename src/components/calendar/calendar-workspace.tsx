@@ -33,6 +33,8 @@ import { EntityBacklinks } from "@/components/links/entity-backlinks";
 import { calendarRangeResource, invalidateCalendarRangeResources, type CalendarRangeData } from "@/features/calendar/workspace-resource";
 
 import { captureWorkspaceScope, WorkspaceReadSupersededError } from "@/lib/workspace-resource-cache";
+import { calendarDragPreview, calendarDurationLabel } from "./calendar-drag-preview";
+import calendarStyles from "./calendar-native.module.css";
 
 const CalendarAssistant = dynamic(() => import("@/components/calendar/calendar-assistant").then((module) => module.CalendarAssistant), { ssr: false });
 
@@ -530,6 +532,8 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
     : new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, month: "long", day: view === "month" ? undefined : "numeric", year: view === "month" ? "numeric" : undefined }).format(cursor);
   const syncTone = syncStatus?.state === "failed" ? "bg-[var(--danger)]" : syncStatus?.state === "fresh" && !syncStatus.subscriptionExpiring ? "bg-[var(--success)]" : "bg-[var(--warning)]";
 
+  const moveHint = movePreview ? calendarDragPreview(eventState, { ...movePreview.range, eventId: movePreview.event.id }) : null;
+
   return (
     <section className="calendar-workspace flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
       <div className="relative flex min-w-0 flex-1 flex-col">
@@ -627,7 +631,16 @@ export function CalendarWorkspace({ events, categories, timezone, syncStatus, sc
       </div>
 
       <Inspector open={inspector.isOpen||createPending} title={selected || lookup ? "日程详情" : "新建日程"} onClose={closeDetails} className="calendar-inspector w-[min(380px,calc(100vw-8px))]">{selected ? <><CalendarEventEditForm key={selected.id} event={selected} timezone={timezone} calendarCategories={categories} categoriesEnabled={scopeReady} onReconcile={reconcileInspectorMutation} /><EntityBacklinks type="calendar_event" id={selected.id} /></> : draft ? <CalendarCreateForm key={`${draft.startsAt}:${draft.endsAt}:${draft.sourceTask?.id??""}:${draft.sourceTask?.modified??""}:${draft.isAllDay ? "all-day" : "timed"}`} timezone={timezone} categoriesEnabled={scopeReady} initialStart={draft.startsAt} initialEnd={draft.endsAt} initialAllDay={draft.isAllDay} initialSubject={draft.subject} initialDescription={draft.description} sourceTask={draft.sourceTask} onPending={reportCreatePending} onDirty={()=>{draftDirtyRef.current=true;}} onCreated={reconcileCreatedEvent} /> : lookup ? <div role="status" className="space-y-3 text-sm text-[var(--text-secondary)]"><p>{lookup.error ?? "正在读取日程…"}</p>{lookup.error ? <button type="button" onClick={() => setLookupAttempt((current) => current + 1)} className="font-medium text-[var(--accent)]">重新读取</button> : null}</div> : null}</Inspector>
-      <Dialog open={Boolean(movePreview)} onOpenChange={next=>{if(moveBusy)return false;if(!next)setMovePreview(null);}}><DialogContent><DialogHeader><DialogTitle>预览日程变更</DialogTitle><DialogDescription>核对后才写入Outlook。取消保留原安排。</DialogDescription></DialogHeader>{movePreview?<><p>{movePreview.event.subject}</p><p className="text-sm">原安排：{instantToWallTime(movePreview.event.starts_at,timezone)} — {instantToWallTime(movePreview.event.ends_at,timezone)}</p><p className="text-sm">新安排：{instantToWallTime(movePreview.range.startsAt,timezone)} — {instantToWallTime(movePreview.range.endsAt,timezone)} · {timezone}</p><div className="flex justify-end gap-2"><Button variant="outline" disabled={moveBusy} onClick={()=>setMovePreview(null)}>取消</Button><Button disabled={moveBusy} onClick={async()=>{setMoveBusy(true);try{await moveEvent(movePreview.event,movePreview.range);setMovePreview(null);}catch{/* Existing calendar error retains the preview. */}finally{setMoveBusy(false);}}}>{moveBusy?"保存中…":"确认更新到Outlook"}</Button></div></>:null}</DialogContent></Dialog>
+      <Dialog open={Boolean(movePreview)} onOpenChange={next=>{if(moveBusy)return false;if(!next)setMovePreview(null);}}><DialogContent><DialogHeader><DialogTitle>预览日程变更</DialogTitle><DialogDescription>核对后才写入 Outlook。取消保留原安排。</DialogDescription></DialogHeader>{movePreview?<div className={calendarStyles.movePreview}>
+        <p className={calendarStyles.movePreviewSubject}>{movePreview.event.subject}</p>
+        <div className={calendarStyles.moveTimeline}>
+          <div><p>原安排</p><p>{instantToWallTime(movePreview.event.starts_at,timezone)} — {instantToWallTime(movePreview.event.ends_at,timezone)}</p></div>
+          <div><p>新安排 · {movePreview.range.isAllDay ? "全天" : calendarDurationLabel(moveHint?.durationMinutes ?? null)}</p><p>{instantToWallTime(movePreview.range.startsAt,timezone)} — {instantToWallTime(movePreview.range.endsAt,timezone)}</p><p>{timezone}</p></div>
+        </div>
+        <p className={calendarStyles.moveConflict}>{moveHint?.overlaps.length ? `已载入的日程有 ${moveHint.overlaps.length} 项重叠：${moveHint.overlaps.slice(0,3).map(event=>event.subject||"未命名日程").join("、")}${moveHint.overlaps.length>3?"等":""}。` : "已载入的日程未发现重叠。"}{rangeTruncated || loadingRange ? " 当前范围尚不完整，请核对后确认。" : " 此提示基于最近同步的日历。"}</p>
+        {calendarError ? <p role="alert" className="text-sm text-[var(--danger)]">{calendarError}</p> : null}
+        <div className={calendarStyles.moveActions}><Button variant="outline" disabled={moveBusy} onClick={()=>setMovePreview(null)}>取消</Button><Button disabled={moveBusy} onClick={async()=>{setMoveBusy(true);try{await moveEvent(movePreview.event,movePreview.range);setMovePreview(null);}catch{/* Existing calendar error retains the preview. */}finally{setMoveBusy(false);}}}>{moveBusy?"保存中…":"确认更新到Outlook"}</Button></div>
+      </div>:null}</DialogContent></Dialog>
       <PanelPresence open={ai.isOpen}><AISidecar open={ai.isOpen} onClose={ai.close} context="Calendar"><CalendarAssistant timezone={timezone} categories={categories} /></AISidecar></PanelPresence>
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent className="max-h-[82dvh] overflow-y-auto sm:max-w-2xl"><CalendarCategoryManager categories={categories} timezone={timezone} scopeReady={scopeReady} events={eventState} referenceTime={cursor.getTime()} /></DialogContent></Dialog>
     </section>

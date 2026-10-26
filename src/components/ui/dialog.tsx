@@ -125,7 +125,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
     <DialogPrimitive.Title
       data-slot="dialog-title"
       tabIndex={-1}
-      className={cn("text-[17px] font-semibold leading-6 tracking-[-0.02em] text-[var(--text-primary)]", className)}
+      className={cn("text-[17px] font-semibold leading-[1.4] tracking-[-0.02em] text-[var(--text-primary)]", className)}
       {...props}
     />
   )
@@ -135,7 +135,7 @@ function DialogDescription({ className, ...props }: React.ComponentProps<typeof 
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-[13px] leading-5 text-[var(--text-secondary)] *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground", className)}
+      className={cn("text-[13px] leading-[1.55] text-[var(--text-secondary)] *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground", className)}
       {...props}
     />
   )

@@ -129,3 +129,81 @@
   .navigation-rail [data-nav-selected=true] { outline:2px solid Highlight; outline-offset:-2px; }
   .navigation-indicator { display:none; }
 }
+
+/* Direction follows the one navigation registry; Back without a declared type stays neutral. */
+.navigation-indicator::before { content:""; position:absolute; inset:9px auto 9px 0; width:3px; border-radius:3px; background:var(--accent); }
+.navigation-rail-horizontal .navigation-indicator::before { inset:auto 14px 0; width:auto; height:3px; }
+::view-transition-old(.workspace-forward),::view-transition-new(.workspace-backward) { --workspace-travel:-28px; }
+::view-transition-new(.workspace-forward),::view-transition-old(.workspace-backward) { --workspace-travel:28px; }
+::view-transition-old(.workspace-forward),::view-transition-old(.workspace-backward) { animation:polish-workspace-out 240ms var(--ease-standard) both; }
+::view-transition-new(.workspace-forward),::view-transition-new(.workspace-backward) { animation:polish-workspace-in 540ms var(--ease-emphasized) both; }
+@keyframes polish-workspace-out { to { opacity:0; transform:translateX(var(--workspace-travel)); } }
+@keyframes polish-workspace-in { from { opacity:0; transform:translateX(var(--workspace-travel)); } to { opacity:1; transform:none; } }
+
+/* Search keeps one input and one list while explicit preview changes the workspace. */
+[data-slot=dialog-content].global-command-surface { transition:width 360ms var(--ease-emphasized),transform 460ms var(--ease-emphasized),clip-path 460ms var(--ease-emphasized),opacity 180ms var(--ease-standard); }
+[data-slot=dialog-content].global-command-surface:has(.command-results-layout[data-preview=true]) { width:min(1040px,calc(100vw - 48px)); }
+.command-results-layout { display:grid; grid-template-columns:minmax(0,1fr); min-height:0; min-width:0; }
+.command-results-layout[data-preview=true] { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+.global-command-surface .command-results-list { position:relative; isolation:isolate; scroll-padding-block:16px; }
+.command-selection-indicator { position:absolute; top:0; left:0; opacity:0; z-index:-1; border-radius:10px; background:var(--surface-selected); pointer-events:none; }
+.command-results-list[data-indicator-ready] .command-selection-indicator { opacity:1; transition:transform 180ms var(--ease-emphasized),height 160ms var(--ease-standard),width 160ms var(--ease-standard); }
+.global-command-surface .command-results-list[data-indicator-ready] [data-slot=command-item][data-selected=true] { background:transparent; }
+.global-command-surface [data-slot=command-item][data-selected=true]::before { content:""; position:absolute; inset:10px auto 10px 0; width:2px; border-radius:2px; background:var(--accent); }
+.command-result-preview { min-width:0; min-height:0; height:min(56dvh,480px); overflow:auto; border-top:1px solid var(--separator); border-left:1px solid var(--separator); background:var(--surface-app); animation:command-preview-arrive 280ms var(--ease-emphasized); }
+.command-result-preview .workbench-document { height:100%; padding:20px; }
+.command-result-preview .workbench-document-header h2 { font-size:24px; }
+.command-result-preview .workbench-note-editor { display:none; }
+.command-preview-loading,.command-result-excerpt { padding:20px; font-size:14px; line-height:1.8; color:var(--text-secondary); overflow-wrap:anywhere; }
+.command-result-excerpt h3 { font:400 24px/1.5 var(--font-serif); color:var(--text-primary); margin-bottom:16px; }
+.command-result-excerpt p + p { margin-top:12px; }
+.command-results-footer { display:flex; align-items:center; gap:12px; padding:12px; border-top:1px solid var(--separator); font-size:12px; color:var(--text-secondary); }
+.command-preview-picker { min-width:0; flex:1; }
+.command-preview-picker select { width:100%; max-width:100%; min-height:36px; border:1px solid var(--control-border); border-radius:8px; padding:6px 8px; background:var(--surface-canvas); font-size:13px; color:var(--text-primary); }
+.command-results-footer button { flex-shrink:0; min-height:36px; padding:6px 12px; border:1px solid var(--control-border); border-radius:10px; background:var(--surface-canvas); color:var(--text-primary); cursor:pointer; }
+.command-results-footer button[aria-expanded=true] { background:var(--accent-soft); border-color:var(--accent); }
+.command-results-footer button:disabled { opacity:.5; cursor:default; }
+.command-results-footer :is(button,select):focus-visible { outline:2px solid var(--focus-ring); outline-offset:2px; }
+@keyframes command-preview-arrive { from { opacity:0; transform:translateX(10px); } to { opacity:1; transform:none; } }
+@media(max-width:767px) {
+  [data-slot=dialog-content].global-command-surface:has(.command-results-layout[data-preview=true]) { width:100%; }
+  .command-results-layout[data-preview=true] { grid-template-columns:minmax(0,1fr); }
+  .command-results-layout[data-preview=true] .command-results-list { max-height:20dvh; }
+  .command-result-preview { height:30dvh; border-left:0; }
+  .command-results-footer { gap:8px; padding:10px 4px; }
+  .command-keyboard-hint { display:none; }
+  .command-preview-picker select { min-height:44px; font-size:16px; }
+  .command-results-footer button { min-height:44px; }
+}
+
+/* Shared controls settle in place; floating surfaces reverse from their current frame. */
+[data-ui-button] { transition:background-color 160ms var(--ease-standard),border-color 160ms var(--ease-standard),color 160ms var(--ease-standard),box-shadow 160ms var(--ease-standard),transform 140ms var(--ease-emphasized); }
+[data-ui-button]:active:not(:disabled):not([aria-disabled=true]) { transform:scale(.985); }
+[data-ui-button][aria-busy=true] { cursor:progress; }
+:is([data-slot=dropdown-menu-content],[data-slot=dropdown-menu-sub-content],[data-slot=popover-content]:not(.note-outline-surface)) { opacity:1; transform:none; transition:opacity 160ms var(--ease-standard),transform 260ms var(--ease-emphasized); animation:none; }
+@starting-style {
+  :is([data-slot=dropdown-menu-content],[data-slot=dropdown-menu-sub-content],[data-slot=popover-content]:not(.note-outline-surface))[data-state=open] { opacity:0; transform:translateY(-4px) scale(.97); }
+}
+:is([data-slot=dropdown-menu-content],[data-slot=dropdown-menu-sub-content],[data-slot=popover-content]:not(.note-outline-surface))[data-state=closed] { opacity:0; transform:translateY(-4px) scale(.97); pointer-events:none; transition-duration:160ms; animation:polish-floating-presence 160ms linear; }
+@keyframes polish-floating-presence { from { --floating-present:1; } to { --floating-present:0; } }
+@media(prefers-reduced-motion:reduce) {
+  ::view-transition-old(.workspace-forward),::view-transition-new(.workspace-forward),::view-transition-old(.workspace-backward),::view-transition-new(.workspace-backward) { animation:none!important; }
+  .command-selection-indicator,.command-result-preview,[data-ui-button],:is([data-slot=dropdown-menu-content],[data-slot=dropdown-menu-sub-content],[data-slot=popover-content]:not(.note-outline-surface)) { transition:none!important; animation:none!important; transform:none; }
+  [data-ui-button]:active:not(:disabled):not([aria-disabled=true]) { transform:none; }
+}
+@media(forced-colors:active) {
+  .command-selection-indicator { display:none; }
+  .global-command-surface .command-results-list [data-slot=command-item][data-selected=true] { outline:2px solid Highlight; outline-offset:-2px; }
+  .command-results-footer button[aria-expanded=true] { outline:2px solid Highlight; }
+}
+
+/* The native workspace layer contains no controls. Live content stays hit-testable.
+   Local CSS can be interrupted by the next route without waiting for snapshots. */
+.workspace-route-surface { position:relative; isolation:isolate; min-width:0; }
+.workspace-space-plane { position:absolute; inset:0; z-index:-1; pointer-events:none; background:var(--surface-app); }
+.workspace-live-surface { min-width:0; }
+.workspace-live-surface[data-navigation-motion=navigation-forward] { animation:workspace-live-forward 360ms var(--ease-emphasized); }
+.workspace-live-surface[data-navigation-motion=navigation-backward] { animation:workspace-live-backward 360ms var(--ease-emphasized); }
+@keyframes workspace-live-forward { from { opacity:.92; transform:translateY(12px); } to { opacity:1; transform:none; } }
+@keyframes workspace-live-backward { from { opacity:.92; transform:translateY(-12px); } to { opacity:1; transform:none; } }
+@media(prefers-reduced-motion:reduce) { .workspace-live-surface[data-navigation-motion] { animation:none; } }

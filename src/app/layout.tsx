@@ -5,6 +5,7 @@ import "./workspaces.css";
 import "./responsive.css";
 import "./today-calm.css";
 import "./workspace-motion.css";
+import "./editorial-notes-files.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PwaLifecycle } from "@/components/pwa/pwa-lifecycle";
 import { ClientPerformanceReporter } from "@/components/performance/client-performance-reporter";

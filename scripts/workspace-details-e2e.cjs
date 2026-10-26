@@ -59,6 +59,21 @@ async function goto(page, scene) {
         assert.deepEqual(result.errors, [], `${name}: no hydration or runtime errors`);
       };
       await goto(page, "career-filled");
+      // Reduced motion must commit real style updates in the same frame. A
+      // universal .01ms duration with the default property "all" still exposes
+      // old font/padding geometry until another tick, including in CodeMirror.
+      const reducedStyleCommit = await page.evaluate(() => {
+        const probe = document.createElement("div");
+        probe.style.cssText = "font-size:16px;padding-left:0px;position:fixed;visibility:hidden";
+        document.body.append(probe);
+        const before = getComputedStyle(probe).paddingLeft;
+        probe.style.fontSize = "32px"; probe.style.paddingLeft = "20px";
+        const style = getComputedStyle(probe);
+        const result = { before, font: style.fontSize, padding: style.paddingLeft, transition: style.transitionProperty, activeTransitions: probe.getAnimations().filter(animation => animation instanceof CSSTransition).length };
+        probe.remove(); return result;
+      });
+      assert.deepEqual(reducedStyleCommit, { before: "0px", font: "32px", padding: "20px", transition: "none", activeTransitions: 0 }, "reduced motion commits font and padding without starting a transition");
+      result.checks.push("reduced-motion-same-frame-style-commit");
       for (const heading of ["职业目标", "真实招聘机会", "投递记录", "面试准备情境"]) {
         assert.equal(await page.getByRole("heading", { name: heading, exact: true }).count(), 1, `Career layer ${heading} exists`);
       }

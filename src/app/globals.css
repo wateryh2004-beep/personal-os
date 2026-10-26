@@ -207,7 +207,10 @@ details > summary { transition:color var(--motion-fast) var(--ease-standard),opa
 [data-slot="dialog-content"], [data-slot="sheet-content"], [data-slot="popover-content"],
 [data-slot="select-content"], [data-slot="dropdown-menu-content"] { background:var(--surface-elevated); }
 @media (prefers-reduced-motion:reduce) {
-  *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }
+  /* A tiny duration still starts a transition (the default property is all),
+     briefly exposing old font/padding geometry after a real layout update.
+     Disable transitions outright; retain finite animation events for Presence. */
+  *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition:none!important; }
   .ui-skeleton-shimmer,.notes-editor-loading::before { animation:none; }
 }
 @media (prefers-contrast:more) {

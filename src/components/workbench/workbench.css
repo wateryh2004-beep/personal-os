@@ -97,3 +97,19 @@
 }
 @media(prefers-reduced-motion:reduce) {.workbench-reference-pane,.workbench-reference-pane[data-state=closed],.workbench-preview-body .workbench-document-header,.workbench-selection-bar{animation:none}}
 @media(forced-colors:active) {.workbench-record[data-selected],.workbench-comparison-table [data-different],.workbench-mobile-switch [aria-pressed=true]{outline:2px solid Highlight}.workbench-comparison-table th,.workbench-comparison-table td{border-color:CanvasText}}
+
+/* The divider owns geometry only; editors and private previews keep their identity. */
+.workbench-reference-pane { order:2; border-left:0; }
+.workbench-divider { position:sticky; top:var(--toolbar-height); align-self:stretch; flex:0 0 12px; width:12px; min-height:320px; order:1; cursor:col-resize; touch-action:none; outline:none; z-index:3; background:var(--surface-app); }
+.workbench-divider::before { content:""; position:absolute; inset:0 5px; background:var(--separator); transition:background-color 160ms var(--ease-standard); }
+.workbench-divider span { position:sticky; display:block; top:calc(var(--toolbar-height) + 35vh); margin:0 auto; width:4px; height:44px; border-radius:4px; background:var(--control-border); transition:background-color 160ms var(--ease-standard),height 160ms var(--ease-standard); }
+.workbench-divider:hover span,.workbench-divider:focus-visible span,.workbench-layout[data-resizing] .workbench-divider span { background:var(--accent); height:64px; }
+.workbench-divider:focus-visible { outline:2px solid var(--focus-ring); outline-offset:-2px; }
+.workbench-layout[data-reference-first=true] .workbench-reference-pane { order:0; border-right:0; }
+.workbench-layout[data-reference-first=true] .workbench-main-pane { order:2; }
+.workbench-layout[data-resizing] { cursor:col-resize; user-select:none; }
+.workbench-width-control output { min-width:3.5ch; color:var(--accent); font-variant-numeric:tabular-nums; }
+.workbench-layout-controls { padding-block:10px; }
+@media(pointer:coarse) and (min-width:768px) { .workbench-divider { flex-basis:44px; width:44px; } .workbench-divider::before{inset-inline:21px} }
+@media(prefers-reduced-motion:reduce) { .workbench-divider::before,.workbench-divider span { transition:none; } }
+@media(forced-colors:active) { .workbench-divider span { background:ButtonText; } .workbench-divider:focus-visible { outline-color:Highlight; } }

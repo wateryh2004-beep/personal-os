@@ -12,9 +12,12 @@ import { PageHeader } from "@/components/shared/page-header";
 import { WorkbenchRecord } from "@/components/workbench/workbench-record";
 import { OperationLinkTarget } from "@/components/workbench/operation-links";
 import { createProject } from "@/features/projects/actions";
+import { ProjectProgress, type ProjectPresentation } from "./project-progress";
+import styles from "./projects-workspace.module.css";
 
-type Project = { id: string; name: string; description: string | null; status: string; due_date: string | null; updated_at: string };
-const statusLabel: Record<string,string> = { active:"进行中", completed:"已完成", paused:"已暂停" };
+type Project = ProjectPresentation;
+type StatusFilter = "all" | "active" | "completed" | "paused" | "other";
+const statusGroup = (status: string): Exclude<StatusFilter, "all"> => status === "active" || status === "completed" ? status : status === "paused" || status === "on_hold" ? "paused" : "other";
 
 export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { projects: Project[]; initialCreateOpen?: boolean }) {
   const { rememberTrigger, restoreFocus } = useDialogReturnFocus();
@@ -26,6 +29,9 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
   const initialCreateIntent = useRef(initialCreateOpen);
   const searchParams = useSearchParams();
   const errorId = useId();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const visibleProjects = statusFilter === "all" ? projects : projects.filter(project => statusGroup(project.status) === statusFilter);
+  const counts = projects.reduce((value, project) => { value[statusGroup(project.status)] += 1; return value; }, { active: 0, completed: 0, paused: 0, other: 0 });
 
   useEffect(() => {
     const initialIntent = initialCreateIntent.current;
@@ -73,29 +79,20 @@ export function ProjectsWorkspace({ projects, initialCreateOpen = false }: { pro
     });
   };
   return (
-    <div>
+    <div className={styles.workspace}>
       <PageHeader title="项目" action={<Button onClick={(event) => { rememberTrigger(event.currentTarget); changeOpen(true); }}><Plus aria-hidden="true" />新建项目</Button>} />
 
       {success ? <p role="status" className="mt-3 text-[12px] text-[var(--success)]">{success}</p> : null}
 
       {projects.length ? (
-        <div className="ui-card mt-6 divide-y divide-[var(--separator)] px-3">
-          {projects.map((project) => (
-            <WorkbenchRecord key={project.id} entity={{kind:"project",id:project.id}} title={project.name} group="projects"><OperationLinkTarget target={{type:"project",id:project.id}} title={project.name}><article className="group grid gap-1.5 px-2 py-3.5 transition-colors ui-transition hover:bg-[var(--surface-hover)] sm:grid-cols-[1fr_auto] sm:items-start">
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
-                  <h2 className="truncate text-[13.5px] font-medium tracking-[-0.006em] text-[var(--text-primary)]">{project.name}</h2>
-                  <span className="shrink-0 rounded-full bg-[var(--surface-control)] px-2 py-0.5 text-[12px] text-[var(--text-secondary)]">{statusLabel[project.status] ?? project.status}</span>
-                </div>
-                <p className={`mt-1 line-clamp-2 text-[12px] leading-5 ${project.description ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]"}`}>{project.description || "尚未补充项目说明"}</p>
-              </div>
-              <div className="text-right text-[12px] leading-5 text-[var(--text-tertiary)]">
-                <p>{project.due_date ? `截止 ${new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(project.due_date))}` : "持续推进"}</p>
-                <p>更新于 {new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(new Date(project.updated_at))}</p>
-              </div>
-            </article></OperationLinkTarget></WorkbenchRecord>
-          ))}
-        </div>
+        <>
+          <div className={styles.overview}><strong>{counts.active}</strong><p>个项目正在推进{counts.completed ? `，${counts.completed} 个已完成` : ""}</p></div>
+          <div className={styles.filters} role="group" aria-label="按项目状态筛选">{([
+            ["all", "全部", projects.length], ["active", "进行中", counts.active], ["paused", "已暂停", counts.paused], ["completed", "已完成", counts.completed], ...(counts.other ? [["other", "其他状态", counts.other] as const] : []),
+          ] as const).map(([value, label, count]) => <button key={value} type="button" aria-pressed={statusFilter === value} onClick={() => setStatusFilter(value)}>{label}<span>{count}</span></button>)}</div>
+          <div className={styles.grid}>{visibleProjects.map((project) => <div key={project.id}><WorkbenchRecord entity={{kind:"project",id:project.id}} title={project.name} group="projects"><OperationLinkTarget target={{type:"project",id:project.id}} title={project.name}><ProjectProgress project={project} /></OperationLinkTarget></WorkbenchRecord></div>)}</div>
+          {!visibleProjects.length ? <p className={styles.emptyFilter} aria-live="polite">此状态下没有项目</p> : null}
+        </>
       ) : (
         <div className="flex min-h-64 flex-col items-center justify-center text-center">
           <SquareKanban className="size-6 text-[var(--text-tertiary)]" aria-hidden="true" />

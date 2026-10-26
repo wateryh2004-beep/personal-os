@@ -26,7 +26,7 @@
 .canvas :global(.fc-timegrid-slot) { height: 1.86em; border-color: color-mix(in srgb, var(--separator) 80%, transparent); }
 .canvas :global(.fc-timegrid-slot-minor) { border-top: 1px solid color-mix(in srgb, var(--separator) 45%, transparent); }
 .canvas :global(.fc-timegrid-slot-label-cushion) { padding-right: 10px; color: var(--text-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
-.canvas :global(.fc-timegrid-axis) { width: 50px; }
+.canvas :global(.fc-timegrid-axis) { width: 4.1667em; }
 .canvas :global(.fc-timegrid-now-indicator-line) { border-color: var(--danger); border-width: 1px; opacity: .78; }
 .canvas :global(.fc-timegrid-now-indicator-arrow) { border-color: var(--danger); color: var(--danger); opacity: .78; }
 .canvas :global(.fc-timegrid-event) { margin: 1px 2px 1px 2px; border-width: 0 0 0 2px; border-radius: 6px; box-shadow: none; cursor: pointer; transition: filter var(--motion-fast) var(--ease-standard), opacity var(--motion-fast) var(--ease-standard); }
@@ -54,10 +54,44 @@
 .loadingDot { width: 5px; height: 5px; border-radius: 999px; background: var(--accent); animation: calendarPulse 1s ease-in-out infinite alternate; }
 @keyframes calendarPulse { to { opacity: .28; } }
 
+/* FullCalendar owns pointer tracking and snapping; only its actual mirror lifts.
+   No synthetic event is installed until the existing confirmation flow succeeds. */
+.canvas :global(.fc-event-mirror) {z-index:30!important;opacity:1!important;border:1px solid var(--accent)!important;border-radius:10px;box-shadow:0 12px 28px color-mix(in srgb,var(--text-primary) 18%,transparent)!important;outline:2px solid color-mix(in srgb,var(--surface-canvas) 85%,transparent);outline-offset:1px;cursor:grabbing}
+.canvas :global(.fc-highlight) {background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:inset 0 0 0 1px var(--accent);border-radius:6px}
+.canvas:has(:global(.fc-event-mirror)) :global(.fc-timegrid-slot-minor) {border-top-color:color-mix(in srgb,var(--accent) 25%,var(--separator))}
+.canvas :global(.fc-event-mirror .fc-event-main) {overflow:visible}
+.dragPreview {position:relative;display:grid;align-content:start;gap:2px;padding:4px 7px;min-height:100%;font-size:.75rem;line-height:1.4;background:var(--surface-selected);color:var(--text-primary)}
+.dragPreview strong {font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dragPreview>span {font-size:.6875rem}
+.dragPreview>span:last-child {position:absolute;top:calc(100% + 5px);left:0;max-width:100%;width:max-content;padding:5px 8px;border:1px solid var(--separator);border-radius:8px;background:var(--surface-elevated);box-shadow:var(--shadow-popover);line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+.dragPreview[data-overlap=true] {box-shadow:inset 3px 0 var(--warning)}
+.overlapHint {color:var(--warning);font-weight:500}
+.pendingTasks {display:flex;max-height:10rem;flex-shrink:0;flex-wrap:wrap;align-items:center;gap:8px;overflow:auto;border-bottom:1px solid var(--separator);padding:12px 16px;background:var(--surface-app)}
+.pendingIntro {min-width:0;flex:1 1 100%;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.pendingIntro>p:first-child {font-size:.8125rem;font-weight:500;color:var(--text-primary)}
+.pendingHint {font-size:.75rem;line-height:1.6;color:var(--text-secondary)}
+.pendingChip {display:flex;max-width:100%;min-width:0;align-items:center;border:1px solid var(--separator);border-radius:12px;background:var(--surface-canvas);box-shadow:0 2px 6px color-mix(in srgb,var(--text-primary) 3%,transparent)}
+.pendingChip>[data-calendar-task-id] {display:flex;align-items:center;gap:6px;min-height:44px;max-width:15rem;min-width:0;padding:8px 10px;cursor:grab;font-size:.8125rem;text-align:left}
+.pendingChip>[data-calendar-task-id]>span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pendingChip>[data-calendar-task-id]>svg {flex-shrink:0;color:var(--text-tertiary)}
+.pendingChip>[data-calendar-task-id]:active {cursor:grabbing}
+.pendingChip>button:last-child {min-width:44px;min-height:44px;border-left:1px solid var(--separator);border-top-left-radius:0;border-bottom-left-radius:0;font-size:.75rem}
+.movePreview {display:grid;gap:16px;min-width:0}
+.movePreviewSubject {font-family:var(--font-serif);font-size:1.375rem;line-height:1.5;overflow-wrap:anywhere}
+.moveTimeline {display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.moveTimeline>div {border:1px solid var(--separator);border-radius:14px;padding:14px 16px;background:var(--surface-control);font-size:.875rem;line-height:1.8;overflow-wrap:anywhere}
+.moveTimeline>div:last-child {border-color:var(--accent);background:var(--surface-selected)}
+.moveTimeline p:first-child {font-size:.75rem;color:var(--text-secondary);margin-bottom:4px}
+.moveConflict {font-size:.8125rem;line-height:1.7;color:var(--text-secondary)}
+.moveActions {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.moveActions>button {min-width:44px;min-height:44px;max-width:100%;height:auto;padding-block:8px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+@media(prefers-reduced-motion:reduce){.canvas :global(.fc-event),.loadingDot {animation:none!important;transition:none!important}}
+@media(forced-colors:active){.canvas :global(.fc-event-mirror) {border-color:Highlight!important;outline:2px solid Highlight}.dragPreview[data-overlap=true] {outline:2px dashed CanvasText}.pendingChip,.moveTimeline>div {border-color:CanvasText}.moveTimeline>div:last-child {outline:2px solid Highlight}}
+
 @media (max-width: 767px) {
   .canvas :global(.fc) { font-size: 12px; touch-action: pan-y; }
   .canvas :global(.fc-timegrid-slot) { height: 2.25em; }
-  .canvas :global(.fc-timegrid-axis) { width: 38px; }
+  .canvas :global(.fc-timegrid-axis) { width: 3.1667em; }
   .canvas :global(.fc-timegrid-slot-label-cushion) { padding-right: 5px; font-size: 12px; }
   .canvas :global(.fc-col-header-cell-cushion) { padding: 8px 2px; font-size: 12px; }
   .canvas :global(.fc-timegrid-event) { min-height: 24px; margin-right: 2px; border-radius: 6px; }

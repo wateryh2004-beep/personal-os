@@ -159,3 +159,26 @@ it("cancels an exiting pane and its deferred focus when the owner scope clears",
   expect(host.querySelector<HTMLElement>(".workbench-reference-pane")?.hidden).toBe(true);
   expect(document.activeElement).toBe(primary);
 });
+
+it("resizes through the focusable divider in either visual order without replacing editor DOM", async () => {
+  await act(async () => root.render(<Suspense fallback={null}><WorkbenchProvider><LayoutHarness /></WorkbenchProvider></Suspense>));
+  const primary = host.querySelector<HTMLInputElement>("input[aria-label='primary draft']")!;
+  await act(async () => [...host.querySelectorAll("button")].find((button) => button.textContent === "Open reference")!.click());
+  const divider = host.querySelector<HTMLElement>('[role="separator"]')!;
+  expect(divider.getAttribute("aria-valuenow")).toBe("42");
+  divider.focus();
+  await act(async () => divider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true, cancelable: true })));
+  expect(divider.getAttribute("aria-valuenow")).toBe("44");
+  await act(async () => [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("交换位置"))!.click());
+  await act(async () => divider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", shiftKey: true, bubbles: true, cancelable: true })));
+  expect(divider.getAttribute("aria-valuenow")).toBe("49");
+  await act(async () => divider.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true, cancelable: true })));
+  expect(divider.getAttribute("aria-valuenow")).toBe("65");
+  await act(async () => divider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true })));
+  expect(divider.getAttribute("aria-valuenow")).toBe("65");
+  await act(async () => divider.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true, cancelable: true })));
+  expect(divider.getAttribute("aria-valuenow")).toBe("30");
+  expect(host.querySelector("input[aria-label='primary draft']")).toBe(primary);
+  expect(mocks.mounts).toBe(1);
+  expect(document.activeElement).toBe(divider);
+});

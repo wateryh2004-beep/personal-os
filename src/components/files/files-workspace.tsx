@@ -15,6 +15,7 @@ import { FilePdfCover } from "./file-pdf-cover";
 import { FilePdfPreview } from "./file-pdf-preview";
 import { isPdfFile } from "@/features/files/preview-format";
 import { FilePhoto } from "./file-photo";
+import { useFilePreviewMotion } from "./use-file-preview-motion";
 import { classifyFile, defaultFileBrowserState, fileBrowserUrl, filesPerPage, revealFileState, fileSortLabels, fileSorts, fileTypeLabels, fileTypes, parseFileBrowserState, selectFiles, type FileBrowserState } from "@/features/files/browser-state";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileRecoveryPanel } from "./file-recovery-panel";
@@ -26,7 +27,7 @@ import { canUpload, maxFileSize } from "@/features/files/schemas";
 import { runUploadBatch } from "@/features/files/upload-batch";
 
 import { VaultHideButton } from "@/components/vault/vault-provider";
-import { Archive, Download, Eye, File, FilePlus2, Folder, FolderPlus, LoaderCircle, MoreHorizontal, Upload } from "lucide-react";
+import { Archive, ChevronLeft, ChevronRight, Download, Eye, File, FilePlus2, Folder, FolderPlus, LoaderCircle, MoreHorizontal, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { archiveFile, createFileFolder, moveFile, renameFile, restoreFile, setFileAiVisibility } from "@/features/files/actions";
 import { directUploadFailureMessage } from "@/features/files/r2-errors";
@@ -110,7 +111,16 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
   const [archivedLimit, setArchivedLimit] = useState(filesPerPage);
   const [highlightId, setHighlightId] = useState<string | null>(initialFileId && files.some((item) => item.id === initialFileId) ? initialFileId : null);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const previewLauncher = useRef<HTMLElement | null>(null);
+  const previewSource = useRef<HTMLElement | null>(null);
+  const previewSurface = useFilePreviewMotion(previewOpen, previewSource, previewId);
+  const openPreview = (file: FileRecord, launcher: HTMLElement) => {
+    previewLauncher.current = launcher;
+    previewSource.current = launcher;
+    setPreviewId(file.id);
+    setPreviewOpen(true);
+  };
   function changeBrowser(patch: Partial<FileBrowserState>, replace = false) {
     const resetPage = patch.folderId !== undefined || patch.query !== undefined || patch.type !== undefined || patch.sort !== undefined;
     const next = { ...browser, folderId, ...(resetPage ? { page: 1 } : {}), ...patch };
@@ -143,6 +153,17 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
   const displayedFiles = visibleFiles.slice((currentPage - 1) * filesPerPage, currentPage * filesPerPage);
   const visibleArchived = useMemo(() => selectFiles(archivedRows, { ...browser, folderId: null }).visible, [archivedRows, browser]);
   const previewFile = fileRows.find(file => file.id === previewId) ?? null;
+  // The existing filter and sort own the queue; the viewer holds no second file snapshot.
+  const previewFiles = visibleFiles.filter(file => classifyFile(file) === "photo" || isPdfFile(file));
+  const previewIndex = previewFiles.findIndex(file => file.id === previewId);
+  const switchPreview = (offset: -1 | 1) => {
+    const next = previewFiles[previewIndex + offset];
+    if (previewIndex >= 0 && next) {
+      const source = document.getElementById(`file-${next.id}`);
+      previewSource.current = source && sectionRef.current?.contains(source) ? source : null;
+      setPreviewId(next.id);
+    }
+  };
   const filtering = Boolean(browser.query || browser.type !== "all");
   useEffect(() => {
     const restoreBrowser = () => {
@@ -387,9 +408,9 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           </div>
         ) : browser.view === "grid" ? (
           <ul aria-label="文件网格" className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
-            {displayedFiles.map(file => <li id={`file-${file.id}`} key={file.id} className={`min-w-0 overflow-hidden rounded-[12px] border border-[var(--separator)] bg-[var(--surface-canvas)] ${file.id === highlightId ? "ring-2 ring-[var(--accent)]" : ""}`}>
-              <WorkbenchRecord entity={{kind:"document",id:file.id}} title={file.title} group={`files:${folderId}:${browser.sort}:${browser.query}`} >{classifyFile(file) === "photo" ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="block w-full"><FilePhoto file={file} className="aspect-square w-full" /></button> : isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="block w-full"><FilePdfCover file={file} /></button> : <div className="flex aspect-square items-center justify-center bg-[var(--surface-control)] text-[var(--text-tertiary)]"><File size={36} /></div>}
-              <div className="min-w-0 p-2.5">{classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} aria-label={`打开预览：${file.title}`} title={file.title} className="block w-full truncate text-left text-[12.5px] font-medium hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[12.5px] font-medium" title={file.title}>{file.title}</p>}<p className="mt-1 text-[12px] text-[var(--text-tertiary)]">{fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)}</p><p className="mt-1 text-[12px] text-[var(--text-tertiary)]">上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}</p>
+            {displayedFiles.map(file => <li data-file-preview-source id={`file-${file.id}`} key={file.id} className={`min-w-0 overflow-hidden rounded-[12px] border border-[var(--separator)] bg-[var(--surface-canvas)] ${file.id === highlightId ? "ring-2 ring-[var(--accent)]" : ""}`}>
+              <WorkbenchRecord entity={{kind:"document",id:file.id}} title={file.title} group={`files:${folderId}:${browser.sort}:${browser.query}`} >{classifyFile(file) === "photo" ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { openPreview(file, event.currentTarget); }} className="block w-full"><FilePhoto file={file} className="aspect-square w-full" /></button> : isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { openPreview(file, event.currentTarget); }} className="block w-full"><FilePdfCover file={file} /></button> : <div className="flex aspect-square items-center justify-center bg-[var(--surface-control)] text-[var(--text-tertiary)]"><File size={36} /></div>}
+              <div className="min-w-0 p-2.5">{classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { openPreview(file, event.currentTarget); }} aria-label={`打开预览：${file.title}`} title={file.title} className="block w-full truncate text-left text-[12.5px] font-medium hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[12.5px] font-medium" title={file.title}>{file.title}</p>}<p className="mt-1 text-[12px] text-[var(--text-tertiary)]">{fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)}</p><p className="mt-1 text-[12px] text-[var(--text-tertiary)]">上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}</p>
                 <div className="mt-1 flex justify-end gap-1"><a href={`/api/files/${file.id}/download`} aria-label={`下载 ${file.title}`} className="pressable flex size-9 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Download size={14} /></a><FileOcrControl file={file} onComplete={count => setFileRows(current => current.map(item => item.id === file.id ? { ...item, text_extraction_status: "completed", extracted_character_count: count } : item))} /><FileOperations file={file} folders={sortedFolders} onArchive={archive} /></div>
               </div></WorkbenchRecord>
             </li>)}
@@ -397,16 +418,16 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
         ) : (
           <ul aria-label="文件列表" className="divide-y divide-[var(--separator)]">
             {displayedFiles.map((file) => (
-              <li id={`file-${file.id}`} className={`flex min-h-[52px] items-center gap-2.5 px-2 py-2.5 transition-colors ui-transition ${file.id === highlightId ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]"}`} key={file.id}>
+              <li data-file-preview-source id={`file-${file.id}`} className={`flex min-h-[52px] items-center gap-2.5 px-2 py-2.5 transition-colors ui-transition ${file.id === highlightId ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]"}`} key={file.id}>
                 <WorkbenchRecord entity={{kind:"document",id:file.id}} title={file.title} group={`files:${folderId}:${browser.sort}:${browser.query}`} className="w-full"><div className="flex w-full items-center gap-2.5"><File size={16} className="shrink-0 text-[var(--text-tertiary)]" />
                 <div className="min-w-0 flex-1">
-                  {classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} aria-label={`打开预览：${file.title}`} className="block max-w-full truncate text-left text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[13px] font-medium text-[var(--text-primary)]">{file.title}</p>}
+                  {classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { openPreview(file, event.currentTarget); }} aria-label={`打开预览：${file.title}`} className="block max-w-full truncate text-left text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[13px] font-medium text-[var(--text-primary)]">{file.title}</p>}
                   <p className="mt-0.5 font-mono text-[12px] leading-4 tabular-nums text-[var(--text-tertiary)]">
                     {fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)} · 上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}
                     {file.text_extraction_status === "completed" ? ` · 已索引 ${file.extracted_character_count.toLocaleString("zh-CN")} 字` : file.text_extraction_status === "processing" || file.text_extraction_status === "pending" ? " · 正在建立全文索引" : file.text_extraction_status === "too_large" ? " · 文件过大，暂不解析" : file.text_extraction_status === "unsupported" ? " · 此类型暂不解析" : file.text_extraction_status === "failed" ? " · 文本解析失败" : ""}
                   </p>
                 </div>
-                {classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { previewLauncher.current = event.currentTarget; setPreviewId(file.id); }} className="pressable flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--accent)] hover:bg-[var(--surface-hover)]"><Eye size={15} /></button> : null}
+                {classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { openPreview(file, event.currentTarget); }} className="pressable flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--accent)] hover:bg-[var(--surface-hover)]"><Eye size={15} /></button> : null}
                 {["failed", "pending", "not_requested"].includes(file.text_extraction_status) ? <button type="button" disabled={extractingId === file.id} onClick={() => void retryExtraction(file.id)} className="pressable h-8 rounded-[8px] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50">{extractingId === file.id ? "解析中…" : "解析文本"}</button> : null}
                 <a href={`/api/files/${file.id}/download`} className="pressable flex size-8 items-center justify-center rounded-[8px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]" aria-label={`下载 ${file.title}`}><Download size={14} /></a>
                 <FileOcrControl file={file} onComplete={count => setFileRows(current => current.map(item => item.id === file.id ? { ...item, text_extraction_status: "completed", extracted_character_count: count } : item))} />
@@ -440,10 +461,19 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           </details>
         ) : null}
       </section>
-      <Dialog open={Boolean(previewFile)} onOpenChange={open => { if (!open) setPreviewId(null); }}>
-        {previewFile ? <DialogContent className={isPdfFile(previewFile) ? "sm:max-w-4xl" : "sm:max-w-2xl"} onCloseAutoFocus={event => { event.preventDefault(); if (previewLauncher.current?.isConnected) previewLauncher.current.focus(); else sectionRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus(); }}>
+      <Dialog open={previewOpen && Boolean(previewFile)} onOpenChange={setPreviewOpen}>
+        {previewFile ? <DialogContent ref={previewSurface} className={`file-preview-surface ${isPdfFile(previewFile) ? "sm:max-w-4xl" : "sm:max-w-2xl"}`} onKeyDown={event => {
+          if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.nativeEvent.isComposing) return;
+          if (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable="true"],[role="slider"],.file-pdf-viewport')) return;
+          if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); switchPreview(event.key === "ArrowLeft" ? -1 : 1); }
+        }} onCloseAutoFocus={event => { event.preventDefault(); if (previewLauncher.current?.isConnected) previewLauncher.current.focus(); else sectionRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus(); }}>
           <DialogHeader><DialogTitle className="break-words pr-8">{previewFile.title}</DialogTitle><DialogDescription>{isPdfFile(previewFile) ? "PDF 预览" : "受限缩略图预览"} · 上传于 {new Date(previewFile.uploaded_at).toLocaleDateString("zh-CN")} · {formatBytes(previewFile.file_size)}</DialogDescription></DialogHeader>
-          {isPdfFile(previewFile) ? <FilePdfPreview key={previewFile.id} documentId={previewFile.id} title={previewFile.title} /> : <FilePhoto file={previewFile} className="max-h-[50dvh] min-h-40 w-full rounded-[10px]" />}
+          <div className="file-preview-navigation" role="group" aria-label="文件切换">
+            <button type="button" className="pressable" disabled={previewIndex <= 0} onClick={() => switchPreview(-1)}><ChevronLeft aria-hidden="true" size={16} />上一文件</button>
+            <output aria-live="polite">{previewIndex >= 0 ? `${previewIndex + 1} / ${previewFiles.length}` : "当前文件"}</output>
+            <button type="button" className="pressable" disabled={previewIndex < 0 || previewIndex >= previewFiles.length - 1} onClick={() => switchPreview(1)}>下一文件<ChevronRight aria-hidden="true" size={16} /></button>
+          </div>
+          {isPdfFile(previewFile) ? <FilePdfPreview key={previewFile.id} documentId={previewFile.id} title={previewFile.title} active={previewOpen} /> : <div className="file-photo-stage"><FilePhoto file={previewFile} className="max-h-[50dvh] min-h-40 w-full rounded-[10px]" /></div>}
           <p className="break-all text-[12px] text-[var(--text-secondary)]">原始文件名：{previewFile.original_filename}</p>
           <a href={`/api/files/${previewFile.id}/download`} className="pressable inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] bg-[var(--accent)] px-3 text-[13px] text-white"><Download size={15} />下载原件</a>
         </DialogContent> : null}

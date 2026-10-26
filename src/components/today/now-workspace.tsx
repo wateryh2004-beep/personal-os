@@ -28,10 +28,10 @@ export function NowWorkspaceView({ workspace }: { workspace: NowWorkspace }) {
     </section>
   </> : null;
   return <TodayMotion date={composition.todayKey ?? "today"}>
-    <div data-motion-group="lead">
+    <div data-motion-group="lead" className="today-desk-main">
       {workspace.focus ? <TodayPriorities key={workspace.focus.date} focus={workspace.focus} timezone={workspace.timezone} header={<NowHeader workspace={workspace} />} leadBefore={eventLead} compactAll={lead?.kind !== "focus"} primaryTaskId={lead?.kind === "focus" ? lead.task.id : undefined} /> : <><NowHeader workspace={workspace} />{eventLead}</>}
     </div>
-    <div data-motion-group="ledger"><TodayLedger workspace={workspace} composition={composition} /><TodayContinue /></div>
-    <div data-motion-group="future"><TodaySecondary workspace={workspace} future={composition.future} pastEvents={composition.pastEvents} isEvening={composition.isEvening} /></div>
+    <div data-motion-group="ledger" className="today-desk-agenda"><TodayLedger workspace={workspace} composition={composition} /><TodayContinue /></div>
+    <div data-motion-group="future" className="today-desk-context"><TodaySecondary workspace={workspace} future={composition.future} pastEvents={composition.pastEvents} isEvening={composition.isEvening} /></div>
   </TodayMotion>;
 }

@@ -33,6 +33,7 @@ jobs:
         run: node scripts/verify-pdf-cover-package.mjs
       - name: Install mobile E2E browser
         run: |
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_OS python3 scripts/ci-prefer-ubuntu-mirror.py
           npm install --global playwright@1.62.1
           playwright install --with-deps chromium
           sudo apt-get update
@@ -262,6 +263,7 @@ jobs:
       - run: npm run build
       - name: Install isolated browser and screenshot fonts
         run: |
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_OS python3 scripts/ci-prefer-ubuntu-mirror.py
           npm install --global playwright@1.62.1
           playwright install --with-deps chromium
           sudo apt-get update
