@@ -28,6 +28,18 @@ def literal(value):
     return "'" + value.replace("'", "''") + "'"
 
 
+def fixture_failure_details(error):
+    # Only fixed labels may leave the synthetic --fixture path. Assertion text
+    # can otherwise contain input data, so it is not a general error message.
+    checks = {"source_note_version_counts", "source_snapshot_verified", "restored_judgment_count",
+              "restored_capture_provenance", "restored_practice_provenance",
+              "classification lease was replayed during restore", "agent execution lease was replayed during restore"}
+    if isinstance(error, AssertionError):
+        return {"fixtureFailure": "assertion", "fixtureCheck": str(error) if str(error) in checks else "unlabeled_assertion"}
+    return {"fixtureFailure": "os_error" if isinstance(error, OSError) else
+            "subprocess_error" if isinstance(error, subprocess.SubprocessError) else "verification_error"}
+
+
 class IsolatedPostgres:
     def __init__(self, fixture=False):
         self.name = "personal-os-rehearsal-" + uuid.uuid4().hex
@@ -227,10 +239,10 @@ def main():
                     pg.sql("source_fixture", (ROOT / "tests/fixtures/system-backup-sql/seed.sql").read_text())
                     owner = "00000000-0000-4000-8000-000000000001"
                     before = pg.rows("source_fixture", owner)
-                    assert len(before["notes"]) == 1 and len(before["note_versions"]) == 2
+                    assert len(before["notes"]) == 1 and len(before["note_versions"]) == 2, "source_note_version_counts"
                     write_snapshot(before, owner, snapshot)
                     local = verifier.verify(snapshot)
-                    assert local["status"] == "verified"
+                    assert local["status"] == "verified", "source_snapshot_verified"
                 owner, before = read_snapshot_rows(snapshot)
                 pg.initialize("restored_fixture")
                 after = restore(pg, owner, before)
@@ -238,9 +250,9 @@ def main():
                     changed = [table for table in TABLES if before[table] != after[table]]
                     raise RuntimeError("Re-export values differ after PostgreSQL restore: " + ", ".join(changed))
                 if args.fixture:
-                    assert len(after["briefing_judgment_versions"]) == 1
-                    assert after["inbox_items"][0]["capture_content_hash"] is not None
-                    assert after["interview_practice_attempts"][0]["submission_fingerprint"] is not None
+                    assert len(after["briefing_judgment_versions"]) == 1, "restored_judgment_count"
+                    assert after["inbox_items"][0]["capture_content_hash"] is not None, "restored_capture_provenance"
+                    assert after["interview_practice_attempts"][0]["submission_fingerprint"] is not None, "restored_practice_provenance"
                     pg.phase = "restored-technical-exclusions"
                     technical = pg.sql("restored_fixture", "select count(*) from public.inbox_items where ai_classification_token is not null or ai_classification_started_at is not null or ai_classification_content_hash is not null;").strip()
                     assert technical == "0", "classification lease was replayed during restore"
@@ -256,7 +268,8 @@ def main():
         return 0
     except (RuntimeError, verifier.InvalidBackup, OSError, subprocess.SubprocessError, AssertionError) as error:
         message = str(error) if isinstance(error, (RuntimeError, verifier.InvalidBackup)) else "Docker/fixture execution failed; no production connection was used"
-        print(json.dumps({"status": "failed", "error": message}))
+        details = fixture_failure_details(error) if args.fixture else {}
+        print(json.dumps({"status": "failed", "error": message, **details}))
         return 1
 
 

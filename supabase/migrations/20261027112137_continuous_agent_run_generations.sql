@@ -65,7 +65,7 @@ declare owner uuid:=auth.uid(); run public.agent_runs%rowtype; value public.agen
 begin
  if owner is null then raise exception 'authentication_required' using errcode='42501';end if;
  if p_token is null or jsonb_typeof(p_patch) is distinct from 'object' or octet_length(p_patch::text)>65536
-  or exists(select 1 from jsonb_object_keys(p_patch) k where k not in('status','model','error_code','context_mode','request_complexity','initial_modules','active_skills','initial_tool_names','discovered_tool_names','kernel_state'))
+  or exists(select 1 from jsonb_object_keys(p_patch) as patch_keys(key_name) where patch_keys.key_name not in('status','model','error_code','context_mode','request_complexity','initial_modules','active_skills','initial_tool_names','discovered_tool_names','kernel_state'))
   then raise exception 'agent_patch_invalid' using errcode='22023';end if;
  select * into run from public.agent_runs where id=p_run_id and user_id=owner for update;
  if not found or run.generation_token is distinct from p_token or run.status<>'running' or run.generation_expires_at<=clock_timestamp() then return false;end if;
