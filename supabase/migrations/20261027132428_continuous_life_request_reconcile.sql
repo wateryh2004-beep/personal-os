@@ -17,7 +17,7 @@ begin
    if a='null'::jsonb then if b<>'null'::jsonb then return false;end if;
    elsif jsonb_typeof(a)<>'string' or a#>>'{}' !~ '^\d{1,9}(\.\d{1,3})?$' or (a#>>'{}')::numeric<=0 or jsonb_typeof(b)<>'string' or public.workbench_utf16_length(btrim(b#>>'{}')) not between 1 and 24 then return false;end if;
   elsif p_operation='travel_stop_metadata' then
-   for k in select unnest(array['day_number','duration_minutes']) loop a:=item->k;if a<>'null'::jsonb then if jsonb_typeof(a)<>'number' then return false;end if;amount:=(a#>>'{}')::numeric;if amount<>trunc(amount) or amount<1 or amount>case when k='day_number' then 366 else 10080 end then return false;end if;end if;end loop;
+   for k in select unnest(array['day_number','duration_minutes']) loop a:=item->k;if a<>'null'::jsonb then if jsonb_typeof(a)<>'number' then return false;end if;amount:=(a#>>'{}')::numeric;if amount<>trunc(amount) or amount<1 or amount>(case when k='day_number' then 366 else 10080 end) then return false;end if;end if;end loop;
    a:=item->'planned_time';if a<>'null'::jsonb and (jsonb_typeof(a)<>'string' or a#>>'{}' !~ '^([01]\d|2[0-3]):[0-5]\d(:00)?$') then return false;end if;
   elsif p_operation='travel_stop_arrival' then if jsonb_typeof(item->'arrived')<>'boolean' then return false;end if;
   elsif p_operation='travel_stop_order' then if jsonb_typeof(item->'sort_order')<>'number' then return false;end if;amount:=(item->>'sort_order')::numeric;if amount<>trunc(amount) or amount<0 or amount>1000000 then return false;end if;
