@@ -1,5 +1,6 @@
 import importlib.util
 import contextlib
+import copy
 import io
 import json
 from pathlib import Path
@@ -12,6 +13,131 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("recovery", ROOT / "scripts/rehearse-system-backup-postgres.py")
 recovery = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(recovery)
+typegen_spec = importlib.util.spec_from_file_location("continuous_typegen", ROOT / "scripts/continuous-schema-typegen.py")
+typegen = importlib.util.module_from_spec(typegen_spec)
+typegen_spec.loader.exec_module(typegen)
+
+
+class TypegenDatabaseIsolation(unittest.TestCase):
+    def fixture(self):
+        class Database:
+            name = "personal-os-rehearsal-" + "a" * 32
+            started = True
+
+            def __init__(self):
+                self.commands = []
+                self.volume_name = "b" * 64
+                self.source = "/var/lib/docker/volumes/" + self.volume_name + "/_data"
+                self.container = {"Name": "/" + self.name, "State": {"Running": True}, "Image": "sha256:" + "c" * 64,
+                    "HostConfig": {"NetworkMode": "none", "AutoRemove": True, "PortBindings": {}, "PublishAllPorts": False,
+                                   "Binds": None, "Mounts": [], "VolumesFrom": None, "Tmpfs": {}, "VolumeDriver": "",
+                                   "Privileged": False, "Devices": [], "DeviceRequests": None},
+                    "Config": {"Image": "postgres:17", "Volumes": {typegen.POSTGRES_DATA: {}}},
+                    "NetworkSettings": {"Ports": {"5432/tcp": None}, "Networks": {"none": {}}},
+                    "Mounts": [{"Type": "volume", "Name": self.volume_name, "Source": self.source,
+                                "Destination": typegen.POSTGRES_DATA, "Driver": "local", "RW": True, "Mode": "", "Propagation": ""}]}
+                self.image = {"Id": self.container["Image"], "Config": {"Volumes": {typegen.POSTGRES_DATA: {}}},
+                              "RepoDigests": ["postgres@sha256:" + "d" * 64]}
+                self.volume = {"Name": self.volume_name, "Driver": "local", "Scope": "local", "Options": None,
+                               "Labels": None, "Mountpoint": self.source}
+
+            def command(self, arguments):
+                self.commands.append(arguments)
+                if arguments == ["inspect", self.name]:
+                    return json.dumps([self.container])
+                if arguments == ["image", "inspect", "postgres:17"]:
+                    return json.dumps([self.image])
+                if arguments == ["volume", "inspect", self.volume_name]:
+                    return json.dumps([self.volume])
+                raise AssertionError("unexpected nonfixed inspection command")
+        return Database()
+
+    def test_only_official_image_managed_auto_removed_anonymous_volume_passes(self):
+        for labels in (None, {}, {"com.docker.volume.anonymous": ""}):
+            database = self.fixture()
+            database.volume["Labels"] = labels
+            with tempfile.TemporaryDirectory() as temporary:
+                typegen.verify_synthetic_isolation(database, Path(temporary))
+                artifact = (Path(temporary) / "typegen-isolation.json").read_text()
+            result = json.loads(artifact)
+            self.assertTrue(result["accepted"])
+            self.assertTrue(all(result["checks"].values()))
+            self.assertEqual(result["mounts"], [{"type": "volume", "destination": typegen.POSTGRES_DATA}])
+            self.assertNotIn(database.volume_name, artifact)
+            self.assertNotIn(database.source, artifact)
+            self.assertEqual(database.commands[-1], ["volume", "inspect", database.volume_name])
+
+    def test_host_network_ports_bind_named_or_custom_volumes_are_rejected(self):
+        cases = [
+            ("host network", "container", ["HostConfig", "NetworkMode"], "host"),
+            ("bridge network", "container", ["HostConfig", "NetworkMode"], "bridge"),
+            ("extra connected network", "container", ["NetworkSettings", "Networks"], {"none": {}, "bridge": {}}),
+            ("host ports", "container", ["HostConfig", "PortBindings"], {"5432/tcp": [{"HostPort": "15432"}]}),
+            ("publish all ports", "container", ["HostConfig", "PublishAllPorts"], True),
+            ("network published port", "container", ["NetworkSettings", "Ports"], {"5432/tcp": [{"HostPort": "15432"}]}),
+            ("persistent container", "container", ["HostConfig", "AutoRemove"], False),
+            ("explicit named hex volume", "container", ["HostConfig", "Binds"], ["b" * 64 + ":" + typegen.POSTGRES_DATA]),
+            ("explicit mount", "container", ["HostConfig", "Mounts"], [{"Type": "volume", "Source": "b" * 64, "Target": typegen.POSTGRES_DATA}]),
+            ("volumes from", "container", ["HostConfig", "VolumesFrom"], ["other-container"]),
+            ("caller tmpfs", "container", ["HostConfig", "Tmpfs"], {typegen.POSTGRES_DATA: "rw"}),
+            ("custom volume driver", "container", ["HostConfig", "VolumeDriver"], "local"),
+            ("privileged", "container", ["HostConfig", "Privileged"], True),
+            ("host device", "container", ["HostConfig", "Devices"], [{"PathOnHost": "/synthetic-private-device"}]),
+            ("other container", "container", ["Name"], "/not-this-rehearsal"),
+            ("stopped container", "container", ["State", "Running"], False),
+            ("other image tag", "container", ["Config", "Image"], "postgres:18"),
+            ("extra declared destination", "container", ["Config", "Volumes"], {typegen.POSTGRES_DATA: {}, "/other": {}}),
+            ("host bind mount", "container", ["Mounts", 0, "Type"], "bind"),
+            ("other data destination", "container", ["Mounts", 0, "Destination"], "/other"),
+            ("extra mount", "container", ["Mounts"], [{"Type": "volume"}, {"Type": "bind"}]),
+            ("no data mount", "container", ["Mounts"], []),
+            ("named volume", "container", ["Mounts", 0, "Name"], "existing-production-data"),
+            ("read only changed mount", "container", ["Mounts", 0, "RW"], False),
+            ("mismatched image", "image", ["Id"], "sha256:" + "e" * 64),
+            ("nonofficial image", "image", ["RepoDigests"], ["private/postgres@sha256:" + "d" * 64]),
+            ("image extra destination", "image", ["Config", "Volumes"], {"/other": {}}),
+            ("local driver bind options", "volume", ["Options"], {"type": "none", "o": "bind", "device": "/synthetic-private-path"}),
+            ("nonlocal driver", "volume", ["Driver"], "custom"),
+            ("nonlocal scope", "volume", ["Scope"], "global"),
+            ("named volume labels", "volume", ["Labels"], {"owner": "synthetic-private-label"}),
+            ("wrong managed mountpoint", "volume", ["Mountpoint"], "/synthetic-private-path"),
+        ]
+        for label, target, path, value in cases:
+            with self.subTest(label=label):
+                database = self.fixture()
+                node = getattr(database, target)
+                for key in path[:-1]:
+                    node = node[key]
+                node[path[-1]] = copy.deepcopy(value)
+                with tempfile.TemporaryDirectory() as temporary:
+                    with self.assertRaisesRegex(RuntimeError, "Synthetic database isolation changed"):
+                        typegen.verify_synthetic_isolation(database, Path(temporary))
+                    artifact = json.loads((Path(temporary) / "typegen-isolation.json").read_text())
+                self.assertFalse(artifact["accepted"])
+
+    def test_caller_or_stale_database_identity_is_rejected_before_inspection(self):
+        for name, started in (("arbitrary-container", True), ("personal-os-rehearsal-" + "a" * 32, False)):
+            database = self.fixture()
+            database.name, database.started = name, started
+            with tempfile.TemporaryDirectory() as temporary:
+                with self.assertRaisesRegex(RuntimeError, "this rehearsal's disposable container"):
+                    typegen.verify_synthetic_isolation(database, Path(temporary))
+            self.assertEqual(database.commands, [])
+
+    def test_failure_artifact_never_contains_host_path_environment_or_url(self):
+        database = self.fixture()
+        private = "SENSITIVE_SYNTHETIC_ONLY"
+        database.container["HostConfig"]["NetworkMode"] = "host-" + private
+        database.container["Config"]["Env"] = ["DATABASE_CONNECTION=https://" + private]
+        database.container["Mounts"][0].update(Type="bind", Source="/" + private, Destination="/" + private)
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaises(RuntimeError) as raised:
+                typegen.verify_synthetic_isolation(database, Path(temporary))
+            artifact = (Path(temporary) / "typegen-isolation.json").read_text()
+        self.assertNotIn(private, str(raised.exception))
+        self.assertNotIn(private, artifact)
+        self.assertNotIn(database.volume_name, artifact)
+        self.assertEqual(json.loads(artifact)["network"], "other")
 
 
 class PostgresRecoverySafety(unittest.TestCase):
