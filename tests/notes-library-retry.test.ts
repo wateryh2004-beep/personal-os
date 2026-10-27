@@ -6,13 +6,14 @@ import { NotesWorkspace } from "@/components/notes/notes-workspace";
 import { moveNote } from "@/features/notes/actions";
 
 const mocks = vi.hoisted(() => ({
-  show: vi.fn(),
+  show: vi.fn(),compare:vi.fn(),
   revalidate: vi.fn().mockResolvedValue(undefined),
   invalidate: vi.fn(),
 }));
+vi.mock("@/features/workflow-continuity/ordinary-comparison",()=>({readOrdinaryDraftComparison:mocks.compare}));
 vi.mock("next/link", () => ({ default: (props: Record<string, unknown>) => createElement("a", props) }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  usePathname:()=>"/notes",useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
   unstable_rethrow: () => {},
 }));
@@ -35,7 +36,7 @@ vi.mock("@/components/ui/dropdown-menu", () => {
 const note = { id: "00000000-0000-4000-8000-000000000001", title: "已有笔记", mutation_revision:7, excerpt: null, updated_at: "2026-10-01T08:00:00Z", pinned_at: null, folder_id: null, content_origin: "human" };
 let root: Root;
 let container: HTMLDivElement;
-const button = (label: string) => [...container.querySelectorAll("button")].find((item) => item.textContent === label)!;
+const button = (label: string) => [...document.querySelectorAll("button")].find((item) => item.textContent === label)!;
 const renderWorkspace = () => root.render(createElement(NotesWorkspace, { notes: [note], folders: [{ id: "folder", name: "研究", parent_id: null }], timezone: "UTC", state: "ready", selectedFolder: null, initialView: "all", dailyError: false, initialHasMore: true }));
 
 beforeEach(() => {
@@ -74,14 +75,15 @@ describe("Notes library retry flows", () => {
     await act(async()=>root.render(createElement(NotesWorkspace,{notes:[{...note,mutation_revision:8,title:"Concurrent title"}],folders:[{id:"folder",name:"研究",parent_id:null}],timezone:"UTC",state:"ready",selectedFolder:null,initialView:"all",dailyError:false,initialHasMore:true})));
     await act(async () => { select.value = "folder"; select.dispatchEvent(new Event("change", { bubbles: true })); });
     await act(async () => select.closest("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-    expect(document.body.textContent).toContain("操作未能确认");
+    expect(document.body.textContent).toContain("原保存结果尚未确认");
     expect(document.body.querySelector("select")?.value).toBe("folder");
     expect(mocks.show).not.toHaveBeenCalled();
     await act(async () => select.closest("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(moveNote).toHaveBeenCalledOnce();mocks.compare.mockResolvedValue({status:"ready",fields:{folder_id:""},baselines:{expected_revision:"8"}});await act(async()=>button("读取原记录并比较").click());await act(async()=>button("采用比较后的当前版本，保留输入").click());await act(async()=>select.closest("form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
     expect(vi.mocked(moveNote).mock.calls[1][0].get("folder_id")).toBe("folder");
     expect(vi.mocked(moveNote).mock.calls[0][0].get("expected_revision")).toBe("7");
-    expect(vi.mocked(moveNote).mock.calls[1][0].get("expected_revision")).toBe("7");
-    expect(vi.mocked(moveNote).mock.calls[1][0].get("request_id")).toBe(vi.mocked(moveNote).mock.calls[0][0].get("request_id"));
+    expect(vi.mocked(moveNote).mock.calls[1][0].get("expected_revision")).toBe("8");
+    expect(vi.mocked(moveNote).mock.calls[1][0].get("request_id")).not.toBe(vi.mocked(moveNote).mock.calls[0][0].get("request_id"));
     expect(document.body.querySelector("select")).toBeNull();
     expect(mocks.show).not.toHaveBeenCalled(); // Receipt notice owns the global toast including Undo.
   });

@@ -10,6 +10,7 @@ export type AssistantToolContext = {
   userId: string;
   timezone: string;
   runId?: string | null;
+  generationToken?: string | null;
   onToolsDiscovered?: (toolNames: string[]) => void;
 };
 

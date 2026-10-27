@@ -1,0 +1,10 @@
+import {createElement}from"react";
+import {renderToStaticMarkup}from"react-dom/server";
+import {expect,it,vi}from"vitest";
+const database=vi.hoisted(()=>({note:{id:"e2000000-0000-4000-8000-000000000001",revision:7},version:{id:"e2000000-0000-4000-8000-000000000099",note_id:"e2000000-0000-4000-8000-000000000001",body_markdown:"原始🌱引用内容",revision:2,title:"合成",created_at:"2026-10-27T09:00:00Z"}}));
+vi.mock("@/lib/auth/require-owner",()=>({requireOwner:async()=>({userId:"synthetic-owner",supabase:{from:(table:string)=>{const query={select:()=>query,eq:()=>query,is:()=>query,maybeSingle:async()=>({data:table==="notes"?database.note:database.version})};return query;}}})}));
+import {NoteSourceExcerpt}from"@/components/notes/note-source-excerpt";
+import {NoteSourceExcerptView}from"@/components/notes/note-source-excerpt-view";
+import {contentHash}from"@/features/notes/utils";
+it("authenticated immutable-version validation still passes only the verified historical text into the shared view",async()=>{const locator={kind:"note"as const,noteId:database.note.id,versionId:database.version.id,revision:2,from:0,to:5,hash:contentHash(database.version.body_markdown.slice(0,5))};const markup=renderToStaticMarkup(await NoteSourceExcerpt({locator}));expect(markup).toContain("当前笔记已有更新");expect(markup).toContain(database.version.body_markdown.slice(0,5));expect(markup).toContain("版本 2");const invalid=renderToStaticMarkup(await NoteSourceExcerpt({locator:{...locator,hash:"a".repeat(64)}}));expect(invalid).toContain("这段历史原文暂不可用");expect(invalid).not.toContain("<blockquote");});
+it("the shared presentation never fabricates a current-text match when the authenticated reader rejects a citation",()=>{const markup=renderToStaticMarkup(createElement(NoteSourceExcerptView,{revision:2,currentRevision:7,excerpt:null}));expect(markup).toContain("不会在当前正文中猜测定位");expect(markup).not.toContain("<blockquote");});

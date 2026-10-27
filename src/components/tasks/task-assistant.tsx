@@ -1,31 +1,14 @@
 "use client";
 
-import {
-  DefaultChatTransport,
-  lastAssistantMessageIsCompleteWithApprovalResponses,
-  type UIMessage,
-} from "ai";
-import { useChat } from "@ai-sdk/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { AgentActionFixtureTransport } from "@/features/assistant/action-fixtures";
+import { assertContinuousFixtureTransport } from "@/features/testing/continuous-fixture-gate";
+
+import { useContinuousAssistantChat } from "@/components/assistant/use-continuous-assistant-chat";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import {
-  loadWorkspaceSession,
-  saveWorkspaceSession,
-} from "@/lib/workspace-session";
 import { AgentActionCard } from "@/components/assistant/agent-action-card";
 import type { AgentAction } from "@/features/assistant/types";
-
-type AssistantModel = "deepseek-v4-flash" | "deepseek-v4-pro";
-type TaskAssistantSession = {
-  messages: UIMessage[];
-  input: string;
-  model: AssistantModel;
-  stoppedMessage: string | null;
-  interrupted: boolean;
-};
-const taskSessionKey = "tasks:assistant";
 
 function assistantError(error: Error) {
   try {
@@ -37,82 +20,11 @@ function assistantError(error: Error) {
   return error.message || "DeepSeek 暂时没有完成回答，请重试。";
 }
 
-export function TaskAssistant() {
-  const [input, setInput] = useState("");
-  const [model, setModel] = useState<AssistantModel>("deepseek-v4-flash");
-  const [stoppedMessage, setStoppedMessage] = useState<string | null>(null);
-  const restoredRef = useRef(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/assistant",
-        body: () => ({ surface: "tasks", model }),
-      }),
-    [model],
-  );
-  const {
-    messages,
-    setMessages,
-    sendMessage,
-    status,
-    error,
-    stop,
-    clearError,
-  } = useChat({
-    transport,
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
-  });
-  const waiting = status !== "ready";
-  useEffect(() => {
-    const snapshot = loadWorkspaceSession<TaskAssistantSession>(taskSessionKey);
-    const timer = window.setTimeout(() => {
-      if (snapshot) {
-        setMessages(snapshot.messages);
-        setInput(snapshot.input);
-        setModel(
-          snapshot.model === "deepseek-v4-pro"
-            ? "deepseek-v4-pro"
-            : "deepseek-v4-flash",
-        );
-        setStoppedMessage(
-          snapshot.interrupted
-            ? "上一次生成因切换页面而暂停。"
-            : snapshot.stoppedMessage,
-        );
-      }
-      restoredRef.current = true;
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [setMessages]);
-  useEffect(() => {
-    if (restoredRef.current)
-      saveWorkspaceSession(taskSessionKey, {
-        messages,
-        input,
-        model,
-        stoppedMessage,
-        interrupted: waiting,
-      });
-  }, [input, messages, model, stoppedMessage, waiting]);
-  useEffect(() => {
-    if (!waiting && timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  }, [waiting]);
-  useEffect(
-    () => () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    },
-    [],
-  );
-  const stopGeneration = (message: string) => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = null;
-    void stop();
-    setStoppedMessage(message);
-  };
+export function TaskAssistant({ actionTransport }: { actionTransport?: AgentActionFixtureTransport } = {}) {
+  assertContinuousFixtureTransport(actionTransport);
+  const { input, setInput, model, setModel, messages, error, waiting, submit, stop, runtime, refreshRun, recoveryUnavailable } = useContinuousAssistantChat({ surface: "tasks" }, "任务 AI 输入");
+  const stoppedMessage = runtime.notice;
+  const stopGeneration = () => stop();
   return (
     <section className="flex h-[min(66dvh,560px)] min-h-[420px] flex-col overflow-hidden border bg-[var(--surface-canvas)]">
       <div className="flex justify-end border-b p-2">
@@ -166,9 +78,10 @@ export function TaskAssistant() {
               const proposalTools = ["tool-proposeTodoCreate", "tool-proposeTodoTask", "tool-proposeTodoUpdate", "tool-proposeTodoDelete", "tool-proposeTodoComplete", "tool-proposeTodoReopen"];
               if (proposalTools.includes(part.type) && "output" in part && part.state === "output-available") {
                 const output = part.output as { proposal?: Record<string, unknown> | null; actionId?: string | null; error?: string };
+                if (output.actionId && runtime.run?.actions.some(action => action.id === output.actionId)) return null;
                 if (!output.proposal || !output.actionId) return <p key={part.toolCallId} className="text-sm text-amber-800">{output.error || "无法生成任务提案。"}</p>;
                 const actionType = part.type.replace("tool-proposeTodo", "tasks.").replace("Task", "create").replace("Create", "create").replace("Update", "update").replace("Delete", "delete").replace("Complete", "complete").replace("Reopen", "reopen");
-                return <AgentActionCard key={part.toolCallId} action={{ id: output.actionId, runId: "", domain: "tasks", actionType, status: "proposed", preview: output.proposal, riskLevel: actionType === "tasks.delete" ? "medium" : "low" } as AgentAction} onChanged={(result) => {
+                return <AgentActionCard verificationTransport={actionTransport} key={part.toolCallId} action={{ id: output.actionId, runId: "", domain: "tasks", actionType, status: "proposed", preview: output.proposal, riskLevel: actionType === "tasks.delete" ? "medium" : "low" } as AgentAction} onChanged={(result) => {
                   if (result.status === "success") window.dispatchEvent(new CustomEvent("personal-os:tasks-mutated", { detail: { actionType, proposal: output.proposal } }));
                 }}/>;
               }
@@ -177,6 +90,8 @@ export function TaskAssistant() {
           </div>
         ))}
       </div>
+      {runtime.run?.actions.length ? <div className="space-y-2 px-4 pb-3">{runtime.run.actions.map(action => <AgentActionCard verificationTransport={actionTransport} key={action.id} action={action} onChanged={() => void refreshRun()} />)}</div> : null}
+      {recoveryUnavailable ? <p role="status" className="px-4 text-xs text-[var(--danger)]">当前输入仍可使用，本标签页恢复暂不可用。</p> : null}
       {stoppedMessage ? (
         <p role="status" className="px-4 pb-2 text-xs text-[var(--text-secondary)]">
           {stoppedMessage}
@@ -192,14 +107,7 @@ export function TaskAssistant() {
         onSubmit={(event) => {
           event.preventDefault();
           if (!input.trim() || waiting) return;
-          clearError();
-          setStoppedMessage(null);
-          sendMessage({ text: input });
-          setInput("");
-          timeoutRef.current = setTimeout(
-            () => stopGeneration("回答超时，已停止。"),
-            18_500,
-          );
+          void submit({ text: input, model, currentPath: "/tasks", currentEntity: null });
         }}
       >
         <label className="sr-only" htmlFor="task-ai-input">
@@ -208,6 +116,7 @@ export function TaskAssistant() {
         <div className="flex gap-2">
           <input
             id="task-ai-input"
+            data-assistant-input="tasks"
             value={input}
             onChange={(event) => setInput(event.target.value)}
             disabled={waiting}
@@ -219,7 +128,7 @@ export function TaskAssistant() {
             <button
               type="button"
               className="border px-3 py-2 text-sm"
-              onClick={() => stopGeneration("已停止生成。")}
+              onClick={() => stopGeneration()}
             >
               停止
             </button>

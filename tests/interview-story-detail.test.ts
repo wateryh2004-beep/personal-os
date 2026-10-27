@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ detail: vi.fn(), list: vi.fn(), create: vi.fn(), update: vi.fn(), archive: vi.fn() }));
 vi.mock("@/features/interview/queries", () => ({ getInterviewStoryDetail: mocks.detail, getInterviewStories: mocks.list }));
-vi.mock("@/features/interview/actions", () => ({ createInterviewStory: mocks.create, updateInterviewStory: mocks.update, archiveInterviewStory: mocks.archive }));
+vi.mock("@/features/interview/actions", () => ({ createInterviewStory: mocks.create,createInterviewStoryWithReceipt:mocks.create, updateInterviewStory: mocks.update, archiveInterviewStory: mocks.archive }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({ refresh: vi.fn() }), notFound: () => { throw new Error("NOT_FOUND"); } }));
 import DetailPage from "@/app/(app)/career/interview/stories/[storyId]/page";
 import LibraryPage from "@/app/(app)/career/interview/stories/page";

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { WorkbenchPosition } from "@/features/workbench/contracts";
 import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
 import { noteDocumentCache } from "@/features/notes/document-resource";
+import { requestPositionRestore, type PositionRestoreStatus } from "@/features/workbench/position-requests";
 type ScrollScope = "main" | "reference";
 function paneScroller(container: HTMLElement) {
   const candidates = container.querySelectorAll<HTMLElement>(".note-reading-pane,.cm-scroller,.workspace-scroll,.workbench-document,[data-workspace-scroll],[data-pdf-document-id] .overflow-auto");
@@ -54,14 +55,19 @@ export async function captureWorkbenchPosition(container: HTMLElement | null, sc
   return result;
 }
 /** One bounded restore attempt. Success, cancellation and timeout all consume the request. */
-export function restoreWorkbenchPosition(container: HTMLElement, position: WorkbenchPosition, options: { scope?: ScrollScope; onSettled?: (restored: boolean) => void } = {}) {
+export function restoreWorkbenchPosition(container: HTMLElement, position: WorkbenchPosition, options: { scope?: ScrollScope; onSettled?: (restored: boolean, status?: PositionRestoreStatus) => void } = {}) {
   const scopeCurrent = captureWorkspaceScope();
+  const controller = new AbortController();
   let cancelled = false; let settled = false; let applying = false; let noteViewRequested = false;
-  const settle = (restored: boolean) => {
+  const settle = (restored: boolean, status: PositionRestoreStatus = restored ? "applied" : "unavailable") => {
     if (settled) return;
     settled = true; observer.disconnect(); clearInterval(timer);
-    options.onSettled?.(restored);
+    document.removeEventListener("wheel", interrupt, true); document.removeEventListener("pointerdown", interrupt, true); document.removeEventListener("beforeinput", interrupt, true); document.removeEventListener("scroll", interruptedScroll, true); document.removeEventListener("keydown", interruptedKey, true);
+    controller.abort(); options.onSettled?.(restored, status);
   };
+  const interrupt = () => { cancelled = true; settle(false, "cancelled"); };
+  const interruptedScroll = () => { if (!applying) interrupt(); };
+  const interruptedKey = (event: KeyboardEvent) => { if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " ", "Escape"].includes(event.key)) interrupt(); };
   const restore = async () => {
     if (cancelled || settled || !scopeCurrent() || applying) return;
     if (!container.isConnected) { settle(false); return; }
@@ -81,10 +87,17 @@ export function restoreWorkbenchPosition(container: HTMLElement, position: Workb
     try {
       const note = container.querySelector<HTMLElement>("[data-note-editor-id]");
       if (!wantsPdf && note && (position.anchor !== undefined || position.reading !== undefined)) {
-        window.dispatchEvent(new CustomEvent("personal-os:restore-note-position", { detail: { noteId: note.dataset.noteEditorId, position } }));
-        settle(true); return;
+        const instanceId = crypto.randomUUID(); note.dataset.positionRestoreId = instanceId;
+        const result = await requestPositionRestore("note", { noteId: note.dataset.noteEditorId ?? "", instanceId, position }, controller.signal);
+        if (note.dataset.positionRestoreId === instanceId) delete note.dataset.positionRestoreId;
+        if (!cancelled && scopeCurrent()) settle(result === "applied", result);
+        return;
       }
-      if (position.pdfPage !== undefined) window.dispatchEvent(new CustomEvent("personal-os:restore-pdf-position", { detail: { documentId: position.pdfDocumentId ?? container.querySelector<HTMLElement>("[data-pdf-document-id]")?.dataset.pdfDocumentId, page: position.pdfPage, sourceVersion: position.pdfSourceVersion } }));
+      if (position.pdfPage !== undefined) {
+        const result = await requestPositionRestore("pdf", { documentId: position.pdfDocumentId ?? container.querySelector<HTMLElement>("[data-pdf-document-id]")?.dataset.pdfDocumentId ?? "", page: position.pdfPage, sourceVersion: position.pdfSourceVersion }, controller.signal);
+        if (cancelled || !scopeCurrent()) return;
+        if (result !== "applied") { settle(false, result); return; }
+      }
       if (reader && position.sourceLine && !wantsPdf) {
         const { restoreReadingAnchor } = await import("@/features/notes/editor/continuity");
         if (!cancelled && scopeCurrent()) restoreReadingAnchor(reader, { line: position.sourceLine, offset: position.sourceOffset ?? 0 });
@@ -98,6 +111,7 @@ export function restoreWorkbenchPosition(container: HTMLElement, position: Workb
   observer.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-pdf-rendered", "aria-busy"] });
   const deadline = Date.now() + 10_000;
   const timer = setInterval(() => { if (Date.now() > deadline || !scopeCurrent()) settle(false); else void restore(); }, 150);
+  document.addEventListener("wheel", interrupt, { passive: true, capture: true }); document.addEventListener("pointerdown", interrupt, true); document.addEventListener("beforeinput", interrupt, true); document.addEventListener("scroll", interruptedScroll, true); document.addEventListener("keydown", interruptedKey, true);
   void restore();
-  return () => { cancelled = true; settle(false); };
+  return () => { cancelled = true; settle(false, "cancelled"); };
 }

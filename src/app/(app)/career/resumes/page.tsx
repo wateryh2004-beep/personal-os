@@ -20,7 +20,7 @@ export default async function ResumesPage() {
       <CareerNav current="/career/resumes" />
 
       <Suspense fallback={<p role="status">正在打开版本列表…</p>}><ResumeWorkspace data={data} createForm={
-        <CareerForm action={submitCareerForm.bind(null, "createResumeVersion")} resetOnSuccess successMessage="简历草稿已创建，可从版本列表打开。" className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
+        <CareerForm action={submitCareerForm.bind(null, "createResumeVersion")} draft={{ operation: "career.resume-create", id: "new", href: "/career/resumes", label: "未保存的简历版本" }} resetOnSuccess successMessage="简历草稿已创建，可从版本列表打开。" className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
           <Field name="title" label="名称 *" required />
           <Field name="version_label" label="版本标签" />
           <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-secondary)]">

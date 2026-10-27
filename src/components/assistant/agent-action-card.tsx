@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { Check, LoaderCircle, X } from "lucide-react";
 import {
   approveAgentAction,
   rejectAgentAction,
+  readAgentActionsState,
   type AgentActionResult,
 } from "@/features/assistant/actions";
+import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
+import { assertContinuousFixtureTransport } from "@/features/testing/continuous-fixture-gate";
+import type { AgentActionFixtureTransport } from "@/features/assistant/action-fixtures";
 import type { AgentAction } from "@/features/assistant/types";
 
 const labels: Record<string, string> = {
@@ -65,18 +69,43 @@ function details(action: AgentAction) {
   return String(preview.summaryOfChanges ?? preview.bodyPreview ?? preview.contentPreview ?? preview.reason ?? "").slice(0, 220);
 }
 
-export function AgentActionCard({ action, onChanged }: { action: AgentAction; onChanged: (result: AgentActionResult) => void }) {
+type CardProps = { action: AgentAction; onChanged: (result: AgentActionResult) => void; verificationTransport?: AgentActionFixtureTransport };
+export function AgentActionCard(props: CardProps) { return <ActionCardController key={props.action.id} {...props} />; }
+function ActionCardController({ action, onChanged, verificationTransport }: CardProps) {
+  assertContinuousFixtureTransport(verificationTransport);
   const [result, setResult] = useState<AgentActionResult | null>(null);
+  const [checkedStatus, setCheckedStatus] = useState<string | null>(null);
+  const [unknown, setUnknown] = useState(false);
   const [pending, startTransition] = useTransition();
-  const currentStatus = result?.status === "success" ? "succeeded" : result?.status === "conflict" ? "conflict" : result?.status === "rejected" ? "rejected" : action.status;
-  const run = (kind: "approve" | "reject") => startTransition(async () => {
-    const next = kind === "approve" ? await approveAgentAction(action.id) : await rejectAgentAction(action.id);
-    setResult(next);
-    onChanged(next);
-  });
+  const inFlight = useRef(false), mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const currentStatus = checkedStatus ?? (result?.status === "success" ? "succeeded" : result?.status === "conflict" ? "conflict" : result?.status === "rejected" ? "rejected" : action.status);
+  const run = (kind: "approve" | "reject" | "read") => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const current = captureWorkspaceScope();
+    startTransition(async () => {
+      try {
+        if (kind === "read") {
+          const rows = await (verificationTransport?.readMany ?? readAgentActionsState)([action.id]);
+          if (!mounted.current || !current()) return;
+          const row = rows.find(value => value.actionId === action.id);
+          if (!row) { setUnknown(true); return; }
+          setCheckedStatus(row.status); setUnknown(row.status === "approved" || row.status === "executing");
+          if (row.status === "succeeded") { const next: AgentActionResult = { actionId: action.id, status: "success", message: "已核对，操作已完成。", href: row.href }; setResult(next); onChanged(next); }
+        } else {
+          const next = await (kind === "approve" ? verificationTransport?.approve ?? approveAgentAction : verificationTransport?.reject ?? rejectAgentAction)(action.id);
+          if (!mounted.current || !current()) return;
+          setResult(next); if (next.status === "error") setUnknown(true); onChanged(next);
+        }
+      } catch { if (mounted.current && current()) setUnknown(true); }
+      finally { inFlight.current = false; }
+    });
+  };
   return <article className="rounded-[var(--radius-md)] border bg-[var(--surface-canvas)] p-3">
     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[12px] font-medium uppercase tracking-wide text-[var(--text-tertiary)]">{labels[action.actionType] ?? action.actionType}</p><h4 className="mt-1 truncate text-sm font-medium">{primary(action.preview)}</h4>{details(action) ? <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{details(action)}</p> : null}</div><span className="shrink-0 rounded-full bg-[var(--surface-hover)] px-2 py-0.5 text-[12px] text-[var(--text-tertiary)]">{action.riskLevel === "high" ? "高风险" : action.riskLevel === "medium" ? "需确认" : "低风险"}</span></div>
-    {currentStatus === "proposed" ? <div className="mt-3 flex items-center gap-2"><button type="button" disabled={pending} onClick={() => run("approve")} className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 text-xs font-medium text-white disabled:opacity-60">{pending ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Check className="size-3.5" aria-hidden="true" />}确认</button><button type="button" disabled={pending} onClick={() => run("reject")} className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-sm)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><X className="size-3.5" aria-hidden="true" />取消</button></div> : null}
-    {currentStatus !== "proposed" ? <p role="status" className={`mt-3 text-xs ${currentStatus === "succeeded" ? "text-[var(--success)]" : currentStatus === "conflict" || currentStatus === "failed" ? "text-[var(--danger)]" : "text-[var(--text-secondary)]"}`}>{result?.message ?? (currentStatus === "succeeded" ? "已完成" : currentStatus === "rejected" ? "已取消" : currentStatus === "conflict" ? "内容已变化，未覆盖" : currentStatus === "executing" ? "正在执行…" : "执行失败")}{result?.href ? <Link href={result.href} className="ml-2 underline">打开</Link> : null}</p> : null}
+    {currentStatus === "proposed" && !unknown ? <div className="mt-3 flex items-center gap-2"><button type="button" disabled={pending} onClick={() => run("approve")} className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 text-xs font-medium text-white disabled:opacity-60">{pending ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Check className="size-3.5" aria-hidden="true" />}确认</button><button type="button" disabled={pending} onClick={() => run("reject")} className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-sm)] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><X className="size-3.5" aria-hidden="true" />取消</button></div> : null}
+    {unknown ? <div className="mt-3 text-xs" role="status">确认结果尚未核对，原提案保留。<button type="button" disabled={pending} className="ui-link ml-2" onClick={() => run("read")}>核对结果</button></div> : null}
+    {currentStatus !== "proposed" ? <p role="status" className={`mt-3 text-xs ${currentStatus === "succeeded" ? "text-[var(--success)]" : currentStatus === "conflict" || currentStatus === "failed" ? "text-[var(--danger)]" : "text-[var(--text-secondary)]"}`}>{result?.message ?? (currentStatus === "succeeded" ? "已完成" : currentStatus === "rejected" ? "已取消" : currentStatus === "conflict" ? "内容已变化，未覆盖" : currentStatus === "executing" || currentStatus === "approved" ? "确认已受理，等待核对" : currentStatus === "expired" ? "提案已过期，未重复执行" : "执行未完成")}{result?.href ? <Link href={result.href} className="ml-2 underline">打开</Link> : null}</p> : null}
   </article>;
 }

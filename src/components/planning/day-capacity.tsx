@@ -1,7 +1,11 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import {assertContinuousFixtureTransport} from "@/features/testing/continuous-fixture-gate";
+import { draftResumeKey, focusDraftForm,isDraftHostReady,useDraftResumeOpeners, useDraftResumeConsumer } from "@/features/workflow-continuity/draft-resume";
+import { DraftRecoveryStatus } from "@/components/workflow-continuity/draft-recovery-status";
+
+import { useEffect,useRef,useSyncExternalStore, useState, useTransition } from "react";
 import { z } from "zod";
-import { useWorkflowDraft } from "@/features/workflow-continuity/drafts";
+import {getWorkflowDrafts,getWorkflowDraftsServerSnapshot,subscribeWorkflowDrafts, useWorkflowDraft } from "@/features/workflow-continuity/drafts";
 import {
   captureWorkspaceScope,
   readWorkspaceResponse,
@@ -27,17 +31,25 @@ import {
 } from "@/components/shared/revision-recovery";
 import { Button } from "@/components/ui/button";
 const draftSchema = z.object({
-  periods: z.array(z.object({ start: z.string(), end: z.string() })),
-  revision: z.number(),
-  timezone: z.string().optional(),
+  periods: z.array(z.object({ start: z.string().max(80), end: z.string().max(80) }).strict()).max(12),
+  revision: z.number().int().nonnegative(),
+  timezone: z.string().max(100).optional(),
 });
+export type PlanningDraftTransport={readAvailability:typeof readAvailability;readTaskPlanning:typeof readTaskPlanning;saveAvailability:typeof saveAvailability;saveTaskPlanning:typeof saveTaskPlanning};
 export function DayCapacity({
-  date,
+  transport,
+  date:currentDate,
   taskId,
 }: {
-  date: string;
+  transport?:PlanningDraftTransport;date: string;
   taskId?: string;
 }) {
+  assertContinuousFixtureTransport(transport);
+  const [requestedDate,setRequestedDate]=useState<string|null>(null),date=requestedDate??currentDate;
+  const host=useRef<HTMLElement>(null);
+  const summaries=useSyncExternalStore(subscribeWorkflowDrafts,getWorkflowDrafts,getWorkflowDraftsServerSnapshot);
+  const recoveryDates=[...new Set([currentDate,...summaries.flatMap(row=>row.resumeTarget?.kind==="planning.availability"?[row.resumeTarget.id]:[])])];
+  useDraftResumeOpeners(recoveryDates.map(id=>({kind:"planning.availability",id})),target=>{if(target.kind!=="planning.availability")return false;setRequestedDate(target.id);},{ready:()=>isDraftHostReady(host.current)});
   const [data, setData] = useState<PlanningDay | null>(null),
     [error, setError] = useState(""),
     [attempt, setAttempt] = useState(0);
@@ -79,10 +91,11 @@ export function DayCapacity({
     };
   }, [date, attempt]);
   return (
-    <section
+    <section ref={host}
       className="my-4 rounded-xl border border-[var(--separator)] bg-[var(--surface-canvas)] p-4"
       aria-label="时间容量"
     >
+      {date!==currentDate?<p role="status" className="mb-2 text-sm">正在恢复 {date} 的原可用时段 <Button type="button" variant="ghost" onClick={()=>setRequestedDate(null)}>返回 {currentDate}</Button></p>:null}
       <h2 className="text-base font-medium">
         {taskId ? "任务估时与安排" : "今天装得下吗？"}
       </h2>
@@ -97,8 +110,8 @@ export function DayCapacity({
           </Button>
         </p>
       ) : null}
-      {data ? (
-        <CapacityEditor
+      {data&&data.date===date ? (
+        <CapacityEditor transport={transport}
           key={`${date}:${data.timezone}`}
           data={data}
           taskId={taskId}
@@ -112,12 +125,12 @@ export function DayCapacity({
     </section>
   );
 }
-function CapacityEditor({
+function CapacityEditor({transport,
   data,
   taskId,
   onSaved,
 }: {
-  data: PlanningDay;
+  transport?:PlanningDraftTransport;data: PlanningDay;
   taskId?: string;
   onSaved: () => void;
 }) {
@@ -126,12 +139,13 @@ function CapacityEditor({
   const {
     value: draft,
     setValue: setDraft,
-    commit,
+    commit, restored, recoveryUnavailable,isCurrent,uncertain,markUncertain,resolveUncertain,
   } = useWorkflowDraft({
     kind: "task",
     id: `availability:${data.date}`,
     label: "可用时段",
     resumeHref: "/today",
+    resumeTarget: {kind:"planning.availability",id:data.date},
     initialValue: {
       periods: data.availability?.periods ?? [],
       revision: data.availability?.revision ?? 0,
@@ -169,6 +183,8 @@ function CapacityEditor({
         ),
     );
   } catch {}
+  const availabilityForm=useRef<HTMLFormElement>(null);
+  useDraftResumeConsumer({kind:"planning.availability",identity:{id:data.date},ready:()=>isDraftHostReady(availabilityForm.current),open:focusDraftForm});
   const plan = taskId ? data.plans.find((row) => row.task_id === taskId) : null;
   return (
     <div className="mt-3 space-y-3 text-sm leading-6">
@@ -183,7 +199,7 @@ function CapacityEditor({
           : "未知"}
       </p>
       {taskId ? (
-        <TaskEstimate
+        <TaskEstimate transport={transport}
           key={taskId}
           taskId={taskId}
           plan={plan}
@@ -256,15 +272,16 @@ function CapacityEditor({
             明确将已填时刻按{data.timezone}编辑
           </Button>
         ) : null}
-        <form
+        <form ref={availabilityForm}
+          data-workflow-draft-key={draftResumeKey({kind:"planning.availability",id:data.date})}
           onSubmit={(event) => {
             event.preventDefault();
-            if (pending || recovery.reading) return;
+            if (!isCurrent() || pending || recovery.reading||uncertain) return;
             const snapshot = draft;
-            const current = captureWorkspaceScope();
+            const current = isCurrent;
             start(async () => {
               try {
-                const saved = await saveAvailability({
+                const saved = await(transport?.saveAvailability??saveAvailability)({
                   date: data.date,
                   timezone: snapshot.timezone,
                   revision: snapshot.revision,
@@ -279,12 +296,12 @@ function CapacityEditor({
                   onSaved();
                 }
               } catch (error) {
-                if (current())
+                if (current()){markUncertain();
                   setNotice(
                     error instanceof Error
                       ? error.message
                       : "保存失败，输入保留",
-                  );
+                  );}
               }
             });
           }}
@@ -361,17 +378,18 @@ function CapacityEditor({
             >
               增加时段
             </Button>
-            <Button disabled={pending || recovery.reading}>
+            <Button disabled={pending || recovery.reading||uncertain}>
               {pending ? "保存中…" : "保存时段"}
             </Button>
           </div>
+          {uncertain?<p role="status">原保存结果尚未确认，当前输入保留。请先读取最新记录并明确比较；不会重复发送原保存。</p>:null}<DraftRecoveryStatus restored={restored} recoveryUnavailable={recoveryUnavailable} />
         </form>
         <RevisionRecovery
           label="可用时段"
           recovery={recovery}
           disabled={pending}
           onRead={() =>
-            void recovery.read(() => readAvailability(data.date, data.timezone))
+            void recovery.read(() => (transport?.readAvailability??readAvailability)(data.date, data.timezone))
           }
           current={
             <>
@@ -402,12 +420,14 @@ function CapacityEditor({
             </>
           )}
           onKeep={(latest) => {
+                resolveUncertain();
             setDraft((before) => ({ ...before, revision: latest.revision }));
             setNotice(
               "保留当前时段输入，基于刚读取的版本；按当前显示时区再次保存前请核对。",
             );
           }}
           onAdopt={(latest) => {
+                resolveUncertain();
             commit(draft, () => ({
               periods: latest.periods,
               revision: latest.revision,
@@ -433,25 +453,26 @@ function CapacityEditor({
     </div>
   );
 }
-function TaskEstimate({
+function TaskEstimate({transport,
   taskId,
   plan,
   onSaved,
 }: {
-  taskId: string;
+  transport?:PlanningDraftTransport;taskId: string;
   plan: PlanningDay["plans"][number] | null | undefined;
   onSaved: () => void;
 }) {
   const schema = z.object({
-    minutes: z.string(),
-    plannedOn: z.string(),
-    revision: z.number(),
+    minutes: z.string().max(30),
+    plannedOn: z.string().max(80),
+    revision: z.number().int().nonnegative(),
   });
-  const { value, setValue, commit } = useWorkflowDraft({
+  const { value, setValue, commit, restored, recoveryUnavailable,isCurrent,uncertain,markUncertain,resolveUncertain } = useWorkflowDraft({
     kind: "task",
     id: `estimate:${taskId}`,
     label: "任务估时",
     resumeHref: `/tasks?task=${taskId}`,
+    resumeTarget: {kind:"planning.estimate",id:taskId},
     initialValue: {
       minutes: plan?.estimated_minutes?.toString() ?? "",
       plannedOn: plan?.planned_on ?? "",
@@ -466,17 +487,20 @@ function TaskEstimate({
     [notice, setNotice] = useState("");
   const recovery =
     useRevisionRecovery<Awaited<ReturnType<typeof readTaskPlanning>>>();
+  const estimateForm=useRef<HTMLFormElement>(null);
+  useDraftResumeConsumer({kind:"planning.estimate",identity:{id:taskId},ready:()=>isDraftHostReady(estimateForm.current),open:focusDraftForm});
   return (
-    <form
+    <form ref={estimateForm}
+      data-workflow-draft-key={draftResumeKey({kind:"planning.estimate",id:taskId})}
       className="space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
-        if (pending || recovery.reading) return;
+        if (!isCurrent() || pending || recovery.reading||uncertain) return;
         const snapshot = value,
-          current = captureWorkspaceScope();
+          current = isCurrent;
         start(async () => {
           try {
-            const saved = await saveTaskPlanning({
+            const saved = await(transport?.saveTaskPlanning??saveTaskPlanning)({
               taskId,
               revision: snapshot.revision,
               minutes: snapshot.minutes ? Number(snapshot.minutes) : null,
@@ -491,10 +515,10 @@ function TaskEstimate({
               onSaved();
             }
           } catch (error) {
-            if (current())
+            if (current()){markUncertain();
               setNotice(
                 error instanceof Error ? error.message : "保存失败，输入保留",
-              );
+              );}
           }
         });
       }}
@@ -523,12 +547,12 @@ function TaskEstimate({
           }
         />
       </label>
-      <Button disabled={pending || recovery.reading}>保存估时与计划日</Button>
+      <Button disabled={pending || recovery.reading||uncertain}>保存估时与计划日</Button>
       <RevisionRecovery
         label="任务计划"
         recovery={recovery}
         disabled={pending}
-        onRead={() => void recovery.read(() => readTaskPlanning(taskId))}
+        onRead={() => void recovery.read(() => (transport?.readTaskPlanning??readTaskPlanning)(taskId))}
         current={
           <>
             <p>
@@ -548,15 +572,18 @@ function TaskEstimate({
           </>
         )}
         onKeep={(latest) => {
+                resolveUncertain();
           setValue((before) => ({ ...before, revision: latest.revision }));
           setNotice("当前估时与日期保留，基于刚读取的版本；尚未保存。");
         }}
         onAdopt={(latest) => {
+                resolveUncertain();
           commit(value, () => latest);
           setNotice("已采用刚读取的任务计划。");
         }}
       />
       {notice ? <p role="status">{notice}</p> : null}
+      {uncertain?<p role="status">原保存结果尚未确认，当前输入保留。请先读取最新记录并明确比较；不会重复发送原保存。</p>:null}<DraftRecoveryStatus restored={restored} recoveryUnavailable={recoveryUnavailable} />
     </form>
   );
 }

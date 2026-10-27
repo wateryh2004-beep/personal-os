@@ -25,7 +25,8 @@ const { chromium } = require('playwright');
     assert.equal(bytes.length, file.bytes); assert.equal(createHash('sha256').update(bytes).digest('hex'), file.sha256);
   }
   await build({ entryPoints: ['src/lib/adapters/private-ocr-browser.ts'], bundle: true, platform: 'browser', format: 'iife', globalName: 'PrivateOcr', outfile: path.join(root, 'client.js'), alias: { '@': path.resolve('src') } });
-  await build({ entryPoints: ['tests/fixtures/private-ocr-browser/main.tsx'], bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', outfile: path.join(root, 'ui.js'), alias: { '@': path.resolve('src') } });
+  // Match Next's public boolean replacement; never polyfill the entire process.env.
+  await build({ entryPoints: ['tests/fixtures/private-ocr-browser/main.tsx'], bundle: true, platform: 'browser', format: 'iife', jsx: 'automatic', outfile: path.join(root, 'ui.js'), alias: { '@': path.resolve('src') }, define: { "process.env.CONTINUOUS_FIXTURE_COMPILED": JSON.stringify("0"), 'process.env.NEXT_PUBLIC_PERF_DEBUG': 'false' } });
   const css = await require('postcss')([require('@tailwindcss/postcss')()]).process(await fs.readFile('src/app/globals.css', 'utf8'), { from: path.resolve('src/app/globals.css') });
   await fs.writeFile(path.join(root, 'app.css'), css.css);
   const font = process.env.OCR_TEST_FONT || '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc';

@@ -111,7 +111,10 @@ describe("interaction performance guardrails", () => {
     const createForm = source("src/components/calendar/calendar-create-form.tsx");
     const editForm = source("src/components/calendar/calendar-event-edit-form.tsx");
     expect(createForm).toContain("createdHandledRef");
-    expect(editForm).toContain("updateHandledRef");
+    // Update now reconciles inside its guarded explicit submit; React action effects
+    // no longer own uncontrolled input reset or success handling.
+    expect(editForm).toContain("if(unchanged)await onReconcile?.(\"update\")");
+    expect(editForm).toContain("busy.current=true");
     expect(editForm).toContain("deleteHandledRef");
     const editKey = componentKey("CalendarEventEditForm");
     expect(editKey && print(editKey)).toBe("selected.id");

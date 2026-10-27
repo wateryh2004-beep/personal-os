@@ -1,4 +1,5 @@
 "use client";
+import { useDraftResumeOpeners } from "@/features/workflow-continuity/draft-resume";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Check, GripVertical, MoreHorizontal, Plus } from "lucide-react";
@@ -47,6 +48,7 @@ export function CareerRoadmapClient({ tracks, milestones, directions, todayDate,
   const [draggedTrack, setDraggedTrack] = useState<string | null>(null);
   const [timelineViewport, setTimelineViewport] = useState<TimelineViewport>({ left: 0, right: 0 });
   const [, startTransition] = useTransition();
+  useDraftResumeOpeners([{kind:"career.track-create",id:"new"},{kind:"career.milestone-create",id:"new"},...tracks.map(track=>({kind:"career.track-edit" as const,id:track.id})),...milestones.map(item=>({kind:"career.milestone-edit" as const,id:item.id}))],target=>{if(target.kind==="career.track-create"){setEditingTrack({name:"",description:null,status:"active",color:"blue",start_date:null,end_date:null});return;}if(target.kind==="career.milestone-create"){if(!tracks[0])return false;setSelectedMilestone(newMilestone(tracks[0].id,todayDate));return;}if(target.kind==="career.track-edit"){const row=tracks.find(row=>row.id===target.id);if(!row)return false;setEditingTrack(row);return;}const row=milestones.find(row=>row.id===target.id);if(!row)return false;setHideCompleted(false);setSelectedTrack("");setSelectedMilestone(row);});
   const monthWidth = monthWidths[zoom];
   const months = useMemo(() => timelineMonths(domain), [domain]);
   const timelineWidth = months.length * monthWidth;

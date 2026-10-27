@@ -3,8 +3,8 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PDFDocumentProxy } from "unpdf/pdfjs";
-const mocks = vi.hoisted(() => ({ create: vi.fn(), pdfText: "" }));
-vi.mock("@/features/tasks/microsoft-todo", () => ({ createMicrosoftTodoTaskAction: mocks.create }));
+const mocks = vi.hoisted(() => ({ create: vi.fn(), read:vi.fn(), pdfText: "" }));
+vi.mock("@/features/tasks/microsoft-todo", () => ({ createMicrosoftTodoTaskAction: mocks.create,readMicrosoftTodoCreationAction:mocks.read }));
 vi.mock("unpdf/pdfjs", () => ({ TextLayer: class {
   container: HTMLDivElement;
   constructor({ container }: { container: HTMLDivElement }) { this.container = container; }
@@ -183,5 +183,26 @@ describe("actual PDF selection controls and real bridge", () => {
   expect(button("摘录到笔记").disabled).toBe(false); await click("摘录到笔记");
   const expected = `${text.split("\n").map(line => `> ${line}`).join("\n")}\n\n[原文件 · 第 7 页](${pdfSource.href})`;
   expect(expected).toHaveLength(20_000); expect(insert).toHaveBeenCalledWith(expected);
+ });
+});
+
+
+describe("retained Note task input on actual nullable selection controller",()=>{
+ it("restores title and immutable source without recapturing the editor selection",async()=>{
+  const {capture}=await showNote("Original selected text");await click("转为任务");
+  await act(async()=>{const node=host.querySelector<HTMLInputElement>('input[name="title"]')!;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(node,"Draft task title");node.dispatchEvent(new Event("input",{bubbles:true}));});
+  await act(async()=>root.render(null));const wrongCapture=vi.fn(async()=>noteHref(9));
+  await act(async()=>root.render(<NoteSelectionActions noteId={noteId} selection={null} capture={wrongCapture}/>));
+  expect(host.querySelector<HTMLInputElement>('input[name="title"]')!.value).toBe("Draft task title");expect(wrongCapture).not.toHaveBeenCalled();expect(capture).toHaveBeenCalledOnce();expect(mocks.create).not.toHaveBeenCalled();
+  await act(async()=>host.querySelector("form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
+  expect((mocks.create.mock.calls[0][1] as FormData).get("body_text")).toBe(`Original selected text\n\n原文：${noteHref(22)}`);
+ });
+ it("unknown creation reads the same request/payload after route return and keeps later typing",async()=>{
+  mocks.create.mockResolvedValue({status:"error",message:"Unknown"});mocks.read.mockResolvedValue({status:"error",message:"Still unknown"});
+  await showNote("Original");await click("转为任务");await act(async()=>host.querySelector("form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));const original=mocks.create.mock.calls[0][1] as FormData;
+  await act(async()=>root.render(null));await act(async()=>root.render(<NoteSelectionActions noteId={noteId} selection={null} capture={vi.fn()}/>));
+  await act(async()=>{const node=host.querySelector<HTMLInputElement>('input[name="title"]')!;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(node,"Later B");node.dispatchEvent(new Event("input",{bubbles:true}));});
+  await act(async()=>host.querySelector("form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
+  expect(mocks.create).toHaveBeenCalledOnce();expect(mocks.read).toHaveBeenCalledOnce();expect([...mocks.read.mock.calls[0][0].entries()]).toEqual([...original.entries()]);expect(host.querySelector<HTMLInputElement>('input[name="title"]')!.value).toBe("Later B");
  });
 });

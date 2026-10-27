@@ -1,18 +1,20 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
+import {assertContinuousFixtureTransport} from "@/features/testing/continuous-fixture-gate";
+import {submitTripStopTextIntent,readTripStopTextIntent} from "@/features/travel/stop-text-intents";
+import {SourceLink} from "@/components/workflow-continuity/source-link";
+import {IntentDraftForm} from "@/components/workflow-continuity/intent-draft-form";
+import {submitTravelCreationIntent,readTravelCreationIntent} from "@/features/travel/create-intents";
+import type {TravelCreationTransport} from "./travel-workspace";
+import {TravelStopMetadataEditor,TravelDocumentForm} from "./travel-form-drafts";
+import {getWorkflowDrafts,getWorkflowDraftsServerSnapshot,subscribeWorkflowDrafts} from "@/features/workflow-continuity/drafts";
+import {useDraftResumeOpeners,type DraftResumeTarget} from "@/features/workflow-continuity/draft-resume";
+import { useMemo, useRef,useSyncExternalStore, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 import { useLifeUndo } from "@/components/life/use-life-undo";
-import { useLifeDialogFocus } from "@/components/life/use-life-dialog-focus";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+
 import { LifeConfirm, type LifeChange } from "@/components/life/life-confirm";
 import { WorkbenchRecord } from "@/components/workbench/workbench-record";
 import type { LifeFieldRow } from "@/features/life/contracts";
@@ -24,11 +26,14 @@ import {
 } from "@/features/travel/actions";
 import { tripTimeOverlaps } from "@/features/travel/timeline";
 import { buildTripRoute } from "@/features/travel/route/build-route";
-import { TravelMap } from "./travel-map";
+import {useDomainViewAdapter,waitForViewLayout} from "@/features/workbench/domain-adapters/use-domain-view-adapter";
+import { TravelMap,type TravelMapController } from "./travel-map";
 import { StopGeocode } from "./stop-geocode";
 import { TripExport } from "./trip-export";
 import styles from "@/components/life/life-field.module.css";
 
+export type TravelStopTextTransport={submit:typeof submitTripStopTextIntent;read:typeof readTripStopTextIntent};
+export type TravelDetailTransport={read:typeof readTripState;addStop:typeof addTripStop;updateStop:typeof updateTripStop;startPlanning:typeof startTripPlanning};
 type Stop = {
   id: string;
   place_name: string;
@@ -71,16 +76,19 @@ const tripStatus: Record<string, string> = {
 const stopTime = (stop: Stop) =>
   `${stop.day_number ? `第 ${stop.day_number} 天` : "天数待定"} · ${stop.planned_time?.slice(0, 5) ?? "时间待定"}${stop.duration_minutes ? ` · ${stop.duration_minutes} 分钟` : ""}`;
 export function TripDetail({
+  transport,creationTransport,textTransport,
   trip,
   stops,
   documents = emptyDocuments,
   availableDocuments = emptyDocuments,
 }: {
+  textTransport?:TravelStopTextTransport;transport?:TravelDetailTransport;creationTransport?:TravelCreationTransport;
   trip: Trip;
   stops: Stop[];
   documents?: Document[];
   availableDocuments?: Document[];
 }) {
+  assertContinuousFixtureTransport(transport);assertContinuousFixtureTransport(creationTransport);assertContinuousFixtureTransport(textTransport);
   const router = useRouter();
   const params = useSearchParams();
   const fieldMode = params.get("mode") === "field";
@@ -94,7 +102,6 @@ export function TripDetail({
   const [pending, setPending] = useState(false);
   const tripRevision = useRef(localTrip.mutation_revision ?? 1);
   const readSequence = useRef(0);
-  const addedStopId = useRef<string | null>(null);
   const [source, setSource] = useState({ trip, stops, documents });
   if (
     source.trip !== trip ||
@@ -150,6 +157,10 @@ export function TripDetail({
     visibleStops.some((row) => row.id === stop.id),
   );
   const overlaps = tripTimeOverlaps(rows);
+
+  const mapController=useRef<TravelMapController|null>(null);
+  useDomainViewAdapter({kind:"travel",pathname:`/travel/${trip.id}`,ready:true,capture:()=>({kind:"travel",tripId:trip.id,day:day==="all"||day==="unknown"?day:Number(day),stopId:activeStop,map:mapController.current?.capture()??null}),restore:async(state,context)=>{if(!context.current())return {status:"cancelled"};const stop=state.stopId?rows.find(row=>row.id===state.stopId):null;setDay(String(state.day));setActiveStop(stop?.id??null);await waitForViewLayout(context);if(!context.current())return {status:"cancelled"};if(state.map){const ack=await mapController.current?.restore(state.map,context);if(!ack||ack.status!=="applied")return ack??{status:"partial",reason:"missing-record"};}return state.stopId&&!stop?{status:"partial",reason:"missing-record"}:{status:"applied"};}});
+
   const selectStop = (id: string, focus = false) => {
     setActiveStop(id);
     const query = new URLSearchParams(params.toString());
@@ -176,7 +187,7 @@ export function TripDetail({
   });
   async function reconcileTrip() {
     const ticket = ++readSequence.current;
-    const state = await readTripState(trip.id);
+    const state = await (transport?.read??readTripState)(trip.id);
     if (ticket !== readSequence.current) return;
     if (!state.ok) throw new Error("travel_read_unconfirmed");
     if (state.trip.mutation_revision < tripRevision.current) return;
@@ -337,27 +348,10 @@ export function TripDetail({
       },
     });
   };
-  async function addStop(form: FormData) {
-    if (pending) return;
-    setPending(true);
-    setError("");
-    try {
-      const id = addedStopId.current ?? (await addTripStop(trip.id, form));
-      addedStopId.current = id;
-      await reconcileTrip();
-      addedStopId.current = null;
-    } catch {
-      setError(
-        addedStopId.current
-          ? "地点已添加，但暂时无法核对最新行程。输入已保留，再次点击只会重新读取。"
-          : "暂时无法确认地点添加结果。输入已保留，请先读取最新行程核对。",
-      );
-    } finally {
-      setPending(false);
-    }
-  }
+
   return (
     <section className={fieldMode ? styles.fieldMode : ""}>
+      <TripOrdinaryResume tripId={trip.id} onOpen={target=>{if(target.parentId!==trip.id)return false;if(target.kind==="travel.stop-text"){if(!rows.some(row=>row.id===target.id))return false;setDay("all");setActiveStop(target.id);}else if(target.kind==="travel.stop-metadata"){const selected=(target.itemIds??[target.id]).map(id=>rows.find(row=>row.id===id));if(selected.some(row=>!row))return false;setEditing(selected as Stop[]);setDay("all");setActiveStop(target.id);}else if(target.kind!=="travel.stop-add"&&target.kind!=="travel.document")return false;const url=new URL(window.location.href);url.searchParams.delete("mode");window.history.replaceState(null,"",`${url.pathname}${url.search}`);return true;}}/>
       <header>
         <p className={styles.meta}>
           {tripStatus[localTrip.status] ?? localTrip.status}
@@ -382,7 +376,7 @@ export function TripDetail({
             onClick={async () => {
               setPending(true);
               try {
-                await startTripPlanning(trip.id);
+                await (transport?.startPlanning??startTripPlanning)(trip.id);
                 await reconcileTrip();
               } catch {
                 setError("暂时无法确认规划状态，请读取最新行程核对。");
@@ -499,7 +493,7 @@ export function TripDetail({
         <section aria-label="路线地图">
           <h2 className="text-base font-medium">路线地图</h2>
           {route.resolvedStops.length ? (
-            <TravelMap
+            <TravelMap controllerRef={mapController}
               stops={visibleRoute}
               selectedStopId={activeStop}
               onSelectStop={(id) => selectStop(id, true)}
@@ -638,25 +632,7 @@ export function TripDetail({
                         <summary className="ui-link cursor-pointer">
                           编辑名称和备注
                         </summary>
-                        <form
-                          onSubmit={async (event) => {
-                            event.preventDefault();
-                            const form = new FormData(event.currentTarget);
-                            if (pending) return;
-                            setPending(true);
-                            setError("");
-                            try {
-                              await updateTripStop(trip.id, stop.id, form);
-                              await reconcileTrip();
-                            } catch {
-                              setError(
-                                "暂时无法确认地点保存结果，输入已保留。请读取最新行程核对。",
-                              );
-                            } finally {
-                              setPending(false);
-                            }
-                          }}
-                        >
+                        <IntentDraftForm resetOnSaved={false} draft={{operation:"travel.stop-text",id:stop.id,parentId:trip.id,href:`/travel/${trip.id}`,label:"地点名称与备注"}} submit={(intentId,fields)=>(textTransport?.submit??submitTripStopTextIntent)(intentId,trip.id,stop.id,fields)} read={(intentId,fields)=>(textTransport?.read??readTripStopTextIntent)(intentId,trip.id,stop.id,fields)} onSaved={()=>{void reconcileTrip();}}>
                           <input
                             type="hidden"
                             name="expectedRevision"
@@ -697,22 +673,14 @@ export function TripDetail({
                             </label>
                           </div>
                           <Button disabled={pending}>保存名称和备注</Button>
-                        </form>
+                        </IntentDraftForm>
                       </details>
                     </div>
                   </li>
                 );
               })}
             </ol>
-            <form
-              hidden={fieldMode}
-              inert={fieldMode}
-              onSubmit={(event) => {
-                event.preventDefault();
-                void addStop(new FormData(event.currentTarget));
-              }}
-            >
-              <div className={styles.fields}>
+            <div hidden={fieldMode} inert={fieldMode}><IntentDraftForm draft={{operation:"travel.stop-add",id:"new",parentId:trip.id,href:`/travel/${trip.id}`,label:"添加旅行地点"}} submit={(intentId,fields)=>(creationTransport?.submit??submitTravelCreationIntent)({kind:"stop",intentId,tripId:trip.id,placeName:String(fields.placeName??""),dayNumber:String(fields.dayNumber??"")})} read={(intentId,fields)=>(creationTransport?.read??readTravelCreationIntent)({kind:"stop",intentId,tripId:trip.id,placeName:String(fields.placeName??""),dayNumber:String(fields.dayNumber??"")})} onSaved={()=>{void reconcileTrip();}}>              <div className={styles.fields}>
                 <label className={styles.field}>
                   地点名称
                   <input name="placeName" required maxLength={500} />
@@ -725,7 +693,7 @@ export function TripDetail({
               <Button disabled={pending}>
                 {pending ? "保存中…" : "添加地点"}
               </Button>
-            </form>
+            </IntentDraftForm></div>
           </details>
         </section>
       </div>
@@ -742,9 +710,9 @@ export function TripDetail({
                 group={`trip:${trip.id}:documents`}
                 selectable={false}
               >
-                <Link className="ui-link" href={`/files?file=${doc.id}`}>
+                <SourceLink className="ui-link" href={`/files?file=${doc.id}`}>
                   打开 {doc.title}
-                </Link>
+                </SourceLink>
               </WorkbenchRecord>
               <button
                 hidden={fieldMode}
@@ -783,69 +751,10 @@ export function TripDetail({
             尚未关联票据。可从 Files 选择已有私有文件。
           </p>
         ) : null}
-        <form
-          hidden={fieldMode}
-          inert={fieldMode}
-          onSubmit={(event) => {
-            event.preventDefault();
-            const id = String(
-              new FormData(event.currentTarget).get("document_id"),
-            );
-            const doc = availableDocuments.find((item) => item.id === id);
-            if (!doc) return;
-            setChange({
-              title: "关联旅行票据",
-              details: [
-                {
-                  id: doc.id,
-                  title: doc.title,
-                  change: "关联到此行程，原件保留在 Files",
-                },
-              ],
-              input: {
-                operation: "travel_document",
-                items: [
-                  {
-                    id: trip.id,
-                    expected_revision: localTrip.mutation_revision ?? 1,
-                    document_id: doc.id,
-                    linked: true,
-                  },
-                ],
-              },
-            });
-          }}
-        >
-          <label className={styles.field}>
-            选择 Files 文件（最近100份可用文件）
-            <select name="document_id" required defaultValue="">
-              <option value="">选择票据或预订文件</option>
-              {availableDocuments
-                .filter((doc) => !docs.some((item) => item.id === doc.id))
-                .map((doc) => (
-                  <option key={doc.id} value={doc.id}>
-                    {doc.title}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <div className={styles.actions}>
-            <Link className="ui-link" href="/files">
-              前往 Files
-            </Link>
-            <Button disabled={!availableDocuments.length}>预览关联</Button>
-          </div>
-        </form>
+        <div hidden={fieldMode} inert={fieldMode}><TravelDocumentForm tripId={trip.id} revision={localTrip.mutation_revision??1} documents={availableDocuments} linkedIds={docs.map(doc=>doc.id)} onSaved={rows=>install(rows,false)}/><Link className="ui-link inline-flex min-h-11 items-center" href="/files">前往 Files</Link></div>
       </section>
       {editing ? (
-        <StopMetadataEditor
-          stops={editing}
-          onClose={() => setEditing(null)}
-          onPreview={(value) => {
-            setEditing(null);
-            setChange(value);
-          }}
-        />
+        <TravelStopMetadataEditor tripId={trip.id} stops={editing} onClose={()=>setEditing(null)} onSaved={(saved,hasNewInput)=>install(saved,!hasNewInput)}/>
       ) : null}
       {change ? (
         <LifeConfirm
@@ -857,102 +766,4 @@ export function TripDetail({
     </section>
   );
 }
-function StopMetadataEditor({
-  stops,
-  onClose,
-  onPreview,
-}: {
-  stops: Stop[];
-  onClose: () => void;
-  onPreview: (change: LifeChange) => void;
-}) {
-  const focus = useLifeDialogFocus();
-  const [day, setDay] = useState(
-    stops.length === 1 ? String(stops[0].day_number ?? "") : "",
-  );
-  const [time, setTime] = useState(
-    stops.length === 1 ? (stops[0].planned_time?.slice(0, 5) ?? "") : "",
-  );
-  const [duration, setDuration] = useState(
-    stops.length === 1 ? String(stops[0].duration_minutes ?? "") : "",
-  );
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <DialogContent {...focus}>
-        <DialogHeader>
-          <DialogTitle>
-            {stops.length > 1 ? `修改 ${stops.length} 站时间` : "修改地点时间"}
-          </DialogTitle>
-          <DialogDescription>
-            空白表示清除；所选地点将使用同一天数和时间。
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            onPreview({
-              title: "更新行程时间",
-              details: stops.map((stop) => ({
-                id: stop.id,
-                title: stop.place_name,
-                change: `${stopTime(stop)} → ${day ? `第 ${day} 天` : "天数待定"} · ${time || "时间待定"}${duration ? ` · ${duration} 分钟` : ""}`,
-              })),
-              input: {
-                operation: "travel_stop_metadata",
-                items: stops.map((stop) => ({
-                  id: stop.id,
-                  expected_revision: stop.mutation_revision ?? 1,
-                  day_number: day ? Number(day) : null,
-                  planned_time: time || null,
-                  duration_minutes: duration ? Number(duration) : null,
-                })),
-              },
-            });
-          }}
-        >
-          <div className={styles.fields}>
-            <label className={styles.field}>
-              第几天
-              <input
-                type="number"
-                min="1"
-                max="366"
-                value={day}
-                onChange={(event) => setDay(event.target.value)}
-              />
-            </label>
-            <label className={styles.field}>
-              计划时间
-              <input
-                type="time"
-                value={time}
-                onChange={(event) => setTime(event.target.value)}
-              />
-            </label>
-            <label className={styles.field}>
-              停留分钟
-              <input
-                type="number"
-                min="1"
-                max="10080"
-                value={duration}
-                onChange={(event) => setDuration(event.target.value)}
-              />
-            </label>
-          </div>
-          <div className={styles.actions}>
-            <Button variant="outline" type="button" onClick={onClose}>
-              取消
-            </Button>
-            <Button>预览修改</Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
+function TripOrdinaryResume({tripId,onOpen}:{tripId:string;onOpen:(target:DraftResumeTarget)=>boolean}){const summaries=useSyncExternalStore(subscribeWorkflowDrafts,getWorkflowDrafts,getWorkflowDraftsServerSnapshot);const targets=summaries.flatMap(row=>row.resumeTarget&&["travel.stop-add","travel.stop-text","travel.stop-metadata","travel.document"].includes(row.resumeTarget.kind)&&row.resumeTarget.parentId===tripId?[row.resumeTarget]:[]);useDraftResumeOpeners(targets,onOpen);return null;}

@@ -2,6 +2,10 @@ export type CareerFormResult = {
   status: "idle" | "success" | "error";
   message: string;
   fieldErrors?: Record<string, string>;
+  recordId?: string;
+  savedUpdatedAt?:string;
+  redirectTo?: string;
+  needsCheck?:boolean;
 };
 
 export const initialCareerFormResult: CareerFormResult = { status: "idle", message: "" };

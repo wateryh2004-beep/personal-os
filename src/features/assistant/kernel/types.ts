@@ -15,6 +15,7 @@ export type ContextGateDecision = {
   reasonCode: "general_knowledge" | "conversation_only" | "current_surface" | "personal_fact" | "personal_analysis" | "self_profile" | "retrieval" | "time_context" | "mutation" | "cross_domain";
 };
 export type AgentSessionState = {
+  binding?: { surface: AssistantSurface; currentEntity: import("@/features/graph/types").GraphEntityRef | null };
   activeGoal?: string;
   activeTopic?: string;
   referencedEntities: Array<{ module: PersonalOsModuleId; entityType: string; entityId: string; label: string }>;

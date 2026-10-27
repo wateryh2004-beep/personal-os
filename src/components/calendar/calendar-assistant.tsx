@@ -1,27 +1,21 @@
 "use client";
 
-import {
-  DefaultChatTransport,
-  lastAssistantMessageIsCompleteWithApprovalResponses,
-  type UIMessage,
-} from "ai";
-import { useChat } from "@ai-sdk/react";
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import type { AgentActionFixtureTransport } from "@/features/assistant/action-fixtures";
+import { assertContinuousFixtureTransport } from "@/features/testing/continuous-fixture-gate";
+
+import { useActionState } from "react";
+import { useContinuousAssistantChat } from "@/components/assistant/use-continuous-assistant-chat";
+import { AgentActionCard } from "@/components/assistant/agent-action-card";
 import {
   createCalendarEvent,
   deleteCalendarEvent,
   updateCalendarEvent,
   type CalendarCreateState,
 } from "@/features/calendar/actions";
-import {
-  loadWorkspaceSession,
-  saveWorkspaceSession,
-} from "@/lib/workspace-session";
 import { contextCategoryKeys, getManagedCalendarCategory, primaryCalendarCategories, type ContextCategoryKey, type PrimaryCategoryKey } from "@/features/calendar/classification/taxonomy";
 import type { CalendarCategory } from "@/features/calendar/categories/types";
 import { resolveCalendarEventVisual } from "@/features/calendar/categories/visual";
 
-type AssistantModel = "deepseek-v4-flash" | "deepseek-v4-pro";
 type CalendarProposal = {
   proposal: {
     subject: string;
@@ -55,18 +49,9 @@ type CalendarUpdateProposal = {
     originalEndsAt: string;
   };
 };
-type CalendarAssistantSession = {
-  messages: UIMessage[];
-  input: string;
-  model: AssistantModel;
-  stoppedMessage: string | null;
-  interrupted: boolean;
-};
-const initialCalendarCreateState: CalendarCreateState = {
-  status: "idle",
-  message: "",
-};
-const calendarSessionKey = "calendar:assistant";
+
+
+const initialCalendarCreateState: CalendarCreateState = { status: "idle", message: "" };
 
 function eventTime(event: { startsAt: string; endsAt: string; isAllDay?: boolean }, timezone: string) {
   if (event.isAllDay) return "全天";
@@ -213,90 +198,16 @@ function CalendarUpdateProposalForm({ event, timezone }: { event: CalendarUpdate
   </form>;
 }
 
-export function CalendarAssistant({ timezone, categories }: { timezone: string; categories: CalendarCategory[] }) {
-  const [input, setInput] = useState("");
-  const [model, setModel] = useState<AssistantModel>("deepseek-v4-flash");
-  const [stoppedMessage, setStoppedMessage] = useState<string | null>(null);
-  const restoredRef = useRef(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/assistant",
-        body: () => ({ surface: "calendar", model }),
-      }),
-    [model],
-  );
-  const {
-    messages,
-    setMessages,
-    sendMessage,
-    status,
-    error,
-    stop,
-    clearError,
-  } = useChat({
-    transport,
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
-  });
-  const waiting = status !== "ready";
-
-  useEffect(() => {
-    const snapshot =
-      loadWorkspaceSession<CalendarAssistantSession>(calendarSessionKey);
-    const timer = window.setTimeout(() => {
-      if (snapshot) {
-        setMessages(snapshot.messages);
-        setInput(snapshot.input);
-        setModel(
-          snapshot.model === "deepseek-v4-pro"
-            ? "deepseek-v4-pro"
-            : "deepseek-v4-flash",
-        );
-        setStoppedMessage(
-          snapshot.interrupted
-            ? "上一次生成因切换页面而暂停。"
-            : snapshot.stoppedMessage,
-        );
-      }
-      restoredRef.current = true;
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [setMessages]);
-  useEffect(() => {
-    if (restoredRef.current)
-      saveWorkspaceSession(calendarSessionKey, {
-        messages,
-        input,
-        model,
-        stoppedMessage,
-        interrupted: waiting,
-      });
-  }, [input, messages, model, stoppedMessage, waiting]);
-  useEffect(() => {
-    if (!waiting && timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  }, [waiting]);
-  useEffect(
-    () => () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    },
-    [],
-  );
-  const stopGeneration = (message: string) => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = null;
-    void stop();
-    setStoppedMessage(message);
-  };
-
+export function CalendarAssistant({ timezone, categories, actionTransport }: { timezone: string; categories: CalendarCategory[]; actionTransport?: AgentActionFixtureTransport }) {
+  assertContinuousFixtureTransport(actionTransport);
+  const { input, setInput, model, setModel, messages, error, waiting, submit, stop, reset, runtime, refreshRun, recoveryUnavailable } = useContinuousAssistantChat({ surface: "calendar" }, "日历 AI 输入");
+  const stoppedMessage = runtime.notice;
+  const stopGeneration = () => stop();
   return (
     <section className="flex h-[min(66dvh,560px)] min-h-[420px] flex-col overflow-hidden border bg-[var(--surface-canvas)]">
       <div className="flex items-center justify-between border-b p-2">
         <div className="px-2"><p className="text-sm font-medium">AI 日历</p><p className="text-[12px] text-[var(--text-secondary)]">时间按 {timezone} 处理</p></div>
-        <div className="flex items-center gap-2"><button type="button" disabled={waiting || messages.length === 0} onClick={() => { setMessages([]); setStoppedMessage(null); }} className="px-2 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40">清空</button>
+        <div className="flex items-center gap-2"><button type="button" disabled={waiting || messages.length === 0} onClick={reset} className="px-2 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40">清空</button>
         <div className="inline-flex border">
           <button
             type="button"
@@ -338,6 +249,14 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
                     {part.text}
                   </p>
                 );
+              if (["tool-proposeCalendarEvent", "tool-proposeCalendarDelete", "tool-proposeCalendarUpdate"].includes(part.type) && "output" in part && part.state === "output-available") {
+                const output = part.output as { actionId?: string; proposal?: Record<string, unknown> };
+                if (output.actionId) {
+                  if (runtime.run?.actions.some(action => action.id === output.actionId)) return null;
+                  const actionType = part.type === "tool-proposeCalendarEvent" ? "calendar.create" : part.type === "tool-proposeCalendarDelete" ? "calendar.delete" : "calendar.update";
+                  return <AgentActionCard verificationTransport={actionTransport} key={part.toolCallId} action={{ id: output.actionId, runId: runtime.runId ?? "", domain: "calendar", actionType, status: "proposed", preview: output.proposal ?? {}, riskLevel: actionType === "calendar.delete" ? "medium" : "low" }} onChanged={() => void refreshRun()} />;
+                }
+              }
               if (
                 part.type === "tool-proposeCalendarEvent" &&
                 part.state === "output-available"
@@ -368,6 +287,8 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
           </div>
         ))}
       </div>
+      {runtime.run?.actions.length ? <div className="space-y-2 px-4 pb-3">{runtime.run.actions.map(action => <AgentActionCard verificationTransport={actionTransport} key={action.id} action={action} onChanged={() => void refreshRun()} />)}</div> : null}
+      {recoveryUnavailable ? <p role="status" className="px-4 text-xs text-[var(--danger)]">当前输入仍可使用，本标签页恢复暂不可用。</p> : null}
       {stoppedMessage ? (
         <p role="status" className="px-4 pb-2 text-xs text-[var(--text-secondary)]">
           {stoppedMessage}
@@ -383,14 +304,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
         onSubmit={(event) => {
           event.preventDefault();
           if (!input.trim() || waiting) return;
-          clearError();
-          setStoppedMessage(null);
-          sendMessage({ text: input });
-          setInput("");
-          timeoutRef.current = setTimeout(
-            () => stopGeneration("回答超时，已停止。"),
-            18_500,
-          );
+          void submit({ text: input, model, currentPath: "/calendar", currentEntity: null });
         }}
       >
         <label className="sr-only" htmlFor="calendar-ai-input">
@@ -399,6 +313,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
         <div className="flex gap-2">
           <input
             id="calendar-ai-input"
+            data-assistant-input="calendar"
             value={input}
             onChange={(event) => setInput(event.target.value)}
             disabled={waiting}
@@ -410,7 +325,7 @@ export function CalendarAssistant({ timezone, categories }: { timezone: string; 
             <button
               type="button"
               className="border px-3 py-2 text-sm"
-              onClick={() => stopGeneration("已停止生成。")}
+              onClick={() => stopGeneration()}
             >
               停止
             </button>

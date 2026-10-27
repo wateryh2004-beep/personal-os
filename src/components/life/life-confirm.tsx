@@ -1,5 +1,5 @@
 "use client";
-import { useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { LifeFieldInput, LifeFieldRow } from "@/features/life/contracts";
+import { lifeFieldInputSchema, type LifeFieldInput, type LifeFieldRow } from "@/features/life/contracts";
 import { useLifeMutation } from "./use-life-mutation";
 import { useLifeDialogFocus } from "@/components/life/use-life-dialog-focus";
 import styles from "./life-field.module.css";
@@ -27,13 +27,31 @@ export function LifeConfirm({
   change,
   onClose,
   onSaved,
+  requestId: suppliedRequestId,
+  onSubmitted,
+  resumeReadOnly = false,
 }: {
   change: LifeChange;
   onClose: () => void;
   onSaved: (rows: LifeFieldRow[]) => void;
+  requestId?: string;
+  onSubmitted?: (input: LifeFieldInput) => void;
+  resumeReadOnly?: boolean;
 }) {
   const focus = useLifeDialogFocus();
-  const requestId = useRef(crypto.randomUUID());
+  const [generatedRequestId] = useState(() => crypto.randomUUID());
+  const parsed = lifeFieldInputSchema.safeParse({ ...change.input, requestId: suppliedRequestId ?? generatedRequestId });
+  const signature = JSON.stringify(parsed.success ? parsed.data : { input: change.input, requestId: suppliedRequestId ?? generatedRequestId });
+  const identity = useRef<{ signature: string; token: symbol } | null>(null), busy = useRef<symbol | null>(null);
+  const [attempt, setAttempt] = useState<{ signature: string; input: LifeFieldInput } | null>(null);
+  const [reading, setReading] = useState<{ signature: string; pending: boolean } | null>(null);
+  const [noticeState, setNoticeState] = useState<{ signature: string; text: string } | null>(null);
+  const notice = noticeState?.signature === signature ? noticeState.text : "";
+  const setNotice = (text: string) => setNoticeState({ signature, text });
+  useLayoutEffect(() => { const value = { signature, token: Symbol(signature) }; identity.current = value; busy.current = null; return () => { if (identity.current === value) identity.current = null; }; }, [signature]);
+  const frozen = attempt?.signature === signature ? attempt.input : null;
+  const readOnly = resumeReadOnly || frozen !== null;
+  const readPending = reading?.signature === signature && reading.pending;
   const mutation = useLifeMutation();
   const router = useRouter();
   return (
@@ -80,6 +98,7 @@ export function LifeConfirm({
             </button>
           </p>
         ) : null}
+        {notice ? <p role="status" className={styles.notice}>{notice}</p> : null}
         <div className={styles.actions}>
           <Button
             variant="outline"
@@ -89,19 +108,33 @@ export function LifeConfirm({
             取消
           </Button>
           <Button
-            disabled={mutation.pending}
+            disabled={mutation.pending || readPending}
             onClick={async () => {
-              const rows = await mutation.save(
-                {
-                  ...change.input,
-                  requestId: requestId.current,
-                } as LifeFieldInput,
-                change.title,
-              );
-              if (rows) onSaved(rows);
+              if (busy.current || !parsed.success) { if (!parsed.success) setNotice("请先核对预览内容与原提交编号，尚未发出请求。"); return; }
+              const ticket = identity.current, token = Symbol("life-confirm"); busy.current = token;
+              const current = () => identity.current === ticket && ticket?.signature === signature;
+              setNotice("");
+              const input = frozen ?? parsed.data;
+              try {
+                if (readOnly) {
+                  setReading({ signature, pending: true });
+                  const outcome = await mutation.reconcile(input);
+                  if (!current() || !outcome) return;
+                  if (outcome.status === "saved" && outcome.receiptStatus === "available") onSaved(outcome.rows);
+                  else setNotice(outcome.status === "saved" ? "原保存已撤回；当前记录已核对，不会重新保存。" : outcome.status === "missing" ? "目前尚未核对到原保存记录。不会自动重发，输入已保留。" : outcome.status === "rejected" ? "原提交内容或版本不匹配，请保留输入并读取最新内容。" : "原保存结果仍待核对，不会重复提交。");
+                } else {
+                  setAttempt({ signature, input });
+                  try { onSubmitted?.(input); } catch { setAttempt(null); setNotice("未能保留原提交意图，尚未发出保存请求。"); return; }
+                  const rows = await mutation.save(input, change.title);
+                  if (current() && rows) onSaved(rows);
+                }
+              } finally {
+                if (busy.current === token) busy.current = null;
+                if (current()) setReading({ signature, pending: false });
+              }
             }}
           >
-            {mutation.pending ? "保存中…" : "确认保存"}
+            {mutation.pending ? "保存中…" : readPending ? "正在核对原保存…" : readOnly ? "核对原保存" : "确认保存"}
           </Button>
         </div>
       </DialogContent>

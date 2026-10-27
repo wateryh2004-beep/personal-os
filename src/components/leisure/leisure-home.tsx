@@ -1,5 +1,6 @@
 "use client";
 
+import {useDomainViewAdapter,waitForViewLayout} from "@/features/workbench/domain-adapters/use-domain-view-adapter";
 import Link from "next/link";
 import {
   LeisureCollectionLink,
@@ -179,6 +180,10 @@ export function LeisureHome({
   const feature = eligible.length
     ? eligible[featureIndex % eligible.length]
     : null;
+  const ongoing=experiences.filter(item=>item.feedback?.status==="current");
+  const [fieldSelectedId,setFieldSelectedId]=useState<string|null>(ongoing[0]?.id??null);
+  const actualField=ongoing.find(item=>item.id===fieldSelectedId)??ongoing[0];
+  useDomainViewAdapter({kind:"leisure",pathname:"/leisure",ready:!unavailable,capture:()=>({kind:"leisure",pathname:"/leisure",featuredId:feature?.id??null,fieldSelectedId:actualField?.id??null}),restore:async(state,context)=>{if(!context.current())return {status:"cancelled"};const index=state.featuredId?eligible.findIndex(item=>item.id===state.featuredId):-1;const field=state.fieldSelectedId?ongoing.find(item=>item.id===state.fieldSelectedId):null;if(index>=0)setFeatureIndex(index);if(field)setFieldSelectedId(field.id);await waitForViewLayout(context);return state.featuredId&&index<0||state.fieldSelectedId&&!field?{status:"partial",reason:"missing-record"}:{status:"applied"};}});
   const gallery = experiences.filter(
     (item) =>
       (kind === "all" || item.kind === kind) &&
@@ -209,7 +214,7 @@ export function LeisureHome({
           <h1>闲暇</h1>
         </div>
       </header>
-      {!unavailable ? <LeisureFieldMode experiences={experiences} /> : null}
+      {!unavailable ? <LeisureFieldMode experiences={experiences} selectedId={actualField?.id??null} onSelectedChange={setFieldSelectedId} /> : null}
       <div hidden={fieldMode} inert={fieldMode}>
         {unavailable ? (
           <section className={styles.empty} role="status">

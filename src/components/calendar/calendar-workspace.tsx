@@ -5,6 +5,8 @@ import {
   type SchedulingTask,
 } from "./calendar-task-duration";
 import { CalendarRangeTasks } from "./calendar-range-tasks";
+import type { AgentActionFixtureTransport } from "@/features/assistant/action-fixtures";
+import { assertContinuousFixtureTransport } from "@/features/testing/continuous-fixture-gate";
 import { publishOperationReceipt } from "@/features/workbench/operation-contracts";
 import {
   CalendarPendingTasks,
@@ -20,10 +22,12 @@ import { PanelPresence } from "@/components/shared/panel-presence";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useTransition,
+  useSyncExternalStore,
 } from "react";
 import dynamic from "next/dynamic";
 import {
@@ -40,7 +44,10 @@ import {
 import { useRouter } from "next/navigation";
 import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 import { readCalendarTaskForSchedule } from "@/features/workbench/operation-read-resource";
-import { registerWorkbenchViewState } from "@/features/workbench/view-state-registry";
+import { useDomainViewAdapter, waitForViewLayout } from "@/features/workbench/domain-adapters/use-domain-view-adapter";
+import { useDraftResumeOpeners, type DraftResumeTarget } from "@/features/workflow-continuity/draft-resume";
+import { getWorkflowDrafts, getWorkflowDraftsServerSnapshot, subscribeWorkflowDrafts } from "@/features/workflow-continuity/drafts";
+import { calendarEventReadSchema } from "@/features/calendar/event-read-schema";
 import { CalendarCreateForm } from "@/components/calendar/calendar-create-form";
 import { CalendarEventEditForm } from "@/components/calendar/calendar-event-edit-form";
 import { CalendarFullView } from "@/components/calendar/calendar-full-view";
@@ -94,6 +101,7 @@ import {
 
 import {
   captureWorkspaceScope,
+  readWorkspaceResponse,
   WorkspaceReadSupersededError,
 } from "@/lib/workspace-resource-cache";
 import {
@@ -182,6 +190,9 @@ export function CalendarWorkspace({
   scopeReady,
   initialCreateOpen = false,
   initialEventId,
+  actionTransport,
+  creationTransport,
+  editTransport,
 }: {
   events: CalendarEventRecord[];
   categories: CalendarCategory[];
@@ -190,7 +201,13 @@ export function CalendarWorkspace({
   scopeReady: boolean;
   initialCreateOpen?: boolean;
   initialEventId?: string;
+  actionTransport?: AgentActionFixtureTransport;
+  creationTransport?: import("./calendar-create-form").CalendarCreateTransport;
+  editTransport?: import("./calendar-event-edit-form").CalendarEditTransport;
 }) {
+  assertContinuousFixtureTransport(actionTransport);
+  assertContinuousFixtureTransport(creationTransport);
+  assertContinuousFixtureTransport(editTransport);
   const router = useRouter();
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState(() => new Date());
@@ -211,6 +228,8 @@ export function CalendarWorkspace({
   const [createPending, setCreatePending] = useState(false);
   const deferredCreateNavigation = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [resumeEditRequest, setResumeEditRequest] = useState<{ providerId: string; requestId: string } | null>(null);
+  const workflowDrafts = useSyncExternalStore(subscribeWorkflowDrafts, getWorkflowDrafts, getWorkflowDraftsServerSnapshot);
   const [moreOpen, setMoreOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
     new Set(),
@@ -325,44 +344,66 @@ export function CalendarWorkspace({
         hideInternship,
       });
   }, [cursor, hideInternship, selectedCategories, sessionReady, view]);
+  const restoreReady = useRef({ cursor: instantToDate(cursor.toISOString(), timezone), loadingRange });
+  useLayoutEffect(() => { restoreReady.current = { cursor: instantToDate(cursor.toISOString(), timezone), loadingRange }; }, [cursor, timezone, loadingRange]);
+  useDomainViewAdapter({
+    kind: "calendar", pathname: "/calendar", ready: sessionReady && !loadingRange,
+    capture: () => ({ kind: "calendar", view, cursor: instantToDate(cursor.toISOString(), timezone), selectedCategories: [...selectedCategories], hideInternship, selectedEventId: selected?.id ?? null, inspectorOpen: inspector.isOpen }),
+    restore: async (state, context) => {
+      if (!context.current()) return { status: "cancelled" };
+      const known = new Set(primaryCalendarCategories.map(category => category.displayName));
+      const chosen = state.selectedCategories.filter(category => known.has(category));
+      setView(window.matchMedia("(max-width: 767px)").matches && state.view === "week" ? "day" : state.view);
+      setCursor(new Date(wallTimeToIso(`${state.cursor}T12:00`, timezone)));
+      setSelectedCategories(new Set(chosen)); setHideInternship(state.hideInternship);
+      if (state.inspectorOpen) {
+        if (state.selectedEventId) {
+          try {
+            const response = await readWorkspaceResponse<{ event: unknown }>(`/api/calendar/events/by-id?id=${encodeURIComponent(state.selectedEventId)}`, context.signal);
+            if (!context.current()) return { status: "cancelled" };
+            const event = calendarEventReadSchema.parse(response.event); selectedRef.current = event; draftRef.current = null; setSelected(event); setDraft(null); openInspector();
+          } catch { if (!context.current()) return { status: "cancelled" }; return { status: "partial", reason: "missing-record" }; }
+        } else { const next = initialDraft(timezone); selectedRef.current = null; draftRef.current = next; setSelected(null); setDraft(next); openInspector(); }
+      } else closeInspector();
+      if (!await waitForViewLayout(context)) return { status: "cancelled" };
+      const deadline = Date.now() + 8_000;
+      while (context.current() && Date.now() < deadline && (restoreReady.current.loadingRange || restoreReady.current.cursor !== state.cursor)) await new Promise<void>(resolve => setTimeout(resolve, 32));
+      if (!context.current()) return { status: "cancelled" };
+      if (restoreReady.current.loadingRange || chosen.length !== state.selectedCategories.length) return { status: "partial", reason: "unavailable" };
+      return { status: "applied" };
+    },
+  });
+  const calendarResumeTargets: DraftResumeTarget[] = [{ kind: "calendar.create", id: "new" }, ...eventState.map(event => ({ kind: "calendar.edit" as const, id: event.provider_event_id })), ...categories.map(category => ({ kind: "calendar.category-rules" as const, id: category.id })), ...workflowDrafts.flatMap(item => item.resumeTarget && ["calendar.edit", "calendar.classify", "calendar.category-rules"].includes(item.resumeTarget.kind) ? [item.resumeTarget] : [])];
+  useDraftResumeOpeners([...new Map(calendarResumeTargets.map(target => [`${target.kind}:${target.id}`, target])).values()], async (target, context) => {
+    if (!context.current() || createPendingRef.current) return false;
+    if (target.kind === "calendar.create") {
+      const next = initialDraft(timezone); selectedRef.current = null; draftRef.current = next;
+      setSelected(null); setDraft(next); setLookup(null); openInspector(); return;
+    }
+    if (target.kind === "calendar.category-rules" || target.kind === "calendar.classify") { setSettingsOpen(true); return; }
+    if (target.kind === "calendar.edit") {
+      try {
+        // Current-range omission is not evidence of deletion. Read exactly this
+        // authorized provider identity; cancellation owns both fetch and setters.
+        const response = await readWorkspaceResponse<{ event: unknown }>(`/api/calendar/events/by-id?providerId=${encodeURIComponent(target.id)}`, context.signal);
+        if (!context.current()) return false;
+        const event = calendarEventReadSchema.parse(response.event);
+        selectedRef.current = event; draftRef.current = null;
+        setSelected(event); setDraft(null); setLookup(null); setCursor(new Date(event.starts_at));
+        setResumeEditRequest({ providerId: target.id, requestId: crypto.randomUUID() }); openInspector();
+        return;
+      } catch {
+        if (context.current()) setCalendarError("原日程暂未读到，未保存内容仍保留。");
+        return false;
+      }
+    }
+    return false;
+  });
+  const openCalendarAssistant = ai.open;
   useEffect(() => {
-    if (!sessionReady) return;
-    return registerWorkbenchViewState("calendar", {
-      capture: () => ({
-        kind: "calendar",
-        view,
-        cursor: instantToDate(cursor.toISOString(), timezone),
-        selectedCategories: [...selectedCategories],
-        hideInternship,
-      }),
-      restore: (state) => {
-        if (state.kind !== "calendar") return;
-        setView(
-          window.matchMedia("(max-width: 767px)").matches &&
-            state.view === "week"
-            ? "day"
-            : state.view,
-        );
-        setCursor(new Date(wallTimeToIso(`${state.cursor}T12:00`, timezone)));
-        const known = new Set(
-          primaryCalendarCategories.map((category) => category.displayName),
-        );
-        setSelectedCategories(
-          new Set(
-            state.selectedCategories.filter((category) => known.has(category)),
-          ),
-        );
-        setHideInternship(state.hideInternship);
-      },
-    });
-  }, [
-    sessionReady,
-    view,
-    cursor,
-    selectedCategories,
-    hideInternship,
-    timezone,
-  ]);
+    const listener = (event: Event) => { if (event instanceof CustomEvent && event.detail?.surface === "calendar") openCalendarAssistant(); };
+    window.addEventListener("personal-os:assistant-open", listener); return () => window.removeEventListener("personal-os:assistant-open", listener);
+  }, [openCalendarAssistant]);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
@@ -1547,8 +1588,10 @@ export function CalendarWorkspace({
         {selected ? (
           <>
             <CalendarEventEditForm
+              actionTransport={editTransport}
               key={selected.id}
               event={selected}
+              resumeRequestId={resumeEditRequest?.providerId === selected.provider_event_id ? resumeEditRequest.requestId : undefined}
               timezone={timezone}
               calendarCategories={categories}
               categoriesEnabled={scopeReady}
@@ -1558,6 +1601,7 @@ export function CalendarWorkspace({
           </>
         ) : draft ? (
           <CalendarCreateForm
+            actionTransport={creationTransport}
             key={`${draft.startsAt}:${draft.endsAt}:${draft.sourceTask?.id ?? ""}:${draft.sourceTask?.modified ?? ""}:${draft.isAllDay ? "all-day" : "timed"}`}
             timezone={timezone}
             categoriesEnabled={scopeReady}
@@ -1681,7 +1725,7 @@ export function CalendarWorkspace({
       </Dialog>
       <PanelPresence open={ai.isOpen}>
         <AISidecar open={ai.isOpen} onClose={ai.close} context="Calendar">
-          <CalendarAssistant timezone={timezone} categories={categories} />
+          <CalendarAssistant actionTransport={actionTransport} timezone={timezone} categories={categories} />
         </AISidecar>
       </PanelPresence>
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>

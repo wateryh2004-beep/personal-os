@@ -1,6 +1,6 @@
 # 材料来源、连续整理与编辑事务
 
-状态：本批实施契约，尚待固定提交的隔离 SQL、浏览器与发布验收。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，公共生命周期见 [连续性契约](workflow-continuity.md)。
+状态：本批实施契约。固定数据库检查点的隔离 SQL 已通过；最终界面与发布仍待验收，见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，公共生命周期见 [连续性契约](workflow-continuity.md)。
 
 ## 不可变来源
 
@@ -36,7 +36,11 @@ To Do 创建由专门 `todo_creation_receipts` 保留真实发送意图、哈希
 
 ## 迁移与回退
 
-迁移按依赖顺序：`20261027004214_continuous_material_sources` → `20261027004226_continuous_domain_workflows` → `20261027004853_continuous_material_receipts`。最后一项的 task composite FK 依赖领域迁移创建的 owner 唯一索引。代码回退保留新增快照和来源，不能删除真实内容或重放未知 provider 操作。隔离 SQL 与实际执行证据单独记录，本文不代表生产已通过。
+本批完整十条迁移依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile，精确本地文件名与实际隔离证据见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十条迁移与生产版本登记)。material receipts 的 task composite FK 依赖领域迁移创建的 owner 唯一索引，mutex 再依赖来源与回执；不能将本材料子集误作完整发布清单。
+
+生产通过已连接 Supabase MCP 按上述顺序执行；接口不接受 version 参数，实际版本由迁移列表与 schema 核对。时间戳不同只对齐本地文件名、两份严格顺序清单与文档元数据，SQL 字节/哈希不变，不双写 history 或改用 CLI/REST 绕过。当前尚未应用生产。
+
+新增 Scene JSON 需要兼容 reader，最早已登记检查点为 `93f88f9f127717cca3f8a6895b515ffd0b381357`；`a5803dda` 不能读取本批新格式，不能直接用作兼容回退。回退保留新增快照、原件与来源，不 down/delete，不重放未知 provider 操作；实际回退候选的构建/配置仍需核对。本文不代表生产已通过。
 
 ## Inbox 跨去向互斥补充
 
@@ -48,7 +52,7 @@ Inbox 的 Calendar 创建请求也以 Inbox ID 定位，并通过 service-only p
 
 新增活跃 Task/Calendar claim 存在时，数据库同时限制直接写 `processed_at`、`converted_task_id`、`converted_todo_task_id`、`converted_note_id` 及来源身份：只有匹配同来源 Task 回执的 `remote_committed/available` 与实际同 owner 任务，或同来源 Calendar `succeeded` 才允许完成。不能用另一条同 owner 任务/日程冒充，不能清掉关联再换 ID。该约束覆盖新 claim 的原始 UPDATE 入口；没有新活跃 claim 的旧版 Inbox 整行编辑/直接来源完成仍沿继承权限，不将本批表述为已全面收紧旧 Inbox ACL。
 
-以上回执仍属于执行状态，沿现有技术表备份排除规则；不新增业务表/字段，不新增恢复重放。发布先按依赖顺序应用四个新增 migration，再发布使用 preparation RPC 的代码；旧代码滚动窗口未具备派发前 claim，不将该窗口或历史草稿称为完整并发保障。代码回退保留新增 migration 和外部意图，不重放或删除历史回执。
+以上回执仍属于执行状态，沿现有技术表备份排除规则；不新增业务表/字段，不新增恢复重放。本段互斥能力依赖完整发布清单中的前四条迁移；本批发布仍需按上节完整十条顺序执行，再发布相应代码。旧代码滚动窗口未具备派发前 claim，不将该窗口或历史草稿称为完整并发保障。代码回退保留新增 migration 和外部意图，不重放或删除历史回执。
 
 ## 选文组合后的预算与替代操作
 

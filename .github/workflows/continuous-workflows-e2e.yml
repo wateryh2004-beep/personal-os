@@ -1,0 +1,137 @@
+name: Continuous canonical workflows
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: continuous-canonical-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    name: Canonical fixture build and ordinary-build refusal
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Record actual checkout and compare the requested candidate
+        env:
+          PR_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha || '' }}
+        run: |
+          mkdir -p test-results/continuous-canonical-build
+          node -e 'const fs=require("node:fs"),cp=require("node:child_process");const git=(...args)=>cp.execFileSync("git",args,{encoding:"utf8"}).trim();const actual=git("rev-parse","HEAD");if(actual!==process.env.PR_HEAD)throw Error("checkout_sha_mismatch");fs.writeFileSync("test-results/continuous-canonical-build/checkout.json",JSON.stringify({actual,tree:git("rev-parse","HEAD^{tree}"),requestedHead:process.env.PR_HEAD,base:process.env.PR_BASE},null,2));'
+      - name: Ordinary production build remains unable to enable fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build > test-results/continuous-canonical-build/ordinary-build.log 2>&1
+          CONTINUOUS_WORKFLOWS_E2E_RUNTIME=1 node node_modules/next/dist/bin/next start --hostname 127.0.0.1 -p 3000 > test-results/continuous-canonical-build/ordinary-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..45}; do
+            if curl -sS -o /dev/null http://127.0.0.1:3000/login; then break; fi
+            sleep 1
+          done
+          STATUS=$(curl -sS -H 'Cookie: personal-os-continuous-fixture=synthetic-v3' -o test-results/continuous-canonical-build/ordinary-fixture-response.html -D test-results/continuous-canonical-build/ordinary-fixture-headers.txt -w '%{http_code}' http://127.0.0.1:3000/continuous-workflows-e2e/notes)
+          test "$STATUS" = 404
+          curl -sS -H 'Cookie: personal-os-continuous-fixture=synthetic-v3' -o test-results/continuous-canonical-build/ordinary-canonical-response.html -D test-results/continuous-canonical-build/ordinary-canonical-headers.txt http://127.0.0.1:3000/notes
+          node -e 'const fs=require("node:fs");for(const kind of ["fixture","canonical"]){const text=fs.readFileSync(`test-results/continuous-canonical-build/ordinary-${kind}-response.html`,"utf8");if(text.includes("data-continuous-fixture-layout"))throw Error("ordinary_build_enabled_fixture");}fs.writeFileSync("test-results/continuous-canonical-build/ordinary-gate.json",JSON.stringify({fixtureStatus:404,fixtureMarker:false,canonicalFixtureMarker:false,runtimeFlag:true,fixtureCookie:true}));'
+          kill "$SERVER_PID"
+          wait "$SERVER_PID" 2>/dev/null || true
+          trap - EXIT
+      - name: Build the isolated synthetic canonical realm
+        env:
+          CONTINUOUS_WORKFLOWS_E2E_BUILD: '1'
+          E2E_MOBILE_HARNESS: '1'
+        run: |
+          rm -rf .next
+          npm run build > test-results/continuous-canonical-build/fixture-build.log 2>&1
+          tar --exclude='.next/cache' -czf /tmp/continuous-next-build.tgz .next
+      - name: Upload the exact reusable fixture build
+        uses: actions/upload-artifact@v4
+        with:
+          name: continuous-next-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/continuous-next-build.tgz
+          if-no-files-found: error
+          retention-days: 3
+      - name: Retain build and gate evidence even after failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: continuous-canonical-build-evidence
+          path: test-results/continuous-canonical-build
+          if-no-files-found: error
+          retention-days: 7
+  browser:
+    name: Canonical / ${{ matrix.suite }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [runtime, materials, planning-career, domains, sources]
+    env:
+      CI: 'true'
+      CONTINUOUS_WORKFLOWS_E2E_RUNTIME: '1'
+      E2E_BASE_URL: http://127.0.0.1:3000
+      CONTINUOUS_E2E_SUITE: ${{ matrix.suite }}
+      E2E_PR_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      E2E_PR_BASE: ${{ github.event.pull_request.base.sha || '' }}
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: continuous-next-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp
+      - run: tar -xzf /tmp/continuous-next-build.tgz
+      - name: Install pinned Chromium and CJK fonts
+        run: |
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_OS python3 scripts/ci-prefer-ubuntu-mirror.py
+          npm install --global playwright@1.62.1
+          playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          fc-cache -f
+          npm run assets:ocr
+      - name: Exercise real controllers through canonical Next routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "test-results/continuous-workflows-${CONTINUOUS_E2E_SUITE}"
+          node node_modules/next/dist/bin/next start --hostname 127.0.0.1 -p 3000 > "test-results/continuous-workflows-${CONTINUOUS_E2E_SUITE}/server.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..45}; do
+            if curl -fsS -H 'Cookie: personal-os-continuous-fixture=synthetic-v3' http://127.0.0.1:3000/today > /dev/null; then break; fi
+            sleep 1
+          done
+          NODE_PATH="$(npm root -g)" timeout 480s node scripts/continuous-workflows-e2e.cjs
+      - name: Retain every screenshot, continuous video, trace and assertion ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: continuous-canonical-${{ matrix.suite }}
+          path: test-results/continuous-workflows-${{ matrix.suite }}
+          if-no-files-found: error
+          retention-days: 7

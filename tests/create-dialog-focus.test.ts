@@ -10,7 +10,7 @@ vi.mock("@/features/projects/actions", () => ({ createProject: vi.fn() }));
 vi.mock("@/features/tasks/microsoft-todo", () => ({ createMicrosoftTodoTaskAction: vi.fn() }));
 let host: HTMLDivElement, root: Root;
 const pause = () => new Promise((resolve) => setTimeout(resolve, 10));
-const cancel = () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => button.textContent === "取消")!;
+const cancel = () => { const button=[...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => ["取消","稍后继续"].includes(button.textContent?.trim()??""));expect(button,"Missing actual cancel/continue action").toBeDefined();return button!; };
 const launchers = () => [...host.querySelectorAll<HTMLButtonElement>("button")].filter((button) => button.textContent?.includes("新建") || button.getAttribute("aria-label") === "新建任务");
 async function render(kind: "tasks" | "projects", initialOpen = false) {
   window.history.replaceState(null, "", `/${kind}`);

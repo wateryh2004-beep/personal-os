@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ detail: vi.fn() }));
 vi.mock("@/features/interview/queries", () => ({ getPracticeDetail: mocks.detail }));
-vi.mock("@/features/interview/actions", () => ({ createPracticeAttempt: vi.fn() }));
+vi.mock("@/features/interview/actions", () => ({ createPracticeAttempt: vi.fn(),savePracticeIntent:vi.fn(),reconcilePracticeIntent:vi.fn() }));
+vi.mock("next/navigation",()=>({useRouter:()=>({push:vi.fn()}),unstable_rethrow:vi.fn()}));
 import Page from "@/app/(app)/career/interview/practice/[preparationId]/page";
 
 it("uses the same spoken-answer selection and reader without spoiling practice", async () => {

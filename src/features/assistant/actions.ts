@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "@/lib/workspace-revalidation";
 import { z } from "zod";
+import { safeWorkbenchHref } from "@/features/workbench/contracts";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { AgentActionConflict, executeFrozenAgentAction } from "./executor";
 import { parseAgentActionPayload } from "./tools/schemas";
@@ -71,10 +72,11 @@ export async function approveAgentAction(actionId: string): Promise<AgentActionR
       payload: action.payload_json as Record<string, unknown>,
       timezone: profile?.timezone || "Asia/Shanghai",
     });
-    await supabase.from("agent_actions").update({ status: "succeeded", result_json: result, executed_at: new Date().toISOString(), error_code: null }).eq("id", action.id).eq("status", "executing");
+    const saved = await supabase.from("agent_actions").update({ status: "succeeded", result_json: result, executed_at: new Date().toISOString(), error_code: null }).eq("id", action.id).eq("user_id", userId).eq("status", "executing").select("id").maybeSingle();
+    if (saved.error || !saved.data) return { status: "error", actionId, message: "执行已返回，保存结果尚未核对。请核对原提案，不要重复执行。" };
     await audit({ supabase, userId, action: "agent_action_succeeded", actionId, data: { run_id: action.run_id, domain: action.domain, action_type: action.action_type } });
     const { count } = await supabase.from("agent_actions").select("id", { count: "exact", head: true }).eq("run_id", action.run_id).eq("status", "proposed");
-    if ((count ?? 0) === 0) await supabase.from("agent_runs").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", action.run_id);
+    if ((count ?? 0) === 0) await supabase.rpc("complete_agent_run_if_resolved", { p_run_id: action.run_id });
     await revalidatePath("/calendar"); await revalidatePath("/tasks"); await revalidatePath("/notes"); await revalidatePath("/today"); await revalidatePath("/career"); await revalidatePath("/memory");
     const href = typeof result === "object" && result && "href" in result ? String(result.href) : undefined;
     return { status: "success", message: "已确认并完成。", actionId, href };
@@ -106,4 +108,17 @@ export async function approveAgentActions(actionIds: string[]) {
     results.push(await approveAgentAction(actionId));
   }
   return results;
+}
+
+/** Exact proposal IDs only: reconciliation never executes, claims, or generates. */
+export async function readAgentActionsState(actionIds: string[]) {
+  const ids = actionIdsSchema.parse(actionIds);
+  const { supabase, userId } = await requireOwner();
+  const { data, error } = await supabase.from("agent_actions").select("id,status,result_json,expires_at").eq("user_id", userId).in("id", ids);
+  if (error) throw new Error("提案状态尚未核对。");
+  return (data ?? []).map(row => {
+    const result = row.result_json && typeof row.result_json === "object" && !Array.isArray(row.result_json) ? row.result_json : null;
+    const href = safeWorkbenchHref(result && "href" in result ? result.href : null);
+    return { actionId: row.id, status: row.status === "proposed" && row.expires_at && Date.parse(row.expires_at) <= Date.now() ? "expired" : row.status, ...(href ? { href } : {}) };
+  });
 }

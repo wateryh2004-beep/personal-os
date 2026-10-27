@@ -2,13 +2,16 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const actions = vi.hoisted(() => ({ create: vi.fn<(data: FormData) => Promise<void>>(), update: vi.fn<(data: FormData) => Promise<void>>(), archive: vi.fn<(data: FormData) => Promise<void>>() }));
-vi.mock("@/features/interview/actions", () => ({ createInterviewStory: actions.create, updateInterviewStory: actions.update, archiveInterviewStory: actions.archive }));
+const actions = vi.hoisted(() => ({ read:vi.fn(),create: vi.fn<(data: FormData) => Promise<void>>(), update: vi.fn<(data: FormData) => Promise<void>>(), archive: vi.fn<(data: FormData) => Promise<void>>() }));
+vi.mock("@/features/interview/actions", () => ({ createInterviewStoryWithReceipt: actions.create, updateInterviewStory: actions.update, archiveInterviewStory: actions.archive }));
+vi.mock("@/features/workflow-continuity/ordinary-comparison",()=>({readOrdinaryDraftComparison:actions.read}));
+vi.mock("next/navigation",()=>({useRouter:()=>({push:vi.fn()}),unstable_rethrow:()=>{}}));
+import { clearWorkspaceResources } from "@/lib/workspace-resource-cache";
 import { StoryFormDialog } from "@/components/career/interview/story-form-dialog";
 import { StoryArchiveDialog } from "@/components/career/interview/story-archive-dialog";
 import type { EditableStory } from "@/features/interview/story-library";
 let host: HTMLDivElement, root: Root;
-const story: EditableStory = { id: "s1", title: "原始故事", status: "usable", experience_id: "missing", one_line: "原始概括", situation_markdown: "背景原文", task_markdown: "任务原文", action_markdown: "行动原文", result_markdown: "结果原文", reflection_markdown: "反思原文" };
+const story: EditableStory = { id: "11111111-1111-4111-8111-111111111111", title: "原始故事", status: "usable", experience_id: "missing", one_line: "原始概括", situation_markdown: "背景原文", task_markdown: "任务原文", action_markdown: "行动原文", result_markdown: "结果原文", reflection_markdown: "反思原文" };
 const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent === text)!;
 const form = () => document.querySelector<HTMLFormElement>('[role="dialog"] form')!;
 const field = (name: string) => form().querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${name}"]`)!;
@@ -19,10 +22,10 @@ async function changeTitle(value: string) {
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
-  vi.clearAllMocks();
+  vi.clearAllMocks();clearWorkspaceResources();
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
-afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
+afterEach(async () => { await act(async () => root.unmount()); host.remove(); clearWorkspaceResources();vi.unstubAllGlobals(); });
 async function openEdit() { await act(async () => root.render(createElement(StoryFormDialog, { story, experiences: [] }))); await act(async () => button("编辑故事").click()); }
 
 describe("Story mutation dialogs", () => {
@@ -51,14 +54,16 @@ describe("Story mutation dialogs", () => {
     const initial = Object.fromEntries(new FormData(form()));
     await act(async () => { form().dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); form().dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
     expect(actions.update).toHaveBeenCalledTimes(1);
-    expect(form().querySelector("fieldset")?.disabled).toBe(true);
+    expect(form().querySelector("fieldset")?.disabled).toBe(false);
+    await changeTitle("保存期间继续输入B");
     expect(button("取消").matches(":disabled")).toBe(true);
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     expect(Object.fromEntries(actions.update.mock.calls[0][0])).toEqual(initial);
     await act(async () => rejectSave(new Error("unknown result")));
     expect(form().querySelector("fieldset")?.disabled).toBe(false);
-    expect(Object.fromEntries(new FormData(form()))).toEqual(initial);
+    expect(Object.fromEntries(new FormData(form()))).toEqual({...initial,title:"保存期间继续输入B"});
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("未能确认保存结果");
+    await act(async () => form().dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));expect(actions.update).toHaveBeenCalledOnce();actions.read.mockResolvedValue({status:"ready",fields:{title:"Current story"},baselines:{}});await act(async()=>button("读取原记录并比较").click());expect(field("title").value).toBe("保存期间继续输入B");await act(async()=>button("采用比较后的当前版本，保留输入").click());
     actions.update.mockResolvedValueOnce();
     await act(async () => form().dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
@@ -75,6 +80,9 @@ describe("Story mutation dialogs", () => {
     expect(actions.create.mock.calls[0][0].get("action_markdown")).toBe("");
     expect(field("title").value).toBe("新故事");
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("输入已保留");
+  });
+  it("known A success leaves current B editable in the dialog and does not badge B as saved",async()=>{
+    let finish!:()=>void;actions.update.mockImplementationOnce(()=>new Promise<void>(resolve=>{finish=resolve;}));await openEdit();await changeTitle("Original A");await act(async()=>form().dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));await changeTitle("Current B");await act(async()=>finish());expect(document.querySelector('[role="dialog"]')).not.toBeNull();expect(field("title").value).toBe("Current B");expect(field("title").matches(":disabled")).toBe(false);expect(host.textContent).not.toContain("故事已保存");expect(document.body.textContent).toContain("本标签页 · 未保存");
   });
 
   it("requires explicit archive confirmation, supports cancellation, and reports uncertain failure", async () => {

@@ -31,14 +31,20 @@ export function InvestmentDailyOverview({
   cashEntries,
   quotes,
   onOpen,
+  explaining: controlledExplaining,
+  onExplainingChange,
 }: {
   daily: InvestmentDailyAccount;
   cashEntries: InvestmentCashEntry[];
   quotes: InvestmentQuote[];
   onOpen: (dialog: DailyDialog) => void;
+  explaining?: boolean;
+  onExplainingChange?: (open: boolean) => void;
 }) {
   const { account } = daily;
-  const [explaining, setExplaining] = useState(false);
+  const [localExplaining, setLocalExplaining] = useState(false);
+  const explaining = controlledExplaining ?? localExplaining;
+  const setExplaining = (open: boolean) => { if (controlledExplaining === undefined) setLocalExplaining(open); onExplainingChange?.(open); };
   const revealTarget = useRef<string | null>(null);
   const reveal = (id: string) => {
     revealTarget.current = id;
@@ -304,7 +310,7 @@ export function InvestmentDailyOverview({
           )}
         </DialogContent>
       </Dialog>
-      <details className={styles.ledger}>
+      <details data-investment-section="cash-quotes" className={styles.ledger}>
         <summary>
           现金与报价记录（{cashEntries.length + quotes.length}）
         </summary>

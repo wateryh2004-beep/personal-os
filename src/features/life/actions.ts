@@ -2,7 +2,7 @@
 import { revalidatePath } from "@/lib/workspace-revalidation";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { z } from "zod";
-import { lifeFieldInputSchema, lifeFieldResultSchema, lifeFieldRowSchema, type LifeFieldResult } from "./contracts";
+import { lifeRequestOutcomeSchema, lifeFieldInputSchema, lifeFieldResultSchema, lifeFieldRowSchema, type LifeFieldResult } from "./contracts";
 
 /** Fixed domain allowlist; before/after and inverse metadata are database-owned. */
 export async function applyLifeFieldOperation(input: unknown): Promise<LifeFieldResult> {
@@ -52,4 +52,17 @@ export async function readLifeReceiptState(receiptId: unknown): Promise<{ operat
     }
     return result.data;
   } catch { return null; }
+}
+
+/** Pure owner-scoped lookup of the exact original request, never another apply. */
+export async function readLifeRequestOutcome(input: unknown): Promise<import("./contracts").LifeRequestOutcome> {
+  const { supabase } = await requireOwner();
+  const parsed = lifeFieldInputSchema.safeParse(input);
+  if (!parsed.success) return { status: "rejected", code: "invalid" };
+  try {
+    const { data, error } = await supabase.rpc("read_life_request_outcome", { p_request_id: parsed.data.requestId, p_operation: parsed.data.operation, p_items: parsed.data.items });
+    if (error) return { status: "needs-check" };
+    const result = lifeRequestOutcomeSchema.safeParse(data);
+    return result.success ? result.data : { status: "needs-check" };
+  } catch { return { status: "needs-check" }; }
 }

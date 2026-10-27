@@ -177,7 +177,7 @@
 
 ## 当前实现排查
 
-[连续工作流与全系统体验 · 二十项升级](specs/continuous-workflows-v3.md) 规定2026-10-27后台任务、草稿、来源、材料编辑、规划及全域连续操作的完整范围；公共生命周期见[连续性契约](contracts/workflow-continuity.md)，领域边界见[材料来源定位](contracts/material-source-locators.md)与[连续领域工作流](contracts/continuous-domain-workflows.md)。当前实施中，未据此宣称全批验证或上线。
+[连续工作流与全系统体验 · 二十项升级](specs/continuous-workflows-v3.md) 规定2026-10-27后台任务、草稿、来源、材料编辑、规划及全域连续操作的完整范围；公共生命周期见[连续性契约](contracts/workflow-continuity.md)，领域边界见[材料来源定位](contracts/material-source-locators.md)与[连续领域工作流](contracts/continuous-domain-workflows.md)。[2026-10-28 候选验收记录](verification/2026-10-28-continuous-workflows-v3.md)记录固定数据库检查点的实际 PG17、官方类型比较、并发与备份结果，以及十条迁移/兼容回退计划。界面、动效及生产发布仍待完成，未据此宣称全批验证或上线。
 
 [全系统视觉与动效精修](specs/visual-motion-polish.md) 固定 2026-10-26 笔记纸面与阅读排版、今日桌面、导航、搜索预览、工作台布局、日历拖放、项目目标、文件查看器和公共反馈十项范围；实现与最终 CI、截图录屏及发布分别验收。 本地检查、构建重验与远程浏览器边界见 [2026-10-27 验收记录](verification/2026-10-27-visual-motion.md)。
 

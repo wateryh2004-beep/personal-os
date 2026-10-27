@@ -70,7 +70,10 @@ describe("Notes editor reliability", () => {
   });
 
   it("uses inline rename and a single hierarchy-aware folder move control", () => {
-    expect(workspace).toContain('aria-label="笔记标题"');
+    expect(workspace).toContain("<NoteRenameForm");
+    const metadata=readFileSync(new URL("../src/components/notes/note-metadata-forms.tsx",import.meta.url),"utf8");
+    expect(metadata).toContain('aria-label="笔记标题"');
+    expect(metadata).toContain('name="expected_revision"');
     expect(workspace).not.toContain("重命名笔记<input");
     const picker = readFileSync(new URL("../src/components/notes/folder-picker.tsx", import.meta.url), "utf8");
     expect(picker).toContain("folderPath(folder, byId)");
@@ -98,8 +101,13 @@ describe("Notes editor reliability", () => {
     expect(workspace).toContain("重试加载更多");
     expect(workspace).toContain("重试全文搜索");
     expect(workspace).toContain("unstable_rethrow(error)");
-    expect(workspace).toContain('mutate(renameNote, form, "笔记标题已保存", () => setRenaming(null))');
-    expect(workspace).toContain('mutate(moveNote, form, "笔记位置已更新", () => setMoving(null))');
+    expect(workspace).toContain("<NoteRenameForm");
+    expect(workspace).toContain("<NoteMoveForm");
+    const wrapper=readFileSync(new URL("../src/components/files/file-mutation-form.tsx",import.meta.url),"utf8");
+    expect(wrapper).toContain("recovery.capture(event)");
+    expect(wrapper).toContain("if(!scopeCurrent())return;");
+    expect(wrapper).toContain('else if(unchanged)onSuccess?.()');
+    expect(wrapper).not.toContain("form.reset()");
   });
 
   it("does not report the authoritative note body as failed when derived link sync fails", () => {

@@ -5,8 +5,10 @@ import "./file-pdf-preview.css";
 import { captureWorkspaceScope, registerWorkspaceScopeCleanup } from "@/lib/workspace-resource-cache";
 import { noteSelectionContent } from "@/features/notes/selection-content";
 import { sourceLocatorHref } from "@/features/links/source-locator";
+import { acknowledgePositionRestore, type PdfPositionRequest, type PositionRestoreStatus } from "@/features/workbench/position-requests";
 import { insertIntoAdjacentNote, listNoteInsertionTargets } from "@/features/workflow-continuity/note-insertion";
 import { useWorkbenchActive } from "@/components/workbench/workbench-activity";
+import { useReadingVerificationTransport } from "@/features/files/reading-verification-context";
 import { getReadingProgress, saveReadingProgress } from "@/features/files/reading-progress-actions";
 import { createReadingProgressQueue, type ReadingProgress } from "@/features/files/reading-progress";
 import type { OnProgressParameters, PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, RenderTask } from "unpdf/pdfjs";
@@ -17,7 +19,7 @@ export const maxPdfCanvasPixels = 4_000_000;
 export const pdfLoadTimeoutMs = 30_000;
 export const pdfRenderTimeoutMs = 20_000;
 const fallbackMessage = "PDF 预览暂不可用，可在新窗口打开或下载原件。";
-const buttonClass = "inline-flex min-h-9 items-center justify-center rounded-md px-2 text-[12px] hover:bg-[var(--surface-control)] disabled:cursor-default disabled:opacity-40";
+const buttonClass = "inline-flex min-h-11 min-w-11 md:min-h-9 md:min-w-0 items-center justify-center rounded-md px-2 text-[12px] hover:bg-[var(--surface-control)] disabled:cursor-default disabled:opacity-40";
 
 function preflightMessage(status: number) {
   if (status === 401 || status === 403) return "请重新登录后预览。";
@@ -46,6 +48,9 @@ export function FilePdfPreview(props: PdfPreviewProps) {
 }
 
 function PdfPreviewSession({ documentId, title, embedded = false, active: paneActive = true, persistProgress = true, initialPage: restoredPage, initialSourceVersion, onPageChange }: PdfPreviewProps) {
+  const readingTransport=useReadingVerificationTransport();
+  const [originScope] = useState(captureWorkspaceScope);
+  const restoreRequest = useRef<{ request: PdfPositionRequest; page: number; status: Exclude<PositionRestoreStatus, "timeout"> } | null>(null);
   const url = `/api/files/${documentId}/preview`;
   const [initialRestore] = useState(() => ({ page: restoredPage, source: initialSourceVersion }));
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
@@ -66,8 +71,16 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
     resumePage.current = page;
     onPageRef.current?.(page, previousSource.current);
     if (persistProgress && userNavigated.current) progressQueue.current?.record(page);
-  }, [persistProgress]);
-  const navigate = (page: number) => { userNavigated.current = true; setPageNumber(page); };
+    const restore = restoreRequest.current;
+    if (restore && restore.page === page && originScope()) {
+      restoreRequest.current = null;
+      acknowledgePositionRestore(restore.request, restore.status);
+    }
+  }, [persistProgress, originScope]);
+  const navigate = (page: number) => {
+    if (restoreRequest.current) acknowledgePositionRestore(restoreRequest.current.request, "cancelled");
+    restoreRequest.current = null; userNavigated.current = true; setPageNumber(page);
+  };
   const [zoom, setZoom] = useState(1);
   const [width, setWidth] = useState(640);
   const container = useRef<HTMLDivElement>(null);
@@ -136,7 +149,7 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
           return;
         }
         // Old deployments remain readable without pretending progress was saved.
-        const snapshot = persistProgress && sourceVersion ? await getReadingProgress(documentId).catch(() => null) : null;
+        const snapshot = persistProgress && sourceVersion ? await (readingTransport?.read??getReadingProgress)(documentId).catch(() => null) : null;
         if (!active) return;
         if (snapshot && snapshot.sourceVersion === sourceVersion &&
             (!snapshot.progress || snapshot.progress.totalPages === document.numPages)) {
@@ -146,7 +159,7 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
           if (saved && saved.page > 1) setReadingMessage(`已接续第 ${saved.page} 页`);
           progressQueue.current = createReadingProgressQueue({
             documentId, sourceVersion, totalPages: document.numPages, revision: saved?.revision ?? 0,
-            save: saveReadingProgress,
+            save: readingTransport?.save??saveReadingProgress,
             report(result) {
               if (!active) return;
               if (result.status === "saved") setReadingMessage("阅读进度已同步");
@@ -171,18 +184,28 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
       controller.abort();
       destroy();
     };
-  }, [url, documentId, destroy, fail, paneActive, persistProgress, initialRestore]);
+  }, [url, documentId, destroy, fail, paneActive, persistProgress, initialRestore, readingTransport]);
 
   useEffect(() => {
     const restore = (event: Event) => {
-      if (!(event instanceof CustomEvent) || event.detail?.documentId !== documentId || !pdf) return;
-      const page = event.detail.page;
-      if (!sourceVersion || event.detail.sourceVersion !== sourceVersion || !Number.isInteger(page) || page < 1 || page > pdf.numPages) return;
-      userNavigated.current = false; resumePage.current = page; setPageNumber(page);
+      if (!(event instanceof CustomEvent) || event.detail?.documentId !== documentId || !pdf || !originScope() || !paneActive) return;
+      const request = event.detail as PdfPositionRequest;
+      if (restoreRequest.current) acknowledgePositionRestore(restoreRequest.current.request, "cancelled");
+      if (!sourceVersion) { acknowledgePositionRestore(request, "unavailable"); return; }
+      const changed = request.sourceVersion !== sourceVersion;
+      const page = changed ? 1 : request.page;
+      if (!Number.isInteger(page) || page < 1 || page > pdf.numPages) { acknowledgePositionRestore(request, "missing"); return; }
+      if (changed) setReadingMessage("原文件版本已变化，已从第一页开始");
+      userNavigated.current = false; resumePage.current = page;
+      const status = changed ? "changed-source" : "applied";
+      const rendered = container.current?.querySelector<HTMLCanvasElement>('canvas[data-pdf-rendered="true"]');
+      if (Number(rendered?.dataset.pdfPage) === page) acknowledgePositionRestore(request, status);
+      else restoreRequest.current = { request, page, status };
+      setPageNumber(page);
     };
     window.addEventListener("personal-os:restore-pdf-position", restore);
-    return () => window.removeEventListener("personal-os:restore-pdf-position", restore);
-  }, [documentId, pdf, sourceVersion]);
+    return () => { window.removeEventListener("personal-os:restore-pdf-position", restore); if (restoreRequest.current) acknowledgePositionRestore(restoreRequest.current.request, "cancelled"); restoreRequest.current = null; };
+  }, [documentId, pdf, sourceVersion, originScope, paneActive]);
 
   useEffect(() => {
     const element = container.current;

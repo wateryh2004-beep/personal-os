@@ -213,7 +213,20 @@
         });
         await photoLauncher.click();
         const dialog = page.getByRole("dialog");
+        const waitForViewerRest = async () => {
+          // Canvas readiness does not imply the enclosing CSS transition has
+          // ended. Observe the actual shell animations, including reversal.
+          await dialog.evaluate(async surface => {
+            for (let pass = 0; pass < 4; pass++) {
+              const animations = surface.getAnimations().filter(animation => animation.playState !== "finished");
+              if (!animations.length) return;
+              await Promise.all(animations.map(animation => animation.finished.catch(() => {})));
+            }
+            if (surface.getAnimations().some(animation => animation.playState === "running")) throw new Error("Viewer motion did not reach its resting state");
+          });
+        };
         const viewerContained = async label => {
+          await waitForViewerRest();
           const geometry = await dialog.evaluate(surface => {
             const box = node => { const bounds = node.getBoundingClientRect(); return { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom, width: bounds.width, height: bounds.height }; };
             const style = getComputedStyle(surface);

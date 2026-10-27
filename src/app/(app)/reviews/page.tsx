@@ -1,3 +1,4 @@
+import {DraftForm} from "@/components/workflow-continuity/draft-form";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, CalendarRange, Database } from "lucide-react";
 import { completeDecisionReview } from "@/features/reviews/actions";
@@ -111,11 +112,11 @@ function ReviewEntry({
 
 function DecisionReviewForm({ decisionId, outcome }: { decisionId: string; outcome: "keep" | "reverse" }) {
   return (
-    <form action={async (formData) => { "use server"; await completeDecisionReview({ decisionId, outcome, content: formData.get("content"), newTitle: formData.get("new_title") || undefined, newDecisionText: formData.get("new_decision_text") || undefined, rationale: formData.get("rationale") || undefined }); }} className="grid content-start gap-2">
+    <DraftForm draft={{operation:outcome==="keep"?"decision.review-keep":"decision.review-reverse",id:decisionId,href:"/reviews",label:outcome==="keep"?"维持决定复核":"反转决定复核"}} action={async (formData) => { "use server"; await completeDecisionReview({ decisionId, outcome, content: formData.get("content"), newTitle: formData.get("new_title") || undefined, newDecisionText: formData.get("new_decision_text") || undefined, rationale: formData.get("rationale") || undefined });return {status:"saved" as const}; }} className="grid content-start gap-2">
       <p className="text-sm font-medium">{outcome === "keep" ? "维持原决定" : "反转并记录新决定"}</p>
       <Textarea required name="content" placeholder="证据发生了什么变化？为什么维持或反转？" className="min-h-24" />
       {outcome === "reverse" ? <><Input required name="new_title" placeholder="新决定标题" /><Textarea required name="new_decision_text" placeholder="我现在决定……" className="min-h-20" /><Textarea name="rationale" placeholder="新决定的理由" /></> : null}
       <Button variant="outline" className="w-fit">确认{outcome === "keep" ? "维持" : "反转"}</Button>
-    </form>
+    </DraftForm>
   );
 }

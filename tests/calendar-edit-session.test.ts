@@ -2,6 +2,7 @@
 import { act, createElement, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {clearWorkspaceResources} from "@/lib/workspace-resource-cache";
 import { CalendarEventEditForm } from "@/components/calendar/calendar-event-edit-form";
 
 const actions = vi.hoisted(() => ({ update: vi.fn(), delete: vi.fn() }));
@@ -23,10 +24,10 @@ const reconcile = vi.fn();
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: false })) });
-  vi.clearAllMocks();
+  vi.clearAllMocks();clearWorkspaceResources();
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
-afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.restoreAllMocks(); });
+afterEach(async () => { await act(async () => root.unmount()); host.remove();clearWorkspaceResources(); vi.restoreAllMocks(); });
 async function render(event = original) { await act(async () => root.render(createElement(CalendarEventEditForm, { event, timezone: "UTC", calendarCategories: [], onReconcile: reconcile }))); }
 function button(label: string) {
   const found = [...host.querySelectorAll<HTMLButtonElement>("button")].find((element) => element.textContent === label);
@@ -43,7 +44,7 @@ async function changeDescription(value: string) {
 async function submit() { await act(async () => host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))); }
 
 describe("calendar edit sessions", () => {
-  it("discards cancelled all-day and text changes and reconstructs the original timed draft", async () => {
+  it("explicitly discards all-day and text changes and reconstructs the original timed draft", async () => {
     await render(); await click("编辑日程");
     field("subject").value = "未保存标题";
     field("location_name").value = "未保存地点";
@@ -51,7 +52,7 @@ describe("calendar edit sessions", () => {
     await act(async () => field("is_all_day").click());
     expect(field("is_all_day").checked).toBe(true);
     expect(host.querySelector('input[type="datetime-local"]')).toBeNull();
-    await click("取消");
+    await click("放弃修改");
     expect(actions.update).not.toHaveBeenCalled();
     await click("编辑日程");
     expect(field("is_all_day").checked).toBe(false);
@@ -69,7 +70,7 @@ describe("calendar edit sessions", () => {
     await render(updated);
     expect(field("subject").value).toBe("进行中的草稿");
     expect(field("description").value).toBe("草稿说明");
-    await click("取消"); await click("编辑日程");
+    await click("放弃修改"); await click("编辑日程");
     expect(field("is_all_day").checked).toBe(true);
     expect(field("subject").value).toBe(updated.subject);
     expect(field("description").value).toBe(updated.body_text);
@@ -83,10 +84,10 @@ describe("calendar edit sessions", () => {
     actions.update.mockResolvedValueOnce({ status: "error", message: "Outlook 暂不可用" });
     await render(); await click("编辑日程");
     await submit();
-    expect(host.querySelector('[role="status"]')?.textContent).toBe("Outlook 暂不可用");
+    expect(host.textContent).toContain("Outlook 暂不可用");
     expect(reconcile).not.toHaveBeenCalled();
-    await click("取消"); await click("编辑日程");
-    expect(host.querySelector('[role="status"]')).toBeNull();
+    await click("放弃修改"); await click("编辑日程");
+    expect(host.textContent).not.toContain("Outlook 暂不可用");
     expect(field("is_all_day").checked).toBe(false);
     actions.update.mockResolvedValueOnce({ status: "success", message: "日程已更新" });
     field("subject").value = "确认保存的标题";

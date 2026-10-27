@@ -6,7 +6,7 @@ const state=vi.hoisted(()=>({create:vi.fn(),cancel:vi.fn(),refresh:vi.fn()}));
 vi.mock("next/navigation",()=>({useRouter:()=>({refresh:state.refresh}),useSearchParams:()=>new URLSearchParams()}));
 vi.mock("@/components/workflow-continuity/source-link",()=>({SourceLink:({children,...props}:React.AnchorHTMLAttributes<HTMLAnchorElement>)=>createElement("a",props,children)}));
 vi.mock("@/components/shared/action-feedback",()=>({useActionFeedback:()=>({show:vi.fn()})}));
-vi.mock("@/features/tasks/microsoft-todo",()=>({createMicrosoftTodoTaskAction:(...args:unknown[])=>state.create(...args)}));
+vi.mock("@/features/tasks/microsoft-todo",()=>({createMicrosoftTodoTaskAction:(...args:unknown[])=>state.create(...args),readMicrosoftTodoCreationAction:vi.fn().mockResolvedValue({status:"error",message:"原结果仍待核对"})}));
 vi.mock("@/features/calendar/actions",()=>({createCalendarEvent:vi.fn()}));
 vi.mock("@/features/inbox/actions",()=>({
  cancelInboxUndispatchedIntent:(...args:unknown[])=>state.cancel(...args),captureInboxItem:vi.fn(),convertInboxToDailyNote:vi.fn(),convertInboxToNote:vi.fn(),convertInboxToProject:vi.fn(),convertInboxToLink:vi.fn(),readInboxProjectChoices:vi.fn(),dismissInboxProposal:vi.fn(),reclassifyInboxItem:vi.fn(),restoreInboxItem:vi.fn(),archiveInboxItem:vi.fn(),

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
 import type { NowWorkspace } from "@/features/today/types";
 import { buildTodayComposition } from "@/features/today/composition";
 import { CompleteTaskControl } from "./complete-task-control";

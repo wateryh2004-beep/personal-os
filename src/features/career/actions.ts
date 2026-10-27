@@ -89,11 +89,13 @@ export async function reorderCareerTracks(formData: FormData) {
   if (results.some((result) => result.error)) failed(results.find((result) => result.error)?.error);
   await audit(supabase, userId, "reorder", "career_track", ids[0], { track_ids: ids }); revalidatePath("/career/roadmap"); revalidatePath("/career");
 }
-export async function createExperience(formData: FormData) {
+async function createExperienceRecord(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(experienceSchema, { ...raw, is_current: isCurrent(formData.get("is_current")) });
   const { data, error } = await supabase.from("experiences").insert({ ...value, user_id: userId }).select("id").single(); if (error) failed(error);
-  await audit(supabase, userId, "create", "experience", data.id, { organization: value.organization, role: value.role }); revalidatePath("/career"); redirect(`/career/experiences/${data.id}`);
+  await audit(supabase, userId, "create", "experience", data.id, { organization: value.organization, role: value.role }); revalidatePath("/career"); return { id: data.id, href: `/career/experiences/${data.id}` };
 }
+export async function createExperience(formData: FormData) { const receipt = await createExperienceRecord(formData); redirect(receipt.href); }
+export async function createExperienceWithReceipt(formData: FormData) { return createExperienceRecord(formData); }
 export async function createFact(formData: FormData) {
   const { supabase, userId } = await requireOwner(); const raw = formObject(formData); const value = parse(factSchema, { ...raw, source_document_id: raw.source_document_id || null }); await own(supabase, "experiences", value.experience_id); if (value.source_document_id) await own(supabase, "documents", value.source_document_id);
   const { data, error } = await supabase.from("experience_facts").insert({ ...value, user_id: userId }).select("id").single(); if (error) failed(error);

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +27,8 @@ export function CalendarTaskDuration({
   onClose: () => void;
   onChoose: (minutes: number) => void;
 }) {
+  const handingOff = useRef(false);
+  const choose = (value: number) => { handingOff.current = true; onChoose(value); };
   const [minutes, setMinutes] = useState("");
   const number = Number(minutes),
     valid =
@@ -40,7 +42,7 @@ export function CalendarTaskDuration({
         if (!open) onClose();
       }}
     >
-      <DialogContent>
+      <DialogContent onCloseAutoFocus={event => { if (handingOff.current) event.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle>这次给任务留多少时间？</DialogTitle>
           <DialogDescription>
@@ -59,7 +61,7 @@ export function CalendarTaskDuration({
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            if (valid) onChoose(number);
+            if (valid) choose(number);
           }}
           className="space-y-3"
         >
@@ -80,7 +82,7 @@ export function CalendarTaskDuration({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onChoose(45)}
+              onClick={() => choose(45)}
             >
               本次明确选择45分钟建议
             </Button>

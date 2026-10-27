@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
+import {clearWorkspaceResources,reconcileWorkspaceScope} from "@/lib/workspace-resource-cache";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TodoCreateState } from "@/features/tasks/microsoft-todo";
-const mocks = vi.hoisted(() => ({ create: vi.fn(), read: vi.fn(), canonicalHref: "" }));
+const mocks = vi.hoisted(() => ({ create: vi.fn(), read: vi.fn(), receipt:vi.fn(), canonicalHref: "" }));
 vi.mock("next/navigation", async () => {
   const { useMemo, useSyncExternalStore } = await import("react");
   const subscribe = (notify: () => void) => {
@@ -17,7 +18,7 @@ vi.mock("next/navigation", async () => {
     return useMemo(() => new URL(href).searchParams, [href]);
   } };
 });
-vi.mock("@/features/tasks/microsoft-todo", () => ({ createMicrosoftTodoTaskAction: mocks.create }));
+vi.mock("@/features/tasks/microsoft-todo", () => ({ createMicrosoftTodoTaskAction: mocks.create,readMicrosoftTodoCreationAction:mocks.receipt }));
 import { MicrosoftTodoCreateDialog } from "@/components/tasks/microsoft-todo-create-dialog";
 
 const lists = [
@@ -34,9 +35,10 @@ async function render(selectedListId: string | null = "selected", initialOpen = 
 }
 async function open() { await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="新建任务"]')!.click()); }
 async function submit() { await act(async () => dialog()!.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))); }
-function fill() { input("title").value = "  我的任务  "; input("body_text").value = "保留说明"; input("importance").value = "high"; input("due_at").value = "2026-10-06T09:30"; }
+function fill() { act(()=>{for(const [name,value] of Object.entries({title:"  我的任务  ",body_text:"保留说明",importance:"high",due_at:"2026-10-06T09:30"})){const node=input(name);const prototype=node instanceof HTMLSelectElement?HTMLSelectElement.prototype:node instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,"value")!.set!.call(node,value);node.dispatchEvent(new Event(node instanceof HTMLSelectElement?"change":"input",{bubbles:true}));}}); }
 
 beforeEach(() => {
+  clearWorkspaceResources();
   vi.resetAllMocks();
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
   window.history.replaceState({ __NA: true, retained: "state" }, "", "/tasks");
@@ -52,6 +54,7 @@ beforeEach(() => {
   }
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+  mocks.receipt.mockResolvedValue({status:"success",taskId:"created",message:"已核对"});
   mocks.create.mockResolvedValue({ status: "success", taskId: "created", message: "已创建" });
   mocks.read.mockResolvedValue(undefined);
 });
@@ -89,10 +92,10 @@ describe("full task creation dialog", () => {
     await submit();
     expect(dialog()).not.toBeNull();
     await act(async () => read.resolve());
-    expect(dialog()).toBeNull(); expect(mocks.create).toHaveBeenCalledTimes(2);
+    expect(dialog()).toBeNull(); expect(mocks.create).toHaveBeenCalledTimes(1);expect(mocks.receipt).toHaveBeenCalledTimes(1);
   });
 
-  it("preserves the draft after a thrown action and allows an explicit cancel/reset", async () => {
+  it("preserves the draft after a thrown action and after dismiss/reopen", async () => {
     mocks.create.mockRejectedValueOnce(new Error("offline"));
     await render(); await open(); fill(); await submit();
     expect(input("title").value).toBe("  我的任务  ");
@@ -100,10 +103,10 @@ describe("full task creation dialog", () => {
     await act(async () => button("取消").click());
     expect(dialog()).toBeNull();
     await render("default"); await open();
-    expect(input("title").value).toBe(""); expect(input("body_text").value).toBe("");
-    expect(input("importance").value).toBe("normal"); expect(input("due_at").value).toBe("");
-    expect(input("todo_list_id").value).toBe("default");
-    expect(dialog()!.querySelector('[role="alert"]')).toBeNull();
+    expect(input("title").value).toBe("  我的任务  "); expect(input("body_text").value).toBe("保留说明");
+    expect(input("importance").value).toBe("high"); expect(input("due_at").value).toBe("2026-10-06T09:30");
+    expect(input("todo_list_id").value).toBe("selected");
+    expect(dialog()!.textContent).toContain("提交结果尚未确认");
   });
 
   it("blocks same-tick duplicate submits, cancel, and Escape while pending", async () => {
@@ -116,8 +119,9 @@ describe("full task creation dialog", () => {
     });
     expect(mocks.create).toHaveBeenCalledTimes(1);
     expect(button("取消").disabled).toBe(true);
-    expect(dialog()!.querySelector("fieldset")!.disabled).toBe(true);
-    expect(button("正在创建…").disabled).toBe(true);
+    expect(dialog()!.querySelector("fieldset")!.disabled).toBe(false);
+    expect(input("title").matches(":disabled")).toBe(false);
+    expect(button("处理中…").disabled).toBe(true);
     await act(async () => { button("取消").click(); document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
     expect(dialog()).not.toBeNull();
     await act(async () => request.resolve({ status: "error", message: "重试" }));
@@ -137,11 +141,11 @@ describe("full task creation dialog", () => {
     expect(dialog()).toBeNull();
   });
 
-  it("falls back to the default list and clears a dismissed draft", async () => {
+  it("falls back to the default list and preserves a dismissed unfinished draft", async () => {
     await render("missing"); await open(); fill();
     expect(input("todo_list_id").value).toBe("default");
     await act(async () => button("取消").click()); await open();
-    expect(input("title").value).toBe(""); expect(input("due_at").value).toBe("");
+    expect(input("title").value).toBe("  我的任务  "); expect(input("due_at").value).toBe("2026-10-06T09:30");
     expect(mocks.create).not.toHaveBeenCalled();
   });
 
@@ -198,4 +202,25 @@ describe("full task creation dialog", () => {
     await act(async () => { window.history.back(); await new Promise((resolve) => setTimeout(resolve, 30)); });
     expect(dialog()).toBeNull();
   });
+});
+
+it("keeps a real newer input B editable while saving A and does not close or reset B",async()=>{
+ const saving=deferred<TodoCreateState>();mocks.create.mockReturnValueOnce(saving.promise);
+ await render();await open();fill();await submit();
+ await act(async()=>{const node=input("title") as HTMLInputElement;expect(node.matches(":disabled")).toBe(false);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(node,"New B");node.dispatchEvent(new Event("input",{bubbles:true}));});
+ await act(async()=>saving.resolve({status:"success",taskId:"A-created",message:"A saved"}));
+ expect(dialog()).not.toBeNull();expect(input("title").value).toBe("New B");expect(dialog()!.textContent).toContain("当前新输入尚未保存");expect(mocks.create).toHaveBeenCalledTimes(1);expect(mocks.read).not.toHaveBeenCalled();
+});
+
+it("proven not-written releases only the frozen task intent and waits for a new explicit confirmation",async()=>{
+ mocks.create.mockResolvedValueOnce({status:"error",message:"Not written",writeOutcome:"not_written"});
+ await render();await open();fill();await submit();const original=mocks.create.mock.calls[0][1] as FormData;
+ expect(input("title").value).toBe("  我的任务  ");expect(mocks.create).toHaveBeenCalledOnce();expect(mocks.receipt).not.toHaveBeenCalled();
+ await act(async()=>{const node=input("title");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(node,"Corrected");node.dispatchEvent(new Event("input",{bubbles:true}));});
+ mocks.create.mockResolvedValue({status:"success",message:"Saved"});await submit();expect(mocks.create).toHaveBeenCalledTimes(2);expect(mocks.receipt).not.toHaveBeenCalled();
+ const next=mocks.create.mock.calls[1][1] as FormData;expect(next.get("request_id")).not.toBe(original.get("request_id"));expect(next.get("title")).toBe("Corrected");
+});
+
+it("mounted Tasks create form is revoked on owner replacement before a new action dispatch",async()=>{
+ reconcileWorkspaceScope("A","1");await render();await open();fill();await act(async()=>reconcileWorkspaceScope("B","1"));await submit();expect(mocks.create).not.toHaveBeenCalled();expect(mocks.receipt).not.toHaveBeenCalled();expect(dialog()!.textContent).toContain("工作区已变化");
 });

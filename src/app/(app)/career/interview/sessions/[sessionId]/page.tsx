@@ -1,12 +1,13 @@
+import {CareerForm} from "@/components/career/career-form";
+import {submitInterviewForm} from "@/features/interview/form-actions";
+import { PracticeIntentForm } from "@/components/career/interview/practice-intent-form";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
 import { InterviewNav } from "@/components/career/interview/interview-nav";
 import {
-  addSessionAttempt,
   archiveInterviewSession,
-  completeInterviewSession,
   startInterviewSession,
 } from "@/features/interview/actions";
 import { getInterviewSessionDetail } from "@/features/interview/queries";
@@ -82,7 +83,7 @@ export default async function InterviewSessionDetailPage({ params }: { params: P
           {session.status !== "completed" && session.status !== "cancelled" ? (
             <section className="rounded-2xl bg-[var(--surface-canvas)] p-4">
               <p className="font-medium">记录下一题</p>
-              <form action={addSessionAttempt} className="mt-4 grid gap-3">
+              <PracticeIntentForm mode="session" sessionId={session.id} historyHref={`/career/interview/sessions/${session.id}`} className="mt-4 grid gap-3">
                 <input type="hidden" name="session_id" value={session.id}/>
                 <label className="grid gap-1 text-sm"><span>关联准备题目（可选）</span><select name="preparation_id" className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 ring-1 ring-inset ring-zinc-200"><option value="">临场问题</option>{data.preparations.map((prep) => { const q = Array.isArray(prep.interview_questions) ? prep.interview_questions[0] : prep.interview_questions; const c = Array.isArray(prep.interview_contexts) ? prep.interview_contexts[0] : prep.interview_contexts; return <option key={prep.id} value={prep.id}>{c?.title ? `[${c.title}] ` : ""}{q?.short_title || q?.canonical_prompt}</option>; })}</select></label>
                 <label className="grid gap-1 text-sm"><span>追问上一题（可选）</span><select name="parent_attempt_id" className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 ring-1 ring-inset ring-zinc-200"><option value="">独立问题</option>{data.attempts.map((attempt) => <option key={attempt.id} value={attempt.id}>Q{attempt.sequence_no} · {attempt.prompt_snapshot.slice(0,60)}</option>)}</select></label>
@@ -96,20 +97,20 @@ export default async function InterviewSessionDetailPage({ params }: { params: P
                 <label className="grid gap-1 text-sm"><span>优势标签</span><input name="strength_tags" className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
                 <label className="grid gap-1 text-sm"><span>下次重点</span><input name="next_focus" className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
                 <button className="rounded-lg bg-[var(--accent)] px-3 py-2 text-sm text-white">保存 Q{data.attempts.length + 1}</button>
-              </form>
+              </PracticeIntentForm>
             </section>
           ) : null}
 
           <section className="rounded-2xl bg-[var(--surface-canvas)] p-4">
             <p className="font-medium">整场复盘</p>
-            <form action={completeInterviewSession} className="mt-4 grid gap-3">
+            <CareerForm draft={{operation:"practice.session-review",id:session.id,href:`/career/interview/sessions/${session.id}`,label:"面试整场复盘"}} action={submitInterviewForm.bind(null,"sessionReview")} className="mt-4 grid gap-3">
               <input type="hidden" name="session_id" value={session.id}/>
               <label className="grid gap-1 text-sm"><span>整体复盘</span><textarea name="overall_review_markdown" defaultValue={session.overall_review_markdown} rows={5} className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
               <label className="grid gap-1 text-sm"><span>优势标签</span><input name="strength_tags" defaultValue={(session.strength_tags ?? []).join(", ")} className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
               <label className="grid gap-1 text-sm"><span>问题标签</span><input name="issue_tags" defaultValue={(session.issue_tags ?? []).join(", ")} className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
               <label className="grid gap-1 text-sm"><span>下次重点</span><input name="next_focus" defaultValue={session.next_focus} className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 ring-1 ring-inset ring-zinc-200"/></label>
               <button className="rounded-lg bg-[var(--surface-canvas)] px-3 py-2 text-sm text-[var(--accent)] ring-1 ring-inset ring-[var(--accent)]/30">{session.status === "completed" ? "更新复盘" : "完成面试"}</button>
-            </form>
+            </CareerForm>
           </section>
 
           <form action={archiveInterviewSession}><input type="hidden" name="session_id" value={session.id}/><button className="text-xs text-[var(--text-tertiary)] hover:text-red-600">归档记录</button></form>

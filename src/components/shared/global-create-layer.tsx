@@ -1,5 +1,8 @@
 "use client";
 
+import type {GlobalCreateTransport} from "./global-create-layer-impl";
+import type { CaptureFixtureTransport } from "@/features/assistant/capture-fixtures";
+import { assertContinuousFixtureTransport } from "@/features/testing/continuous-fixture-gate";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { LazyDialogPlaceholder } from "@/components/shared/lazy-surface-placeholder";
@@ -14,7 +17,8 @@ const LazyGlobalCreateLayer = lazy(
 // AppShell mounts this tiny listener immediately, but the dialog and all of its
 // feature action stubs stay out of the initial client bundle until the first
 // quick-create request arrives.
-export function GlobalCreateLayer() {
+export function GlobalCreateLayer({ captureTransport,creationTransport }: {creationTransport?:GlobalCreateTransport; captureTransport?: CaptureFixtureTransport } = {}) {
+  assertContinuousFixtureTransport(captureTransport);assertContinuousFixtureTransport(creationTransport);
   const [initialRequest, setInitialRequest] = useState<(CreateRequest & { requestId: number }) | null>(null);
   const requestSequence = useRef(0);
 
@@ -30,7 +34,7 @@ export function GlobalCreateLayer() {
   if (!initialRequest) return null;
   return <Dialog open onOpenChange={(open) => { if (!open) setInitialRequest(null); }}>
     <Suspense fallback={<LazyDialogPlaceholder title="快速新建" />}>
-      <LazyGlobalCreateLayer key={initialRequest.requestId} initialRequest={initialRequest} contentOnly onClose={() => setInitialRequest((current) => current === initialRequest ? null : current)} />
+      <LazyGlobalCreateLayer creationTransport={creationTransport} captureTransport={captureTransport} key={initialRequest.requestId} initialRequest={initialRequest} contentOnly onClose={() => setInitialRequest((current) => current === initialRequest ? null : current)} />
     </Suspense>
   </Dialog>;
 }

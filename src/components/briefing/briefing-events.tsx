@@ -1,4 +1,8 @@
 "use client";
+import {assertContinuousFixtureTransport} from "@/features/testing/continuous-fixture-gate";
+import { draftResumeKey, focusDraftForm, useDraftResumeConsumer } from "@/features/workflow-continuity/draft-resume";
+import { DraftRecoveryStatus } from "@/components/workflow-continuity/draft-recovery-status";
+
 import { SourceLink } from "@/components/workflow-continuity/provider";
 import { useState } from "react";
 import { z } from "zod";
@@ -12,7 +16,6 @@ import {
   saveBriefingEventSource,
 } from "@/features/briefing/events";
 import { useWorkflowDraft } from "@/features/workflow-continuity/drafts";
-import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
 import { Button } from "@/components/ui/button";
 import type { Database } from "@/types/database";
 type Event = Database["public"]["Tables"]["briefing_events"]["Row"];
@@ -25,7 +28,8 @@ type Item = {
   published_at: string | null;
   fetched_at: string;
 };
-export function BriefingEvents({
+export type BriefingEventTransport={read:typeof readBriefingEvent;save:typeof saveBriefingEventSource};
+export function BriefingEvents({transport,
   events,
   sources,
   items,
@@ -34,6 +38,7 @@ export function BriefingEvents({
   entries,
   judgments,
 }: {
+  transport?:BriefingEventTransport;
   entries: {
     id: string;
     briefing_id: string;
@@ -54,6 +59,7 @@ export function BriefingEvents({
   versions: Version[];
   truncated: boolean;
 }) {
+  assertContinuousFixtureTransport(transport);
   const router = useRouter();
   const [canonical, setCanonical] = useState({ rows: events, links: sources });
   const { rows, links } = canonical;
@@ -112,11 +118,12 @@ export function BriefingEvents({
     itemId: z.string(),
     revision: z.number().int().min(0).optional().default(0),
   });
-  const { value, setValue, commit } = useWorkflowDraft({
+  const { value, setValue, commit, restored, recoveryUnavailable,isCurrent,uncertain,markUncertain,resolveUncertain } = useWorkflowDraft({
     kind: "review",
     id: "briefing:event",
     label: "事件归组",
     resumeHref: "/briefing/events",
+    resumeTarget: {kind:"briefing.event-editor",id:"owner"},
     initialValue: {
       eventId: "",
       newId: "",
@@ -129,6 +136,7 @@ export function BriefingEvents({
       return result.success ? result.data : null;
     },
   });
+  useDraftResumeConsumer({kind:"briefing.event-editor",identity:{id:"owner"},ready:()=>true,open:focusDraftForm});
   const recovery =
     useRevisionRecovery<Awaited<ReturnType<typeof readBriefingEvent>>>();
   const selected = rows.find((row) => row.id === value.eventId);
@@ -172,17 +180,17 @@ export function BriefingEvents({
       };
     });
   async function save() {
-    if (pending || recovery.reading || !value.itemId) return;
+    if (!isCurrent() || pending || recovery.reading ||uncertain|| !value.itemId) return;
     const submitted = {
         ...value,
         newId: value.eventId ? "" : value.newId || crypto.randomUUID(),
       },
-      current = captureWorkspaceScope();
+      current = isCurrent;
     if (submitted.newId !== value.newId) setValue(submitted);
     const id = submitted.eventId || submitted.newId;
     setPending(true);
     try {
-      const result = await saveBriefingEventSource({
+      const result = await (transport?.save??saveBriefingEventSource)({
         eventId: id,
         revision: submitted.revision,
         title: submitted.title,
@@ -211,12 +219,12 @@ export function BriefingEvents({
       recovery.dismiss();
       setMessage("来源已归入事件，未改变原文或个人判断。");
     } catch (error) {
-      if (current())
+      if (current()){markUncertain();
         setMessage(
           error instanceof Error
             ? error.message
             : "保存失败，输入保留；创建编号保持不变，请读取最新事件核对。",
-        );
+        );}
     } finally {
       if (current()) setPending(false);
     }
@@ -235,6 +243,7 @@ export function BriefingEvents({
         </p>
       ) : null}
       <form
+        data-workflow-draft-key={draftResumeKey({kind:"briefing.event-editor",id:"owner"})}
         className="grid gap-3 rounded-xl border border-[var(--separator)] p-4"
         onSubmit={(event) => {
           event.preventDefault();
@@ -298,10 +307,11 @@ export function BriefingEvents({
             ))}
           </select>
         </label>
-        <Button disabled={pending || recovery.reading}>
+        <Button disabled={pending || recovery.reading||uncertain}>
           确认是同一事件，加入变化线
         </Button>
         {message ? <p role="status">{message}</p> : null}
+        {uncertain?<p role="status">原保存结果尚未确认，当前输入保留。请先读取最新记录并明确比较；不会重复发送原保存。</p>:null}<DraftRecoveryStatus restored={restored} recoveryUnavailable={recoveryUnavailable} />
       </form>
       {unresolvedCreation ? (
         <p role="status" className="text-sm">
@@ -319,7 +329,7 @@ export function BriefingEvents({
         disabled={pending || (!value.eventId && !value.newId)}
         onRead={() =>
           void recovery.read(async () => {
-            const latest = await readBriefingEvent({
+            const latest = await (transport?.read??readBriefingEvent)({
               id: value.eventId || value.newId,
               expectedExists: Boolean(value.eventId),
             });
@@ -361,6 +371,7 @@ export function BriefingEvents({
           )
         }
         onKeep={(latest) => {
+          if(uncertain&&!latest.event){setMessage("原创建结果尚未定位，保留原编号与待核对状态，不重复保存。");return;}resolveUncertain();
           if (latest.event) {
             installLatest(latest);
             setValue((before) => ({
@@ -381,7 +392,7 @@ export function BriefingEvents({
             );
             return;
           }
-          installLatest(latest);
+          resolveUncertain();installLatest(latest);
           commit(value, () => ({
             eventId: latest.event!.id,
             newId: "",
@@ -478,10 +489,10 @@ export function BriefingEvents({
                       variant="ghost"
                       disabled={pending}
                       onClick={async () => {
-                        const current = captureWorkspaceScope();
+                        const current = isCurrent;if(!current())return;
                         setPending(true);
                         try {
-                          const result = await saveBriefingEventSource({
+                          const result = await (transport?.save??saveBriefingEventSource)({
                             eventId: event.id,
                             revision: event.revision,
                             title: event.title,
@@ -571,9 +582,9 @@ export function BriefingEvents({
               variant="ghost"
               disabled={pending || recovery.reading}
               onClick={async () => {
-                const current = captureWorkspaceScope();
+                const current = isCurrent;if(!current())return;
                 try {
-                  const latest = await readBriefingEvent({
+                  const latest = await (transport?.read??readBriefingEvent)({
                     id: event.id,
                     expectedExists: true,
                   });

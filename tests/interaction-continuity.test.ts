@@ -30,7 +30,7 @@ describe("interaction continuity contracts", () => {
     expect(layer).toContain('window.addEventListener("personal-os:create-open"');
     expect(layer).toContain("createMicrosoftTodoTaskAction");
     expect(layer).toContain("createCalendarEvent");
-    expect(layer).toContain("captureInboxItem");
+    expect(layer).toContain("useCaptureDraft");expect(layer).toContain("capture.submit(");expect(layer).not.toContain("captureInboxItem(");
   });
 
   it("keeps reversible Inbox archive immediate and exposes Undo", () => {
@@ -44,7 +44,7 @@ describe("interaction continuity contracts", () => {
     const files = source("src/components/files/files-workspace.tsx");
     expect(files).toContain("setArchivedRows");
     expect(files).toContain('if(result.receiptId)publishOperationReceipt');
-    expect(files).toContain('readWorkbenchReceiptState(receiptId)');
+    expect(files).toContain("metadataTransport?.readReceipt??readWorkbenchReceiptState");
     expect(files).toContain('if(!scopeCurrent())return');
     expect(files).toContain("归档结果未确认，请刷新后检查文件状态");
     expect(files).not.toContain("归档失败，文件仍保留在原位置");

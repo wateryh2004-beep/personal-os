@@ -1,0 +1,7 @@
+import "server-only";
+import {z} from "zod";
+import {leisureFeedbackSchema,leisureFeedbackInputSchema} from "@/features/leisure/schemas";
+import {fixtureLeisure} from "./continuous-domain-fixture-data";
+import {fixtureTimestamp} from "./continuous-fixture-data";
+import type {FixtureState} from "./continuous-fixture-state";
+export function syntheticLeisure(state:FixtureState,raw:unknown,readOnly:boolean){const id=readOnly?z.uuid().parse(raw):leisureFeedbackInputSchema.parse(raw).experience_id,experience=fixtureLeisure.find(row=>row.id===id);if(!experience)return{ok:false};const current=leisureFeedbackSchema.parse(state.domainObjects.get(`leisure:${id}`)??experience.feedback);if(readOnly)return{ok:true,feedback:current};const value=leisureFeedbackInputSchema.parse(raw);if(value.expected_revision!==current.revision)return{ok:false,error:"conflict"};if(value.linked_note_id&&!state.notes.some(row=>row.note.id===value.linked_note_id))return{ok:false,error:"note_unavailable"};const next={...current,status:value.status,reaction:value.reaction,personal_note:value.personal_note,linked_note_id:value.linked_note_id,linked_note_title:value.linked_note_id?state.notes.find(row=>row.note.id===value.linked_note_id)!.note.title:null,linked_note_available:!!value.linked_note_id,revision:current.revision+1,updated_at:fixtureTimestamp};state.domainObjects.set(`leisure:${id}`,next);state.writes["leisure-feedback"]=(state.writes["leisure-feedback"]??0)+1;return{ok:true,feedback:next};}

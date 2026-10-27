@@ -519,36 +519,32 @@ async function select(node: HTMLSelectElement, value: string) {
     node.dispatchEvent(new Event("change", { bubbles: true }));
   });
 }
-it("Briefing unknown creation retains UUID and confirmed next creation uses another UUID", async () => {
+it("Briefing unknown creation reads its original UUID without re-creating, and explicit canonical adoption permits a distinct next event", async () => {
   calls.briefing
     .mockRejectedValueOnce(new Error("unknown"))
     .mockImplementation(async (value) => ({
       event: event(value.eventId, value.title, 1),
-      source: {
-        id: C,
-        user_id: D,
-        event_id: value.eventId,
-        feed_item_id: E,
-        revision: 1,
-        archived_at: null,
-        created_at: "2026-10-27T00:00:00Z",
-        updated_at: "2026-10-27T00:00:00Z",
-      },
+      source: { id:C,user_id:D,event_id:value.eventId,feed_item_id:E,revision:1,archived_at:null,created_at:"2026-10-27T00:00:00Z",updated_at:"2026-10-27T00:00:00Z" },
     }));
   await act(async () => root.render(<BriefingEvents {...empty} />));
   await input(host.querySelector("input")!, "First event");
   await select(host.querySelectorAll("select")[1], E);
   await submit();
   const id = calls.briefing.mock.calls[0][0].eventId;
-  await submit();
-  expect(calls.briefing.mock.calls[1][0].eventId).toBe(id);
+  await submit();expect(calls.briefing).toHaveBeenCalledOnce();
+  calls.readBriefing.mockResolvedValueOnce({event:null,sources:[],versions:[],truncated:false});
+  await click("读取最新事件并对比");
+  expect(calls.readBriefing.mock.calls[0][0]).toEqual({id,expectedExists:false});
+  await click("保留当前输入，按最新版本继续编辑");await submit();expect(calls.briefing).toHaveBeenCalledOnce();
+  const source={ id:C,user_id:D,event_id:id,feed_item_id:E,revision:1,archived_at:null,created_at:"2026-10-27T00:00:00Z",updated_at:"2026-10-27T00:00:00Z" };
+  calls.readBriefing.mockResolvedValue({event:event(id,"First event",1),sources:[source],versions:[],truncated:false});
+  await click("读取最新事件并对比");expect(calls.readBriefing.mock.calls[1][0]).toEqual({id,expectedExists:false});
+  await submit();expect(calls.briefing).toHaveBeenCalledOnce();
+  await click("采用最新内容，替换当前输入");expect(calls.briefing).toHaveBeenCalledOnce();
   await select(host.querySelector("select")!, "");
   await input(host.querySelector("input")!, "Second event");
   await select(host.querySelectorAll("select")[1], E);
-  await submit();
-  expect(calls.briefing.mock.calls[2][0]).toMatchObject({
-    revision: 0,
-    title: "Second event",
-  });
-  expect(calls.briefing.mock.calls[2][0].eventId).not.toBe(id);
+  await submit();expect(calls.briefing).toHaveBeenCalledTimes(2);
+  expect(calls.briefing.mock.calls[1][0]).toMatchObject({revision:0,title:"Second event"});
+  expect(calls.briefing.mock.calls[1][0].eventId).not.toBe(id);
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { assertContinuousFixtureTransport } from "@/features/testing/continuous-fixture-gate";
 import { DayCapacity } from "@/components/planning/day-capacity";
 import { getDateKeyInTimeZone } from "@/features/today/utils";
 import { NowWorkspaceView } from "@/components/today/now-workspace";
@@ -22,14 +23,15 @@ export function TodayShell() {
   </div></div>;
 }
 
-export function TodayWorkspaceLoader() {
+export function TodayWorkspaceLoader({ verificationTransport }: { verificationTransport?: { ai: import("@/features/assistant/ai-action-fixtures").AiActionFixtureTransport; planning: import("@/components/planning/day-capacity").PlanningDraftTransport } } = {}) {
+  assertContinuousFixtureTransport(verificationTransport);
   const snapshot = useWorkspaceResource(todayWorkspaceResource, "today");
 
   const data = snapshot.data;
   if (!data && snapshot.error) return <WorkspaceReadError resource={todayWorkspaceResource} />;
   return data ? <>
     <WorkspaceSyncStatus error={snapshot.error} resource={todayWorkspaceResource} />
-    <NowWorkspaceView workspace={data} />
-    <div className="mx-auto w-full max-w-[1120px] px-5 sm:px-6"><DayCapacity date={getDateKeyInTimeZone(new Date(),data.timezone??"Asia/Shanghai")!} /></div>
+    <NowWorkspaceView fixtureTransport={verificationTransport?.ai} workspace={data} />
+    <div className="mx-auto w-full max-w-[1120px] px-5 sm:px-6"><DayCapacity transport={verificationTransport?.planning} date={getDateKeyInTimeZone(new Date(),data.timezone??"Asia/Shanghai")!} /></div>
   </> : <TodayShell />;
 }

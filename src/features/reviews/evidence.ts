@@ -375,7 +375,7 @@ export async function getReviewEvidence(input: {
       title: row.subject || "无标题日程",
       summary: row.location_name,
       occurredAt: row.starts_at,
-      href: "/calendar",
+      href: `/calendar?event=${row.id}`,
       state: row.is_all_day ? "全天" : null,
     }));
   evidence.tasksCompleted = (completedTasks.data ?? [])
@@ -386,7 +386,7 @@ export async function getReviewEvidence(input: {
       title: row.title,
       summary: cleanExcerpt(row.body_text),
       occurredAt: row.completed_at!,
-      href: "/tasks",
+      href: `/tasks?task=${row.id}`,
       state: "已完成",
     }));
   evidence.tasksOpen = (openTasks.data ?? [])
@@ -399,7 +399,7 @@ export async function getReviewEvidence(input: {
       occurredAt: instantFallsInReviewPeriod(row.due_at, bounds)
         ? row.due_at!
         : row.updated_at,
-      href: "/tasks",
+      href: `/tasks?task=${row.id}`,
       state: instantFallsInReviewPeriod(row.due_at, bounds)
         ? "本周期到期但未完成"
         : "本周期有更新",
@@ -421,7 +421,7 @@ export async function getReviewEvidence(input: {
     title: cleanExcerpt(row.content_markdown, 90) || "Inbox 记录",
     summary: null,
     occurredAt: row.processed_at || row.updated_at || row.created_at,
-    href: "/inbox",
+    href: `/inbox?entry=${row.id}`,
     state: row.processed_at ? "已处理" : "待整理",
   }));
   evidence.career = newestFirst(
@@ -432,7 +432,7 @@ export async function getReviewEvidence(input: {
         title: row.title,
         summary: cleanExcerpt(row.description),
         occurredAt: row.updated_at,
-        href: "/career/roadmap",
+        href: `/career/roadmap?milestone=${row.id}`,
         state: row.status,
       })),
       ...(opportunities.data ?? []).map((row) => ({
@@ -440,7 +440,7 @@ export async function getReviewEvidence(input: {
         id: row.id,
         title: `${row.organization} · ${row.role_title}`,
         occurredAt: row.updated_at,
-        href: "/career/opportunities",
+        href: `/career/opportunities#opportunity-${row.id}`,
         state: row.status,
       })),
       ...(applications.data ?? []).map((row) => {
@@ -454,7 +454,7 @@ export async function getReviewEvidence(input: {
             ? `${opportunity.organization} · ${opportunity.role_title}`
             : "求职申请",
           occurredAt: row.updated_at,
-          href: "/career/applications",
+          href: `/career/applications#application-${row.id}`,
           state: row.status,
         };
       }),
@@ -467,7 +467,7 @@ export async function getReviewEvidence(input: {
     title: row.name,
     summary: cleanExcerpt(row.description),
     occurredAt: row.updated_at,
-    href: "/projects",
+    href: `/projects#project-${row.id}`,
     state: row.status,
   }));
   evidence.decisions = (decisions.data ?? []).map((row) => ({
@@ -476,7 +476,7 @@ export async function getReviewEvidence(input: {
     title: row.title,
     summary: cleanExcerpt(row.decision_text),
     occurredAt: row.last_reviewed_at || row.updated_at || row.decided_at,
-    href: "/memory",
+    href: `/memory#decision-${row.id}`,
     state: row.status,
   }));
   const groups = [

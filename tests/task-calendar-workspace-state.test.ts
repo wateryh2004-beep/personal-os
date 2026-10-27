@@ -42,7 +42,7 @@ vi.mock("next/dynamic", () => ({ default: () => () => null }));
 vi.mock("@/features/tasks/microsoft-todo", () => ({
   completeMicrosoftTodoTaskAction: mocks.complete,
   reopenMicrosoftTodoTaskAction: mocks.reopen,
-  updateMicrosoftTodoTaskAction: mocks.update,
+  updateMicrosoftTodoTaskAction: mocks.update,submitMicrosoftTodoTaskUpdateIntent:mocks.update,readMicrosoftTodoTaskUpdateIntent:vi.fn(),
   deleteMicrosoftTodoTaskAction: mocks.remove,
   createMicrosoftTodoTaskAction: mocks.create,
   syncMicrosoftTodoAction: vi.fn(),
@@ -72,7 +72,7 @@ vi.mock("@/components/shared/action-feedback", () => ({
   useActionFeedback: () => ({ show: mocks.show }),
 }));
 vi.mock("@/components/shared/use-workspace-scroll-restoration", () => ({
-  useWorkspaceScrollRestoration: () => null,
+  useWorkspaceScrollRestoration: () => ({current:null}),
 }));
 vi.mock("@/components/shared/inspector", async () => {
   const actual = await vi.importActual<
@@ -161,7 +161,7 @@ vi.mock("@/components/calendar/calendar-full-view", () => ({
 import { TaskWorkspace } from "@/components/tasks/task-workspace";
 import { CalendarWorkspace } from "@/components/calendar/calendar-workspace";
 import { WorkspacePanelProvider } from "@/components/layout/workspace-panel-provider";
-import { createWorkspaceResource } from "@/lib/workspace-resource-cache";
+import { clearWorkspaceResources,createWorkspaceResource } from "@/lib/workspace-resource-cache";
 import {
   loadWorkspaceSession,
   saveWorkspaceSession,
@@ -285,6 +285,7 @@ function textButton(text: string) {
 }
 
 beforeEach(() => {
+  clearWorkspaceResources();
   vi.useFakeTimers();
   vi.clearAllMocks();
   window.sessionStorage.clear();
@@ -573,7 +574,7 @@ describe("Tasks mounted workspace state", () => {
         expected: {
           title: "Task a",
           status: "notStarted",
-          lastModifiedAt: null,
+          lastModifiedAt: null,bodyText:null,
         },
       }),
     );
@@ -583,7 +584,8 @@ describe("Tasks mounted workspace state", () => {
       request.reject(new Error("offline"));
       await request.promise.catch(() => {});
     });
-    expect(importance.value).toBe("low");
+    expect(importance.value).toBe("high");
+    expect(container.querySelector<HTMLSelectElement>('[aria-label="Task a的重要性"]')!.value).toBe("low");
   });
 
   it("does not mistake an optimistic cache echo for a confirmed server baseline", async () => {
@@ -609,7 +611,8 @@ describe("Tasks mounted workspace state", () => {
       request.reject(new Error("offline"));
       await request.promise.catch(() => {});
     });
-    expect(importance.value).toBe("normal");
+    expect(importance.value).toBe("high");
+    expect(container.querySelector<HTMLSelectElement>('[aria-label="Task a的重要性"]')!.value).toBe("normal");
   });
 
   it("offers a read-only retry for a missing target and clears the deep link when dismissed", async () => {

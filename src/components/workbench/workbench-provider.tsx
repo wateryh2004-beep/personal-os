@@ -1,15 +1,20 @@
 "use client";
 import dynamic from "next/dynamic";
+import { assertContinuousFixtureTransport } from "@/features/testing/continuous-fixture-gate";
+import type { saveWorkspaceScene } from "@/features/workbench/scenes";
+export type MetadataVerificationTransport = { readTargets: typeof import("@/features/workbench/operation-actions").readMetadataOperationTargets; apply: typeof import("@/features/workbench/operation-actions").applyMetadataOperation; readReceipt: typeof import("@/features/workbench/operation-actions").readWorkbenchReceiptState };
+export type WorkbenchVerificationTransport = { metadata?: MetadataVerificationTransport; saveScene: typeof saveWorkspaceScene; note?: import("@/components/notes/note-editor").NoteEditorVerificationTransport };
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PanelRight, ArrowLeftRight, X } from "lucide-react";
 import { WorkbenchContext, type WorkbenchContextValue, type WorkbenchRecordEntry } from "./workbench-context";
 import { WorkbenchActivityContext } from "./workbench-activity";
-import { safeWorkbenchHref, workbenchComparable, workbenchRefKey, workbenchRefSchema, workspaceSceneSnapshotSchema, type WorkbenchPosition, type WorkbenchRef, type WorkspaceSceneSnapshot } from "@/features/workbench/contracts";
+import { safeWorkbenchHref, workbenchComparable, workbenchRefKey, workbenchRefSchema, workspaceSceneSnapshotSchema, type WorkbenchPosition, type WorkbenchRef, type WorkspaceSceneSnapshot, type WorkbenchViewState } from "@/features/workbench/contracts";
 import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
+import { prepareWorkflowNavigation } from "@/features/workflow-continuity/navigation-protection";
 import { cancelSourceNavigation } from "@/features/workflow-continuity/source-trail";
 import { captureWorkbenchPosition, restoreWorkbenchPosition } from "./workbench-position";
-import { captureWorkbenchViewState, restoreWorkbenchViewState } from "@/features/workbench/view-state-registry";
+import { captureWorkbenchViewState, restoreWorkbenchViewState, type RestoreAck } from "@/features/workbench/view-state-registry";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
 import { noteDocumentCache } from "@/features/notes/document-resource";
 const WorkbenchEntityView = dynamic(() => import("./workbench-entity-view").then((m) => m.WorkbenchEntityView));
@@ -19,21 +24,24 @@ type ClosingReference = Reference & { exitRect: { left: number; top: number; wid
 export type PreviewState = { queue: WorkbenchRef[]; index: number; trigger: HTMLElement | null };
 type Layout = WorkspaceSceneSnapshot["layout"];
 type Internal = {
+  verificationTransport?: WorkbenchVerificationTransport;
   reference: Reference | null; closingReference: ClosingReference | null; closeReference(): void; finishClosingReference(value: ClosingReference): void; setReference(value: Reference | null | ((current: Reference | null) => Reference | null)): void; layout: Layout; setLayout(value: Layout | ((previous: Layout) => Layout)): void;
   preview: PreviewState | null; setPreview(value: PreviewState | null | ((previous: PreviewState | null) => PreviewState | null)): void;
   comparison: WorkbenchRef[] | null; setComparison(value: WorkbenchRef[] | null): void;
   scenesOpen: boolean; setScenesOpen(value: boolean): void; notice: string; setNotice(value: string): void;
   mainRef: React.RefObject<HTMLDivElement | null>; referenceRef: React.RefObject<HTMLElement | null>;
-  capture(): Promise<WorkspaceSceneSnapshot>; restore(value: WorkspaceSceneSnapshot): void;
+  capture(): Promise<WorkspaceSceneSnapshot>; restore(value: WorkspaceSceneSnapshot, onSettled?: (ack: RestoreAck) => void): Promise<boolean>;
 };
 const InternalContext = createContext<Internal | null>(null);
+export function useMetadataVerificationTransport() { const value = useContext(InternalContext)?.verificationTransport?.metadata; assertContinuousFixtureTransport(value); return value; }
 export function useOptionalWorkbenchHost() { return useContext(InternalContext); }
 export function useWorkbenchHost() { const host = useContext(InternalContext); if (!host) throw new Error("Workbench host missing"); return host; }
 const emptySelection: WorkbenchRef[] = [];
 const mediaQuery = "(max-width: 767px)";
 const subscribeMobile = (callback: () => void) => { const query = window.matchMedia(mediaQuery); query.addEventListener("change", callback); return () => query.removeEventListener("change", callback); };
 const getMobile = () => window.matchMedia(mediaQuery).matches;
-export function WorkbenchProvider({ children }: { children: ReactNode }) {
+export function WorkbenchProvider({ children, verificationTransport }: { children: ReactNode; verificationTransport?: WorkbenchVerificationTransport }) {
+  assertContinuousFixtureTransport(verificationTransport);
   const router = useRouter(); const pathname = usePathname(); const search = useSearchParams();
   const [reference, setReference] = useState<Reference | null>(null);
   const [closingReference, setClosingReference] = useState<ClosingReference | null>(null);
@@ -61,7 +69,10 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const cancelViewRestore = useRef<(() => void) | null>(null);
   const viewRestoreRoute = useRef<string | null>(null);
   const viewRestoreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [pendingRestore, setPendingRestore] = useState<{ href: string; position: WorkbenchPosition; referencePosition?: WorkbenchPosition } | null>(null);
+  const restoreEpoch = useRef(0);
+  const restoreCompletion = useRef<{ id: number; callback?: (ack: RestoreAck) => void } | null>(null);
+  const finishSceneRestore = useCallback((ack: RestoreAck) => { const value = restoreCompletion.current; restoreCompletion.current = null; value?.callback?.(ack); }, []);
+  const [pendingRestore, setPendingRestore] = useState<{ id: number; href: string; position: WorkbenchPosition; referencePosition?: WorkbenchPosition; viewState?: WorkbenchViewState; viewReady: boolean; viewAck?: RestoreAck } | null>(null);
   const register = useCallback((entry: WorkbenchRecordEntry) => {
     const key = `${entry.group}:${workbenchRefKey(entry.ref)}`;
     records.current.set(key, entry);
@@ -173,17 +184,21 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     const viewState = captureWorkbenchViewState(window.location.pathname);
     return workspaceSceneSnapshotSchema.parse({ version: 1, main: { href, position: mainPosition, ...(viewState ? { viewState } : {}) }, reference: reference ? { ref: reference.ref, editing: reference.editing ?? false, ...(referencePosition ? { position: referencePosition } : {}) } : null, layout });
   }, [layout, reference]);
-  const restore = useCallback((input: WorkspaceSceneSnapshot) => {
+  const restore = useCallback(async (input: WorkspaceSceneSnapshot, onSettled?: (ack: RestoreAck) => void) => {
     const parsed = workspaceSceneSnapshotSchema.safeParse(input);
-    if (!parsed.success) { setNotice("保存的现场格式已不受支持。"); return; }
+    if (!parsed.success) { setNotice("保存的现场格式已不受支持。"); onSettled?.({ status: "partial", reason: "unavailable" }); return false; }
     const snapshot = parsed.data;
+    if (!await prepareWorkflowNavigation(snapshot.main.href)) { setNotice("未离开当前页面，请先处理未保存的修改或版本冲突。"); onSettled?.({ status: "cancelled" }); return false; }
+    const epoch = ++restoreEpoch.current;
+    finishSceneRestore({ status: "cancelled" });
+    restoreCompletion.current = { id: epoch, callback: onSettled };
     cancelSourceNavigation();
     cancelViewRestore.current?.();
     if (viewRestoreTimer.current) clearTimeout(viewRestoreTimer.current);
-    cancelViewRestore.current = snapshot.main.viewState ? restoreWorkbenchViewState(snapshot.main.viewState) : null;
+    cancelViewRestore.current = null;
     viewRestoreRoute.current = snapshot.main.href.split("#")[0];
     const restoreScope = captureWorkspaceScope();
-    viewRestoreTimer.current = setTimeout(() => { if (!restoreScope()) return; cancelViewRestore.current?.(); cancelViewRestore.current = null; setPendingRestore(null); }, 10_000);
+    viewRestoreTimer.current = setTimeout(() => { if (!restoreScope() || restoreEpoch.current !== epoch) return; cancelViewRestore.current?.(); cancelViewRestore.current = null; setPendingRestore(null); setNotice("部分位置暂未恢复，当前内容与草稿已保留。"); finishSceneRestore({ status: "timeout" }); }, 10_000);
     // Seed numeric continuity before a route mounts. Never replace the editor body or draft.
     const match = /^\/notes\/([0-9a-f-]{36})$/.exec(snapshot.main.href.split(/[?#]/)[0]);
     const position = snapshot.main.position;
@@ -199,46 +214,59 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     releaseMobileBackLayerForNavigation("dialog");
     referenceTransitionEpoch.current += 1; interruptedReferenceEnter.current = null; setClosingReference(null);
     setReference(snapshot.reference); setLayout(snapshot.layout); setScenesOpen(false);
-    setPendingRestore(position || snapshot.reference?.position ? { href: snapshot.main.href.split("#")[0], position: position ?? {}, referencePosition: snapshot.reference?.position } : null);
-    setNotice("已恢复现场；内容从各自来源重新核对，当前草稿会保留。");
+    setPendingRestore({ id: epoch, href: snapshot.main.href.split("#")[0], position: position ?? {}, referencePosition: snapshot.reference?.position, viewState: snapshot.main.viewState, viewReady: !snapshot.main.viewState });
+    if (snapshot.main.viewState) cancelViewRestore.current = restoreWorkbenchViewState(snapshot.main.viewState, { href: snapshot.main.href, onSettled: ack => {
+      if (!restoreScope() || restoreEpoch.current !== epoch) return;
+      setPendingRestore(current => current?.id === epoch ? { ...current, viewReady: true, viewAck: ack } : current);
+    } });
+    setNotice("正在恢复位置，当前草稿会保留。");
     router.push(snapshot.main.href, { scroll: false });
-  }, [router]);
+    return true;
+  }, [router, finishSceneRestore]);
   const route = `${pathname}${search.toString() ? `?${search}` : ""}`;
   useEffect(() => {
     const changedRoute = previousRoute.current !== route;
     previousRoute.current = route;
     if (changedRoute && viewRestoreRoute.current !== route) { cancelViewRestore.current?.(); cancelViewRestore.current = null; }
-    if (!pendingRestore) return;
+    if (!pendingRestore || !pendingRestore.viewReady) return;
     if (route !== pendingRestore.href) {
       if (changedRoute) setPendingRestore((current) => current === pendingRestore ? null : current);
       return;
     }
     if (!mainRef.current) return;
     let live = true; let mainSettled = false; let referenceSettled = !pendingRestore.referencePosition;
-    const consume = () => { if (live && mainSettled && referenceSettled) setPendingRestore((current) => current === pendingRestore ? null : current); };
-    const stopMain = restoreWorkbenchPosition(mainRef.current, pendingRestore.position, { scope: "main", onSettled: () => { mainSettled = true; consume(); } });
-    const stopReference = referenceRef.current && pendingRestore.referencePosition ? restoreWorkbenchPosition(referenceRef.current, pendingRestore.referencePosition, { scope: "reference", onSettled: () => { referenceSettled = true; consume(); } }) : undefined;
+    let complete = pendingRestore.viewAck?.status === "applied" || !pendingRestore.viewState;
+    const consume = () => {
+      if (!live || !mainSettled || !referenceSettled || restoreEpoch.current !== pendingRestore.id) return;
+      if (viewRestoreTimer.current) clearTimeout(viewRestoreTimer.current);
+      setPendingRestore(current => current === pendingRestore ? null : current);
+      setNotice(complete ? "已恢复位置，内容已按当前来源核对。" : "部分位置已变化或暂不可用，当前内容与草稿已保留。");
+      finishSceneRestore(complete ? { status: "applied" } : { status: "partial", reason: "unavailable" });
+    };
+    const stopMain = restoreWorkbenchPosition(mainRef.current, pendingRestore.position, { scope: "main", onSettled: restored => { mainSettled = true; complete &&= restored; consume(); } });
+    const stopReference = referenceRef.current && pendingRestore.referencePosition ? restoreWorkbenchPosition(referenceRef.current, pendingRestore.referencePosition, { scope: "reference", onSettled: restored => { referenceSettled = true; complete &&= restored; consume(); } }) : undefined;
     if (!stopReference) { referenceSettled = true; consume(); }
     return () => { live = false; stopMain(); stopReference?.(); };
-  }, [route, pendingRestore]);
+  }, [route, pendingRestore, finishSceneRestore]);
   useEffect(() => {
-    const cancel = () => { cancelViewRestore.current?.(); cancelViewRestore.current = null; setPendingRestore(null); };
+    const cancel = () => { finishSceneRestore({ status: "cancelled" }); restoreEpoch.current += 1; cancelViewRestore.current?.(); cancelViewRestore.current = null; if (viewRestoreTimer.current) clearTimeout(viewRestoreTimer.current); setPendingRestore(null); };
     const clicked = (event: MouseEvent) => {
       if (event.button || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
       const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
       if (anchor && (!anchor.target || anchor.target === "_self") && !anchor.download && anchor.origin === location.origin && anchor.href !== location.href) cancel();
     };
     window.addEventListener("popstate", cancel); window.addEventListener("personal-os:navigation-start", cancel); document.addEventListener("click", clicked);
-    return () => { cancelViewRestore.current?.(); if (viewRestoreTimer.current) clearTimeout(viewRestoreTimer.current); window.removeEventListener("popstate", cancel); window.removeEventListener("personal-os:navigation-start", cancel); document.removeEventListener("click", clicked); };
-  }, []);
+    document.addEventListener("wheel", cancel, { passive: true, capture: true }); document.addEventListener("pointerdown", cancel, true); document.addEventListener("beforeinput", cancel, true);
+    return () => { cancelViewRestore.current?.(); if (viewRestoreTimer.current) clearTimeout(viewRestoreTimer.current); window.removeEventListener("popstate", cancel); window.removeEventListener("personal-os:navigation-start", cancel); document.removeEventListener("click", clicked); document.removeEventListener("wheel", cancel, true); document.removeEventListener("pointerdown", cancel, true); document.removeEventListener("beforeinput", cancel, true); finishSceneRestore({ status: "cancelled" }); };
+  }, [finishSceneRestore]);
 
   // Scope clear happens synchronously before children can mount for the new identity.
   useEffect(() => {
-    const clear = () => { referenceTransitionEpoch.current += 1; interruptedReferenceEnter.current = null; if (viewRestoreTimer.current) clearTimeout(viewRestoreTimer.current); cancelViewRestore.current?.(); cancelViewRestore.current = null; setPendingRestore(null); setReference(null); setClosingReference(null); setPreview(null); setComparison(null); setScenesOpen(false); setSelection({ group: "", refs: [], location: locationKey }); records.current.clear(); };
+    const clear = () => { finishSceneRestore({ status: "cancelled" }); restoreEpoch.current += 1; referenceTransitionEpoch.current += 1; interruptedReferenceEnter.current = null; if (viewRestoreTimer.current) clearTimeout(viewRestoreTimer.current); cancelViewRestore.current?.(); cancelViewRestore.current = null; setPendingRestore(null); setReference(null); setClosingReference(null); setPreview(null); setComparison(null); setScenesOpen(false); setSelection({ group: "", refs: [], location: locationKey }); records.current.clear(); };
     window.addEventListener("personal-os:workspace-auth-failed", clear);
     return () => window.removeEventListener("personal-os:workspace-auth-failed", clear);
-  }, [locationKey]);
-  const host: Internal = { reference, closingReference, closeReference, finishClosingReference, setReference, layout, setLayout, preview, setPreview, comparison, setComparison, scenesOpen, setScenesOpen: (open) => { if (open) setDialogsVisited(true); setScenesOpen(open); }, notice, setNotice, mainRef, referenceRef, capture, restore };
+  }, [locationKey, finishSceneRestore]);
+  const host: Internal = { verificationTransport, reference, closingReference, closeReference, finishClosingReference, setReference, layout, setLayout, preview, setPreview, comparison, setComparison, scenesOpen, setScenesOpen: (open) => { if (open) setDialogsVisited(true); setScenesOpen(open); }, notice, setNotice, mainRef, referenceRef, capture, restore };
   return <WorkbenchContext.Provider value={value}><InternalContext.Provider value={host}>{children}{dialogsVisited ? <WorkbenchDialogs /> : null}</InternalContext.Provider></WorkbenchContext.Provider>;
 }
 export function WorkbenchToolbar() {

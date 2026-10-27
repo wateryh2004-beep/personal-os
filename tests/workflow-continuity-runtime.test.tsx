@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, useLayoutEffect } from "react";
+import { act, createElement, useLayoutEffect,StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearWorkspaceResources } from "@/lib/workspace-resource-cache";
@@ -122,16 +122,25 @@ describe("draft recovery and live editing", () => {
     await act(async () => draft.commit(submitted, current => ({ ...current, revision: 2 })));
     expect(draft.value).toEqual({ text: "A未完成", revision: 2 }); expect(getWorkflowDrafts()).toEqual([]);
   });
-  it("same-owner visibility invalidation retains live input and renews only new callbacks", async () => {
+  it("actual unmount revokes old hook callbacks even when the fresh same-key raw is byte-identical",async()=>{
+    await act(async()=>root.render(createElement(DraftForm)));const raw={text:"Identical pending A",revision:1};await act(async()=>draft.setValue(raw));const old=draft;
+    await act(async()=>root.render(null));expect(old.isCurrent()).toBe(false);await act(async()=>root.render(createElement(DraftForm)));expect(draft.value).toEqual(raw);expect(draft.isCurrent()).toBe(true);
+    const update=vi.fn((value:Draft)=>({...value,text:"late old callback",revision:99}));await act(async()=>{old.clear(raw);old.commit(raw,update);old.setValue(raw);});expect(update).not.toHaveBeenCalled();expect(draft.value).toEqual(raw);expect(getWorkflowDrafts()).toHaveLength(1);
+    await act(async()=>draft.commit(raw,value=>({...value,revision:2})));expect(getWorkflowDrafts()).toHaveLength(0);
+  });
+  it("StrictMode effect remount keeps the live hook writable and final real unmount revokes it",async()=>{
+    await act(async()=>root.render(createElement(StrictMode,null,createElement(DraftForm))));expect(draft.isCurrent()).toBe(true);await act(async()=>draft.setValue({text:"Strict live",revision:1}));expect(draft.value.text).toBe("Strict live");const old=draft;await act(async()=>root.render(null));expect(old.isCurrent()).toBe(false);await act(async()=>old.clear());expect(getWorkflowDrafts()).toHaveLength(1);
+  });
+  it("scope invalidation retains visible raw while revoking both old and newly exposed callbacks", async () => {
     await act(async () => root.render(createElement(DraftForm)));
     await act(async () => draft.setValue({ text: "普通未完成输入", revision: 1 }));
     const oldCommit = draft.commit; const oldSetter = draft.setValue;
     await act(async () => clearWorkspaceResources());
     expect(draft.value.text).toBe("普通未完成输入");
     await act(async () => draft.setValue(current => ({ ...current, text: "继续编辑" })));
-    expect(draft.value.text).toBe("继续编辑");
+    expect(draft.value.text).toBe("普通未完成输入");expect(draft.isCurrent()).toBe(false);
     await act(async () => { oldSetter({ text: "旧callback", revision: 1 }); oldCommit({ text: "普通未完成输入", revision: 1 }, current => ({ ...current, revision: 99 })); });
-    expect(draft.value).toEqual({ text: "继续编辑", revision: 1 });
+    expect(draft.value).toEqual({ text: "普通未完成输入", revision: 1 });expect(getWorkflowDrafts()).toHaveLength(0);
   });
 });
 

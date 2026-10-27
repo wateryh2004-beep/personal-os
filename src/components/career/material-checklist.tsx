@@ -1,6 +1,12 @@
 "use client";
+import {useDomainViewAdapter,waitForViewLayout} from "@/features/workbench/domain-adapters/use-domain-view-adapter";
+import {assertContinuousFixtureTransport} from "@/features/testing/continuous-fixture-gate";
+import { draftResumeKey, focusDraftForm, useDraftResumeConsumer } from "@/features/workflow-continuity/draft-resume";
+import { DraftRecoveryStatus } from "@/components/workflow-continuity/draft-recovery-status";
+
 import { SourceLink as Link } from "@/components/workflow-continuity/provider";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { useDraftResumeOpeners } from "@/features/workflow-continuity/draft-resume";
 import { z } from "zod";
 import {
   saveCareerMaterialCheck,
@@ -14,14 +20,14 @@ import {
   type MaterialDocument,
   type MaterialResume,
 } from "@/features/career/material-verification";
-import { useWorkflowDraft } from "@/features/workflow-continuity/drafts";
-import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
+import { getWorkflowDrafts, getWorkflowDraftsServerSnapshot, subscribeWorkflowDrafts, useWorkflowDraft } from "@/features/workflow-continuity/drafts";
 import { Button } from "@/components/ui/button";
 import {
   RevisionRecovery,
   useRevisionRecovery,
 } from "@/components/shared/revision-recovery";
 import type { Database } from "@/types/database";
+export type CareerMaterialTransport={read:typeof readCareerMaterialCheck;save:typeof saveCareerMaterialCheck};
 type Check = Database["public"]["Tables"]["career_material_checks"]["Row"];
 const draftSchema = z.object({
   label: z.string(),
@@ -53,18 +59,26 @@ function draftFromRow(row?: Check | null) {
   };
 }
 export function CareerMaterialChecklist({
+  transport,
   opportunityId,
   checks,
   documents,
   resumes,
 }: {
+  transport?:CareerMaterialTransport;
   opportunityId: string;
   checks: Check[];
   documents: MaterialDocument[];
   resumes: MaterialResume[];
 }) {
+  assertContinuousFixtureTransport(transport);
   const [rows, setRows] = useState(checks),
     [adding, setAdding] = useState<string | null>(null);
+  const [expandedIds,setExpandedIds]=useState<string[]>([]),[selectedId,setSelectedId]=useState<string|null>(null);
+  useDomainViewAdapter({kind:"career",pathname:`/career/opportunities/${opportunityId}/materials`,ready:true,capture:()=>({kind:"career",pathname:`/career/opportunities/${opportunityId}/materials`,expandedIds,selectedId,scroll:{}}),restore:async(state,context)=>{if(!context.current())return {status:"cancelled"};const ids=state.expandedIds.filter(id=>rows.some(row=>row.id===id));setExpandedIds(ids);const selected=state.selectedId&&rows.some(row=>row.id===state.selectedId)?state.selectedId:null;setSelectedId(selected);if(!await waitForViewLayout(context))return {status:"cancelled"};return ids.length===state.expandedIds.length&&(!state.selectedId||selected)?{status:"applied"}:{status:"partial",reason:"missing-record"};}});
+  const drafts=useSyncExternalStore(subscribeWorkflowDrafts,getWorkflowDrafts,getWorkflowDraftsServerSnapshot);
+  const targets=drafts.flatMap(draft=>draft.resumeTarget?.kind==="career.material"&&draft.resumeTarget.parentId===opportunityId?[draft.resumeTarget]:[]);
+  useDraftResumeOpeners(targets,target=>{if(target.parentId!==opportunityId)return false;if(!rows.some(row=>row.id===target.id))setAdding(target.id);});
   return (
     <section className="mt-6 space-y-4">
       <h2 className="text-lg font-medium">我需要准备的材料</h2>
@@ -75,7 +89,7 @@ export function CareerMaterialChecklist({
         ...rows.map((row) => ({ id: row.id, row })),
         ...(adding ? [{ id: adding, row: undefined }] : []),
       ].map(({ id, row }) => (
-        <MaterialRow
+        <MaterialRow expanded={row?expandedIds.includes(id):undefined} onExpandedChange={open=>{setExpandedIds(ids=>open?[...new Set([...ids,id])]:ids.filter(value=>value!==id));setSelectedId(value=>open?id:value===id?null:value);}} transport={transport}
           key={id}
           row={row}
           newId={row ? undefined : id}
@@ -104,6 +118,8 @@ export function CareerMaterialChecklist({
   );
 }
 function MaterialRow({
+  expanded:controlledExpanded,onExpandedChange,
+  transport,
   row: initialRow,
   newId,
   opportunityId,
@@ -111,6 +127,8 @@ function MaterialRow({
   resumes,
   onSaved,
 }: {
+  expanded?:boolean;onExpandedChange?:(open:boolean)=>void;
+  transport?:CareerMaterialTransport;
   row?: Check;
   newId?: string;
   opportunityId: string;
@@ -119,7 +137,7 @@ function MaterialRow({
   onSaved: (row: Check) => void;
 }) {
   const id = initialRow?.id ?? newId!;
-  const [expanded, setExpanded] = useState(!initialRow);
+  const [localExpanded,setLocalExpanded]=useState(!initialRow);const expanded=controlledExpanded??localExpanded;const setExpanded=(open:boolean)=>{setLocalExpanded(open);onExpandedChange?.(open);};
   const [row, setRow] = useState(initialRow),
     [rowSource, setRowSource] = useState(initialRow);
   if (rowSource !== initialRow) {
@@ -127,17 +145,19 @@ function MaterialRow({
     if (initialRow && initialRow.revision >= (row?.revision ?? 0))
       setRow(initialRow);
   }
-  const { value, setValue, commit } = useWorkflowDraft({
+  const { value, setValue, commit, restored, recoveryUnavailable,isCurrent,uncertain,markUncertain,resolveUncertain } = useWorkflowDraft({
     kind: "career",
     id: `material:${id}`,
     label: "机会材料核对",
     resumeHref: `/career/opportunities/${opportunityId}/materials`,
+    resumeTarget: {kind:"career.material",id,parentId:opportunityId},
     initialValue: draftFromRow(row),
     parse: (input) => {
       const result = draftSchema.safeParse(input);
       return result.success ? result.data : null;
     },
   });
+  useDraftResumeConsumer({kind:"career.material",identity:{id,parentId:opportunityId},ready:()=>true,open:async(target,context)=>{setExpanded(true);return focusDraftForm(target,context);}});
   const [pending, setPending] = useState(false),
     [message, setMessage] = useState("");
   const recovery =
@@ -235,7 +255,7 @@ function MaterialRow({
     </>
   );
   return (
-    <details
+    <details id={`career-material-${id}`}
       open={expanded}
       onToggle={(event) => setExpanded(event.currentTarget.open)}
       className="rounded-xl border border-[var(--separator)] p-4"
@@ -279,15 +299,16 @@ function MaterialRow({
         </p>
       ) : null}
       <form
+        data-workflow-draft-key={draftResumeKey({kind:"career.material",id,parentId:opportunityId})}
         className="grid gap-3"
         onSubmit={async (event) => {
           event.preventDefault();
-          if (pending || recovery.reading) return;
+          if (!isCurrent() || pending || recovery.reading||uncertain) return;
           setPending(true);
           const submitted = value,
-            current = captureWorkspaceScope();
+            current = isCurrent;
           try {
-            const saved = await saveCareerMaterialCheck({
+            const saved = await (transport?.save??saveCareerMaterialCheck)({
               ...submitted,
               id,
               opportunityId,
@@ -315,10 +336,10 @@ function MaterialRow({
               setMessage("核对单已保存；核验记录按本次明确选择处理。");
             }
           } catch (error) {
-            if (current())
+            if (current()){markUncertain();
               setMessage(
                 error instanceof Error ? error.message : "保存失败，输入保留",
-              );
+              );}
           } finally {
             if (current()) setPending(false);
           }
@@ -482,10 +503,11 @@ function MaterialRow({
             明确清除旧核验标记
           </Button>
         ) : null}
-        <Button disabled={pending || recovery.reading}>
+        <Button disabled={pending || recovery.reading||uncertain}>
           {pending ? "保存中…" : "保存核对项"}
         </Button>
         {message ? <p role="status">{message}</p> : null}
+        {uncertain?<p role="status">原保存结果尚未确认，当前输入保留。请先读取最新记录并明确比较；不会重复发送原保存。</p>:null}<DraftRecoveryStatus restored={restored} recoveryUnavailable={recoveryUnavailable} />
       </form>
       <RevisionRecovery
         label="材料核对项"
@@ -493,7 +515,7 @@ function MaterialRow({
         disabled={pending}
         onRead={() =>
           void recovery.read(() =>
-            readCareerMaterialCheck({
+            (transport?.read??readCareerMaterialCheck)({
               id,
               opportunityId,
               documentId: value.documentId || null,
@@ -510,6 +532,7 @@ function MaterialRow({
           </>
         )}
         onKeep={(latest) => {
+                if(uncertain&&!latest.row){setMessage("原核对项仍不可定位，待核对状态与输入保留。");return;}resolveUncertain();
           if (latest.row) setRow(latest.row);
           setValue((before) => ({
             ...before,
@@ -520,6 +543,7 @@ function MaterialRow({
           );
         }}
         onAdopt={(latest) => {
+                if(uncertain&&!latest.row){setMessage("原核对项仍不可定位，待核对状态与输入保留。");return;}resolveUncertain();
           if (latest.row) setRow(latest.row);
           commit(value, () => draftFromRow(latest.row));
           setMessage("已采用刚读取的核对项内容；需要新核验时请明确重新勾选。");

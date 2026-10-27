@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { assertContinuousFixtureTransport } from "@/features/testing/continuous-fixture-gate";
+import type { AiActionFixtureTransport } from "@/features/assistant/ai-action-fixtures";
+import { registerWorkflowNavigationProtection } from "@/features/workflow-continuity/navigation-protection";
+import { acknowledgePositionRestore, type NotePositionRequest } from "@/features/workbench/position-requests";
+import { registerNoteAiTarget, applyNoteAiEditorChange } from "@/features/assistant/note-ai-live";
 import type { EditorView } from "@codemirror/view";
 import { registerExternalWorkflowDraft } from "@/features/workflow-continuity/drafts";
 import { registerNoteInsertionTarget } from "@/features/workflow-continuity/note-insertion";
 import { captureNoteSource } from "@/features/notes/source-actions";
+import { useNoteMetadataResume } from "./note-metadata-forms";
 import { NoteSelectionActions } from "./note-selection-actions";
 import { workbenchPositionSchema } from "@/features/workbench/contracts";
 import { useWorkbenchActive } from "@/components/workbench/workbench-activity";
@@ -131,7 +137,9 @@ async function copyText(value: string) {
   if (!copied) throw new Error("copy_failed");
 }
 
-export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false, insertionRole = "main" }: { note: Note; noteAiDefaultModel: DeepSeekModelId; loadAiPreferences?: boolean; insertionRole?: "main" | "reference" }) {
+export type NoteEditorVerificationTransport = { saveNote: typeof saveNote; captureSource: typeof captureNoteSource; tasks?: import("@/features/workflow-continuity/task-create-draft").TaskCreationTransport; ai?: AiActionFixtureTransport };
+export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false, insertionRole = "main", verificationTransport }: { note: Note; noteAiDefaultModel: DeepSeekModelId; loadAiPreferences?: boolean; insertionRole?: "main" | "reference"; verificationTransport?: NoteEditorVerificationTransport }) {
+  assertContinuousFixtureTransport(verificationTransport);
   const paneActive = useWorkbenchActive();
   const liveEditorRef = useRef<EditorView | null>(null);
   const feedback = useActionFeedback();
@@ -142,17 +150,6 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const [draftBaseline] = useState(() => ({ title: note.title, body: note.body_markdown }));
   const replaceBody = useCallback((value: string) => { setBody(value); setBodyRevision((revision) => revision + 1); }, []);
   const { reading, switchReading, restoreContinuity, readingPaneRef, rememberReading, rememberPosition, onEditorReady, interruptEditorRestore } = useNoteContinuity(note.id);
-  useEffect(() => {
-    const restore = (event: Event) => {
-      if (!(event instanceof CustomEvent) || event.detail?.noteId !== note.id) return;
-      const parsed = workbenchPositionSchema.safeParse(event.detail.position);
-      if (!parsed.success) return;
-      const position = parsed.data;
-      restoreContinuity({ reading: position.reading ?? false, ...(position.sourceLine ? { reader: { line: position.sourceLine, offset: position.sourceOffset ?? 0 } } : {}), ...(position.anchor !== undefined ? { editor: { anchor: position.anchor, head: position.head ?? position.anchor, viewport: { line: position.sourceLine ?? 1, offset: position.sourceOffset ?? 0 }, scrollLeft: 0 } } : {}) });
-    };
-    window.addEventListener("personal-os:restore-note-position", restore);
-    return () => window.removeEventListener("personal-os:restore-note-position", restore);
-  }, [note.id, restoreContinuity]);
   const [titleUndoStack, setTitleUndoStack] = useState<string[]>([]);
   const titleUndoStackRef = useRef<string[]>([]);
   const [state, setState] = useState<SaveState>("已保存");
@@ -167,6 +164,9 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const toggleAi = () => { setAiVisited(true); noteAiPanel.toggle(); };
   const [selection, setSelection] = useState<NoteSelection | null>(null);
   const [contentOrigin, setContentOrigin] = useState(note.content_origin ?? "human");
+  const aiGenerated = isAiGeneratedNote(contentOrigin);
+  const noteInspector = useWorkspacePanel(`note-inspector:${note.id}`);
+  useNoteMetadataResume(note.id, noteInspector.open, paneActive && insertionRole === "main" && !aiGenerated);
   const [isChangingContentOrigin, startContentOriginTransition] = useTransition();
   const pdfPreviewRef = useRef<HTMLElement>(null);
   const editorSurfaceRef = useRef<HTMLElement>(null);
@@ -177,6 +177,23 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     editorSurfaceRef.current = element;
     setEditorPortalContainer(element);
   }, []);
+  useEffect(() => {
+    const restore = (event: Event) => {
+      if (!(event instanceof CustomEvent) || event.detail?.noteId !== note.id) return;
+      const request = event.detail as NotePositionRequest;
+      if (request.instanceId && editorSurfaceRef.current?.dataset.positionRestoreId !== request.instanceId) return;
+      if (!paneActive) { acknowledgePositionRestore(request, "unavailable"); return; }
+      const current = captureWorkspaceScope();
+      const parsed = workbenchPositionSchema.safeParse(request.position);
+      if (!parsed.success) { acknowledgePositionRestore(request, "unavailable"); return; }
+      const position = parsed.data;
+      const view = liveEditorRef.current;
+      if ((position.anchor !== undefined && view && position.anchor > view.state.doc.length) || (position.sourceLine && view && position.sourceLine > view.state.doc.lines)) { acknowledgePositionRestore(request, "changed-source"); return; }
+      restoreContinuity({ reading: position.reading ?? false, ...(position.sourceLine ? { reader: { line: position.sourceLine, offset: position.sourceOffset ?? 0 } } : {}), ...(position.anchor !== undefined ? { editor: { anchor: position.anchor, head: position.head ?? position.anchor, viewport: { line: position.sourceLine ?? 1, offset: position.sourceOffset ?? 0 }, scrollLeft: 0 } } : {}) }, { onRestored: () => { if (current() && editorSurfaceRef.current?.isConnected) acknowledgePositionRestore(request, "applied"); }, onCancelled: () => { if (current()) acknowledgePositionRestore(request, "cancelled"); } });
+    };
+    window.addEventListener("personal-os:restore-note-position", restore);
+    return () => window.removeEventListener("personal-os:restore-note-position", restore);
+  }, [note.id, paneActive, restoreContinuity]);
   const latestContentRef = useRef({ title: note.title, body: note.body_markdown });
   const revisionRef = useRef(note.revision);
   const knownRemoteRevisionRef = useRef(note.revision);
@@ -276,7 +293,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         perfMark("note-autosave-start", { noteId: note.id, expectedRevision });
         setState("正在保存");
         try {
-          const result = await saveNote({
+          const result = await (verificationTransport?.saveNote ?? saveNote)({
             noteId: note.id,
             expectedRevision,
             title: snapshot.title,
@@ -336,7 +353,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     } finally {
       saveInFlightRef.current = null;
     }
-  }, [clearQueuedDraft, flushDraft, note.id, noteSessionKey, queueDraft]);
+  }, [clearQueuedDraft, flushDraft, note.id, noteSessionKey, queueDraft, verificationTransport]);
 
   useEffect(() => {
     if (!editVersion) return;
@@ -349,6 +366,15 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     }, noteAutosaveMaxWaitMs);
     return () => window.clearInterval(timer);
   }, [save]);
+  useEffect(() => {
+    if (!paneActive) return;
+    return registerWorkflowNavigationProtection(async () => {
+    const current = captureWorkspaceScope();
+    if (liveEditorRef.current?.composing || knownRemoteRevisionRef.current > revisionRef.current) return false;
+    if (isDirtyRef.current) { flushDraft(); await save(); }
+    return current() && !isDirtyRef.current && knownRemoteRevisionRef.current <= revisionRef.current;
+    });
+  }, [paneActive, flushDraft, save]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { if (paneActive && editorSurfaceRef.current?.contains(document.activeElement) && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); flushDraft(); void save(); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [flushDraft, save, paneActive]);
   useEffect(() => {
     const flush = () => {
@@ -472,7 +498,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     if (!selected || selected.from === undefined || selected.to === undefined || !selected.isCurrent?.()) return null;
     await save();
     if (isDirtyRef.current || !selected.isCurrent?.()) return null;
-    const result = await captureNoteSource({ noteId: note.id, revision: revisionRef.current, body: latestContentRef.current.body, from: selected.from, to: selected.to });
+    const result = await (verificationTransport?.captureSource ?? captureNoteSource)({ noteId: note.id, revision: revisionRef.current, body: latestContentRef.current.body, from: selected.from, to: selected.to });
     return result.status === "ready" ? result.href : null;
   };
   // AI 生成标题：直接替换标题，旧标题压栈供撤回（支持连续多次生成逐步撤回）。
@@ -490,6 +516,26 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     publishNotesNavigatorTitle(note.id, next);
     dirty(next, latestContentRef.current.body);
   }, [dirty, note.id, title]);
+  const aiLiveState = useRef({ paneActive, reading, state, aiGenerated });
+  useLayoutEffect(() => { aiLiveState.current = { paneActive, reading, state, aiGenerated }; }, [paneActive, reading, state, aiGenerated]);
+  useEffect(() => registerNoteAiTarget({
+    read: () => {
+      const view = liveEditorRef.current, flags = aiLiveState.current;
+      return { noteId: note.id, revision: revisionRef.current, knownRemoteRevision: knownRemoteRevisionRef.current, title: latestContentRef.current.title,
+        sourceMarkdown: view?.state.doc.toString() ?? latestContentRef.current.body, role: insertionRole, active: flags.paneActive,
+        editable: Boolean(view?.dom.isConnected && !view.state.readOnly && flags.paneActive && !flags.reading && !flags.aiGenerated), composing: Boolean(view?.composing), conflict: flags.state === "版本冲突" };
+    },
+    apply: (baseline, change) => {
+      const view = liveEditorRef.current, flags = aiLiveState.current;
+      if (!view?.dom.isConnected || view.composing || view.state.readOnly || !flags.paneActive || flags.reading || flags.aiGenerated || flags.state === "版本冲突" || knownRemoteRevisionRef.current > revisionRef.current) return false;
+      if (change.mode === "title") return handleAiReplaceTitle(change.text, baseline.title) !== false;
+      return applyNoteAiEditorChange(view, baseline, change);
+    },
+  }), [note.id, insertionRole, handleAiReplaceTitle]);
+  useEffect(() => {
+    const open = (event: Event) => { if ((event as CustomEvent<{ noteId?: string }>).detail?.noteId === note.id && paneActive) openAi(); };
+    window.addEventListener("personal-os:note-ai-open", open); return () => window.removeEventListener("personal-os:note-ai-open", open);
+  }, [note.id, paneActive, openAi]);
   const handleAiUndoTitle = useCallback(() => {
     const stack = titleUndoStackRef.current;
     if (!stack.length) return;
@@ -511,7 +557,6 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const statusLabel = state === "已保存" && hydrated ? savedTimeLabel(lastSavedAt) : state;
   const saveHasError = state === "保存失败" || state === "版本冲突";
   const saveNeedsAttention = state === "有未保存修改";
-  const aiGenerated = isAiGeneratedNote(contentOrigin);
   const toggleContentOrigin = () => {
     const next = aiGenerated ? "human" : "ai_generated";
     setContentOrigin(next);
@@ -647,7 +692,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
             {state === "版本冲突" ? <a href={`/notes/${note.id}`} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-8 items-center rounded-[6px] px-2 font-medium underline underline-offset-2">在新标签页核对</a> : null}
           </div>
         ) : null}
-        {paneActive && !reading && selection ? <NoteSelectionActions selection={selection} noteId={note.id} capture={captureSelectionSource} /> : null}
+        {paneActive && insertionRole === "main" && !aiGenerated ? <NoteSelectionActions actionTransport={verificationTransport?.tasks} selection={reading ? null : selection} noteId={note.id} capture={captureSelectionSource} /> : null}
         {/* Keep CodeMirror and its undo/selection/scroll state mounted in both views. */}
         <div hidden={reading} className="notes-document-body min-h-0 flex-1 overflow-hidden bg-[var(--surface-canvas)]">
           <VisualMarkdownEditor
@@ -671,6 +716,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         onOpen={openAi}
         onClose={noteAiPanel.close}
         noteId={note.id}
+        insertionRole={insertionRole}
+        fixtureTransport={verificationTransport?.ai}
         title={title}
         bodyMarkdown={body}
         defaultModel={noteAiDefaultModel}

@@ -75,6 +75,7 @@ async function saveCompletedReview(
   const { supabase, userId, timezone } = await ownerTimezone();
   const now = new Date();
   const period = getReviewPeriod(input.type, now, timezone);
+  if (input.period && (input.period.periodStart !== period.startDate || input.period.periodEnd !== period.endDate || input.period.timezone !== timezone)) throw new Error("复盘周期已变化，当前文字保留，请重新核对周期。");
   const evidence = await getReviewEvidence({ type: input.type, now });
   const availableSources = reviewEvidenceSources(evidence);
   const selectedKeys = new Set(
@@ -174,8 +175,13 @@ export async function createReview(input: unknown) {
 }
 
 export async function generateReviewDraft(typeInput: unknown) {
-  const type = reviewTypeSchema.parse(typeInput);
+  const request = typeof typeInput === "string" ? { type: reviewTypeSchema.parse(typeInput), period: null } : (() => {
+    const parsed = z.object({ type: reviewTypeSchema, periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), timezone: z.string().max(100) }).strict().parse(typeInput);
+    return { type: parsed.type, period: parsed };
+  })();
+  const type = request.type;
   const evidence = await getReviewEvidence({ type });
+  if (request.period && (request.period.periodStart !== evidence.periodStart || request.period.periodEnd !== evidence.periodEnd || request.period.timezone !== evidence.timezone)) return { ok: false as const, error: "复盘周期已变化，草稿和原输入保留，请核对周期后再生成。", coverage: 0 };
   const coverage = countReviewEvidence(evidence);
   if (!coverage) {
     return {
@@ -203,6 +209,7 @@ export async function generateReviewDraft(typeInput: unknown) {
     const draft = humanizeReviewDraftSources(parsedDraft, evidence);
     return {
       ok: true as const,
+      period: { periodStart: evidence.periodStart, periodEnd: evidence.periodEnd, timezone: evidence.timezone },
       draft,
       coverage,
       sources: reviewEvidenceSources(evidence).map((source) => ({
@@ -217,6 +224,17 @@ export async function generateReviewDraft(typeInput: unknown) {
       coverage,
     };
   }
+}
+
+/** Status-only reconciliation; never invokes the model or creates candidates. */
+export async function readReviewProposalGeneration(reviewIdInput: unknown) {
+  const reviewId = reviewIdSchema.parse(reviewIdInput);
+  const { supabase, userId } = await requireOwner();
+  const { data: review, error: readError } = await supabase.from("reviews").select("id").eq("id", reviewId).eq("user_id", userId).is("archived_at", null).maybeSingle();
+  if (readError || !review) throw new Error("复盘当前不可读取。");
+  const { data, error } = await supabase.from("review_proposals").select("id,status").eq("review_id", reviewId).eq("user_id", userId).eq("status", "pending").limit(9);
+  if (error) throw new Error("候选结果尚未核对。");
+  return { pendingIds: (data ?? []).map(row => row.id), truncated: (data?.length ?? 0) > 8 };
 }
 
 export async function generateReviewProposals(reviewIdInput: unknown) {

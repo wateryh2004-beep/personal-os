@@ -1,4 +1,8 @@
 "use client";
+import {assertContinuousFixtureTransport} from "@/features/testing/continuous-fixture-gate";
+import { draftResumeKey, focusDraftForm, useDraftResumeConsumer } from "@/features/workflow-continuity/draft-resume";
+import { DraftRecoveryStatus } from "@/components/workflow-continuity/draft-recovery-status";
+
 import { SourceLink as Link } from "@/components/workflow-continuity/provider";
 import {
   useCallback,
@@ -23,22 +27,28 @@ import {
   useRevisionRecovery,
 } from "@/components/shared/revision-recovery";
 import { Button } from "@/components/ui/button";
+export type PurchaseAftercareTransport={read:typeof readPurchaseAftercare;save:typeof savePurchaseAftercare};
 type Data = Awaited<ReturnType<typeof readPurchaseAftercare>>;
 export function PurchaseAftercare({
+  transport,
   id,
   onSaved,
 }: {
+  transport?:PurchaseAftercareTransport;
   id: string;
   onSaved: (item: Data["item"]) => void;
 }) {
+  assertContinuousFixtureTransport(transport);
   // Switch the request controller immediately, before the next record is read.
   // Draft payloads stay in their record-scoped registry when this instance exits.
-  return <PurchaseAftercareRecord key={id} id={id} onSaved={onSaved} />;
+  return <PurchaseAftercareRecord transport={transport} key={id} id={id} onSaved={onSaved} />;
 }
 function PurchaseAftercareRecord({
+  transport,
   id,
   onSaved,
 }: {
+  transport?:PurchaseAftercareTransport;
   id: string;
   onSaved: (item: Data["item"]) => void;
 }) {
@@ -78,7 +88,7 @@ function PurchaseAftercareRecord({
     let active = true;
     const current = captureLease(),
       request = ++requests.current;
-    void readPurchaseAftercare(id)
+    void (transport?.read??readPurchaseAftercare)(id)
       .then((value) => {
         if (active && current() && request === requests.current) {
           if (value.item.id !== id)
@@ -94,7 +104,7 @@ function PurchaseAftercareRecord({
     return () => {
       active = false;
     };
-  }, [id, attempt, captureLease]);
+  }, [id, attempt, captureLease,transport]);
   return (
     <section className="space-y-3 rounded-xl border border-[var(--separator)] p-4">
       <h2 className="text-lg font-medium">买后也有着落</h2>
@@ -109,7 +119,7 @@ function PurchaseAftercareRecord({
           </Button>
         </p>
       ) : data && data.item.id === id && ownerLease() ? (
-        <AftercareForm
+        <AftercareForm transport={transport}
           data={data}
           recordId={id}
           captureLease={captureLease}
@@ -126,11 +136,13 @@ function PurchaseAftercareRecord({
   );
 }
 function AftercareForm({
+  transport,
   data,
   recordId,
   captureLease,
   onSaved,
 }: {
+  transport?:PurchaseAftercareTransport;
   data: Data;
   recordId: string;
   captureLease: () => () => boolean;
@@ -147,11 +159,12 @@ function AftercareForm({
     documentKind: z.enum(["receipt", "invoice", "warranty", "other"]),
   });
   const { item } = data;
-  const { value, setValue, commit } = useWorkflowDraft({
+  const { value, setValue, commit, restored, recoveryUnavailable,isCurrent,uncertain,markUncertain,resolveUncertain } = useWorkflowDraft({
     kind: "shopping",
     id: `aftercare:${item.id}`,
     label: "购后档案",
     resumeHref: `/shopping/${item.id}`,
+    resumeTarget: {kind:"shopping.aftercare",id:item.id},
     initialValue: {
       revision: item.mutation_revision,
       purchasedOn: item.purchased_on ?? "",
@@ -170,6 +183,7 @@ function AftercareForm({
   const [pending, setPending] = useState(false),
     [message, setMessage] = useState("");
   const recovery = useRevisionRecovery<Data>();
+  useDraftResumeConsumer({kind:"shopping.aftercare",identity:{id:item.id},ready:()=>true,open:focusDraftForm});
   const today = getDateKeyInTimeZone(new Date(), data.timezone)!;
   const deadline = (date: string | null) => {
     if (!date) return "未记录";
@@ -208,16 +222,17 @@ function AftercareForm({
         })}
       </ul>
       <form
+        data-workflow-draft-key={draftResumeKey({kind:"shopping.aftercare",id:item.id})}
         className="grid gap-3"
         onSubmit={async (event) => {
           event.preventDefault();
-          if (pending || recovery.reading || item.id !== recordId) return;
+          if (!isCurrent() || pending || recovery.reading ||uncertain|| item.id !== recordId) return;
           const current = captureLease();
           if (!current()) return;
           setPending(true);
           const snapshot = value;
           try {
-            const saved = await savePurchaseAftercare({
+            const saved = await (transport?.save??savePurchaseAftercare)({
               ...snapshot,
               id: item.id,
               purchasedOn: snapshot.purchasedOn || null,
@@ -242,10 +257,10 @@ function AftercareForm({
               setMessage("购后档案已保存");
             }
           } catch (error) {
-            if (current())
+            if (current()){markUncertain();
               setMessage(
                 error instanceof Error ? error.message : "保存失败，输入保留",
-              );
+              );}
           } finally {
             if (current()) setPending(false);
           }
@@ -340,12 +355,13 @@ function AftercareForm({
           </select>
         </label>
         <div>
-          <Button disabled={pending || recovery.reading}>保存购后档案</Button>
+          <Button disabled={pending || recovery.reading||uncertain}>保存购后档案</Button>
           <Link className="ui-link ml-3" href="/files">
             去上传原件
           </Link>
         </div>
         {message ? <p role="status">{message}</p> : null}
+        {uncertain?<p role="status">原保存结果尚未确认，当前输入保留。请先读取最新记录并明确比较；不会重复发送原保存。</p>:null}<DraftRecoveryStatus restored={restored} recoveryUnavailable={recoveryUnavailable} />
       </form>
       <RevisionRecovery
         label="购后档案"
@@ -355,7 +371,7 @@ function AftercareForm({
           const current = captureLease();
           if (!current() || item.id !== recordId) return;
           void recovery.read(async () => {
-            const latest = await readPurchaseAftercare(recordId);
+            const latest = await (transport?.read??readPurchaseAftercare)(recordId);
             if (!current() || latest.item.id !== recordId)
               throw new Error("购后档案已切换，请读取当前商品；原输入保留。");
             return latest;
@@ -408,7 +424,7 @@ function AftercareForm({
             );
             return;
           }
-          setValue((before) => ({
+          resolveUncertain();setValue((before) => ({
             ...before,
             revision: latest.item.mutation_revision,
           }));
@@ -423,7 +439,7 @@ function AftercareForm({
             item.id !== recordId
           )
             return;
-          onSaved(latest.item);
+          resolveUncertain();onSaved(latest.item);
           commit(value, () => ({
             revision: latest.item.mutation_revision,
             purchasedOn: latest.item.purchased_on ?? "",

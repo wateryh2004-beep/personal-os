@@ -54,8 +54,8 @@ export default async function PracticeDetailPage({ params, searchParams }: {
         </div>
       ) : null}
 
-      {parent ? <section className="my-6 max-w-3xl border-l-2 border-[var(--accent)] pl-4" role="status">{data.parentAttempt?<><p>继续 {formatDateTime(data.parentAttempt.practiced_at)} 的练习</p><p className="whitespace-pre-wrap">上次重点：{data.parentAttempt.next_focus||"未填写"}</p><details><summary className="ui-link min-h-11 cursor-pointer py-3">回看上次回答与反馈</summary><p className="whitespace-pre-wrap">{data.parentAttempt.response_transcript_markdown}</p><p className="whitespace-pre-wrap">{data.parentAttempt.self_review_markdown}</p></details></>:<p>原练习不可用。这次将作为独立练习记录。</p>}</section>:null}
-      <PracticeAttemptForm key={data.attempts[0]?.id ?? "first-attempt"} historyHref={`/career/interview/practice/${prep.id}#practice-history`}>
+      {parent ? <section className="my-6 max-w-3xl border-l-2 border-[var(--accent)] pl-4" role="status">{data.parentAttempt?<><p>继续 {formatDateTime(data.parentAttempt.practiced_at)} 的练习</p><p className="whitespace-pre-wrap">上次重点：{data.parentAttempt.next_focus||"未填写"}</p><details><summary className="ui-link min-h-11 cursor-pointer py-3">回看上次回答与反馈</summary><p className="whitespace-pre-wrap">{data.parentAttempt.response_transcript_markdown}</p><p className="whitespace-pre-wrap">{data.parentAttempt.self_review_markdown}</p></details></>:<p>原练习不可用，当前输入仍保留。请返回练习记录重新选择原练习后继续，未自动改为独立练习。</p>}</section>:null}
+      <PracticeAttemptForm key={data.attempts[0]?.id ?? "first-attempt"} preparationId={prep.id} parentAttemptId={parent} blocked={parent&&!data.parentAttempt?"无法核对原练习，暂不能保存这次继续练习。":undefined} historyHref={`/career/interview/practice/${prep.id}#practice-history`}>
         <input type="hidden" name="parent_attempt_id" value={data.parentAttempt?.id??""} />
         <input type="hidden" name="preparation_id" value={prep.id} />
         <input type="hidden" name="answer_version_id" value="" />

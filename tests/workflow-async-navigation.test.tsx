@@ -4,10 +4,10 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReviewStructuredData } from "@/features/reviews/types";
 import type { ReviewEvidence } from "@/features/reviews/evidence";
-const mocks = vi.hoisted(() => ({ push: vi.fn(), createTrip: vi.fn(), completeReview: vi.fn() }));
+const mocks = vi.hoisted(() => ({ push: vi.fn(), createTrip: vi.fn(),readTrip:vi.fn(), completeReview: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock("next/link", () => ({ default: ({ children, href }: { children?: ReactNode; href: string }) => <a href={href}>{children}</a> }));
-vi.mock("@/features/travel/actions", () => ({ createTrip: mocks.createTrip }));
+vi.mock("@/features/travel/create-intents",()=>({submitTravelCreationIntent:mocks.createTrip,readTravelCreationIntent:mocks.readTrip}));
 vi.mock("@/features/reviews/actions", () => ({ completeReview: mocks.completeReview, generateReviewDraft: vi.fn() }));
 vi.mock("@/components/reviews/review-editor", () => ({ ReviewEditor: ({ value, onChange }: { value: ReviewStructuredData; onChange: (value: ReviewStructuredData) => void }) => <textarea aria-label="复盘草稿" value={value.freeReflection} onChange={event => onChange({ ...value, freeReflection: event.target.value })} /> }));
 vi.mock("@/components/reviews/review-evidence", () => ({ ReviewEvidencePanel: () => null }));
@@ -30,10 +30,10 @@ async function start(domain: "review" | "travel") {
     await act(async () => root.render(<ReviewComposer type="daily" evidence={evidence} initialValue={initialValue} />));
     return { submit: async () => { await act(async () => [...host.querySelectorAll("button")].find(button => button.textContent === "完成复盘")!.click()); }, finish: async () => { await act(async () => result.resolve({ reviewId: id })); } };
   }
-  const result = deferred<string>(); mocks.createTrip.mockReturnValue(result.promise);
+  const result = deferred<{status:"saved";id:string}>(); mocks.createTrip.mockReturnValue(result.promise);
   await act(async () => root.render(<TravelWorkspace trips={[]} initialCreateOpen />));
   const input = document.querySelector<HTMLInputElement>('input[name="title"]')!; input.value = "合成旅行";
-  return { submit: async () => { await act(async () => document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))); }, finish: async () => { await act(async () => result.resolve(id)); } };
+  return { submit: async () => { await act(async () => document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))); }, finish: async () => { await act(async () => result.resolve({status:"saved",id})); } };
 }
 describe.each(["review", "travel"] as const)("%s save navigation freezes the original foreground intent", domain => {
   it("cancels an older pending source capture when the real submit handler begins", async () => {
@@ -55,7 +55,7 @@ describe.each(["review", "travel"] as const)("%s save navigation freezes the ori
     if (domain === "review") expect(host.querySelector("textarea")!.value).toBe("保存中继续输入");
     else {
       expect(document.querySelector<HTMLInputElement>('input[name="title"]')!.value).toBe("合成旅行");
-      expect(document.querySelector('[role="status"]')?.textContent).toContain("旅行灵感已保存");
+      expect(document.body.textContent).toContain("旅行灵感已保存");
       expect(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
     }
     await act(async () => next.resolve(scene)); await pending;
@@ -72,7 +72,7 @@ it("keeps an uncertain travel creation input and requires checking before anothe
   await act(async () => root.render(<TravelWorkspace trips={[]} initialCreateOpen />));
   const input = document.querySelector<HTMLInputElement>('input[name="title"]')!; input.value = "待核对旅行";
   await act(async () => document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-  expect(input.value).toBe("待核对旅行"); expect(document.querySelector('[role="alert"]')?.textContent).toContain("保存结果尚未确认");
-  expect(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
+  expect(input.value).toBe("待核对旅行"); expect(document.body.textContent).toContain("保存结果尚未确认");
+  mocks.readTrip.mockResolvedValue({status:"needs-check",message:"原旅行仍待核对"});await act(async()=>document.querySelector("form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));expect(mocks.readTrip).toHaveBeenCalledOnce();expect(mocks.createTrip).toHaveBeenCalledOnce();
   expect(mocks.push).not.toHaveBeenCalled(); expect(mocks.createTrip).toHaveBeenCalledTimes(1);
 });

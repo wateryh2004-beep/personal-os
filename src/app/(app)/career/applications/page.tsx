@@ -40,7 +40,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
           <summary className="pressable cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
             + 新建申请
           </summary>
-          <CareerForm action={submitCareerForm.bind(null, "createCareerApplication")} resetOnSuccess successMessage="申请草稿已建立；只有实际提交后才更新为已投递。" successTargetId="application-list" className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
+          <CareerForm action={submitCareerForm.bind(null, "createCareerApplication")} draft={{ operation: "career.application-create", id: "new", href: "/career/applications", label: "未保存的申请记录" }} resetOnSuccess successMessage="申请草稿已建立；只有实际提交后才更新为已投递。" successTargetId="application-list" className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
             <label className={labelClass}>
               <span>机会</span>
               <select required name="opportunity_id" defaultValue={selectedOpportunity?.id ?? ""} className={controlClass}>
@@ -102,7 +102,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                 <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">
                   更新与历史
                 </summary>
-                <CareerForm action={submitCareerForm.bind(null, "transitionCareerApplication")} successMessage="申请阶段已更新。" className="mt-3 flex flex-wrap items-center gap-2">
+                <CareerForm action={submitCareerForm.bind(null, "transitionCareerApplication")} draft={{ operation: "career.application-transition", id: application.id, href: "/career/applications", label: "未保存的申请记录" }} successMessage="申请阶段已更新。" className="mt-3 flex flex-wrap items-center gap-2">
                   <input type="hidden" name="application_id" value={application.id}/>
                   <input type="hidden" name="note" value=""/>
                   <select aria-label="申请阶段" name="status" defaultValue={application.status} className={`${controlClass} h-8 px-2.5 text-[12px]`}>

@@ -8,11 +8,11 @@ import {WorkspacePanelProvider} from "@/components/layout/workspace-panel-provid
 import type {CalendarFullView} from "@/components/calendar/calendar-full-view";
 import {releaseMobileBackLayerForNavigation} from "@/lib/mobile/use-mobile-back-layer";
 import {clearWorkspaceResources} from "@/lib/workspace-resource-cache";
-const mocks=vi.hoisted(()=>({create:vi.fn(),fullView:null as ComponentProps<typeof CalendarFullView>|null}));
+const mocks=vi.hoisted(()=>({create:vi.fn(),read:vi.fn(),fullView:null as ComponentProps<typeof CalendarFullView>|null}));
 vi.mock("next/navigation",()=>({useRouter:()=>({replace:vi.fn()}),usePathname:()=>"/calendar"}));
 vi.mock("next/dynamic",()=>({default:()=>()=>null}));
 vi.mock("@/features/workbench/operation-read-resource",()=>({readCalendarScheduleConflicts:async()=>({events:[]}),readPendingCalendarTasks:async()=>({tasks:[],timezone:"UTC"}),readCalendarTaskForSchedule:vi.fn()}));
-vi.mock("@/features/calendar/actions",()=>({createCalendarEvent:mocks.create,readCalendarScheduleConflicts:async()=>({events:[]}),readPendingCalendarTasks:async()=>({tasks:[],timezone:"UTC"}),readCalendarTaskForSchedule:vi.fn(),updateCalendarEvent:vi.fn(),syncAndBackupMicrosoftAction:vi.fn()}));
+vi.mock("@/features/calendar/actions",()=>({createCalendarEvent:mocks.create,readCalendarCreationIntent:mocks.read,readCalendarScheduleConflicts:async()=>({events:[]}),readPendingCalendarTasks:async()=>({tasks:[],timezone:"UTC"}),readCalendarTaskForSchedule:vi.fn(),updateCalendarEvent:vi.fn(),syncAndBackupMicrosoftAction:vi.fn()}));
 vi.mock("@/components/calendar/calendar-category-picker",()=>({CalendarCategoryPicker:()=>createElement("input",{type:"hidden",name:"category_choice",value:"__none"})}));
 vi.mock("@/components/calendar/calendar-category-manager",()=>({CalendarCategoryManager:()=>null}));
 vi.mock("@/components/ai/ai-sidecar",()=>({AISidecar:()=>null}));
@@ -25,7 +25,7 @@ let root:Root,host:HTMLDivElement;
 const form=()=>document.querySelector<HTMLFormElement>(".calendar-event-form")!;
 async function submit(){await act(async()=>form().dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));}
 async function escape(){await act(async()=>document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true,cancelable:true})));}
-beforeEach(()=>{vi.clearAllMocks();clearWorkspaceResources();sessionStorage.clear();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});window.history.replaceState({__NA:true},"","/calendar");Object.defineProperty(window,"matchMedia",{configurable:true,value:()=>({matches:false,addEventListener(){},removeEventListener(){}})});host=document.createElement("div");document.body.append(host);root=createRoot(host);});
+beforeEach(()=>{vi.clearAllMocks();mocks.create.mockReset();mocks.read.mockReset().mockResolvedValue({status:"error",message:"Original result still unknown"});clearWorkspaceResources();sessionStorage.clear();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});window.history.replaceState({__NA:true},"","/calendar");Object.defineProperty(window,"matchMedia",{configurable:true,value:()=>({matches:false,addEventListener(){},removeEventListener(){}})});host=document.createElement("div");document.body.append(host);root=createRoot(host);});
 afterEach(async()=>{
  // A mounted mobile layer normally calls history.back() on manual unmount.
  // Tests replace the route between cases, so release that history entry first;
@@ -38,8 +38,8 @@ afterEach(async()=>{
  host.remove();clearWorkspaceResources();vi.restoreAllMocks();
 });
 describe("calendar create containers retain in-flight logical intent",()=>{
- it("vetoes schedule dismissal and replacement while deferred creation runs, then retries the same request",async()=>{
-  const pending=deferred<{status:"error";message:string}>();mocks.create.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({status:"error",message:"Retry later"});
+ it("vetoes schedule dismissal and replacement while deferred creation runs, then reconciles the same request without redispatch",async()=>{
+  const pending=deferred<{status:"error";message:string}>();mocks.create.mockReturnValueOnce(pending.promise);
   await act(async()=>root.render(createElement(OperationScheduleDialog,{initialIntent:intent()})));
   const original=form();await submit();const request=mocks.create.mock.calls[0][1].get("request_id");expect(request).toMatch(/^[0-9a-f-]{36}$/);
   await escape();expect(form()).toBe(original);expect(document.querySelector('[data-slot="dialog-close"]')).toBeNull();
@@ -49,7 +49,7 @@ describe("calendar create containers retain in-flight logical intent",()=>{
   expect(form()).toBe(original);expect(form().querySelector<HTMLInputElement>('[name="subject"]')!.value).toBe("Fixture appointment");
   await submit();expect(mocks.create).toHaveBeenCalledTimes(1);
   await act(async()=>{pending.resolve({status:"error",message:"Result unavailable"});await pending.promise;});
-  await submit();expect(mocks.create).toHaveBeenCalledTimes(2);expect(mocks.create.mock.calls[1][1].get("request_id")).toBe(request);
+  await submit();expect(mocks.create).toHaveBeenCalledTimes(1);expect(mocks.read).toHaveBeenCalledOnce();expect(mocks.read.mock.calls[0][0].get("request_id")).toBe(request);expect(mocks.read.mock.calls[0][0].get("subject")).toBe("Fixture appointment");
  });
  it("restores the phone Back marker while creation is pending",async()=>{
   Object.defineProperty(window,"matchMedia",{configurable:true,value:(query:string)=>({matches:query.includes("max-width"),addEventListener(){},removeEventListener(){}})});

@@ -1,9 +1,10 @@
 "use client";
 
 import { OperationHistory } from "@/components/workbench/operation-history";
+import { AssistantRuntimeHost } from "@/components/assistant/assistant-runtime-host";
 import { WorkflowContinuityControls, WorkflowNavigationBoundary, WorkflowSourceTrail } from "@/components/workflow-continuity/provider";
 import { cancelSourceNavigation } from "@/features/workflow-continuity/source-trail";
-import { WorkbenchProvider, WorkbenchToolbar, WorkbenchLayout } from "@/components/workbench/workbench-provider";
+import { WorkbenchProvider, WorkbenchToolbar, WorkbenchLayout, type WorkbenchVerificationTransport } from "@/components/workbench/workbench-provider";
 import "@/components/workbench/workbench.css";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -176,11 +177,12 @@ async function prefetchWorkspaceData(href: WorkspacePrefetchHref, coldOnly: bool
   await resource.prefetch().catch(() => {});
 }
 
-export function AppShell({ children, presentationPathname }: { children: React.ReactNode; presentationPathname?: string }) {
-  return <ActionFeedbackProvider><WorkspacePanelProvider><WorkbenchProvider><WorkflowNavigationBoundary><AppShellInner presentationPathname={presentationPathname}>{children}</AppShellInner></WorkflowNavigationBoundary></WorkbenchProvider></WorkspacePanelProvider></ActionFeedbackProvider>;
+export type AppShellVerificationTransport = WorkbenchVerificationTransport & { operations?: import("@/components/workbench/operation-history").OperationHistoryVerificationTransport; globalCreate?: import("@/components/shared/global-create-layer-impl").GlobalCreateTransport; calendarCreate?: import("@/components/calendar/calendar-create-form").CalendarCreateTransport; agentActions?: import("@/features/assistant/action-fixtures").AgentActionFixtureTransport; capture?: import("@/features/assistant/capture-fixtures").CaptureFixtureTransport };
+export function AppShell({ children, presentationPathname, verificationTransport }: { children: React.ReactNode; presentationPathname?: string; verificationTransport?: AppShellVerificationTransport }) {
+  return <ActionFeedbackProvider><WorkspacePanelProvider><WorkbenchProvider verificationTransport={verificationTransport}><WorkflowNavigationBoundary><AppShellInner verificationTransport={verificationTransport} presentationPathname={presentationPathname}>{children}</AppShellInner></WorkflowNavigationBoundary></WorkbenchProvider></WorkspacePanelProvider></ActionFeedbackProvider>;
 }
 
-function AppShellInner({ children, presentationPathname }: { children: React.ReactNode; presentationPathname?: string }) {
+function AppShellInner({ children, presentationPathname, verificationTransport }: { children: React.ReactNode; presentationPathname?: string; verificationTransport?: AppShellVerificationTransport }) {
   const routePathname = usePathname();
   const pathname = presentationPathname ?? routePathname;
   const router = useRouter();
@@ -502,7 +504,7 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
     <div style={{ "--shell-width": desktopWidth } as React.CSSProperties} className="app-workspace-frame min-h-[var(--app-viewport-height)] min-w-0 bg-[var(--surface-app)] md:ml-[var(--shell-width)]">
       <header className="app-toolbar sticky top-0 z-20 flex h-[var(--toolbar-height)] items-center gap-2.5 border-b border-[var(--border-subtle)] bg-[var(--material-toolbar)] px-3 pt-[env(safe-area-inset-top)] sm:px-4">
         <Button variant="ghost" size="icon-sm" className="today-mobile-menu md:hidden" onClick={() => setMobileOpen(true)} aria-label="打开导航"><Menu aria-hidden="true" /></Button>
-        {pathname === "/today" ? <span className="today-mobile-brand" aria-hidden="true">Life of HANG</span> : null}
+        {pathname === "/today" ? <span className="today-mobile-brand min-w-0" aria-hidden="true">Life of HANG</span> : null}
         <button ref={commandAnchor} type="button" aria-haspopup="dialog" aria-expanded={commandOpen} aria-controls="global-command-palette" aria-label="搜索 Personal OS" onClick={() => openCommand("search")} className="today-search pressable mx-auto flex h-8 w-full min-w-0 max-w-lg flex-1 items-center gap-2 rounded-[11px] bg-[var(--surface-control)] px-2.5 text-left text-[13px] text-[var(--text-tertiary)] shadow-[inset_0_1px_0_rgba(255,255,255,.36)] hover:bg-[var(--surface-control-hover)] hover:text-[var(--text-secondary)]"><Search className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" /><span className="min-w-0 flex-1 truncate sm:hidden">搜索…</span><span className="hidden min-w-0 flex-1 truncate sm:inline">搜索 Personal OS…</span><kbd className="hidden font-sans text-[12px] font-medium text-[var(--text-tertiary)] sm:inline">⌘K</kbd></button>
         <WorkbenchToolbar />
         <WorkflowContinuityControls />
@@ -514,12 +516,13 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
         <WorkbenchLayout><WorkspaceRouteSurface pathname={pathname}>
           <main id="main-content" tabIndex={-1} className={cn("min-w-0", shellContentClass(pathname))}>{children}</main>
         </WorkspaceRouteSurface></WorkbenchLayout>
-        {agentVisited ? <GlobalAgent open={globalAgentOpen} onClose={closeGlobalAgent} /> : null}
+        {agentVisited ? <GlobalAgent actionTransport={verificationTransport?.agentActions} open={globalAgentOpen} onClose={closeGlobalAgent} /> : null}
       </div>
     </div>
     <MobileTabBar presentationPathname={presentationPathname} onOpenMore={() => setMobileOpen(true)} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget} />
     <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} initialSection={commandSection} anchorRef={commandAnchor} onCloseAutoFocus={restoreCommandFocus} />
-    <GlobalCreateLayer />
-    <OperationHistory />
+    <AssistantRuntimeHost />
+    <GlobalCreateLayer creationTransport={verificationTransport?.globalCreate} captureTransport={verificationTransport?.capture} />
+    <OperationHistory calendarCreateTransport={verificationTransport?.calendarCreate} verificationTransport={verificationTransport?.operations} />
   </div>;
 }

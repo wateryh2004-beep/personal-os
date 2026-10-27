@@ -461,14 +461,24 @@ it("binds a newly checked material intent to the displayed exact revision and re
       verificationObjectRevision: `document:${documentId}:2`,
     }),
   );
-  await act(async () =>
-    host
-      .querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1]
-      .click(),
-  );
-  await submit(host.querySelector("form")!);
+  // The unconfirmed revision2 save cannot be unlocked by another checkbox click.
+  await act(async()=>host.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1].click());
+  await submit(host.querySelector("form")!);expect(actions.material).toHaveBeenCalledOnce();
+  actions.readMaterial.mockResolvedValue({row:{...check,revision:4},documents:[{...documents[0],mutation_revision:3}],resumes:[],documentIds:[documentId],resumeIds:[]});
+  await click("读取最新材料核对项并对比");
+  expect(actions.readMaterial).toHaveBeenCalledWith({id:materialId,opportunityId,documentId,resumeId:null,expectedExists:true});
+  await submit(host.querySelector("form")!);expect(actions.material).toHaveBeenCalledOnce();
+  await click("保留当前输入，按最新版本继续编辑");
+  expect(host.querySelector("textarea")!.value).toBe("Keep this pending note");
+  // Select the freshly displayed version explicitly after the comparison; neither
+  // restoration nor the read itself renews verification.
+  const currentBox=host.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1];
+  expect(currentBox.checked).toBe(true);await act(async()=>currentBox.click());
+  expect(currentBox.checked).toBe(false);await act(async()=>currentBox.click());expect(currentBox.checked).toBe(true);
+  await submit(host.querySelector("form")!);expect(actions.material).toHaveBeenCalledTimes(2);
   expect(actions.material).toHaveBeenLastCalledWith(
     expect.objectContaining({
+      revision:4,
       verificationIntent: "verify",
       verificationDocumentRevision: 3,
       verificationObjectRevision: `document:${documentId}:3`,

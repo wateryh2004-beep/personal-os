@@ -1,4 +1,5 @@
 "use client";
+import { useDraftResumeOpeners } from "@/features/workflow-continuity/draft-resume";
 
 import { Activity, useCallback, useEffect, useState, type ReactNode, type MouseEvent } from "react";
 import { useSearchParams } from "next/navigation";
@@ -60,9 +61,11 @@ export function ResumeWorkspace({ data, createForm }: { data: ResumeData; create
     window.history.replaceState(null, "", makeUrl({ [key]: value === "all" ? null : value, resume: null }));
   };
 
+  const [createOpen,setCreateOpen]=useState(false);
+  useDraftResumeOpeners([{kind:"career.resume-create",id:"new"},...data.resumes.flatMap(resume=>[{kind:"career.resume-content" as const,id:resume.id},{kind:"career.resume-bullets" as const,id:resume.id}])],target=>{if(target.kind==="career.resume-create"){setCreateOpen(true);return;}if(!data.resumes.some(resume=>resume.id===target.id))return false;setVisited(previous=>previous.includes(target.id)?previous:[...previous,target.id]);window.history.replaceState(null,"",makeUrl({resume:target.id}));});
   return <>
     {data.unavailable ? <div role="alert" className="mb-5 flex flex-wrap items-center gap-3 rounded-lg bg-[var(--surface-control)] p-4 text-sm text-[var(--danger)]">部分简历数据暂时不可用，列表或关联可能不完整。<button className="ui-link min-h-11" type="button" onClick={() => window.location.reload()}>重新加载</button></div> : null}
-    <div className="mb-5 flex items-center justify-between gap-4"><p className="text-sm text-[var(--text-secondary)]">{data.resumes.length} 份版本</p><Dialog><DialogTrigger asChild><Button>新建简历版本</Button></DialogTrigger><DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>新建简历版本</DialogTitle><DialogDescription>创建草稿，保留现有定稿与投递引用。</DialogDescription></DialogHeader>{createForm}</DialogContent></Dialog></div>
+    <div className="mb-5 flex items-center justify-between gap-4"><p className="text-sm text-[var(--text-secondary)]">{data.resumes.length} 份版本</p><Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogTrigger asChild><Button>新建简历版本</Button></DialogTrigger><DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>新建简历版本</DialogTitle><DialogDescription>创建草稿，保留现有定稿与投递引用。</DialogDescription></DialogHeader>{createForm}</DialogContent></Dialog></div>
     <div className="grid items-start gap-7 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
       <section aria-labelledby="resume-list-heading" className={`${explicitDetail ? "hidden lg:block" : ""} min-w-0 lg:sticky lg:top-[calc(var(--toolbar-height)+1rem)]`}>
         <h2 id="resume-list-heading" tabIndex={-1} className="mb-4 text-base font-medium focus-visible:outline-2 focus-visible:outline-[var(--accent)]">版本列表</h2>

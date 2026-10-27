@@ -13,7 +13,7 @@ const sourceVersion = '11111111-1111-4111-8111-111111111111';
 let progress = null, mutation = null;
 const bytes = syntheticPdf();
 const vaultBytes = await readFile(path.join(project,'tests/fixtures/pdf-covers/chinese-embedded.pdf'));
-const server = await createServer({ configFile:false, root:path.join(project,'tests/fixtures/document-reading-browser'),
+const server = await createServer({ configFile:false, define: { "process.env.CONTINUOUS_FIXTURE_COMPILED": JSON.stringify("0"), 'process.env.NEXT_PUBLIC_PERF_DEBUG': 'false' }, root:path.join(project,'tests/fixtures/document-reading-browser'),
   plugins:[react(), {name:'reading-fixture',configureServer(server) { server.middlewares.use(async (req,res,next) => {
     if(req.url.startsWith('/fixture/vault.pdf')) {
       const body=req.url.includes('pages=2') ? bytes : vaultBytes;

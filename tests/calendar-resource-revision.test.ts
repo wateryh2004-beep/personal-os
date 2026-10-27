@@ -85,7 +85,7 @@ afterEach(async () => {
 describe("Calendar active range resources", () => {
   it("captures and restores scene date, view and filters through the mounted calendar",async()=>{
     await render();const original=captureWorkbenchViewState("/calendar");expect(original?.kind).toBe("calendar");
-    const state={kind:"calendar" as const,view:"month" as const,cursor:"2026-11-04",selectedCategories:[primaryCalendarCategories[0].displayName,"Removed category"],hideInternship:true};
+    const state={kind:"calendar" as const,view:"month" as const,cursor:"2026-11-04",selectedCategories:[primaryCalendarCategories[0].displayName,"Removed category"],hideInternship:true,selectedEventId:null,inspectorOpen:false};
     await act(async()=>restoreWorkbenchViewState(state));
     expect(captureWorkbenchViewState("/calendar")).toEqual({...state,selectedCategories:[primaryCalendarCategories[0].displayName]});
     await act(async()=>restoreWorkbenchViewState(original!));expect(captureWorkbenchViewState("/calendar")).toEqual(original);

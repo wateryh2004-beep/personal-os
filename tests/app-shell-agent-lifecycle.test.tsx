@@ -2,6 +2,7 @@
 import { act, createElement, type AnchorHTMLAttributes, type ComponentType, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import type { ChatInit } from "ai";
 import type { AssistantUIMessage } from "@/features/assistant/stream-metadata";
 
 const engine = vi.hoisted(() => ({ loaded: vi.fn(), initialized: vi.fn(), send: vi.fn(), stop: vi.fn(), completion: Promise.resolve(), loading: Promise.resolve() }));
@@ -14,25 +15,14 @@ vi.mock("next/dynamic", async () => {
     return (props: { open: boolean; onClose: () => void }) => createElement(Suspense, { fallback: null }, createElement(Lazy, props));
   } };
 });
-// The SDK transport is the external boundary. Keep GlobalAgent, its scope and
-// background runner, AppShell and the real panel coordinator/surface mounted.
-vi.mock("@ai-sdk/react", async () => {
-  const { useCallback, useEffect, useRef, useState } = await import("react");
-  return { useChat: (callbacks: { onFinish?: () => void; onError?: () => void }) => {
-    const currentCallbacks = useRef(callbacks); currentCallbacks.current = callbacks;
-    const [messages, setMessages] = useState<AssistantUIMessage[]>([]);
-    const [status, setStatus] = useState("ready");
-    useEffect(() => { engine.initialized(); return () => { engine.stop(); }; }, []);
-    const sendMessage = useCallback(async (input: { text: string }) => {
-      engine.send(input);
-      setMessages([{ id: "synthetic-question", role: "user", parts: [{ type: "text", text: input.text }] }]);
-      setStatus("streaming");
-      await engine.completion;
-      setMessages(before => [...before, { id: "synthetic-answer", role: "assistant", parts: [{ type: "text", text: "合成请求的同一份完成结果" }] }]);
-      setStatus("ready"); currentCallbacks.current.onFinish?.();
-    }, []);
-    return { messages, setMessages, sendMessage, status, error: undefined, stop: engine.stop, clearError: () => {} };
-  } };
+// Keep the installed SDK and real external engine; only count construction and
+// control HTTP/SSE at the transport boundary. No UI/controller lifecycle mock.
+vi.mock("@ai-sdk/react", async importOriginal => {
+  const actual = await importOriginal<typeof import("@ai-sdk/react")>();
+  class ObservedChat extends actual.Chat<AssistantUIMessage> {
+    constructor(init: ChatInit<AssistantUIMessage>) { super(init); engine.initialized(); }
+  }
+  return { ...actual, Chat: ObservedChat };
 });
 vi.mock("@/features/assistant/kernel/context-gate", () => ({ decideContextGate: () => ({ mode: "answer" }) }));
 vi.mock("@/features/auth/actions", () => ({ logoutAction: vi.fn() }));
@@ -59,6 +49,19 @@ let root: ReturnType<typeof createRoot>;
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   clearWorkspaceResources(); vi.clearAllMocks();
+  vi.stubGlobal("fetch", vi.fn(async (_url: string, options?: RequestInit) => {
+    const body = JSON.parse(String(options?.body)) as { messages: AssistantUIMessage[] };
+    const question = body.messages.findLast(message => message.role === "user")?.parts.filter(part => part.type === "text").map(part => part.text).join("");
+    engine.send({ text: question });
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({ start(controller) {
+      const write = (value: object) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
+      write({ type: "start", messageId: "synthetic-answer" }); write({ type: "text-start", id: "answer" });
+      options?.signal?.addEventListener("abort", () => { engine.stop(); controller.error(new DOMException("Aborted", "AbortError")); }, { once: true });
+      void engine.completion.then(() => { write({ type: "text-delta", id: "answer", delta: "合成请求的同一份完成结果" }); write({ type: "text-end", id: "answer" }); write({ type: "finish", finishReason: "stop" }); controller.enqueue(encoder.encode("data: [DONE]\n\n")); controller.close(); });
+    } });
+    return new Response(stream, { headers: { "Content-Type": "text/event-stream", "x-vercel-ai-ui-message-stream": "v1" } });
+  }));
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
@@ -90,7 +93,7 @@ it("loads Agent on intent, continues one answer while closed and reopens its com
   expect(document.querySelector('[aria-label="AI 助手"]')).toBeNull();
   expect(engine.stop).not.toHaveBeenCalled();
   expect(getBackgroundOperations()[0].status).toBe("running");
-  await act(async () => finish());
+  await act(async () => { finish(); await new Promise(resolve => setTimeout(resolve, 0)); });
   expect(getBackgroundOperations()[0].status).toBe("succeeded");
   await act(async () => open.click());
   expect(document.querySelector('[aria-label="AI 助手"]')?.textContent).toContain("合成请求的同一份完成结果");

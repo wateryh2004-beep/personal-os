@@ -1,0 +1,21 @@
+// @vitest-environment jsdom
+import{act,createElement}from"react";
+import{createRoot,type Root}from"react-dom/client";
+import{afterEach,beforeEach,expect,it,vi}from"vitest";
+const io=vi.hoisted(()=>({read:vi.fn(),save:vi.fn()}));
+vi.mock("@/features/shopping/aftercare",()=>({readPurchaseAftercare:io.read,savePurchaseAftercare:io.save}));
+vi.mock("@/features/shopping/actions",()=>({abandonPurchaseItem:vi.fn(),extendPurchaseCooldown:vi.fn(),setPurchaseNecessity:vi.fn(),readPurchaseItemState:vi.fn()}));
+vi.mock("@/components/life/use-life-undo",()=>({useLifeUndo:vi.fn()}));
+vi.mock("next/link",()=>({default:({children,...props}:React.ComponentProps<"a">)=>createElement("a",props,children)}));
+import{ShoppingItemDetail}from"@/components/shopping/shopping-item-detail";
+import{captureWorkbenchViewState,restoreWorkbenchViewState}from"@/features/workbench/view-state-registry";
+import{clearWorkspaceResources}from"@/lib/workspace-resource-cache";
+const id="ea000000-0000-4000-8000-000000000002",item={id,title:"合成购后原件",price_cny:null,necessity:"necessary",necessity_confirmed:true,status:"purchased",cooldown_until:null,reason_to_buy:null,existing_alternative:null,source_url:null,mutation_revision:1};
+const data={item:{id,status:"purchased",mutation_revision:1,purchased_on:null,return_until:null,warranty_until:null,order_reference:"",aftercare_note:""},documents:[],links:[],truncated:false,timezone:"UTC"};
+const originalScroll=Element.prototype.scrollIntoView;
+let host:HTMLDivElement,root:Root;
+beforeEach(()=>{Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});clearWorkspaceResources();sessionStorage.clear();window.history.replaceState(null,"",`/shopping/${id}`);io.read.mockReset().mockResolvedValue(data);io.save.mockReset();host=document.createElement("div");document.body.append(host);root=createRoot(host);Object.defineProperty(Element.prototype,"scrollIntoView",{configurable:true,value:vi.fn()});});
+afterEach(async()=>{await act(async()=>root.unmount());host.remove();clearWorkspaceResources();vi.restoreAllMocks();if(originalScroll)Object.defineProperty(Element.prototype,"scrollIntoView",{configurable:true,value:originalScroll});else Reflect.deleteProperty(Element.prototype,"scrollIntoView");});
+it("captures the real aftercare focus and restores it only after its asynchronous form actually mounts",async()=>{let finish!:(value:typeof data)=>void;io.read.mockReturnValueOnce(new Promise<typeof data>(resolve=>{finish=resolve;}));await act(async()=>root.render(createElement(ShoppingItemDetail,{item})));const ack=vi.fn();await act(async()=>{restoreWorkbenchViewState({kind:"shopping",itemId:id,section:"aftercare"},{onSettled:ack});});expect(ack).not.toHaveBeenCalled();await act(async()=>{finish(data);});await vi.waitFor(()=>expect(ack).toHaveBeenCalledWith({status:"applied"}));expect(document.activeElement?.tagName).toBe("INPUT");expect(captureWorkbenchViewState(`/shopping/${id}`)).toEqual({kind:"shopping",itemId:id,section:"aftercare"});expect(io.save).not.toHaveBeenCalled();});
+it("reports an unavailable aftercare section truthfully for a ready item, and does not write",async()=>{await act(async()=>root.render(createElement(ShoppingItemDetail,{item:{...item,status:"ready"}})));const ack=vi.fn();await act(async()=>{restoreWorkbenchViewState({kind:"shopping",itemId:id,section:"aftercare"},{onSettled:ack});});await vi.waitFor(()=>expect(ack).toHaveBeenCalledWith({status:"partial",reason:"missing-record"}));expect(io.read).not.toHaveBeenCalled();expect(io.save).not.toHaveBeenCalled();});
+it("unmount cancels an in-flight child wait without a late focus or applied acknowledgement",async()=>{let finish!:(value:typeof data)=>void;io.read.mockReturnValueOnce(new Promise<typeof data>(resolve=>{finish=resolve;}));await act(async()=>root.render(createElement(ShoppingItemDetail,{item})));const ack=vi.fn();await act(async()=>{restoreWorkbenchViewState({kind:"shopping",itemId:id,section:"aftercare"},{onSettled:ack});});await act(async()=>root.render(null));await act(async()=>finish(data));expect(ack).toHaveBeenCalledOnce();expect(ack).toHaveBeenCalledWith({status:"cancelled"});expect(io.save).not.toHaveBeenCalled();});

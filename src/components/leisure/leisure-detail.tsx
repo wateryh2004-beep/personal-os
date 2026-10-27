@@ -2,7 +2,7 @@ import { LeisureDetailLink as Link } from "./leisure-detail-link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
-import type { LeisureExperience, LeisureFeedbackInput, LeisureFeedbackResult, LeisureSummary } from "@/features/leisure/types";
+import type { LeisureExperience, LeisureFeedbackInput, LeisureFeedbackResult, LeisureFeedbackReadResult, LeisureSummary } from "@/features/leisure/types";
 import { formatLeisureDuration, leisureKindLabels, ratingAvailability, sourceAvailability } from "@/features/leisure/presentation";
 import { LeisureFeedbackControls } from "./leisure-feedback";
 import { getLeisureArtwork } from "@/features/leisure/artwork";
@@ -14,7 +14,7 @@ import styles from "./leisure.module.css";
 function dateLabel(value: string) { return value.slice(0, 10); }
 
 
-export function LeisureDetail({ experience: item, now, backHref = "/leisure", neighbors = [], from, detailBase = "/leisure/", onSave }: { experience: LeisureExperience; now: number; backHref?: string; neighbors?: LeisureSummary[]; from?: string; detailBase?: string; onSave?: (input: LeisureFeedbackInput) => Promise<LeisureFeedbackResult> }) {
+export function LeisureDetail({ experience: item, now, backHref = "/leisure", neighbors = [], from, detailBase = "/leisure/", onSave, onRead }: { experience: LeisureExperience; now: number; backHref?: string; neighbors?: LeisureSummary[]; from?: string; detailBase?: string; onRead?: (id: string) => Promise<LeisureFeedbackReadResult>; onSave?: (input: LeisureFeedbackInput) => Promise<LeisureFeedbackResult> }) {
   const metadata = [["留多少时间", formatLeisureDuration(item.duration_minutes)], ["平台", item.platform], ["地点", item.location], ["时间", item.starts_at ? item.starts_at.replace("T", " ").replace(/Z$/, " UTC") : null], ["花费", item.cost_text]].filter((entry) => entry[1]);
   const verifiedLinks = new Set(item.sources.filter((source) => sourceAvailability(source, now) === "verified").map((source) => source.url));
   const art = getLeisureArtwork(item);
@@ -48,7 +48,7 @@ export function LeisureDetail({ experience: item, now, backHref = "/leisure", ne
       img: ({ alt }) => <span className={styles.caption}>{alt ? `图片说明：${alt}` : "图片未加载"}</span>,
       table: ({ children }) => <div className={styles.tableScroll}><table>{children}</table></div>,
     }}>{item.body_markdown}</ReactMarkdown></div></section> : null}
-    <div id="leisure-my-page"><LeisureFeedbackControls key={item.id} experience={item} onSave={onSave} /></div>
+    <div id="leisure-my-page"><LeisureFeedbackControls key={item.id} experience={item} onSave={onSave} onRead={onRead} /></div>
     <details className={styles.sources}><summary>出处、评分与图片来源</summary><div className={styles.sourceContent}><h2 id="leisure-sources" className={styles.srOnly}>出处与去处</h2>
       {item.ratings.length ? <div className="mb-5">{item.ratings.map((rating, index) => {
         const availability = ratingAvailability(rating, item.sources, now);

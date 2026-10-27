@@ -1,7 +1,8 @@
 "use client";
 
+import {useDraftResumeOpeners} from "@/features/workflow-continuity/draft-resume";
 import Link from "next/link";
-import { useMemo, useTransition, type ReactNode } from "react";
+import { useMemo,useState, useTransition, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -12,6 +13,8 @@ import { interviewQuestionTypeKeys, questionTypeLabels } from "@/features/interv
 import { presentInterviewPrompt } from "@/features/interview/prompt-presentation";
 
 export function QuestionCatalog({ rows, unavailable, createForm }: { rows: QuestionCatalogRow[]; unavailable: boolean; createForm: ReactNode }) {
+  const [createOpen,setCreateOpen]=useState(false);
+  useDraftResumeOpeners([{kind:"interview.question-create",id:"new"}],()=>setCreateOpen(true));
   const params = useSearchParams();
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
@@ -30,7 +33,7 @@ export function QuestionCatalog({ rows, unavailable, createForm }: { rows: Quest
     {unavailable ? <div role="alert" className="mb-5 rounded-lg bg-[var(--surface-control)] p-4 text-sm">部分题目数据加载失败，结果可能不完整。<button type="button" disabled={refreshing} onClick={() => startRefresh(() => router.refresh())} className="ui-link ml-3 min-h-11">{refreshing ? "重新加载中…" : "重新加载"}</button></div> : null}
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm text-[var(--text-secondary)]">{rows.length} 道题目<span className="ml-3">阅读与自测请进入<Link href="/career/interview" className="ui-link">学习库</Link></span></p>
-      <Dialog><DialogTrigger asChild><Button>新建题目</Button></DialogTrigger><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>新建题目</DialogTitle><DialogDescription>保存后进入题目详情，继续设置分类和准备内容。</DialogDescription></DialogHeader>{createForm}</DialogContent></Dialog>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogTrigger asChild><Button>新建题目</Button></DialogTrigger><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>新建题目</DialogTitle><DialogDescription>保存后进入题目详情，继续设置分类和准备内容。</DialogDescription></DialogHeader>{createForm}</DialogContent></Dialog>
     </div>
     <section aria-label="题库浏览" className="min-w-0">
       <div className="rounded-[var(--radius-lg)] border border-[var(--separator)] bg-[var(--surface-canvas)] p-4 sm:p-5">

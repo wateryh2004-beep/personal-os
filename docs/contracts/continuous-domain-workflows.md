@@ -1,6 +1,6 @@
 # 连续工作流：领域数据与交互契约
 
-状态：本批实现契约，尚待独立验证和发布。范围与最终证据以 [二十项规格](../specs/continuous-workflows-v3.md) 为准。主规范的身份、原件、事实、AI 和迁移规则保持有效。
+状态：本批实现契约。固定数据库检查点已完成独立隔离验证，最终界面候选和发布仍待验收；具体范围见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围与最终证据以 [二十项规格](../specs/continuous-workflows-v3.md) 为准。主规范的身份、原件、事实、AI 和迁移规则保持有效。
 
 ## 时间规划与下一步
 
@@ -50,6 +50,10 @@ AI 草稿先显示建议；每字段采纳前校对发起时基线。手动编�
 
 项目、可用时段、任务估时、机会材料、购后档案和事件编辑在并发冲突后提供真实读回、当前输入与已保存内容对比，以及明确保留输入并以新版本继续或采用已保存内容的选择。读回本身不覆盖字段，读回期间的新输入保留；保留输入仍为未保存草稿，必须再次保存。成功仅结算提交时的快照，保存期间继续输入的内容保留。可用时段同时展示实际保存时区，不能仅替换修订号后默换时区。
 
-新增 migration 依序为 material sources → domain workflows → material receipts → inbox dispatch mutex；material receipts 引用 domain 建立的 owner 唯一键，mutex 再引用专门回执与来源规则。均为未部署新增文件，不能改写既有已部署 migration。新业务元数据、原文版本与关系进入 system backup；外部创建回执是技术执行状态，排除恢复和重放。生成类型必须与实际迁移后 schema 核对，手写候选映射不称已生成。
+本批十条新增 migration 依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile，精确文件名见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十条迁移与生产版本登记)。material receipts 引用 domain 建立的 owner 唯一键，mutex 再引用专门回执与来源规则。当前均未应用生产，不能改写既有已部署 migration。新业务元数据、原文版本与关系进入 system backup；外部创建回执是技术执行状态，排除恢复和重放。固定检查点已将官方实际生成文件、native catalog 与本批候选映射比较；手写候选映射本身不称官方生成文件。
+
+生产通过已连接 Supabase MCP 顺序应用并查询实际版本/schema/RLS/ACL。MCP 不接受 version 参数；实际时间戳不同只对齐仓库文件名、两份严格顺序清单和发布文档，保留 SQL 原字节/哈希，再做元数据核对与必要 CI。不手写迁移 history 双记账，不通过 CLI/REST 绕过生产 MCP。
+
+扩展 schema 不表示任意旧 reader 都兼容新 Scene JSON。最早已登记的兼容 reader 检查点是 `93f88f9f127717cca3f8a6895b515ffd0b381357`，生产基线 `a5803dda` 不能读取本批新 Scene。实际回退部署仍需核对构建与配置，保留新增内容、版本、原件与外部意图，不 down/delete 或重发未知操作。
 
 生产迁移与应用发布之前要求实际 PostgreSQL 干净安装/旧行升级、RLS/ACL、owner关系、CAS/重试、并发与审计回滚、版本不可变及备份回放证据。部署 READY 不代表这些检查已通过。界面截图、正常/减少运动/缩放与连续录屏由本批独立验收记录说明；没有执行的检查必须明确未验证。

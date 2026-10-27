@@ -1,7 +1,14 @@
 "use client";
-import { DayCapacity } from "@/components/planning/day-capacity";
+import type {AgentActionFixtureTransport} from "@/features/assistant/action-fixtures";
+import {assertContinuousFixtureTransport} from "@/features/testing/continuous-fixture-gate";
+import {useTaskCreationDraft,taskCreateFieldsFromForm,type TaskCreationTransport} from "@/features/workflow-continuity/task-create-draft";
+import {useDraftResumeConsumer,focusDraftForm} from "@/features/workflow-continuity/draft-resume";
+import {DraftRecoveryStatus} from "@/components/workflow-continuity/draft-recovery-status";
+import {useTaskEditDraft,type TaskEditDispatch} from "@/features/workflow-continuity/task-edit-draft";
+import {draftResumeKey} from "@/features/workflow-continuity/draft-resume";
+import { DayCapacity,type PlanningDraftTransport } from "@/components/planning/day-capacity";
 import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
-import { registerWorkbenchViewState } from "@/features/workbench/view-state-registry";
+import {useDomainViewAdapter,waitForViewLayout} from "@/features/workbench/domain-adapters/use-domain-view-adapter";
 import { useOperationTimezone } from "@/features/workbench/use-operation-timezone";
 import { instantToDate, wallTimeToIso } from "@/features/calendar/timezone";
 import { WorkbenchRecord } from "@/components/workbench/workbench-record";
@@ -10,7 +17,7 @@ import { publishOperationReceipt } from "@/features/workbench/operation-contract
 
 import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 import dynamic from "next/dynamic";
@@ -42,12 +49,11 @@ import {
 import { MicrosoftTodoCreateDialog } from "@/components/tasks/microsoft-todo-create-dialog";
 import {
   completeMicrosoftTodoTaskAction,
-  createMicrosoftTodoTaskAction,
   deleteMicrosoftTodoTaskAction,
   reopenMicrosoftTodoTaskAction,
   syncAndBackupMicrosoftTodoAction,
   syncMicrosoftTodoAction,
-  updateMicrosoftTodoTaskAction,
+  updateMicrosoftTodoTaskAction,submitMicrosoftTodoTaskUpdateIntent,readMicrosoftTodoTaskUpdateIntent,
 } from "@/features/tasks/microsoft-todo";
 import {
   getLocalTaskDayBounds,
@@ -56,7 +62,7 @@ import {
   type TaskDayBounds,
   type TaskView,
 } from "@/features/tasks/task-view";
-import { taskDueInputToIso, taskDueInputValue } from "@/features/tasks/due-time";
+import { taskDueInputToIso } from "@/features/tasks/due-time";
 import type { TasksWorkspaceData } from "@/features/tasks/workspace-resource";
 import type { TodoList, TodoTask, UpdateTaskPatch } from "@/features/tasks/types";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
@@ -241,97 +247,38 @@ function QuickAdd({
   listLabel,
   onCreated,
   onUnconfirmed,
-  onReveal,
+  onReveal,transport,
 }: {
-  listId: string;
+  listId: string;transport?:TaskCreationTransport;
   listLabel: string;
   onCreated: (task: TodoTask | null, temporaryId?: string) => void;
   onUnconfirmed: () => void;
   onReveal: (task: TodoTask) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [draftTitle, setDraftTitle] = useState("");
+  const {formRef,...draft}=useTaskCreationDraft("task.quick-add",listId,{title:"",todo_list_id:listId,body_text:"",importance:"normal",due_at:""},transport);
   const [createdTask, setCreatedTask] = useState<TodoTask | null>(null);
-  const [pending, start] = useTransition();
-  const [message, setMessage] = useState("");
-  const submittingRef = useRef(false);
-
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const title = String(form.get("title") || "").trim();
-    if (!title || submittingRef.current) return;
-    submittingRef.current = true;
-    setMessage("");
-    setCreatedTask(null);
-
-    const temporaryId = `optimistic-${crypto.randomUUID()}`;
-    onCreated({
-      id: temporaryId,
-      providerTaskId: temporaryId,
-      todoListId: listId,
-      title,
-      bodyText: null,
-      status: "notStarted",
-      importance: "normal",
-      dueAt: null,
-      completedAt: null,
-      lastModifiedAt: null,
-    });
-    event.currentTarget.reset();
-    setOpen(false);
-
-    start(async () => {
-      try {
-        const result = await createMicrosoftTodoTaskAction({ status: "idle", message: "" }, form);
-        setMessage(result.message);
-        if (result.status === "success" && result.taskId) {
-          setDraftTitle("");
-          const created: TodoTask = {
-            id: result.taskId,
-            providerTaskId: result.taskId,
-            todoListId: listId,
-            title,
-            bodyText: null,
-            status: "notStarted",
-            importance: "normal",
-            dueAt: null,
-            completedAt: null,
-            lastModifiedAt: null,
-          };
-          onCreated(created, temporaryId);
-          setCreatedTask(created);
-          setMessage("已添加，未设截止时间");
-        } else {
-          onCreated(null, temporaryId);
-          setDraftTitle(title);
-          setOpen(true);
-          setMessage("添加结果尚未确认，请重新读取后检查，避免重复创建。");
-          onUnconfirmed();
-        }
-      } catch {
-        onCreated(null, temporaryId);
-        setDraftTitle(title);
-        setOpen(true);
-        setMessage("添加结果尚未确认，请重新读取后检查，避免重复创建。");
-        onUnconfirmed();
-      } finally {
-        submittingRef.current = false;
-      }
-    });
+  const [message,setMessage]=useState("");
+  const submittingRef=useRef(false);
+  useDraftResumeConsumer({kind:"task.quick-add",identity:{id:listId},priority:1,ready:()=>true,open:async(target,context)=>{setOpen(true);return focusDraftForm(target,context);}});
+  const submit=async(event:React.FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();if(submittingRef.current)return;submittingRef.current=true;
+    const outcome=await draft.submit(taskCreateFieldsFromForm(event.currentTarget));submittingRef.current=false;if(!outcome){setMessage("添加结果尚未确认，请先核对原提交。");return;}
+    const {result,unchanged,fields}=outcome;setMessage(result.message);
+    if(result.status==="success"&&result.taskId){const created:TodoTask={id:result.taskId,providerTaskId:result.taskId,todoListId:fields.todo_list_id,title:fields.title,bodyText:null,status:"notStarted",importance:"normal",dueAt:null,completedAt:null,lastModifiedAt:null};onCreated(created);setCreatedTask(created);if(unchanged){setOpen(false);setMessage("已添加，未设截止时间");}else setMessage("原任务已添加，当前新输入尚未保存。");}
+    else {onUnconfirmed();setOpen(true);}
   };
-
   return (
     <div className="py-2.5">
       {open ? (
-        <form onSubmit={submit} className="flex items-center gap-2">
+        <form ref={formRef} {...draft.attributes} onSubmit={submit} className="flex items-center gap-2">
           <span className="inline-flex size-6 shrink-0 items-center justify-center text-[var(--accent)]">
             <Plus className="size-4" aria-hidden="true" />
           </span>
           <input aria-label="标题"
             autoFocus
             name="title"
-            defaultValue={draftTitle}
+            value={draft.fields.title} onChange={event=>draft.setField("title",event.target.value)}
             required
             maxLength={500}
             placeholder="新建任务"
@@ -344,14 +291,14 @@ function QuickAdd({
           <input type="hidden" name="body_text" value="" />
           <input type="hidden" name="importance" value="normal" />
           <input type="hidden" name="due_at" value="" />
-          <Button disabled={pending} size="sm">
-            {pending ? "添加中…" : "添加"}
+          <Button disabled={draft.pending} size="sm">
+            {draft.pending ? "添加中…" : draft.uncertain?"核对原提交":"添加"}
           </Button>
         </form>
       ) : (
         <button
           type="button"
-          disabled={pending}
+          disabled={draft.pending}
           onClick={() => setOpen(true)}
           className="pressable inline-flex min-h-11 items-center gap-2 rounded-[8px] px-1 text-[12.5px] font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] sm:min-h-8"
         >
@@ -362,6 +309,7 @@ function QuickAdd({
       <p className="pl-8 text-[12px] leading-4 text-[var(--text-tertiary)]">
         添加到 {listLabel}
       </p>
+      <DraftRecoveryStatus dirty={Boolean(draft.fields.title)} restored={draft.restored} recoveryUnavailable={draft.recoveryUnavailable}/>
       {message ? (
         <p role="status" className="mt-1 pl-8 text-[12px] text-[var(--text-tertiary)]">
           {message}
@@ -372,7 +320,7 @@ function QuickAdd({
   );
 }
 
-function TaskInspector({
+export function TaskInspector({planningTransport,
   task,
   list,
   pending,
@@ -380,19 +328,22 @@ function TaskInspector({
   update,
   remove,
 }: {
-  task: TodoTask;
+  planningTransport?:PlanningDraftTransport;task: TodoTask;
   list: string;
   pending: boolean;
   onClose: () => void;
-  update: (patch: UpdateTaskPatch) => Promise<void>;
+  update: TaskEditDispatch;
   remove: () => Promise<void>;
 }) {
   const timezone=useOperationTimezone();
-  const [title, setTitle] = useState(task.title);
-  const [body, setBody] = useState(task.bodyText ?? "");
+  const draft=useTaskEditDraft(task,update);
+  const title=draft.fields.title,body=draft.fields.body_text;
+  const setTitle=(value:string)=>draft.setField("title",value),setBody=(value:string)=>draft.setField("body_text",value);
   const [editing, setEditing] = useState<"title" | "body" | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const draftHost=useRef<HTMLDivElement>(null);
+  useDraftResumeConsumer({kind:"task.edit",identity:{id:task.id},priority:1,ready:()=>Boolean(draftHost.current?.isConnected),open:async(target,context)=>{setEditing(draft.fields.title===task.title&&draft.fields.body_text!==(task.bodyText??"")?"body":"title");return focusDraftForm(target,context);}});
 
   const savingRef = useRef(false);
 
@@ -400,9 +351,8 @@ function TaskInspector({
     if (savingRef.current || pending) return;
     savingRef.current = true;
     try {
-      await update(patch);
-      setEditing(null);
-      setMessage("已保存");
+      const unchanged=await draft.save(patch);
+      if(unchanged)setEditing(null);
     } catch {
       setMessage("保存结果尚未确认，请重新读取后检查。");
     } finally {
@@ -412,7 +362,7 @@ function TaskInspector({
 
   return (
     <Inspector open title="任务详情" onClose={onClose} className="tasks-inspector">
-      <div className="space-y-0">
+      <div ref={draftHost} data-workflow-draft-key={draftResumeKey({kind:"task.edit",id:task.id})} className="space-y-0"><DraftRecoveryStatus dirty restored={draft.restored} recoveryUnavailable={draft.recoveryUnavailable}/>{draft.message?<p role="status" className="text-sm text-[var(--text-secondary)]">{draft.message}</p>:null}{draft.uncertain?<button type="button" disabled={draft.pending} onClick={()=>void draft.save()} className="ui-link min-h-11">核对原保存</button>:null}{draft.comparison?<section className="my-3 space-y-2 border-l-2 border-[var(--warning)] pl-3"><h3>比较最新版本</h3><p>最新标题：{draft.comparison.title}</p><details><summary className="ui-link min-h-11 py-3">查看核对的正文基线</summary><p className="whitespace-pre-wrap break-words">{draft.comparison.bodyText||"无正文"}</p></details><p>当前输入会保留；采用新版本后仍需你明确保存。</p><Button type="button" disabled={draft.pending} variant="outline" onClick={draft.acceptComparedBaseline}>采用核对版本，保留当前输入</Button></section>:null}
         <div className="flex justify-end pb-1.5">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -430,9 +380,8 @@ function TaskInspector({
 
         <section className="border-b border-[var(--separator)] pb-4.5">
           {editing === "title" ? (
-            <input aria-label="清单名称"
+            <input name="title" maxLength={500} aria-label="任务标题"
               autoFocus
-              disabled={pending}
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               onBlur={() => {
@@ -444,7 +393,6 @@ function TaskInspector({
                 if (event.key === "Escape") {
                   event.preventDefault();
                   event.stopPropagation();
-                  setTitle(task.title);
                   setEditing(null);
                 }
               }}
@@ -454,7 +402,7 @@ function TaskInspector({
             <button
               type="button"
               disabled={pending}
-              onClick={() => { setTitle(task.title); setEditing("title"); }}
+              onClick={() => { setEditing("title"); }}
               className="w-full text-left text-[18px] font-semibold leading-6 tracking-[-0.03em] text-[var(--text-primary)]"
             >
               {task.title}
@@ -471,7 +419,7 @@ function TaskInspector({
               <button
                 type="button"
                 disabled={pending}
-              onClick={() => { setBody(task.bodyText ?? ""); setEditing("body"); }}
+              onClick={() => { setEditing("body"); }}
                 className="text-[12px] font-medium text-[var(--accent)]"
               >
                 编辑
@@ -479,8 +427,8 @@ function TaskInspector({
             ) : null}
           </div>
           {editing === "body" ? (
-            <fieldset disabled={pending} aria-busy={pending}>
-            <MentionTextarea
+            <fieldset aria-busy={pending}>
+            <MentionTextarea name="body_text" maxLength={10000}
               autoFocus
               value={body}
               onChange={setBody}
@@ -501,7 +449,7 @@ function TaskInspector({
             <button
               type="button"
               disabled={pending}
-                onClick={() => { setBody(task.bodyText ?? ""); setEditing("body"); }}
+                onClick={() => { setEditing("body"); }}
               className="mt-1.5 text-left text-[12.5px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
             >
               添加说明…
@@ -521,9 +469,9 @@ function TaskInspector({
                 type="datetime-local"
                 disabled={pending}
                 aria-label="截止日期"
-                value={taskDueInputValue(task.dueAt)}
+                value={draft.fields.due_at}
                 onChange={(event) => {
-                  try { void save({ dueAt: taskDueInputToIso(event.target.value) }); }
+                  draft.setField("due_at",event.target.value);try { void save({ dueAt: taskDueInputToIso(event.target.value) }); }
                   catch { setMessage("截止时间无效或处于夏令时切换时段，请选择另一个时间。"); }
                 }}
                 className="ui-field h-8 max-w-full rounded-[9px] border-0 bg-[var(--surface-control)] px-2 text-[12px] text-[var(--text-primary)] outline-none"
@@ -533,12 +481,10 @@ function TaskInspector({
           <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-3 py-3.5">
             <dt className="text-[12px] text-[var(--text-tertiary)]">优先级</dt>
             <dd>
-              <select aria-label="任务清单"
+              <select aria-label="任务优先级"
                 disabled={pending}
-                value={task.importance}
-                onChange={(event) =>
-                  void save({ importance: event.target.value as TodoTask["importance"] })
-                }
+                value={draft.fields.importance}
+                onChange={(event) => {draft.setField("importance",event.target.value);void save({ importance: event.target.value as TodoTask["importance"] });}}
                 className="ui-field h-8 rounded-[9px] border-0 bg-[var(--surface-control)] px-2 text-[12px] text-[var(--text-primary)] outline-none"
               >
                 <option value="low">低</option>
@@ -550,7 +496,7 @@ function TaskInspector({
         </dl>
 
         <div className="pt-4.5">
-          {timezone?<DayCapacity date={instantToDate(new Date().toISOString(),timezone)} taskId={task.id}/>:null}<EntityBacklinks type="todo_task" id={task.id} />
+          {timezone?<DayCapacity transport={planningTransport} date={instantToDate(new Date().toISOString(),timezone)} taskId={task.id}/>:null}<EntityBacklinks type="todo_task" id={task.id} />
         </div>
 
         {message ? (
@@ -588,13 +534,16 @@ function TaskInspector({
   );
 }
 
+export type TaskEditTransport={submit:typeof submitMicrosoftTodoTaskUpdateIntent;read:typeof readMicrosoftTodoTaskUpdateIntent};
 export function TaskWorkspace({
+  actionTransport,taskCreationTransport,taskEditTransport,planningTransport,
   lists,
   tasks,
   initialDayBounds,
   initialCreateOpen = false,
   initialTaskId,
 }: {
+  planningTransport?:PlanningDraftTransport;taskEditTransport?:TaskEditTransport;actionTransport?:AgentActionFixtureTransport;taskCreationTransport?:TaskCreationTransport;
   lists: TodoList[];
   tasks: TodoTask[];
   initialDayBounds: TaskDayBounds;
@@ -602,6 +551,7 @@ export function TaskWorkspace({
   initialTaskId?: string;
 }) {
 
+  assertContinuousFixtureTransport(actionTransport);assertContinuousFixtureTransport(taskCreationTransport);assertContinuousFixtureTransport(taskEditTransport);assertContinuousFixtureTransport(planningTransport);
   const tasksWorkspaceResource = useWorkspaceResourceLease(tasksResource);
   const operationTimezone=useOperationTimezone();
   useEffect(()=>{const listener=()=>{const current=captureWorkspaceScope();tasksWorkspaceResource.invalidate();void tasksWorkspaceResource.revalidate({force:true}).catch(()=>{if(current()){/* Existing stale/error read model remains visible. */}});};window.addEventListener("personal-os:operation-undone",listener);return()=>window.removeEventListener("personal-os:operation-undone",listener);},[tasksWorkspaceResource]);
@@ -635,6 +585,7 @@ export function TaskWorkspace({
   const [selectedId, setSelectedId] = useState<string | null>(initialTaskId ?? null);
   const [dayBounds, setDayBounds] = useState(initialDayBounds);
   const assistant = useWorkspacePanel("tasks-ai");
+  useEffect(()=>{const open=(event:Event)=>{const detail=(event as CustomEvent<{surface?:string}>).detail;if(detail?.surface==="tasks")assistant.open();};window.addEventListener("personal-os:assistant-open",open);return()=>window.removeEventListener("personal-os:assistant-open",open);},[assistant]);
   const { show } = useActionFeedback();
   const listScrollRef = useWorkspaceScrollRestoration("tasks:list");
 
@@ -686,17 +637,7 @@ export function TaskWorkspace({
   useEffect(() => {
     if (sessionReady) saveWorkspaceSession("tasks:workspace", { view, listId, selectedId });
   }, [listId, selectedId, sessionReady, view]);
-  useEffect(() => {
-    if (!sessionReady) return;
-    return registerWorkbenchViewState("tasks", {
-      capture: () => ({ kind: "tasks", view, listId }),
-      restore: state => {
-        if (state.kind !== "tasks") return;
-        setView(state.view);
-        setListId(state.listId && lists.some(list => list.id === state.listId) ? state.listId : null);
-      },
-    });
-  }, [sessionReady, view, listId, lists]);
+  useDomainViewAdapter({kind:"tasks",pathname:"/tasks",ready:sessionReady,capture:()=>({kind:"tasks",view,listId,scroll:{list:listScrollRef.current?.scrollTop??0}}),restore:async(state,context)=>{if(!context.current())return {status:"cancelled"};setView(state.view);const exists=!state.listId||lists.some(list=>list.id===state.listId);setListId(exists?state.listId:null);await waitForViewLayout(context);if(!context.current())return {status:"cancelled"};if(listScrollRef.current&&state.scroll?.list!==undefined)listScrollRef.current.scrollTop=state.scroll.list;return exists?{status:"applied"}:{status:"partial",reason:"missing-record"};}});
 
 
   useEffect(() => {
@@ -883,6 +824,7 @@ export function TaskWorkspace({
         const canonical=result.rows.find((row:Record<string,unknown>)=>row.id===id);
         if(canonical)updateRows(current=>current.map(task=>task.id===id?{...task,...canonical}:task));
       }
+      return result;
     } catch (error) {
       if(!scopeCurrent())return;
       setTaskError("操作结果尚未确认；本地显示已回退，请重新读取后检查。");
@@ -1091,7 +1033,7 @@ export function TaskWorkspace({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <MicrosoftTodoCreateDialog
+              <MicrosoftTodoCreateDialog transport={taskCreationTransport}
                 lists={lists}
                 selectedListId={listId}
                 initialOpen={initialCreateOpen}
@@ -1105,7 +1047,7 @@ export function TaskWorkspace({
           <main ref={listScrollRef} className="workspace-scroll overflow-y-auto px-5 sm:px-7 lg:px-10">
             <div className="mx-auto max-w-[748px] pb-8">
               {quickAddTarget ? (
-                <QuickAdd
+                <QuickAdd transport={taskCreationTransport}
                   listId={quickAddTarget.id}
                   listLabel={quickAddTarget.displayName}
                   onCreated={onCreated}
@@ -1205,19 +1147,20 @@ export function TaskWorkspace({
         </Inspector>
       ) : null}
       {selected ? (
-        <TaskInspector
+        <TaskInspector planningTransport={planningTransport}
           key={selected.id}
           task={selected}
           pending={pendingIds.has(selected.id) || selected.id.startsWith("optimistic-")}
           list={listName(lists, selected.todoListId)}
           onClose={() => closeTask(selectedId)}
-          update={(patch) =>
-            mutate(
-              selected.id,
-              (task) => ({ ...task, ...patch }),
-              () => updateMicrosoftTodoTaskAction({ taskId: selected.id, ...patch, requestId:taskRequestId(selected,patch),expected:{title:selected.title,status:selected.status,lastModifiedAt:selected.lastModifiedAt} }),
-            )
-          }
+          update={async(patch,expected,requestId,readOnly)=>{
+            const input={taskId:selected.id,...patch,expected,requestId};
+            if(readOnly)return (taskEditTransport?.read??readMicrosoftTodoTaskUpdateIntent)(input);
+            try{
+             const result=await mutate(selected.id,task=>({...task,...patch}),async()=>{const outcome=await(taskEditTransport?.submit??submitMicrosoftTodoTaskUpdateIntent)(input);if(outcome.status!=="success")throw Object.assign(new Error(outcome.message),{outcome});return outcome;});
+             return result as import("@/features/workbench/operation-contracts").OperationResult??{status:"unknown",message:"任务修改尚未确认。"};
+            }catch(error){if(error&&typeof error==="object"&&"outcome" in error)return error.outcome as import("@/features/workbench/operation-contracts").OperationResult;throw error;}
+          }}
           remove={async () => {
             if (pendingPatches.current.has(selected.id)) throw new Error("task_mutation_pending");
             pendingPatches.current.set(selected.id, {});
@@ -1240,7 +1183,7 @@ export function TaskWorkspace({
 
       {assistant.isOpen ? (
         <AISidecar open onClose={assistant.close} context="Tasks">
-          <TaskAssistant />
+          <TaskAssistant actionTransport={actionTransport} />
         </AISidecar>
       ) : null}
     </section>

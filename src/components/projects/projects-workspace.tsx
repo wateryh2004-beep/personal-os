@@ -2,13 +2,10 @@
 
 import {
   useEffect,
-  useId,
   useRef,
   useState,
-  useTransition,
-  type FormEvent,
 } from "react";
-import { unstable_rethrow, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Plus, SquareKanban } from "lucide-react";
 import { useDialogReturnFocus } from "@/components/shared/use-dialog-return-focus";
 import { Button } from "@/components/ui/button";
@@ -24,9 +21,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/shared/page-header";
 import { WorkbenchRecord } from "@/components/workbench/workbench-record";
 import { OperationLinkTarget } from "@/components/workbench/operation-links";
-import { createProject } from "@/features/projects/actions";
-import { ProjectProgress, type ProjectPresentation } from "./project-progress";
+import type { createProject } from "@/features/projects/actions";
+import { ProjectProgress,type ProjectWorkflowTransport, type ProjectPresentation } from "./project-progress";
 import styles from "./projects-workspace.module.css";
+import {IntentDraftForm} from "@/components/workflow-continuity/intent-draft-form";
+import {submitProjectCreationIntent,readProjectCreationIntent} from "@/features/projects/creation-intents";
+import { useDraftResumeOpeners } from "@/features/workflow-continuity/draft-resume";
+import { useDomainViewAdapter, waitForViewLayout } from "@/features/workbench/domain-adapters/use-domain-view-adapter";
+
+import {assertContinuousFixtureTransport} from "@/features/testing/continuous-fixture-gate";
+import type { ProjectMaterialAttachment } from "@/features/projects/queries";
 
 type Project = ProjectPresentation;
 type StatusFilter = "all" | "active" | "completed" | "paused" | "other";
@@ -37,7 +41,9 @@ const statusGroup = (status: string): Exclude<StatusFilter, "all"> =>
       ? "paused"
       : "other";
 
+export type ProjectCreationTransport={submit:typeof submitProjectCreationIntent;read:typeof readProjectCreationIntent};
 export function ProjectsWorkspace({
+  workflowTransport,createTransport,creationTransport,
   projects,
   initialCreateOpen = false,
   todoTasks = [],
@@ -46,7 +52,9 @@ export function ProjectsWorkspace({
   materials = [],
   materialsUnavailable = false,
   materialsTruncated = false,
+  attachments = [], attachmentsUnavailable = false, attachmentsTruncated = false,
 }: {
+  workflowTransport?:ProjectWorkflowTransport;createTransport?:typeof createProject;creationTransport?:ProjectCreationTransport;
   projects: Project[];
   initialCreateOpen?: boolean;
   todoTasks?: {
@@ -60,16 +68,16 @@ export function ProjectsWorkspace({
   materials?: { id: string; title: string; project_id: string | null }[];
   materialsUnavailable?: boolean;
   materialsTruncated?: boolean;
+  attachments?: ProjectMaterialAttachment[]; attachmentsUnavailable?: boolean; attachmentsTruncated?: boolean;
 }) {
+  assertContinuousFixtureTransport(workflowTransport);assertContinuousFixtureTransport(createTransport);assertContinuousFixtureTransport(creationTransport);
   const { rememberTrigger, restoreFocus } = useDialogReturnFocus();
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState("");
+  const [creating,setCreating]=useState(false),createBusy=useRef(false);
   const [success, setSuccess] = useState("");
-  const [pending, startTransition] = useTransition();
-  const submissionInFlight = useRef(false);
   const initialCreateIntent = useRef(initialCreateOpen);
   const searchParams = useSearchParams();
-  const errorId = useId();
+  const [expandedProjectIds,setExpandedProjectIds]=useState<string[]>([]);
   const rawStatus = searchParams.get("status");
   const statusFilter: StatusFilter =
     rawStatus === "active" ||
@@ -118,43 +126,18 @@ export function ProjectsWorkspace({
         `${url.pathname}${url.search}${url.hash}`,
       );
     }
-    setError("");
     setSuccess("");
     setOpen(true);
   }, [searchParams]);
 
+  useDraftResumeOpeners([{kind:"project.create",id:"new"},...projects.map(project=>({kind:"project.progress" as const,id:project.id}))],target=>{if(target.kind==="project.create"){setOpen(true);return;}if(!projects.some(project=>project.id===target.id))return false;setStatusFilter("all");setExpandedProjectIds(ids=>ids.includes(target.id)?ids:[...ids,target.id]);});
+  useDomainViewAdapter({kind:"projects",pathname:"/projects",ready:true,capture:()=>({kind:"projects",expandedProjectIds}),restore:async(state,context)=>{if(!context.current())return {status:"cancelled"};const ids=state.expandedProjectIds.filter(id=>projects.some(project=>project.id===id));setStatusFilter("all");setExpandedProjectIds(ids);if(!await waitForViewLayout(context))return {status:"cancelled"};return ids.length===state.expandedProjectIds.length?{status:"applied"}:{status:"partial",reason:"missing-record"};}});
   const changeOpen = (nextOpen: boolean) => {
-    if (submissionInFlight.current) return false;
-    setError("");
+    if(createBusy.current)return false;
     if (nextOpen) setSuccess("");
     setOpen(nextOpen);
   };
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (submissionInFlight.current) return;
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    submissionInFlight.current = true;
-    setError("");
-    startTransition(async () => {
-      try {
-        await createProject(data);
-        form.reset();
-        setOpen(false);
-        setSuccess("项目已创建");
-      } catch (error) {
-        unstable_rethrow(error);
-        setError(
-          error instanceof Error && error.message
-            ? error.message
-            : "项目暂时无法创建，当前输入已保留，请重试。",
-        );
-      } finally {
-        submissionInFlight.current = false;
-      }
-    });
-  };
   return (
     <div className={styles.workspace}>
       <PageHeader
@@ -226,11 +209,16 @@ export function ProjectsWorkspace({
                     target={{ type: "project", id: project.id }}
                     title={project.name}
                   >
-                    <ProjectProgress
+                    <ProjectProgress transport={workflowTransport}
+                      expanded={expandedProjectIds.includes(project.id)}
+                      onExpandedChange={expanded=>setExpandedProjectIds(ids=>expanded?[...new Set([...ids,project.id])]:ids.filter(id=>id!==project.id))}
                       project={project}
                       materials={materials.filter(
                         (note) => note.project_id === project.id,
                       )}
+                      attachments={attachments.filter(file=>file.projectId===project.id)}
+                      attachmentsUnavailable={attachmentsUnavailable}
+                      attachmentsTruncated={attachmentsTruncated}
                       materialsUnavailable={materialsUnavailable}
                       materialsTruncated={materialsTruncated}
                       tasks={todoTasks}
@@ -281,14 +269,8 @@ export function ProjectsWorkspace({
               建立项目容器；具体行动继续进入任务。
             </DialogDescription>
           </DialogHeader>
-          <form
-            onSubmit={submit}
-            aria-busy={pending}
-            aria-describedby={error ? errorId : undefined}
-            className="grid gap-3"
-          >
+          <IntentDraftForm onPendingChange={value=>{createBusy.current=value;setCreating(value);}} draft={{operation:"project.create",id:"new",href:"/projects",label:"新建项目"}} submit={creationTransport?.submit??submitProjectCreationIntent} read={creationTransport?.read??readProjectCreationIntent} onSaved={(_id,unchanged)=>{if(unchanged)setOpen(false);setSuccess(unchanged?"项目已创建":"原项目已创建，当前新输入尚未保存。");}} className="grid gap-3">
             <fieldset
-              disabled={pending}
               className="grid min-w-0 gap-3 disabled:opacity-70"
             >
               <legend className="sr-only">新建项目内容</legend>
@@ -320,25 +302,17 @@ export function ProjectsWorkspace({
                 <Button
                   type="button"
                   variant="ghost"
+                  disabled={creating}
                   onClick={() => changeOpen(false)}
                 >
-                  取消
+                  稍后继续
                 </Button>
-                <Button type="submit">
-                  {pending ? "正在创建…" : "创建项目"}
+                <Button type="submit" disabled={creating}>
+                  创建或核对项目
                 </Button>
               </div>
             </fieldset>
-            {error ? (
-              <p
-                id={errorId}
-                role="alert"
-                className="text-[12px] text-[var(--danger)]"
-              >
-                {error}
-              </p>
-            ) : null}
-          </form>
+          </IntentDraftForm>
         </DialogContent>
       </Dialog>
     </div>

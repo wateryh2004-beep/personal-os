@@ -2,7 +2,12 @@
 
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
+import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
+import type { ApplyContext, RestoreAck } from "@/features/workbench/view-state-registry";
+import type { ViewStateOf } from "@/features/workbench/view-state-contracts";
+type MapPosition = NonNullable<ViewStateOf<"travel">["map"]>;
+export type TravelMapController = { capture: () => MapPosition | null; restore: (position: MapPosition, context: ApplyContext) => Promise<RestoreAck> };
 
 type LocatedStop = {
   id: string;
@@ -16,10 +21,12 @@ export function TravelMap({
   stops,
   selectedStopId,
   onSelectStop,
+  controllerRef,
 }: {
   stops: LocatedStop[];
   selectedStopId?: string | null;
   onSelectStop?: (id: string) => void;
+  controllerRef?: RefObject<TravelMapController | null>;
 }) {
   const selectRef = useRef(onSelectStop);
   useEffect(() => {
@@ -60,6 +67,35 @@ export function TravelMap({
       map.remove();
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !controllerRef) return;
+    const owner = captureWorkspaceScope(); let disposed = false;
+    const capture = () => {
+      if (disposed || !owner()) return null;
+      const center = map.getCenter().wrap(), zoom = map.getZoom();
+      if (![center.lat, center.lng, zoom].every(Number.isFinite)) return null;
+      return { latitude: center.lat, longitude: center.lng, zoom };
+    };
+    const handle: TravelMapController = { capture, restore: (position, context) => new Promise(resolve => {
+      if (disposed || !owner() || !context.current()) { resolve({ status: "cancelled" }); return; }
+      if (!map.isStyleLoaded()) { resolve({ status: "partial", reason: "unavailable" }); return; }
+      let settled = false;
+      const finish = (ack: RestoreAck) => { if (settled) return; settled = true; clearTimeout(timer); map.off("render", rendered); context.signal.removeEventListener("abort", cancelled); resolve(ack); };
+      const cancelled = () => finish({ status: "cancelled" });
+      const rendered = () => {
+        if (disposed || !owner() || !context.current()) { cancelled(); return; }
+        const actual = capture();
+        if (actual && Math.abs(actual.latitude - position.latitude) < 1e-7 && Math.abs(actual.longitude - position.longitude) < 1e-7 && Math.abs(actual.zoom - position.zoom) < 1e-7) finish({ status: "applied" });
+      };
+      const timer = setTimeout(() => finish({ status: "partial", reason: "unavailable" }), 1500);
+      context.signal.addEventListener("abort", cancelled, { once: true }); map.on("render", rendered);
+      map.stop(); map.jumpTo({ center: [position.longitude, position.latitude], zoom: position.zoom }); map.triggerRepaint();
+    }) };
+    controllerRef.current = handle;
+    return () => { disposed = true; if (controllerRef.current === handle) controllerRef.current = null; };
+  }, [controllerRef]);
 
   useEffect(() => {
     const map = mapRef.current;

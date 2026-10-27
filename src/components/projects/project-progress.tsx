@@ -1,7 +1,11 @@
 "use client";
+import {assertContinuousFixtureTransport} from "@/features/testing/continuous-fixture-gate";
+import { draftResumeKey, focusDraftForm, useDraftResumeConsumer } from "@/features/workflow-continuity/draft-resume";
+import { DraftRecoveryStatus } from "@/components/workflow-continuity/draft-recovery-status";
+
 
 import { SourceLink } from "@/components/workflow-continuity/provider";
-import { useId, useState } from "react";
+import { useId,useLayoutEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { useWorkflowDraft } from "@/features/workflow-continuity/drafts";
 import {
@@ -13,10 +17,12 @@ import {
   saveProjectWorkflow,
 } from "@/features/projects/actions";
 import { Button } from "@/components/ui/button";
-import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
 import { Check, ChevronDown, Flag } from "lucide-react";
 import styles from "./projects-workspace.module.css";
 
+import type { ProjectMaterialAttachment } from "@/features/projects/queries";
+
+export type ProjectWorkflowTransport={read:typeof readProjectWorkflow;save:typeof saveProjectWorkflow};
 export type ProjectPresentation = {
   id: string;
   name: string;
@@ -39,6 +45,7 @@ export const projectStatusLabel: Record<string, string> = {
 
 /** A lifecycle, never a fabricated percentage, milestone, or next task. */
 export function ProjectProgress({
+  transport,
   project: initialProject,
   tasks = [],
   tasksUnavailable = false,
@@ -46,7 +53,11 @@ export function ProjectProgress({
   materials = [],
   materialsUnavailable = false,
   materialsTruncated = false,
+  attachments = [], attachmentsUnavailable = false, attachmentsTruncated = false,
+  expanded: controlledExpanded,
+  onExpandedChange,
 }: {
+  transport?:ProjectWorkflowTransport;
   project: ProjectPresentation;
   tasks?: {
     id: string;
@@ -59,7 +70,12 @@ export function ProjectProgress({
   materials?: { id: string; title: string; project_id: string | null }[];
   materialsUnavailable?: boolean;
   materialsTruncated?: boolean;
+  attachments?: ProjectMaterialAttachment[]; attachmentsUnavailable?: boolean; attachmentsTruncated?: boolean;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
 }) {
+  assertContinuousFixtureTransport(transport);
+  const readWorkflow=transport?.read??readProjectWorkflow,saveWorkflow=transport?.save??saveProjectWorkflow;
   const [project, setProject] = useState(initialProject);
   const [projectSource, setProjectSource] = useState(initialProject);
   if (projectSource !== initialProject) {
@@ -81,11 +97,12 @@ export function ProjectProgress({
     nextTask: z.string(),
     revision: z.number(),
   });
-  const { value, setValue, commit } = useWorkflowDraft({
+  const { value, setValue, commit, restored, recoveryUnavailable,isCurrent,uncertain,markUncertain,resolveUncertain } = useWorkflowDraft({
     kind: "task",
     id: `project:${project.id}`,
     label: `项目 · ${project.name}`,
     resumeHref: "/projects",
+    resumeTarget: { kind: "project.progress", id: project.id },
     initialValue: {
       goal: project.description ?? "",
       blocker: project.blocker_text ?? "",
@@ -98,7 +115,11 @@ export function ProjectProgress({
     },
   });
   const next = tasks.find((task) => task.id === project.next_todo_task_id);
-  const [expanded, setExpanded] = useState(false);
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const expanded=controlledExpanded??localExpanded;
+  const expandedRef=useRef(expanded);useLayoutEffect(()=>{expandedRef.current=expanded;},[expanded]);
+  const setExpanded=(next:boolean|((current:boolean)=>boolean))=>{const value=typeof next==="function"?next(expandedRef.current):next;expandedRef.current=value;setLocalExpanded(value);onExpandedChange?.(value);};
+  useDraftResumeConsumer({kind:"project.progress",identity:{id:project.id},ready:()=>true,open:async(target,context)=>{setExpanded(true);return focusDraftForm(target,context);}});
   const detailsId = useId();
   const completed = project.status === "completed";
   const active = project.status === "active";
@@ -109,7 +130,7 @@ export function ProjectProgress({
   const validDue = due && Number.isFinite(due.getTime()) ? due : null;
   const updated = new Date(project.updated_at);
   return (
-    <article className={styles.project} data-project-status={project.status}>
+    <article id={`project-${project.id}`} className={styles.project} data-project-status={project.status}>
       <div className={styles.projectHeading}>
         <div className={styles.projectIdentity}>
           <span className={styles.projectMark} aria-hidden="true">
@@ -199,15 +220,16 @@ export function ProjectProgress({
                 : "尚未选择"}
             </p>
             <form
+              data-workflow-draft-key={draftResumeKey({kind:"project.progress",id:project.id})}
               className="mt-4 grid gap-3"
               onSubmit={async (event) => {
                 event.preventDefault();
-                if (pending || recovery.reading) return;
+                if (!isCurrent() || pending || recovery.reading||uncertain) return;
                 setPending(true);
                 const snapshot = value,
-                  current = captureWorkspaceScope();
+                  current = isCurrent;
                 try {
-                  const saved = await saveProjectWorkflow({
+                  const saved = await saveWorkflow({
                     id: project.id,
                     revision: snapshot.revision,
                     goal: snapshot.goal,
@@ -223,12 +245,12 @@ export function ProjectProgress({
                     setMessage("目标、阻塞和下一步已保存");
                   }
                 } catch (error) {
-                  if (current())
+                  if (current()){markUncertain();
                     setMessage(
                       error instanceof Error
                         ? error.message
                         : "保存失败，输入保留",
-                    );
+                    );}
                 } finally {
                   if (current()) setPending(false);
                 }
@@ -305,7 +327,7 @@ export function ProjectProgress({
                 <p>只展示最近500项任务。更多任务可从任务模块查找。</p>
               ) : null}
               <div>
-                <Button disabled={pending || recovery.reading}>
+                <Button disabled={pending || recovery.reading||uncertain}>
                   {pending ? "保存中…" : "保存项目下一步"}
                 </Button>
                 <a
@@ -316,13 +338,14 @@ export function ProjectProgress({
                 </a>
               </div>
               {message ? <p role="status">{message}</p> : null}
+              {uncertain?<p role="status">原保存结果尚未确认，当前输入保留。请先读取最新记录并明确比较；不会重复发送原保存。</p>:null}<DraftRecoveryStatus restored={restored} recoveryUnavailable={recoveryUnavailable} />
             </form>
             <RevisionRecovery
               label="项目"
               recovery={recovery}
               disabled={pending}
               onRead={() =>
-                void recovery.read(() => readProjectWorkflow(project.id))
+                void recovery.read(() => readWorkflow(project.id))
               }
               current={
                 <>
@@ -357,6 +380,7 @@ export function ProjectProgress({
                 </>
               )}
               onKeep={(latest) => {
+                resolveUncertain();
                 setProject(latest);
                 setValue((before) => ({
                   ...before,
@@ -365,6 +389,7 @@ export function ProjectProgress({
                 setMessage("已保留当前输入，改为基于刚读取的版本；尚未保存。");
               }}
               onAdopt={(latest) => {
+                resolveUncertain();
                 setProject(latest);
                 commit(value, () => ({
                   goal: latest.description ?? "",
@@ -394,6 +419,8 @@ export function ProjectProgress({
                   ))}
                 </ul>
               )}
+              {attachmentsUnavailable ? <p role="status">资料附件暂时无法读取。</p> : attachments.length ? <section className="mt-3"><h4>该资料附件</h4><ul>{attachments.map(file=><li key={`${file.noteId}:${file.id}`} className="flex flex-wrap gap-x-3"><SourceLink className="ui-link inline-flex min-h-11 items-center" sourceLabel={project.name} href={`/files?file=${file.id}`}>{file.title || file.original_filename || "文件附件"}</SourceLink><SourceLink className="ui-link inline-flex min-h-11 items-center text-xs" sourceLabel={project.name} href={`/notes/${file.noteId}`}>所在笔记</SourceLink></li>)}</ul></section> : !materialsUnavailable && materials.length ? <p>这些资料暂未关联可用附件。</p> : null}
+              {attachmentsTruncated ? <p role="status">附件读取达到本次上限，较早附件仍保留。</p> : null}
               {materialsTruncated ? (
                 <p>本次仅列最近500篇有项目归属的笔记，较早资料仍保留。</p>
               ) : null}

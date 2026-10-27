@@ -147,7 +147,7 @@ describe("investment form interactions", () => {
     expect(mocks.account).toHaveBeenCalledOnce();
     expect(button("取消").disabled).toBe(true);
     expect(button("保存中…").disabled).toBe(true);
-    expect(dialog()!.querySelector("fieldset")!.disabled).toBe(true);
+    expect(dialog()!.querySelector("fieldset")!.disabled).toBe(false);expect(field("name").matches(":disabled")).toBe(false);
     await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(dialog()).not.toBeNull();
     await act(async () => finish({ ok: true }));

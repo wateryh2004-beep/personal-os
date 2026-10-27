@@ -30,14 +30,16 @@ export async function readMetadataOperationTargets(kind: "note" | "document", id
   return data as { id: string; title: string; folder_id: string | null; mutation_revision: number }[];
 }
 /** A missing baseline belongs to an old client; never substitute a newer server read. */
-export async function runMetadataForm(operation: MetadataCommand["operation"], formData: FormData, kind: "note" | "document") {
+export async function runMetadataForm(operation: MetadataCommand["operation"], formData: FormData, kind: "note" | "document"): Promise<{ saved: true; receiptId?: string; savedRevision?: number }> {
   const id = z.string().uuid().parse(formData.get(kind === "note" ? "note_id" : "document_id"));
   const baseline = formData.get("expected_revision");
   if (typeof baseline !== "string" || !/^[0-9]+$/.test(baseline) || !Number.isSafeInteger(Number(baseline))) throw new Error("请重新打开操作，读取最新记录后重试。");
   const request = formData.get("request_id");
   const result = await applyMetadataOperation({ requestId: request || crypto.randomUUID(), operation, items: [{ id, expectedRevision: Number(baseline), ...(operation.endsWith("rename") ? { title: String(formData.get("title") || "") } : {}), ...(operation.endsWith("move") ? { folderId: String(formData.get("folder_id") || "") || null } : {}) }] });
   if (result.status !== "success") throw new Error(result.message);
-  return { saved: true as const, receiptId: result.receiptId };
+  const committed = z.array(z.object({ id: z.uuid(), mutation_revision: z.number().int().nonnegative() }).passthrough()).safeParse(result.rows);
+  const savedRevision = committed.success ? committed.data.find(row => row.id === id)?.mutation_revision : undefined;
+  return { saved: true as const, receiptId: result.receiptId, savedRevision };
 }
 export async function listWorkbenchOperations() {
   const { supabase, userId } = await requireOwner();
@@ -94,7 +96,7 @@ export async function previewWorkbenchUndo(receiptId:string){
  const definitions:Record<string,{table:string;title:string}>={note_rename:{table:"notes",title:"title"},note_move:{table:"notes",title:"title"},note_trash:{table:"notes",title:"title"},note_archive:{table:"notes",title:"title"},file_rename:{table:"documents",title:"title"},file_move:{table:"documents",title:"title"},file_archive:{table:"documents",title:"title"},tasks_update:{table:"microsoft_todo_tasks",title:"title"},tasks_complete:{table:"microsoft_todo_tasks",title:"title"},calendar_update:{table:"calendar_events",title:"subject"},shopping_quantity:{table:"purchase_items",title:"title"},shopping_purchased:{table:"purchase_items",title:"title"},travel_stop_metadata:{table:"trip_stops",title:"place_name"},travel_stop_arrival:{table:"trip_stops",title:"place_name"},travel_stop_order:{table:"trip_stops",title:"place_name"},travel_next_stop:{table:"trips",title:"title"},travel_document:{table:"trips",title:"title"},leisure_progress:{table:"leisure_experiences",title:"title"}};
  const def=definitions[r.operation];let title="关联记录";
  if(def){const {data:target}=await supabase.from(def.table).select(def.title).eq("id",r.target_id).maybeSingle();const metadata=target as Record<string,unknown>|null;if(metadata&&typeof metadata[def.title]==="string")title=String(metadata[def.title]);else title="已归档或暂不可见的记录";}
- const labels:Record<string,string>={title:"标题",subject:"标题",folder_id:"文件夹",status:"状态",archived_at:"归档",deleted_at:"回收站",dueAt:"截止时间",importance:"重要性",completedAt:"完成时间",startsAt:"开始",endsAt:"结束",isAllDay:"全天",locationName:"地点",categories:"分类",showAs:"忙闲状态",quantity:"数量",quantity_unit:"单位",day_number:"天数",planned_time:"计划时间",duration_minutes:"停留分钟",arrived_at:"到达标记",sort_order:"顺序",current_stop_id:"当前站",next_stop_id:"下一站",document_id:"票据",linked:"关联",progress_value:"进度",progress_unit:"单位",progress_note:"进度说明",progress_kind:"进度类型"};
+ const labels:Record<string,string>={bodyText:"正文",title:"标题",subject:"标题",folder_id:"文件夹",status:"状态",archived_at:"归档",deleted_at:"回收站",dueAt:"截止时间",importance:"重要性",completedAt:"完成时间",startsAt:"开始",endsAt:"结束",isAllDay:"全天",locationName:"地点",categories:"分类",showAs:"忙闲状态",quantity:"数量",quantity_unit:"单位",day_number:"天数",planned_time:"计划时间",duration_minutes:"停留分钟",arrived_at:"到达标记",sort_order:"顺序",current_stop_id:"当前站",next_stop_id:"下一站",document_id:"票据",linked:"关联",progress_value:"进度",progress_unit:"单位",progress_note:"进度说明",progress_kind:"进度类型"};
  const values:Record<string,string>={notStarted:"未开始",inProgress:"进行中",completed:"已完成",waitingOnOthers:"等待他人",deferred:"已延后",active:"正常",trashed:"回收站",archived:"归档",normal:"普通",low:"低",high:"高",free:"空闲",busy:"忙碌",tentative:"暂定"};
  const format=async(key:string,value:unknown):Promise<string>=>{
   if(value===null||value===undefined||value==="")return key==="folder_id"?"根目录":"未设置";
@@ -103,6 +105,7 @@ export async function previewWorkbenchUndo(receiptId:string){
   if(key==="document_id"){const {data:file}=await supabase.from("documents").select("title").eq("id",String(value)).maybeSingle();return file?.title??"原票据不可见";}
   if(["archived_at","deleted_at","arrived_at"].includes(key))return "已标记";
   if(["dueAt","completedAt","startsAt","endsAt"].includes(key)&&typeof value==="string"&&Number.isFinite(Date.parse(value)))return new Intl.DateTimeFormat("zh-CN",{timeZone:timezone,dateStyle:"short",timeStyle:"short"}).format(new Date(value));
+  if(key==="bodyText"&&typeof value==="string")return value;
   if(typeof value==="boolean")return value?"是":"否";if(Array.isArray(value))return value.map(String).join("、")||"未设置";return values[String(value)]??String(value).slice(0,500);
  };
  const changes:{label:string;before:string;after:string}[]=[];

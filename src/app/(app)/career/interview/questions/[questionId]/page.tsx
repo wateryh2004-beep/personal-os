@@ -1,3 +1,5 @@
+import {CareerForm} from "@/components/career/career-form";
+import {submitInterviewForm} from "@/features/interview/form-actions";
 import { InterviewStudyView } from "@/components/career/interview/interview-study-view";
 import { InterviewPrompt } from "@/components/career/interview/interview-prompt";
 import Link from "next/link";
@@ -5,16 +7,10 @@ import { notFound } from "next/navigation";
 import {
   archiveInterviewAnswerVersion,
   archiveInterviewQuestion,
-  createInterviewAnswerVersion,
-  createInterviewQuestion,
   ensureInterviewPreparation,
-  linkInterviewEvidence,
-  linkStoryToArchetype,
   promoteInterviewAnswerVersion,
   unlinkInterviewEvidence,
   unlinkStoryFromArchetype,
-  updateInterviewPreparation,
-  updateInterviewQuestion,
 } from "@/features/interview/actions";
 import { getInterviewQuestionDetail } from "@/features/interview/queries";
 import {
@@ -106,7 +102,7 @@ export default async function InterviewQuestionPage({
           <section className="mb-12">
             <h3 className="text-[15px] font-medium text-[var(--text-primary)]">答案版本原文</h3>
             {primaryAnswer?.status === "draft" ? <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">可直接阅读。请核对答案依据与适用条件；保存并确认后才会成为当前答案。</p> : null}
-            <form action={createInterviewAnswerVersion} className="mt-3">
+            <CareerForm draft={{operation:"interview.answer",id:prep.id,parentId:questionId,contextId:prep.context_id??undefined,href:`/career/interview/questions/${questionId}${prep.context_id?`?context=${prep.context_id}`:""}`,label:"答案版本原文"}} action={submitInterviewForm.bind(null,"answer")} className="mt-3">
               <input type="hidden" name="preparation_id" value={prep.id} />
               <input type="hidden" name="answer_mode" value="spoken" />
               <input type="hidden" name="target_seconds" value={primaryAnswer?.target_seconds ?? ""} />
@@ -128,13 +124,13 @@ export default async function InterviewQuestionPage({
                 <button className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">保存并确认为当前答案</button>
                 <Link href={`/career/interview/practice/${prep.id}`} className="text-xs font-medium text-[var(--accent)]">练习这道题 →</Link>
               </div>
-            </form>
+            </CareerForm>
           </section>
 
           <section className="mb-10">
             <h2 className="text-[15px] font-medium text-[var(--text-primary)]">思路拆解讲解</h2>
-            <form action={updateInterviewPreparation} className="mt-3">
-              <PreparationStateFields prep={prep} questionId={questionId} />
+            <CareerForm draft={{operation:"interview.preparation",id:prep.id,parentId:questionId,contextId:prep.context_id??undefined,href:`/career/interview/questions/${questionId}${prep.context_id?`?context=${prep.context_id}`:""}`,label:"思路拆解讲解"}} action={submitInterviewForm.bind(null,"preparation")} className="mt-3">
+              <PreparationStateFields prep={prep} questionId={questionId} /><input type="hidden" name="expected_updated_at" value={prep.updated_at}/>
               <textarea
                 aria-label="思路拆解讲解"
                 name="working_thoughts_markdown"
@@ -144,7 +140,7 @@ export default async function InterviewQuestionPage({
                 className="w-full resize-y bg-transparent px-0 py-2 text-[15px] leading-7 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
               />
               <button className="mt-2 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">保存思路</button>
-            </form>
+            </CareerForm>
           </section>
 
           </details>
@@ -212,7 +208,7 @@ export default async function InterviewQuestionPage({
                   {!data.archetypeStories.length ? <p className="text-xs text-[var(--text-tertiary)]">这个母题还没有可调用的故事。</p> : null}
                 </div>
                 {data.archetype ? (
-                  <form action={linkStoryToArchetype} className="mt-4 flex flex-wrap items-end gap-2">
+                  <CareerForm draft={{operation:"interview.story-link",id:data.archetype.id,parentId:questionId,contextId:prep.context_id??undefined,href:`/career/interview/questions/${questionId}${prep.context_id?`?context=${prep.context_id}`:""}`,label:"关联母题故事"}} action={submitInterviewForm.bind(null,"storyLink")} className="mt-4 flex flex-wrap items-end gap-2">
                     <input type="hidden" name="archetype_id" value={data.archetype.id} />
                     <select aria-label="关联故事" name="story_id" className="min-w-64 px-3 py-2 text-sm">
                       {data.storyCatalog
@@ -224,7 +220,7 @@ export default async function InterviewQuestionPage({
                     </select>
                     <input type="hidden" name="fit_note" value="" />
                     <button className="text-xs text-[var(--accent)]">关联故事</button>
-                  </form>
+                  </CareerForm>
                 ) : null}
               </section>
 
@@ -262,7 +258,7 @@ export default async function InterviewQuestionPage({
                     </div>
                   ))}
                 </div>
-                <form action={linkInterviewEvidence} className="mt-4 flex flex-wrap items-end gap-2">
+                <CareerForm draft={{operation:"interview.evidence-link",id:prep.id,parentId:questionId,contextId:prep.context_id??undefined,href:`/career/interview/questions/${questionId}${prep.context_id?`?context=${prep.context_id}`:""}`,label:"关联面试证据"}} action={submitInterviewForm.bind(null,"evidenceLink")} className="mt-4 flex flex-wrap items-end gap-2">
                   <input type="hidden" name="preparation_id" value={prep.id} />
                   <select aria-label="关联证据" name="target_ref" className="min-w-64 px-3 py-2 text-sm">
                     {Object.entries(evidenceTypeLabels).map(([type,label]) => {
@@ -274,7 +270,7 @@ export default async function InterviewQuestionPage({
                     {evidenceRelationships.map((value) => <option key={value} value={value}>{evidenceRelationshipLabels[value]}</option>)}
                   </select>
                   <button className="text-xs text-[var(--accent)]">关联</button>
-                </form>
+                </CareerForm>
               </section>
 
               <section>
@@ -286,7 +282,7 @@ export default async function InterviewQuestionPage({
                     </Link>
                   ))}
                 </div>
-                <form action={createInterviewQuestion} className="mt-4">
+                <CareerForm draft={{operation:"interview.question-create",id:question.id,contextId:prep.context_id??undefined,href:`/career/interview/questions/${questionId}${prep.context_id?`?context=${prep.context_id}`:""}`,label:"添加追问"}} action={submitInterviewForm.bind(null,"questionCreate")} className="mt-4">
                   <textarea aria-label="题目" required name="canonical_prompt" rows={2} placeholder="新增追问" className="w-full max-w-xl px-3 py-2 text-sm" />
                   <input type="hidden" name="context_id" value={prep.context_id ?? ""} />
                   <input type="hidden" name="short_title" value="" />
@@ -305,13 +301,13 @@ export default async function InterviewQuestionPage({
                   <input type="hidden" name="follow_up_kind" value="deep_dive" />
                   <input type="hidden" name="difficulty" value={Math.min(5, Number(question.difficulty) + 1)} />
                   <button className="mt-2 text-xs text-[var(--accent)]">添加</button>
-                </form>
+                </CareerForm>
               </section>
 
 
               <details>
                 <summary className="cursor-pointer text-xs text-[var(--text-tertiary)]">题目设置</summary>
-                <form action={updateInterviewQuestion} className="mt-4 grid gap-3">
+                <CareerForm draft={{operation:"interview.question-edit",id:question.id,href:`/career/interview/questions/${questionId}${prep.context_id?`?context=${prep.context_id}`:""}`,label:"面试题设置"}} action={submitInterviewForm.bind(null,"questionEdit")} className="mt-4 grid gap-3">
                   <input type="hidden" name="question_id" value={question.id}/>
                   <textarea aria-label="题目" name="canonical_prompt" defaultValue={question.canonical_prompt} rows={3} required className="w-full px-3 py-2 text-sm" />
                   <input type="hidden" name="short_title" value={question.short_title ?? ""}/>
@@ -330,7 +326,7 @@ export default async function InterviewQuestionPage({
                   <input type="hidden" name="parent_question_id" value={question.parent_question_id ?? ""}/>
                   <input type="hidden" name="follow_up_kind" value={question.follow_up_kind ?? ""}/>
                   <button className="w-fit text-xs text-[var(--accent)]">保存题目</button>
-                </form>
+                </CareerForm>
                 <form action={archiveInterviewQuestion} className="mt-3"><input type="hidden" name="question_id" value={question.id}/><button className="text-xs text-red-600">归档题目</button></form>
               </details>
             </div>

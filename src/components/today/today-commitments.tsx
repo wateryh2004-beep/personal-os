@@ -3,7 +3,7 @@
 import { DeferTaskControl } from "./today-task-actions";
 export { DeferTaskControl } from "./today-task-actions";
 
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
 import { useState } from "react";
 import { CalendarPlus, Check, CheckSquare2, ChevronDown, Inbox } from "lucide-react";
 import type { NowCommitment } from "@/features/today/types";

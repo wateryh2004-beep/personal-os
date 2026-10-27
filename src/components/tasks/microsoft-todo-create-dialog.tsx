@@ -7,12 +7,13 @@ import { useDialogReturnFocus } from "@/components/shared/use-dialog-return-focu
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
-  createMicrosoftTodoTaskAction,
   type TodoCreateState,
 } from "@/features/tasks/microsoft-todo";
 import type { TodoList } from "@/features/tasks/types";
 import { resolveQuickAddTarget } from "@/features/tasks/task-view";
-import { taskDueInputToIso } from "@/features/tasks/due-time";
+import {useTaskCreationDraft,taskCreateFieldsFromForm,type TaskCreationTransport} from "@/features/workflow-continuity/task-create-draft";
+import {useDraftResumeConsumer,focusDraftForm} from "@/features/workflow-continuity/draft-resume";
+import {DraftRecoveryStatus} from "@/components/workflow-continuity/draft-recovery-status";
 
 const initialState: TodoCreateState = { status: "idle", message: "" };
 
@@ -23,9 +24,9 @@ export function MicrosoftTodoCreateDialog({
   lists,
   selectedListId = null,
   initialOpen = false,
-  onCreated,
+  onCreated,transport,
 }: {
-  lists: TodoList[];
+  lists: TodoList[];transport?:TaskCreationTransport;
   selectedListId?: string | null;
   initialOpen?: boolean;
   onCreated: (taskId: string) => Promise<void>;
@@ -33,13 +34,16 @@ export function MicrosoftTodoCreateDialog({
   const { rememberTrigger, restoreFocus } = useDialogReturnFocus();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<TodoCreateState>(initialState);
-  const [pending, setPending] = useState(false);
+
   const [createdTaskId, setCreatedTaskId] = useState<string | null>(null);
-  const formRef = useRef<HTMLFormElement>(null);
+
   const submittingRef = useRef(false);
   const initialRequestHandled = useRef(false);
   const createRequested = useSearchParams().get("create") === "1";
   const defaultList = resolveQuickAddTarget(lists, selectedListId)?.id;
+  const {formRef,...draft}=useTaskCreationDraft("task.create","new",{title:"",body_text:"",todo_list_id:defaultList??"",importance:"normal",due_at:""},transport);
+  const pending=draft.pending;const visibleState=state.status==="idle"?draft.state:state;
+  useDraftResumeConsumer({kind:"task.create",identity:{id:"new"},priority:1,ready:()=>lists.length>0,open:async(target,context)=>{setOpen(true);return focusDraftForm(target,context);}});
 
   useEffect(() => {
     const requested = createRequested || (initialOpen && !initialRequestHandled.current);
@@ -63,10 +67,10 @@ export function MicrosoftTodoCreateDialog({
   const changeOpen = (next: boolean) => {
     if (submittingRef.current) return false;
     if (!next) {
-      formRef.current?.reset();
       setState(initialState);
       setCreatedTaskId(null);
     }
+    if(next)draft.adoptDefaultList(defaultList??"");
     setOpen(next);
   };
 
@@ -83,40 +87,22 @@ export function MicrosoftTodoCreateDialog({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submittingRef.current || createdTaskId !== null) return;
-    const form = new FormData(event.currentTarget);
-    if (!String(form.get("title") || "").trim()) return;
-    try {
-      form.set("due_at", taskDueInputToIso(String(form.get("due_at") || "")) ?? "");
-    } catch {
-      setState({ status: "error", message: "截止时间无效或处于夏令时切换时段，请选择另一个时间。" });
-      return;
-    }
-    submittingRef.current = true;
-    setPending(true);
-    setState(initialState);
-    try {
-      const result = await createMicrosoftTodoTaskAction(initialState, form);
-      setState(result);
-      if (result.status === "success") {
-        // Creation is confirmed even if the follow-up read fails. Never submit it again.
-        setCreatedTaskId(result.taskId ?? "");
-        if (result.taskId) await readCreatedTask(result.taskId);
-        else setState({ status: "success", message: "任务已创建，请关闭后重新读取任务列表。" });
+    submittingRef.current=true;
+    try{
+      const outcome=await draft.submit(taskCreateFieldsFromForm(event.currentTarget));if(!outcome)return;
+      const {result,unchanged}=outcome;setState(result);
+      if(result.status==="success"){
+        if(unchanged){setCreatedTaskId(result.taskId??"");if(result.taskId)await readCreatedTask(result.taskId);}
+        else setState({status:"success",message:"原任务已创建，当前新输入尚未保存。"});
       }
-    } catch {
-      setState({ status: "error", message: "提交结果尚未确认，请重新读取任务后再重试，避免重复创建。" });
-    } finally {
-      submittingRef.current = false;
-      setPending(false);
-    }
+    }finally{submittingRef.current=false;}
   };
 
   const retryRead = async () => {
     if (submittingRef.current || !createdTaskId) return;
     submittingRef.current = true;
-    setPending(true);
     try { await readCreatedTask(createdTaskId); }
-    finally { submittingRef.current = false; setPending(false); }
+    finally { submittingRef.current = false;  }
   };
 
   return (
@@ -141,12 +127,12 @@ export function MicrosoftTodoCreateDialog({
             尚未同步到 Microsoft To Do 清单。请先关闭窗口并刷新任务。
           </p>
         ) : (
-          <form ref={formRef} onSubmit={(event) => void submit(event)} className="mt-2 grid gap-4" aria-busy={pending}>
-            <fieldset disabled={pending || createdTaskId !== null} className="grid gap-4">
+          <form ref={formRef} {...draft.attributes} onSubmit={(event) => void submit(event)} className="mt-2 grid gap-4" aria-busy={pending}>
+            <DraftRecoveryStatus dirty restored={draft.restored} recoveryUnavailable={draft.recoveryUnavailable}/><fieldset disabled={createdTaskId !== null} className="grid gap-4">
             <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">
               任务标题
               <input
-                name="title"
+                name="title" value={draft.fields.title} onChange={event=>draft.setField("title",event.target.value)}
                 required
                 maxLength={500}
                 autoFocus
@@ -158,7 +144,7 @@ export function MicrosoftTodoCreateDialog({
             <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">
               说明
               <textarea
-                name="body_text"
+                name="body_text" value={draft.fields.body_text} onChange={event=>draft.setField("body_text",event.target.value)}
                 rows={4}
                 maxLength={10000}
                 placeholder="补充背景、步骤或链接"
@@ -169,8 +155,8 @@ export function MicrosoftTodoCreateDialog({
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">
                 清单
-                <select name="todo_list_id" defaultValue={defaultList} className={fieldClass}>
-                  {lists.map((list) => (
+                <select name="todo_list_id" value={draft.fields.todo_list_id} onChange={event=>draft.setField("todo_list_id",event.target.value)} className={fieldClass}>
+                  {!lists.some(list=>list.id===draft.fields.todo_list_id)?<option disabled value={draft.fields.todo_list_id}>原清单当前不可用，请重新选择</option>:null}{lists.map((list) => (
                     <option key={list.id} value={list.id}>
                       {list.displayName}
                       {list.isDefault ? "（默认）" : ""}
@@ -181,7 +167,7 @@ export function MicrosoftTodoCreateDialog({
 
               <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">
                 优先级
-                <select name="importance" defaultValue="normal" className={fieldClass}>
+                <select name="importance" value={draft.fields.importance} onChange={event=>draft.setField("importance",event.target.value)} className={fieldClass}>
                   <option value="normal">普通</option>
                   <option value="high">高</option>
                   <option value="low">低</option>
@@ -191,19 +177,19 @@ export function MicrosoftTodoCreateDialog({
 
             <label className="grid gap-1.5 text-[12px] font-medium text-[var(--text-tertiary)]">
               截止时间
-              <input name="due_at" type="datetime-local" className={fieldClass} />
+              <input name="due_at" value={draft.fields.due_at} onChange={event=>draft.setField("due_at",event.target.value)} type="datetime-local" className={fieldClass} />
             </label>
 
             </fieldset>
 
-            {state.status !== "idle" ? (
+            {visibleState.status !== "idle" ? (
               <p
-                role={state.status === "error" ? "alert" : "status"}
+                role={visibleState.status === "error" ? "alert" : "status"}
                 className={`text-[12px] ${
-                  state.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"
+                  visibleState.status === "success" ? "text-[var(--success)]" : "text-[var(--danger)]"
                 }`}
               >
-                {state.message}
+                {visibleState.message}
               </p>
             ) : null}
 
@@ -217,7 +203,7 @@ export function MicrosoftTodoCreateDialog({
                 </Button>
               ) : (
                 <Button disabled={pending} type="submit">
-                  {pending ? "正在创建…" : "创建任务"}
+                  {pending ? "处理中…" : draft.uncertain?"核对原提交":"创建任务"}
                 </Button>
               )}
             </div>

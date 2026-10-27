@@ -8,7 +8,7 @@
 
 公共能力见 [连续性契约](../contracts/workflow-continuity.md)。技术 registry 不建立万能业务表。普通草稿仅在本标签页有限期恢复；Vault、认证凭据与第三方 token 不进入目录。任务托盘必须连接实际执行器，浏览器关闭后的上传、OCR 和流式 AI 不声称仍在运行。
 
-本批领域行为和数据边界分别见[材料来源定位契约](../contracts/material-source-locators.md)与[连续领域工作流契约](../contracts/continuous-domain-workflows.md)。这些文件与本规格均处于实施中；契约存在不代表全批已验证或上线。
+本批领域行为和数据边界分别见[材料来源定位契约](../contracts/material-source-locators.md)与[连续领域工作流契约](../contracts/continuous-domain-workflows.md)。这些文件与本规格均处于实施中；契约存在不代表全批已验证或上线。固定数据库检查点的实际隔离结果、十条迁移顺序及界面/生产待办见[2026-10-28 候选验收记录](../verification/2026-10-28-continuous-workflows-v3.md)。
 
 ## 范围与验收矩阵
 
@@ -38,14 +38,14 @@
 ## 实施与发布顺序
 
 1. 固定公共scope/lifecycle、草稿、来源、相邻编辑契约；各域明确adapter和文件归属。
-2. additive migration先在隔离SQL环境验证干净安装与升级、owner A/B/anon、FK、CAS、幂等/并发、审计回滚及备份覆盖；四条迁移按 material sources → domain workflows → material receipts → inbox dispatch mutex 的依赖顺序，不改已部署migration。
+2. additive migration先在隔离SQL环境验证干净安装与升级、owner A/B/anon、FK、CAS、幂等/并发、审计回滚及备份覆盖。本批十条依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile；精确文件名及固定提交证据见[候选验收记录](../verification/2026-10-28-continuous-workflows-v3.md#十条迁移与生产版本登记)，不改已部署migration。
 3. 各域实现真实读写闭环，再做独立质量审查和反模式检查。按风险运行现有单元/组件/HTTP/数据库及仓库要求，失败修复后重验。
 4. 合成数据浏览器覆盖360/390/1440、实际200%文字、减少动态效果、forced colors、键盘/触摸、错误/中断/反向/返回。截图证明布局，连续录屏证明动作与状态；不以脚本存在充当执行证据。
-5. 已授权GitHub PR、CI和部署，确认精确候选提交及数据库顺序后发布。生产迁移通过已连接Supabase执行，核对目标项目、实际版本/RLS/ACL；不使用真实密码或外部真实写入作默认测试。
+5. 已授权GitHub PR、CI和部署，确认精确候选提交及数据库顺序后发布。生产迁移通过已连接Supabase MCP执行，核对目标项目、实际版本/RLS/ACL。MCP不接受version参数，逐条核对实际迁移列表与schema；平台时间戳不同只对齐本地文件名、严格清单和文档元数据，SQL字节/哈希不变，再校验，不双写history或用CLI/REST绕过。不使用真实密码或外部真实写入作默认测试。
 6. 生产精确版本/域名/匿名协议与可自动完成的受保护流程分别记录；READY不等于生产全通过。工具不可用如实记录，不让所有者手动测试，不伪造验收。
 
 ## 回退与保留
 
-新schema均向后兼容；优先回退代码保留新增用户内容、版本、引用和审计。进行中的浏览器任务在离开整站/关闭标签页时可能中断，回退前检查现有上传会话、OCR lease、AI run与provider receipt；不自动重发未知外部操作。不可变note/feed/project版本、原件及购后资料进入备份契约；不得删除真实资料恢复旧界面。
+Schema以扩展为主，但新Scene JSON需要兼容reader，不能概称任意旧代码都向后兼容。当前最早已登记的兼容reader检查点为`93f88f9f127717cca3f8a6895b515ffd0b381357`；生产基线`a5803dda`不能读取本批新Scene。实际回退仍需核对候选构建与配置，保留新增用户内容、版本、引用和审计，不用down/delete回滚。进行中的浏览器任务在离开整站/关闭标签页时可能中断，回退前检查现有上传会话、OCR lease、AI run与provider receipt；不自动重发未知外部操作。不可变note/feed/project版本、原件及购后资料进入备份契约；不得删除真实资料恢复旧界面。
 
 所有项目初始状态均为“待实现/待验证”；验收记录必须按固定SHA逐项更新实际证据和限制。

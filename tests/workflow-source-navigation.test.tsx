@@ -136,3 +136,9 @@ describe("real shared navigation boundary and source trail", () => {
     await act(async () => first.resolve(scene)); expect(mocks.push.mock.calls).toEqual([["/files"]]);
   });
 });
+
+it("keeps a real one-shot/unknown query on its ordinary Link instead of silently dropping it during source capture", async () => {
+  await mount(<SourceLink href="/tasks?create=1">create task</SourceLink>);
+  await act(async () => link("create task").click());
+  expect(mocks.push).toHaveBeenCalledExactlyOnceWith("/tasks?create=1"); expect(mocks.capture).not.toHaveBeenCalled(); expect(getSourceTrail()).toEqual([]);
+});

@@ -1,0 +1,36 @@
+// @vitest-environment jsdom
+import React, { act } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+const boundary = vi.hoisted(() => ({ save: vi.fn(), push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: boundary.push }) }));
+vi.mock("@/features/reviews/actions", () => ({ completeReview: boundary.save, generateReviewDraft: vi.fn(), generateReviewProposals: vi.fn(), readReviewProposalGeneration: vi.fn() }));
+import { ReviewComposer } from "@/components/reviews/review-composer";
+import { clearWorkspaceResources } from "@/lib/workspace-resource-cache";
+import type { ReviewEvidence } from "@/features/reviews/evidence";
+const noteId = "55555555-5555-4555-8555-555555555555";
+const initial = { wins: [], friction: [], openLoops: [], changes: [], lessons: [], nextFocus: [], freeReflection: "submitted A" };
+const evidence: ReviewEvidence = { reviewType: "daily", periodStart: "2026-10-27", periodEnd: "2026-10-27", timezone: "Asia/Shanghai", generatedAt: "2026-10-27T00:00:00Z", calendar: [], tasksCompleted: [], tasksOpen: [], notes: [{ type: "note", id: noteId, title: "Synthetic selected evidence", occurredAt: "2026-10-27T00:00:00Z", href: `/notes/${noteId}` }], inbox: [], career: [], projects: [], decisions: [] };
+let host: HTMLDivElement, root: ReturnType<typeof createRoot>;
+beforeEach(() => { Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true }); clearWorkspaceResources(); vi.clearAllMocks(); host = document.createElement("div"); document.body.append(host); root = createRoot(host); });
+afterEach(async () => { await act(async () => root.unmount()); host.remove(); clearWorkspaceResources(); });
+const button = (text: string) => [...host.querySelectorAll("button")].find(value => value.textContent === text)!;
+it("preserves newly cited real evidence even when the visible text is restored to submitted A", async () => {
+  let release!: (value: { reviewId: string }) => void;
+  boundary.save.mockImplementationOnce(() => new Promise(resolve => { release = resolve; })).mockResolvedValue({ reviewId: "33333333-3333-4333-8333-333333333333" });
+  await act(async () => root.render(<ReviewComposer type="daily" evidence={evidence} initialValue={initial} />));
+  await act(async () => button("完成复盘").click());
+  expect(boundary.save).toHaveBeenNthCalledWith(1, expect.objectContaining({ selectedSources: [] }));
+  await act(async () => host.querySelector<HTMLInputElement>(`input[aria-label="选择证据 Synthetic selected evidence"]`)!.click());
+  await act(async () => button("插入所选 1 条证据").click());
+  const field = host.querySelectorAll("textarea")[4];
+  expect(field.value).toContain("Synthetic selected evidence");
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field, "submitted A"); field.dispatchEvent(new Event("input", { bubbles: true })); });
+  await act(async () => release({ reviewId: "33333333-3333-4333-8333-333333333333" }));
+  expect(boundary.push).not.toHaveBeenCalled();
+  expect(field.value).toBe("submitted A");
+  expect(host.textContent).toContain("后续修改尚未保存");
+  await act(async () => button("完成复盘").click());
+  expect(boundary.save).toHaveBeenNthCalledWith(2, expect.objectContaining({ selectedSources: [{ sourceType: "note", sourceId: noteId }], structuredData: initial }));
+  expect(boundary.push).toHaveBeenCalledExactlyOnceWith("/reviews/33333333-3333-4333-8333-333333333333");
+});

@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
@@ -11,6 +11,9 @@ import { workbenchReadInputSchema, workbenchRefKey, type WorkbenchEntity, type W
 import type { WorkspaceSceneList, WorkspaceSceneMetadata } from "@/features/workbench/scene-read-contracts";
 import { useWorkbenchHost } from "./workbench-provider";
 import { useWorkbench } from "./workbench-context";
+import { useDeclaredFormDraft } from "@/features/workflow-continuity/draft-adapters";
+import { useDraftResumeOpeners, type DraftResumeTarget } from "@/features/workflow-continuity/draft-resume";
+import { getWorkflowDrafts, getWorkflowDraftsServerSnapshot, subscribeWorkflowDrafts } from "@/features/workflow-continuity/drafts";
 const WorkbenchEntityView = dynamic(() => import("./workbench-entity-view").then((m) => m.WorkbenchEntityView));
 export function WorkbenchDialogs() {
   return <><QuickLook /><Comparison /><Scenes /></>;
@@ -76,10 +79,12 @@ function Scenes() {
   const [name, setName] = useState("");
   const [selected, setSelected] = useState<{ id: string; revision: number } | null>(null);
   const selection = useRef(selected);
+  const [nameBaseline, setNameBaseline] = useState<number | null>(null);
   const choose = useCallback((scene: Pick<WorkspaceSceneMetadata, "id" | "revision"> | null) => {
     const value = scene ? { id: scene.id, revision: scene.revision } : null;
-    selection.current = value; setSelected(value);
+    selection.current = value; setSelected(value); setNameBaseline(value?.revision ?? null);
   }, []);
+  const [unconfirmed, setUnconfirmed] = useState(false);
   const [busy, setBusy] = useState(false); const inFlight = useRef<symbol | null>(null);
   const [loadVersion, setLoadVersion] = useState(0);
   const [readScope, setReadScope] = useState(0);
@@ -88,7 +93,7 @@ function Scenes() {
   useEffect(() => registerWorkspaceScopeCleanup(() => {
     currentList.current = null; setSceneList(null); choose(null); setName(""); attempt.current = null; setReadError("");
     setReadScope(value => value + 1);
-    inFlight.current = null; setBusy(false); setNotice(""); setError("登录状态已变化，请重新打开工作台。");
+    inFlight.current = null; setBusy(false); setUnconfirmed(false); setNotice(""); setError("登录状态已变化，请重新打开工作台。");
   }), [choose]);
   useEffect(() => {
     if (!host.scenesOpen) return;
@@ -108,55 +113,85 @@ function Scenes() {
         setNotice("原选现场已变化或当前格式不受支持。名称保留，请重新选择可用现场后更新。");
       }
       const pending = attempt.current;
-      if (pending && (value.unsupportedScenes?.some(scene => scene.id === pending.id) || value.scenes.some(scene => scene.id === pending.id && scene.revision !== pending.expectedRevision))) attempt.current = null;
+      if (!unconfirmed && pending && (value.unsupportedScenes?.some(scene => scene.id === pending.id) || value.scenes.some(scene => scene.id === pending.id && scene.revision !== pending.expectedRevision))) attempt.current = null;
     };
     const release = workspaceScenesResource.subscribe(receive);
     receive();
     return () => { current = false; release(); };
-  }, [host.scenesOpen, choose, readScope]);
+  }, [host.scenesOpen, choose, readScope, unconfirmed]);
   useEffect(() => {
     if (!host.scenesOpen) return;
     void workspaceScenesResource.revalidate({ force: loadVersion > 0 }).catch(() => { /* The current resource publishes read failures to the same subscription. */ });
   }, [host.scenesOpen, loadVersion]);
+  const { formRef: sceneFormRef, attributes: sceneAttributes, capture: captureSceneName, complete: completeSceneName } = useDeclaredFormDraft({ operation: selected ? "scene.rename" : "scene.create", id: selected?.id ?? "new", href: "/today", label: selected ? "现场名称" : "新现场名称" }, fields => {
+    if (typeof fields.name === "string") setName(fields.name);
+    if (selected && typeof fields.baseline_revision === "string" && /^[1-9]\d{0,9}$/.test(fields.baseline_revision)) {
+      const baseline = Number(fields.baseline_revision); setNameBaseline(baseline);
+      if (baseline !== selected.revision) setError("原现场已更新。名称保留，请先重新选择最新现场后再保存。");
+    }
+  });
+  const nameDrafts = useSyncExternalStore(subscribeWorkflowDrafts, getWorkflowDrafts, getWorkflowDraftsServerSnapshot);
+  const resumeTargets: DraftResumeTarget[] = [{ kind: "scene.create", id: "new" }, ...(scenes ?? []).map(scene => ({ kind: "scene.rename" as const, id: scene.id })), ...nameDrafts.flatMap(draft => draft.resumeTarget?.kind === "scene.rename" ? [draft.resumeTarget] : [])];
+  useDraftResumeOpeners([...new Map(resumeTargets.map(target => [target.kind + target.id, target])).values()], async (target, restore) => {
+    if (!restore.current() || inFlight.current) return false;
+    host.setScenesOpen(true);
+    if (target.kind === "scene.create") { choose(null); return; }
+    if (target.kind !== "scene.rename") return false;
+    try {
+      const latest = await workspaceScenesResource.revalidate({ force: true });
+      if (!restore.current()) return false;
+      const scene = latest.scenes.find(scene => scene.id === target.id);
+      if (!scene) { setError("原现场暂不可用，名称仍保留。"); return false; }
+      const sameRecord = selection.current?.id === scene.id;
+      const originalBaseline = nameBaseline;
+      choose(scene);
+      if (sameRecord) setNameBaseline(originalBaseline);
+      else setName(scene.name);
+      attempt.current = null; return;
+    } catch { if (restore.current()) setError("原现场暂时无法读取，名称仍保留。"); return false; }
+  });
   // A published read is authoritative even before React commits its next frame.
   const currentScene = (candidate: Pick<WorkspaceSceneMetadata, "id" | "revision">) => currentList.current?.scenes.find(scene => scene.id === candidate.id && scene.revision === candidate.revision);
   const persist = async () => {
     if (inFlight.current) return;
+    const submittedName = captureSceneName();
     const lease = Symbol("scene-save"); inFlight.current = lease;
     setBusy(true); setError(""); setNotice(""); const scope = captureWorkspaceScope();
     try {
       const chosen = selection.current;
       const readAtStart = currentList.current;
       const scene = chosen ? readAtStart?.scenes.find(item => item.id === chosen.id && item.revision === chosen.revision) : null;
+      if (chosen && nameBaseline !== chosen.revision) { setError("名称对应的原现场已变化，请重新选择最新现场后再保存。"); return; }
       if (chosen && !scene) { setError("这个现场已不可更新，请读取最新现场后重新选择。"); return; }
       const request = attempt.current ?? { id: scene?.id ?? crypto.randomUUID(), requestId: crypto.randomUUID(), expectedRevision: scene?.revision ?? 0, name: name.trim(), snapshot: await host.capture(), archive: false };
       if (!scope()) return;
       if (chosen && (selection.current?.id !== chosen.id || selection.current?.revision !== chosen.revision)) { setError("这个现场已变化，请读取最新现场后重新选择。"); return; }
       attempt.current = request;
-      const result = await saveWorkspaceScene(request);
+      const result = await (host.verificationTransport?.saveScene ?? saveWorkspaceScene)(request);
       if (!scope()) return;
       if (result.status === "saved") {
         const latest = currentList.current;
         const stillSupported = latest === readAtStart || latest?.scenes.some(item => item.id === result.scene.id && item.revision === result.scene.revision);
-        attempt.current = null; choose(!stillSupported || result.scene.archived_at ? null : result.scene);
+        attempt.current = null; setUnconfirmed(false); choose(!stillSupported || result.scene.archived_at ? null : result.scene);
         setName(value => stillSupported && value === request.name ? result.scene.archived_at ? "" : result.scene.name : value);
+        completeSceneName(submittedName);
         setNotice("现场已保存"); load();
-      } else setError(result.status === "conflict" ? "另一设备已修改此现场。当前输入保留，请读取最新现场后再决定。" : result.status === "limit" ? "最多保存 20 份现场，请先归档旧现场。" : result.status === "invalid" ? "请填写名称并检查现场地址。" : "现场暂未确认保存，可重试同一次操作。");
-    } catch (cause) { if (scope()) setError(cause instanceof Error ? cause.message : "现场保存失败，请重试。"); }
+      } else { if (result.status === "unavailable") setUnconfirmed(true); setError(result.status === "conflict" ? "另一设备已修改此现场。当前输入保留，请读取最新现场后再决定。" : result.status === "limit" ? "最多保存 20 份现场，请先归档旧现场。" : result.status === "invalid" ? "请填写名称并检查现场地址。" : "现场暂未确认保存，可重试同一次操作。"); }
+    } catch (cause) { if (scope()) { if (attempt.current) setUnconfirmed(true); setError(cause instanceof Error ? cause.message : "现场保存失败，请重试。"); } }
     finally { if (inFlight.current === lease) { inFlight.current = null; if (scope()) setBusy(false); } }
   };
   return <Dialog open={host.scenesOpen} onOpenChange={(open) => { if (busy || inFlight.current) return false; host.setScenesOpen(open); }}><DialogContent className="workbench-scenes-dialog" onEscapeKeyDown={(event) => { event.stopPropagation(); if (busy || inFlight.current) event.preventDefault(); }}><DialogHeader><DialogTitle>工作台</DialogTitle><DialogDescription>保存布局、筛选和阅读位置。正文保留在各自的记录中。</DialogDescription></DialogHeader>
     <div className="workbench-scenes-body"><button type="button" disabled={busy} onClick={() => { host.setScenesOpen(false); window.dispatchEvent(new Event("personal-os:workbench-history-open")); }}>最近操作</button><div className="workbench-reference-help"><p>{host.reference ? "参考区已打开，可从任意记录的操作菜单切换内容。" : "在记录的操作菜单选择“放到参考区”，即可并排阅读或编辑另一篇笔记。"}</p>{context.selected.length ? <button type="button" onClick={() => { host.setScenesOpen(false); context.compare(); }}>比较已选 {context.selected.length} 项</button> : null}</div>
-    <form onSubmit={(event) => { event.preventDefault(); void persist(); }}><label htmlFor="workbench-scene-name">现场名称</label><input id="workbench-scene-name" value={name} maxLength={80} required placeholder="例如：阅读论文与实验笔记" disabled={busy} onChange={(event) => { setName(event.target.value); attempt.current = null; }}/><div className="workbench-scene-actions"><button type="submit" disabled={busy || !name.trim()}>{busy ? "保存中…" : selected ? "用当前布局更新" : "保存当前现场"}</button>{selected ? <button type="button" disabled={busy} onClick={() => { choose(null); setName(""); attempt.current = null; }}>另存新现场</button> : null}</div></form>
-    {error || readError ? <p role="alert">{error || readError}<button type="button" disabled={busy} onClick={() => { attempt.current = null; setError(""); load(); }}>读取最新现场</button></p> : null}{notice ? <p role="status">{notice}</p> : null}
+    <form ref={sceneFormRef} {...sceneAttributes} onInput={captureSceneName} onSubmit={(event) => { event.preventDefault(); void persist(); }}><label htmlFor="workbench-scene-name">现场名称</label><input name="name" id="workbench-scene-name" value={name} maxLength={80} required placeholder="例如：阅读论文与实验笔记" disabled={busy || unconfirmed} onChange={(event) => { setName(event.target.value); if (!unconfirmed) attempt.current = null; }}/>{selected ? <input type="hidden" name="baseline_revision" value={String(nameBaseline ?? selected.revision)} /> : null}<div className="workbench-scene-actions"><button type="submit" disabled={busy || !name.trim()}>{busy ? "保存中…" : unconfirmed ? "重试上次保存" : selected ? "用当前布局更新" : "保存当前现场"}</button>{selected ? <button type="button" disabled={busy || unconfirmed} onClick={() => { choose(null); setName(""); attempt.current = null; }}>另存新现场</button> : null}</div></form>
+    {error || readError ? <p role="alert">{error || readError}<button type="button" disabled={busy} onClick={() => { if (!unconfirmed) attempt.current = null; setError(""); load(); }}>读取最新现场</button></p> : null}{notice ? <p role="status">{notice}</p> : null}
     <h3>已保存现场</h3>
     {sceneList?.unavailableCount ? <p role="status">有 {sceneList.unavailableCount} 份现场的基本信息无法读取，其余现场仍可使用。记录保持原样。</p> : null}
     {sceneList ? scenes?.length || unsupportedScenes.length ? <ul className="workbench-scene-list">
-      {scenes?.map((scene) => <li key={scene.id} data-selected={selected?.id === scene.id || undefined}><div><strong>{scene.name}</strong><p>{scene.updated_at}</p></div><div><button type="button" disabled={busy} onClick={() => { const latest = currentScene(scene); if (latest) host.restore(latest.snapshot); }}>恢复</button><button type="button" disabled={busy} onClick={() => { const latest = currentScene(scene); if (!latest) return; choose(latest); setName(latest.name); attempt.current = null; setError(""); }}>选择更新</button><button type="button" disabled={busy} onClick={async () => {
+      {scenes?.map((scene) => <li key={scene.id} data-selected={selected?.id === scene.id || undefined}><div><strong>{scene.name}</strong><p>{scene.updated_at}</p></div><div><button type="button" disabled={busy} onClick={() => { const latest = currentScene(scene); if (latest) host.restore(latest.snapshot); }}>恢复</button><button type="button" disabled={busy || unconfirmed} onClick={() => { const latest = currentScene(scene); if (!latest) return; const preserveName = selection.current?.id === latest.id && nameBaseline !== latest.revision; choose(latest); if (!preserveName) setName(latest.name); attempt.current = null; setError(""); }}>选择更新</button><button type="button" disabled={busy} onClick={async () => {
         if (inFlight.current) return;
         const latest = currentScene(scene); if (!latest) return;
         const lease = Symbol("scene-archive"); inFlight.current = lease; setBusy(true); const scope = captureWorkspaceScope();
-        try { const result = await saveWorkspaceScene({ id: latest.id, requestId: crypto.randomUUID(), expectedRevision: latest.revision, name: latest.name, snapshot: latest.snapshot, archive: true }); if (!scope()) return; if (result.status === "saved") { if (selection.current?.id === latest.id) { choose(null); attempt.current = null; } setNotice("现场已归档"); load(); } else setError("归档未完成，请读取最新现场后重试。"); } catch { if (scope()) setError("归档未确认，请读取最新现场核对。"); } finally { if (inFlight.current === lease) { inFlight.current = null; if (scope()) setBusy(false); } }
+        try { const result = await (host.verificationTransport?.saveScene ?? saveWorkspaceScene)({ id: latest.id, requestId: crypto.randomUUID(), expectedRevision: latest.revision, name: latest.name, snapshot: latest.snapshot, archive: true }); if (!scope()) return; if (result.status === "saved") { if (selection.current?.id === latest.id) { choose(null); attempt.current = null; } setNotice("现场已归档"); load(); } else setError("归档未完成，请读取最新现场后重试。"); } catch { if (scope()) setError("归档未确认，请读取最新现场核对。"); } finally { if (inFlight.current === lease) { inFlight.current = null; if (scope()) setBusy(false); } }
       }}>归档</button></div></li>)}
       {unsupportedScenes.map(scene => <li key={scene.id}><div><strong>{scene.name}</strong><p>{scene.updated_at}</p><p>现场格式暂不支持。记录保留，当前无法恢复、更新或归档。</p></div><button type="button" disabled>无法恢复</button></li>)}
     </ul> : sceneList.unavailableCount ? null : <p>还没有保存现场。</p> : error || readError ? null : <p role="status">正在读取现场…</p>}

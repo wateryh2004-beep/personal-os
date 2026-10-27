@@ -1,0 +1,16 @@
+import {createHash} from "node:crypto";
+import {beforeEach,expect,it,vi} from "vitest";
+const api=vi.hoisted(()=>({owner:vi.fn(),admin:vi.fn(),graph:vi.fn(),query:vi.fn()}));
+vi.mock("@/lib/auth/require-owner",()=>({requireOwner:api.owner}));
+vi.mock("@/lib/supabase/admin",()=>({createAdminClient:api.admin}));
+vi.mock("@/features/tasks/repository",()=>({microsoftTodoRepository:{create:api.graph}}));
+vi.mock("@/lib/workspace-revalidation",()=>({revalidatePath:vi.fn()}));
+import {readMicrosoftTodoCreationAction} from "@/features/tasks/microsoft-todo";
+const request="11111111-1111-4111-8111-111111111111",list="22222222-2222-4222-8222-222222222222";
+function form(){const value=new FormData();value.set("request_id",request);value.set("todo_list_id",list);value.set("title","  Original title  ");value.set("body_text","Original body\nsource");return value;}
+const hash=()=>createHash("sha256").update(JSON.stringify({todoListId:list,title:"Original title",bodyText:"Original body\nsource",importance:"normal",dueAt:null})).digest("hex");
+beforeEach(()=>{vi.clearAllMocks();const q={select:vi.fn().mockReturnThis(),eq:api.query.mockReturnThis(),maybeSingle:vi.fn(async()=>({data:{request_hash:hash(),status:"available",task_id:"task-1"},error:null}))};const from=vi.fn((table:string)=>table==="todo_creation_receipts"?q:{select:vi.fn().mockReturnThis(),eq:vi.fn().mockReturnThis(),is:vi.fn().mockReturnThis(),maybeSingle:vi.fn(async()=>({data:{id:"task-1"},error:null}))});api.owner.mockResolvedValue({userId:"owner-A",supabase:{from}});api.admin.mockReturnValue({from:vi.fn(()=>q)});});
+it("confirms only exact normalized available receipt owned by the verified session, with no Graph/write",async()=>{const result=await readMicrosoftTodoCreationAction(form());expect(result.status).toBe("success");expect(result.taskId).toBe("task-1");expect(api.query).toHaveBeenCalledWith("user_id","owner-A");expect(api.query).toHaveBeenCalledWith("request_id",request);expect(api.graph).not.toHaveBeenCalled();expect(api.admin).not.toHaveBeenCalled();expect((await api.owner()).supabase.from).toHaveBeenCalledWith("microsoft_todo_tasks");});
+it.each(["processing","remote_committed","prepared"])("keeps %s uncertain without sending another creation",async status=>{api.admin().from().maybeSingle.mockResolvedValue({data:{request_hash:hash(),status,task_id:"task-1"},error:null});expect((await readMicrosoftTodoCreationAction(form())).status).toBe("error");expect(api.graph).not.toHaveBeenCalled();});
+it("rejects another payload even when the receipt is available",async()=>{const changed=form();changed.set("body_text","Later B");expect((await readMicrosoftTodoCreationAction(changed)).message).toContain("不一致");expect(api.graph).not.toHaveBeenCalled();});
+it("missing, read failure and another owner never claim or resend the intent",async()=>{const owner=await api.owner();api.owner.mockResolvedValue({...owner,userId:"owner-B"});api.admin().from().maybeSingle.mockResolvedValueOnce({data:null,error:null}).mockResolvedValueOnce({data:null,error:{code:"unavailable"}});expect((await readMicrosoftTodoCreationAction(form())).status).toBe("error");expect((await readMicrosoftTodoCreationAction(form())).status).toBe("error");expect(api.query).toHaveBeenCalledWith("user_id","owner-B");expect(api.graph).not.toHaveBeenCalled();});

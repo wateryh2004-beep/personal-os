@@ -12,7 +12,7 @@ const server = await createServer({
   root,
   plugins: [react()],
   // Next normally inlines this public constant; the isolated Vite fixture must too.
-  define: { "process.env.NEXT_PUBLIC_PERF_DEBUG": JSON.stringify("false") },
+  define: { "process.env.CONTINUOUS_FIXTURE_COMPILED": JSON.stringify("0"), "process.env.NEXT_PUBLIC_PERF_DEBUG": JSON.stringify("false") },
   resolve: { alias: [
     { find: "@/features/investment/actions", replacement: mock },
     { find: "@/features/investment/daily-actions", replacement: mock },

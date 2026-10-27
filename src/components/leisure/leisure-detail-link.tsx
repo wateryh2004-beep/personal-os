@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
 import type { ComponentProps } from "react";
 import { collectionReturnHref, markCollectionReturn } from "./leisure-collection-link";
 

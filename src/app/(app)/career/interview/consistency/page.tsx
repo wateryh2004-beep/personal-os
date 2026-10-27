@@ -1,12 +1,12 @@
+import {CareerForm} from "@/components/career/career-form";
+import {submitInterviewForm} from "@/features/interview/form-actions";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
 import { InterviewNav } from "@/components/career/interview/interview-nav";
 import { getNarrativeConsistencyData } from "@/features/interview/narrative-queries";
 import {
-  confirmNarrativeReference,
   registerNarrativeReference,
-  selectNarrativeBaselineVersion,
 } from "@/features/interview/narrative-actions";
 
 const statusLabels = {
@@ -59,8 +59,8 @@ export default async function InterviewConsistencyPage() {
                   {narrative.review_status === "approved" ? "母版已确认" : "母版待确认（草稿基线）"}
                 </span>
               </div>
-              <form action={selectNarrativeBaselineVersion} className="flex flex-wrap items-end gap-3">
-                <input type="hidden" name="narrative_id" value={narrative.id}/>
+              <CareerForm draft={{operation:"interview.narrative-baseline",id:narrative.id,href:"/career/interview/consistency",label:"叙事母版基线"}} action={submitInterviewForm.bind(null,"narrativeBaseline")} className="flex flex-wrap items-end gap-3">
+                <input type="hidden" name="narrative_id" value={narrative.id}/><input type="hidden" name="baseline_selected_version_id" value={narrative.selected_version_id}/>
                 <label className="flex min-w-[220px] flex-1 flex-col gap-2 text-sm" htmlFor={`baseline-${narrative.id}`}>
                   <span className="text-[13px] text-[var(--text-secondary)]">当前选定的母版版本</span>
                   <select id={`baseline-${narrative.id}`} name="selected_version_id"
@@ -74,7 +74,7 @@ export default async function InterviewConsistencyPage() {
                 <button type="submit" className="ui-navigation-item min-h-11 rounded-lg border border-[var(--separator)] px-4 text-sm font-medium">
                   更新基线
                 </button>
-              </form>
+              </CareerForm>
               <p className="text-[13px] leading-6 text-[var(--text-secondary)]">
                 更新基线只影响审计结果，不修改任何岗位答案，也不自动确认草稿。新生成的草稿不会自行替换当前基线。
               </p>
@@ -129,7 +129,7 @@ export default async function InterviewConsistencyPage() {
                   </form>
                 ) : null}
                 {row.link && row.narrative && row.link.based_on_version_id === row.narrative.selected_version_id && row.link.review_state === "unreviewed" ? (
-                  <form action={confirmNarrativeReference} className="flex flex-wrap items-center gap-2">
+                  <CareerForm draft={{operation:"interview.reference-ack",id:row.link.id,href:"/career/interview/consistency",label:"人工引用核对"}} action={submitInterviewForm.bind(null,"referenceAck")} className="flex flex-wrap items-center gap-2">
                     <input type="hidden" name="link_id" value={row.link.id}/>
                     <label className="flex items-center gap-2 text-[13px] text-[var(--text-secondary)]">
                       <input type="checkbox" name="review_ack" value="yes" required className="h-4 w-4"/>
@@ -138,7 +138,7 @@ export default async function InterviewConsistencyPage() {
                     <button type="submit" className="min-h-11 rounded-lg border border-[var(--separator)] px-3 text-sm">
                       确认引用关系
                     </button>
-                  </form>
+                  </CareerForm>
                 ) : null}
               </div>
             </article>;

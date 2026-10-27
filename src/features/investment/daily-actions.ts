@@ -4,12 +4,13 @@ import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { investmentCashSchema, investmentCashVoidSchema, investmentQuoteImportSchema, investmentQuoteSchema } from "./daily-schemas";
 import type { InvestmentActionResult } from "./types";
+class InvestmentRejected extends Error {}
 const value = (form: FormData, key: string) => String(form.get(key) ?? "");
 function failure(error: unknown): InvestmentActionResult {
-  return { ok: false, error: error instanceof z.ZodError ? error.issues[0]?.message ?? "请检查输入" : error instanceof Error ? error.message : "保存失败，请稍后重试" };
+  return { ok: false,...(!(error instanceof z.ZodError||error instanceof InvestmentRejected)?{needsCheck:true}:{}), error: error instanceof z.ZodError ? error.issues[0]?.message ?? "请检查输入" : error instanceof Error ? error.message : "保存失败，请稍后重试" };
 }
 function databaseError(code?: string) {
-  return new Error(code === "23505" ? "导入标识已用于不同内容，请核对；旧记录未被覆盖" : code === "23514" ? "请核对期初日期、账户币种与记录内容；尚未保存" : "未能保存现金或报价。存储可能尚未启用，请稍后重试");
+  return new (code==="23505"||code==="23514"?InvestmentRejected:Error)(code === "23505" ? "导入标识已用于不同内容，请核对；旧记录未被覆盖" : code === "23514" ? "请核对期初日期、账户币种与记录内容；尚未保存" : "未能保存现金或报价。存储可能尚未启用，请稍后重试");
 }
 export async function addInvestmentCash(form: FormData): Promise<InvestmentActionResult> {
   const { supabase } = await requireOwner();

@@ -147,7 +147,7 @@ export async function generateNoteAiSuggestion(
       parsed.data.scope,
     );
     if (parsed.data.runId) {
-      await assertOwnedRun(owner.supabase, owner.userId, parsed.data.runId);
+      await assertOwnedRun(owner.supabase, owner.userId, parsed.data.runId, { surface: "notes", currentEntity: { type: "note", id: parsed.data.noteId } });
       runId = parsed.data.runId;
     } else {
       runId = await createAgentRun({

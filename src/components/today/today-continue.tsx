@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
 import { useSyncExternalStore } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { CAREER_CONTINUE_KEY } from "@/components/career/career-continue";

@@ -36,7 +36,9 @@ describe("Personal OS AI phase 2 contracts", () => {
 
   it("renders read-only source metadata directly from streamed messages", () => {
     const agent = read("src/components/assistant/global-agent.tsx");
-    expect(agent).toContain("useChat<AssistantUIMessage>");
+    expect(agent).toContain("useContinuousAssistantChat");
+    expect(read("src/features/assistant/client-chat-runtime.ts")).toContain("new Chat<AssistantUIMessage>");
+    expect(read("src/components/assistant/use-continuous-assistant-chat.ts")).toContain("useChat({ chat: entry.chat })");
     expect(agent).toContain("message.metadata?.sources");
     expect(agent).toContain("AssistantStreamSources");
   });

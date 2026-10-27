@@ -2,6 +2,7 @@
 
 import { captureWorkspaceScope, registerWorkspaceScopeCleanup } from "@/lib/workspace-resource-cache";
 import { safeWorkbenchHref, type WorkspaceSceneSnapshot } from "@/features/workbench/contracts";
+import { prepareWorkflowNavigation } from "./navigation-protection";
 import { announceNavigationIntent, beginNavigationIntent } from "./navigation-intent";
 
 export type SourceSearchState = { query: string; selectedValue: string; scrollTop: number };
@@ -42,11 +43,12 @@ export function consumeSourceTrailEntry(id: string) {
 export async function captureSourceNavigation(options: { capture: () => Promise<WorkspaceSceneSnapshot>; destination: string; label: string; navigate: (href: string) => void; current: () => boolean; search?: SourceSearchState }) {
   const scope = captureWorkspaceScope();
   const href = safeWorkbenchHref(options.destination);
-  if (!href) return;
-  try {
-    const scene = await options.capture();
-    if (!scope() || !options.current()) return;
-    addSourceTrailEntry(scene, href, options.label, options.search);
-  } catch { if (!scope() || !options.current()) return; }
+  if (!href || href !== options.destination) return;
+  let scene: WorkspaceSceneSnapshot | undefined;
+  try { scene = await options.capture(); }
+  catch { /* Saving the source trail is optional; its guard is not. */ }
+  if (!scope() || !options.current()) return;
+  if (!await prepareWorkflowNavigation(href)) return;
+  if (scene) addSourceTrailEntry(scene, href, options.label, options.search);
   options.navigate(href);
 }

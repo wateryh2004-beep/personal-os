@@ -1,3 +1,4 @@
+import { DraftForm } from "@/components/workflow-continuity/draft-form";
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,7 +47,7 @@ export function AiPromptSettings({
                 {prompt.customized ? "个人覆盖" : "系统默认"}
               </span>
             </summary>
-            <form action={saveAiPromptOverride} className="mt-2.5 grid gap-2.5">
+            <DraftForm draft={{operation:"settings.prompt",id:prompt.key,href:"/settings",label:"未保存的提示词"}} action={async form=>{"use server";await saveAiPromptOverride(form);return {status:"saved" as const};}} className="mt-2.5 grid gap-2.5">
               <input type="hidden" name="prompt_key" value={prompt.key} />
               <label className="grid gap-1.5 text-xs font-medium text-[var(--text-secondary)]">
                 Prompt
@@ -64,7 +65,7 @@ export function AiPromptSettings({
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="submit" size="sm" disabled={!available}>保存提示词</Button>
               </div>
-            </form>
+            </DraftForm>
             {prompt.customized ? (
               <form action={resetAiPromptOverride} className="mt-2">
                 <input type="hidden" name="prompt_key" value={prompt.key} />

@@ -2,6 +2,8 @@ export type InboxCaptureState = {
   status: "idle" | "success" | "error";
   message: string;
   destinationHref?: string;
+  intentId?: string;
+  needsCheck?: boolean;
   /** 写入成功后返回的新 Inbox id。 */
   inboxId?: string;
   /** 写入时是否已完成自动识别。 */
@@ -14,6 +16,7 @@ export const initialInboxCaptureState: InboxCaptureState = {
 };
 
 export type InboxClassifyState = {
+  needsCheck?: boolean;
   status: "idle" | "success" | "error";
   message: string;
 };

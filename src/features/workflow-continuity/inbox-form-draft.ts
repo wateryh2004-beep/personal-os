@@ -1,0 +1,36 @@
+"use client";
+import {useEffect,useLayoutEffect,useRef,useState} from "react";
+import {z} from "zod";
+import {taskDueInputToIso} from "@/features/tasks/due-time";
+import {captureWorkspaceScope} from "@/lib/workspace-resource-cache";
+import {draftValueFingerprint,useWorkflowDraft} from "./drafts";
+import {parseDraftResumeTarget,draftResumeKey,focusDraftForm,isDraftHostReady,useDraftResumeConsumer} from "./draft-resume";
+export type InboxManualKind="task"|"calendar"|"note"|"daily"|"project"|"link";
+const rawSchema=z.object({title:z.string().max(500).optional(),body:z.string().max(100000).optional(),listId:z.string().max(36).optional(),dueAt:z.string().max(80).optional(),startsAt:z.string().max(80).optional(),endsAt:z.string().max(80).optional(),projectId:z.string().max(36).optional(),url:z.string().max(2048).optional(),location:z.string().max(500).optional(),requestId:z.uuid()}).strict();
+type Raw=z.infer<typeof rawSchema>;
+const submissionSchema=z.object({raw:rawSchema,entries:z.array(z.tuple([z.string().max(80),z.string().max(100000)])).max(12)}).strict();
+const schema=rawSchema.extend({submitted:submissionSchema.nullable()}).strict();
+const fields:Record<InboxManualKind,readonly string[]>={task:["title","body_text","todo_list_id","importance","due_at","inbox_id","request_id"],calendar:["subject","starts_at","ends_at","description","is_all_day","location_name","inbox_id","request_id"],note:["title","body_markdown","inbox_id"],daily:["inbox_id"],project:["title","body_markdown","project_id","inbox_id"],link:["title","body_markdown","url","inbox_id"]};
+export type InboxOrdinaryState={status:"idle"|"success"|"error";message:string;destinationHref?:string;taskId?:string;operationId?:string;writeOutcome?:"not_written"|"unknown"};
+const labels:Record<InboxManualKind,string>={task:"转为任务",calendar:"转为日程",note:"转为笔记",daily:"日记去向待核对",project:"项目资料",link:"链接笔记"};
+export function useInboxFormDraft(item:{id:string;processed_at?:string|null},kind:InboxManualKind,initial:Omit<Raw,"requestId">,options?:{surface?:"manual"|"proposal";recoveryOnly?:boolean}){
+ const [initialValue]=useState(()=>({...initial,requestId:crypto.randomUUID(),submitted:null} as z.infer<typeof schema>));
+ const surface=options?.surface??"manual";const target=parseDraftResumeTarget({kind:`inbox.${kind}`,id:item.id,...(["task","calendar","note","daily"].includes(kind)?{surface}:{})});if(!target)throw new Error("Invalid inbox draft target");
+ const draft=useWorkflowDraft({kind:"capture",id:`inbox${surface==="proposal"?"-proposal":""}-${kind}-${item.id}`,label:`收集箱 · ${surface==="proposal"?"原提议待核对":labels[kind]}`,resumeHref:`/inbox?entry=${item.id}`,resumeTarget:target,initialValue,parse:input=>{const result=schema.safeParse(input);if(!result.success)return null;const submitted=result.data.submitted;if(submitted&&(new Set(submitted.entries.map(([name])=>name)).size!==submitted.entries.length||submitted.entries.some(([name])=>!fields[kind].includes(name))||submitted.entries.find(([name])=>name==="inbox_id")?.[1]!==item.id))return null;return result.data;}});
+ const formRef=useRef<HTMLFormElement>(null),busy=useRef(false),mounted=useRef(true),lease=useRef({id:item.id,kind,surface});
+ useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);useLayoutEffect(()=>{lease.current={id:item.id,kind,surface};},[item.id,kind,surface]);
+ const committedFor=useRef<string|null>(null);
+ const [pending,setPending]=useState(false),[state,setState]=useState<InboxOrdinaryState>({status:"idle",message:""});
+ useDraftResumeConsumer({kind:target.kind,identity:{id:item.id,surface:target.surface},priority:2,ready:()=>isDraftHostReady(formRef.current),open:focusDraftForm});
+ const captureRaw=(form:HTMLFormElement):Raw=>{const data=new FormData(form),value={...draft.value};delete(value as Partial<typeof value>).submitted;const raw:Raw=value;const text=(name:string)=>String(data.get(name)??"");if(kind==="task"){raw.title=text("title");raw.listId=text("todo_list_id");raw.dueAt=text(surface==="proposal"?"due_at":"dueWall");if(surface==="proposal")raw.body=text("body_text");}else if(kind==="calendar"){raw.title=text("subject");raw.startsAt=text(surface==="proposal"?"starts_at":"startWall");raw.endsAt=text(surface==="proposal"?"ends_at":"endWall");if(surface==="proposal"){raw.body=text("description");raw.location=text("location_name");}}else if(kind!=="daily"){raw.title=text("title");if(kind==="note")raw.body=text("body_markdown");if(kind==="project")raw.projectId=text("project_id");if(kind==="link")raw.url=text("url");}return raw;};
+ async function perform(event:React.FormEvent<HTMLFormElement>,submit:(form:FormData)=>Promise<InboxOrdinaryState>,read:(form:FormData)=>Promise<InboxOrdinaryState>){
+  event.preventDefault();if(busy.current||!draft.isCurrent())return;const form=event.currentTarget,raw=captureRaw(form),scope=captureWorkspaceScope(),instance=lease.current,current=()=>draft.isCurrent()&&scope()&&mounted.current&&lease.current===instance&&formRef.current===form;
+  if(options?.recoveryOnly&&!draft.value.submitted){setState({status:"error",message:"原确认信息已不可用，未重新生成或处理提议。"});return;}
+  if((item.processed_at||committedFor.current===item.id)&&!draft.value.submitted){setState({status:"error",message:"原来源已处理，当前新输入仍保留；未再次处理来源。"});return;}
+  let submitted=draft.value.submitted;
+  if(!submitted){const data=new FormData(form);data.set("request_id",raw.requestId);try{if(kind==="task"&&surface!=="proposal")data.set("due_at",taskDueInputToIso(raw.dueAt??"")??"");if(kind==="calendar"&&surface!=="proposal"){data.set("starts_at",taskDueInputToIso(raw.startsAt??"")??"");data.set("ends_at",taskDueInputToIso(raw.endsAt??"")??"");}}catch{setState({status:"error",message:"时间无效或存在夏令时歧义，请明确调整后再保存。"});return;}const entries:Array<[string,string]>=[];for(const name of fields[kind])for(const value of data.getAll(name))if(typeof value==="string")entries.push([name,value]);submitted={raw,entries};}
+  const wasSubmitted=Boolean(draft.value.submitted),frozen=submitted,expected={...frozen.raw,submitted:frozen};draft.setValue({...raw,submitted:frozen});busy.current=true;setPending(true);setState({status:"idle",message:""});const payload=new FormData();for(const [name,value] of frozen.entries)payload.append(name,value);
+  try{const result=await(wasSubmitted?read:submit)(payload);if(!current())return;const unchanged=draftValueFingerprint(captureRaw(form))===draftValueFingerprint(frozen.raw);if(result.status==="success"){committedFor.current=item.id;draft.commit(expected,value=>draftValueFingerprint({...value,submitted:null})===draftValueFingerprint({...frozen.raw,submitted:null})?{...initialValue,requestId:crypto.randomUUID()}:{...value,requestId:crypto.randomUUID(),submitted:null});setState(unchanged?result:{status:"error",message:"原去向已保存，当前新输入尚未保存；原来源不会重复处理。",destinationHref:result.destinationHref});}else {if(result.writeOutcome==="not_written")draft.setValue(value=>({...value,submitted:null}));setState(result);}}catch{if(current())setState({status:"error",message:"原处理结果尚未确认，输入和提交信息已保留，请先核对原去向。"});}finally{busy.current=false;if(current())setPending(false);}
+ }
+ return {...draft,formRef,attributes:{"data-workflow-draft-key":draftResumeKey(target)},state,pending,uncertain:Boolean(draft.value.submitted),perform,patch:(value:Partial<Raw>)=>draft.setValue(before=>({...before,...value}))};
+}

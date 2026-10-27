@@ -8,3 +8,6 @@ export function beginNavigationIntent() {
   const captured = ++epoch;
   return () => captured === epoch;
 }
+
+/** Observe an already established intent without reviving a superseded one. */
+export function captureNavigationIntent() { const captured = epoch; return () => captured === epoch; }

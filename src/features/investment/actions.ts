@@ -7,14 +7,15 @@ import { contentHash, parseResearchImport } from "./import-contract";
 import { investmentAccountSchema, investmentEntrySchema, investmentStrategySchema, investmentVoidSchema } from "./schemas";
 import type { InvestmentAccount, InvestmentActionResult, LedgerEntry } from "./types";
 
+class InvestmentRejected extends Error {}
 function value(form: FormData, key: string) { return String(form.get(key) ?? ""); }
 function failure(error: unknown): InvestmentActionResult {
-  return { ok: false, error: error instanceof z.ZodError ? error.issues[0]?.message ?? "请检查输入" : error instanceof Error ? error.message : "未保存，请稍后重试" };
+  return { ok: false,...(!(error instanceof z.ZodError||error instanceof InvestmentRejected)?{needsCheck:true}:{}), error: error instanceof z.ZodError ? error.issues[0]?.message ?? "请检查输入" : error instanceof Error ? error.message : "未保存，请稍后重试" };
 }
 function databaseFailure(code?: string): Error {
-  if (code === "23505") return new Error("这个导入标识或版本已存在；请刷新后核对，不能覆盖旧记录");
-  if (code === "40001") return new Error("账本刚刚有更新，请刷新后重试；本次尚未写入");
-  if (code === "23514") return new Error("记录与现有持仓或日期不一致，请核对后重试");
+  if (code === "23505") return new InvestmentRejected("这个导入标识或版本已存在；请刷新后核对，不能覆盖旧记录");
+  if (code === "40001") return new InvestmentRejected("账本刚刚有更新，请刷新后重试；本次尚未写入");
+  if (code === "23514") return new InvestmentRejected("记录与现有持仓或日期不一致，请核对后重试");
   return new Error("投资数据未能保存。存储可能尚未启用，请稍后重试");
 }
 export async function createInvestmentAccount(form: FormData): Promise<InvestmentActionResult> {

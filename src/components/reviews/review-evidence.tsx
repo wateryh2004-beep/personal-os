@@ -1,6 +1,8 @@
 "use client";
 import { SourceLink as Link } from "@/components/workflow-continuity/provider";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useDomainViewAdapter, waitForViewLayout } from "@/features/workbench/domain-adapters/use-domain-view-adapter";
+import type { ViewStateOf } from "@/features/workbench/view-state-contracts";
 import type {
   ReviewEvidence,
   ReviewEvidenceItem,
@@ -23,8 +25,9 @@ export function ReviewEvidencePanel({
   evidence: ReviewEvidence;
   onInsert?: (items: ReviewEvidenceItem[]) => void;
 }) {
-  const [filter, setFilter] = useState("all"),
+  const [filter, setFilter] = useState<ViewStateOf<"reviews">["filter"]>("all"),
     [selected, setSelected] = useState<Set<string>>(new Set());
+  const pane = useRef<HTMLElement>(null);
   const entries = (Object.keys(labels) as (keyof typeof labels)[])
     .flatMap((group) => evidence[group].map((item) => ({ item, group })))
     .sort(
@@ -38,8 +41,24 @@ export function ReviewEvidencePanel({
   const visible = entries.filter(
     (entry) => filter === "all" || entry.group === filter,
   );
+  const pathname = typeof window !== "undefined" && /^\/reviews\/(?:daily|weekly|[0-9a-f-]{36})$/i.test(window.location.pathname) ? window.location.pathname : `/reviews/${evidence.reviewType}`;
+  const periodKey = `${evidence.reviewType}:${evidence.periodStart}:${evidence.periodEnd}:${evidence.timezone ?? "Asia/Shanghai"}`;
+  useDomainViewAdapter({
+    kind: "reviews", pathname, ready: Boolean(evidence.generatedAt),
+    capture: () => ({ kind: "reviews", pathname, periodKey, filter, selectedRefs: entries.filter(entry => selected.has(selectionKey(entry.group, entry.item))).slice(0, 100).map(({ group, item }) => ({ group, type: item.type, id: item.id })), evidenceScrollTop: pane.current?.scrollTop ?? 0 }),
+    restore: async (state, context) => {
+      if (!context.current() || state.periodKey !== periodKey) return { status: "cancelled" };
+      const fresh = new Set(entries.map(entry => selectionKey(entry.group, entry.item)));
+      const refs = state.selectedRefs.map(ref => `${ref.group}:${ref.type}:${ref.id}`);
+      setFilter(state.filter); setSelected(new Set(refs.filter(key => fresh.has(key))));
+      if (!await waitForViewLayout(context) || !context.current()) return { status: "cancelled" };
+      if (pane.current) pane.current.scrollTop = state.evidenceScrollTop;
+      return refs.every(key => fresh.has(key)) ? { status: "applied" } : { status: "partial", reason: "missing-record" };
+    },
+  });
   return (
     <aside
+      ref={pane}
       aria-label="证据时间线"
       className="min-w-0 lg:max-h-[75dvh] lg:overflow-y-auto lg:border-l lg:border-[var(--separator)] lg:pl-5"
     >
@@ -53,7 +72,7 @@ export function ReviewEvidencePanel({
         <select
           className="ui-field min-h-11 w-full text-base"
           value={filter}
-          onChange={(event) => setFilter(event.target.value)}
+          onChange={(event) => { const value = event.target.value; if (value === "all" || value in labels) setFilter(value as ViewStateOf<"reviews">["filter"]); }}
         >
           <option value="all">全部 · {entries.length}</option>
           {Object.entries(labels).map(([key, label]) => (

@@ -20,6 +20,7 @@ import { parseWorkspaceSceneListResponse } from "@/features/workbench/scene-read
 import { useWorkbench } from "@/components/workbench/workbench-context";
 import { captureWorkbenchPosition, restoreWorkbenchPosition } from "@/components/workbench/workbench-position";
 let root: Root; let host: HTMLDivElement;
+const scrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
 function Harness() {
   const workbench = useWorkbenchHost();
   const actions = useWorkbench()!;
@@ -32,6 +33,7 @@ async function submit() { await act(async () => document.querySelector(".workben
 async function closeDialog() { const button = document.querySelector<HTMLButtonElement>('[role="dialog"] [data-slot="dialog-close"]')!; expect(button).not.toBeNull(); await act(async () => button.click()); }
 function changedLocation(path: string) { window.history.pushState(null, "", path); window.dispatchEvent(new Event("fixture:navigation")); }
 beforeEach(async () => {
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); clearWorkspaceResources(); reconcileWorkspaceScope("synthetic-scene-owner", "scene-revision-1");
   window.history.replaceState(null, "", "/notes");
   transport.mobile = false;
@@ -44,7 +46,7 @@ beforeEach(async () => {
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
   await act(async () => root.render(<Suspense fallback={null}><WorkbenchProvider><Harness /></WorkbenchProvider></Suspense>));
 });
-afterEach(async () => { await act(async () => root.unmount()); host.remove(); clearWorkspaceResources(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.innerHTML = ""; });
+afterEach(async () => { await act(async () => root.unmount()); host.remove(); clearWorkspaceResources(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.innerHTML = ""; if (scrollIntoViewDescriptor) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", scrollIntoViewDescriptor); else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView; });
 function confirmSaves() {
   transport.save.mockImplementation(async (input: { id: string; name: string; snapshot: WorkspaceSceneSnapshot; expectedRevision: number }) => {
     const scene: WorkspaceScene = { id: input.id, name: input.name, snapshot: input.snapshot, revision: input.expectedRevision + 1, created_at: "2026-10-26T00:00:00Z", updated_at: "2026-10-26T00:00:00Z", archived_at: null };
@@ -85,7 +87,7 @@ it("captures and restores the document scroll owner separately from a reference 
   Object.defineProperty(document, "scrollingElement", { configurable: true, value: document.documentElement }); document.documentElement.scrollTop = 530;
   const position = await captureWorkbenchPosition(main, "main"); expect(position).toMatchObject({ scrollOwner: "document", scrollTop: 530 });
   const settled = vi.fn(); restoreWorkbenchPosition(main, position, { scope: "main", onSettled: settled });
-  expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 530, behavior: "instant" }); expect(settled).toHaveBeenCalledExactlyOnceWith(true);
+  expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 530, behavior: "instant" }); expect(settled).toHaveBeenCalledExactlyOnceWith(true, "applied");
   const reference = document.createElement("aside"); reference.innerHTML = '<div class="workbench-document" style="overflow-y:auto">Reference</div>'; document.body.append(reference);
   const scroller = reference.firstElementChild as HTMLElement; Object.defineProperty(scroller, "clientHeight", { value: 100 }); Object.defineProperty(scroller, "scrollHeight", { value: 1000 }); scroller.scrollTop = 270;
   expect(await captureWorkbenchPosition(reference, "reference")).toMatchObject({ scrollOwner: "pane", scrollTop: 270 });
@@ -271,4 +273,31 @@ it("revokes stale row handlers in the publication-to-commit window as well as up
   });
   expect(transport.push).not.toHaveBeenCalled(); expect(transport.save).not.toHaveBeenCalled();
   expect(buttons("恢复")).toHaveLength(0); expect(buttons("选择更新")).toHaveLength(0); expect(buttons("归档")).toHaveLength(0);
+});
+
+it("restores the real new-scene name form through its typed opener without writing", async () => {
+  const { getWorkflowDrafts } = await import("@/features/workflow-continuity/drafts");
+  const { requestDraftResume, getDraftResumeStatus } = await import("@/features/workflow-continuity/draft-resume");
+  await click("工作台"); await inputName("未保存的新现场名称"); await closeDialog();
+  const draft = getWorkflowDrafts().find(item => item.resumeTarget?.kind === "scene.create")!; expect(draft).toBeDefined();
+  await act(async () => { await requestDraftResume(draft.resumeTarget!); });
+  for (let attempt = 0; attempt < 20 && getDraftResumeStatus().status === "pending"; attempt++) {
+    await act(async () => new Promise(resolve => setTimeout(resolve, 20)));
+  }
+  expect(getDraftResumeStatus().status).toBe("accepted");
+  const field = document.querySelector<HTMLInputElement>("#workbench-scene-name")!;
+  expect(field.value).toBe("未保存的新现场名称"); expect(document.activeElement).toBe(field); expect(transport.save).not.toHaveBeenCalled();
+});
+it("preserves a resumed rename baseline and name when the saved scene changed", async () => {
+  const { getWorkflowDrafts } = await import("@/features/workflow-continuity/drafts");
+  const { requestDraftResume, getDraftResumeStatus } = await import("@/features/workflow-continuity/draft-resume");
+  transport.rows = [savedScene()]; workspaceScenesResource.invalidate(); await click("工作台"); await click("选择更新"); await inputName("保留旧名称输入"); await closeDialog();
+  const draft = getWorkflowDrafts().find(item => item.resumeTarget?.kind === "scene.rename")!; expect(draft).toBeDefined();
+  transport.rows = [{ ...savedScene(), revision: 2, name: "另一设备的新名称" }];
+  await act(async () => { await requestDraftResume(draft.resumeTarget!); });
+  for (let attempt = 0; attempt < 20 && getDraftResumeStatus().status === "pending"; attempt++) {
+    await act(async () => new Promise(resolve => setTimeout(resolve, 20)));
+  }
+  expect(getDraftResumeStatus().message).toBeUndefined(); expect(getDraftResumeStatus()).toMatchObject({ status: "accepted" }); expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.value).toBe("保留旧名称输入");
+  await submit(); expect(transport.save).not.toHaveBeenCalled(); expect(document.body.textContent).toContain("名称对应的原现场已变化");
 });

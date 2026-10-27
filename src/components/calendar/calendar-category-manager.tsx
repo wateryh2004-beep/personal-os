@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { DraftForm } from "@/components/workflow-continuity/draft-form";
+import { useActionState,useState } from "react";
 import { backfillCalendarCategoriesAction, initializeCalendarCategoriesAction, updateCalendarCategoryAiAction, updateCalendarCategoryColorAction, updateCalendarEvent, type CalendarBackfillState, type CalendarCreateState } from "@/features/calendar/actions";
 import type { CalendarCategory } from "@/features/calendar/categories/types";
 import { outlookCategoryDot, outlookCategoryPalette } from "@/features/calendar/categories/visual";
@@ -15,7 +16,7 @@ const control = "ui-field h-8 rounded-[7px] border-0 bg-[var(--surface-control)]
 
 function CategoryRow({ category }: { category: CalendarCategory }) {
   const [state, action, pending] = useActionState(updateCalendarCategoryColorAction, initial);
-  const [aiState, aiAction, aiPending] = useActionState(updateCalendarCategoryAiAction, initial);
+
   const dot = outlookCategoryDot(category.color);
   return (
     <div className="border-b border-[var(--border-subtle)] py-3 last:border-0">
@@ -33,13 +34,13 @@ function CategoryRow({ category }: { category: CalendarCategory }) {
       {category.category_kind !== "external" ? (
         <details className="ml-4 mt-2">
           <summary className="cursor-pointer list-none text-[12px] text-[var(--text-tertiary)]">AI 分类规则</summary>
-          <form action={aiAction} className="mt-2 grid gap-2.5 border-l border-[var(--border-subtle)] pl-3">
+          <DraftForm draft={{operation:"calendar.category-rules",id:category.id,href:"/calendar",label:"日历 AI 分类规则"}} action={async data=>{const result=await updateCalendarCategoryAiAction(initial,data);return result.status==="success"?{status:"saved"}:{status:"needs-check",message:result.message};}} className="mt-2 grid gap-2.5 border-l border-[var(--border-subtle)] pl-3">
             <input type="hidden" name="category_id" value={category.id}/>
             <label className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]"><input type="checkbox" name="ai_enabled" defaultChecked={category.ai_enabled} className="size-3.5 accent-[var(--accent)]"/>允许 AI 建议此分类</label>
             <label className="grid gap-1 text-[12px] text-[var(--text-tertiary)]">说明<input name="ai_description" maxLength={500} defaultValue={category.ai_description ?? ""} className={control}/></label>
             <label className="grid gap-1 text-[12px] text-[var(--text-tertiary)]">关键词（逗号分隔）<input name="keywords" maxLength={1500} defaultValue={category.keywords.join("，")} className={control}/></label>
-            <div className="flex items-center gap-2"><button disabled={aiPending} className="rounded-[7px] bg-[var(--surface-control)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-primary)] hover:bg-[var(--surface-control-hover)] disabled:opacity-50">{aiPending ? "保存中…" : "保存规则"}</button>{aiState.status !== "idle" ? <span className={`text-[12px] ${aiState.status === "error" ? "text-[var(--danger)]" : "text-[var(--success)]"}`}>{aiState.message}</span> : null}</div>
-          </form>
+            <button className="min-h-11 w-fit rounded-[7px] bg-[var(--surface-control)] px-2.5 text-[12px] font-medium">保存规则</button>
+          </DraftForm>
         </details>
       ) : null}
     </div>
@@ -51,14 +52,14 @@ function UnclassifiedRow({ event, categories, timezone }: { event: CalendarEvent
     { subject: event.subject, description: event.body_text, locationName: event.location_name },
     categories.filter((category) => category.managed_key).map((category) => ({ managed_key: category.managed_key, keywords: category.keywords, ai_enabled: category.ai_enabled })),
   );
-  const [state, action, pending] = useActionState(updateCalendarEvent, initial);
+  const [baseline,setBaseline]=useState({subject:event.subject,starts:event.starts_at,ends:event.ends_at});
+  const [requestId,setRequestId]=useState(()=>crypto.randomUUID());
   return (
-    <form action={action} className="grid gap-2 border-b border-[var(--border-subtle)] py-3 last:border-0">
-      <input type="hidden" name="provider_event_id" value={event.provider_event_id}/><input type="hidden" name="original_subject" value={event.subject}/><input type="hidden" name="original_starts_at" value={event.starts_at}/><input type="hidden" name="original_ends_at" value={event.ends_at}/><input type="hidden" name="subject" value={event.subject}/><input type="hidden" name="starts_at" value={event.starts_at}/><input type="hidden" name="ends_at" value={event.ends_at}/><input type="hidden" name="preserve_categories" value="false"/>{suggestion.contextCategoryKeys.map((key) => <input key={key} type="hidden" name="context_category_keys" value={key}/>)}
+    <DraftForm draft={{operation:"calendar.classify",id:event.provider_event_id,href:"/calendar",label:"未分类日程"}} onDraftRestore={fields=>{if(typeof fields.request_id==="string")setRequestId(fields.request_id);if(typeof fields.original_subject==="string"&&typeof fields.original_starts_at==="string"&&typeof fields.original_ends_at==="string")setBaseline({subject:fields.original_subject,starts:fields.original_starts_at,ends:fields.original_ends_at});}} action={async data=>{const result=await updateCalendarEvent(initial,data);return result.status==="success"?{status:"saved"}:{status:"needs-check",message:result.message};}} className="grid gap-2 border-b border-[var(--border-subtle)] py-3 last:border-0">
+      <input type="hidden" name="provider_event_id" value={event.provider_event_id}/><input type="hidden" name="request_id" value={requestId}/><input type="hidden" name="original_subject" value={baseline.subject}/><input type="hidden" name="original_starts_at" value={baseline.starts}/><input type="hidden" name="original_ends_at" value={baseline.ends}/><input type="hidden" name="subject" value={event.subject}/><input type="hidden" name="starts_at" value={event.starts_at}/><input type="hidden" name="ends_at" value={event.ends_at}/><input type="hidden" name="preserve_categories" value="false"/>{suggestion.contextCategoryKeys.map((key) => <input key={key} type="hidden" name="context_category_keys" value={key}/>)}
       <div  className="flex items-start justify-between gap-3"><div  className="min-w-0"><p  className="truncate text-[12px] font-medium text-[var(--text-primary)]">{event.subject || "无标题日程"}</p><p  className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">{new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(event.starts_at))} · {suggestion.needsConfirmation ? "低置信度，请确认" : suggestion.reason}</p></div><select aria-label="日历分类" name="category_choice" defaultValue={suggestion.primaryCategoryKey} className={`${control} w-28`}><option  value="__none">不设置</option>{primaryCalendarCategories.map((category) => <option  key={category.key} value={category.key}>{category.shortName}</option>)}</select></div>
-      <div className="flex items-center justify-between gap-3"><p className="text-[12px] text-[var(--text-tertiary)]">{suggestion.contextCategoryKeys.map((key) => getManagedCalendarCategory(key)?.shortName).filter(Boolean).join(" · ") || "无长期场景"}</p><button disabled={pending || state.status === "success"} className="rounded-[7px] px-2 py-1 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50">{pending ? "写入中…" : state.status === "success" ? "已写入" : "确认"}</button></div>
-      {state.status === "error" ? <p className="text-[12px] text-[var(--danger)]">{state.message}</p> : null}
-    </form>
+      <div className="flex items-center justify-between gap-3"><p className="text-[12px] text-[var(--text-tertiary)]">{suggestion.contextCategoryKeys.map((key) => getManagedCalendarCategory(key)?.shortName).filter(Boolean).join(" · ") || "无长期场景"}</p><button className="rounded-[7px] px-2 py-1 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50">确认</button></div>
+    </DraftForm>
   );
 }
 

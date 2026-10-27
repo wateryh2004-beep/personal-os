@@ -16,6 +16,11 @@ const pdfCoverRuntimeAssets = [
 ];
 
 const nextConfig: NextConfig = {
+  // Only the isolated CI build can contain enabled canonical fixture rewrites.
+  // Ordinary/production artifacts compile the gate to false permanently.
+  env: {
+    CONTINUOUS_FIXTURE_COMPILED: process.env.CONTINUOUS_WORKFLOWS_E2E_BUILD === "1" && process.env.CI === "true" && process.env.VERCEL_ENV !== "production" && process.env.VERCEL !== "1" ? "1" : "0",
+  },
   serverExternalPackages: ["pdfjs-dist", "@napi-rs/canvas", "sharp"],
   // The first-page renderer is an unbundled, killable Node process. Include
   // its ESM runtime, local fonts/CMaps/WASM and platform native bindings in

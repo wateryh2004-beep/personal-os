@@ -1,0 +1,3 @@
+import {expect,it} from "vitest";
+import {draftValueFingerprint} from "@/features/workflow-continuity/drafts";
+it("object key insertion order is not new raw input, while whitespace, blanks and array order remain exact",()=>{expect(draftValueFingerprint({title:"  A  ",nested:{b:2,a:1},ids:["a","b"]})).toBe(draftValueFingerprint({ids:["a","b"],nested:{a:1,b:2},title:"  A  "}));expect(draftValueFingerprint({title:" A"})).not.toBe(draftValueFingerprint({title:"A"}));expect(draftValueFingerprint({date:""})).not.toBe(draftValueFingerprint({}));expect(draftValueFingerprint({ids:["a","b"]})).not.toBe(draftValueFingerprint({ids:["b","a"]}));});

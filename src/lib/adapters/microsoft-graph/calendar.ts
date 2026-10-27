@@ -937,25 +937,27 @@ export async function reconcileCalendarOperation(operationId: string, userId: st
 export const microsoftCalendarConfiguration = { clientId: MICROSOFT_CLIENT_ID, scopes: MICROSOFT_SCOPES, scopeVersion: MICROSOFT_SCOPE_VERSION };
 
 /** Live provider snapshot for observed-conflict checks. No If-Match guarantee is claimed. */
-export async function readMicrosoftTodoMutationSnapshot(connectionId: string, userId: string, localTaskId: string) {
+export async function readMicrosoftTodoMutationSnapshot(connectionId: string, userId: string, localTaskId: string, options?: { includeBody?: boolean }) {
   const { task, providerListId } = await ownedTodoTask(connectionId, userId, localTaskId);
   const accessToken = await accessTokenForConnection(connectionId, userId);
   const remote = await graph(accessToken, `/me/todo/lists/${encodeURIComponent(providerListId)}/tasks/${encodeURIComponent(task.provider_task_id)}`) as GraphTodoTask;
   if (remote.id !== task.provider_task_id) throw new MicrosoftGraphError("todo_task_not_found");
-  return { id: localTaskId, title: remote.title ?? task.title, importance: remote.importance ?? task.importance ?? "normal", dueAt: optionalIso(remote.dueDateTime?.dateTime), status: remote.status ?? task.status, completedAt: optionalIso(remote.completedDateTime?.dateTime), lastModifiedAt: optionalIso(remote.lastModifiedDateTime), etag: remote["@odata.etag"] ?? null };
+  return { id: localTaskId, ...(options?.includeBody ? { bodyText: remote.body?.content ?? task.body_text ?? null } : {}), title: remote.title ?? task.title, importance: remote.importance ?? task.importance ?? "normal", dueAt: optionalIso(remote.dueDateTime?.dateTime), status: remote.status ?? task.status, completedAt: optionalIso(remote.completedDateTime?.dateTime), lastModifiedAt: optionalIso(remote.lastModifiedDateTime), etag: remote["@odata.etag"] ?? null };
 }
 export type TodoMutationSnapshot = Awaited<ReturnType<typeof readMicrosoftTodoMutationSnapshot>>;
-export type TodoMetadataPatch = { title?: string; importance?: "low" | "normal" | "high"; dueAt?: string | null; status?: TodoMutationSnapshot["status"]; completedAt?: string | null };
+export type TodoMetadataPatch = { bodyText?: string | null; title?: string; importance?: "low" | "normal" | "high"; dueAt?: string | null; status?: TodoMutationSnapshot["status"]; completedAt?: string | null };
 export function sameTodoMutationSnapshot(a: TodoMutationSnapshot, b: TodoMutationSnapshot) {
-  return a.id === b.id && a.title === b.title && a.importance === b.importance && a.dueAt === b.dueAt && a.status === b.status && a.completedAt === b.completedAt && (a.etag && b.etag ? a.etag === b.etag : a.lastModifiedAt === b.lastModifiedAt);
+  return (b.bodyText === undefined || a.bodyText === b.bodyText) && a.id === b.id && a.title === b.title && a.importance === b.importance && a.dueAt === b.dueAt && a.status === b.status && a.completedAt === b.completedAt && (a.etag && b.etag ? a.etag === b.etag : a.lastModifiedAt === b.lastModifiedAt);
 }
 /** Read/check then minimal PATCH. External clients may still race after the GET. */
 export async function patchMicrosoftTodoMetadata(connectionId: string, userId: string, localTaskId: string, expected: TodoMutationSnapshot, patch: TodoMetadataPatch) {
-  const current = await readMicrosoftTodoMutationSnapshot(connectionId, userId, localTaskId);
+  if (patch.bodyText !== undefined && expected.bodyText === undefined) throw new MicrosoftGraphError("graph_conflict");
+  const current = await readMicrosoftTodoMutationSnapshot(connectionId, userId, localTaskId, { includeBody: expected.bodyText !== undefined });
   if (!sameTodoMutationSnapshot(current, expected)) throw new MicrosoftGraphError("graph_conflict");
   const { admin, task, providerListId } = await ownedTodoTask(connectionId, userId, localTaskId);
   const accessToken = await accessTokenForConnection(connectionId, userId);
   const body: Record<string, unknown> = {};
+  if (patch.bodyText !== undefined) body.body = patch.bodyText === null ? null : { content: patch.bodyText, contentType: "text" };
   if (patch.title !== undefined) body.title = patch.title;
   if (patch.importance !== undefined) body.importance = patch.importance;
   if (patch.dueAt !== undefined) body.dueDateTime = patch.dueAt ? { dateTime: patch.dueAt.replace("Z", ""), timeZone: "UTC" } : null;
@@ -963,8 +965,8 @@ export async function patchMicrosoftTodoMetadata(connectionId: string, userId: s
   if (patch.status === "completed" && patch.completedAt === undefined) body.completedDateTime={dateTime:new Date().toISOString().replace("Z",""),timeZone:"UTC"};
   if (patch.completedAt !== undefined) body.completedDateTime = patch.completedAt ? { dateTime: patch.completedAt.replace("Z", ""), timeZone: "UTC" } : null;
   const updated = await graph(accessToken, `/me/todo/lists/${encodeURIComponent(providerListId)}/tasks/${encodeURIComponent(task.provider_task_id)}`, { method: "PATCH", body: JSON.stringify(body) }) as GraphTodoTask;
-  const after: TodoMutationSnapshot = { id: localTaskId, title: updated.title ?? (patch.title ?? current.title), importance: updated.importance ?? (patch.importance ?? current.importance), dueAt: updated.dueDateTime === null ? null : optionalIso(updated.dueDateTime?.dateTime) ?? (patch.dueAt === undefined ? current.dueAt : patch.dueAt), status: updated.status ?? (patch.status ?? current.status), completedAt: updated.completedDateTime === null ? null : optionalIso(updated.completedDateTime?.dateTime) ?? (patch.completedAt === undefined ? current.completedAt : patch.completedAt), lastModifiedAt: optionalIso(updated.lastModifiedDateTime), etag: updated["@odata.etag"] ?? null };
-  const { error } = await admin.from("microsoft_todo_tasks").update({ title: after.title, importance: after.importance, due_at: after.dueAt, status: after.status, completed_at: after.completedAt, provider_last_modified_at: after.lastModifiedAt, last_synced_at: new Date().toISOString() }).eq("id", task.id).eq("user_id", userId);
+  const after: TodoMutationSnapshot = { id: localTaskId, ...(expected.bodyText !== undefined ? { bodyText: updated.body?.content ?? (patch.bodyText === undefined ? current.bodyText : patch.bodyText) ?? null } : {}), title: updated.title ?? (patch.title ?? current.title), importance: updated.importance ?? (patch.importance ?? current.importance), dueAt: updated.dueDateTime === null ? null : optionalIso(updated.dueDateTime?.dateTime) ?? (patch.dueAt === undefined ? current.dueAt : patch.dueAt), status: updated.status ?? (patch.status ?? current.status), completedAt: updated.completedDateTime === null ? null : optionalIso(updated.completedDateTime?.dateTime) ?? (patch.completedAt === undefined ? current.completedAt : patch.completedAt), lastModifiedAt: optionalIso(updated.lastModifiedDateTime), etag: updated["@odata.etag"] ?? null };
+  const { error } = await admin.from("microsoft_todo_tasks").update({ ...(after.bodyText !== undefined ? { body_text: after.bodyText } : {}), title: after.title, importance: after.importance, due_at: after.dueAt, status: after.status, completed_at: after.completedAt, provider_last_modified_at: after.lastModifiedAt, last_synced_at: new Date().toISOString() }).eq("id", task.id).eq("user_id", userId);
   return { after, cacheSaved: !error };
 }
 

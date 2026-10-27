@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/features/interview/actions", () => ({ createPracticeAttempt: vi.fn() }));
+vi.mock("@/features/interview/actions", () => ({ createPracticeAttempt: vi.fn(),savePracticeIntent:vi.fn(),reconcilePracticeIntent:vi.fn() }));
 vi.mock("@/features/interview/queries", () => ({
   getPracticeDetail: vi.fn(async () => ({
     preparation: {
@@ -26,6 +26,7 @@ vi.mock("@/features/interview/queries", () => ({
   })),
 }));
 
+vi.mock("next/navigation",()=>({useRouter:()=>({push:vi.fn()}),unstable_rethrow:vi.fn()}));
 import PracticeDetailPage from "@/app/(app)/career/interview/practice/[preparationId]/page";
 
 async function renderPage(searchParams: { saved?: string; review?: string }) {

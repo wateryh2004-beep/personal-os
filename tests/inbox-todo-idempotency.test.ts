@@ -104,7 +104,7 @@ describe("actual To Do action composed-body boundary", () => {
  it("identifies invalid body input separately from title/list/date errors", async () => {
   const value = form(); value.delete("body_text");
   const result = await createMicrosoftTodoTaskAction(initial, value);
-  expect(result).toEqual({ status: "error", message: "任务正文格式无效，请检查后重试。" });
+  expect(result).toEqual({ status: "error", message: "任务正文格式无效，请检查后重试。", writeOutcome: "not_written" });
   expect(state.create).not.toHaveBeenCalled(); expect(state.rows).toEqual([]);
  });
 

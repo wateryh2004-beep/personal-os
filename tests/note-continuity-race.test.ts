@@ -68,3 +68,29 @@ it("lets an explicit scroll/touch interrupt restoration and keeps the user's new
   await act(async () => old.done());
   expect(f.position?.editor?.viewport.line).toBe(524);
 });
+
+it("acknowledges an explicit editor restore only after measured completion", async () => {
+  await mount(); await act(async () => api.onEditorReady(view())); await act(async () => f.completions[0].done());
+  const applied = vi.fn(), cancelled = vi.fn();
+  await act(async () => api.restoreContinuity({ reading: false, editor: intended }, { onRestored: applied, onCancelled: cancelled }));
+  expect(applied).not.toHaveBeenCalled(); expect(cancelled).not.toHaveBeenCalled();
+  const actual = f.completions.at(-1)!; expect(actual.current()).toBe(true);
+  await act(async () => actual.done()); expect(applied).toHaveBeenCalledTimes(1); expect(cancelled).not.toHaveBeenCalled();
+  await act(async () => actual.done()); expect(applied).toHaveBeenCalledTimes(1);
+});
+it("cancels the old acknowledgement before a newer explicit restore and ignores its late completion", async () => {
+  await mount(); await act(async () => api.onEditorReady(view()));
+  const first = { onRestored: vi.fn(), onCancelled: vi.fn() }, second = { onRestored: vi.fn(), onCancelled: vi.fn() };
+  await act(async () => api.restoreContinuity({ reading: false, editor: intended }, first)); const old = f.completions.at(-1)!;
+  await act(async () => api.restoreContinuity({ reading: false, editor: { ...intended, anchor: 1, head: 1 } }, second));
+  expect(first.onCancelled).toHaveBeenCalledTimes(1); expect(old.current()).toBe(false);
+  await act(async () => old.done()); expect(first.onRestored).not.toHaveBeenCalled(); expect(second.onRestored).not.toHaveBeenCalled();
+  await act(async () => f.completions.at(-1)!.done()); expect(second.onRestored).toHaveBeenCalledTimes(1);
+});
+it("cancels an explicit acknowledgement on unmount and owner change without claiming restored", async () => {
+  await mount(); await act(async () => api.onEditorReady(view()));
+  const callbacks = { onRestored: vi.fn(), onCancelled: vi.fn() };
+  await act(async () => api.restoreContinuity({ reading: false, editor: intended }, callbacks)); const old = f.completions.at(-1)!;
+  f.epoch += 1; await act(async () => root.unmount());
+  expect(callbacks.onCancelled).toHaveBeenCalledTimes(1); await act(async () => old.done()); expect(callbacks.onRestored).not.toHaveBeenCalled();
+});

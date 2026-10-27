@@ -64,3 +64,18 @@ describe("provider operation receipts with isolated transport fixtures",()=>{
   expect((await undoProviderReceipt(first.receiptId!,"other-owner")).status).toBe("error");
  });
 });
+
+describe("frozen task body metadata requests",()=>{
+ const bodyInput={...input,operation:"tasks_update" as const,patch:{bodyText:"新正文"},expected:{bodyText:"原正文",lastModifiedAt:before.lastModifiedAt}};
+ it("requires the original body and provider baseline before preparing a body write",async()=>{const result=await runTodoMetadataOperation({...bodyInput,expected:{lastModifiedAt:before.lastModifiedAt}});expect(result.status).toBe("conflict");expect(state.rows).toHaveLength(0);expect(state.patches).not.toHaveBeenCalled();});
+ it("rejects a changed original body without PATCH even when the provider timestamp was unchanged",async()=>{state.reads.mockResolvedValue({...before,bodyText:"别处修改"});const result=await runTodoMetadataOperation(bodyInput);expect(result.status).toBe("conflict");expect(state.patches).not.toHaveBeenCalled();});
+ it("keeps an unknown body dispatch frozen and the pure reader never retries or changes its receipt",async()=>{
+  const {readTodoMetadataOutcome}=await import("@/features/workbench/operation-provider");state.reads.mockResolvedValue({...before,bodyText:"原正文"});state.patches.mockRejectedValue(new Error("graph_unavailable"));
+  expect((await runTodoMetadataOperation(bodyInput)).status).toBe("unknown");expect(state.patches).toHaveBeenCalledTimes(1);const receiptBefore=structuredClone(state.rows);
+  state.reads.mockResolvedValue({...after,bodyText:"新正文"});expect(await readTodoMetadataOutcome(bodyInput)).toMatchObject({status:"unknown",rows:[{bodyText:"新正文"}]});expect(state.patches).toHaveBeenCalledTimes(1);expect(state.rows).toEqual(receiptBefore);
+  expect((await readTodoMetadataOutcome({...bodyInput,patch:{bodyText:"另一意图"}})).status).toBe("conflict");expect((await readTodoMetadataOutcome({...bodyInput,userId:"other"})).status).toBe("error");expect(state.patches).toHaveBeenCalledTimes(1);
+ });
+ it("reads current canonical text only after a confirmed receipt, preserving later provider edits",async()=>{const {readTodoMetadataOutcome}=await import("@/features/workbench/operation-provider");state.reads.mockResolvedValue({...before,bodyText:"原正文"});state.patches.mockResolvedValue({after:{...after,bodyText:"新正文"},cacheSaved:true});expect((await runTodoMetadataOperation(bodyInput)).status).toBe("success");state.reads.mockResolvedValue({...after,bodyText:"后来编辑",etag:'W/"later"'});expect(await readTodoMetadataOutcome(bodyInput)).toMatchObject({status:"success",rows:[{bodyText:"后来编辑"}]});expect(state.patches).toHaveBeenCalledTimes(1);});
+});
+
+it("lets an exact conflicted intent read canonical fields for explicit rebase without claiming or patching",async()=>{const {readTodoMetadataOutcome}=await import("@/features/workbench/operation-provider");const frozen={...input,operation:"tasks_update" as const,patch:{bodyText:"新输入"},expected:{bodyText:"原输入",lastModifiedAt:before.lastModifiedAt}};state.reads.mockResolvedValue({...before,bodyText:"别处已更新"});expect((await runTodoMetadataOperation(frozen)).status).toBe("conflict");const receipt=structuredClone(state.rows);expect(await readTodoMetadataOutcome(frozen)).toMatchObject({status:"conflict",rows:[{bodyText:"别处已更新"}]});expect(state.rows).toEqual(receipt);expect(state.patches).not.toHaveBeenCalled();});
