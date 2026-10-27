@@ -103,10 +103,23 @@ export function verifyDocuments(actualText, candidateText, catalog) {
       assert.deepEqual(Object.keys(args), functions[0].inputArguments.map(arg => arg.name).sort(), `${name} native args inventory`);
       for (const arg of functions[0].inputArguments) assert.equal(args[arg.name].optional, arg.hasDefault, `${name}.${arg.name} native default`);
     }
+    for (const [name, result] of Object.entries(scope.baselineFunctions)) {
+      const fn = catalog.functions.find(row => row.name === name);
+      assert.equal(fn.securityDefiner, false, name + " native invoker boundary");
+      assert.equal(fn.result, result, name + " native scalar return");
+      assert.ok(fn.config?.some(value => value === 'search_path=""' || value === "search_path=public"), name + " bounded search path");
+      assert.ok(fn.acl?.some(value => /^authenticated=[^/]*X/.test(value)), name + " authenticated execute grant");
+      assert.ok(!fn.acl?.some(value => /^(?:anon)?=[^/]*X/.test(value)), name + " anonymous execute denied");
+    }
+    const projectTrigger = catalog.functions.filter(fn => fn.name === "sync_project_search_document");
+    assert.equal(projectTrigger.length, 1, "Project projection trigger function catalog");
+    assert.equal(projectTrigger[0].result, "trigger", "Project projection trigger return");
+    assert.equal(projectTrigger[0].securityDefiner, false, "Project projection invoker boundary");
+    assert.ok(catalog.triggers.some(row => row.table === "projects" && row.name === "projects_search_sync" && row.function === "sync_project_search_document" && row.enabled === "O" && /AFTER INSERT OR DELETE OR UPDATE|AFTER INSERT OR UPDATE OR DELETE/.test(row.definition)), "Project projection trigger catalog binding");
     const trigger = catalog.functions.filter(fn => fn.name === "protect_note_source_version"); assert.equal(trigger.length, 1); assert.equal(trigger[0].result, "trigger"); assert.equal(trigger[0].securityDefiner, false);
     assert.ok(catalog.triggers.some(row => row.table === "note_versions" && row.name === "protect_note_source_version" && row.function === "protect_note_source_version" && /BEFORE DELETE OR UPDATE|BEFORE UPDATE OR DELETE/.test(row.definition)), "Immutable source trigger catalog binding");
   }
-  return { candidateFieldsAndFunctionsChecked: checked, verifiedScope: { fullTables: scope.fullTables, changedColumns: scope.changedColumns, foreignKeyTables: [...scope.fullTables, ...Object.keys(scope.changedRelationships)], enumDefinitionsResolved: [...new Set([...candidate.enumRefs, ...actual.enumRefs])].sort(), rpcNames: scope.functions, scalarNullableArgumentExceptions: scope.nullableArguments, triggerNames: catalog ? ["note_versions.protect_note_source_version"] : [] }, catalogCompared: !!catalog };
+  return { candidateFieldsAndFunctionsChecked: checked, verifiedScope: { fullTables: scope.fullTables, changedColumns: scope.changedColumns, foreignKeyTables: [...scope.fullTables, ...Object.keys(scope.changedRelationships)], enumDefinitionsResolved: [...new Set([...candidate.enumRefs, ...actual.enumRefs])].sort(), rpcNames: scope.functions, scalarNullableArgumentExceptions: scope.nullableArguments, triggerNames: catalog ? ["note_versions.protect_note_source_version", "projects.projects_search_sync"] : [] }, catalogCompared: !!catalog };
 }
 export function runCli(argv = process.argv.slice(2)) {
   const actualPath = path.resolve(argv[0] || ""), synthetic = argv.includes("--synthetic-ast-probe");

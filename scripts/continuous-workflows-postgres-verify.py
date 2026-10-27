@@ -12,7 +12,7 @@ spec.loader.exec_module(workbench)
 OUTPUT=ROOT/"test-results/continuous-workflows-postgres"
 OUTPUT.mkdir(parents=True,exist_ok=True)
 MIGRATIONS=sorted((ROOT/"supabase/migrations").glob("*.sql"))
-NEW_SUFFIXES=("_continuous_material_sources.sql","_continuous_domain_workflows.sql","_continuous_material_receipts.sql","_inbox_dispatch_mutex.sql","_continuous_ai_capture_intents.sql","_continuous_practice_intents.sql","_continuous_scene_state.sql","_continuous_briefing_judgment_intents.sql","_continuous_agent_run_generations.sql","_continuous_life_request_reconcile.sql")
+NEW_SUFFIXES=("_continuous_material_sources.sql","_continuous_domain_workflows.sql","_continuous_material_receipts.sql","_inbox_dispatch_mutex.sql","_continuous_ai_capture_intents.sql","_continuous_practice_intents.sql","_continuous_scene_state.sql","_continuous_briefing_judgment_intents.sql","_continuous_agent_run_generations.sql","_continuous_life_request_reconcile.sql","_continuous_production_baseline.sql")
 def record_stage(stage, **details):
     (OUTPUT/"progress.json").write_text(json.dumps({"status":"running","stage":stage,"productionAccess":False,**details},indent=2)+"\n")
 record_stage("starting")
@@ -104,6 +104,10 @@ try:
     with workbench.SyntheticPostgres() as db:
         initialize(db,"source_fixture",False)
         initialize(db,"restored_fixture",True)
+        record_stage("actual-production-baseline-compatibility")
+        baseline_spec=importlib.util.spec_from_file_location("continuous_baseline_compatibility",ROOT/"scripts/continuous-baseline-compatibility.py")
+        baseline=importlib.util.module_from_spec(baseline_spec);baseline_spec.loader.exec_module(baseline)
+        compatibility=baseline.exercise(db,OUTPUT,MIGRATIONS[-1])
         record_stage("actual-official-type-generation")
         type_spec=importlib.util.spec_from_file_location("continuous_schema_typegen",ROOT/"scripts/continuous-schema-typegen.py")
         typegen=importlib.util.module_from_spec(type_spec);type_spec.loader.exec_module(typegen)
@@ -113,9 +117,10 @@ try:
         phase2_spec=importlib.util.spec_from_file_location("continuous_phase2_concurrency",ROOT/"scripts/continuous-phase2-concurrency.py")
         phase2=importlib.util.module_from_spec(phase2_spec);phase2_spec.loader.exec_module(phase2)
         concurrent.extend(phase2.exercise(db,workbench))
+        concurrent.extend(baseline.overlap(db,workbench))
         columns=json.loads(db.sql("source_fixture","select json_agg(json_build_object('table',table_name,'column',column_name,'type',udt_name,'nullable',is_nullable='YES') order by table_name,ordinal_position) from information_schema.columns where table_schema='public';"))
         (OUTPUT/"actual-schema-columns.json").write_text(json.dumps(columns,indent=2)+"\n")
-        result={"status":"verified","engine":"PostgreSQL 17","cleanInstall":True,"upgradeFromPreReleaseSchemaWithExistingRows":True,"actualMigrations":len(MIGRATIONS),"ownerAndAnonymousPolicies":True,"immutableSourcesAndCAS":True,"backupInventory":True,"overlappingTransactions":concurrent,"auditRollback":True,"productionAccess":False}
+        result={"status":"verified","engine":"PostgreSQL 17","cleanInstall":True,"upgradeFromPreReleaseSchemaWithExistingRows":True,"actualMigrations":len(MIGRATIONS),"ownerAndAnonymousPolicies":True,"immutableSourcesAndCAS":True,"backupInventory":True,"productionBaselineCompatibility":compatibility,"overlappingTransactions":concurrent,"auditRollback":True,"productionAccess":False}
         (OUTPUT/"verification.json").write_text(json.dumps(result,indent=2)+"\n")
         (OUTPUT/"progress.json").write_text(json.dumps(result,indent=2)+"\n")
         print(json.dumps(result))

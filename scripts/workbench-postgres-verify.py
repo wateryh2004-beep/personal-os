@@ -48,6 +48,7 @@ WORKBENCH_SUFFIXES = (
     "_continuous_briefing_judgment_intents.sql",
     "_continuous_agent_run_generations.sql",
     "_continuous_life_request_reconcile.sql",
+    "_continuous_production_baseline.sql",
 )
 OWNER = "a1000000-0000-4000-8000-000000000001"
 SCENE_OWNER = "a1000000-0000-4000-8000-000000000002"

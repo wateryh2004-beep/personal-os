@@ -1,6 +1,6 @@
 # 材料来源、连续整理与编辑事务
 
-状态：本批实施契约。固定数据库检查点的隔离 SQL 已通过；最终界面与发布仍待验收，见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，公共生命周期见 [连续性契约](workflow-continuity.md)。
+状态：本批实施契约。原十条迁移的固定数据库检查点已通过隔离 SQL；第十一条生产基线兼容候选未验，界面远程检查仍有失败，发布未完成，见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，公共生命周期见 [连续性契约](workflow-continuity.md)。
 
 ## 不可变来源
 
@@ -36,7 +36,7 @@ To Do 创建由专门 `todo_creation_receipts` 保留真实发送意图、哈希
 
 ## 迁移与回退
 
-本批完整十条迁移依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile，精确本地文件名与实际隔离证据见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十条迁移与生产版本登记)。material receipts 的 task composite FK 依赖领域迁移创建的 owner 唯一索引，mutex 再依赖来源与回执；不能将本材料子集误作完整发布清单。
+当前完整十一条迁移依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile → production baseline，精确本地文件名与状态见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十一条迁移与生产版本登记)。前十条已有固定隔离证据；末项 `20261027175718_continuous_production_baseline.sql` 独立审查发现 completion 审计原子性问题，修复仍待复审与新 Native。它在缺失时补齐已证的复盘函数/项目搜索维护契约，并仅将匹配已知旧指纹/配置/ACL的 completion 前向升级为同事务正文、来源、版本与审计；已是新版保留，未知定义拒绝，其余健康定义与 ACL 保留，不重放旧 surface CHECK、旧文件或伪造 ledger。实际生产 87 条登记不等于本地 99 条完整旧基线。material receipts 的 task composite FK 依赖领域迁移创建的 owner 唯一索引，mutex 再依赖来源与回执；不能将本材料子集误作完整发布清单。
 
 生产通过已连接 Supabase MCP 按上述顺序执行；接口不接受 version 参数，实际版本由迁移列表与 schema 核对。时间戳不同只对齐本地文件名、两份严格顺序清单与文档元数据，SQL 字节/哈希不变，不双写 history 或改用 CLI/REST 绕过。当前尚未应用生产。
 
@@ -52,7 +52,7 @@ Inbox 的 Calendar 创建请求也以 Inbox ID 定位，并通过 service-only p
 
 新增活跃 Task/Calendar claim 存在时，数据库同时限制直接写 `processed_at`、`converted_task_id`、`converted_todo_task_id`、`converted_note_id` 及来源身份：只有匹配同来源 Task 回执的 `remote_committed/available` 与实际同 owner 任务，或同来源 Calendar `succeeded` 才允许完成。不能用另一条同 owner 任务/日程冒充，不能清掉关联再换 ID。该约束覆盖新 claim 的原始 UPDATE 入口；没有新活跃 claim 的旧版 Inbox 整行编辑/直接来源完成仍沿继承权限，不将本批表述为已全面收紧旧 Inbox ACL。
 
-以上回执仍属于执行状态，沿现有技术表备份排除规则；不新增业务表/字段，不新增恢复重放。本段互斥能力依赖完整发布清单中的前四条迁移；本批发布仍需按上节完整十条顺序执行，再发布相应代码。旧代码滚动窗口未具备派发前 claim，不将该窗口或历史草稿称为完整并发保障。代码回退保留新增 migration 和外部意图，不重放或删除历史回执。
+以上回执仍属于执行状态，沿现有技术表备份排除规则；不新增业务表/字段，不新增恢复重放。本段互斥能力依赖完整发布清单中的前四条迁移；本批发布仍需待十一条完整候选通过后，按上节顺序执行并发布相应代码。旧代码滚动窗口未具备派发前 claim，不将该窗口或历史草稿称为完整并发保障。代码回退保留新增 migration 和外部意图，不重放或删除历史回执。
 
 ## 选文组合后的预算与替代操作
 

@@ -90,11 +90,11 @@ const { chromium } = require('playwright');
     await page.goto(base);await page.waitForTimeout(300);assert.equal(page.workers().length,0,'navigation must terminate recognition workers');
     assert.equal(denied,0,'recognition must never ask an external origin');
     assert(requests.some(url=>url.includes('chi_sim.traineddata.gz')));assert(requests.some(url=>url.includes('eng.traineddata.gz')));
-    const actions=[]; let starts=0; const token='33333333-3333-4333-8333-333333333333';
+    const actions=[]; let starts=0, progressGate=null, progressReached=null; const token='33333333-3333-4333-8333-333333333333';
     await browserContext.route(`${base}/api/files/*/ocr*`, async route=>{
       const request=route.request();
       if(request.method()==='POST'){starts++;return route.fulfill({json:{token}});}
-      if(request.method()==='PATCH'){const body=request.postDataJSON();actions.push(body.action);assert.equal(body.token,token);return route.fulfill({json:{ok:true,characterCount:body.text?.length??0}});}
+      if(request.method()==='PATCH'){const body=request.postDataJSON();actions.push(body.action);assert.equal(body.token,token);if(body.action==='progress'&&progressGate){progressReached?.();await progressGate;}return route.fulfill({json:{ok:true,characterCount:body.text?.length??0}});}
       if(request.url().endsWith('?source=1'))return route.continue();
       return route.fulfill({json:{job:null}});
     });
@@ -125,10 +125,26 @@ const { chromium } = require('playwright');
     assert.equal(actions.filter(action => action === 'complete').length,2);assert.equal(starts,3);
     assert(sourceResponses.some(headers => headers['content-encoding'] === 'gzip' && Number(headers['content-length']) !== image.length));
     checkpoint('actual-dialog-close');
+    // Hold the real per-page progress response so close/reopen/Stop is observed
+    // while the same engine run is genuinely live, without an arbitrary sleep.
+    let releaseProgress;progressGate=new Promise(resolve=>{releaseProgress=resolve;});const atProgress=new Promise(resolve=>{progressReached=resolve;});
     await page.getByRole('button',{name:'开始 / 重新识别',exact:true}).click();
-    await page.getByRole('button',{name:'取消识别',exact:true}).waitFor();
+    let progressDeadline;try{await Promise.race([atProgress,new Promise((_,reject)=>{progressDeadline=setTimeout(()=>reject(new Error('actual OCR did not reach the page-progress boundary')),60000);})]);}finally{clearTimeout(progressDeadline);}
+    const runningId=await page.locator('[data-ocr-operation-id]').getAttribute('data-ocr-operation-id');assert.ok(runningId);
+    const liveWorkers=page.workers();assert.ok(liveWorkers.length>0,'the same actual OCR engine is live before closing');
     await page.getByRole('button',{name:'关闭',exact:true}).click();
-    await page.waitForTimeout(300);assert.equal(page.workers().length,0,'closing actual OCR dialog must terminate workers');
+    await page.getByRole('dialog').waitFor({state:'hidden'});
+    assert.equal(page.workers().length,liveWorkers.length,'closing only the UI keeps the real background runner');
+    await page.getByRole('button',{name:'识别图片文字：Synthetic OCR scan'}).click();
+    await page.getByRole('button',{name:'取消识别',exact:true}).waitFor();
+    assert.equal(await page.locator('[data-ocr-operation-id]').getAttribute('data-ocr-operation-id'),runningId,'reopen binds the original operation');
+    assert.equal(starts,4,'reopen must not POST or construct another worker run');
+    const stopped=Promise.all(liveWorkers.map(worker=>new Promise(resolve=>worker.once('close',resolve))));
+    await page.getByRole('button',{name:'取消识别',exact:true}).click();releaseProgress();progressGate=null;
+    let stopDeadline;try{await Promise.race([stopped,new Promise((_,reject)=>{stopDeadline=setTimeout(()=>reject(new Error('explicit Stop did not release OCR workers within 300ms')),300);})]);}finally{clearTimeout(stopDeadline);}
+    assert.equal(page.workers().length,0,'explicit production Stop releases every recognition worker');
+    await page.getByText('识别已停止，写入状态可返回文件核对',{exact:true}).waitFor();
+    assert.equal(actions.filter(action=>action==='cancel').length,2);assert.equal(starts,4);
     assert.equal(denied,0);
     passed=true;checkpoint('complete');
     await fs.writeFile(path.join(evidence,'recognition.json'),JSON.stringify({image:imageResult,pdf:scanned,withBlank,uiActions:actions},null,2));

@@ -1,6 +1,6 @@
 # 连续工作流：领域数据与交互契约
 
-状态：本批实现契约。固定数据库检查点已完成独立隔离验证，最终界面候选和发布仍待验收；具体范围见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围与最终证据以 [二十项规格](../specs/continuous-workflows-v3.md) 为准。主规范的身份、原件、事实、AI 和迁移规则保持有效。
+状态：本批实现契约。原十条迁移的固定数据库检查点已完成独立隔离验证；第十一条生产基线兼容候选未验，已推送界面候选仍有远程失败，发布未完成。具体范围见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围与最终证据以 [二十项规格](../specs/continuous-workflows-v3.md) 为准。主规范的身份、原件、事实、AI 和迁移规则保持有效。
 
 ## 时间规划与下一步
 
@@ -50,7 +50,9 @@ AI 草稿先显示建议；每字段采纳前校对发起时基线。手动编�
 
 项目、可用时段、任务估时、机会材料、购后档案和事件编辑在并发冲突后提供真实读回、当前输入与已保存内容对比，以及明确保留输入并以新版本继续或采用已保存内容的选择。读回本身不覆盖字段，读回期间的新输入保留；保留输入仍为未保存草稿，必须再次保存。成功仅结算提交时的快照，保存期间继续输入的内容保留。可用时段同时展示实际保存时区，不能仅替换修订号后默换时区。
 
-本批十条新增 migration 依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile，精确文件名见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十条迁移与生产版本登记)。material receipts 引用 domain 建立的 owner 唯一键，mutex 再引用专门回执与来源规则。当前均未应用生产，不能改写既有已部署 migration。新业务元数据、原文版本与关系进入 system backup；外部创建回执是技术执行状态，排除恢复和重放。固定检查点已将官方实际生成文件、native catalog 与本批候选映射比较；手写候选映射本身不称官方生成文件。
+当前十一条新增 migration 依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile → production baseline，精确文件名及已验/未验范围见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十一条迁移与生产版本登记)。material receipts 引用 domain 建立的 owner 唯一键，mutex 再引用专门回执与来源规则。第十一条 `20261027175718_continuous_production_baseline.sql` 是生产元数据发现复盘函数/项目投影缺口后的前向候选；独立审查发现 completion 审计原子性问题，修复仍待复审和新 Native。它补缺失合法契约，并仅将匹配已知旧指纹/配置/ACL的 completion 前向升级为正文、版本、来源与完成/修订审计同事务；已是新版保留，未知定义拒绝，其余三个复盘函数（含 helper）及项目健康定义、ACL、投影仍按缺失补齐并保留，不重放十二个旧文件、旧 surface CHECK 或补造 history。生产 87 条 ledger 的最终对象不能被本地完整 99 条旧基线验收替代。当前十一条均未应用生产，不能改写既有已部署 migration。
+
+新业务元数据、原文版本与关系进入 system backup；外部创建回执是技术执行状态，排除恢复和重放。原十条固定检查点已将官方实际生成文件、native catalog 与候选映射比较；第十一条所需四个复盘函数的候选类型参考同一官方产物，但新完整候选仍须实际生成和比较。手写候选映射本身不称官方生成文件。
 
 生产通过已连接 Supabase MCP 顺序应用并查询实际版本/schema/RLS/ACL。MCP 不接受 version 参数；实际时间戳不同只对齐仓库文件名、两份严格顺序清单和发布文档，保留 SQL 原字节/哈希，再做元数据核对与必要 CI。不手写迁移 history 双记账，不通过 CLI/REST 绕过生产 MCP。
 

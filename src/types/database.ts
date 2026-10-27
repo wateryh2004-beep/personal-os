@@ -7283,6 +7283,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_review_proposal: { Args: { p_proposal_id: string }; Returns: Json }
+      complete_review_with_sources: {
+        Args: {
+          p_content_markdown: string
+          p_generated_with_ai: boolean
+          p_period_end: string
+          p_period_start: string
+          p_review_key: string
+          p_review_type: string
+          p_sources: Json
+          p_structured_data: Json
+          p_title: string
+        }
+        Returns: Json
+      }
+      dismiss_review_proposal: {
+        Args: { p_proposal_id: string }
+        Returns: string
+      }
+      review_source_is_owned: {
+        Args: { p_source_id: string; p_source_type: string; p_user_id: string }
+        Returns: boolean
+      }
       workbench_utf16_length: { Args: { p_text: string }; Returns: number }
       decode_workbench_query: { Args: { p_text: string }; Returns: string }
       workbench_uuid_text: { Args: { p_value: string }; Returns: boolean }

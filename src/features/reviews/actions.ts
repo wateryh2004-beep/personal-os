@@ -72,7 +72,7 @@ function reviewTitle(
 async function saveCompletedReview(
   input: z.infer<typeof completeReviewSchema>,
 ) {
-  const { supabase, userId, timezone } = await ownerTimezone();
+  const { supabase, timezone } = await ownerTimezone();
   const now = new Date();
   const period = getReviewPeriod(input.type, now, timezone);
   if (input.period && (input.period.periodStart !== period.startDate || input.period.periodEnd !== period.endDate || input.period.timezone !== timezone)) throw new Error("复盘周期已变化，当前文字保留，请重新核对周期。");
@@ -132,19 +132,6 @@ async function saveCompletedReview(
     throw new Error("无法原子保存复盘、来源与版本快照，请稍后再试。");
   }
 
-  await supabase.from("audit_logs").insert({
-    user_id: userId,
-    action: versionNumber > 1 ? "review_amend" : "review_complete",
-    entity_type: "review",
-    entity_id: reviewId,
-    actor_type: "user",
-    after_data: {
-      review_type: input.type,
-      period: period.key,
-      source_count: sourceCount,
-      generated_with_ai: input.generatedWithAi,
-    },
-  });
   revalidatePath("/reviews");
   revalidatePath(`/reviews/${input.type}`);
   revalidatePath(`/reviews/${reviewId}`);

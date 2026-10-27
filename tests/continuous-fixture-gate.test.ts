@@ -78,3 +78,12 @@ it("ordinary builds keep dynamic API auth even for an extension-shaped ID and a 
   expect(response.status).toBe(401); expect(response.headers.has("x-middleware-rewrite")).toBe(false);
   expect(realAuth).toHaveBeenCalledExactlyOnceWith(request);
 });
+it.each(["0", "1"])("dedicated fixture routes are 404 before auth outside the selected realm (compiled %s)", async compiled => {
+  await configured(compiled); const { proxy, config } = await import("@/proxy");
+  for (const path of ["/continuous-workflows-e2e", "/continuous-workflows-e2e/notes", "/continuous-workflows-e2e/notes/unlisted.png", "/api/continuous-workflows-fixture", "/api/continuous-workflows-fixture/control"]) {
+    const request = new NextRequest(`http://127.0.0.1:3000${path}`, { headers: compiled === "0" ? { cookie } : {} });
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: request.url })).toBe(true);
+    const response = await proxy(request); expect(response.status).toBe(404); expect(response.headers.has("location")).toBe(false); expect(response.headers.has("x-middleware-rewrite")).toBe(false);
+  }
+  expect(realAuth).not.toHaveBeenCalled();
+});

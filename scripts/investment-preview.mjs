@@ -10,12 +10,22 @@ const mock = path.join(root, "mocks.jsx");
 const server = await createServer({
   configFile: false,
   root,
-  plugins: [react()],
+  plugins: [react(), {
+    name: "isolated-ordinary-comparison-action",
+    enforce: "pre",
+    resolveId(id, importer) {
+      // Next replaces this `use server` import with an action reference. Vite
+      // needs the same narrow I/O boundary, rather than bundling auth/DB code.
+      if (id === "./ordinary-comparison" && importer?.split("?")[0] === path.join(project, "src/features/workflow-continuity/ordinary-comparison-transport.tsx")) return mock;
+      return null;
+    },
+  }],
   // Next normally inlines this public constant; the isolated Vite fixture must too.
   define: { "process.env.CONTINUOUS_FIXTURE_COMPILED": JSON.stringify("0"), "process.env.NEXT_PUBLIC_PERF_DEBUG": JSON.stringify("false") },
   resolve: { alias: [
     { find: "@/features/investment/actions", replacement: mock },
     { find: "@/features/investment/daily-actions", replacement: mock },
+    { find: "@/features/workflow-continuity/ordinary-comparison", replacement: mock },
     { find: "next/navigation", replacement: mock },
     { find: "next/link", replacement: mock },
     { find: "@", replacement: path.join(project, "src") },

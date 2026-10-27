@@ -11,6 +11,7 @@
   await fs.mkdir(output, { recursive: true });
   const browser = await chromium.launch();
   const contexts = [];
+  const geometry = [];
   let runFailure;
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, recordVideo: { dir: path.join(output, "video") } });
@@ -37,6 +38,35 @@
     const page = await context.newPage();
     await page.route("**/*", isolatedTransport);
     const assertNoRootOverflow = async (label) => { if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) throw new Error(`root overflow: ${label}`); };
+    const assertWorkbenchTrajectory = async (label) => {
+      const observed = await page.evaluate(async () => {
+        const initialFocus = document.activeElement;
+        const rect = node => { if (!node) return null; const value=node.getBoundingClientRect(); return {left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}; };
+        const frames=[];let idle=0;const start=performance.now();
+        do {
+          await new Promise(requestAnimationFrame);
+          const main=document.querySelector('.workbench-main-pane'),reference=document.querySelector('.workbench-reference-pane'),nav=document.querySelector('.app-sidebar');
+          const active=document.activeElement,box=rect(active),visible=box&&box.width>0&&box.height>0&&box.right>0&&box.left<innerWidth&&box.bottom>0&&box.top<innerHeight;
+          const x=visible?(Math.max(0,box.left)+Math.min(innerWidth,box.right))/2:0,y=visible?(Math.max(0,box.top)+Math.min(innerHeight,box.bottom))/2:0;
+          const hit=visible?document.elementFromPoint(x,y):null;
+          const running=[main,reference,nav,document.querySelector('.app-workspace-frame')].filter(Boolean).flatMap(node=>node.getAnimations()).filter(animation=>animation.playState==='running').length;
+          const records=document.querySelector('[aria-label="合成参考记录"]');
+          frames.push({viewport:{width:innerWidth,height:innerHeight},nav:rect(nav),main:rect(main),mainHidden:main?.hidden,mainInert:main?.inert,mainAriaHidden:main?.getAttribute('aria-hidden'),reference:rect(reference),referenceHidden:reference?.hidden,referenceInert:reference?.inert,title:rect(main?.querySelector('[aria-label="笔记标题"]')),focusStable:active===initialFocus,focusVisible:Boolean(visible),focusHit:Boolean(hit&&(hit===active||active?.contains(hit))),focusTag:active?.tagName,activeBounds:box,running,fixtureRecordsOwner:records?.closest('.workbench-main-pane')?'main':records?.closest('.workbench-reference-pane')?'reference':null});
+          idle=running?0:idle+1;if(performance.now()-start>2000)throw new Error('Workbench motion did not settle within its finite animation budget');
+        }while(idle<2);
+        return frames;
+      });
+      geometry.push({label,frames:observed});
+      for(const frame of observed){
+        if(!frame.focusStable)throw new Error(`focus changed during ${label}`);
+        if(['BUTTON','INPUT','SELECT','TEXTAREA'].includes(frame.focusTag)&&!frame.focusHit)throw new Error(`focused control occluded during ${label}`);
+        if(!frame.mainHidden&&frame.main?.width>0){const left=frame.nav?.width>0?frame.nav.right:0;if(frame.main.left<left-1||frame.main.right>frame.viewport.width+1)throw new Error(`main pane overlaps navigation during ${label}: ${JSON.stringify(frame)}`);}
+        if(frame.mainHidden&&frame.main?.width!==0)throw new Error(`inactive main pane participates in layout: ${label}`);
+        if(frame.referenceHidden&&frame.reference?.width!==0)throw new Error(`inactive reference participates in layout: ${label}`);
+      }
+      const resting=observed.at(-1);if(resting.title?.width>0&&(resting.title.left<resting.main.left-1||resting.title.right>resting.main.right+1))throw new Error(`settled Note title is clipped: ${label}`);
+      if(resting.fixtureRecordsOwner!=='main')throw new Error(`fixture source launchers unexpectedly moved to the inactive reference: ${label}`);
+    };
     const assertReferenceMotionContained = async (label) => {
       const widest = await page.evaluate(async () => {
         const pane = document.querySelector(".workbench-reference-pane");
@@ -86,10 +116,17 @@
     const originalEditor = await page.locator(".workbench-main-pane .cm-editor").elementHandle();
     await page.getByRole("button", { name: "交换位置", exact: true }).click();
     if (!await originalEditor.evaluate(node => node.isConnected)) throw new Error("swap unmounted the primary editor");
+    await assertWorkbenchTrajectory("desktop swap");
+    await page.screenshot({path:path.join(output,"workbench-desktop-swapped.png"),fullPage:true});
+    await page.getByRole("button", { name: "交换位置", exact: true }).click();
+    await page.setViewportSize({width:768,height:900});
+    await assertWorkbenchTrajectory("swap interrupted by viewport resize");
+    if(!await originalEditor.evaluate(node=>node.isConnected)||!await primaryContent.textContent().then(text=>text.includes("合成草稿保留验证")))throw new Error("interrupted swap lost the original editor or draft");
     for (const width of [1440, 768, 390, 360]) {
       await page.setViewportSize({ width, height: 900 });
       for (const pane of width < 768 ? ["主区", "参考区"] : [null]) {
         if (pane) await page.getByRole("button", { name: pane, exact: true }).click();
+        await assertWorkbenchTrajectory(`${width}/${pane ?? "both"}`);
         await assertNoRootOverflow(`${width}/${pane ?? "both"}`);
         if (pane === "参考区") await assertReferenceMotionContained(`${width}/${pane}`);
         await page.screenshot({ path: path.join(output, `workbench-${width}-${pane ?? "both"}.png`), fullPage: true });
@@ -194,6 +231,7 @@
   } catch (error) {
     runFailure = { error };
   } finally {
+    await fs.writeFile(path.join(output,"workbench-geometry.json"),JSON.stringify(geometry,null,2));
     // Context closure flushes recorded video even when a flow assertion fails.
     const results = await Promise.allSettled(contexts.map(context => context.close()));
     results.push(...await Promise.allSettled([browser.close()]));

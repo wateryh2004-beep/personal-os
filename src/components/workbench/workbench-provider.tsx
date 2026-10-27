@@ -10,7 +10,8 @@ import { PanelRight, ArrowLeftRight, X } from "lucide-react";
 import { WorkbenchContext, type WorkbenchContextValue, type WorkbenchRecordEntry } from "./workbench-context";
 import { WorkbenchActivityContext } from "./workbench-activity";
 import { safeWorkbenchHref, workbenchComparable, workbenchRefKey, workbenchRefSchema, workspaceSceneSnapshotSchema, type WorkbenchPosition, type WorkbenchRef, type WorkspaceSceneSnapshot, type WorkbenchViewState } from "@/features/workbench/contracts";
-import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
+import { captureWorkspaceScope, registerWorkspaceScopeCleanup } from "@/lib/workspace-resource-cache";
+import { containedPaneStart } from "@/lib/motion/contained-transform";
 import { prepareWorkflowNavigation } from "@/features/workflow-continuity/navigation-protection";
 import { cancelSourceNavigation } from "@/features/workflow-continuity/source-trail";
 import { captureWorkbenchPosition, restoreWorkbenchPosition } from "./workbench-position";
@@ -309,24 +310,39 @@ export function WorkbenchLayout({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     const previous = previousGeometry.current;
     previousGeometry.current = null;
-    if (!previous) return;
     movements.current.forEach((animation) => animation.cancel()); movements.current = [];
+    if (!previous) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const container = mainRef.current?.parentElement?.getBoundingClientRect();
+    if (!container) return;
+    const viewport = window.visualViewport;
+    const nav = document.querySelector(".app-sidebar")?.getBoundingClientRect();
+    const left = Math.max(container.left, viewport?.offsetLeft ?? 0, nav && nav.width > 0 ? nav.right : 0);
+    const right = Math.min(container.right, (viewport?.offsetLeft ?? 0) + (viewport?.width ?? window.innerWidth));
+    const bounds = { left, top: container.top, width: right - left, height: container.height };
     for (const [node, from] of [[mainRef.current, previous.main], [referenceRef.current, previous.reference]] as const) {
       if (!node || !from || !node.animate) continue;
       const target = node.getBoundingClientRect();
       if (!target.width || !target.height) continue;
-      const animation = node.animate([{ transform: `translate(${from.left - target.left}px, ${from.top - target.top}px) scaleX(${from.width / target.width})`, transformOrigin: "left top" }, { transform: "translate(0, 0) scaleX(1)", transformOrigin: "left top" }], { duration: 360, easing: "cubic-bezier(.2,.8,.2,1)" });
+      const start = containedPaneStart(from, target, bounds);
+      if (!start) continue;
+      const animation = node.animate([{ transform: `translateX(${start.x}px) scaleX(${start.scaleX})`, transformOrigin: "left top" }, { transform: "translateX(0) scaleX(1)", transformOrigin: "left top" }], { duration: 360, easing: "cubic-bezier(.2,.8,.2,1)" });
       movements.current.push(animation);
     }
-  }, [host.layout.referenceFirst, host.layout.referenceWidth, mainRef, referenceRef]);
+  }, [host.layout.referenceFirst, host.layout.referenceWidth, mainRef, referenceRef, pathname]);
   useEffect(() => {
     const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const cancel = () => movements.current.forEach((animation) => animation.cancel());
+    const cancel = () => { previousGeometry.current = null; movements.current.forEach((animation) => animation.cancel()); movements.current = []; };
     const change = () => { if (preference.matches) cancel(); };
     preference.addEventListener("change", change);
-    return () => { preference.removeEventListener("change", change); cancel(); const gesture = resizeGesture.current; resizeGesture.current = null; gesture?.container?.removeAttribute("data-resizing"); if (gesture?.node.hasPointerCapture?.(gesture.pointerId)) gesture.node.releasePointerCapture(gesture.pointerId); };
-  }, []);
+    window.addEventListener("resize", cancel); window.visualViewport?.addEventListener("resize", cancel); window.addEventListener("personal-os:navigation-start", cancel); window.addEventListener("popstate", cancel);
+    const container = mainRef.current?.parentElement;
+    let width = container?.getBoundingClientRect().width;
+    const observer = container && typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => { const next = container.getBoundingClientRect().width; if (width !== next) cancel(); width = next; }) : null;
+    if (container) observer?.observe(container);
+    const stopScope = registerWorkspaceScopeCleanup(cancel);
+    return () => { observer?.disconnect(); stopScope(); preference.removeEventListener("change", change); window.removeEventListener("resize", cancel); window.visualViewport?.removeEventListener("resize", cancel); window.removeEventListener("personal-os:navigation-start", cancel); window.removeEventListener("popstate", cancel); cancel(); const gesture = resizeGesture.current; resizeGesture.current = null; gesture?.container?.removeAttribute("data-resizing"); if (gesture?.node.hasPointerCapture?.(gesture.pointerId)) gesture.node.releasePointerCapture(gesture.pointerId); };
+  }, [mainRef]);
   useEffect(() => {
     if (referenceOpen && !mobile) return;
     const gesture = resizeGesture.current;

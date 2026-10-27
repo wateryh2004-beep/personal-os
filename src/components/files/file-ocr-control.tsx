@@ -1,8 +1,10 @@
 "use client";
 
 import { publishFileRecordChange } from "@/features/files/publication";
-import { startBackgroundOperation } from "@/features/workflow-continuity/background-operations";
-import { useEffect, useRef, useState } from "react";
+import { startBackgroundOperation, cancelBackgroundOperation, getBackgroundOperations, getBackgroundOperationsServerSnapshot, subscribeBackgroundOperations } from "@/features/workflow-continuity/background-operations";
+import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { z } from "zod";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { OCR_MAX_BYTES, OCR_TIMEOUT_MS, awaitOcr, ocrErrorMessage, ocrKind } from "@/features/files/ocr-policy";
 import type { FileRecord } from "@/features/files/queries";
@@ -12,17 +14,25 @@ let activeDocument: symbol | null = null;
 const button = "pressable min-h-9 rounded-[8px] px-3 text-[12px] text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-40";
 export function FileOcrControl({ file, onComplete }: { file: FileRecord; onComplete: (count: number) => void }) {
   const [open, setOpen] = useState(false);
+  const [origin] = useState(() => ({ scope: captureWorkspaceScope(), documentId: file.id }));
+  const current = useCallback(() => origin.scope() && origin.documentId === file.id && z.uuid().safeParse(file.id).success, [origin, file.id]);
   if (!ocrKind(file.original_filename, file.mime_type)) return null;
   return <>
-    <button type="button" className={button} onClick={() => setOpen(true)} aria-label={`识别图片文字：${file.title}`}>OCR</button>
+    <button type="button" className={button} onClick={() => { if (current()) setOpen(true); }} aria-label={`识别图片文字：${file.title}`}>OCR</button>
     <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-w-lg">
       <DialogHeader><DialogTitle>识别扫描件文字</DialogTitle><DialogDescription>{file.title}</DialogDescription></DialogHeader>
-      {open ? <OcrSession file={file} onComplete={onComplete} /> : null}
+      {open ? <OcrSession key={file.id} file={file} onComplete={onComplete} current={current} /> : null}
     </DialogContent></Dialog>
   </>;
 }
-function OcrSession({ file, onComplete }: { file: FileRecord; onComplete: (count: number) => void }) {
-  const [busy, setBusy] = useState(false), [message, setMessage] = useState("");
+function OcrSession({ file, onComplete, current }: { file: FileRecord; onComplete: (count: number) => void; current: () => boolean }) {
+  const [localBusy, setBusy] = useState(false), [message, setMessage] = useState("");
+  const operations = useSyncExternalStore(subscribeBackgroundOperations, getBackgroundOperations, getBackgroundOperationsServerSnapshot);
+  const href = `/files?file=${file.id}`;
+  const matching = current() ? operations.filter(operation => operation.kind === "ocr" && operation.href === href) : [];
+  const running = matching.filter(operation => operation.status === "running");
+  const job = running.length === 1 ? running[0] : null;
+  const busy = current() && (localBusy || running.length > 0);
   const [provenance, setProvenance] = useState<string>("");
   const [progress, setProgress] = useState<OcrProgress | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -31,26 +41,28 @@ function OcrSession({ file, onComplete }: { file: FileRecord; onComplete: (count
   const url = `/api/files/${file.id}/ocr`;
   useEffect(() => {
     active.current = true;
+    if (!current()) return () => { active.current = false; };
     const query = new AbortController();
     void fetch(url, { cache: "no-store", signal: query.signal }).then(async response => {
       if (!response.ok) return;
       const { job, provenance: saved } = await response.json();
-      if (active.current && saved?.method === "ocr_local") setProvenance(`当前索引：${saved.engine} · ${saved.models} · ${saved.pages} 页${saved.emptyPages ? `，${saved.emptyPages} 页未检出文字` : ""}${saved.sourceSha256 ? ` · SHA-256 ${saved.sourceSha256.slice(0, 12)}…` : ""}`);
-      if (active.current && !attempted.current && job) setMessage(job.status === "completed" ? `上次已完成 ${job.total} 页识别${job.emptyPages ? `，其中 ${job.emptyPages} 页未检出文字` : ""}` :
+      if (active.current && current() && saved?.method === "ocr_local") setProvenance(`当前索引：${saved.engine} · ${saved.models} · ${saved.pages} 页${saved.emptyPages ? `，${saved.emptyPages} 页未检出文字` : ""}${saved.sourceSha256 ? ` · SHA-256 ${saved.sourceSha256.slice(0, 12)}…` : ""}`);
+      if (active.current && current() && !attempted.current && job && !getBackgroundOperations().some(operation => operation.kind === "ocr" && operation.href === href && operation.status === "running")) setMessage(job.status === "completed" ? `上次已完成 ${job.total} 页识别${job.emptyPages ? `，其中 ${job.emptyPages} 页未检出文字` : ""}` :
         job.status === "processing" ? "有一项识别正在运行；可等待完成或租约到期后重试" :
         job.status === "interrupted" ? "上次识别已中断，可重新开始" : ocrErrorMessage(job.error ?? "ocr_cancelled"));
     }).catch(() => {});
     return () => { active.current = false; query.abort(); };
-  }, [url]);
+  }, [url, href, current]);
   function run() {
+    if (!current() || getBackgroundOperations().some(operation => operation.kind === "ocr" && operation.href === href && operation.status === "running")) return;
     if (controller.current) return;
     if (activeDocument) { setMessage(ocrErrorMessage("ocr_busy")); return; }
     attempted.current = true;
     const ownRun = Symbol(file.id); activeDocument = ownRun;
-    try { startBackgroundOperation({ kind: "ocr", label: file.title, href: `/files?file=${file.id}`, run: async (context) => {
+    try { startBackgroundOperation({ kind: "ocr", label: file.title, href, run: async (context) => {
     const abort = new AbortController(); controller.current = abort;
     const cancel = () => abort.abort(); context.signal.addEventListener("abort", cancel, { once: true });
-    let token: string | undefined, timedOut = false;
+    let token: string | undefined, timedOut = false, completionAttempted = false;
     const timer = setTimeout(() => { timedOut = true; abort.abort(); }, OCR_TIMEOUT_MS);
     const patch = async (value: Record<string, unknown>, signal?: AbortSignal) => {
       if (!context.current()) throw new Error("ocr_cancelled");
@@ -83,32 +95,45 @@ function OcrSession({ file, onComplete }: { file: FileRecord; onComplete: (count
         onPage: (pages, total) => patch({ action: "progress", pages, total }, abort.signal).then(() => {}),
       }), abort.signal);
       abort.signal.throwIfAborted();
+      completionAttempted = true;
       const saved = await patch({ action: "complete", text: result.text, pages: result.pages, total: result.pages, emptyPages: result.emptyPages, sha256 }, abort.signal);
       publishFileRecordChange(file.id, context.current);
       if (active.current && context.current()) { setMessage(`已识别并加入全文搜索：${saved.characterCount.toLocaleString("zh-CN")} 字${result.emptyPages ? `；${result.emptyPages} 页未检出文字` : ""}。OCR 可能有误，请以原件为准。`); onComplete(saved.characterCount); }
+      return { status: "succeeded" as const, phase: "已识别并加入全文搜索" };
     } catch (error) {
       const code = timedOut ? "ocr_timeout" : abort.signal.aborted ? "ocr_cancelled" : error instanceof Error ? error.message : "ocr_failed";
+      if (completionAttempted) {
+        if (active.current && current() && context.current()) setMessage("识别结果写入状态待核对，请返回文件查看。");
+        return { status: "needs-check" as const, phase: "识别结果写入状态待核对，请返回文件查看" };
+      }
       if (token) await patch({ action: abort.signal.aborted ? "cancel" : "fail", error: code }).catch(() => {});
       if (active.current && context.current()) setMessage(ocrErrorMessage(code));
       if (context.signal.aborted) return { status: "needs-check" as const, phase: "识别已停止，写入状态可返回文件核对" };
       throw new Error(code);
     } finally {
       clearTimeout(timer); context.signal.removeEventListener("abort", cancel); controller.current = null; if (activeDocument === ownRun) activeDocument = null;
-      if (active.current) setBusy(false);
+      if (active.current && current() && context.current()) setBusy(false);
     }
     } }); } catch { if (activeDocument === ownRun) activeDocument = null; setMessage("当前运行任务较多，请完成或关闭一些任务后重试。"); }
   }
-  return <div className="space-y-3 text-[12px] leading-6">
+  const stop = () => {
+    if (!current() || !job) return;
+    const live = getBackgroundOperations().filter(operation => operation.kind === "ocr" && operation.href === href && operation.status === "running");
+    if (live.length === 1 && live[0].id === job.id) cancelBackgroundOperation(job.id);
+  };
+  return <div className="space-y-3 text-[12px] leading-6" data-ocr-operation-id={job?.id}>
     <p>使用设备上的 Tesseract 离线引擎识别简体中文和英文；语言包从本站加载，文件不会发送给外部 OCR 或 AI 服务。完成后将识别文本存入你的私有搜索索引。</p>
     <p className="text-[var(--text-secondary)]">支持 PDF、PNG、JPEG、WebP；最多 20 MiB、10 页，图片最多 2000 万像素。识别最多运行 5 分钟，可切换应用页面；关闭浏览器标签页会中断，重试将重新识别整份文件。优先使用已有 PDF 文字层。</p>
     {progress && busy ? <div role="status" aria-live="polite">
       <p>{progress.phase === "loading" ? "正在加载本地识别引擎…" : `第 ${progress.page} / ${progress.total} 页 · ${Math.round(progress.progress * 100)}%`}</p>
       <progress className="w-full" aria-label="OCR 进度" max={100} value={Math.round(((Math.max(1, progress.page) - 1 + progress.progress) / progress.total) * 100)} />
     </div> : null}
+    {!progress && job ? <div role="status" aria-live="polite"><p>{job.phase}</p>{job.completed !== undefined && job.total ? <progress aria-label="OCR 进度" max={job.total} value={job.completed} className="w-full" /> : null}</div> : null}
+    {!current() ? <p role="status">原识别会话已失效，请重新打开文件。</p> : !message && !busy && matching[0] ? <p role="status">{matching[0].phase}</p> : null}
     {provenance ? <p className="break-words text-[12px] text-[var(--text-secondary)]">{provenance}</p> : null}
     {message ? <p role="status">{message}</p> : null}
     {file.file_size > OCR_MAX_BYTES ? <p role="alert">文件超过 20 MiB，请先拆分或压缩副本。</p> : null}
-    <div className="flex gap-2"><button type="button" className={button} disabled={busy || file.file_size > OCR_MAX_BYTES} onClick={() => void run()}>{busy ? "正在识别…" : "开始 / 重新识别"}</button>
-      {busy ? <button type="button" className={button} onClick={() => controller.current?.abort()}>取消识别</button> : null}</div>
+    <div className="flex gap-2"><button type="button" className={button} disabled={!current() || busy || file.file_size > OCR_MAX_BYTES} onClick={() => void run()}>{busy ? "正在识别…" : "开始 / 重新识别"}</button>
+      {job ? <button type="button" className={button} onClick={stop}>取消识别</button> : null}</div>
   </div>;
 }

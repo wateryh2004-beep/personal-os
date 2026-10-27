@@ -25,6 +25,12 @@ export async function proxy(request: NextRequest) {
     if (path.startsWith("/_next/") || path.startsWith("/ocr/v1/") || ["/sw.js", "/offline.html", "/manifest.webmanifest"].includes(path)) return NextResponse.next();
     return NextResponse.json({ error: "fixture_route_unavailable" }, { status: 404 });
   }
+  // Dedicated synthetic entrypoints are absent outside the selected isolated
+  // realm. Reject them before real auth rather than redirecting into login.
+  const path = request.nextUrl.pathname;
+  if (path === "/continuous-workflows-e2e" || path.startsWith("/continuous-workflows-e2e/") || path === "/api/continuous-workflows-fixture" || path.startsWith("/api/continuous-workflows-fixture/")) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
   // The browser E2E harness is fixture-only and compiled behind an explicit CI
   // environment flag. Production does not set it, and the route itself also
   // returns notFound() without the flag.
