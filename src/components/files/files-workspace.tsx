@@ -1,4 +1,5 @@
 "use client";
+import "./files-workspace.css";
 import { startFileUpload, type UploadPlan } from "@/features/files/upload-runner";
 import { UploadStaging } from "./upload-staging";
 import { beginFileStaging, readFileStaging, getFileStagingSnapshot, getFileStagingServerSnapshot, subscribeFileStaging, type FileStagingSession } from "@/features/files/staging-runtime";
@@ -271,8 +272,8 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
   };
 
   return (
-    <div className="files-workspace grid grid-rows-[auto_minmax(0,1fr)] md:grid-rows-1 h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 bg-[var(--surface-canvas)] md:min-h-[540px] md:grid-cols-[216px_minmax(0,1fr)]">
-      <aside className="workspace-scroll min-h-0 max-h-48 overflow-y-auto md:max-h-none border-b border-white/55 bg-[var(--material-sidebar)] p-3 md:border-b-0 md:border-r">
+    <div className="files-pane-frame"><div className="files-workspace grid grid-rows-[auto_minmax(0,1fr)] md:grid-rows-1 h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 bg-[var(--surface-canvas)] md:min-h-[540px] md:grid-cols-[216px_minmax(0,1fr)]">
+      <aside className="files-folder-pane workspace-scroll min-h-0 max-h-48 overflow-y-auto md:max-h-none border-b border-white/55 bg-[var(--material-sidebar)] p-3 md:border-b-0 md:border-r">
         <div className="flex h-8 items-center justify-between px-1">
           <p className="text-[12px] font-semibold tracking-[.04em] text-[var(--text-tertiary)]">文件夹</p>
           <button type="button" onClick={() => setCreatingFolder((value) => !value)} aria-label="新建文件夹" className="pressable flex size-7 items-center justify-center rounded-[7px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"><FolderPlus size={15} /></button>
@@ -307,7 +308,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
       </aside>
 
       <WorkspaceReadyMetric workspace="files" />
-      <section ref={sectionRef} className="workspace-scroll min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+      <section ref={sectionRef} className="files-content-pane workspace-scroll min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
         <div className="flex min-h-12 flex-wrap items-start justify-between gap-3 border-b border-[var(--separator)] pb-3.5">
           <div>
             <h1 className="page-title">{activeFolder?.name ?? "全部文件"}</h1>
@@ -351,7 +352,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
             {filtering ? <button type="button" onClick={() => changeBrowser({ query: "", type: "all" })} className="mt-3 min-h-9 px-3 text-[12px] text-[var(--accent)]">清除筛选</button> : null}
           </div>
         ) : browser.view === "grid" ? (
-          <ul aria-label="文件网格" className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
+          <ul aria-label="文件网格" className="files-grid mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
             {displayedFiles.map(file => <li data-file-preview-source id={`file-${file.id}`} key={file.id} className={`min-w-0 overflow-hidden rounded-[12px] border border-[var(--separator)] bg-[var(--surface-canvas)] ${file.id === highlightId ? "ring-2 ring-[var(--accent)]" : ""}`}>
               <WorkbenchRecord entity={{kind:"document",id:file.id}} title={file.title} group={`files:${folderId}:${browser.sort}:${browser.query}`} >{classifyFile(file) === "photo" ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { openPreview(file, event.currentTarget); }} className="block w-full"><FilePhoto file={file} className="aspect-square w-full" /></button> : isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { openPreview(file, event.currentTarget); }} className="block w-full"><FilePdfCover file={file} /></button> : <div className="flex aspect-square items-center justify-center bg-[var(--surface-control)] text-[var(--text-tertiary)]"><File size={36} /></div>}
               <div className="min-w-0 p-2.5">{classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { openPreview(file, event.currentTarget); }} aria-label={`打开预览：${file.title}`} title={file.title} className="block w-full truncate text-left text-[12.5px] font-medium hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[12.5px] font-medium" title={file.title}>{file.title}</p>}<p className="mt-1 text-[12px] text-[var(--text-tertiary)]">{fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)}</p><p className="mt-1 text-[12px] text-[var(--text-tertiary)]">上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}</p>
@@ -422,6 +423,6 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           <a href={`/api/files/${previewFile.id}/download`} className="pressable inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] bg-[var(--accent)] px-3 text-[13px] text-white"><Download size={15} />下载原件</a>
         </DialogContent> : null}
       </Dialog>
-    </div>
+    </div></div>
   );
 }

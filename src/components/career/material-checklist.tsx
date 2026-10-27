@@ -5,7 +5,7 @@ import { draftResumeKey, focusDraftForm, useDraftResumeConsumer } from "@/featur
 import { DraftRecoveryStatus } from "@/components/workflow-continuity/draft-recovery-status";
 
 import { SourceLink as Link } from "@/components/workflow-continuity/provider";
-import { useState, useSyncExternalStore } from "react";
+import { useId, useState, useSyncExternalStore } from "react";
 import { useDraftResumeOpeners } from "@/features/workflow-continuity/draft-resume";
 import { z } from "zod";
 import {
@@ -137,6 +137,7 @@ function MaterialRow({
   onSaved: (row: Check) => void;
 }) {
   const id = initialRow?.id ?? newId!;
+  const fieldId = useId();
   const [localExpanded,setLocalExpanded]=useState(!initialRow);const expanded=controlledExpanded??localExpanded;const setExpanded=(open:boolean)=>{setLocalExpanded(open);onExpandedChange?.(open);};
   const [row, setRow] = useState(initialRow),
     [rowSource, setRowSource] = useState(initialRow);
@@ -370,9 +371,10 @@ function MaterialRow({
           />
           本次必须准备
         </label>
-        <label>
-          私有原件（最近200份）
+        <div>
+          <label htmlFor={`${fieldId}-document`}>私有原件（最近200份）</label>
           <select
+            id={`${fieldId}-document`}
             className="ui-field min-h-11 w-full text-base"
             value={value.documentId}
             onChange={(event) =>
@@ -394,10 +396,11 @@ function MaterialRow({
               </option>
             ))}
           </select>
-        </label>
-        <label>
-          简历版本
+        </div>
+        <div>
+          <label htmlFor={`${fieldId}-resume`}>简历版本</label>
           <select
+            id={`${fieldId}-resume`}
             className="ui-field min-h-11 w-full text-base"
             value={value.resumeId}
             onChange={(event) =>
@@ -419,10 +422,11 @@ function MaterialRow({
               </option>
             ))}
           </select>
-        </label>
-        <label>
-          核验依据
+        </div>
+        <div>
+          <label htmlFor={`${fieldId}-note`}>核验依据</label>
           <textarea
+            id={`${fieldId}-note`}
             className="ui-field w-full text-base"
             maxLength={4000}
             value={value.note}
@@ -430,7 +434,7 @@ function MaterialRow({
               setValue((before) => ({ ...before, note: event.target.value }))
             }
           />
-        </label>
+        </div>
         <p className="text-xs">
           当前显示版本：
           {value.documentId

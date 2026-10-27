@@ -207,7 +207,7 @@
           const began = performance.now();
           const frame = () => {
             const surface = document.querySelector(".file-preview-surface");
-            if (surface) window.__editorialImageFrames.push({ root: document.documentElement.scrollWidth, viewport: innerWidth, transform: getComputedStyle(surface).transform, x: surface.style.getPropertyValue("--file-origin-x"), scale: surface.style.getPropertyValue("--file-origin-scale-x") });
+            if (surface) { const bounds = surface.getBoundingClientRect(); window.__editorialImageFrames.push({ time: performance.now(), root: document.documentElement.scrollWidth, viewport: innerWidth, viewportHeight: innerHeight, bounds: { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom }, transitionDuration: getComputedStyle(surface).transitionDuration, animations: surface.getAnimations().map(animation => ({ state: animation.playState, time: animation.currentTime, endTime: animation.effect?.getComputedTiming().endTime })), transform: getComputedStyle(surface).transform, x: surface.style.getPropertyValue("--file-origin-x"), scale: surface.style.getPropertyValue("--file-origin-scale-x") }); }
             if (performance.now() - began < 1100) requestAnimationFrame(frame); else window.__editorialImageDone = true;
           }; requestAnimationFrame(frame);
         });

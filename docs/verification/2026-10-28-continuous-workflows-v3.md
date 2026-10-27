@@ -1,8 +1,60 @@
 # 连续工作流二十项升级：数据库候选验收与发布计划
 
-记录日期：2026-10-28（Asia/Shanghai）。状态：**`61569c8` 精确 SQL 的真实隔离验收与独立复核成立；随后八条未部署 SQL 默认 ACL 与界面修复已形成新候选，尚待稳定全仓、新 Native 和真实浏览器验证。生产尚未迁移或部署**。范围见[二十项规格](../specs/continuous-workflows-v3.md)与[连续性契约](../contracts/workflow-continuity.md)。本记录不是全批完成声明。
+记录日期：2026-10-28（Asia/Shanghai）。状态：**`f6bff7a` 精确SQL（含八条默认ACL收紧）的真实隔离验收与独立复核通过；远程界面10成功/3失败，后续局部修复待新统一候选验证。生产尚未迁移或部署**。范围见[二十项规格](../specs/continuous-workflows-v3.md)与[连续性契约](../contracts/workflow-continuity.md)。本记录不是全批完成声明。
 
-## 已提交615候选的固定对象与证据
+## 当前已提交f6候选与实际证据
+
+| 对象 | 实际值与边界 |
+| --- | --- |
+| 已推送候选 | [`f6bff7aa5eb6b82adf436247526d4b87a083fa65`](https://github.com/wateryh2004-beep/personal-os/commit/f6bff7aa5eb6b82adf436247526d4b87a083fa65)，tree `d7712843da8f8e9563f604b5ee46e454d0dacccc`；精确61路径提交并正常推送 |
+| 固定内容 | 全1886个canonical提交blob与本地已验清单一致，内容摘要`988c542bd53f7327e16e8025d0f7669dac34059b3ae9db4e939edb4f030169ff`，不自动覆盖后续未提交修复 |
+| 本地全仓 | 七CLI、454文件/3115测试、Python11全部通过；suite后顺序TypeScript/lint再次通过，零错误/警告；1475个TS root、1577个lint输入与74个work代码均稳定，未排除证据或放松规则 |
+| PR与生产 | [PR #93](https://github.com/wateryh2004-beep/personal-os/pull/93)仍Draft，生产仍`a5803dda30457ec3b3b712e80b885a8552353a3d`/87条ledger，本批十一条未应用、未合并部署 |
+| 实际Native | [Continuous PG run40575436241](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436241)，job`122440497774`、[artifact12767895902](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436241/artifacts/12767895902)；实际checkout精确f6，事件merge`e91a358772025d33a967335b9d01b5bb638b670b`单独记录 |
+| Native ZIP | SHA-256`573d46f19c75fa18f1bb7a3e50eac02bc64d9703f122c95799ccf80d711c12fe`；36个entry逐一核对，110条SQL、49个DB冻结路径与实际生成记录/f6提交/当前文件匹配 |
+| 独立复核 | `review-native-f6b.md/json`，结论仅为精确数据库候选与有限生产只读前置通过；MD SHA`de542d52bc8d82be629bc18bc914cd792f1fe4e4e68da5ed06ffda716a4a5a23` |
+
+### f6真实Native与有限只读前置
+
+原clean、完整旧99加合成行升级、九组fixture、Scene matrix、真实官方typegen、24组第二writer真实Lock等待均实际完成。两baseline兼容场景包含已知旧completion精确升级、新body幂等、未知body/config/匿名ACL精确55000拒绝、真正drop四Review函数与Project维护对象后由同一第11修复，审计/版本故障按完整正文/版本/来源/审计JSON指纹回滚。原旧99及第7/10/11条保持，第11SHA仍`3277cdf414d1dfb7d064fd03ee6c961fd92c86d97af9245747612f537b3f94c2`。
+
+八条SQL中36条原有REVOKE名单的service_role收紧，已由这次新哈希真实执行证明。三个有效ACL场景各核10表×3角色×8权限=240项、55函数EXECUTE与10条真实角色拒绝；两个upgrade场景保留原三个Scene ACL。第三场景在旧99之后先安装实际观察到的ALL/X默认，由临时probe硬证三角色全部8表权限（含MAINTAIN）及函数EXECUTE，再依序执行十一迁移、九fixture、knownLegacy/missing baseline及原子审计。拒绝仅接受42501，以固定合成sub和metadata共同证明，避免未登录body错误冒充EXECUTE拒绝。不是全拒绝或从待测GRANT反推宽松期望。
+
+第二场景容器在原容器退出销毁后创建，二者都是官方PG17、network none、无hostport/caller mount、只含自动销毁匿名卷；两份实际隔离产物各13项检查全true。固定数据库名及共享隔离guard不变，生产默认模拟不是完整生产克隆。
+
+官方`supabase/postgres-meta:v0.96.4`实际types SHA`062412a7c741432e0b56760a0377eb89501aecb2a9f057824d3b5eaba88cdf72`、catalog SHA`6a1117c10e64d365e2e737638d6a7483926e21ff676c06cad91621325db8d62d`独立匹配，633字段/38RPC再次比较通过。独立AST重比不是本地重新官方生成；23个静态探针、Python验证器与真实Native分开。[同批backup run40575436099](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436099)实际118表/55合成行内容、计数与关系一致，未执行生产恢复。
+
+Root经Primary MCP实际完成十项有限只读依赖查询及后续两项查询，共12项，覆盖六enum/三角色/16trigger绑定、函数body指纹核对，独立复核无未解释差异：40基础表663必需列差异0、目标对象碰撞0，生产87ledger未变，五个第11函数及Project trigger仍缺失，符合已证前向补齐目标。记录为`production-preflight-fresh-readonly-root-v2.json`与`production-preflight-followup-root-executed.json`。这些仅是metadata/聚合与有限策略推断，不是SET ROLE、生产业务行/写入、完整克隆或上线验收；发布前仍须核资源与时效。
+
+### f6远程界面：10成功、3失败
+
+13工作流结束，Canonical、Verify、Visual失败，其余10个成功。[Canonical run40575436221](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436221)的普通构建、严格404门禁和fixture构建实际成功；5 suite各7配置共35配置均未完整成功，84条尝试记录为49PASS/35FAIL。**49是重复配置成功记录，不能称49功能；唯一完整通过编号只有05/06/07/11/14/15/16，各7配置。**22个named基础动作及二十编号和扩展分支仍未全部执行。
+
+| 范围 | 实际结果与剩余失败 |
+| --- | --- |
+| Workbench | [run40575436113](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436113)实际通过，8场景/102帧覆盖swap、viewport resize中断和1440/768/390/360两pane，原nav重叠门槛通过 |
+| Filepreview | Visual专项12配置（360×600/390×640/768×600/1440×900 × normal/reduced/forced）真实surface/controls轨迹通过；原生Escape capture为trusted/open true、running2并有中间transform，不是伪事件或放松时限 |
+| Review与已执行域 | 14/15/16及05/06/07/11各7配置通过；Review200% root390=390、body32/normal16、说明相对行高1.6，动作换行。不能据这部分推定其它功能通过 |
+| Runtime | 01上传两次POST已发，但fixture生成localhost绝对PUT，浏览器只允许127同origin而正确阻断，available为0；02/03/20尚未跑，不放宽外站门槛 |
+| Sources | Project→Note→返回Project已恢复展开；随后真实cmdk labelled-by“搜索与导航”与旧驱动名不符，搜索段失败；后续02/20未跑 |
+| Materials | 08手机真实PDF句子已高亮但摘录UI未出现，768更早因Files窄main失去预览入口；精确引用、保存返回未到，09/10未跑 |
+| Domains/Planning | 17购后select标签关联、12材料核验项未展开/标签定位失败；18/19/13未跑。既有Calendar未知/已知预览与Project A保存期间继续B/冲突已实过 |
+| Verify | [run40575436116](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436116)454文件/3115测试、构建及多项Notes等实过；Notes导航768实际pane552px已正确收起，旧驱动仍找隐藏导航而失败，Settings/Today/mobile后续跳过 |
+| Visual | [run40575436160](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436160)editorial图片53呈现帧仅.96/1两种transform，未达到连续几何；shell“在主区打开”落真实`/login?error=configuration`，不能冒充fixture完整打开。planning与filepreview通过不抵消整workflow失败 |
+
+逐配置ledger、actual checkout/merge区分、artifact SHA和原始PNG/trace/webm见`remote-ui-candidate-f6bff7aa5eb6b82adf436247526d4b87a083fa65.md/json`及`remote-ui-f6b`。独立QA实际查看代表图、核ffprobe并抽帧，只有已看时间段可据此评论，媒体存在不代替未完成动作。下载新增24个TS/0TSX未改名/排除，后续完整CLI须重新冻结输入。
+
+### f6之后的局部修复候选
+
+`repair-f6-runtime-forms`已冻结11路径，作者10文件/64测试、归属lint、5 CJS语法及diff通过；22项named case只做静态语义逐项对照，不是22功能或浏览器通过。修复仅合成上传I/O为同源相对bytes路径、按真实cmdk可访问名/实际Notes Sheet入口驱动、购后/材料独立for-id标签与真实核验disclosure、明确原parent续练/闲暇入口/未知去向核对及等待原地图rAF焦点；生产认证、日期/CAS/审计/输入、网络拒绝与原动作断言保留。
+
+`repair-f6b-motion-source`已冻结13路径，作者10文件/135测试、typecheck/归属lint、1 CSS解析/2 CJS语法及diff通过。对精确f6原hook的4个真实测试为2FAIL/2PASS，修后4PASS；首次临时React解析错误发生在测试执行前并保留日志，不冒充生产负例。新实现区分内容解码与viewport变化：内容只以原native CSS剩余时间从当前pose重定向，viewport仍同步contained；guard通过后的明确commit命令复用壳/fixture单一路由，已handled不双push、无人处理才fallback一次，不重复prepare/save；Files按实际pane容器叠排和自适应gallery保留原controller/输入。
+
+材料驱动等真实ready后按首尾字形Range几何做native mouse drag，读回唯一Range全文、同layer两端与精确sourceVersion，不写Selection或人工selectionchange。旧390trace ready在三击开始前约2.4秒，不能将其归为loading race，旧三击端点是否越layer未证。引用、页码、确认前零写、同一reference、canonical保存与来源返回强断言保留；手机viewport的鼠标操作不是实体触摸。13路径冻结摘要`cafaa26f072c33f0ad1e1101760c6d2a1374b8f0bff8fdd60492901c122875c7`，新图片中间帧/Shell Back/七配置PDF闭环/Files窄pane仍待实际远程。
+
+两lane共24路径的独立源码/反模式复审 `review-f6-browser-repairs-final` 已完成，审前/后哈希匹配：Forms10文件/64测试、Source10文件/110测试分别通过，23代码路径lint、7 CJS语法与Files CSS解析通过；22个named case的静态AST编号/顺序未变。该结论只允许进入统一远程检查，不冒称作者135测试或全仓/浏览器通过。全部后续局部改动仍须新稳定全仓及精确新head的真实浏览器/截图/连续录屏；当前49DB路径未随UI修改改变，未来头仍须按来源/字节等价核对对应检查。没有合并、生产迁移或部署。
+
+## 历史：已提交615候选的固定对象与证据
 
 | 对象 | 实际值与边界 |
 | --- | --- |
@@ -16,7 +68,7 @@
 
 独立验收实际下载并核对 ZIP 摘要、逐 entry 文件、生成文件、catalog、并发实现/结果和源码哈希，结论不只来自工作流 SUCCESS。后续 SQL、类型、验证脚本或相关 schema 如改变，必须记录新候选的实际对应证据，不能直接沿用本次结论。独立复核记录为 `review-615-native-semantic.md/json`；工作流产物有保留期限。
 
-## 615之后的未提交修复候选
+## 历史：615之后、f6提交之前的修复与审查
 
 只读生产 `pg_default_acl` 元数据进一步证实，public 新表默认授予 anon/authenticated/service_role 全部 `arwdDxtm` 表权限、函数 EXECUTE。615 Native 的原 bootstrap 默认比生产窄，因此它的通过不证明该默认环境下的有效最小权限。没有为排障改生产默认，也不把这一差异写成规则例外。
 
@@ -24,13 +76,13 @@
 
 新 Native 接线保留原 clean/upgrade、baseline缺口/已知旧升级/幂等/未知指纹拒绝、官方类型、24真实并发与审计回滚。在原容器销毁后，单独创建同样隔离的官方 PG17 容器，使用既有白名单 `restored_fixture`：完整旧99条及合成行 → 安装元数据已观察到的创建默认 → 真 probe 硬证全部授权 → 原十一顺序与九组 fixture → 再执行Review/Project缺口及原子审计。三场景核10新表×3角色×8权限=240项，以及55函数ACL、PUBLIC显式授权、RLS/FORCE RLS、既有三个Scene函数ACL保持和10条真实角色拒绝。拒绝使用合成已登录sub，不能以函数体未登录错误冒充EXECUTE拒绝。此为创建默认模拟，不是完整生产克隆，未更改固定数据库/容器隔离守卫、全局bootstrap或旧99迁移。
 
-上述新增 Native **尚未实际执行**。作者11项 Python 验证器单测（8新3旧）、8文件/40 Vitest、编译与workflow解析等局部检查通过；独立审查 `review-615-default-acl` 已完成，49路径前后哈希匹配，11项Python、7个额外synthetic负探针及4文件/11 Vitest通过，未发现阻断进入新Native的源码问题。这些纯验证器/组件/静态结果均不冒称Native。成功产物必须来自新精确提交，不能引用615旧110哈希替代。第11 SQL SHA仍为下文记录值。
+在此历史修复冻结时，新增Native尚未执行；其后已由上述f6真实工作流和独立产物复核完成，旧等待状态不再代表当前。作者11项 Python 验证器单测（8新3旧）、8文件/40 Vitest、编译与workflow解析等局部检查通过；独立审查 `review-615-default-acl` 已完成，49路径前后哈希匹配，11项Python、7个额外synthetic负探针及4文件/11 Vitest通过，未发现阻断进入新Native的源码问题。这些当时的纯验证器/组件/静态结果均不冒称Native；随后f6成功产物来自新精确提交，未引用615旧110哈希替代。第11 SQL SHA仍为下文记录值。
 
-界面三组修复已冻结：forms v2的12路径、Settings/Career的5路径、Source/空间/PDF/Notes的25路径。前两组及前一五文档共22路径曾通过独立复审 `review-615-browser-repairs-v2`，仅证明对应冻结内容；本次文档再同步需按新哈希核对。空间组已完成独立源码/反模式/React复审 `review-615-spatial-final`：25路径前后哈希一致，独立12文件/154测试、23路径lint、2 CSS解析和4 CJS语法检查通过，仅允许进入统一候选远程重验。完整候选CLI、修复后真实浏览器/截图/录屏尚未执行，不把作者 typecheck/定向测试当稳定全仓或新浏览器通过。
+界面三组修复已冻结：forms v2的12路径、Settings/Career的5路径、Source/空间/PDF/Notes的25路径。前两组及前一五文档共22路径曾通过独立复审 `review-615-browser-repairs-v2`，仅证明对应冻结内容；本次文档再同步需按新哈希核对。空间组已完成独立源码/反模式/React复审 `review-615-spatial-final`：25路径前后哈希一致，独立12文件/154测试、23路径lint、2 CSS解析和4 CJS语法检查通过，仅允许进入统一候选远程重验。当时完整候选CLI和修后浏览器尚未执行；随后f6的454/3115本地与10成功/3失败远程结果见上，不把作者typecheck/定向测试充作全仓或浏览器。
 
-## 已完成的隔离数据库检查
+## 历史：615已完成的隔离数据库检查
 
-以下仅属于已提交 `61569c8` 的精确迁移与runner；不自动覆盖上一节新ACL候选。
+以下仅属于已提交 `61569c8` 的精确迁移与runner；包含新ACL字节的实际f6结果见上，不能混用哈希。
 
 | 检查 | `61569c8` 的实际结果 |
 | --- | --- |
@@ -57,7 +109,7 @@
 
 确切缺口为 helper `review_source_is_owned(text,uuid,uuid)` 和实际调用的三个 RPC：`complete_review_with_sources(text,text,text,date,date,text,jsonb,boolean,jsonb)`、`accept_review_proposal(uuid)`、`dismiss_review_proposal(uuid)`。它们在所查生产基线均不存在，所需表列已存在。另一缺口是 `sync_project_search_document()` 及其投影维护 trigger；授权聚合为 **1 个有效项目、0 条项目搜索投影**，没有读取项目 ID 或内容。
 
-第十一条 `20261027175718_continuous_production_baseline.sql` 的已验 SQL SHA-256 为 `3277cdf414d1dfb7d064fd03ee6c961fd92c86d97af9245747612f537b3f94c2`，加入第11条的615提交中原109条SQL字节未变；当前默认ACL候选另改八条未部署SQL，旧99条保持。原独立审查发现 P2：旧 completion 返回后 Action 独立写审计并忽略错误，无法在审计失败时回滚业务写入，违反[安全契约](../security.md#写入版本与审计)。修复及独立复审已完成，并由本次真实 Native 证明，不再沿用最初仅合成依赖的复现作为最终证据。
+第十一条 `20261027175718_continuous_production_baseline.sql` 的已验 SQL SHA-256 为 `3277cdf414d1dfb7d064fd03ee6c961fd92c86d97af9245747612f537b3f94c2`，加入第11条的615提交中原109条SQL字节未变；随后默认ACL候选另改八条未部署SQL，已由f6实际验证，旧99条保持。原独立审查发现 P2：旧 completion 返回后 Action 独立写审计并忽略错误，无法在审计失败时回滚业务写入，违反[安全契约](../security.md#写入版本与审计)。修复及独立复审已完成，并由本次真实 Native 证明，不再沿用最初仅合成依赖的复现作为最终证据。
 
 迁移仅前向升级精确已知旧 completion body MD5 `72426d437364e96e3596d8c9c0424215`、`public` search_path 与预期 ACL 的组合；新版 body MD5 `01d9d71c10f6e5eaae96beed1dd9f685`、空 search_path 再执行保持不变，未知 body/config/ACL 拒绝。缺失时创建相同新版。新版先取得 owner/review_key 事务锁，再在同事务写正文、不可变版本、来源及 `review_complete`/`review_amend` 审计，Action 移除外层重复写入。其余三个复盘函数（含 helper）和项目同步定义、ACL、投影按缺失补齐并保留健康既有对象，不重放旧 `agent_runs` surface CHECK、不回退 `notes-library` 等合法状态、不改生产 history 或删除资料。
 
@@ -65,7 +117,7 @@
 
 ## 十一条迁移与生产版本登记
 
-以下仍是**未应用生产的本地候选名**。同名十一条的615精确旧字节已隔离执行；当前八条ACL修复后的新字节尚待新Native，不能按文件名相同继承通过。生产均未执行；前三条建立来源、领域模型与回执，第四条加入 Inbox 互斥，第五至十条补齐捕捉、练习、Scene、判断、generation 与未知结果核对，最后补生产基线缺口及审计原子性。
+以下仍是**未应用生产的本地候选名**。当前十一条精确字节（含八条ACL收紧）已由f6真实Native执行；其通过来自新哈希实测，不能按文件名相同继承615结论。生产均未执行；前三条建立来源、领域模型与回执，第四条加入 Inbox 互斥，第五至十条补齐捕捉、练习、Scene、判断、generation 与未知结果核对，最后补生产基线缺口及审计原子性。
 
 | 顺序 | 本地候选 migration | 生产实际版本 |
 | --- | --- | --- |
@@ -85,7 +137,7 @@
 
 登记“本地候选名 → 实际 version/name → SQL SHA-256”。平台时间戳不同只对齐仓库文件名、两份严格顺序清单与发布文档等元数据，SQL 原字节/哈希保持不变，再完成校验及必要 CI。不改写已部署 SQL、不手写 history 双记账，不改用 CLI/REST 绕过生产 MCP。
 
-## 已推送候选的本地与远程界面检查
+## 历史：615的本地与远程界面检查
 
 `61569c8` 的本地固定内容七 CLI 全部通过：完整 TypeScript、**452 文件/3092 测试**、完整 lint 零错误/警告、system standards、项目文档、UI 提示审计与 diff/空白检查；额外 Python 3 项边界检查是合成检查。完整 suite 后显式冻结 1448 个编译 root（包含 work/test-results 中实际生成类型）并顺序复查 TypeScript/lint，前后无漂移。UI 审计保留 108 条提示/547 处计数，不能写成全视觉合规。随后 UI 修复须再冻结和验证。
 
@@ -106,9 +158,9 @@
 
 后续作者局部记录与独立审查分开：`repair-615-canonical-forms-v2` 保留原12路径，补Review coverage/summary/state/AI来源的显式相对1.6行高及同名dialog实例的Back交接回归；v1的10文件/84测试与v2的8文件/61测试不相加冒称总量。真实生产组件加当前Tailwind/PostCSS编译核对五段落，属于分支/声明证据，不是浏览器computed layout。`repair-615-settings` 的5路径局部2文件/13测试与无listen Vite模块图通过，仅替身Server Function I/O，保留生产server-only。严格字体2倍、computed行高至少1.4倍与overflow断言保留。对应17代码/测试/驱动路径及前一五文档共22路径独立复审通过，仅限当时冻结哈希。
 
-`repair-615-spatial` 冻结25路径，作者局部17文件/239测试、typecheck/归属lint/CSS解析/CJS检查通过；独立源码/反模式/React复审另以12文件/154测试及归属静态检查通过，25路径前后哈希一致，两组测试不相加冒称全仓。实现包括：保存保护事件以prepare阶段避开壳提前提交；标准Portal与active surface释放隐藏菜单/Inspector锁而保留草稿；窗口resize同步结算壳几何但保留用户折叠动效；真实trusted Escape capture核中断而不延长duration或等待；手机PDF显式移交一条30秒、有源版本/页码/精确参考目标的意图，激活唯一live reference后再次确认走原bridge，inactive guard保持；Notes按实际pane宽收目录、保留同一editor/输入/选区/偏好及Sheet入口焦点。原报告保留几何根因/关闭仍待新远程证据的限制，不将本地诊断直接称浏览器已修好。
+`repair-615-spatial` 冻结25路径，作者局部17文件/239测试、typecheck/归属lint/CSS解析/CJS检查通过；独立源码/反模式/React复审另以12文件/154测试及归属静态检查通过，25路径前后哈希一致，两组测试不相加冒称全仓。实现包括：保存保护事件以prepare阶段避开壳提前提交；标准Portal与active surface释放隐藏菜单/Inspector锁而保留草稿；窗口resize同步结算壳几何但保留用户折叠动效；真实trusted Escape capture核中断而不延长duration或等待；手机PDF显式移交一条30秒、有源版本/页码/精确参考目标的意图，激活唯一live reference后再次确认走原bridge，inactive guard保持；Notes按实际pane宽收目录、保留同一editor/输入/选区/偏好及Sheet入口焦点。当时原报告保留几何关闭待远程的限制；后续f6仅对实际执行通过的Workbench/文件预览/Review等补证，其余失败如上，不把静态诊断直接称浏览器全部修好。
 
-canonical驱动仍实际关闭/恢复Inspector、编辑同一参考实例、点击真实来源链接，手机确认前零写/确认后等canonical保存并核sourceVersion/page与返回，768检查窄pane目录入口；没有force click、盲first、放宽边界或增加超时。三组实现仍须新精确提交的稳定全仓与实际浏览器矩阵、完整截图/录屏验证。
+canonical驱动仍实际关闭/恢复Inspector、编辑同一参考实例、点击真实来源链接，手机确认前零写/确认后等canonical保存并核sourceVersion/page与返回，768检查窄pane目录入口；没有force click、盲first、放宽边界或增加超时。这三组随后进入f6精确提交；其稳定全仓通过但实际浏览器仍10成功/3失败，不能把未执行后续动作推定成功。
 
 ## 历史检查点与原失败保留
 
@@ -119,7 +171,7 @@ canonical驱动仍实际关闭/恢复Inspector、编辑同一参考实例、点�
 
 ## 二十项界面与发布待办
 
-20 项基础驱动已落；以下表格仍需按最终统一候选结算，不把 615 的 20 条重复配置成功记录改写为二十项功能通过。已有单元、组件、数据库与专项浏览器分别按其真实范围引用。
+20 项基础驱动已落；以下表格仍需按最终统一候选结算，不把615的20条或f6的49条重复配置成功记录改写为全部功能通过。已有单元、组件、数据库与专项浏览器分别按其真实范围引用。
 
 | # | 体验主题 | 最终候选仍需记录的界面证据 |
 | --- | --- | --- |
@@ -148,11 +200,11 @@ canonical驱动仍实际关闭/恢复Inspector、编辑同一参考实例、点�
 
 | 交付阶段 | 本记录状态 |
 | --- | --- |
-| 历史数据库隔离门槛 | `61569c8` 精确 SQL 的真实 PG17/独立复核通过，110迁移/633字段/38RPC/24并发；合成备份118表/55行，不覆盖当前八SQL新哈希 |
-| 新默认ACL候选 | 13归属/49DB路径已冻结，作者与独立源码/验证器审查通过；新Native、生产默认场景和原全部门槛尚未实际执行 |
-| 生产前置 | 87 条 ledger 与完整本地 99 旧基线不等价，仍须发布前新鲜 schema/fingerprint 核对；缺口场景不是生产克隆 |
-| 已推送候选的本地全仓 | `61569c8` 七CLI、452文件/3092测试通过；当前Source/forms/Settings/ACL与文档新组合尚无稳定全仓结果 |
-| 完整浏览器、截图与动效录屏 | `61569c8` 远程 9 成功/4 失败；canonical 35 配置均未完整成功，后续修复仍待真实重验 |
+| 当前数据库隔离门槛 | `f6bff7a` 精确110迁移/49DB路径真实PG17与独立复核通过，633字段/38RPC/24并发；备份118表/55行 |
+| 默认ACL场景 | f6三场景各240表权限/55函数/10真实拒绝及两容器各13隔离检查实际通过，不是生产克隆或实写 |
+| 生产前置 | Root有限只读metadata/聚合与独立依赖复核通过；87ledger不等于99旧基线，发布前仍核目标与时效，不是生产用户流程通过 |
+| 已推送候选的本地全仓 | f6七CLI、454文件/3115测试、Python11和suite后顺序tsc/lint通过；后续新UI/驱动/文档组合待重新冻结检查 |
+| 完整浏览器、截图与动效录屏 | f6远程10成功/3失败；canonical35配置未完整成功，仅七编号各七配置过，后续修复待真实重验 |
 | 生产迁移 | 十一条均未执行，待完整候选通过后按顺序登记实际版本 |
 | GitHub 合并与代码部署 | 未完成，后续记录实际 merge SHA、部署及域名对应关系 |
 | 生产验证 | 未执行；匿名协议、版本、数据权限和可自动完成的受保护流程分别记录，不要求所有者手动测试 |

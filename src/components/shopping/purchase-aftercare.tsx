@@ -7,6 +7,7 @@ import { SourceLink as Link } from "@/components/workflow-continuity/provider";
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -148,6 +149,7 @@ function AftercareForm({
   captureLease: () => () => boolean;
   onSaved: (item: Data["item"]) => void;
 }) {
+  const receiptFieldId = useId();
   const schema = z.object({
     revision: z.number(),
     purchasedOn: z.string(),
@@ -310,9 +312,10 @@ function AftercareForm({
             }
           />
         </label>
-        <label>
-          添加票据原件（最近200份）
+        <div>
+          <label htmlFor={receiptFieldId}>添加票据原件（最近200份）</label>
           <select
+            id={receiptFieldId}
             className="ui-field min-h-11 w-full text-base"
             value={value.documentId}
             onChange={(event) =>
@@ -331,7 +334,7 @@ function AftercareForm({
                 </option>
               ))}
           </select>
-        </label>
+        </div>
         <label>
           原件用途
           <select

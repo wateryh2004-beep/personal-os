@@ -9,6 +9,12 @@ export function useFilePreviewMotion(open: boolean, launcher: RefObject<HTMLElem
   useLayoutEffect(() => {
     if (!surface) return;
     let geometry = "";
+    let viewportGeometry = "";
+    let restoreDuration: (() => void) | undefined;
+    const transformAnimations = () => (surface.getAnimations?.() ?? []).filter(animation => {
+      const effect = animation.effect;
+      return typeof KeyframeEffect !== "undefined" && effect instanceof KeyframeEffect && effect.getKeyframes().some((frame: ComputedKeyframe) => "transform" in frame);
+    });
     const refresh = () => {
       if (!surface.isConnected) return;
       const viewport = window.visualViewport;
@@ -26,15 +32,27 @@ export function useFilePreviewMotion(open: boolean, launcher: RefObject<HTMLElem
       const computed = getComputedStyle(surface);
       const boxWidth = Number.parseFloat(computed.width) || surface.offsetWidth, boxHeight = Number.parseFloat(computed.height) || surface.offsetHeight;
       const next = `${left}:${top}:${width}:${height}:${boxWidth}:${boxHeight}:${mobile}`;
-      if (geometry && geometry !== next) {
-        // Resizing invalidates the old viewport's transform. End that motion at
-        // the newly contained resting box; keep the real viewer and its focus.
-        for (const animation of surface.getAnimations?.() ?? []) {
-          const effect = animation.effect;
-          if (typeof KeyframeEffect !== "undefined" && effect instanceof KeyframeEffect && effect.getKeyframes().some((frame: ComputedKeyframe) => "transform" in frame)) animation.cancel();
-        }
+      const nextViewport = `${left}:${top}:${width}:${height}:${mobile}`;
+      const viewportChanged = !!viewportGeometry && viewportGeometry !== nextViewport;
+      const contentChanged = !!geometry && geometry !== next && !viewportChanged;
+      const animations = transformAnimations();
+      // Read presented motion before changing any source variables. Image/PDF
+      // decode changes the content box, not the user's viewport or intent.
+      const presented = computed.transform;
+      const properties = computed.transitionProperty.split(",").map(value => value.trim());
+      const durations = computed.transitionDuration.split(",").map(value => value.trim());
+      const durationFor = (remaining: number) => properties.map((property, index) => property === "transform" || property === "all" ? `${remaining}ms` : durations[index % durations.length]).join(", ");
+      const remaining = Math.max(0, ...animations.filter(animation => animation.playState === "running").map(animation => {
+        const end = animation.effect?.getComputedTiming().endTime, elapsed = animation.currentTime;
+        return typeof end === "number" && typeof elapsed === "number" && Number.isFinite(end) ? Math.max(0, Math.min(end, end - elapsed)) : 0;
+      }));
+      if (viewportChanged) {
+        restoreDuration?.(); restoreDuration = undefined;
+        surface.style.setProperty("transition-duration", durationFor(0));
+        animations.forEach(animation => animation.cancel());
       }
       geometry = next;
+      viewportGeometry = nextViewport;
       const rest = { left: mobile ? left : left + (width - boxWidth) / 2, top: mobile ? top + height - boxHeight : top + (height - boxHeight) / 2, width: boxWidth, height: boxHeight };
       const source = launcher.current?.closest<HTMLElement>("[data-file-preview-source]") ?? launcher.current;
       const rect = source?.getBoundingClientRect();
@@ -51,11 +69,32 @@ export function useFilePreviewMotion(open: boolean, launcher: RefObject<HTMLElem
       surface.style.setProperty("--file-origin-y", `${origin.y}px`);
       surface.style.setProperty("--file-origin-scale-x", String(origin.scaleX));
       surface.style.setProperty("--file-origin-scale-y", String(origin.scaleY));
+      if (contentChanged && remaining > 0 && typeof DOMMatrixReadOnly !== "undefined" && presented !== "none") {
+        const matrix = new DOMMatrixReadOnly(presented);
+        const start = matrix.is2D && matrix.b === 0 && matrix.c === 0 ? containedTransform(rest, { left, top, width, height }, {
+          x: matrix.e + (mobile ? 0 : boxWidth / 2), y: matrix.f + (mobile ? 0 : boxHeight / 2), scaleX: matrix.a, scaleY: matrix.d, originY: mobile ? 1 : .5,
+        }) : null;
+        if (start) {
+          // Retarget the native CSS transition from its current contained pose,
+          // using only its remaining budget. Native close/reopen reversal and
+          // Radix Presence keep ownership of the lifecycle; no parallel timer.
+          restoreDuration?.();
+          surface.style.setProperty("transition-duration", durationFor(0));
+          surface.style.setProperty("transform", `translate(${mobile ? "0px, 0px" : "-50%, -50%"}) translate(${start.x}px, ${start.y}px) scale(${start.scaleX}, ${start.scaleY})`);
+          void getComputedStyle(surface).transform;
+          surface.style.setProperty("transition-duration", durationFor(remaining));
+          surface.style.removeProperty("transform");
+          const finish = (event: TransitionEvent) => { if (event.target === surface && event.propertyName === "transform") restoreDuration?.(); };
+          restoreDuration = () => { surface.removeEventListener("transitionend", finish); surface.style.removeProperty("transition-duration"); restoreDuration = undefined; };
+          surface.addEventListener("transitionend", finish);
+        }
+      }
+      if (viewportChanged) { void getComputedStyle(surface).transform; surface.style.removeProperty("transition-duration"); }
     };
     refresh();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(refresh); observer?.observe(surface);
     window.addEventListener("resize", refresh); window.visualViewport?.addEventListener("resize", refresh); window.visualViewport?.addEventListener("scroll", refresh);
-    return () => { observer?.disconnect(); window.removeEventListener("resize", refresh); window.visualViewport?.removeEventListener("resize", refresh); window.visualViewport?.removeEventListener("scroll", refresh); };
+    return () => { restoreDuration?.(); observer?.disconnect(); window.removeEventListener("resize", refresh); window.visualViewport?.removeEventListener("resize", refresh); window.visualViewport?.removeEventListener("scroll", refresh); };
   }, [launcher, open, sourceKey, surface]);
   return setSurface;
 }

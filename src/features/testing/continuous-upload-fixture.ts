@@ -12,8 +12,11 @@ async function readSmallJson(request: Request): Promise<unknown> {
   try { while (true) { const part = await reader.read(); if (part.done) break; bytes += part.value.length; if (bytes > 32768) throw Error("synthetic_input_capacity"); text += decoder.decode(part.value, { stream: true }); } text += decoder.decode(); } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
   return JSON.parse(text);
 }
-function payload(request: Request, upload: SyntheticUpload) {
-  return { documentId: upload.file.id, ...(upload.available || upload.bytes ? {} : { uploadUrl: `${new URL(request.url).origin}/api/continuous-workflows-fixture/upload-bytes/${upload.file.id}` }), file: { id: upload.file.id, title: upload.file.title, originalFilename: upload.input.filename, mimeType: upload.input.contentType, fileSize: upload.input.size, folderId: upload.input.folderId, textExtractionStatus: upload.file.text_extraction_status } };
+function payload(upload: SyntheticUpload) {
+  // Next's internal request URL may use localhost while the browser uses
+  // 127.0.0.1. A relative synthetic endpoint retains the actual browser origin
+  // without trusting Host/forwarded headers or widening the network gate.
+  return { documentId: upload.file.id, ...(upload.available || upload.bytes ? {} : { uploadUrl: `/api/continuous-workflows-fixture/upload-bytes/${upload.file.id}` }), file: { id: upload.file.id, title: upload.file.title, originalFilename: upload.input.filename, mimeType: upload.input.contentType, fileSize: upload.input.size, folderId: upload.input.folderId, textExtractionStatus: upload.file.text_extraction_status } };
 }
 export async function syntheticUploadHttp(state: FixtureState, path: string, request: Request): Promise<{ data?: unknown; bytes?: Uint8Array; status: number } | null> {
   if (path.startsWith("upload-bytes/")) {
@@ -31,14 +34,14 @@ export async function syntheticUploadHttp(state: FixtureState, path: string, req
     state.writes["upload-bytes"] = (state.writes["upload-bytes"] ?? 0) + 1; return { data: { stored: true, size, checksum: upload.input.checksum }, status: 200 };
   }
   if (path === "api/files/upload-url") {
-    if (request.method === "GET") { const upload = state.uploads.get(new URL(request.url).searchParams.get("documentId") ?? ""); return upload ? { data: payload(request, upload), status: 200 } : { status: 404 }; }
+    if (request.method === "GET") { const upload = state.uploads.get(new URL(request.url).searchParams.get("documentId") ?? ""); return upload ? { data: payload(upload), status: 200 } : { status: 404 }; }
     const input: unknown = await readSmallJson(request);
     if (request.method === "POST") {
       const parsed = uploadInput.parse(input), previous = state.uploads.get(parsed.requestId), signature = JSON.stringify(parsed);
-      if (previous) return previous.signature === signature ? { data: payload(request, previous), status: 200 } : { status: 409 };
+      if (previous) return previous.signature === signature ? { data: payload(previous), status: 200 } : { status: 409 };
       if (state.uploads.size >= 50 || parsed.folderId !== null) return { status: 429 };
       const upload: SyntheticUpload = { input: parsed, signature, bytes: null, available: false, file: { id: parsed.requestId, title: parsed.title, original_filename: parsed.filename, mime_type: parsed.contentType, file_size: parsed.size, folder_id: null, created_at: fixtureTimestamp, uploaded_at: fixtureTimestamp, archived_at: null, ai_visibility: "normal", text_extraction_status: "pending", extracted_character_count: 0, mutation_revision: 1 } };
-      state.uploads.set(parsed.requestId, upload); state.writes["upload-plan"] = (state.writes["upload-plan"] ?? 0) + 1; return { data: payload(request, upload), status: 200 };
+      state.uploads.set(parsed.requestId, upload); state.writes["upload-plan"] = (state.writes["upload-plan"] ?? 0) + 1; return { data: payload(upload), status: 200 };
     }
     if (request.method === "PATCH") {
       const { documentId } = z.object({ documentId: z.uuid() }).strict().parse(input), upload = state.uploads.get(documentId);

@@ -1,6 +1,6 @@
 # 材料来源、连续整理与编辑事务
 
-状态：本批实施契约。`61569c8` 精确十一条 SQL 已完成真实隔离 PostgreSQL 与独立产物复核；随后八条未部署 SQL 创建默认 ACL 修复尚待新 Native。界面修复已形成新候选但未通过统一真实浏览器验收，生产未发布，见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，公共生命周期见 [连续性契约](workflow-continuity.md)。
+状态：本批实施契约。`f6bff7a` 精确十一条 SQL（含八条创建默认ACL收紧）已完成真实隔离PostgreSQL与独立产物复核，含三个有效权限场景。浏览器仍有失败，后续界面/驱动修复尚待新统一候选真实验收，生产未发布，见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，公共生命周期见 [连续性契约](workflow-continuity.md)。
 
 ## 不可变来源
 
@@ -29,6 +29,10 @@ Slash 仅在合法行首和折叠选区触发，代码、URL 和正文斜线不�
 
 To Do 创建由专门 `todo_creation_receipts` 保留真实发送意图、哈希与目标 ID，不复制正文或 token。Inbox 的请求键固定为 Inbox ID，同一来源跨标签页也只能认领同一意图；payload 不同返回冲突。状态 `prepared → processing → remote_committed → available`，未知远端结果转 `unknown` 后禁止自动重发。已创建但来源失败的重试只修复来源；终态和 create 审计由 service-only invoker RPC 原子确认。普通 owner 只读回执，不能伪造。该技术表在系统备份中排除，恢复不重放外部执行意图。
 
+Files 的文件夹/正文/预览入口按实际Workbench pane宽度布局，不只使用整窗desktop断点。窄pane将文件夹与正文叠排，文件夹保持可发现且有界滚动，gallery和操作随可用宽度换行；保留同一controller、筛选、search/focus/selection/scroll与DOM，不靠隐藏目录或重建状态避免挤空正文。新布局的实际几何与预览可达性仍须新浏览器验证。
+
+PDF验收先等真实TextLayer ready，再按首尾字形几何用原生鼠标拖选，读回唯一实际Range、完整选文与同layer两端点、精确sourceVersion；不得写Selection或人工派发selectionchange绕过生产guard。f6旧390trace在三击前已ready，不能把原失败改称loading race；三击端点是否越过layer未由旧trace证明，需新严格诊断。手机viewport的鼠标拖选不冒称实体触摸或物理手机验证；原不可变页码引用、确认前零写、canonical保存与来源返回检查保持。
+
 ## 上传整理与任务执行
 
 选文件先进入内存整理台，显示原名、独立显示名、目标文件夹、排除项和有界 SHA-256 重复检查；确认之前不创建 signed URL、document 或上传 session。检查失败明确未知，不声称没有重复。相同内容可保留两份，不能自动覆盖或删旧原件。
@@ -39,7 +43,7 @@ To Do 创建由专门 `todo_creation_receipts` 保留真实发送意图、哈希
 
 ## 迁移与回退
 
-当前完整十一条迁移依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile → production baseline，精确本地文件名与状态见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十一条迁移与生产版本登记)。`61569c8` 的十一条精确 SQL 已有真实隔离与独立产物证据，含末项 `20261027175718_continuous_production_baseline.sql` 对 completion 审计原子性的修复。随后第1/2/3/4/5/6/8/9条仅将 service_role 加入既有 REVOKE 名单以收紧创建默认的多余权限，正文/约束/RLS/并发逻辑、旧99条及第7/10/11条保持；该新候选和新增生产默认 ACL 场景尚待真实 Native，不能直接沿用615旧哈希的通过结论。它在缺失时补齐已证的复盘函数/项目搜索维护契约，并仅将匹配已知旧指纹/配置/ACL的 completion 前向升级为同事务正文、来源、版本与审计；已是新版保留，未知定义拒绝，其余健康定义与 ACL 保留，不重放旧 surface CHECK、旧文件或伪造 ledger。实际生产 87 条登记不等于本地 99 条完整旧基线。material receipts 的 task composite FK 依赖领域迁移创建的 owner 唯一索引，mutex 再依赖来源与回执；不能将本材料子集误作完整发布清单。
+当前完整十一条迁移依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile → production baseline，精确本地文件名与状态见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十一条迁移与生产版本登记)。`f6bff7a` 的十一条精确 SQL 已有真实隔离与独立产物证据，含末项 `20261027175718_continuous_production_baseline.sql` 对 completion 审计原子性的修复。其中第1/2/3/4/5/6/8/9条在615之后仅将 service_role 加入既有 REVOKE 名单以收紧创建默认的多余权限，正文/约束/RLS/并发逻辑、旧99条及第7/10/11条保持；八条新哈希与生产默认ACL模拟已在f6实际执行并由独立产物复核，未沿用615旧字节结论；后续数据库字节改变仍需相应新证据。第十一条在缺失时补齐已证的复盘函数/项目搜索维护契约，并仅将匹配已知旧指纹/配置/ACL的 completion 前向升级为同事务正文、来源、版本与审计；已是新版保留，未知定义拒绝，其余健康定义与 ACL 保留，不重放旧 surface CHECK、旧文件或伪造 ledger。实际生产 87 条登记不等于本地 99 条完整旧基线。material receipts 的 task composite FK 依赖领域迁移创建的 owner 唯一索引，mutex 再依赖来源与回执；不能将本材料子集误作完整发布清单。
 
 生产通过已连接 Supabase MCP 按上述顺序执行；接口不接受 version 参数，实际版本由迁移列表与 schema 核对。时间戳不同只对齐本地文件名、两份严格顺序清单与文档元数据，SQL 字节/哈希不变，不双写 history 或改用 CLI/REST 绕过。当前尚未应用生产。
 

@@ -405,6 +405,11 @@ it("never silently re-verifies a stale material on a note-only save, and retains
     root.render(<CareerMaterialChecklist {...materialProps} />),
   );
   await act(async () => host.querySelector("summary")!.click());
+  const noteField = host.querySelector<HTMLTextAreaElement>("textarea")!;
+  expect(noteField.labels?.[0]?.textContent).toBe("核验依据");
+  expect(noteField.labels?.[0]?.htmlFor).toBe(noteField.id);
+  expect(noteField.labels?.[0]?.contains(noteField)).toBe(false);
+  expect([...host.querySelectorAll("select")].map(field => field.labels?.[0]?.textContent)).toEqual(["私有原件（最近200份）", "简历版本"]);
   const box = host.querySelectorAll<HTMLInputElement>(
     'input[type="checkbox"]',
   )[1];
@@ -566,6 +571,11 @@ it("recovers aftercare without losing an in-progress note or attachment choice d
   await act(async () =>
     root.render(<PurchaseAftercare id={itemId} onSaved={vi.fn()} />),
   );
+  const receipt = host.querySelector<HTMLSelectElement>("select[id]")!;
+  expect(receipt.labels?.length).toBe(1);
+  expect(receipt.labels?.[0]?.textContent).toBe("添加票据原件（最近200份）");
+  expect(receipt.labels?.[0]?.htmlFor).toBe(receipt.id);
+  expect(receipt.labels?.[0]?.contains(receipt)).toBe(false);
   const editor = host.querySelector("textarea")!;
   await input(editor, "My aftercare note");
   await submit(host.querySelector("form")!);

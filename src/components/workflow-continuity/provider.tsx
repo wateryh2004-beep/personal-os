@@ -8,6 +8,7 @@ import { navigationItemForPath } from "@/lib/navigation-registry";
 import { safeWorkbenchHref } from "@/features/workbench/contracts";
 import { beginSourceNavigation, cancelSourceNavigation, captureSourceNavigation, consumeSourceTrailEntry, getSourceTrail, getSourceTrailServerSnapshot, requestSourceSearchRestore, subscribeSourceTrail, type SourceSearchState } from "@/features/workflow-continuity/source-trail";
 import { SourceNavigationContext } from "./source-link";
+import { commitPreparedWorkflowNavigation } from "@/features/workflow-continuity/navigation-protection";
 export { SourceLink, useSourceNavigation } from "./source-link";
 
 export { WorkflowContinuityControls } from "./tray";
@@ -52,7 +53,7 @@ export function WorkflowNavigationBoundary({ children }: { children: ReactNode }
     const href = safeWorkbenchHref(destination); if (!href || href !== destination) return false;
     const current = beginSourceNavigation();
     if (!capture) return false;
-    void captureSourceNavigation({ capture, destination: href, label: label ?? navigationItemForPath(window.location.pathname)?.name ?? "来源页面", current, search, navigate: target => router.push(target) });
+    void captureSourceNavigation({ capture, destination: href, label: label ?? navigationItemForPath(window.location.pathname)?.name ?? "来源页面", current, search, navigate: target => commitPreparedWorkflowNavigation(target, committed => router.push(committed)) });
     return true;
   }, [router, capture]);
   return <SourceNavigationContext.Provider value={navigate}>{children}</SourceNavigationContext.Provider>;

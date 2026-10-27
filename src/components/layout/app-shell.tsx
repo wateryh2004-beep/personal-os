@@ -245,7 +245,7 @@ function AppShellInner({ children, presentationPathname, verificationTransport }
     const handleNavigationStart = (event: Event) => {
       const detail = (event as CustomEvent<{ href?: unknown; phase?: unknown }>).detail;
       const href = detail?.href;
-      if (typeof href !== "string" || !event.cancelable || detail?.phase === "prepare") return;
+      if (typeof href !== "string" || !event.cancelable || event.defaultPrevented || detail?.phase === "prepare") return;
       event.preventDefault();
       beginNavigation(href);
     };

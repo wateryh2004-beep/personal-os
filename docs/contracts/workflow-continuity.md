@@ -1,6 +1,6 @@
 # 工作流连续性契约
 
-状态：本批实施契约。`61569c8` 精确 SQL 的真实隔离验证成立；随后默认 ACL 修复改变八条未部署 SQL，需新 Native。浏览器检查仍有失败，后续交互修复已冻结且完成独立源码/反模式复审，仍待统一候选真实重验，生产未发布。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，精确证据与限制见[候选验收](../verification/2026-10-28-continuous-workflows-v3.md)。不替代各领域授权、数据、并发或性能规则。
+状态：本批实施契约。`f6bff7a` 精确 SQL 的真实隔离验证、三场景默认ACL与独立产物复核成立；浏览器检查仍有失败，后续交互/驱动局部修复仍待新统一候选真实重验，生产未发布。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，精确证据与限制见[候选验收](../verification/2026-10-28-continuous-workflows-v3.md)。不替代各领域授权、数据、并发或性能规则。
 
 ## 生命周期与后台执行
 
@@ -24,13 +24,15 @@
 
 返回使用现有Workbench一次性restore和中断规则，不替换原生history。旧异步capture、owner切换、下一次导航不能重路由。直接进入没有来源时沿用领域返回列表。合法query由各域明确白名单；来源定位、canonical实体身份和权限分别验证，URL不含选文正文或签名URL。
 
-持久边界以不拦截的document capture监听观察正常同标签页、同origin anchor意图，先取消旧capture，再由Next的原onClick/onNavigate决定是否导航；监听不调用preventDefault/stopPropagation。SourceLink在之后的onNavigate建立新epoch，不被自身bubbling再次取消。修饰键、新标签、download和外站链接不取消当前标签页待完成的来源导航。程序入口沿用`personal-os:navigation-start`或壳导航意图；前置保存保护明确发送`phase:prepare`，壳命令监听不接管此阶段，监听者仍可取消，只有调用者在全部保存/冲突保护通过后提交来源导航。普通导航命令保持原语义。Back/popstate与边界卸载也取消；capture另核对原location，防未声明的地址替换后晚到回调生效。取消保存保护的原Link不会被旧capture绕过。
+持久边界以不拦截的document capture监听观察正常同标签页、同origin anchor意图，先取消旧capture，再由Next的原onClick/onNavigate决定是否导航；监听不调用preventDefault/stopPropagation。SourceLink在之后的onNavigate建立新epoch，不被自身bubbling再次取消。修饰键、新标签、download和外站链接不取消当前标签页待完成的来源导航。程序入口沿用`personal-os:navigation-start`或壳导航意图；前置保存保护明确发送`phase:prepare`，壳命令监听不接管此阶段，监听者仍可取消，只有调用者在全部保存/冲突保护通过且完成来源登记后，发送明确`phase:commit`复用壳的单一导航提交。壳/隔离fixture尊重先前defaultPrevented；已处理命令不再fallback，无处理者时才用原router一次，不重新prepare/重复save。普通导航命令保持原语义。Back/popstate与边界卸载也取消；capture另核对原location，防未声明的地址替换后晚到回调生效。取消保存保护的原Link不会被旧capture绕过。
 
 `navigation-intent.ts`是不依赖router、cache和业务模块的共用意图边界。笔记返回/搜索快捷键/新建后跳转、详情选择与模式切换等明确用户入口在push/replace或异步导航动作开始前声明意图；不能只等URL commit。异步复盘保存和旅行创建在用户提交时冻结lease，回复仅在lease、scope与挂载状态仍有效时导航，不把旧回复再次宣布为新意图。日历异步对账收起详情不是新的用户导航，和用户明确开关详情分开。`router.refresh()`、prefetch、后台发布通知与数据canonicalization不自动提升用户导航epoch。
 
 ## 活动区域、弹层与窄工作区
 
 SidePanel 的可见 surface 是逻辑 open 与 Workbench active 的交集，使用标准 Radix Portal。切到另一 pane 时释放旧 surface 的 modal/pointer/拖动和手机返回层，保留原领域 open 与草稿；返回活动区可恢复。菜单也随实际 active 关闭，不能让隐藏 main 留下 body 点击锁。焦点只回到仍连接、未隐藏/非 inert 的合法来源，不从新活动区夺取输入。
+
+文件预览区分真实viewport变化和图片/PDF解码导致的内容box变化：前者同步落到新viewport内的contained几何；后者从当前实际pose按新bounds拟合，仅使用原生CSS transition剩余时间继续，不增加总duration或另建并行动效计时器。关闭/重开与Radix Presence继续持有原生命周期，内容解码不能把运动直接截成两个静态尺度。该新实现的连续中间帧仍须精确新候选实际录屏核验。
 
 同 URL 从时长选择/PDF 阅读到明确继任弹层时使用现有手机 Back entry 的显式 handoff；继任 replace 接管而不是额外 push，原 surface 清理不再竞争 Back。取消与普通关闭仍沿原返回规则。此机制不替代路由历史或绕过 dirty/提交保护。
 

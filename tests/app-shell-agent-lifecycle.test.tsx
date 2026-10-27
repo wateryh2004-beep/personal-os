@@ -34,10 +34,10 @@ vi.mock("@/components/layout/navigation-rail", () => ({ NavigationRail: ({ child
 vi.mock("@/components/layout/mobile-tab-bar", () => ({ MobileTabBar: () => null }));
 vi.mock("@/components/search/global-command-palette", () => ({ GlobalCommandPalette: () => null }));
 vi.mock("@/components/shared/global-create-layer", () => ({ GlobalCreateLayer: () => null }));
-vi.mock("@/features/tasks/workspace-resource", () => ({ tasksWorkspaceResource: { get: () => ({}), subscribe: () => () => {}, prefetch: vi.fn() } }));
-vi.mock("@/features/notes/workspace-resource", () => ({ notesWorkspaceResource: { get: () => ({}), subscribe: () => () => {}, prefetch: vi.fn() } }));
-vi.mock("@/features/calendar/workspace-resource", () => ({ calendarWorkspaceResource: { get: () => ({}), subscribe: () => () => {}, prefetch: vi.fn() } }));
-vi.mock("@/features/today/workspace-resource", () => ({ todayWorkspaceResource: { get: () => ({}), subscribe: () => () => {}, prefetch: vi.fn() } }));
+vi.mock("@/features/tasks/workspace-resource", () => ({ tasksWorkspaceResource: { get: () => ({}), subscribe: () => () => {}, prefetch: vi.fn(async () => {}) } }));
+vi.mock("@/features/notes/workspace-resource", () => ({ notesWorkspaceResource: { get: () => ({}), subscribe: () => () => {}, prefetch: vi.fn(async () => {}) } }));
+vi.mock("@/features/calendar/workspace-resource", () => ({ calendarWorkspaceResource: { get: () => ({}), subscribe: () => () => {}, prefetch: vi.fn(async () => {}) } }));
+vi.mock("@/features/today/workspace-resource", () => ({ todayWorkspaceResource: { get: () => ({}), subscribe: () => () => {}, prefetch: vi.fn(async () => {}) } }));
 
 import { AppShell } from "@/components/layout/app-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -103,7 +103,7 @@ it("loads Agent on intent, continues one answer while closed and reopens its com
 
 
 it("the real shell leaves source navigation preflight to its caller, preserving save refusal and the source trail", async () => {
-  const { registerWorkflowNavigationProtection } = await import("@/features/workflow-continuity/navigation-protection");
+  const { registerWorkflowNavigationProtection, commitPreparedWorkflowNavigation } = await import("@/features/workflow-continuity/navigation-protection");
   const { beginSourceNavigation, captureSourceNavigation, getSourceTrail } = await import("@/features/workflow-continuity/source-trail");
   window.history.replaceState({}, "", "/today");
   await act(async () => root.render(createElement(TooltipProvider, null, createElement(AppShell, null, "合成首页"))));
@@ -111,7 +111,8 @@ it("the real shell leaves source navigation preflight to its caller, preserving 
   let release!: (accepted: boolean) => void;
   const guard = vi.fn(() => new Promise<boolean>(resolve => { release = resolve; }));
   const stop = registerWorkflowNavigationProtection(guard);
-  const navigate = vi.fn();
+  const fallback = vi.fn();
+  const navigate = vi.fn((href: string) => commitPreparedWorkflowNavigation(href, fallback));
   try {
     let pending!: Promise<void>;
     await act(async () => { pending = captureSourceNavigation({ capture: async () => scene, destination: "/notes", label: "今日", current: beginSourceNavigation(), navigate }); await Promise.resolve(); });
@@ -120,7 +121,7 @@ it("the real shell leaves source navigation preflight to its caller, preserving 
     expect(engine.push).not.toHaveBeenCalled(); expect(navigate).not.toHaveBeenCalled(); expect(getSourceTrail()).toHaveLength(0);
     await act(async () => { pending = captureSourceNavigation({ capture: async () => scene, destination: "/notes", label: "今日", current: beginSourceNavigation(), navigate }); await Promise.resolve(); });
     await act(async () => { release(true); await pending; });
-    expect(engine.push).not.toHaveBeenCalled(); expect(navigate).toHaveBeenCalledExactlyOnceWith("/notes"); expect(getSourceTrail()).toHaveLength(1); expect(getSourceTrail()[0].scene.main.position?.scrollTop).toBe(42);
+    expect(engine.push).toHaveBeenCalledExactlyOnceWith("/notes", { transitionTypes: ["navigation-forward"] }); expect(fallback).not.toHaveBeenCalled(); expect(guard).toHaveBeenCalledTimes(2); expect(navigate).toHaveBeenCalledExactlyOnceWith("/notes"); expect(getSourceTrail()).toHaveLength(1); expect(getSourceTrail()[0].scene.main.position?.scrollTop).toBe(42);
     await act(async () => window.dispatchEvent(new CustomEvent("personal-os:navigation-start", { cancelable: true, detail: { href: "/projects" } })));
     expect(engine.push).toHaveBeenCalledWith("/projects", { transitionTypes: ["navigation-forward"] });
   } finally { stop(); }
@@ -134,4 +135,16 @@ it("settles responsive sidebar dimensions without cancelling a deliberate collap
   expect(width.cancel).not.toHaveBeenCalled(); expect(margin.cancel).not.toHaveBeenCalled();
   await act(async () => window.dispatchEvent(new Event("resize")));
   expect(width.cancel).toHaveBeenCalledTimes(1); expect(margin.cancel).toHaveBeenCalledTimes(1); expect(paint.cancel).not.toHaveBeenCalled();
+});
+
+it("does not push twice when another committed command handler already owns the navigation", async () => {
+  const mapped = vi.fn();
+  const mapper = (event: Event) => { const detail = (event as CustomEvent).detail; if (detail.phase === "commit") { event.preventDefault(); mapped(detail.href); } };
+  window.addEventListener("personal-os:navigation-start", mapper);
+  try {
+    await act(async () => root.render(createElement(TooltipProvider, null, createElement(AppShell, null, "合成首页"))));
+    const { commitPreparedWorkflowNavigation } = await import("@/features/workflow-continuity/navigation-protection");
+    const fallback = vi.fn(); await act(async () => commitPreparedWorkflowNavigation("/notes", fallback));
+    expect(mapped).toHaveBeenCalledExactlyOnceWith("/notes"); expect(engine.push).not.toHaveBeenCalled(); expect(fallback).not.toHaveBeenCalled();
+  } finally { window.removeEventListener("personal-os:navigation-start", mapper); }
 });

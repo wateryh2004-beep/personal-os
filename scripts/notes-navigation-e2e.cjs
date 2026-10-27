@@ -106,9 +106,15 @@ async function capture(page, path) {
       await input.press('Escape'); await panel.waitFor({ state: 'hidden' });
       await page.emulateMedia({ reducedMotion: 'no-preference', forcedColors: 'none' });
       const cursorBeforeDrawer = await page.locator('[data-status=cursor]').innerText();
-      if (width < 768) await page.getByRole('button', { name: '打开笔记文件', exact: true }).click();
-      const navigation = width < 768 ? page.getByRole('dialog', { name: '笔记文件', exact: true }) : page.locator('.notes-navigator-panel');
+      const drawerTrigger = page.getByRole('button', { name: '打开笔记文件', exact: true }).filter({ visible: true });
+      const usesNavigationSheet = await drawerTrigger.isVisible();
+      if (usesNavigationSheet) await drawerTrigger.click();
+      const navigation = usesNavigationSheet ? page.getByRole('dialog', { name: '笔记文件', exact: true }) : page.locator('.notes-navigator-panel').filter({ visible: true });
+      await navigation.waitFor({ state: 'visible' });
+      assert.equal(await navigation.count(), 1, 'one actual visible navigation surface at this pane width');
       const quick = navigation.getByRole('textbox', { name: '快速打开', exact: true });
+      assert.equal(await quick.count(), 1);
+      row.navigationSurface = usesNavigationSheet ? 'sheet' : 'sidebar';
       await quick.fill('练习');
       if (width < 768) {
         assert.ok(await quick.evaluate(el => parseFloat(getComputedStyle(el).fontSize) >= 16 && el.getBoundingClientRect().height >= 44));
@@ -122,7 +128,7 @@ async function capture(page, path) {
       await page.keyboard.press('Home'); await page.keyboard.press('ArrowUp'); assert.ok(await quick.evaluate(el => el === document.activeElement));
       await capture(page, `${out}/quick-open-${width}.png`);
       await quick.press('Escape'); assert.equal(await quick.inputValue(), '');
-      if (width < 768) {
+      if (usesNavigationSheet) {
         await quick.press('Escape'); await navigation.waitFor({ state: 'hidden' });
         assert.equal(await page.locator('[data-status=cursor]').innerText(), cursorBeforeDrawer, 'drawer cancellation preserves caret');
         await page.getByRole('button', { name: '打开笔记文件', exact: true }).click();

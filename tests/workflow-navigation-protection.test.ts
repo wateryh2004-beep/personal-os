@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearWorkspaceResources } from "@/lib/workspace-resource-cache";
 import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
-import { prepareWorkflowNavigation, registerWorkflowNavigationProtection } from "@/features/workflow-continuity/navigation-protection";
+import { commitPreparedWorkflowNavigation, prepareWorkflowNavigation, registerWorkflowNavigationProtection } from "@/features/workflow-continuity/navigation-protection";
 const releases: (() => void)[] = [];
 function deferred() { let resolve!: (value: boolean) => void; return { promise: new Promise<boolean>(done => { resolve = done; }), resolve: (value: boolean) => resolve(value) }; }
 beforeEach(() => { clearWorkspaceResources(); window.history.replaceState({}, "", "/notes"); });
@@ -43,4 +43,24 @@ it("honors existing cancelable navigation handlers and rejects unsafe paths befo
 it("bounds a missing save acknowledgement to ten seconds", async () => {
   vi.useFakeTimers(); releases.push(registerWorkflowNavigationProtection(() => new Promise(() => {})));
   const pending = prepareWorkflowNavigation("/files"); await vi.advanceTimersByTimeAsync(10000); expect(await pending).toBe(false);
+});
+
+it("commits one prepared command after a successful save, with exactly one standalone fallback and no second preparation", async () => {
+  const guard = vi.fn(async () => true), navigate = vi.fn(), phases: string[] = [];
+  releases.push(registerWorkflowNavigationProtection(guard));
+  const listen = (event: Event) => phases.push((event as CustomEvent).detail.phase);
+  window.addEventListener("personal-os:navigation-start", listen);
+  try {
+    expect(await prepareWorkflowNavigation("/files")).toBe(true);
+    commitPreparedWorkflowNavigation("/files", navigate);
+    expect(phases).toEqual(["prepare", "commit"]); expect(guard).toHaveBeenCalledOnce(); expect(navigate).toHaveBeenCalledExactlyOnceWith("/files");
+    commitPreparedWorkflowNavigation("https://example.com/", navigate); expect(navigate).toHaveBeenCalledOnce();
+  } finally { window.removeEventListener("personal-os:navigation-start", listen); }
+});
+it("lets the guarded commit be handled by the isolated route mapper without a second router push", async () => {
+  const navigate = vi.fn(), map = vi.fn();
+  const listen = (event: Event) => { const detail = (event as CustomEvent).detail; if (detail.phase === "prepare") return; event.preventDefault(); map(detail.href); };
+  window.addEventListener("personal-os:navigation-start", listen, true);
+  try { expect(await prepareWorkflowNavigation("/notes")).toBe(true); commitPreparedWorkflowNavigation("/notes", navigate); expect(map).toHaveBeenCalledExactlyOnceWith("/notes"); expect(navigate).not.toHaveBeenCalled(); }
+  finally { window.removeEventListener("personal-os:navigation-start", listen, true); }
 });

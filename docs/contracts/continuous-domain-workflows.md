@@ -1,6 +1,6 @@
 # 连续工作流：领域数据与交互契约
 
-状态：本批实现契约。`61569c8` 精确 SQL 的真实隔离 PostgreSQL 与独立产物复核成立；随后创建默认 ACL 修复改变八条未部署 SQL，新 Native 尚未执行，界面修复也待统一候选重验。生产尚未迁移或部署。具体范围见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围与最终证据以 [二十项规格](../specs/continuous-workflows-v3.md) 为准。主规范的身份、原件、事实、AI 和迁移规则保持有效。
+状态：本批实现契约。`f6bff7a` 精确 SQL 的真实隔离 PostgreSQL、三场景默认ACL与独立产物复核成立；浏览器仍有失败，后续界面/驱动修复待新统一候选重验。生产尚未迁移或部署。具体范围见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围与最终证据以 [二十项规格](../specs/continuous-workflows-v3.md) 为准。主规范的身份、原件、事实、AI 和迁移规则保持有效。
 
 ## 时间规划与下一步
 
@@ -50,11 +50,11 @@ AI 草稿先显示建议；每字段采纳前校对发起时基线。手动编�
 
 项目、可用时段、任务估时、机会材料、购后档案和事件编辑在并发冲突后提供真实读回、当前输入与已保存内容对比，以及明确保留输入并以新版本继续或采用已保存内容的选择。读回本身不覆盖字段，读回期间的新输入保留；保留输入仍为未保存草稿，必须再次保存。成功仅结算提交时的快照，保存期间继续输入的内容保留。可用时段同时展示实际保存时区，不能仅替换修订号后默换时区。
 
-当前十一条新增 migration 依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile → production baseline，精确文件名与生产版本见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十一条迁移与生产版本登记)。material receipts 引用 domain 建立的 owner 唯一键，mutex 再引用专门回执与来源规则。第十一条 `20261027175718_continuous_production_baseline.sql` 针对生产元数据中的复盘函数/项目投影缺口，并修复独立审查发现的 completion 审计原子性问题；`61569c8` 的真实 PG17 已验证缺口安装、已知旧定义升级、新定义幂等与未知定义拒绝，独立产物复核通过。它补缺失合法契约，仅将匹配已知旧指纹/配置/ACL的 completion 前向升级为正文、版本、来源与完成/修订审计同事务；已是新版保留，未知定义拒绝，其余三个复盘函数（含 helper）及项目健康定义、ACL、投影仍按缺失补齐并保留，不重放十二个旧文件、旧 surface CHECK 或补造 history。生产 87 条 ledger 的最终对象不能被本地完整 99 条旧基线验收替代；缺口场景只是元数据模拟。当前十一条均未应用生产，不能改写既有已部署 migration。
+当前十一条新增 migration 依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile → production baseline，精确文件名与生产版本见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十一条迁移与生产版本登记)。material receipts 引用 domain 建立的 owner 唯一键，mutex 再引用专门回执与来源规则。第十一条 `20261027175718_continuous_production_baseline.sql` 针对生产元数据中的复盘函数/项目投影缺口，并修复独立审查发现的 completion 审计原子性问题；`f6bff7a` 的真实PG17再次验证缺口安装、已知旧定义升级、新定义幂等与未知定义拒绝，独立产物复核通过。它补缺失合法契约，仅将匹配已知旧指纹/配置/ACL的 completion 前向升级为正文、版本、来源与完成/修订审计同事务；已是新版保留，未知定义拒绝，其余三个复盘函数（含 helper）及项目健康定义、ACL、投影仍按缺失补齐并保留，不重放十二个旧文件、旧 surface CHECK 或补造 history。生产 87 条 ledger 的最终对象不能被本地完整 99 条旧基线验收替代；缺口场景只是元数据模拟。当前十一条均未应用生产，不能改写既有已部署 migration。
 
-新建对象必须显式撤去创建默认带来的多余角色权限，不依赖测试库较窄的默认授权。只读生产元数据已观察到 public 新表默认给 anon/authenticated/service_role 全部表权限、函数 EXECUTE；本次未部署第1/2/3/4/5/6/8/9条仅在既有 REVOKE 名单加入 service_role，再保留明确的正向授权。`todo_creation_receipts` 的 service_role 仅 SELECT/INSERT/UPDATE；`briefing_judgment_versions` 不给 service_role 直接表权限；owner RPC、内部 helper/trigger 不继承无关 service EXECUTE，四个 service-only RPC 与五个明确共享 Scene helper 保持所需权限。旧99条、既有 Scene replacement ACL、第7/10/11条及全局默认不变。这些是新候选实现，尚未真实 Native 通过；新场景将核 10 表×3角色×8权限、55函数 ACL、RLS及真实角色拒绝，不能以函数体未登录错误冒充 EXECUTE 拒绝。
+新建对象必须显式撤去创建默认带来的多余角色权限，不依赖测试库较窄的默认授权。只读生产元数据已观察到 public 新表默认给 anon/authenticated/service_role 全部表权限、函数 EXECUTE；本次未部署第1/2/3/4/5/6/8/9条仅在既有 REVOKE 名单加入 service_role，再保留明确的正向授权。`todo_creation_receipts` 的 service_role 仅 SELECT/INSERT/UPDATE；`briefing_judgment_versions` 不给 service_role 直接表权限；owner RPC、内部 helper/trigger 不继承无关 service EXECUTE，四个 service-only RPC 与五个明确共享 Scene helper 保持所需权限。旧99条、既有 Scene replacement ACL、第7/10/11条及全局默认不变。这些收紧已由 `f6bff7a` 的真实Native执行证明；三个场景分别核10表×3角色×8权限、55函数ACL及10条真实角色拒绝，含RLS与既有Scene ACL保持。模拟sub和精确42501与metadata共同证明拒绝，不能以函数体未登录错误冒充EXECUTE拒绝；这仍不是生产写入或完整生产克隆。
 
-新业务元数据、原文版本与关系进入 system backup；外部创建回执是技术执行状态，排除恢复和重放。`61569c8` 的官方实际生成文件与 native catalog 已和候选映射比较，覆盖 633 字段、38 RPC（含四个复盘函数）；同批合成备份恢复 118 表、55 行，内容和关系一致。手写候选映射本身不称官方生成文件，这些结果只属于原 `61569c8` 精确候选，不自动覆盖后续 ACL/runner 修复，也不证明生产物理备份或真实私有原件恢复。
+新业务元数据、原文版本与关系进入 system backup；外部创建回执是技术执行状态，排除恢复和重放。`f6bff7a` 的官方实际生成文件与 native catalog 已和候选映射比较，覆盖 633 字段、38 RPC（含四个复盘函数）；同批合成备份恢复 118 表、55 行，内容和关系一致。手写候选映射本身不称官方生成文件，这些结果属于已验 `f6bff7a` 精确数据库候选；后续改动须按来源及字节等价核对，数据库字节改变需相应新证据，也不证明生产物理备份或真实私有原件恢复。
 
 生产通过已连接 Supabase MCP 顺序应用并查询实际版本/schema/RLS/ACL。MCP 不接受 version 参数；实际时间戳不同只对齐仓库文件名、两份严格顺序清单和发布文档，保留 SQL 原字节/哈希，再做元数据核对与必要 CI。不手写迁移 history 双记账，不通过 CLI/REST 绕过生产 MCP。
 

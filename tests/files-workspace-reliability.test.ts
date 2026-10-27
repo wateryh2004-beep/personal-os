@@ -210,3 +210,18 @@ describe("upload confirmation and indexing", () => {
     expect(digest).not.toHaveBeenCalled(); expect(fetchMock.mock.calls.every(([, options]) => !options?.method || options.method === "GET")).toBe(true);
   });
 });
+
+
+it("keeps one Files controller, search input, selection and scroll owner in the pane-sized layout host", async () => {
+  window.history.replaceState({}, "", "/files"); await renderFiles([file]);
+  const frame = host.querySelector<HTMLElement>(".files-pane-frame")!, workspace = frame.querySelector(".files-workspace")!, content = frame.querySelector<HTMLElement>(".files-content-pane")!, foldersNode = frame.querySelector(".files-folder-pane")!;
+  const search = content.querySelector<HTMLInputElement>('[aria-label="搜索文件名称"]')!;
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, "旧"); search.dispatchEvent(new Event("input", { bubbles: true })); });
+  search.focus(); search.setSelectionRange(0, 1); content.scrollTop = 124;
+  await act(async () => { frame.style.width = "260px"; window.dispatchEvent(new Event("resize")); });
+  expect(frame.querySelector(".files-workspace")).toBe(workspace); expect(frame.querySelector(".files-folder-pane")).toBe(foldersNode); expect(frame.querySelector(".files-content-pane")).toBe(content);
+  expect(content.querySelector('[aria-label="搜索文件名称"]')).toBe(search); expect(search.value).toBe("旧"); expect([search.selectionStart, search.selectionEnd]).toEqual([0, 1]); expect(document.activeElement).toBe(search); expect(content.scrollTop).toBe(124);
+  expect(window.location.search).toContain("q=");
+  const { readFile } = await import("node:fs/promises"), css = await readFile("src/components/files/files-workspace.css", "utf8");
+  expect(css).toContain("container:files-pane / inline-size"); expect(css).toContain("@container files-pane (max-width:560px)"); expect(css).toContain("grid-template-columns:minmax(0,1fr)"); expect(css).toContain("max-height:192px"); expect(css).not.toContain("display:none");
+});

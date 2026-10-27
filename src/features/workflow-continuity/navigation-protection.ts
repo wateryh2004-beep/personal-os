@@ -13,6 +13,16 @@ export function registerWorkflowNavigationProtection(beforeLeave: () => Promise<
   protections.add(registration);
   return () => { protections.delete(registration); registration.lease.abort(); };
 }
+/** Commit only after the caller's real preflight succeeds. The shell (or an
+ * isolated route fixture) handles this one command; standalone views fall back
+ * to their existing router without preparing/saving a second time. */
+export function commitPreparedWorkflowNavigation(href: string, navigate: (href: string) => void) {
+  const destination = safeWorkbenchHref(href);
+  if (!destination) return;
+  const scope = captureWorkspaceScope();
+  const command = new CustomEvent("personal-os:navigation-start", { cancelable: true, detail: { href: destination, phase: "commit" } });
+  if (window.dispatchEvent(command) && scope()) navigate(destination);
+}
 /** New tray/scene navigation may not race a dirty or conflicting editor. */
 export async function prepareWorkflowNavigation(href: string): Promise<boolean> {
   const destination = safeWorkbenchHref(href);
