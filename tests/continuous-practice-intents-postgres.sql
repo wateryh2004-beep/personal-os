@@ -1,9 +1,17 @@
 begin;
-insert into public.interview_questions(id,user_id,canonical_prompt,category,source_type) values('b1100000-0000-4000-8000-000000000001','81000000-0000-4000-8000-000000000001','Synthetic original prompt','behavioral','manual');
+-- New synthetic owners need the same used taxonomy entries as the real registry;
+-- the historical migration only backfilled owners with existing questions.
+insert into public.interview_question_types(id,user_id,key,label,position) values('b1100000-0000-4000-8000-000000000010','81000000-0000-4000-8000-000000000001','behavioral','行为',20);
+insert into public.interview_formats(id,user_id,key,label,participant_mode,position) values('b1100000-0000-4000-8000-000000000011','81000000-0000-4000-8000-000000000001','one_to_one','1v1','individual',10);
+insert into public.interview_questions(id,user_id,canonical_prompt,category,source_type,question_type_id) values('b1100000-0000-4000-8000-000000000001','81000000-0000-4000-8000-000000000001','Synthetic original prompt','behavioral','manual','b1100000-0000-4000-8000-000000000010');
 insert into public.interview_contexts(id,user_id,title,context_type) values('b1100000-0000-4000-8000-000000000002','81000000-0000-4000-8000-000000000001','Synthetic target','general');
 insert into public.interview_question_preparations(id,user_id,question_id,context_id) values('b1100000-0000-4000-8000-000000000003','81000000-0000-4000-8000-000000000001','b1100000-0000-4000-8000-000000000001','b1100000-0000-4000-8000-000000000002');
-insert into public.interview_sessions(id,user_id,context_id,title,session_kind) values('b1100000-0000-4000-8000-000000000004','81000000-0000-4000-8000-000000000001','b1100000-0000-4000-8000-000000000002','Synthetic session','mock');
+insert into public.interview_sessions(id,user_id,context_id,title,session_kind,format_id) values('b1100000-0000-4000-8000-000000000004','81000000-0000-4000-8000-000000000001','b1100000-0000-4000-8000-000000000002','Synthetic session','mock','b1100000-0000-4000-8000-000000000011');
 set local role authenticated;set local request.jwt.claim.sub='81000000-0000-4000-8000-000000000001';
+do $$begin
+ assert exists(select 1 from public.interview_questions q join public.interview_question_types t on (t.user_id,t.id)=(q.user_id,q.question_type_id) join public.interview_question_archetypes a on (a.user_id,a.id)=(q.user_id,q.archetype_id) where q.id='b1100000-0000-4000-8000-000000000001' and q.user_id='81000000-0000-4000-8000-000000000001' and t.key='behavioral' and a.primary_question_type_id=t.id), 'synthetic question taxonomy or trigger-created archetype mismatch';
+ assert exists(select 1 from public.interview_sessions s join public.interview_formats f on (f.user_id,f.id)=(s.user_id,s.format_id) where s.id='b1100000-0000-4000-8000-000000000004' and s.user_id='81000000-0000-4000-8000-000000000001' and f.key='one_to_one'), 'synthetic session format mismatch';
+end $$;
 do $$
 declare payload jsonb:='{"mode":"solo","preparation_id":"b1100000-0000-4000-8000-000000000003","session_id":null,"parent_attempt_id":null,"answer_version_id":null,"story_id":null,"input_mode":"text","language":"zh","prompt_snapshot":"Synthetic original prompt","response_transcript_markdown":"  Synthetic raw transcript  ","duration_seconds":null,"self_review_markdown":"","strength_tags":[],"issue_tags":["structure","clarity"],"next_focus":"Next focus","confidence_before":null,"confidence_after":null}'; receipt jsonb; scheduled timestamptz; first uuid:='b1200000-0000-4000-8000-000000000001';
 begin

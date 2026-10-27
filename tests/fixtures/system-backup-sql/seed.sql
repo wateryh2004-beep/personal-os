@@ -53,14 +53,24 @@ insert into public.feed_item_clusters(id,user_id,fingerprint,representative_item
 insert into public.briefings(id,user_id,briefing_date,timezone,ranking_method,source_window_start,source_window_end,status) values('30000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000001','2026-10-27','Asia/Shanghai','deterministic','2026-10-26T00:00:00Z','2026-10-27T00:00:00Z','completed');
 insert into public.briefing_entries(id,user_id,briefing_id,cluster_id,representative_item_id,section,position) values('30000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000004','30000000-0000-4000-8000-000000000003','30000000-0000-4000-8000-000000000002','must_know',1);
 select public.save_briefing_judgment_intent('30000000-0000-4000-8000-000000000006','30000000-0000-4000-8000-000000000005',null,null,'Synthetic explicit judgment',60,'Synthetic falsification','1_month');
-insert into public.interview_questions(id,user_id,canonical_prompt,category,source_type)
-values ('b1100000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', 'Synthetic original prompt', 'behavioral','manual');
+-- Initialize only the taxonomy entries actually used by this synthetic owner.
+-- Keep real taxonomy/archetype/format triggers and owner foreign keys enabled.
+insert into public.interview_question_types(id,user_id,key,label,position)
+values ('b1100000-0000-4000-8000-000000000010','00000000-0000-4000-8000-000000000001','behavioral','行为',20);
+insert into public.interview_formats(id,user_id,key,label,participant_mode,position)
+values ('b1100000-0000-4000-8000-000000000011','00000000-0000-4000-8000-000000000001','one_to_one','1v1','individual',10);
+insert into public.interview_questions(id,user_id,canonical_prompt,category,source_type,question_type_id)
+values ('b1100000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', 'Synthetic original prompt', 'behavioral','manual','b1100000-0000-4000-8000-000000000010');
 insert into public.interview_contexts(id,user_id,title,context_type)
 values ('b1100000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', 'Synthetic target', 'general');
 insert into public.interview_question_preparations(id,user_id,question_id,context_id)
 values ('b1100000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', 'b1100000-0000-4000-8000-000000000001','b1100000-0000-4000-8000-000000000002');
-insert into public.interview_sessions(id,user_id,context_id,title,session_kind)
-values ('b1100000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001','b1100000-0000-4000-8000-000000000002','Synthetic session','mock');
+insert into public.interview_sessions(id,user_id,context_id,title,session_kind,format_id)
+values ('b1100000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001','b1100000-0000-4000-8000-000000000002','Synthetic session','mock','b1100000-0000-4000-8000-000000000011');
+do $$begin
+ assert exists(select 1 from public.interview_questions q join public.interview_question_types t on (t.user_id,t.id)=(q.user_id,q.question_type_id) join public.interview_question_archetypes a on (a.user_id,a.id)=(q.user_id,q.archetype_id) where q.id='b1100000-0000-4000-8000-000000000001' and q.user_id='00000000-0000-4000-8000-000000000001' and t.key='behavioral' and a.primary_question_type_id=t.id), 'synthetic backup question taxonomy or trigger-created archetype mismatch';
+ assert exists(select 1 from public.interview_sessions s join public.interview_formats f on (f.user_id,f.id)=(s.user_id,s.format_id) where s.id='b1100000-0000-4000-8000-000000000004' and s.user_id='00000000-0000-4000-8000-000000000001' and f.key='one_to_one'), 'synthetic backup session format mismatch';
+end $$;
 select public.record_interview_practice_intent('b9100000-0000-4000-8000-000000000003','{"mode":"solo","preparation_id":"b1100000-0000-4000-8000-000000000003","session_id":null,"parent_attempt_id":null,"answer_version_id":null,"story_id":null,"input_mode":"text","language":"zh","prompt_snapshot":null,"response_transcript_markdown":"Preserve raw transcript 🌱","duration_seconds":null,"self_review_markdown":"Original self review","strength_tags":[],"issue_tags":[],"next_focus":"Next focus","confidence_before":null,"confidence_after":null}');
 insert into public.agent_runs(id,user_id,surface,status,user_request) values('b9100000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000001','tasks','pending','Synthetic unfinished run');
 select public.claim_agent_generation('b9100000-0000-4000-8000-000000000004','b9100000-0000-4000-8000-000000000005',false);
