@@ -20,7 +20,7 @@ do $$declare v uuid; repeated uuid; n uuid;begin
  assert (select body_markdown='A 中文 🌱 source' from public.note_versions where id=v);
  begin perform public.capture_note_source('c2000000-0000-4000-8000-000000000001',2,encode(sha256(convert_to('A 中文 🌱 source','UTF8')),'hex'));raise exception 'TEST stale source accepted';exception when serialization_failure then null;end;
  begin perform public.capture_note_source('c2000000-0000-4000-8000-000000000002',1,'wrong');raise exception 'TEST foreign source accepted';exception when insufficient_privilege then null;end;
- begin update public.note_versions set body_markdown='Tampered' where id=v;raise exception 'TEST immutable source changed';exception when raise_exception then if sqlerrm<>'source_version_is_immutable' then raise;end if;end;
+ begin update public.note_versions set body_markdown='Tampered' where id=v;raise exception 'TEST authenticated immutable update was granted';exception when insufficient_privilege then null;end;
  n:=public.convert_inbox_note('c3000000-0000-4000-8000-000000000001','Converted','Accepted body');
  repeated:=public.convert_inbox_note('c3000000-0000-4000-8000-000000000001','Converted','Accepted body');
  assert n=repeated;
@@ -31,6 +31,13 @@ do $$declare v uuid; repeated uuid; n uuid;begin
  assert not public.finish_inbox_target('c3000000-0000-4000-8000-000000000003','task','c2000000-0000-4000-8000-000000000001');
 end $$;
 reset role;
+-- The ordinary role is rejected by its existing ACL before any trigger. Prove
+-- the separate immutable trigger as the fixture owner without granting UPDATE.
+do $$begin
+ begin update public.note_versions set body_markdown='Tampered by fixture owner' where note_id='c2000000-0000-4000-8000-000000000001' and reason='source_citation';raise exception 'TEST privileged immutable update accepted';exception when raise_exception then if sqlerrm<>'source_version_is_immutable' then raise;end if;end;
+ begin delete from public.note_versions where note_id='c2000000-0000-4000-8000-000000000001' and reason='source_citation';raise exception 'TEST privileged immutable deletion accepted';exception when raise_exception then if sqlerrm<>'source_version_is_immutable' then raise;end if;end;
+ assert (select body_markdown='A 中文 🌱 source' from public.note_versions where note_id='c2000000-0000-4000-8000-000000000001' and reason='source_citation');
+end $$;
 create function public.test_continuous_audit_failure() returns trigger language plpgsql as $$begin if new.action='convert_to_note' then raise exception 'fixture_audit_failed';end if;return new;end $$;
 create trigger test_continuous_audit_failure before insert on public.audit_logs for each row execute function public.test_continuous_audit_failure();
 set local role authenticated;

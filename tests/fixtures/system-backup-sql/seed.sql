@@ -43,4 +43,25 @@ select public.save_leisure_feedback('10000000-0000-4000-8000-000000000095',0,'cu
 update public.leisure_feedback set progress_unit='page',progress_value=42,progress_total=200 where experience_id='10000000-0000-4000-8000-000000000095';
 insert into public.workspace_scenes(id,user_id,name,snapshot,last_mutation_id)
 values ('10000000-0000-4000-8000-000000000096','00000000-0000-4000-8000-000000000001','Synthetic field scene','{"version":1,"main":{"href":"/shopping?mode=field","position":{"scrollTop":128}},"reference":{"ref":{"kind":"trip","id":"10000000-0000-4000-8000-000000000091"}},"layout":{"referenceFirst":false,"referenceWidth":42,"mobilePane":"main"}}'::jsonb,'10000000-0000-4000-8000-000000000097');
+-- Phase2 business provenance/history round trip. Technical leases are present
+-- in the source but deliberately absent from the portable snapshot/restore.
+select public.capture_inbox_intent('b9100000-0000-4000-8000-000000000001','Synthetic capture to retain');
+select public.claim_inbox_classification('b9100000-0000-4000-8000-000000000001','b9100000-0000-4000-8000-000000000002','Synthetic capture to retain',false);
+insert into public.feeds(id,user_id,title,feed_url) values('30000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','Synthetic feed','https://example.test/feed');
+insert into public.feed_items(id,user_id,feed_id,identity_key,title,normalized_title) values('30000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001','synthetic-one','Synthetic evidence','synthetic evidence');
+insert into public.feed_item_clusters(id,user_id,fingerprint,representative_item_id,normalized_title) values('30000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001','synthetic-one','30000000-0000-4000-8000-000000000002','synthetic evidence');
+insert into public.briefings(id,user_id,briefing_date,timezone,ranking_method,source_window_start,source_window_end,status) values('30000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000001','2026-10-27','Asia/Shanghai','deterministic','2026-10-26T00:00:00Z','2026-10-27T00:00:00Z','completed');
+insert into public.briefing_entries(id,user_id,briefing_id,cluster_id,representative_item_id,section,position) values('30000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000004','30000000-0000-4000-8000-000000000003','30000000-0000-4000-8000-000000000002','must_know',1);
+select public.save_briefing_judgment_intent('30000000-0000-4000-8000-000000000006','30000000-0000-4000-8000-000000000005',null,null,'Synthetic explicit judgment',60,'Synthetic falsification','1_month');
+insert into public.interview_questions(id,user_id,canonical_prompt,category,source_type)
+values ('b1100000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', 'Synthetic original prompt', 'behavioral','manual');
+insert into public.interview_contexts(id,user_id,title,context_type)
+values ('b1100000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', 'Synthetic target', 'general');
+insert into public.interview_question_preparations(id,user_id,question_id,context_id)
+values ('b1100000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', 'b1100000-0000-4000-8000-000000000001','b1100000-0000-4000-8000-000000000002');
+insert into public.interview_sessions(id,user_id,context_id,title,session_kind)
+values ('b1100000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001','b1100000-0000-4000-8000-000000000002','Synthetic session','mock');
+select public.record_interview_practice_intent('b9100000-0000-4000-8000-000000000003','{"mode":"solo","preparation_id":"b1100000-0000-4000-8000-000000000003","session_id":null,"parent_attempt_id":null,"answer_version_id":null,"story_id":null,"input_mode":"text","language":"zh","prompt_snapshot":null,"response_transcript_markdown":"Preserve raw transcript 🌱","duration_seconds":null,"self_review_markdown":"Original self review","strength_tags":[],"issue_tags":[],"next_focus":"Next focus","confidence_before":null,"confidence_after":null}');
+insert into public.agent_runs(id,user_id,surface,status,user_request) values('b9100000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000001','tasks','pending','Synthetic unfinished run');
+select public.claim_agent_generation('b9100000-0000-4000-8000-000000000004','b9100000-0000-4000-8000-000000000005',false);
 commit;

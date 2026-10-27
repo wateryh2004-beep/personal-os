@@ -12,8 +12,26 @@ spec.loader.exec_module(workbench)
 OUTPUT=ROOT/"test-results/continuous-workflows-postgres"
 OUTPUT.mkdir(parents=True,exist_ok=True)
 MIGRATIONS=sorted((ROOT/"supabase/migrations").glob("*.sql"))
-NEW_SUFFIXES=("_continuous_material_sources.sql","_continuous_domain_workflows.sql","_continuous_material_receipts.sql","_inbox_dispatch_mutex.sql")
+NEW_SUFFIXES=("_continuous_material_sources.sql","_continuous_domain_workflows.sql","_continuous_material_receipts.sql","_inbox_dispatch_mutex.sql","_continuous_ai_capture_intents.sql","_continuous_practice_intents.sql","_continuous_scene_state.sql","_continuous_briefing_judgment_intents.sql","_continuous_agent_run_generations.sql","_continuous_life_request_reconcile.sql")
+def record_stage(stage, **details):
+    (OUTPUT/"progress.json").write_text(json.dumps({"status":"running","stage":stage,"productionAccess":False,**details},indent=2)+"\n")
+record_stage("starting")
+first_continuous=next((index for index,path in enumerate(MIGRATIONS) if path.name.endswith(NEW_SUFFIXES[0])),None)
+actual_suffixes=[] if first_continuous is None else [next((suffix for suffix in NEW_SUFFIXES if path.name.endswith(suffix)),None) for path in MIGRATIONS[first_continuous:]]
+if actual_suffixes!=list(NEW_SUFFIXES): raise RuntimeError("Continuous migration order changed; review the exact strict allowlist")
+
+def scene_matrix(db,name):
+    matrix=json.loads((ROOT/"tests/fixtures/continuous-workflows/scene-validator-matrix.json").read_text())
+    statements=[]
+    for index,case in enumerate(matrix["hrefs"]):
+        statements.append("assert public.valid_workbench_href("+workbench.literal(case["value"])+") is not distinct from "+str(case["valid"]).lower()+",'href matrix case "+str(index)+"';")
+    for case in matrix["snapshots"]:
+        statements.append("assert public.valid_workspace_scene_snapshot("+workbench.json_literal(case["value"])+") is not distinct from "+str(case["valid"]).lower()+","+workbench.literal("snapshot matrix "+case["name"])+";")
+    db.sql(name,"do $$begin\n"+"\n".join(statements)+"\nend $$;")
+    return {"hrefCases":len(matrix["hrefs"]),"snapshotCases":len(matrix["snapshots"])}
+
 def initialize(db,name,upgrade):
+    record_stage("create-database",database=name,upgrade=upgrade)
     db.sql("postgres",'create database "'+name+'";')
     db.sql(name,(ROOT/"tests/fixtures/system-backup-sql/bootstrap.sql").read_text())
     deferred=[]
@@ -21,12 +39,17 @@ def initialize(db,name,upgrade):
         if upgrade and migration.name.endswith(NEW_SUFFIXES):
             deferred.append(migration)
         else:
+            record_stage("migration",database=name,migration=migration.name,upgrade=upgrade)
             db.sql(name,migration.read_text())
     db.sql(name,(ROOT/"tests/fixtures/continuous-workflows/upgrade-seed.sql").read_text())
     for migration in deferred:
+        record_stage("upgrade-migration",database=name,migration=migration.name,upgrade=upgrade)
         db.sql(name,migration.read_text())
     workbench.check_inventory(db,name)
-    for filename in ("tests/continuous-domains-postgres.sql","tests/continuous-materials-postgres.sql","tests/continuous-inbox-mutex-postgres.sql"):
+    record_stage("shared-scene-validator-matrix",database=name,upgrade=upgrade)
+    scene_matrix(db,name)
+    for filename in ("tests/continuous-domains-postgres.sql","tests/continuous-materials-postgres.sql","tests/continuous-inbox-mutex-postgres.sql","tests/continuous-ai-capture-postgres.sql","tests/continuous-practice-intents-postgres.sql","tests/continuous-briefing-judgment-postgres.sql","tests/continuous-agent-generations-postgres.sql","tests/continuous-life-request-postgres.sql","tests/continuous-project-replay-postgres.sql"):
+        record_stage("regression",database=name,fixture=filename,upgrade=upgrade)
         db.sql(name,(ROOT/filename).read_text())
 def concurrency(db):
     owner="81000000-0000-4000-8000-000000000001"
@@ -77,12 +100,27 @@ def concurrency(db):
         results.append({"case":label,"secondWriterObservedWaiting":True,"competingIntentRejectedBeforeDispatch":True})
     db.sql("source_fixture", "do $$begin assert not exists(select 1 from public.calendar_operations where payload->>'sourceInboxId'='"+inboxes[3]+"');assert(select count(*)=1 from public.todo_creation_receipts where inbox_id='"+inboxes[5]+"');assert(select revision=2 from public.notes where id='"+daily+"');assert(select processed_at is null from public.inbox_items where id='"+inboxes[6]+"');end $$;")
     return results
-with workbench.SyntheticPostgres() as db:
-    initialize(db,"source_fixture",False)
-    initialize(db,"restored_fixture",True)
-    concurrent=concurrency(db)
-    columns=json.loads(db.sql("source_fixture","select json_agg(json_build_object('table',table_name,'column',column_name,'type',udt_name,'nullable',is_nullable='YES') order by table_name,ordinal_position) from information_schema.columns where table_schema='public';"))
-    (OUTPUT/"actual-schema-columns.json").write_text(json.dumps(columns,indent=2)+"\n")
-    result={"status":"verified","engine":"PostgreSQL 17","cleanInstall":True,"upgradeFromPreReleaseSchemaWithExistingRows":True,"actualMigrations":len(MIGRATIONS),"ownerAndAnonymousPolicies":True,"immutableSourcesAndCAS":True,"backupInventory":True,"overlappingTransactions":concurrent,"auditRollback":True,"productionAccess":False}
-    (OUTPUT/"verification.json").write_text(json.dumps(result,indent=2)+"\n")
-    print(json.dumps(result))
+try:
+    with workbench.SyntheticPostgres() as db:
+        initialize(db,"source_fixture",False)
+        initialize(db,"restored_fixture",True)
+        record_stage("actual-official-type-generation")
+        type_spec=importlib.util.spec_from_file_location("continuous_schema_typegen",ROOT/"scripts/continuous-schema-typegen.py")
+        typegen=importlib.util.module_from_spec(type_spec);type_spec.loader.exec_module(typegen)
+        typegen.verify_schema_types(db,OUTPUT,MIGRATIONS)
+        record_stage("real-overlapping-transactions")
+        concurrent=concurrency(db)
+        phase2_spec=importlib.util.spec_from_file_location("continuous_phase2_concurrency",ROOT/"scripts/continuous-phase2-concurrency.py")
+        phase2=importlib.util.module_from_spec(phase2_spec);phase2_spec.loader.exec_module(phase2)
+        concurrent.extend(phase2.exercise(db,workbench))
+        columns=json.loads(db.sql("source_fixture","select json_agg(json_build_object('table',table_name,'column',column_name,'type',udt_name,'nullable',is_nullable='YES') order by table_name,ordinal_position) from information_schema.columns where table_schema='public';"))
+        (OUTPUT/"actual-schema-columns.json").write_text(json.dumps(columns,indent=2)+"\n")
+        result={"status":"verified","engine":"PostgreSQL 17","cleanInstall":True,"upgradeFromPreReleaseSchemaWithExistingRows":True,"actualMigrations":len(MIGRATIONS),"ownerAndAnonymousPolicies":True,"immutableSourcesAndCAS":True,"backupInventory":True,"overlappingTransactions":concurrent,"auditRollback":True,"productionAccess":False}
+        (OUTPUT/"verification.json").write_text(json.dumps(result,indent=2)+"\n")
+        (OUTPUT/"progress.json").write_text(json.dumps(result,indent=2)+"\n")
+        print(json.dumps(result))
+except BaseException as error:
+    progress=json.loads((OUTPUT/"progress.json").read_text())
+    progress.update(status="failed",errorClass=type(error).__name__)
+    (OUTPUT/"progress.json").write_text(json.dumps(progress,indent=2)+"\n")
+    raise

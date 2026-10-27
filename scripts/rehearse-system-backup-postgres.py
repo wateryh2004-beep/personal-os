@@ -203,6 +203,14 @@ def main():
                 if before != after:
                     changed = [table for table in TABLES if before[table] != after[table]]
                     raise RuntimeError("Re-export values differ after PostgreSQL restore: " + ", ".join(changed))
+                if args.fixture:
+                    assert len(after["briefing_judgment_versions"]) == 1
+                    assert after["inbox_items"][0]["capture_content_hash"] is not None
+                    assert after["interview_practice_attempts"][0]["submission_fingerprint"] is not None
+                    technical = pg.sql("restored_fixture", "select count(*) from public.inbox_items where ai_classification_token is not null or ai_classification_started_at is not null or ai_classification_content_hash is not null;").strip()
+                    assert technical == "0", "classification lease was replayed during restore"
+                    technical = pg.sql("restored_fixture", "select count(*) from public.agent_runs where generation_token is not null or generation_expires_at is not null;").strip()
+                    assert technical == "0", "agent execution lease was replayed during restore"
                 reexport = Path(temporary) / "reexport.ndjson"
                 write_snapshot(after, owner, reexport, artwork_source=snapshot)
                 verifier.verify(reexport, files=args.files)

@@ -1,0 +1,51 @@
+begin;
+insert into public.agent_runs(id,user_id,surface,status,user_request) values('40000000-0000-4000-8000-000000000001','81000000-0000-4000-8000-000000000001','tasks','pending','Synthetic task request');
+insert into public.agent_runs(id,user_id,surface,status,user_request,updated_at) values('40000000-0000-4000-8000-000000000011','81000000-0000-4000-8000-000000000001','tasks','running','Legacy old request',now()-interval '121 seconds'),('40000000-0000-4000-8000-000000000012','81000000-0000-4000-8000-000000000001','tasks','running','Legacy recent request',now());
+set local role authenticated;set local request.jwt.claim.sub='81000000-0000-4000-8000-000000000001';
+do $$declare token uuid:='40000000-0000-4000-8000-000000000002';begin
+ assert public.claim_agent_generation('40000000-0000-4000-8000-000000000001',token,false);
+ assert not public.claim_agent_generation('40000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000009',false);
+ assert public.claim_agent_generation('40000000-0000-4000-8000-000000000011',token,false);
+ assert not public.claim_agent_generation('40000000-0000-4000-8000-000000000012',token,false);
+ assert public.update_agent_generation('40000000-0000-4000-8000-000000000001',token,'{"status":"running","model":"deepseek-v4-flash","context_mode":"action","request_complexity":"simple","initial_modules":["tasks"],"active_skills":[],"initial_tool_names":["proposeTaskCreate"],"discovered_tool_names":[],"kernel_state":{"binding":{"surface":"tasks","currentEntity":null},"referencedEntities":[],"activeConstraints":[],"activeSkills":[],"loadedModules":["tasks"],"loadedSourceIds":[],"discoveredToolNames":[],"pendingActionIds":[],"updatedAt":"2026-10-27T00:00:00.000Z"}}');
+ begin perform public.update_agent_generation('40000000-0000-4000-8000-000000000001',token,'{"status":"completed","kernel_state":{}}');raise exception 'TEST missing kernel binding';exception when invalid_parameter_value then null;end;
+ begin perform public.update_agent_generation('40000000-0000-4000-8000-000000000001',token,'{"status":"completed","initial_tool_names":[42]}');raise exception 'TEST coerced string array';exception when invalid_parameter_value then null;end;
+ begin perform public.update_agent_generation('40000000-0000-4000-8000-000000000001',token,'{"model":"missing-required-status"}');raise exception 'TEST missing patch status';exception when invalid_parameter_value then null;end;
+ begin update public.agent_runs set status='completed' where id='40000000-0000-4000-8000-000000000001';raise exception 'TEST legacy writer bypassed generation';exception when insufficient_privilege then null;end;
+ insert into public.agent_actions(id,user_id,run_id,generation_token,domain,action_type,payload_json,preview_json,risk_level) values('40000000-0000-4000-8000-000000000003','81000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000001',token,'tasks','tasks.create','{}','{}','low');
+ assert public.update_agent_generation('40000000-0000-4000-8000-000000000001',token,'{"status":"awaiting_approval"}');
+ assert not public.update_agent_generation('40000000-0000-4000-8000-000000000001',token,'{"status":"running"}');
+ assert not public.complete_agent_run_if_resolved('40000000-0000-4000-8000-000000000001');
+ assert not public.claim_agent_generation('40000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000004',false);
+ update public.agent_actions set status='rejected' where id='40000000-0000-4000-8000-000000000003';
+ assert public.complete_agent_run_if_resolved('40000000-0000-4000-8000-000000000001');
+ assert not public.complete_agent_run_if_resolved('40000000-0000-4000-8000-000000000001');
+ assert public.claim_agent_generation('40000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000004',false);
+ assert not public.update_agent_generation('40000000-0000-4000-8000-000000000001',token,'{"status":"failed"}');
+ assert not public.complete_agent_run_if_resolved('40000000-0000-4000-8000-000000000001');
+ begin insert into public.agent_actions(user_id,run_id,generation_token,domain,action_type,payload_json,preview_json,risk_level) values('81000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000001',token,'tasks','tasks.create','{}','{}','low');raise exception 'TEST stale action accepted';exception when serialization_failure then null;end;
+ begin insert into public.agent_actions(user_id,run_id,domain,action_type,payload_json,preview_json,risk_level) values('81000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000001','tasks','tasks.create','{}','{}','low');raise exception 'TEST missing token action accepted';exception when serialization_failure then null;end;
+ assert(select status='running' and generation_token='40000000-0000-4000-8000-000000000004' from public.agent_runs where id='40000000-0000-4000-8000-000000000001');
+end $$;
+set local request.jwt.claim.sub='81000000-0000-4000-8000-000000000002';
+do $$begin
+ assert not public.update_agent_generation('40000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000004','{"status":"failed"}');
+ begin perform public.claim_agent_generation('40000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000002',true);raise exception 'TEST cross-owner generation';exception when insufficient_privilege then null;end;
+ begin perform public.complete_agent_run_if_resolved('40000000-0000-4000-8000-000000000001');raise exception 'TEST cross-owner completion';exception when insufficient_privilege then null;end;
+end $$;
+reset role;
+update public.agent_runs set generation_expires_at=clock_timestamp()-interval '1 second' where id='40000000-0000-4000-8000-000000000001';
+set local role authenticated;set local request.jwt.claim.sub='81000000-0000-4000-8000-000000000001';
+do $$begin
+ assert not public.update_agent_generation('40000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000004','{"status":"completed"}');
+ assert public.claim_agent_generation('40000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000005',false);
+ assert public.update_agent_generation('40000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000005','{"status":"completed"}');
+end $$;
+reset role;
+do $$begin
+ assert not has_function_privilege('anon','public.claim_agent_generation(uuid,uuid,boolean)','EXECUTE');
+ assert not has_function_privilege('anon','public.update_agent_generation(uuid,uuid,jsonb)','EXECUTE');
+ assert not has_function_privilege('anon','public.complete_agent_run_if_resolved(uuid)','EXECUTE');
+ assert not has_function_privilege('authenticated','private.guard_agent_action_generation()','EXECUTE');
+end $$;
+rollback;

@@ -130,7 +130,9 @@
           ]
         }
       ],
-      "excludedColumns": []
+      "excludedColumns": [
+        "generation_token"
+      ]
     },
     "agent_messages": {
       "columns": {
@@ -284,7 +286,10 @@
         "id"
       ],
       "foreignKeys": [],
-      "excludedColumns": []
+      "excludedColumns": [
+        "generation_token",
+        "generation_expires_at"
+      ]
     },
     "agent_steps": {
       "columns": {
@@ -1135,6 +1140,86 @@
         "id"
       ],
       "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "briefing_judgment_versions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "entry_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "decision_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "judgment": {
+          "type": "string",
+          "nullable": false
+        },
+        "confidence": {
+          "type": "number",
+          "nullable": false
+        },
+        "falsification": {
+          "type": "string",
+          "nullable": true
+        },
+        "review_period": {
+          "type": "string",
+          "nullable": false
+        },
+        "expected_decision_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "expected_updated_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "decision_updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "user_id",
+            "entry_id"
+          ],
+          "table": "briefing_entries",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id",
+            "decision_id"
+          ],
+          "table": "decisions",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
       "excludedColumns": []
     },
     "briefing_settings": {
@@ -3978,6 +4063,10 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "capture_content_hash": {
+          "type": "string",
+          "nullable": true
         }
       },
       "primaryKey": [
@@ -4012,7 +4101,11 @@
           ]
         }
       ],
-      "excludedColumns": []
+      "excludedColumns": [
+        "ai_classification_token",
+        "ai_classification_started_at",
+        "ai_classification_content_hash"
+      ]
     },
     "interview_answer_fact_links": {
       "columns": {
@@ -4747,6 +4840,10 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "submission_fingerprint": {
+          "type": "string",
+          "nullable": true
         }
       },
       "primaryKey": [

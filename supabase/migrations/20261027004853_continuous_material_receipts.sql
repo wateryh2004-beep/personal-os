@@ -51,7 +51,9 @@ begin
  if i.converted_note_id is not null then
   select project_id into project from public.notes where id=i.converted_note_id and user_id=auth.uid() and vault_group_id is null and archived_at is null and deleted_at is null;
   if not found or project is distinct from p_project_id then raise exception 'destination_conflict' using errcode='40001';end if;
-  return i.converted_note_id;
+  -- Reuse the original immutable version-1 title/body replay proof after the
+  -- project identity check. A different payload must never settle as saved.
+  return public.convert_inbox_note(p_inbox_id,p_title,p_body);
  end if;
  nid:=public.convert_inbox_note(p_inbox_id,p_title,p_body);
  update public.notes set project_id=p_project_id where id=nid and user_id=auth.uid();

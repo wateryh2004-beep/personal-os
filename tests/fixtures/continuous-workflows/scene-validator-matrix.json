@@ -1,0 +1,893 @@
+{
+  "hrefs": [
+    {
+      "value": "/notes?view=recent&scope=context&q=%E4%B8%AD%E6%96%87",
+      "valid": true
+    },
+    {
+      "value": "/files?view=grid&sort=uploaded-desc&type=document&page=2&file=e2000000-0000-4000-8000-000000000001",
+      "valid": true
+    },
+    {
+      "value": "/calendar?event=e2000000-0000-4000-8000-000000000001&date=2028-02-29&view=timeGridDay",
+      "valid": true
+    },
+    {
+      "value": "/career/roadmap?milestone=e2000000-0000-4000-8000-000000000001",
+      "valid": true
+    },
+    {
+      "value": "/career/interview?category=behavioral&style=stress&domain=Risk%20analysis",
+      "valid": true
+    },
+    {
+      "value": "/career/interview/practice/e2000000-0000-4000-8000-000000000001?parent=e2000000-0000-4000-8000-000000000002",
+      "valid": true
+    },
+    {
+      "value": "/travel/e2000000-0000-4000-8000-000000000001?mode=field&day=2&stop=e2000000-0000-4000-8000-000000000002",
+      "valid": true
+    },
+    {
+      "value": "/leisure?q=quiet&kind=book&minutes=60&setting=home&company=solo&budget=free",
+      "valid": true
+    },
+    {
+      "value": "/leisure/e2000000-0000-4000-8000-000000000001?from=kind%3Dbook%26minutes%3D60",
+      "valid": true
+    },
+    {
+      "value": "/projects#project-e2000000-0000-4000-8000-000000000001",
+      "valid": true
+    },
+    {
+      "value": "/memory#decision-e2000000-0000-4000-8000-000000000001",
+      "valid": true
+    },
+    {
+      "value": "/files?file=e2000000-0000-4000-8000-000000000001&pdfPage=2&sourceVersion=e2000000-0000-4000-8000-000000000002",
+      "valid": true
+    },
+    {
+      "value": "/notes/e2000000-0000-4000-8000-000000000001?nv=e2000000-0000-4000-8000-000000000002&nr=1&sf=0&st=7&sh=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "valid": true
+    },
+    {
+      "value": "/notes?q=%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1",
+      "valid": true
+    },
+    {
+      "value": "/notes?q=%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1%F0%9F%8C%B1",
+      "valid": false
+    },
+    {
+      "value": "/notes?q=%ZZ",
+      "valid": false
+    },
+    {
+      "value": "/notes?q=a&q=b",
+      "valid": false
+    },
+    {
+      "value": "/calendar?date=2026-02-30",
+      "valid": false
+    },
+    {
+      "value": "/tasks?task=not-a-uuid",
+      "valid": false
+    },
+    {
+      "value": "/projects?url=https%3A%2F%2Fevil.example",
+      "valid": false
+    },
+    {
+      "value": "/career/roadmap?milestone=bad",
+      "valid": false
+    },
+    {
+      "value": "/files?type=script",
+      "valid": false
+    },
+    {
+      "value": "/files?page=201",
+      "valid": false
+    },
+    {
+      "value": "/leisure/e2000000-0000-4000-8000-000000000001?from=q%3Done%26q%3Dtwo",
+      "valid": false
+    },
+    {
+      "value": "/projects#project-------------------------------------",
+      "valid": false
+    },
+    {
+      "value": "/notes/e2000000-0000-4000-8000-000000000001?nv=e2000000-0000-4000-8000-000000000002&nr=1&sf=7&st=0&sh=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "valid": false
+    },
+    {
+      "value": "/mobile-native-e2e",
+      "valid": false
+    },
+    {
+      "value": "//evil.example/notes",
+      "valid": false
+    },
+    {
+      "value": "/api/notes",
+      "valid": false
+    },
+    {
+      "value": "/leisure/e2000000-0000-4000-8000-000000000001?from=q%3Dquiet%26kind%3Dbook",
+      "valid": false
+    },
+    {
+      "value": "/career/interview/questions/e2000000-0000-4000-8000-000000000001?context=e2000000-0000-4000-8000-000000000002",
+      "valid": true
+    },
+    {
+      "value": "/career/interview/questions/e2000000-0000-4000-8000-000000000001?context=general",
+      "valid": false
+    },
+    {
+      "value": "/calendar?date=0000-01-01",
+      "valid": false
+    },
+    {
+      "value": "/notes/00000000-0000-0000-0000-000000000001?nv=e2000000-0000-4000-8000-000000000002&nr=1&sf=0&st=7&sh=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "valid": false
+    },
+    {
+      "value": "/notes?q=raw space",
+      "valid": false
+    },
+    {
+      "value": "/notes?q=中文",
+      "valid": false
+    },
+    {
+      "value": "/notes?q=%E4%B8%AD%E6%96%87",
+      "valid": true
+    },
+    {
+      "value": "/notes?q=a?b",
+      "valid": true
+    },
+    {
+      "value": "/notes?q=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?b",
+      "valid": false
+    },
+    {
+      "value": "/notes?q=a'b",
+      "valid": false
+    },
+    {
+      "value": "/notes?q=a%27b",
+      "valid": true
+    },
+    {
+      "value": "/notes?q=%C2%85",
+      "valid": true
+    }
+  ],
+  "snapshots": [
+    {
+      "name": "valid-tasks",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/tasks",
+          "viewState": {
+            "kind": "tasks",
+            "view": "upcoming",
+            "listId": "e2000000-0000-4000-8000-000000000001",
+            "scroll": {
+              "list": 150,
+              "detail": 81
+            }
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-calendar",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/calendar",
+          "viewState": {
+            "kind": "calendar",
+            "view": "month",
+            "cursor": "2028-02-29",
+            "selectedCategories": [
+              "中文 🌱"
+            ],
+            "hideInternship": false,
+            "selectedEventId": "e2000000-0000-4000-8000-000000000001",
+            "inspectorOpen": true
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-today",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/today",
+          "viewState": {
+            "kind": "today",
+            "section": null,
+            "disclosures": [
+              "background",
+              "past"
+            ]
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-notes",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/notes/e2000000-0000-4000-8000-000000000001",
+          "viewState": {
+            "kind": "notes",
+            "pathname": "/notes/e2000000-0000-4000-8000-000000000001",
+            "previewId": "e2000000-0000-4000-8000-000000000002",
+            "scroll": {
+              "list": 33,
+              "detail": 10
+            }
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-files",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/files",
+          "viewState": {
+            "kind": "files",
+            "previewDocumentId": "e2000000-0000-4000-8000-000000000001",
+            "previewOpen": true,
+            "listScrollTop": 120,
+            "previewScrollTop": 60
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-projects",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/projects",
+          "viewState": {
+            "kind": "projects",
+            "expandedProjectIds": [
+              "e2000000-0000-4000-8000-000000000001"
+            ]
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-career",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/career/interview/insights",
+          "viewState": {
+            "kind": "career",
+            "pathname": "/career/interview/insights",
+            "expandedIds": [],
+            "insightTags": [
+              "structure",
+              "trends"
+            ],
+            "selectedId": null,
+            "scroll": {}
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-reviews",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/reviews/daily",
+          "viewState": {
+            "kind": "reviews",
+            "pathname": "/reviews/daily",
+            "periodKey": "daily:2026-10-27:2026-10-27:America/New_York",
+            "filter": "notes",
+            "selectedRefs": [
+              {
+                "group": "notes",
+                "type": "note",
+                "id": "e2000000-0000-4000-8000-000000000001"
+              }
+            ],
+            "evidenceScrollTop": 200
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-briefing",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/briefing/events",
+          "viewState": {
+            "kind": "briefing",
+            "pathname": "/briefing/events",
+            "eventId": "e2000000-0000-4000-8000-000000000001",
+            "expandedIds": [
+              "e2000000-0000-4000-8000-000000000001"
+            ]
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-investment",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/investments",
+          "viewState": {
+            "kind": "investment",
+            "explainingAccountId": "e2000000-0000-4000-8000-000000000001",
+            "expandedAccountIds": [
+              "e2000000-0000-4000-8000-000000000001"
+            ],
+            "selectedSection": "cash"
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-shopping",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/shopping/e2000000-0000-4000-8000-000000000001",
+          "viewState": {
+            "kind": "shopping",
+            "itemId": "e2000000-0000-4000-8000-000000000001",
+            "section": "aftercare"
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-travel",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/travel/e2000000-0000-4000-8000-000000000001",
+          "viewState": {
+            "kind": "travel",
+            "tripId": "e2000000-0000-4000-8000-000000000001",
+            "day": 2,
+            "stopId": "e2000000-0000-4000-8000-000000000002",
+            "map": {
+              "latitude": -33.8,
+              "longitude": 151.2,
+              "zoom": 12
+            }
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-leisure",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/leisure/e2000000-0000-4000-8000-000000000001",
+          "viewState": {
+            "kind": "leisure",
+            "pathname": "/leisure/e2000000-0000-4000-8000-000000000001",
+            "featuredId": "e2000000-0000-4000-8000-000000000001",
+            "fieldSelectedId": "e2000000-0000-4000-8000-000000000002"
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "valid-inbox",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/inbox",
+          "viewState": {
+            "kind": "inbox",
+            "currentId": "e2000000-0000-4000-8000-000000000001",
+            "reviewId": "e2000000-0000-4000-8000-000000000002",
+            "laterIds": [
+              "e2000000-0000-4000-8000-000000000001"
+            ],
+            "manualKind": "note"
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "body-smuggling",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/tasks",
+          "viewState": {
+            "kind": "tasks",
+            "view": "upcoming",
+            "listId": "e2000000-0000-4000-8000-000000000001",
+            "scroll": {
+              "list": 150,
+              "detail": 81
+            },
+            "body": "private"
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "duplicate-projects",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/projects",
+          "viewState": {
+            "kind": "projects",
+            "expandedProjectIds": [
+              "e2000000-0000-4000-8000-000000000001",
+              "e2000000-0000-4000-8000-000000000001"
+            ]
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "wrong-map-range",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/travel/e2000000-0000-4000-8000-000000000001",
+          "viewState": {
+            "kind": "travel",
+            "tripId": "e2000000-0000-4000-8000-000000000001",
+            "day": 2,
+            "stopId": "e2000000-0000-4000-8000-000000000002",
+            "map": {
+              "latitude": 91,
+              "longitude": 0,
+              "zoom": 5
+            }
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "bad-calendar-date",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/calendar",
+          "viewState": {
+            "kind": "calendar",
+            "view": "month",
+            "cursor": "2026-02-30",
+            "selectedCategories": [
+              "中文 🌱"
+            ],
+            "hideInternship": false,
+            "selectedEventId": "e2000000-0000-4000-8000-000000000001",
+            "inspectorOpen": true
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "oversized-category",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/calendar",
+          "viewState": {
+            "kind": "calendar",
+            "view": "month",
+            "cursor": "2028-02-29",
+            "selectedCategories": [
+              "🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱🌱"
+            ],
+            "hideInternship": false,
+            "selectedEventId": "e2000000-0000-4000-8000-000000000001",
+            "inspectorOpen": true
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "duplicate-review-ref",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/reviews/daily",
+          "viewState": {
+            "kind": "reviews",
+            "pathname": "/reviews/daily",
+            "periodKey": "daily:2026-10-27:2026-10-27:America/New_York",
+            "filter": "notes",
+            "selectedRefs": [
+              {
+                "group": "notes",
+                "type": "note",
+                "id": "e2000000-0000-4000-8000-000000000001"
+              },
+              {
+                "group": "notes",
+                "type": "note",
+                "id": "e2000000-0000-4000-8000-000000000001"
+              }
+            ],
+            "evidenceScrollTop": 200
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "unknown-state",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/tasks",
+          "viewState": {
+            "kind": "unknown",
+            "view": "upcoming",
+            "listId": "e2000000-0000-4000-8000-000000000001",
+            "scroll": {
+              "list": 150,
+              "detail": 81
+            }
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "wrong-route-identity",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/notes/e2000000-0000-4000-8000-000000000001",
+          "viewState": {
+            "kind": "notes",
+            "pathname": "/notes/e2000000-0000-4000-8000-000000000002",
+            "previewId": "e2000000-0000-4000-8000-000000000002",
+            "scroll": {
+              "list": 33,
+              "detail": 10
+            }
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "unknown-today-key",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/today",
+          "viewState": {
+            "kind": "today",
+            "section": null,
+            "disclosures": [
+              "secret"
+            ]
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "control-insight-tag",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/career/interview/insights",
+          "viewState": {
+            "kind": "career",
+            "pathname": "/career/interview/insights",
+            "expandedIds": [],
+            "insightTags": [
+              "a\nb"
+            ],
+            "selectedId": null,
+            "scroll": {}
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "career-context-True",
+      "valid": true,
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/career/interview/insights?context=e2000000-0000-4000-8000-000000000001",
+          "viewState": {
+            "kind": "career",
+            "pathname": "/career/interview/insights",
+            "expandedIds": [],
+            "insightTags": [
+              "structure",
+              "trends"
+            ],
+            "selectedId": null,
+            "scroll": {},
+            "contextId": "e2000000-0000-4000-8000-000000000001"
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      }
+    },
+    {
+      "name": "career-context-False",
+      "valid": false,
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/career/interview/insights?context=e2000000-0000-4000-8000-000000000002",
+          "viewState": {
+            "kind": "career",
+            "pathname": "/career/interview/insights",
+            "expandedIds": [],
+            "insightTags": [
+              "structure",
+              "trends"
+            ],
+            "selectedId": null,
+            "scroll": {},
+            "contextId": "e2000000-0000-4000-8000-000000000001"
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      }
+    },
+    {
+      "name": "career-uppercase-path-regex-flags",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/CAREER/interview/insights",
+          "viewState": {
+            "kind": "career",
+            "pathname": "/CAREER/interview/insights",
+            "expandedIds": [],
+            "insightTags": [
+              "structure",
+              "trends"
+            ],
+            "selectedId": null,
+            "scroll": {}
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "career-c1-is-not-ascii-control",
+      "value": {
+        "version": 1,
+        "main": {
+          "href": "/career/interview/insights",
+          "viewState": {
+            "kind": "career",
+            "pathname": "/career/interview/insights",
+            "expandedIds": [],
+            "insightTags": [
+              ""
+            ],
+            "selectedId": null,
+            "scroll": {}
+          }
+        },
+        "reference": null,
+        "layout": {
+          "referenceFirst": false,
+          "referenceWidth": 42,
+          "mobilePane": "main"
+        }
+      },
+      "valid": true
+    }
+  ]
+}

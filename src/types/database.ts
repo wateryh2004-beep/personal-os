@@ -1,4 +1,5 @@
-// Generated from the deployed public schema on 2026-10-14. Do not hand-edit.
+// Baseline generated from the deployed public schema on 2026-10-14.
+// Continuous workflow additions are candidate mappings pending isolated PG17 generation/verification.
 export type Json =
   | string
   | number
@@ -15,6 +16,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      briefing_judgment_versions: {
+        Row: {
+          id: string
+          user_id: string
+          entry_id: string
+          decision_id: string
+          judgment: string
+          confidence: number
+          falsification: string | null
+          review_period: string
+          expected_decision_id: string | null
+          expected_updated_at: string | null
+          decision_updated_at: string
+          created_at: string
+        }
+        Insert: {
+          id: string
+          user_id: string
+          entry_id: string
+          decision_id: string
+          judgment: string
+          confidence: number
+          falsification?: string | null
+          review_period: string
+          expected_decision_id?: string | null
+          expected_updated_at?: string | null
+          decision_updated_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          entry_id?: string
+          decision_id?: string
+          judgment?: string
+          confidence?: number
+          falsification?: string | null
+          review_period?: string
+          expected_decision_id?: string | null
+          expected_updated_at?: string | null
+          decision_updated_at?: string
+          created_at?: string
+        }
+        Relationships: [{foreignKeyName:"briefing_judgment_versions_user_id_entry_id_fkey";columns:["user_id","entry_id"];isOneToOne:false;referencedRelation:"briefing_entries";referencedColumns:["user_id","id"]},{foreignKeyName:"briefing_judgment_versions_user_id_decision_id_fkey";columns:["user_id","decision_id"];isOneToOne:false;referencedRelation:"decisions";referencedColumns:["user_id","id"]}]
+      }
       todo_creation_receipts: {
         Row: {
           id: string
@@ -29,9 +75,9 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id?: string
-          request_id?: string
-          request_hash?: string
+          user_id: string
+          request_id: string
+          request_hash: string
           inbox_id?: string | null
           task_id?: string | null
           status?: string
@@ -49,7 +95,7 @@ export type Database = {
           created_at?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [{foreignKeyName:"todo_creation_receipts_user_id_inbox_id_fkey";columns:["user_id","inbox_id"];isOneToOne:false;referencedRelation:"inbox_items";referencedColumns:["user_id","id"]},{foreignKeyName:"todo_creation_receipts_user_id_task_id_fkey";columns:["user_id","task_id"];isOneToOne:false;referencedRelation:"microsoft_todo_tasks";referencedColumns:["user_id","id"]}]
       }
       feed_item_versions: {
         Row: {
@@ -68,9 +114,9 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id?: string
-          feed_item_id?: string
-          title?: string
+          user_id: string
+          feed_item_id: string
+          title: string
           content_text?: string | null
           excerpt?: string | null
           url?: string | null
@@ -78,7 +124,7 @@ export type Database = {
           published_at?: string | null
           updated_at_source?: string | null
           observed_at?: string
-          provenance?: string
+          provenance: string
         }
         Update: {
           id?: string
@@ -94,7 +140,7 @@ export type Database = {
           observed_at?: string
           provenance?: string
         }
-        Relationships: []
+        Relationships: [{foreignKeyName:"feed_item_versions_user_id_feed_item_id_fkey";columns:["user_id","feed_item_id"];isOneToOne:false;referencedRelation:"feed_items";referencedColumns:["user_id","id"]}]
       }
       briefing_event_sources: {
         Row: {
@@ -109,9 +155,9 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id?: string
-          event_id?: string
-          feed_item_id?: string
+          user_id: string
+          event_id: string
+          feed_item_id: string
           revision?: number
           created_at?: string
           updated_at?: string
@@ -127,7 +173,7 @@ export type Database = {
           updated_at?: string
           archived_at?: string | null
         }
-        Relationships: []
+        Relationships: [{foreignKeyName:"briefing_event_sources_user_id_event_id_fkey";columns:["user_id","event_id"];isOneToOne:false;referencedRelation:"briefing_events";referencedColumns:["user_id","id"]},{foreignKeyName:"briefing_event_sources_user_id_feed_item_id_fkey";columns:["user_id","feed_item_id"];isOneToOne:false;referencedRelation:"feed_items";referencedColumns:["user_id","id"]}]
       }
       briefing_events: {
         Row: {
@@ -141,8 +187,8 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id?: string
-          title?: string
+          user_id: string
+          title: string
           revision?: number
           created_at?: string
           updated_at?: string
@@ -174,10 +220,10 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id?: string
-          item_id?: string
-          document_id?: string
-          kind?: string
+          user_id: string
+          item_id: string
+          document_id: string
+          kind: string
           label?: string
           revision?: number
           created_at?: string
@@ -196,7 +242,7 @@ export type Database = {
           updated_at?: string
           archived_at?: string | null
         }
-        Relationships: []
+        Relationships: [{foreignKeyName:"purchase_item_documents_user_id_item_id_fkey";columns:["user_id","item_id"];isOneToOne:false;referencedRelation:"purchase_items";referencedColumns:["user_id","id"]},{foreignKeyName:"purchase_item_documents_user_id_document_id_fkey";columns:["user_id","document_id"];isOneToOne:false;referencedRelation:"documents";referencedColumns:["user_id","id"]}]
       }
       career_material_checks: {
         Row: {
@@ -217,9 +263,9 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id?: string
-          opportunity_id?: string
-          label?: string
+          user_id: string
+          opportunity_id: string
+          label: string
           required?: boolean
           document_id?: string | null
           resume_version_id?: string | null
@@ -247,7 +293,7 @@ export type Database = {
           updated_at?: string
           archived_at?: string | null
         }
-        Relationships: []
+        Relationships: [{foreignKeyName:"career_material_checks_user_id_opportunity_id_fkey";columns:["user_id","opportunity_id"];isOneToOne:false;referencedRelation:"career_opportunities";referencedColumns:["user_id","id"]},{foreignKeyName:"career_material_checks_user_id_document_id_fkey";columns:["user_id","document_id"];isOneToOne:false;referencedRelation:"documents";referencedColumns:["user_id","id"]},{foreignKeyName:"career_material_checks_user_id_resume_version_id_fkey";columns:["user_id","resume_version_id"];isOneToOne:false;referencedRelation:"resume_versions";referencedColumns:["user_id","id"]}]
       }
       project_workflow_versions: {
         Row: {
@@ -262,12 +308,12 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id?: string
-          project_id?: string
+          user_id: string
+          project_id: string
           description?: string | null
-          blocker_text?: string
+          blocker_text: string
           next_todo_task_id?: string | null
-          revision?: number
+          revision: number
           created_at?: string
         }
         Update: {
@@ -280,36 +326,36 @@ export type Database = {
           revision?: number
           created_at?: string
         }
-        Relationships: []
+        Relationships: [{foreignKeyName:"project_workflow_versions_user_id_project_id_fkey";columns:["user_id","project_id"];isOneToOne:false;referencedRelation:"projects";referencedColumns:["user_id","id"]}]
       }
       planning_availability: {
         Row: {
-          created_at: string
-          archived_at: string | null
           user_id: string
           local_date: string
           timezone: string
           periods: Json
+          created_at: string
+          archived_at: string | null
           revision: number
           updated_at: string
         }
         Insert: {
+          user_id: string
+          local_date: string
+          timezone: string
+          periods?: Json
           created_at?: string
           archived_at?: string | null
-          user_id?: string
-          local_date?: string
-          timezone?: string
-          periods?: Json
           revision?: number
           updated_at?: string
         }
         Update: {
-          created_at?: string
-          archived_at?: string | null
           user_id?: string
           local_date?: string
           timezone?: string
           periods?: Json
+          created_at?: string
+          archived_at?: string | null
           revision?: number
           updated_at?: string
         }
@@ -317,36 +363,36 @@ export type Database = {
       }
       task_planning: {
         Row: {
-          created_at: string
-          archived_at: string | null
           user_id: string
           task_id: string
-          estimated_minutes: number | null
           planned_on: string | null
+          estimated_minutes: number | null
+          created_at: string
+          archived_at: string | null
           revision: number
           updated_at: string
         }
         Insert: {
+          user_id: string
+          task_id: string
+          planned_on?: string | null
+          estimated_minutes?: number | null
           created_at?: string
           archived_at?: string | null
-          user_id?: string
-          task_id?: string
-          estimated_minutes?: number | null
-          planned_on?: string | null
           revision?: number
           updated_at?: string
         }
         Update: {
-          created_at?: string
-          archived_at?: string | null
           user_id?: string
           task_id?: string
-          estimated_minutes?: number | null
           planned_on?: string | null
+          estimated_minutes?: number | null
+          created_at?: string
+          archived_at?: string | null
           revision?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [{foreignKeyName:"task_planning_user_id_task_id_fkey";columns:["user_id","task_id"];isOneToOne:true;referencedRelation:"microsoft_todo_tasks";referencedColumns:["user_id","id"]}]
       }
       trip_documents: {
         Row: {
@@ -524,6 +570,7 @@ export type Database = {
       }
       agent_actions: {
         Row: {
+          generation_token: string | null
           action_type: string
           approved_at: string | null
           created_at: string
@@ -542,6 +589,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          generation_token?: string | null
           action_type: string
           approved_at?: string | null
           created_at?: string
@@ -560,6 +608,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          generation_token?: string | null
           action_type?: string
           approved_at?: string | null
           created_at?: string
@@ -627,6 +676,8 @@ export type Database = {
       }
       agent_runs: {
         Row: {
+          generation_token: string | null
+          generation_expires_at: string | null
           active_skills: string[]
           completed_at: string | null
           context_mode: string | null
@@ -653,6 +704,8 @@ export type Database = {
           user_request: string
         }
         Insert: {
+          generation_token?: string | null
+          generation_expires_at?: string | null
           active_skills?: string[]
           completed_at?: string | null
           context_mode?: string | null
@@ -679,6 +732,8 @@ export type Database = {
           user_request?: string
         }
         Update: {
+          generation_token?: string | null
+          generation_expires_at?: string | null
           active_skills?: string[]
           completed_at?: string | null
           context_mode?: string | null
@@ -2669,6 +2724,7 @@ export type Database = {
       }
       documents: {
         Row: {
+          vault_group_id: string | null
           mutation_revision: number
           ai_visibility: string
           archived_at: string | null
@@ -2704,6 +2760,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          vault_group_id?: string | null
           mutation_revision?: number
           ai_visibility?: string
           archived_at?: string | null
@@ -2739,6 +2796,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          vault_group_id?: string | null
           mutation_revision?: number
           ai_visibility?: string
           archived_at?: string | null
@@ -3499,6 +3557,7 @@ export type Database = {
       }
       file_folders: {
         Row: {
+          vault_group_id: string | null
           archived_at: string | null
           created_at: string
           id: string
@@ -3509,6 +3568,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          vault_group_id?: string | null
           archived_at?: string | null
           created_at?: string
           id?: string
@@ -3519,6 +3579,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          vault_group_id?: string | null
           archived_at?: string | null
           created_at?: string
           id?: string
@@ -3742,6 +3803,10 @@ export type Database = {
       }
       inbox_items: {
         Row: {
+          capture_content_hash: string | null
+          ai_classification_token: string | null
+          ai_classification_started_at: string | null
+          ai_classification_content_hash: string | null
           ai_error: string | null
           ai_proposal: Json | null
           ai_status: string | null
@@ -3758,6 +3823,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          capture_content_hash?: string | null
+          ai_classification_token?: string | null
+          ai_classification_started_at?: string | null
+          ai_classification_content_hash?: string | null
           ai_error?: string | null
           ai_proposal?: Json | null
           ai_status?: string | null
@@ -3774,6 +3843,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          capture_content_hash?: string | null
+          ai_classification_token?: string | null
+          ai_classification_started_at?: string | null
+          ai_classification_content_hash?: string | null
           ai_error?: string | null
           ai_proposal?: Json | null
           ai_status?: string | null
@@ -4136,6 +4209,7 @@ export type Database = {
       }
       interview_practice_attempts: {
         Row: {
+          submission_fingerprint: string | null
           answer_version_id: string | null
           archived_at: string | null
           attempt_kind: string
@@ -4165,6 +4239,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          submission_fingerprint?: string | null
           answer_version_id?: string | null
           archived_at?: string | null
           attempt_kind?: string
@@ -4194,6 +4269,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          submission_fingerprint?: string | null
           answer_version_id?: string | null
           archived_at?: string | null
           attempt_kind?: string
@@ -5585,6 +5661,7 @@ export type Database = {
       }
       note_folders: {
         Row: {
+          vault_group_id: string | null
           archived_at: string | null
           created_at: string
           id: string
@@ -5595,6 +5672,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          vault_group_id?: string | null
           archived_at?: string | null
           created_at?: string
           id?: string
@@ -5605,6 +5683,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          vault_group_id?: string | null
           archived_at?: string | null
           created_at?: string
           id?: string
@@ -5787,6 +5866,7 @@ export type Database = {
       }
       notes: {
         Row: {
+          vault_group_id: string | null
           mutation_revision: number
           ai_visibility: string
           archived_at: string | null
@@ -5809,6 +5889,7 @@ export type Database = {
           word_count: number
         }
         Insert: {
+          vault_group_id?: string | null
           mutation_revision?: number
           ai_visibility?: string
           archived_at?: string | null
@@ -5831,6 +5912,7 @@ export type Database = {
           word_count?: number
         }
         Update: {
+          vault_group_id?: string | null
           mutation_revision?: number
           ai_visibility?: string
           archived_at?: string | null
@@ -6316,7 +6398,7 @@ export type Database = {
             referencedRelation: "areas"
             referencedColumns: ["id"]
           },
-        ]
+        {foreignKeyName:"project_next_todo_owner";columns:["user_id","next_todo_task_id"];isOneToOne:false;referencedRelation:"microsoft_todo_tasks";referencedColumns:["user_id","id"]}]
       }
       purchase_items: {
         Row: {
@@ -7201,7 +7283,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      save_career_material_check: { Args: { p_id:string;p_opportunity_id:string;p_expected_revision:number;p_label:string;p_required:boolean;p_document_id:string|null;p_resume_id:string|null;p_note:string;p_verification_intent:string;p_expected_object_revision:string|null;p_expected_document_revision:number|null;p_expected_resume_updated_at:string|null }; Returns:Database["public"]["Tables"]["career_material_checks"]["Row"] }
+      workbench_utf16_length: { Args: { p_text: string }; Returns: number }
+      decode_workbench_query: { Args: { p_text: string }; Returns: string }
+      workbench_uuid_text: { Args: { p_value: string }; Returns: boolean }
+      valid_continuous_scene_shape: { Args: { p_value: Json; p_schema: Json }; Returns: boolean }
+      valid_workbench_route_argument: { Args: { p_path: string; p_key: string; p_value: string }; Returns: boolean }
+      complete_agent_run_if_resolved: { Args: { p_run_id: string }; Returns: boolean }
+      claim_agent_generation: { Args: { p_run_id: string; p_token: string; p_allow_pending: boolean }; Returns: boolean }
+      update_agent_generation: { Args: { p_run_id: string; p_token: string; p_patch: Json }; Returns: boolean }
+
+      save_briefing_judgment_intent: { Args: { p_intent_id: string; p_entry_id: string; p_expected_decision_id: string | null; p_expected_updated_at: string | null; p_judgment: string; p_confidence: number; p_falsification: string | null; p_review_period: string }; Returns: Json }
+      read_briefing_judgment_intent: { Args: { p_intent_id: string; p_entry_id: string; p_expected_decision_id: string | null; p_expected_updated_at: string | null; p_judgment: string; p_confidence: number; p_falsification: string | null; p_review_period: string }; Returns: Json | null }
+      capture_inbox_intent: { Args: { p_intent_id: string; p_content: string }; Returns: Json }
+      claim_inbox_classification: { Args: { p_inbox_id: string; p_token: string; p_expected_content: string; p_explicit_restart: boolean }; Returns: boolean }
+      commit_inbox_classification: { Args: { p_inbox_id: string; p_token: string; p_expected_content: string; p_proposal: Json | null; p_error: string | null }; Returns: boolean }
+      record_interview_practice_intent: { Args: { p_attempt_id: string; p_payload: Json }; Returns: Json }
+      reconcile_interview_practice_intent: { Args: { p_attempt_id: string; p_payload: Json }; Returns: Json }
+      save_career_material_check: { Args: { p_id:string;p_opportunity_id:string;p_expected_revision:number;p_label:string;p_required:boolean;p_document_id:string|null;p_resume_id:string|null;p_note:string;p_verification_intent:string;p_expected_object_revision:string|null;p_expected_document_revision:number|null;p_expected_resume_updated_at:string|null }; Returns:Database["public"]["Tables"]["career_material_checks"]["Row"] ; SetofOptions: { from: "*"; to: "career_material_checks"; isOneToOne: true; isSetofReturn: false } }
       convert_inbox_daily: { Args: { p_inbox_id:string; p_note_id:string; p_expected_revision:number }; Returns:Json }
       prepare_inbox_todo_creation: { Args: { p_owner:string; p_inbox_id:string; p_request_hash:string }; Returns:Json }
       prepare_inbox_calendar_creation: { Args: { p_owner:string; p_inbox_id:string; p_request_hash:string; p_connection_id:string; p_payload:Json }; Returns:string }
@@ -7209,14 +7307,15 @@ export type Database = {
       finish_todo_creation_receipt: { Args: { p_receipt_id:string; p_owner:string }; Returns:boolean }
       convert_inbox_project: { Args: { p_inbox_id:string;p_project_id:string;p_title:string;p_body:string }; Returns: string }
       finish_inbox_target: { Args: { p_inbox_id:string;p_target:string;p_destination_id:string }; Returns: boolean }
-      save_briefing_event_source: { Args: { p_event_id:string; p_expected_revision:number; p_title:string; p_item_id:string; p_linked:boolean }; Returns: Database["public"]["Tables"]["briefing_events"]["Row"] }
-      save_purchase_aftercare: { Args: { p_item_id:string; p_expected_revision:number; p_purchased_on:string|null; p_return_until:string|null; p_warranty_until:string|null; p_order_reference:string; p_note:string; p_document_id?:string|null; p_document_kind?:string }; Returns: Database["public"]["Tables"]["purchase_items"]["Row"] }
+      save_briefing_event_source: { Args: { p_event_id:string; p_expected_revision:number; p_title:string; p_item_id:string; p_linked:boolean }; Returns: Database["public"]["Tables"]["briefing_events"]["Row"] ; SetofOptions: { from: "*"; to: "briefing_events"; isOneToOne: true; isSetofReturn: false } }
+      save_purchase_aftercare: { Args: { p_item_id:string; p_expected_revision:number; p_purchased_on:string|null; p_return_until:string|null; p_warranty_until:string|null; p_order_reference:string; p_note:string; p_document_id?:string|null; p_document_kind?:string }; Returns: Database["public"]["Tables"]["purchase_items"]["Row"] ; SetofOptions: { from: "*"; to: "purchase_items"; isOneToOne: true; isSetofReturn: false } }
       convert_inbox_note: { Args: { p_inbox_id: string; p_title: string; p_body: string }; Returns: string }
       capture_note_source: { Args: { p_note_id: string; p_expected_revision: number; p_expected_hash: string }; Returns: string }
-      save_project_workflow: { Args: { p_project_id: string; p_expected_revision: number; p_goal: string; p_blocker: string; p_next_task: string | null }; Returns: Database["public"]["Tables"]["projects"]["Row"] }
-      save_planning_availability: { Args: { p_date: string; p_timezone: string; p_expected_revision: number; p_periods: Json }; Returns: Database["public"]["Tables"]["planning_availability"]["Row"] }
-      save_task_planning: { Args: { p_task_id: string; p_expected_revision: number; p_minutes: number | null; p_planned_on?: string | null }; Returns: Database["public"]["Tables"]["task_planning"]["Row"] }
+      save_project_workflow: { Args: { p_project_id: string; p_expected_revision: number; p_goal: string; p_blocker: string; p_next_task: string | null }; Returns: Database["public"]["Tables"]["projects"]["Row"] ; SetofOptions: { from: "*"; to: "projects"; isOneToOne: true; isSetofReturn: false } }
+      save_planning_availability: { Args: { p_date: string; p_timezone: string; p_expected_revision: number; p_periods: Json }; Returns: Database["public"]["Tables"]["planning_availability"]["Row"] ; SetofOptions: { from: "*"; to: "planning_availability"; isOneToOne: true; isSetofReturn: false } }
+      save_task_planning: { Args: { p_task_id: string; p_expected_revision: number; p_minutes: number | null; p_planned_on?: string | null }; Returns: Database["public"]["Tables"]["task_planning"]["Row"] ; SetofOptions: { from: "*"; to: "task_planning"; isOneToOne: true; isSetofReturn: false } }
       _workbench_receipt_visible: { Args: { p_owner: string; p_operation: string; p_target: string; p_before: Json; p_after: Json }; Returns: boolean }
+      read_life_request_outcome: { Args: { p_request_id: string; p_operation: string; p_items: Json }; Returns: Json }
       read_life_receipt_state: { Args: { p_receipt_id: string }; Returns: Json }
       valid_workbench_href: { Args: { p_href: string }; Returns: boolean }
       finish_workbench_provider_receipt: { Args: { p_receipt_id: string; p_owner: string; p_after: Json; p_status: string }; Returns: undefined }
