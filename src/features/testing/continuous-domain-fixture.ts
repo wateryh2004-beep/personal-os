@@ -5,6 +5,18 @@ import type { FixtureState } from "./continuous-fixture-state";
 import { fixtureProject, fixtureFiles, fixtureOwner, fixtureTimestamp, fixtureTask } from "./continuous-fixture-data";
 import { fixtureMaterials } from "./continuous-domain-fixture-data";
 import { fixtureProjectSchema, fixtureProjectInput, fixtureAftercareInput, fixtureAftercareReadSchema, fixturePurchaseRowSchema, fixtureMaterialRowSchema, fixtureMaterialReadSchema, fixtureMaterialInput } from "./continuous-domain-wire";
+const storedSkillSchema = skillSchema.omit({ evidence_markdown: true, last_used_at: true }).extend({
+  evidence_markdown: z.string().max(12000).nullable(),
+  last_used_at: z.string().date().nullable(),
+}).strict();
+/** Bounded synthetic readback for the A-save/B-edit scenario, never the generic
+ * domain registry or a real Career read model. */
+export function syntheticSkillSnapshots(state: FixtureState) {
+  return [...state.domainObjects].flatMap(([id, value]) => {
+    const skill = storedSkillSchema.safeParse(value);
+    return z.uuid().safeParse(id).success && skill.success ? [{ id, name: skill.data.name }] : [];
+  }).slice(0, 100);
+}
 export function syntheticDomainOperation(state: FixtureState, path: string, body: unknown): unknown {
   if (path === "career-form") {
     const input = z.object({ operation: z.enum(["createExperience", "createSkill"]), entries: z.array(z.tuple([z.string().max(100), z.string().max(20000)])).max(40) }).strict().parse(body), raw = Object.fromEntries(input.entries);

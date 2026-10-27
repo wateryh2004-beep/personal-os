@@ -14,7 +14,7 @@ import { syntheticUploadHttp } from "@/features/testing/continuous-upload-fixtur
 import { syntheticJudgment } from "@/features/testing/continuous-judgment-fixture";
 import { lifeFieldInputSchema } from "@/features/life/contracts";
 import { syntheticPracticeOperation } from "@/features/testing/continuous-practice-fixture";
-import { syntheticDomainOperation } from "@/features/testing/continuous-domain-fixture";
+import { syntheticDomainOperation, syntheticSkillSnapshots } from "@/features/testing/continuous-domain-fixture";
 import { applySyntheticLife, readSyntheticLife, listSyntheticOperations, previewSyntheticUndo, undoSyntheticLife } from "@/features/testing/continuous-life-fixture";
 import { continuousFixturePdf } from "@/features/testing/continuous-fixture-pdf";
 import { isContinuousFixtureRequest } from "@/features/testing/continuous-fixture-gate";
@@ -42,7 +42,7 @@ async function handle(request: Request, context: Context) {
   if (uploadResponse) return json(uploadResponse.data ?? { error: "synthetic_upload_unavailable" }, uploadResponse.status);
   if (path === "control") {
     if (request.method === "DELETE") { discardContinuousFixtureState(request.headers.get("cookie")); return json({ discarded: true }); }
-    if (request.method === "GET") return json({ uploads: [...state.uploads.values()].map(upload => ({ id: upload.file.id, bytes: upload.bytes?.length ?? 0, available: upload.available, checksum: upload.input.checksum, title: upload.file.title })), captures: [...state.captures.values()], actions: [...state.actions.values()], calls: state.calls, writes: state.writes, notes: state.notes, scenes: state.scenes, mode: state.mode, lastSource:state.domainObjects.get("last-note-source")??null });
+    if (request.method === "GET") return json({ uploads: [...state.uploads.values()].map(upload => ({ id: upload.file.id, bytes: upload.bytes?.length ?? 0, available: upload.available, checksum: upload.input.checksum, title: upload.file.title })), captures: [...state.captures.values()], actions: [...state.actions.values()], calls: state.calls, writes: state.writes, notes: state.notes, scenes: state.scenes, careerSkills: syntheticSkillSnapshots(state), mode: state.mode, lastSource:state.domainObjects.get("last-note-source")??null });
     const input = z.object({ mode: z.enum(["normal", "save-conflict", "save-unknown", "ai-error"]).optional(), delay: z.number().int().min(0).max(3000).optional(), failUploadNames: z.array(z.string().min(1).max(255)).max(20).optional(), calendarComplete:z.boolean().optional(), materialDocumentRevision:z.number().int().min(1).max(20).optional(), taskCompleted:z.boolean().optional(), pdfSourceVersion:z.uuid().optional(), projectRevision:z.number().int().min(1).max(20).optional(), scenario:z.enum(["default","dst"]).optional() }).strict().safeParse(await request.json());
     if (!input.success) return json({ error: "invalid_fixture_control" }, 400);
     const { failUploadNames, calendarComplete, materialDocumentRevision, taskCompleted, pdfSourceVersion, projectRevision, scenario, ...configuration } = input.data;

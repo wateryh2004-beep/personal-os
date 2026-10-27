@@ -80,9 +80,9 @@ export function CareerMaterialChecklist({
   const targets=drafts.flatMap(draft=>draft.resumeTarget?.kind==="career.material"&&draft.resumeTarget.parentId===opportunityId?[draft.resumeTarget]:[]);
   useDraftResumeOpeners(targets,target=>{if(target.parentId!==opportunityId)return false;if(!rows.some(row=>row.id===target.id))setAdding(target.id);});
   return (
-    <section className="mt-6 space-y-4">
+    <section className="mt-6 min-w-0 max-w-full space-y-4 leading-[1.6] [overflow-wrap:anywhere]">
       <h2 className="text-lg font-medium">我需要准备的材料</h2>
-      <p className="text-sm leading-6 text-[var(--text-secondary)]">
+      <p className="text-sm leading-[1.6] text-[var(--text-secondary)]">
         文件存在、简历定稿与人工核验分别显示；材料齐全不会改变申请状态，也不会投递或联系任何人。
       </p>
       {[
@@ -109,6 +109,7 @@ export function CareerMaterialChecklist({
       {!adding ? (
         <Button
           variant="outline"
+          className="h-auto min-h-11 min-w-0 max-w-full whitespace-normal py-2 leading-[1.6]"
           onClick={() => setAdding(crypto.randomUUID())}
         >
           添加需要的材料 / 人工核验项
@@ -259,7 +260,7 @@ function MaterialRow({
     <details id={`career-material-${id}`}
       open={expanded}
       onToggle={(event) => setExpanded(event.currentTarget.open)}
-      className="rounded-xl border border-[var(--separator)] p-4"
+      className="min-w-0 max-w-full rounded-xl border border-[var(--separator)] p-4"
     >
       <summary className="min-h-11 cursor-pointer">
         {row?.label ?? "新材料"} ·{" "}
@@ -295,13 +296,13 @@ function MaterialRow({
         </p>
       ) : null}
       {row?.verified_at ? (
-        <p className="text-xs">
+        <p className="text-xs leading-[1.6]">
           原核验记录：{row.verified_at}。只改备注不会把这一天改成今天。
         </p>
       ) : null}
       <form
         data-workflow-draft-key={draftResumeKey({kind:"career.material",id,parentId:opportunityId})}
-        className="grid gap-3"
+        className="grid min-w-0 gap-3"
         onSubmit={async (event) => {
           event.preventDefault();
           if (!isCurrent() || pending || recovery.reading||uncertain) return;
@@ -349,7 +350,7 @@ function MaterialRow({
         <label>
           材料 / 核验项
           <input
-            className="ui-field min-h-11 w-full text-base"
+            className="ui-field min-h-11 w-full min-w-0 text-base leading-[1.6]"
             required
             maxLength={240}
             value={value.label}
@@ -375,7 +376,7 @@ function MaterialRow({
           <label htmlFor={`${fieldId}-document`}>私有原件（最近200份）</label>
           <select
             id={`${fieldId}-document`}
-            className="ui-field min-h-11 w-full text-base"
+            className="ui-field min-h-11 w-full min-w-0 text-base leading-[1.6]"
             value={value.documentId}
             onChange={(event) =>
               setValue((before) => ({
@@ -401,7 +402,7 @@ function MaterialRow({
           <label htmlFor={`${fieldId}-resume`}>简历版本</label>
           <select
             id={`${fieldId}-resume`}
-            className="ui-field min-h-11 w-full text-base"
+            className="ui-field min-h-11 w-full min-w-0 text-base leading-[1.6]"
             value={value.resumeId}
             onChange={(event) =>
               setValue((before) => ({
@@ -427,7 +428,7 @@ function MaterialRow({
           <label htmlFor={`${fieldId}-note`}>核验依据</label>
           <textarea
             id={`${fieldId}-note`}
-            className="ui-field w-full text-base"
+            className="ui-field w-full min-w-0 text-base leading-[1.6]"
             maxLength={4000}
             value={value.note}
             onChange={(event) =>
@@ -435,7 +436,7 @@ function MaterialRow({
             }
           />
         </div>
-        <p className="text-xs">
+        <p className="text-xs leading-[1.6]">
           当前显示版本：
           {value.documentId
             ? `文件修订 ${snapshot.documentRevision ?? "不可用"}`
@@ -465,7 +466,7 @@ function MaterialRow({
           />
           我已重新核对当前显示的这份资料版本
         </label>
-        <p className="text-xs">
+        <p className="text-xs leading-[1.6]">
           {value.verificationIntent === "verify"
             ? checked
               ? "本次保存将记录对上述确切版本的新核验。"
@@ -478,6 +479,7 @@ function MaterialRow({
           <Button
             type="button"
             variant="ghost"
+            className="h-auto min-h-11 min-w-0 max-w-full whitespace-normal py-2 leading-[1.6]"
             onClick={() =>
               setValue((before) => ({
                 ...before,
@@ -500,6 +502,7 @@ function MaterialRow({
           <Button
             type="button"
             variant="ghost"
+            className="h-auto min-h-11 min-w-0 max-w-full whitespace-normal py-2 leading-[1.6]"
             onClick={() =>
               setValue((before) => ({ ...before, ...resetVerification }))
             }
@@ -507,7 +510,7 @@ function MaterialRow({
             明确清除旧核验标记
           </Button>
         ) : null}
-        <Button disabled={pending || recovery.reading||uncertain}>
+        <Button className="h-auto min-h-11 min-w-0 max-w-full whitespace-normal py-2 leading-[1.6]" disabled={pending || recovery.reading||uncertain}>
           {pending ? "保存中…" : "保存核对项"}
         </Button>
         {message ? <p role="status">{message}</p> : null}

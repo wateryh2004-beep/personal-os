@@ -83,11 +83,12 @@ export function RevisionRecovery<T>({
   return (
     <section
       aria-label={`${label}版本核对`}
-      className="space-y-3 rounded-lg border border-[var(--separator)] p-3 text-sm leading-6"
+      className="min-w-0 max-w-full space-y-3 rounded-lg border border-[var(--separator)] p-3 text-sm leading-[1.6] [overflow-wrap:anywhere]"
     >
       <Button
         type="button"
         variant="outline"
+        className="h-auto min-h-11 min-w-0 max-w-full whitespace-normal py-2 leading-[1.6]"
         disabled={disabled || recovery.reading}
         onClick={onRead}
       >
@@ -101,12 +102,12 @@ export function RevisionRecovery<T>({
           <p>
             读取不会替换输入。核对后选择；保留输入仍需再次保存，其他页面若再次修改，保存会重新检查版本。
           </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <section>
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+            <section className="min-w-0 max-w-full">
               <h3 className="font-medium">当前输入 · 尚未保存</h3>
               {current}
             </section>
-            <section>
+            <section className="min-w-0 max-w-full">
               <h3 className="font-medium">刚读取的已保存内容</h3>
               {renderLatest(recovery.latest)}
             </section>
@@ -114,6 +115,7 @@ export function RevisionRecovery<T>({
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
+              className="h-auto min-h-11 min-w-0 max-w-full whitespace-normal py-2 leading-[1.6]"
               disabled={disabled || recovery.reading}
               onClick={() => {
                 onKeep(recovery.latest!);
@@ -125,6 +127,7 @@ export function RevisionRecovery<T>({
             <Button
               type="button"
               variant="outline"
+              className="h-auto min-h-11 min-w-0 max-w-full whitespace-normal py-2 leading-[1.6]"
               disabled={disabled || recovery.reading}
               onClick={() => {
                 onAdopt(recovery.latest!);
@@ -133,7 +136,7 @@ export function RevisionRecovery<T>({
             >
               采用最新内容，替换当前输入
             </Button>
-            <Button type="button" variant="ghost" onClick={recovery.dismiss}>
+            <Button type="button" variant="ghost" className="h-auto min-h-11 min-w-0 max-w-full whitespace-normal py-2 leading-[1.6]" onClick={recovery.dismiss}>
               暂不处理
             </Button>
           </div>

@@ -1,6 +1,6 @@
 # 工作流连续性契约
 
-状态：本批实施契约。`f6bff7a` 精确 SQL 的真实隔离验证、三场景默认ACL与独立产物复核成立；浏览器检查仍有失败，后续交互/驱动局部修复仍待新统一候选真实重验，生产未发布。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，精确证据与限制见[候选验收](../verification/2026-10-28-continuous-workflows-v3.md)。不替代各领域授权、数据、并发或性能规则。
+状态：本批实施契约。`bd977e1` 的真实Native已核与f6相同的精确SQL/49DB输入，三场景默认ACL及原独立语义证据成立；四套Visual实际通过，Canonical/Verify仍失败，PDF空原生选区未定位。后续局部布局/驱动与只读诊断待新统一候选真实重验，生产未发布。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，精确证据与限制见[候选验收](../verification/2026-10-28-continuous-workflows-v3.md)。不替代各领域授权、数据、并发或性能规则。
 
 ## 生命周期与后台执行
 
@@ -15,6 +15,8 @@
 `drafts.ts/useWorkflowDraft`接受有限kind、稳定领域id、resumeHref、短label、initialValue和领域parse函数；返回live value/setValue、精确clear(expectedValue)、restored及recoveryUnavailable。普通恢复载荷只在当前标签页内存，15分钟；Notes继续既有24小时session恢复/自动保存，不建平行保存器。保留既有安全恢复策略，不新增localStorage正文、DOM/FormData全表抓取或云端万能draft表。
 
 恢复目录最多60项、单载荷400000字符，只有明确schema白名单可登记，Vault/密码/密钥/恢复答案/连接token不登记。达到预算、格式失败或TTL过期只影响离开后的恢复，**不能阻止当前输入或将挂载表单重置为旧initialValue**。界面标“本标签页·未保存”；成功仅清同一提交载荷，后续输入保留。冲突由领域baseline/revision保护，不因恢复而覆盖当前远端版本。用户丢弃只清本地草稿，和业务删除分开。
+
+恢复、未知结果和版本比较状态使用相对行高、可收缩列与完整长文换行，按钮在200%文字下可换行并保持触达。布局不能改变原输入、owner/key/lease、unknown结果、CAS读回、保留或采纳回调。保存A期间续写B时，权威记录仍应为A、B保持当前未保存输入；取消/Esc/“稍后继续”保留草稿，只有明确“放弃修改”才清本地恢复。验证按这些真实状态检查，不能改生产文案或清空输入迎合旧驱动。
 
 同一个挂载表单切换记录时，每次key转换生成新的实例lease；setValue、clear与commit同时核对owner scope、当前live key和lease，再读取配置、内容或baseline。A→B→A也不能让第一次A的异步回调重新生效。新实例可恢复同key的有效草稿，但旧提交不得改写它的输入或revision。
 
@@ -32,7 +34,7 @@
 
 SidePanel 的可见 surface 是逻辑 open 与 Workbench active 的交集，使用标准 Radix Portal。切到另一 pane 时释放旧 surface 的 modal/pointer/拖动和手机返回层，保留原领域 open 与草稿；返回活动区可恢复。菜单也随实际 active 关闭，不能让隐藏 main 留下 body 点击锁。焦点只回到仍连接、未隐藏/非 inert 的合法来源，不从新活动区夺取输入。
 
-文件预览区分真实viewport变化和图片/PDF解码导致的内容box变化：前者同步落到新viewport内的contained几何；后者从当前实际pose按新bounds拟合，仅使用原生CSS transition剩余时间继续，不增加总duration或另建并行动效计时器。关闭/重开与Radix Presence继续持有原生命周期，内容解码不能把运动直接截成两个静态尺度。该新实现的连续中间帧仍须精确新候选实际录屏核验。
+文件预览区分真实viewport变化和图片/PDF解码导致的内容box变化：前者同步落到新viewport内的contained几何；后者从当前实际pose按新bounds拟合，仅使用原生CSS transition剩余时间继续，不增加总duration或另建并行动效计时器。关闭/重开与Radix Presence继续持有原生命周期，内容解码不能把运动直接截成两个静态尺度。该实现的图片连续中间帧已在bd实际Visual产物核验；后续改动仍须对应精确候选录屏，不以这项专项成功替代尚未完成的PDF选文闭环。
 
 同 URL 从时长选择/PDF 阅读到明确继任弹层时使用现有手机 Back entry 的显式 handoff；继任 replace 接管而不是额外 push，原 surface 清理不再竞争 Back。取消与普通关闭仍沿原返回规则。此机制不替代路由历史或绕过 dirty/提交保护。
 

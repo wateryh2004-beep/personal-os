@@ -364,19 +364,19 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           <ul aria-label="文件列表" className="divide-y divide-[var(--separator)]">
             {displayedFiles.map((file) => (
               <li data-file-preview-source id={`file-${file.id}`} className={`flex min-h-[52px] items-center gap-2.5 px-2 py-2.5 transition-colors ui-transition ${file.id === highlightId ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-hover)]"}`} key={file.id}>
-                <WorkbenchRecord entity={{kind:"document",id:file.id}} title={file.title} group={`files:${folderId}:${browser.sort}:${browser.query}`} className="w-full"><div className="flex w-full items-center gap-2.5"><File size={16} className="shrink-0 text-[var(--text-tertiary)]" />
-                <div className="min-w-0 flex-1">
+                <WorkbenchRecord entity={{kind:"document",id:file.id}} title={file.title} group={`files:${folderId}:${browser.sort}:${browser.query}`} className="files-list-record w-full"><div className="files-list-row-content flex w-full items-center gap-2.5"><File size={16} className="shrink-0 text-[var(--text-tertiary)]" />
+                <div className="files-list-title min-w-0 flex-1">
                   {classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" onClick={event => { openPreview(file, event.currentTarget); }} aria-label={`打开预览：${file.title}`} className="block max-w-full truncate text-left text-[13px] font-medium text-[var(--text-primary)] hover:text-[var(--accent)]">{file.title}</button> : <p className="truncate text-[13px] font-medium text-[var(--text-primary)]">{file.title}</p>}
                   <p className="mt-0.5 font-mono text-[12px] leading-4 tabular-nums text-[var(--text-tertiary)]">
                     {fileTypeLabels[classifyFile(file)]} · {formatBytes(file.file_size)} · 上传于 {new Date(file.uploaded_at).toLocaleDateString("zh-CN")}
                     {file.text_extraction_status === "completed" ? ` · 已索引 ${file.extracted_character_count.toLocaleString("zh-CN")} 字` : file.text_extraction_status === "processing" || file.text_extraction_status === "pending" ? " · 正在建立全文索引" : file.text_extraction_status === "too_large" ? " · 文件过大，暂不解析" : file.text_extraction_status === "unsupported" ? " · 此类型暂不解析" : file.text_extraction_status === "failed" ? " · 文本解析失败" : ""}
                   </p>
                 </div>
-                {classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { openPreview(file, event.currentTarget); }} className="pressable flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--accent)] hover:bg-[var(--surface-hover)]"><Eye size={15} /></button> : null}
+                <div className="files-list-actions flex items-center gap-2.5">{classifyFile(file) === "photo" || isPdfFile(file) ? <button type="button" aria-label={`预览 ${file.title}`} onClick={event => { openPreview(file, event.currentTarget); }} className="pressable flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[var(--accent)] hover:bg-[var(--surface-hover)]"><Eye size={15} /></button> : null}
                 {["failed", "pending", "not_requested"].includes(file.text_extraction_status) ? <button type="button" disabled={extractingId === file.id} onClick={() => void retryExtraction(file.id)} className="pressable h-8 rounded-[8px] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50">{extractingId === file.id ? "解析中…" : "解析文本"}</button> : null}
                 <a href={`/api/files/${file.id}/download`} className="pressable flex size-8 items-center justify-center rounded-[8px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]" aria-label={`下载 ${file.title}`}><Download size={14} /></a>
                 <FileOcrControl file={file} onComplete={count => setFileRows(current => current.map(item => item.id === file.id ? { ...item, text_extraction_status: "completed", extracted_character_count: count } : item))} />
-                <FileOperations resumeRequestId={operationResume?.id===file.id?operationResume.nonce:undefined} file={file} folders={sortedFolders} onArchive={archive} /></div></WorkbenchRecord>
+                <FileOperations resumeRequestId={operationResume?.id===file.id?operationResume.nonce:undefined} file={file} folders={sortedFolders} onArchive={archive} /></div></div></WorkbenchRecord>
               </li>
             ))}
           </ul>

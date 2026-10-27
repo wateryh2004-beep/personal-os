@@ -1,6 +1,6 @@
 # 材料来源、连续整理与编辑事务
 
-状态：本批实施契约。`f6bff7a` 精确十一条 SQL（含八条创建默认ACL收紧）已完成真实隔离PostgreSQL与独立产物复核，含三个有效权限场景。浏览器仍有失败，后续界面/驱动修复尚待新统一候选真实验收，生产未发布，见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，公共生命周期见 [连续性契约](workflow-continuity.md)。
+状态：本批实施契约。`bd977e1` 实际Native已核与f6相同的精确十一条SQL/49DB路径，含三场景有效权限及相同输入的独立语义证据。四套Visual通过，但PDF空原生选区根因仍未关闭；后续布局/驱动和只读诊断候选待新统一验收，生产未发布，见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，公共生命周期见 [连续性契约](workflow-continuity.md)。
 
 ## 不可变来源
 
@@ -29,9 +29,11 @@ Slash 仅在合法行首和折叠选区触发，代码、URL 和正文斜线不�
 
 To Do 创建由专门 `todo_creation_receipts` 保留真实发送意图、哈希与目标 ID，不复制正文或 token。Inbox 的请求键固定为 Inbox ID，同一来源跨标签页也只能认领同一意图；payload 不同返回冲突。状态 `prepared → processing → remote_committed → available`，未知远端结果转 `unknown` 后禁止自动重发。已创建但来源失败的重试只修复来源；终态和 create 审计由 service-only invoker RPC 原子确认。普通 owner 只读回执，不能伪造。该技术表在系统备份中排除，恢复不重放外部执行意图。
 
-Files 的文件夹/正文/预览入口按实际Workbench pane宽度布局，不只使用整窗desktop断点。窄pane将文件夹与正文叠排，文件夹保持可发现且有界滚动，gallery和操作随可用宽度换行；保留同一controller、筛选、search/focus/selection/scroll与DOM，不靠隐藏目录或重建状态避免挤空正文。新布局的实际几何与预览可达性仍须新浏览器验证。
+Files 的文件夹/正文/预览入口按实际Workbench pane宽度布局，不只使用整窗desktop断点。窄pane将文件夹与正文叠排，文件夹保持可发现且有界滚动，gallery和操作随可用宽度换行；保留同一controller、筛选、search/focus/selection/scroll与DOM，不靠隐藏目录或重建状态避免挤空正文。bd的768px单列实际已生效，但横排行操作把标题挤至宽0；新候选将标题与操作分行，标题minmax收缩、操作wrap并保留44px触达。WorkbenchRecord/controller与输入/选中/滚动不重建，标题实际宽度/可见性仍须新浏览器验证。
 
-PDF验收先等真实TextLayer ready，再按首尾字形几何用原生鼠标拖选，读回唯一实际Range、完整选文与同layer两端点、精确sourceVersion；不得写Selection或人工派发selectionchange绕过生产guard。f6旧390trace在三击前已ready，不能把原失败改称loading race；三击端点是否越过layer未由旧trace证明，需新严格诊断。手机viewport的鼠标拖选不冒称实体触摸或物理手机验证；原不可变页码引用、确认前零写、canonical保存与来源返回检查保持。
+PDF验收先等真实TextLayer ready，完成实际scroll/hover的actionability准备，再按首尾字形几何用原生鼠标拖选，读回唯一实际Range、完整选文与同layer两端点、精确sourceVersion；不得写Selection或人工派发selectionchange绕过生产guard。f6旧390trace在三击前已ready，不能把原失败改称loading race；三击端点是否越过layer未由旧trace证明，需新严格诊断。手机viewport的鼠标拖选不冒称实体触摸或物理手机验证；原不可变页码引用、确认前零写、canonical保存与来源返回检查保持。
+
+bd六配置的原生拖选结果仍为空。旧trace没有toolbar出现或TextLayer重建的证据，不能据此宣称loading、入场动效或ResizeObserver是已确认根因。本次仅恢复真实动作准备并增加只读命中/caret、trusted事件、Selection双端点、span连接性/mutation及几何时序诊断，结束后清理监听/observer/handle；没有改变生产selection/origin/generation/source或inactive守卫。精确全文、1Range、同layer端点、sourceVersion/page、确认前零写、canonical保存与原editor返回必须继续严格通过；未过时仍记未解决。
 
 ## 上传整理与任务执行
 

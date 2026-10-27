@@ -44,6 +44,20 @@ async function changeDescription(value: string) {
 async function submit() { await act(async () => host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))); }
 
 describe("calendar edit sessions", () => {
+  it("keeps an unsaved all-day draft on Cancel and clears it only after explicit discard", async () => {
+    await render(); await click("编辑日程");
+    await act(async () => field("is_all_day").click());
+    expect(field("is_all_day").checked).toBe(true);
+    await click("取消");
+    expect(actions.update).not.toHaveBeenCalled();
+    await click("编辑日程");
+    expect(field("is_all_day").checked).toBe(true);
+    await click("放弃修改");
+    await click("编辑日程");
+    expect(field("is_all_day").checked).toBe(false);
+    expect(actions.update).not.toHaveBeenCalled();
+  });
+
   it("explicitly discards all-day and text changes and reconstructs the original timed draft", async () => {
     await render(); await click("编辑日程");
     field("subject").value = "未保存标题";

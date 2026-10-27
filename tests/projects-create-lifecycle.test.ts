@@ -121,12 +121,24 @@ describe("project creation lifecycle", () => {
   it("keeps a deferred draft without writing and restores its raw form", async () => {
     await render();
     await click("新建项目");
-    await act(async()=>{const node=document.querySelector<HTMLInputElement>('[name="name"]')!;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(node,"不要创建");node.dispatchEvent(new Event("input",{bubbles:true}));});
+    const rawName="  不要自动创建  ",rawDescription="原始说明\n\n  继续输入  ";
+    await act(async()=>{
+      const name=document.querySelector<HTMLInputElement>('[name="name"]')!,description=document.querySelector<HTMLTextAreaElement>('[name="description"]')!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(name,rawName);name.dispatchEvent(new Event("input",{bubbles:true}));
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,"value")!.set!.call(description,rawDescription);description.dispatchEvent(new Event("input",{bubbles:true}));
+    });
     await click("稍后继续");
     expect(mocks.createProject).not.toHaveBeenCalled();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await click("新建项目");
-    expect(document.querySelector<HTMLInputElement>('[name="name"]')?.value).toBe("不要创建");
+    expect(document.querySelector<HTMLInputElement>('[name="name"]')?.value).toBe(rawName);
+    expect(document.querySelector<HTMLTextAreaElement>('[name="description"]')?.value).toBe(rawDescription);
+    expect(mocks.createProject).not.toHaveBeenCalled();
+    mocks.createProject.mockResolvedValue({status:"saved",id:"11111111-1111-4111-8111-111111111111"});
+    await submit(document.querySelector<HTMLFormElement>("form")!);
+    expect(mocks.createProject).toHaveBeenCalledOnce();
+    expect(mocks.createProject.mock.calls[0][1]).toMatchObject({name:rawName,description:rawDescription});
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it("consumes create intent before mobile history and supports another same-route request", async () => {

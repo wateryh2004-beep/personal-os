@@ -129,3 +129,20 @@ it("groups same normalized titles for field display but preserves units, unknown
  expect(host.querySelector(`[data-shopping-record="${id}"]`)).toBeNull();
  expect(record(second).textContent).toContain("0.125 kg");expect(record(third).textContent).toContain("数量未记录");expect(host.textContent).toContain("1 组 · 2 条记录");
 });
+
+
+it("retains the actual trip form, raw input and plan through a narrow pane and enlarged text",async()=>{
+ const trip={id,title:"长旅行标题 "+"Synthetic ".repeat(8),status:"planning",description:null,mutation_revision:1};
+ const stops=[{id:second,place_name:"长地点名称 "+"Destination ".repeat(8),day_number:1,sort_order:0,latitude:0,longitude:0,notes:"Original note",planned_time:"09:15:00",duration_minutes:45,mutation_revision:4}];
+ await act(async()=>root.render(createElement(TripDetail,{trip,stops})));
+ const workspace=host.querySelector<HTMLElement>(".trip-workspace")!,grid=workspace.querySelector(".trip-content-grid")!;
+ const note=host.querySelector<HTMLInputElement>('input[name="notes"]')!,form=note.closest("form")!;
+ const details=note.closest("details")!;details.open=true;
+ await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(note,"Keep an unfinished original 🌱 note");note.dispatchEvent(new Event("input",{bubbles:true}));});
+ note.focus();note.setSelectionRange(5,17);workspace.scrollTop=91;
+ await act(async()=>{workspace.style.width="260px";workspace.style.fontSize="200%";window.dispatchEvent(new Event("resize"));});
+ expect(host.querySelector('input[name="notes"]')).toBe(note);expect(note.closest("form")).toBe(form);expect(workspace.querySelector(".trip-content-grid")).toBe(grid);
+ expect(note.value).toBe("Keep an unfinished original 🌱 note");expect(document.activeElement).toBe(note);expect(note.selectionStart).toBe(5);expect(note.selectionEnd).toBe(17);expect(workspace.scrollTop).toBe(91);
+ expect(workspace.textContent).toContain("09:15");expect(workspace.textContent).toContain("45 分钟");expect(host.querySelector<HTMLInputElement>('input[name="plannedTime"]')!.value).toBe("09:15");expect(host.querySelector<HTMLInputElement>('input[name="expectedRevision"]')!.value).toBe("4");
+ expect(apply).not.toHaveBeenCalled();expect(readTrip).not.toHaveBeenCalled();
+});

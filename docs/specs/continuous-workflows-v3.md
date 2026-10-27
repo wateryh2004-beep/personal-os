@@ -8,7 +8,7 @@
 
 公共能力见 [连续性契约](../contracts/workflow-continuity.md)。技术 registry 不建立万能业务表。普通草稿仅在本标签页有限期恢复；Vault、认证凭据与第三方 token 不进入目录。任务托盘必须连接实际执行器，浏览器关闭后的上传、OCR 和流式 AI 不声称仍在运行。
 
-本批领域行为和数据边界分别见[材料来源定位契约](../contracts/material-source-locators.md)与[连续领域工作流契约](../contracts/continuous-domain-workflows.md)。这些文件与本规格均处于实施中；契约存在不代表全批已验证或上线。`f6bff7a` 的精确十一条 SQL（含八条创建默认权限收紧）已完成真实隔离 PostgreSQL、三场景有效权限与独立产物复核；浏览器远程仍有失败，后续界面/驱动修复待新统一候选重验。精确候选、历史结果、后续修复与发布待办见[2026-10-28 候选验收记录](../verification/2026-10-28-continuous-workflows-v3.md)。
+本批领域行为和数据边界分别见[材料来源定位契约](../contracts/material-source-locators.md)与[连续领域工作流契约](../contracts/continuous-domain-workflows.md)。这些文件与本规格均处于实施中；契约存在不代表全批已验证或上线。`bd977e1` 的实际Native已核精确十一条SQL与49DB输入和f6相同，沿用相同输入的独立语义复核，含三场景有效权限；四套Visual实际通过，但Canonical/Verify仍失败，PDF空原生选区根因未关闭。后续布局/驱动和只读诊断待新统一候选重验。精确候选、历史结果、后续修复与发布待办见[2026-10-28 候选验收记录](../verification/2026-10-28-continuous-workflows-v3.md)。
 
 ## 范围与验收矩阵
 
@@ -38,7 +38,7 @@
 ## 实施与发布顺序
 
 1. 固定公共scope/lifecycle、草稿、来源、相邻编辑契约；各域明确adapter和文件归属。
-2. additive migration先在隔离SQL环境验证干净安装与升级、owner A/B/anon、FK、CAS、幂等/并发、审计回滚及备份覆盖。当前十一条依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile → production baseline。`f6bff7a` 的十一条精确 SQL 已通过真实 PG17 与独立产物复核，含第1/2/3/4/5/6/8/9条对实际创建默认权限的 service_role 收紧及三个有效ACL场景，未改正文/RLS/并发逻辑，旧99条及第7/10/11条保持。该结果来自新哈希的实际执行而非继承615结论；后续数据库字节改变仍需相应新证据。最后一条针对生产元数据缺口，并修复独立审查发现的 completion 审计原子性问题。它补缺失合法对象，仅将已知旧指纹/配置/ACL的 completion 前向升级为同事务正文、版本、来源与审计；已是新版保留，未知定义拒绝，其余健康对象保留，不重放十二个未登记旧文件或补造ledger。该隔离结果不代替生产前置核对；精确文件名及未执行的生产版本见[候选验收记录](../verification/2026-10-28-continuous-workflows-v3.md#十一条迁移与生产版本登记)，不改已部署migration。
+2. additive migration先在隔离SQL环境验证干净安装与升级、owner A/B/anon、FK、CAS、幂等/并发、审计回滚及备份覆盖。当前十一条依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile → production baseline。`f6bff7a` 的十一条精确SQL已通过真实PG17与独立产物复核；`bd977e1`又实际执行且110SQL/49DB输入逐哈希相同，含第1/2/3/4/5/6/8/9条对实际创建默认权限的 service_role 收紧及三个有效ACL场景，未改正文/RLS/并发逻辑，旧99条及第7/10/11条保持。该结果来自新哈希的实际执行而非继承615结论；后续数据库字节改变仍需相应新证据。最后一条针对生产元数据缺口，并修复独立审查发现的 completion 审计原子性问题。它补缺失合法对象，仅将已知旧指纹/配置/ACL的 completion 前向升级为同事务正文、版本、来源与审计；已是新版保留，未知定义拒绝，其余健康对象保留，不重放十二个未登记旧文件或补造ledger。该隔离结果不代替生产前置核对；精确文件名及未执行的生产版本见[候选验收记录](../verification/2026-10-28-continuous-workflows-v3.md#十一条迁移与生产版本登记)，不改已部署migration。
 3. 各域实现真实读写闭环，再做独立质量审查和反模式检查。按风险运行现有单元/组件/HTTP/数据库及仓库要求，失败修复后重验。
 4. 合成数据浏览器覆盖360/390/1440、实际200%文字、减少动态效果、forced colors、键盘/触摸、错误/中断/反向/返回。截图证明布局，连续录屏证明动作与状态；不以脚本存在充当执行证据。
 5. 已授权GitHub PR、CI和部署，确认精确候选提交及数据库顺序后发布。生产迁移通过已连接Supabase MCP执行，核对目标项目、实际版本/RLS/ACL。MCP不接受version参数，逐条核对实际迁移列表与schema；平台时间戳不同只对齐本地文件名、严格清单和文档元数据，SQL字节/哈希不变，再校验，不双写history或用CLI/REST绕过。不使用真实密码或外部真实写入作默认测试。

@@ -1,8 +1,51 @@
 # 连续工作流二十项升级：数据库候选验收与发布计划
 
-记录日期：2026-10-28（Asia/Shanghai）。状态：**`f6bff7a` 精确SQL（含八条默认ACL收紧）的真实隔离验收与独立复核通过；远程界面10成功/3失败，后续局部修复待新统一候选验证。生产尚未迁移或部署**。范围见[二十项规格](../specs/continuous-workflows-v3.md)与[连续性契约](../contracts/workflow-continuity.md)。本记录不是全批完成声明。
+记录日期：2026-10-28（Asia/Shanghai）。状态：**`bd977e1` 实际Native与不变DB输入已核，四套Visual实际通过；远程仍11成功/2失败，PDF空原生选区根因未关闭。新布局/驱动与只读诊断候选待统一验证，生产尚未迁移或部署**。范围见[二十项规格](../specs/continuous-workflows-v3.md)与[连续性契约](../contracts/workflow-continuity.md)。本记录不是全批完成声明。
 
-## 当前已提交f6候选与实际证据
+## 当前已提交bd候选与实际证据
+
+| 对象 | 实际值与边界 |
+| --- | --- |
+| 精确提交 | [`bd977e1e73761bfd22599c02bb17eda40c9abad5`](https://github.com/wateryh2004-beep/personal-os/commit/bd977e1e73761bfd22599c02bb17eda40c9abad5)，tree`3294d2f9df28a6186f6ec162a4fedb46e58160fa`；精确30路径正常提交/推送 |
+| 固定内容 | 1887个canonical提交blob与本地已验清单一致，摘要`c78b5b37a9915aac675243097e567e7e6cf89eba2fc61e902e11fb28b583d40f`；后续未提交修复不自动沿用 |
+| 本地全仓 | 七CLI、454文件/3123测试、Python11及suite后顺序TypeScript/lint全部通过，零错误/警告；1499 TS/1601 lint/98 work代码在该候选冻结前后稳定，不排除证据或放松规则 |
+| 实际Native | [run40581571058](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571058)，[artifact12769517698](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571058/artifacts/12769517698)；actual checkout精确bd，事件merge`aedee2c682a0e715b2047126d269c9974c84c830`分开记录 |
+| Native原件 | ZIP SHA`d74e3bcaa9cdda6df22a681f4a06e4d62f1f3e84894b7ef70007b190d861d8d1`；实际110 SQL/49 DB路径与f6逐字相同，官方types/catalog、633字段/38RPC、24真实等待锁、三ACL场景各240权限/55函数/10真实拒绝和两隔离容器已读产物核对 |
+| 语义与备份 | 相同49DB输入沿用`review-native-f6b`独立语义复核，不把新bd产物初核冒称另一轮完整独审；[backup run40581571026](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571026)实际118表/55合成行内容/计数/关系一致，未恢复生产 |
+| PR/生产 | [PR93](https://github.com/wateryh2004-beep/personal-os/pull/93)仍Draft；生产`a5803dda30457ec3b3b712e80b885a8552353a3d`/87ledger，本批十一迁移、合并及部署均未执行 |
+
+### bd真实浏览器范围：11成功、2失败
+
+13工作流实际结束，仅Canonical和Verify失败。[Canonical run40581571160](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571160)普通构建、严格404与fixture构建均过；五suite各7配置，35配置中只有planning六配置整套成功，29配置失败。110条尝试为81PASS/29FAIL。**81是重复配置成功记录，不是功能数量；12个至少一次整case成功编号为01/05/06/07/11/12/13/14/15/16/17/18，其中12/13/18未全7配置。**二十编号、22 named基础动作与扩展分支未完成。
+
+[Visual run40581571213](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571213)四套editorial/shell/planning/filepreview全部实际通过：editorial四normal尺寸分别28/28/26/21个真实transform，关闭f6图片仅两姿态的失败；Shell四宽360/390/768/1440真实preview路线/Back/mobile marker/200%/reduced/forced已执行；Preview12配置所有surface/controls帧边界与trusted Escape保留，Workbench亦实过。完整PNG/webm已下载核SHA、看代表图与ffprobe抽帧，不只读SUCCESS。专项成功不代替尚未完成的Canonical PDF/来源/完整业务闭环。
+
+| 范围 | bd的真实失败与边界 |
+| --- | --- |
+| Runtime | 01真实同源上传/bytes/封存/跨route/失败项retry全7配置通过。02等待旧虚构反馈，实际A回执已成功、B输入和焦点仍在且显示“原输入已保存，当前新输入尚未保存。”；03/20未跑，不能改生产文案迎合驱动 |
+| Sources | 04已到搜索，但全页option同时匹配cmdk结果DIV与原生预览OPTION，strict失败；须限定真实受控listbox，不能盲first。02/20未跑 |
+| Planning/材料 | 六配置05/06/11/12/13过；text200的12在动作后capture根宽485>390，13未跑。动作/版本核对成功不抵消布局失败 |
+| Domains | 六配置14–18过，19对全页库排除剩余90分钟条目得到2；完整库与75分钟推荐组应分开核，不能先当纯驱动问题。text200的18根宽522>390，19未跑 |
+| PDF/Files | 六配置08原生拖选后Selection.text仍为空；768预览标题由resolved变不可见，前一轮单列container已经生效。未到目标/手机确认/canonical精确citation/page/原editor返回，09/10未跑；PDF根因仍未关闭 |
+| Verify | [run40581571143](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571143)实际454/3123、构建、Notes全视口导航/短屏/200%/reduced/forced、Settings与Today已过；mobile coreflow仍等新建Project旧“取消”，未完成整个mobile bundle及后续步骤 |
+
+逐配置ledger、actual checkout、12份原始ZIP摘要与已看媒体时间段见`remote-ui-candidate-bd977e1e73761bfd22599c02bb17eda40c9abad5.md/json`及`remote-ui-bd977`。新Native解压另24 TS/0TSX原样保留，后续全仓必须重新发现输入，不再假称仍1499 roots。原f6/615/f200失败与媒体不改写。
+
+### bd之后的20路径修复与诊断候选
+
+Forms13路径冻结`50684de3135c581d34ac022d94f7648158ca3e9354d67e49ed3a07c8c3897487`，Source7路径冻结`9594642ec44fc8e6cfaba1fd6587fcd426ccb191f4cd851b63ffee377251f819`。独立`review-bd-browser-repairs-final`结论为**PASS_FOR_REMOTE_DIAGNOSTIC_NOT_PDF_FIX_OR_BROWSER_PASS**：20路径前后无漂移，Forms12文件/99测试、Source7文件/100测试、fixture门禁1文件/12测试分别实际通过，18路径lint、5 CJS语法、2 CSS解析与7实际编译规则通过。四个恢复/材料TSX及TripDetail共5文件只去className/纯CSS import后业务AST等价，22 named case编号/顺序原样。这是局部与源码证据，不是新全仓/浏览器/生产通过；既有React act与Vite警告未压制，不冒称所有console清洁。
+
+新驱动从combobox实际aria-controls取得唯一可见listbox，所有点击/回选仅在真实结果组；Runtime在点击前监听真实A POST，核成功id/一次写和同fixture state严格id/name投影读回A，保持B和焦点；投影最多100项、同session、compiled/CI/loopback/cookie/非Vercel门禁仍在，不扩生产API。闲暇负断言覆盖真实continue/start推荐组而保留合法全库；Project“稍后继续”/Esc保留raw空白与零写，Calendar先核取消保留、再明确“放弃修改”恢复原值，不抹掉原断言或业务行为。
+
+材料/共享恢复区仅class布局修相对1.6行高、min-width0、长文本完整断行与可换行44px按钮，value/draft/lease/unknown/CAS/读回/回调不变；Travel独立scoped布局修522px问题，地图/时间/冲突/保存AST不变。Files窄pane正文改标题与actions两行wrap，标题minmax与44px触达；原单列断言保持，并新增真实标题宽至少44及可见性要求。新实际200%根宽/命中仍待远程。
+
+**PDF本轮只有真实scroll/hover动作准备恢复及只读诊断，没有找到空选区根因，未改生产PDF guard。**原trace拖选中没有toolbar出现/TextLayer重建证据，不能写成loading、460ms entry或ResizeObserver已确认原因。诊断只读hit/caret/trusted事件、Selection双端点与精确sourceVersion、span连接性/mutation和surface时序，finally清监听/observer/handle；不改Selection、不派发人工选文事件、不强制focus、不延长预算。原精确全文/1Range/layer两端/sourceVersion/page/手机确认前零写/canonical保存与相邻editor返回断言完整保留，新candidate必须实际执行且未过不能关闭。手机viewport上的native mouse仍非实体触摸。
+
+历史证据澄清：旧f6作者“10文件135项”仅保留真实summary及SHA，精确argv未留，先前猜测清单已撤回；不得反推命令或充作独立精确复现，原manifest/log字节不改。原独审10文件110项与bd完整454文件3123项各自有独立证据；本轮99/100/12有明确argv及原log，不由旧135摘要替代。
+
+Root12项有限只读metadata/16绑定0差异仍只作前置，不是生产业务写、用户流程或完整克隆。当前十一实际版本未执行，后续新稳定全仓、真实浏览器和发布仍待完成；不预填新head成功。
+
+## 历史：已提交f6候选与实际证据
 
 | 对象 | 实际值与边界 |
 | --- | --- |
@@ -44,15 +87,15 @@ Root经Primary MCP实际完成十项有限只读依赖查询及后续两项查�
 
 逐配置ledger、actual checkout/merge区分、artifact SHA和原始PNG/trace/webm见`remote-ui-candidate-f6bff7aa5eb6b82adf436247526d4b87a083fa65.md/json`及`remote-ui-f6b`。独立QA实际查看代表图、核ffprobe并抽帧，只有已看时间段可据此评论，媒体存在不代替未完成动作。下载新增24个TS/0TSX未改名/排除，后续完整CLI须重新冻结输入。
 
-### f6之后的局部修复候选
+### 历史：f6之后、bd之前的局部修复候选
 
 `repair-f6-runtime-forms`已冻结11路径，作者10文件/64测试、归属lint、5 CJS语法及diff通过；22项named case只做静态语义逐项对照，不是22功能或浏览器通过。修复仅合成上传I/O为同源相对bytes路径、按真实cmdk可访问名/实际Notes Sheet入口驱动、购后/材料独立for-id标签与真实核验disclosure、明确原parent续练/闲暇入口/未知去向核对及等待原地图rAF焦点；生产认证、日期/CAS/审计/输入、网络拒绝与原动作断言保留。
 
-`repair-f6b-motion-source`已冻结13路径，作者10文件/135测试、typecheck/归属lint、1 CSS解析/2 CJS语法及diff通过。对精确f6原hook的4个真实测试为2FAIL/2PASS，修后4PASS；首次临时React解析错误发生在测试执行前并保留日志，不冒充生产负例。新实现区分内容解码与viewport变化：内容只以原native CSS剩余时间从当前pose重定向，viewport仍同步contained；guard通过后的明确commit命令复用壳/fixture单一路由，已handled不双push、无人处理才fallback一次，不重复prepare/save；Files按实际pane容器叠排和自适应gallery保留原controller/输入。
+`repair-f6b-motion-source`当时冻结13路径；其作者summary记10文件/135项，但精确argv未保留，猜测名单已撤回，不作为可复现命令或独立精确复现证据。原freeze/log字节保留；原独审10文件110项另有明确命令。对精确f6原hook的4个真实测试为2FAIL/2PASS，修后4PASS；首次临时React解析错误发生在测试执行前并保留日志，不冒充生产负例。新实现区分内容解码与viewport变化：内容只以原native CSS剩余时间从当前pose重定向，viewport仍同步contained；guard通过后的明确commit命令复用壳/fixture单一路由，已handled不双push、无人处理才fallback一次，不重复prepare/save；Files按实际pane容器叠排和自适应gallery保留原controller/输入。
 
 材料驱动等真实ready后按首尾字形Range几何做native mouse drag，读回唯一Range全文、同layer两端与精确sourceVersion，不写Selection或人工selectionchange。旧390trace ready在三击开始前约2.4秒，不能将其归为loading race，旧三击端点是否越layer未证。引用、页码、确认前零写、同一reference、canonical保存与来源返回强断言保留；手机viewport的鼠标操作不是实体触摸。13路径冻结摘要`cafaa26f072c33f0ad1e1101760c6d2a1374b8f0bff8fdd60492901c122875c7`，新图片中间帧/Shell Back/七配置PDF闭环/Files窄pane仍待实际远程。
 
-两lane共24路径的独立源码/反模式复审 `review-f6-browser-repairs-final` 已完成，审前/后哈希匹配：Forms10文件/64测试、Source10文件/110测试分别通过，23代码路径lint、7 CJS语法与Files CSS解析通过；22个named case的静态AST编号/顺序未变。该结论只允许进入统一远程检查，不冒称作者135测试或全仓/浏览器通过。全部后续局部改动仍须新稳定全仓及精确新head的真实浏览器/截图/连续录屏；当前49DB路径未随UI修改改变，未来头仍须按来源/字节等价核对对应检查。没有合并、生产迁移或部署。
+这两lane随后进入bd，局部新浏览器结果以上述bd实际执行为准；其共24路径的独立源码/反模式复审 `review-f6-browser-repairs-final` 已完成，审前/后哈希匹配：Forms10文件/64测试、Source10文件/110测试分别通过，23代码路径lint、7 CJS语法与Files CSS解析通过；22个named case的静态AST编号/顺序未变。该结论只允许进入统一远程检查，不冒称作者135测试或全仓/浏览器通过。全部后续局部改动仍须新稳定全仓及精确新head的真实浏览器/截图/连续录屏；当前49DB路径未随UI修改改变，未来头仍须按来源/字节等价核对对应检查。没有合并、生产迁移或部署。
 
 ## 历史：已提交615候选的固定对象与证据
 
@@ -171,7 +214,7 @@ canonical驱动仍实际关闭/恢复Inspector、编辑同一参考实例、点�
 
 ## 二十项界面与发布待办
 
-20 项基础驱动已落；以下表格仍需按最终统一候选结算，不把615的20条或f6的49条重复配置成功记录改写为全部功能通过。已有单元、组件、数据库与专项浏览器分别按其真实范围引用。
+20项基础驱动已落；以下表格仍需按最终统一候选结算，不把615的20条、f6的49条或bd的81条重复配置成功记录改写为全部功能通过。已有单元、组件、数据库与专项浏览器分别按其真实范围引用。
 
 | # | 体验主题 | 最终候选仍需记录的界面证据 |
 | --- | --- | --- |
@@ -200,11 +243,11 @@ canonical驱动仍实际关闭/恢复Inspector、编辑同一参考实例、点�
 
 | 交付阶段 | 本记录状态 |
 | --- | --- |
-| 当前数据库隔离门槛 | `f6bff7a` 精确110迁移/49DB路径真实PG17与独立复核通过，633字段/38RPC/24并发；备份118表/55行 |
+| 当前数据库隔离门槛 | bd真实Native已核110SQL/49DB与f6相同，633/38/24与ACL三场景实过；相同输入语义引用f6独审，备份118/55 |
 | 默认ACL场景 | f6三场景各240表权限/55函数/10真实拒绝及两容器各13隔离检查实际通过，不是生产克隆或实写 |
 | 生产前置 | Root有限只读metadata/聚合与独立依赖复核通过；87ledger不等于99旧基线，发布前仍核目标与时效，不是生产用户流程通过 |
-| 已推送候选的本地全仓 | f6七CLI、454文件/3115测试、Python11和suite后顺序tsc/lint通过；后续新UI/驱动/文档组合待重新冻结检查 |
-| 完整浏览器、截图与动效录屏 | f6远程10成功/3失败；canonical35配置未完整成功，仅七编号各七配置过，后续修复待真实重验 |
+| 已推送候选的本地全仓 | bd七CLI、454文件/3123测试、Python11与suite后tsc/lint通过；新20路径/文档候选待第六轮统一检查 |
+| 完整浏览器、截图与动效录屏 | bd远程11成功/2失败，四Visual全过；Canonical81重复成功/12曾成功编号，12/13/18未全7；PDF空选区仍未定位 |
 | 生产迁移 | 十一条均未执行，待完整候选通过后按顺序登记实际版本 |
 | GitHub 合并与代码部署 | 未完成，后续记录实际 merge SHA、部署及域名对应关系 |
 | 生产验证 | 未执行；匿名协议、版本、数据权限和可自动完成的受保护流程分别记录，不要求所有者手动测试 |

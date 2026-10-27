@@ -1,4 +1,5 @@
 "use client";
+import "./trip-detail.css";
 import {assertContinuousFixtureTransport} from "@/features/testing/continuous-fixture-gate";
 import {submitTripStopTextIntent,readTripStopTextIntent} from "@/features/travel/stop-text-intents";
 import {SourceLink} from "@/components/workflow-continuity/source-link";
@@ -350,7 +351,7 @@ export function TripDetail({
   };
 
   return (
-    <section className={fieldMode ? styles.fieldMode : ""}>
+    <section className={`trip-workspace ${fieldMode ? styles.fieldMode : ""}`}>
       <TripOrdinaryResume tripId={trip.id} onOpen={target=>{if(target.parentId!==trip.id)return false;if(target.kind==="travel.stop-text"){if(!rows.some(row=>row.id===target.id))return false;setDay("all");setActiveStop(target.id);}else if(target.kind==="travel.stop-metadata"){const selected=(target.itemIds??[target.id]).map(id=>rows.find(row=>row.id===id));if(selected.some(row=>!row))return false;setEditing(selected as Stop[]);setDay("all");setActiveStop(target.id);}else if(target.kind!=="travel.stop-add"&&target.kind!=="travel.document")return false;const url=new URL(window.location.href);url.searchParams.delete("mode");window.history.replaceState(null,"",`${url.pathname}${url.search}`);return true;}}/>
       <header>
         <p className={styles.meta}>
@@ -489,7 +490,7 @@ export function TripDetail({
           ))}
         </div>
       ) : null}
-      <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+      <div className="trip-content-grid grid gap-6">
         <section aria-label="路线地图">
           <h2 className="text-base font-medium">路线地图</h2>
           {route.resolvedStops.length ? (
@@ -559,7 +560,7 @@ export function TripDetail({
                             })
                           }
                         />
-                        <strong>{stop.place_name}</strong>
+                        <strong className="trip-stop-title">{stop.place_name}</strong>
                       </label>
                       <button
                         type="button"

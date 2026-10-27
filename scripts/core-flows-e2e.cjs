@@ -45,17 +45,28 @@ const output = "test-results/core-flows";
       await page.getByRole("navigation", { name: "文件夹路径" }).getByRole("link", { name: "示例知识与学习资料", exact: true }).click();
       await page.getByText("当前层级没有直接存放的笔记", { exact: true }).waitFor();
       await page.goto(`${baseURL}/mobile-native-e2e?scene=projects`, { waitUntil: "networkidle" });
-      const projectLauncher = page.getByRole("button", { name: "新建项目", exact: true }).first();
+      const projectLauncher = page.locator("header").getByRole("button", { name: "新建项目", exact: true });
+      assert.equal(await projectLauncher.count(), 1, "one actual header project launcher");
+      const rawProjectName = "  合成项目原始名称  ", rawProjectDescription = "第一行说明\n\n  继续编辑  ";
       for (let i = 0; i < 2; i++) {
         await projectLauncher.click();
         const dialog = page.getByRole("dialog", { name: "新建项目", exact: true });
         await dialog.waitFor();
-        if (!i) await capture("project-create");
-        if (i === 0) await dialog.getByRole("button", { name: "取消", exact: true }).click();
+        const name = dialog.getByRole("textbox", { name: "项目名称", exact: true }), description = dialog.locator('textarea[name="description"]');
+        if (!i) {
+          assert.equal(await name.inputValue(), "");
+          await name.fill(rawProjectName); await description.fill(rawProjectDescription);
+          await capture("project-create");
+        } else {
+          assert.equal(await name.inputValue(), rawProjectName, "deferred Project restores raw name without trimming");
+          assert.equal(await description.inputValue(), rawProjectDescription, "deferred Project restores blank lines and whitespace");
+        }
+        if (i === 0) await dialog.getByRole("button", { name: "稍后继续", exact: true }).click();
         else await page.keyboard.press("Escape");
         await dialog.waitFor({ state: "hidden" });
         await page.waitForFunction(() => document.activeElement?.textContent?.includes("新建项目"));
         assert.equal(await projectLauncher.evaluate(node => node === document.activeElement), true, "Project cancellation restores launcher focus");
+        assert.equal(writes, 0, "defer and Escape never create the restored Project");
       }
       await page.goto(`${baseURL}/mobile-native-e2e?scene=tasks`, { waitUntil: "networkidle" });
       const taskLauncher = page.getByRole("button", { name: "新建任务", exact: true }).first();
@@ -72,11 +83,15 @@ const output = "test-results/core-flows";
       await allDay.check();
       await page.getByRole("button", { name: "取消", exact: true }).click();
       await page.getByRole("button", { name: "编辑日程", exact: true }).click();
-      assert.equal(await allDay.isChecked(), false, "cancel must discard all-day draft");
+      assert.equal(await allDay.isChecked(), true, "cancel retains the unsaved all-day draft for a later explicit save");
+      assert.equal(writes, 0, "retaining a Calendar draft never submits it");
+      await page.getByRole("button", { name: "放弃修改", exact: true }).click();
+      await page.getByRole("button", { name: "编辑日程", exact: true }).click();
+      assert.equal(await allDay.isChecked(), false, "explicit discard reconstructs the original timed event");
       await capture("calendar-reopened");
       assert.equal(writes, 0, "cancel/navigation checks must not issue writes");
       assert.deepEqual(errors, []);
-      evidence.push({ width, checks: ["parent-child-back-forward", "honest-direct-count", "long-folder-wrap", "project-repeat-cancel-focus", "task-cancel-focus", "calendar-discard-all-day"], writes });
+      evidence.push({ width, checks: ["parent-child-back-forward", "honest-direct-count", "long-folder-wrap", "project-repeat-defer-raw-resume-focus-zero-write", "task-cancel-focus", "calendar-cancel-retains-and-explicit-discard-all-day"], writes });
       await context.close();
     }
     const files = await readdir(output);

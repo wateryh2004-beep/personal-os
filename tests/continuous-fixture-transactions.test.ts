@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { z } from "zod";
 vi.mock("server-only", () => ({}));
 import { continuousFixtureState } from "@/features/testing/continuous-fixture-state";
 import { applySyntheticLife, undoSyntheticLife, readSyntheticLife } from "@/features/testing/continuous-life-fixture";
@@ -7,6 +8,20 @@ import { fixtureMaterials, fixtureShopping } from "@/features/testing/continuous
 import { fixtureProject } from "@/features/testing/continuous-fixture-data";
 const fresh = () => continuousFixtureState(`personal-os-fixture-session=${crypto.randomUUID()}`);
 afterEach(() => vi.unstubAllEnvs());
+
+it("reads the actual persisted A skill through the bounded synthetic control boundary without exposing other domain records", async()=>{
+  vi.stubEnv("CONTINUOUS_FIXTURE_COMPILED","1");vi.stubEnv("CONTINUOUS_WORKFLOWS_E2E_RUNTIME","1");vi.stubEnv("CI","true");vi.stubEnv("VERCEL","");vi.stubEnv("VERCEL_ENV","");
+  const {GET}=await import("@/app/api/continuous-workflows-fixture/[...path]/route");
+  const cookie=`personal-os-continuous-fixture=synthetic-v3; personal-os-fixture-session=${crypto.randomUUID()}`,state=continuousFixtureState(cookie);
+  const input={operation:"createSkill",entries:Object.entries({name:"Persisted skill A",category:"technical",proficiency:"working",evidence_markdown:"Synthetic only",last_used_at:""})};
+  const saved=z.object({status:z.literal("success"),message:z.string(),recordId:z.uuid()}).strict().parse(syntheticDomainOperation(state,"career-form",input));
+  input.entries[0][1]="Later input B";state.domainObjects.set("unrelated-hidden-key",{name:"Do not expose arbitrary values"});
+  const response=await GET(new Request("http://127.0.0.1:3000/api/continuous-workflows-fixture/control",{headers:{cookie}}),{params:Promise.resolve({path:["control"]})});
+  expect(response.status).toBe(200);expect((await response.json()).careerSkills).toEqual([{id:saved.recordId,name:"Persisted skill A"}]);expect(state.writes.createSkill).toBe(1);
+  const otherCookie=`personal-os-continuous-fixture=synthetic-v3; personal-os-fixture-session=${crypto.randomUUID()}`;
+  const other=await GET(new Request("http://127.0.0.1:3000/api/continuous-workflows-fixture/control",{headers:{cookie:otherCookie}}),{params:Promise.resolve({path:["control"]})});
+  expect((await other.json()).careerSkills).toEqual([]);
+});
 
 it("serves only the finite tasks.create proposal set for matching global/tasks runs and never executes it on stream completion", async () => {
   vi.stubEnv("CONTINUOUS_FIXTURE_COMPILED", "1"); vi.stubEnv("CONTINUOUS_WORKFLOWS_E2E_RUNTIME", "1"); vi.stubEnv("CI", "true"); vi.stubEnv("VERCEL", ""); vi.stubEnv("VERCEL_ENV", "");

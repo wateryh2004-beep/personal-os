@@ -223,5 +223,10 @@ it("keeps one Files controller, search input, selection and scroll owner in the 
   expect(content.querySelector('[aria-label="搜索文件名称"]')).toBe(search); expect(search.value).toBe("旧"); expect([search.selectionStart, search.selectionEnd]).toEqual([0, 1]); expect(document.activeElement).toBe(search); expect(content.scrollTop).toBe(124);
   expect(window.location.search).toContain("q=");
   const { readFile } = await import("node:fs/promises"), css = await readFile("src/components/files/files-workspace.css", "utf8");
+  expect(content.querySelector(".files-list-title")).not.toBeNull();
+  expect(content.querySelector(".files-list-actions")).not.toBeNull();
+  expect(content.querySelector(".files-list-title .files-list-actions")).toBeNull();
+  expect(css).toContain(".files-list-row-content {display:grid;grid-template-columns:16px minmax(0,1fr)}");
+  expect(css).toContain("grid-column:1 / -1;min-width:0;flex-wrap:wrap");
   expect(css).toContain("container:files-pane / inline-size"); expect(css).toContain("@container files-pane (max-width:560px)"); expect(css).toContain("grid-template-columns:minmax(0,1fr)"); expect(css).toContain("max-height:192px"); expect(css).not.toContain("display:none");
 });

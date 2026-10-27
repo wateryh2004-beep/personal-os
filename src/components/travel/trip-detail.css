@@ -1,0 +1,11 @@
+/* A stop's time, name and raw input can all grow at 200% text. Let the
+   actual column shrink before its contents wrap; retain every control. */
+.trip-workspace {min-width:0;overflow-wrap:anywhere}
+.trip-workspace :where(section,header,details,form,fieldset,li,label) {min-width:0}
+.trip-content-grid {grid-template-columns:minmax(0,1fr)}
+.trip-stop-title {min-width:0;overflow-wrap:anywhere}
+.trip-workspace :is(input,select,textarea) {min-width:0;max-width:100%}
+.trip-workspace button {max-width:100%;height:auto;white-space:normal;overflow-wrap:anywhere;line-height:1.5}
+@media (min-width:1024px) {
+  .trip-content-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
+}

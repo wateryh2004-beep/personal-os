@@ -177,7 +177,7 @@
 
 ## 当前实现排查
 
-[连续工作流与全系统体验 · 二十项升级](specs/continuous-workflows-v3.md) 规定2026-10-27后台任务、草稿、来源、材料编辑、规划及全域连续操作的完整范围；公共生命周期见[连续性契约](contracts/workflow-continuity.md)，领域边界见[材料来源定位](contracts/material-source-locators.md)与[连续领域工作流](contracts/continuous-domain-workflows.md)。[2026-10-28 候选验收记录](verification/2026-10-28-continuous-workflows-v3.md)登记 `f6bff7a` 的精确 SQL 真实 PG17、633字段/38RPC、24组并发及三场景有效默认权限实测；该候选七CLI、454文件/3115测试通过，远程10成功/3失败，49条重复配置成功记录不代表49项功能。后续界面/驱动局部修复仍待新统一候选验证；生产保持旧代码/87条ledger，十一条迁移、合并与部署未执行。
+[连续工作流与全系统体验 · 二十项升级](specs/continuous-workflows-v3.md) 规定2026-10-27后台任务、草稿、来源、材料编辑、规划及全域连续操作的完整范围；公共生命周期见[连续性契约](contracts/workflow-continuity.md)，领域边界见[材料来源定位](contracts/material-source-locators.md)与[连续领域工作流](contracts/continuous-domain-workflows.md)。[2026-10-28 候选验收记录](verification/2026-10-28-continuous-workflows-v3.md)登记 `bd977e1` 的实际Native与不变49DB输入、七CLI/454文件3123测试，以及远程11成功/2失败。四套Visual均实际通过；Canonical81条重复成功记录只涵盖12个曾成功编号，12/13/18未全7配置，PDF空原生选区根因仍未关闭。新布局/驱动/只读诊断候选待统一重验，生产旧代码/87ledger、本批十一迁移未执行与未部署状态不变。
 
 [全系统视觉与动效精修](specs/visual-motion-polish.md) 固定 2026-10-26 笔记纸面与阅读排版、今日桌面、导航、搜索预览、工作台布局、日历拖放、项目目标、文件查看器和公共反馈十项范围；实现与最终 CI、截图录屏及发布分别验收。 本地检查、构建重验与远程浏览器边界见 [2026-10-27 验收记录](verification/2026-10-27-visual-motion.md)。
 
