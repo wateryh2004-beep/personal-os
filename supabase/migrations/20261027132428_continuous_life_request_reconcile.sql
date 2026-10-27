@@ -30,7 +30,8 @@ begin
     if jsonb_typeof(a)<>'string' or a#>>'{}' not in ('page','episode','minute') or jsonb_typeof(b)<>'number' then return false;end if;
     amount:=(b#>>'{}')::numeric;if amount<>trunc(amount) or amount<0 or amount>1000000 then return false;end if;
     if c<>'null'::jsonb then if jsonb_typeof(c)<>'number' or (c#>>'{}')::numeric<>trunc((c#>>'{}')::numeric) or (c#>>'{}')::numeric not between 1 and 1000000 or amount>(c#>>'{}')::numeric then return false;end if;end if;
-  end if;
+  end if; -- nullable leisure progress fields
+  end if; -- operation dispatch
  end loop;
  return true;
 exception when others then return false;
