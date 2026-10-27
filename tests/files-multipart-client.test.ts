@@ -11,6 +11,7 @@ beforeEach(async()=>{
 const handler=async(url:RequestInfo|URL,init?:RequestInit)=>{
  calls.push({url:String(url),init});
  if(init?.method==="PUT")return new Response(null,{status:200});
+ if(!init?.method || init.method==="GET")return response(snapshot);
  const body=JSON.parse(String(init?.body));
  if(init?.method==="POST")return response(snapshot);
  if(body.action==="sign")return response({uploadUrl:`https://r2.example/part/${body.partNumber}`,size:body.partNumber===3?10:partSize});
@@ -24,7 +25,9 @@ describe("resumable upload browser transport",()=>{
   });
   const progress=vi.fn();await uploadMultipartFile(file,{folderId:"current-folder",resume:snapshot,signal:new AbortController().signal,onProgress:progress},fetcher);
   expect(calls.filter(call=>call.init?.method==="PUT").map(call=>call.url)).toEqual(["https://r2.example/part/2","https://r2.example/part/3"]);
-  expect(JSON.parse(String(calls[0].init?.body)).folderId).toBeNull();
+  expect(calls[0].url).toBe(`/api/files/multipart?sessionId=${snapshot.sessionId}`);
+  expect(calls[0].init?.body).toBeUndefined();
+  expect(calls.some(call=>call.init?.method==="POST")).toBe(false);
   expect(max).toBe(2);expect(progress).toHaveBeenLastCalledWith(100);
   expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({action:"complete",sessionId:snapshot.sessionId});
  });

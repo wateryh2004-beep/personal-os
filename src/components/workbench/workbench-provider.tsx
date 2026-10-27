@@ -7,6 +7,7 @@ import { WorkbenchContext, type WorkbenchContextValue, type WorkbenchRecordEntry
 import { WorkbenchActivityContext } from "./workbench-activity";
 import { safeWorkbenchHref, workbenchComparable, workbenchRefKey, workbenchRefSchema, workspaceSceneSnapshotSchema, type WorkbenchPosition, type WorkbenchRef, type WorkspaceSceneSnapshot } from "@/features/workbench/contracts";
 import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
+import { cancelSourceNavigation } from "@/features/workflow-continuity/source-trail";
 import { captureWorkbenchPosition, restoreWorkbenchPosition } from "./workbench-position";
 import { captureWorkbenchViewState, restoreWorkbenchViewState } from "@/features/workbench/view-state-registry";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
@@ -26,6 +27,7 @@ type Internal = {
   capture(): Promise<WorkspaceSceneSnapshot>; restore(value: WorkspaceSceneSnapshot): void;
 };
 const InternalContext = createContext<Internal | null>(null);
+export function useOptionalWorkbenchHost() { return useContext(InternalContext); }
 export function useWorkbenchHost() { const host = useContext(InternalContext); if (!host) throw new Error("Workbench host missing"); return host; }
 const emptySelection: WorkbenchRef[] = [];
 const mediaQuery = "(max-width: 767px)";
@@ -146,6 +148,15 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     });
   }, [locationKey]);
   const selected = selection.location === locationKey ? selection.refs : emptySelection;
+  useEffect(() => {
+    if (!selected.length) return;
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+      event.preventDefault(); setSelection({ group: "", refs: [], location: locationKey });
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, [selected.length, locationKey]);
   const compare = useCallback((refs?: WorkbenchRef[]) => {
     const input = refs ?? selected;
     if (input.length < 2 || input.length > 4 || !input.every((item) => workbenchComparable(item) && item.kind === input[0].kind && (item.investmentType ?? "account") === (input[0].investmentType ?? "account"))) { setNotice("请选择 2–4 个同类型记录进行比较。"); return; }
@@ -166,6 +177,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     const parsed = workspaceSceneSnapshotSchema.safeParse(input);
     if (!parsed.success) { setNotice("保存的现场格式已不受支持。"); return; }
     const snapshot = parsed.data;
+    cancelSourceNavigation();
     cancelViewRestore.current?.();
     if (viewRestoreTimer.current) clearTimeout(viewRestoreTimer.current);
     cancelViewRestore.current = snapshot.main.viewState ? restoreWorkbenchViewState(snapshot.main.viewState) : null;
@@ -311,6 +323,6 @@ export function WorkbenchLayout({ children }: { children: ReactNode }) {
       </aside>
     </div>
     {host.notice ? <div className="workbench-notice" role="status">{host.notice}<button type="button" aria-label="关闭工作台提示" onClick={() => host.setNotice("")}>×</button></div> : null}
-    {context.selected.length ? <div className="workbench-selection-bar" aria-label="工作台选择"><span>已选 {context.selected.length} 项</span>{context.selected.every(workbenchComparable) ? <button type="button" onClick={() => context.compare()}>比较</button> : null}<button type="button" onClick={context.clearSelection}>取消选择</button></div> : null}
+    {context.selected.length ? <div className="workbench-selection-bar" aria-label="工作台选择"><span role="status">已选 {context.selected.length} 项</span>{context.selected.every(workbenchComparable) ? <button type="button" onClick={() => context.compare()}>比较</button> : null}<button type="button" onClick={context.clearSelection}>取消选择</button></div> : null}
   </>;
 }

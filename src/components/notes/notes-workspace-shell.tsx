@@ -4,6 +4,7 @@ import { publishOperationReceipt } from "@/features/workbench/operation-contract
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { ChevronDown, ChevronRight, Clock3, FilePlus2, FileText, Folder, FolderPlus, Menu, MoreHorizontal, Search, Sparkles, Star, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -150,6 +151,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
     setNotice(`正在在文件夹“${folder.name}”中新建笔记`);
     // A native form nested in DropdownMenuItem is unmounted as the Radix menu
     // closes, so invoke the Server Action directly instead.
+    announceNavigationIntent();
     startTransition(async () => { await createNoteInFolder(form); });
   };
   const beginDrag = (event: React.DragEvent<HTMLElement>, item: DraggedNavigatorItem) => {
@@ -219,7 +221,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   </>;
 
   return <div className="notes-navigator flex h-full min-h-0 flex-col bg-[var(--surface-sidebar)] px-2.5 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)]">
-    <div className="flex min-h-8 items-center justify-between px-1"><span className="text-[13.5px] font-semibold tracking-[-0.012em] text-[var(--text-primary)]">笔记</span><form action={createNoteInFolder} className={onNavigate ? "mr-[52px]" : undefined}><input type="hidden" name="folder_id" value={selectedFolderId ?? ""} /><Button size="icon-xs" className={onNavigate ? "size-11" : undefined} aria-label="新建笔记"><FilePlus2 /></Button></form></div>
+    <div className="flex min-h-8 items-center justify-between px-1"><span className="text-[13.5px] font-semibold tracking-[-0.012em] text-[var(--text-primary)]">笔记</span><form onSubmit={announceNavigationIntent} action={createNoteInFolder} className={onNavigate ? "mr-[52px]" : undefined}><input type="hidden" name="folder_id" value={selectedFolderId ?? ""} /><Button size="icon-xs" className={onNavigate ? "size-11" : undefined} aria-label="新建笔记"><FilePlus2 /></Button></form></div>
     <label className="relative mt-2.5 block">
       <span className="sr-only">快速打开</span>
       <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]" aria-hidden="true" />
@@ -248,7 +250,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
     </label>
     <nav className="mt-2.5 space-y-px" aria-label="笔记视图">
       <Link onNavigate={() => closeForNavigation("/notes")} href="/notes" className={`pressable flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${pathname === "/notes" && !selectedFolderId && !activeView ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><FileText className="size-3.5" />全部笔记</Link>
-      <form action={openDailyNote}><button className="pressable flex h-11 md:h-[30px] w-full items-center gap-2 rounded-[8px] px-2 text-left text-[12.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">今日日记</button></form>
+      <form onSubmit={announceNavigationIntent} action={openDailyNote}><button className="pressable flex h-11 md:h-[30px] w-full items-center gap-2 rounded-[8px] px-2 text-left text-[12.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">今日日记</button></form>
       <Link onNavigate={() => closeForNavigation("/notes?view=favorites")} href="/notes?view=favorites" className={`pressable flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${activeView === "favorites" ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><Star className="size-3.5" />收藏</Link>
       <Link onNavigate={() => closeForNavigation("/notes?view=recent")} href="/notes?view=recent" className={`pressable flex h-11 md:h-[30px] items-center gap-2 rounded-[8px] px-2 text-[12.5px] ${activeView === "recent" ? "bg-[var(--surface-selected)] font-medium text-[var(--text-primary)] [&>svg]:text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"}`}><Clock3 className="size-3.5" />最近编辑</Link>
     </nav>
@@ -310,6 +312,7 @@ export function NotesWorkspaceShell({ folders, notes, children, documentView }: 
     const focusSearch = (event: KeyboardEvent) => {
       if (!isNotesSearchShortcut(event) || document.querySelector('[role="dialog"], [role="menu"]')) return;
       event.preventDefault();
+      announceNavigationIntent();
       const input = document.getElementById("notes-library-search");
       if (input instanceof HTMLInputElement) { input.focus(); return; }
       const href = notesListHref(loadWorkspaceSession(lastNotesListSessionKey));

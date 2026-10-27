@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
-import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
+import { captureWorkspaceScope, registerWorkspaceScopeCleanup } from "@/lib/workspace-resource-cache";
 import { workbenchEntityResource, workspaceScenesResource } from "@/features/workbench/resource";
 import { saveWorkspaceScene } from "@/features/workbench/scenes";
-import { workbenchReadInputSchema, workbenchRefKey, type WorkbenchEntity, type WorkbenchReadResult, type WorkbenchRef, type WorkspaceScene, type WorkspaceSceneSnapshot } from "@/features/workbench/contracts";
+import { workbenchReadInputSchema, workbenchRefKey, type WorkbenchEntity, type WorkbenchReadResult, type WorkbenchRef, type WorkspaceSceneSnapshot } from "@/features/workbench/contracts";
+import type { WorkspaceSceneList, WorkspaceSceneMetadata } from "@/features/workbench/scene-read-contracts";
 import { useWorkbenchHost } from "./workbench-provider";
 import { useWorkbench } from "./workbench-context";
 const WorkbenchEntityView = dynamic(() => import("./workbench-entity-view").then((m) => m.WorkbenchEntityView));
@@ -66,44 +67,99 @@ function ComparisonTable({ refs }: { refs: WorkbenchRef[] }) {
 type SceneSaveInput = { id: string; requestId: string; expectedRevision: number; name: string; snapshot: WorkspaceSceneSnapshot; archive: boolean };
 function Scenes() {
   const host = useWorkbenchHost(); const context = useWorkbench()!;
-  const [scenes, setScenes] = useState<WorkspaceScene[] | null>(null);
+  const [sceneList, setSceneList] = useState<WorkspaceSceneList | null>(null);
+  const currentList = useRef<WorkspaceSceneList | null>(null);
+  const scenes = sceneList?.scenes;
+  const unsupportedScenes = sceneList?.unsupportedScenes ?? [];
   const [error, setError] = useState(""); const [notice, setNotice] = useState("");
-  const [name, setName] = useState(""); const [selected, setSelected] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false); const inFlight = useRef(false);
+  const [readError, setReadError] = useState("");
+  const [name, setName] = useState("");
+  const [selected, setSelected] = useState<{ id: string; revision: number } | null>(null);
+  const selection = useRef(selected);
+  const choose = useCallback((scene: Pick<WorkspaceSceneMetadata, "id" | "revision"> | null) => {
+    const value = scene ? { id: scene.id, revision: scene.revision } : null;
+    selection.current = value; setSelected(value);
+  }, []);
+  const [busy, setBusy] = useState(false); const inFlight = useRef<symbol | null>(null);
   const [loadVersion, setLoadVersion] = useState(0);
+  const [readScope, setReadScope] = useState(0);
   const attempt = useRef<SceneSaveInput | null>(null);
   const load = useCallback(() => setLoadVersion((value) => value + 1), []);
+  useEffect(() => registerWorkspaceScopeCleanup(() => {
+    currentList.current = null; setSceneList(null); choose(null); setName(""); attempt.current = null; setReadError("");
+    setReadScope(value => value + 1);
+    inFlight.current = null; setBusy(false); setNotice(""); setError("登录状态已变化，请重新打开工作台。");
+  }), [choose]);
   useEffect(() => {
     if (!host.scenesOpen) return;
     const scope = captureWorkspaceScope(); let current = true;
-    const release = workspaceScenesResource.subscribe(() => {});
-    void workspaceScenesResource.revalidate({ force: loadVersion > 0 }).then((value) => { if (current && scope()) { setScenes(value.scenes); setError(""); } }).catch(() => { if (current && scope()) setError("现场暂时无法读取，请重试。"); });
+    let previousData: WorkspaceSceneList | undefined;
+    const receive = () => {
+      if (!current || !scope()) return;
+      const entry = workspaceScenesResource.get();
+      setReadError(entry.error ? "现场暂时无法读取，请重试。" : "");
+      const value = entry.data;
+      if (!value || value === previousData) return;
+      previousData = value;
+      currentList.current = value; setSceneList(value);
+      const chosen = selection.current;
+      if (chosen && !value.scenes.some(scene => scene.id === chosen.id && scene.revision === chosen.revision)) {
+        choose(null); attempt.current = null;
+        setNotice("原选现场已变化或当前格式不受支持。名称保留，请重新选择可用现场后更新。");
+      }
+      const pending = attempt.current;
+      if (pending && (value.unsupportedScenes?.some(scene => scene.id === pending.id) || value.scenes.some(scene => scene.id === pending.id && scene.revision !== pending.expectedRevision))) attempt.current = null;
+    };
+    const release = workspaceScenesResource.subscribe(receive);
+    receive();
     return () => { current = false; release(); };
+  }, [host.scenesOpen, choose, readScope]);
+  useEffect(() => {
+    if (!host.scenesOpen) return;
+    void workspaceScenesResource.revalidate({ force: loadVersion > 0 }).catch(() => { /* The current resource publishes read failures to the same subscription. */ });
   }, [host.scenesOpen, loadVersion]);
-  const persist = async (archive = false) => {
+  // A published read is authoritative even before React commits its next frame.
+  const currentScene = (candidate: Pick<WorkspaceSceneMetadata, "id" | "revision">) => currentList.current?.scenes.find(scene => scene.id === candidate.id && scene.revision === candidate.revision);
+  const persist = async () => {
     if (inFlight.current) return;
-    inFlight.current = true; setBusy(true); setError(""); setNotice(""); const scope = captureWorkspaceScope();
+    const lease = Symbol("scene-save"); inFlight.current = lease;
+    setBusy(true); setError(""); setNotice(""); const scope = captureWorkspaceScope();
     try {
-      const scene = selected ? scenes?.find((item) => item.id === selected) : null;
-      if (archive && !scene) return;
-      if (!attempt.current || attempt.current.archive !== archive) attempt.current = { id: scene?.id ?? crypto.randomUUID(), requestId: crypto.randomUUID(), expectedRevision: scene?.revision ?? 0, name: archive ? scene!.name : name.trim(), snapshot: archive ? scene!.snapshot : await host.capture(), archive };
-      const result = await saveWorkspaceScene(attempt.current);
+      const chosen = selection.current;
+      const readAtStart = currentList.current;
+      const scene = chosen ? readAtStart?.scenes.find(item => item.id === chosen.id && item.revision === chosen.revision) : null;
+      if (chosen && !scene) { setError("这个现场已不可更新，请读取最新现场后重新选择。"); return; }
+      const request = attempt.current ?? { id: scene?.id ?? crypto.randomUUID(), requestId: crypto.randomUUID(), expectedRevision: scene?.revision ?? 0, name: name.trim(), snapshot: await host.capture(), archive: false };
+      if (!scope()) return;
+      if (chosen && (selection.current?.id !== chosen.id || selection.current?.revision !== chosen.revision)) { setError("这个现场已变化，请读取最新现场后重新选择。"); return; }
+      attempt.current = request;
+      const result = await saveWorkspaceScene(request);
       if (!scope()) return;
       if (result.status === "saved") {
-        attempt.current = null; setSelected(result.scene.archived_at ? null : result.scene.id); setName(result.scene.archived_at ? "" : result.scene.name);
-        setNotice(archive ? "现场已归档" : "现场已保存"); load();
+        const latest = currentList.current;
+        const stillSupported = latest === readAtStart || latest?.scenes.some(item => item.id === result.scene.id && item.revision === result.scene.revision);
+        attempt.current = null; choose(!stillSupported || result.scene.archived_at ? null : result.scene);
+        setName(value => stillSupported && value === request.name ? result.scene.archived_at ? "" : result.scene.name : value);
+        setNotice("现场已保存"); load();
       } else setError(result.status === "conflict" ? "另一设备已修改此现场。当前输入保留，请读取最新现场后再决定。" : result.status === "limit" ? "最多保存 20 份现场，请先归档旧现场。" : result.status === "invalid" ? "请填写名称并检查现场地址。" : "现场暂未确认保存，可重试同一次操作。");
     } catch (cause) { if (scope()) setError(cause instanceof Error ? cause.message : "现场保存失败，请重试。"); }
-    finally { inFlight.current = false; if (scope()) setBusy(false); }
+    finally { if (inFlight.current === lease) { inFlight.current = null; if (scope()) setBusy(false); } }
   };
   return <Dialog open={host.scenesOpen} onOpenChange={(open) => { if (busy || inFlight.current) return false; host.setScenesOpen(open); }}><DialogContent className="workbench-scenes-dialog" onEscapeKeyDown={(event) => { event.stopPropagation(); if (busy || inFlight.current) event.preventDefault(); }}><DialogHeader><DialogTitle>工作台</DialogTitle><DialogDescription>保存布局、筛选和阅读位置。正文保留在各自的记录中。</DialogDescription></DialogHeader>
     <div className="workbench-scenes-body"><button type="button" disabled={busy} onClick={() => { host.setScenesOpen(false); window.dispatchEvent(new Event("personal-os:workbench-history-open")); }}>最近操作</button><div className="workbench-reference-help"><p>{host.reference ? "参考区已打开，可从任意记录的操作菜单切换内容。" : "在记录的操作菜单选择“放到参考区”，即可并排阅读或编辑另一篇笔记。"}</p>{context.selected.length ? <button type="button" onClick={() => { host.setScenesOpen(false); context.compare(); }}>比较已选 {context.selected.length} 项</button> : null}</div>
-    <form onSubmit={(event) => { event.preventDefault(); void persist(); }}><label htmlFor="workbench-scene-name">现场名称</label><input id="workbench-scene-name" value={name} maxLength={80} required placeholder="例如：阅读论文与实验笔记" disabled={busy} onChange={(event) => { setName(event.target.value); attempt.current = null; }}/><div className="workbench-scene-actions"><button type="submit" disabled={busy || !name.trim()}>{busy ? "保存中…" : selected ? "用当前布局更新" : "保存当前现场"}</button>{selected ? <button type="button" disabled={busy} onClick={() => { setSelected(null); setName(""); attempt.current = null; }}>另存新现场</button> : null}</div></form>
-    {error ? <p role="alert">{error}<button type="button" onClick={() => { attempt.current = null; load(); }}>读取最新现场</button></p> : null}{notice ? <p role="status">{notice}</p> : null}
-    <h3>已保存现场</h3>{scenes ? scenes.length ? <ul className="workbench-scene-list">{scenes.map((scene) => <li key={scene.id} data-selected={selected === scene.id || undefined}><div><strong>{scene.name}</strong><p>{scene.updated_at}</p></div><div><button type="button" disabled={busy} onClick={() => host.restore(scene.snapshot)}>恢复</button><button type="button" disabled={busy} onClick={() => { setSelected(scene.id); setName(scene.name); attempt.current = null; setError(""); }}>选择更新</button><button type="button" disabled={busy} onClick={async () => {
-      if (inFlight.current) return; inFlight.current = true; setBusy(true); const scope = captureWorkspaceScope();
-      try { const result = await saveWorkspaceScene({ id: scene.id, requestId: crypto.randomUUID(), expectedRevision: scene.revision, name: scene.name, snapshot: scene.snapshot, archive: true }); if (!scope()) return; if (result.status === "saved") { setNotice("现场已归档"); load(); } else setError("归档未完成，请读取最新现场后重试。"); } catch { if (scope()) setError("归档未确认，请读取最新现场核对。"); } finally { inFlight.current = false; if (scope()) setBusy(false); }
-    }}>归档</button></div></li>)}</ul> : <p>还没有保存现场。</p> : <p role="status">正在读取现场…</p>}
+    <form onSubmit={(event) => { event.preventDefault(); void persist(); }}><label htmlFor="workbench-scene-name">现场名称</label><input id="workbench-scene-name" value={name} maxLength={80} required placeholder="例如：阅读论文与实验笔记" disabled={busy} onChange={(event) => { setName(event.target.value); attempt.current = null; }}/><div className="workbench-scene-actions"><button type="submit" disabled={busy || !name.trim()}>{busy ? "保存中…" : selected ? "用当前布局更新" : "保存当前现场"}</button>{selected ? <button type="button" disabled={busy} onClick={() => { choose(null); setName(""); attempt.current = null; }}>另存新现场</button> : null}</div></form>
+    {error || readError ? <p role="alert">{error || readError}<button type="button" disabled={busy} onClick={() => { attempt.current = null; setError(""); load(); }}>读取最新现场</button></p> : null}{notice ? <p role="status">{notice}</p> : null}
+    <h3>已保存现场</h3>
+    {sceneList?.unavailableCount ? <p role="status">有 {sceneList.unavailableCount} 份现场的基本信息无法读取，其余现场仍可使用。记录保持原样。</p> : null}
+    {sceneList ? scenes?.length || unsupportedScenes.length ? <ul className="workbench-scene-list">
+      {scenes?.map((scene) => <li key={scene.id} data-selected={selected?.id === scene.id || undefined}><div><strong>{scene.name}</strong><p>{scene.updated_at}</p></div><div><button type="button" disabled={busy} onClick={() => { const latest = currentScene(scene); if (latest) host.restore(latest.snapshot); }}>恢复</button><button type="button" disabled={busy} onClick={() => { const latest = currentScene(scene); if (!latest) return; choose(latest); setName(latest.name); attempt.current = null; setError(""); }}>选择更新</button><button type="button" disabled={busy} onClick={async () => {
+        if (inFlight.current) return;
+        const latest = currentScene(scene); if (!latest) return;
+        const lease = Symbol("scene-archive"); inFlight.current = lease; setBusy(true); const scope = captureWorkspaceScope();
+        try { const result = await saveWorkspaceScene({ id: latest.id, requestId: crypto.randomUUID(), expectedRevision: latest.revision, name: latest.name, snapshot: latest.snapshot, archive: true }); if (!scope()) return; if (result.status === "saved") { if (selection.current?.id === latest.id) { choose(null); attempt.current = null; } setNotice("现场已归档"); load(); } else setError("归档未完成，请读取最新现场后重试。"); } catch { if (scope()) setError("归档未确认，请读取最新现场核对。"); } finally { if (inFlight.current === lease) { inFlight.current = null; if (scope()) setBusy(false); } }
+      }}>归档</button></div></li>)}
+      {unsupportedScenes.map(scene => <li key={scene.id}><div><strong>{scene.name}</strong><p>{scene.updated_at}</p><p>现场格式暂不支持。记录保留，当前无法恢复、更新或归档。</p></div><button type="button" disabled>无法恢复</button></li>)}
+    </ul> : sceneList.unavailableCount ? null : <p>还没有保存现场。</p> : error || readError ? null : <p role="status">正在读取现场…</p>}
     </div>
   </DialogContent></Dialog>;
 }

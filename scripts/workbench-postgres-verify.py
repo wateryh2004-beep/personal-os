@@ -38,6 +38,10 @@ WORKBENCH_SUFFIXES = (
     "_workspace_scenes.sql",
     "_workbench_undo_dispatch.sql",
     "_workbench_policy_fk_performance.sql",
+    "_continuous_material_sources.sql",
+    "_continuous_domain_workflows.sql",
+    "_continuous_material_receipts.sql",
+    "_inbox_dispatch_mutex.sql",
 )
 OWNER = "a1000000-0000-4000-8000-000000000001"
 SCENE_OWNER = "a1000000-0000-4000-8000-000000000002"

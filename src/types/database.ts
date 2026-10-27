@@ -15,6 +15,339 @@ export type Database = {
   }
   public: {
     Tables: {
+      todo_creation_receipts: {
+        Row: {
+          id: string
+          user_id: string
+          request_id: string
+          request_hash: string
+          inbox_id: string | null
+          task_id: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string
+          request_id?: string
+          request_hash?: string
+          inbox_id?: string | null
+          task_id?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          request_id?: string
+          request_hash?: string
+          inbox_id?: string | null
+          task_id?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      feed_item_versions: {
+        Row: {
+          id: string
+          user_id: string
+          feed_item_id: string
+          title: string
+          content_text: string | null
+          excerpt: string | null
+          url: string | null
+          content_hash: string | null
+          published_at: string | null
+          updated_at_source: string | null
+          observed_at: string
+          provenance: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string
+          feed_item_id?: string
+          title?: string
+          content_text?: string | null
+          excerpt?: string | null
+          url?: string | null
+          content_hash?: string | null
+          published_at?: string | null
+          updated_at_source?: string | null
+          observed_at?: string
+          provenance?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          feed_item_id?: string
+          title?: string
+          content_text?: string | null
+          excerpt?: string | null
+          url?: string | null
+          content_hash?: string | null
+          published_at?: string | null
+          updated_at_source?: string | null
+          observed_at?: string
+          provenance?: string
+        }
+        Relationships: []
+      }
+      briefing_event_sources: {
+        Row: {
+          id: string
+          user_id: string
+          event_id: string
+          feed_item_id: string
+          revision: number
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id?: string
+          event_id?: string
+          feed_item_id?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          event_id?: string
+          feed_item_id?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
+      briefing_events: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          revision: number
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id?: string
+          title?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
+      purchase_item_documents: {
+        Row: {
+          id: string
+          user_id: string
+          item_id: string
+          document_id: string
+          kind: string
+          label: string
+          revision: number
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id?: string
+          item_id?: string
+          document_id?: string
+          kind?: string
+          label?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          item_id?: string
+          document_id?: string
+          kind?: string
+          label?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
+      career_material_checks: {
+        Row: {
+          id: string
+          user_id: string
+          opportunity_id: string
+          label: string
+          required: boolean
+          document_id: string | null
+          resume_version_id: string | null
+          verified_at: string | null
+          verified_object_revision: string | null
+          note: string
+          revision: number
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id?: string
+          opportunity_id?: string
+          label?: string
+          required?: boolean
+          document_id?: string | null
+          resume_version_id?: string | null
+          verified_at?: string | null
+          verified_object_revision?: string | null
+          note?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          opportunity_id?: string
+          label?: string
+          required?: boolean
+          document_id?: string | null
+          resume_version_id?: string | null
+          verified_at?: string | null
+          verified_object_revision?: string | null
+          note?: string
+          revision?: number
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
+      project_workflow_versions: {
+        Row: {
+          id: string
+          user_id: string
+          project_id: string
+          description: string | null
+          blocker_text: string
+          next_todo_task_id: string | null
+          revision: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string
+          project_id?: string
+          description?: string | null
+          blocker_text?: string
+          next_todo_task_id?: string | null
+          revision?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          project_id?: string
+          description?: string | null
+          blocker_text?: string
+          next_todo_task_id?: string | null
+          revision?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      planning_availability: {
+        Row: {
+          created_at: string
+          archived_at: string | null
+          user_id: string
+          local_date: string
+          timezone: string
+          periods: Json
+          revision: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          archived_at?: string | null
+          user_id?: string
+          local_date?: string
+          timezone?: string
+          periods?: Json
+          revision?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          archived_at?: string | null
+          user_id?: string
+          local_date?: string
+          timezone?: string
+          periods?: Json
+          revision?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      task_planning: {
+        Row: {
+          created_at: string
+          archived_at: string | null
+          user_id: string
+          task_id: string
+          estimated_minutes: number | null
+          planned_on: string | null
+          revision: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          archived_at?: string | null
+          user_id?: string
+          task_id?: string
+          estimated_minutes?: number | null
+          planned_on?: string | null
+          revision?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          archived_at?: string | null
+          user_id?: string
+          task_id?: string
+          estimated_minutes?: number | null
+          planned_on?: string | null
+          revision?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       trip_documents: {
         Row: {
           id: string
@@ -5925,6 +6258,9 @@ export type Database = {
       }
       projects: {
         Row: {
+          blocker_text: string
+          next_todo_task_id: string | null
+          mutation_revision: number
           archived_at: string | null
           area_id: string | null
           completed_at: string | null
@@ -5939,6 +6275,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          blocker_text?: string
+          next_todo_task_id?: string | null
+          mutation_revision?: number
           archived_at?: string | null
           area_id?: string | null
           completed_at?: string | null
@@ -5953,6 +6292,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          blocker_text?: string
+          next_todo_task_id?: string | null
+          mutation_revision?: number
           archived_at?: string | null
           area_id?: string | null
           completed_at?: string | null
@@ -5978,6 +6320,11 @@ export type Database = {
       }
       purchase_items: {
         Row: {
+          purchased_on: string | null
+          return_until: string | null
+          warranty_until: string | null
+          order_reference: string
+          aftercare_note: string
           quantity: string | null
           quantity_unit: string | null
           mutation_revision: number
@@ -6006,6 +6353,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          purchased_on?: string | null
+          return_until?: string | null
+          warranty_until?: string | null
+          order_reference?: string
+          aftercare_note?: string
           quantity?: string | null
           quantity_unit?: string | null
           mutation_revision?: number
@@ -6034,6 +6386,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          purchased_on?: string | null
+          return_until?: string | null
+          warranty_until?: string | null
+          order_reference?: string
+          aftercare_note?: string
           quantity?: string | null
           quantity_unit?: string | null
           mutation_revision?: number
@@ -6844,6 +7201,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      save_career_material_check: { Args: { p_id:string;p_opportunity_id:string;p_expected_revision:number;p_label:string;p_required:boolean;p_document_id:string|null;p_resume_id:string|null;p_note:string;p_verification_intent:string;p_expected_object_revision:string|null;p_expected_document_revision:number|null;p_expected_resume_updated_at:string|null }; Returns:Database["public"]["Tables"]["career_material_checks"]["Row"] }
+      convert_inbox_daily: { Args: { p_inbox_id:string; p_note_id:string; p_expected_revision:number }; Returns:Json }
+      prepare_inbox_todo_creation: { Args: { p_owner:string; p_inbox_id:string; p_request_hash:string }; Returns:Json }
+      prepare_inbox_calendar_creation: { Args: { p_owner:string; p_inbox_id:string; p_request_hash:string; p_connection_id:string; p_payload:Json }; Returns:string }
+      cancel_inbox_undispatched: { Args: { p_owner:string; p_inbox_id:string }; Returns:boolean }
+      finish_todo_creation_receipt: { Args: { p_receipt_id:string; p_owner:string }; Returns:boolean }
+      convert_inbox_project: { Args: { p_inbox_id:string;p_project_id:string;p_title:string;p_body:string }; Returns: string }
+      finish_inbox_target: { Args: { p_inbox_id:string;p_target:string;p_destination_id:string }; Returns: boolean }
+      save_briefing_event_source: { Args: { p_event_id:string; p_expected_revision:number; p_title:string; p_item_id:string; p_linked:boolean }; Returns: Database["public"]["Tables"]["briefing_events"]["Row"] }
+      save_purchase_aftercare: { Args: { p_item_id:string; p_expected_revision:number; p_purchased_on:string|null; p_return_until:string|null; p_warranty_until:string|null; p_order_reference:string; p_note:string; p_document_id?:string|null; p_document_kind?:string }; Returns: Database["public"]["Tables"]["purchase_items"]["Row"] }
+      convert_inbox_note: { Args: { p_inbox_id: string; p_title: string; p_body: string }; Returns: string }
+      capture_note_source: { Args: { p_note_id: string; p_expected_revision: number; p_expected_hash: string }; Returns: string }
+      save_project_workflow: { Args: { p_project_id: string; p_expected_revision: number; p_goal: string; p_blocker: string; p_next_task: string | null }; Returns: Database["public"]["Tables"]["projects"]["Row"] }
+      save_planning_availability: { Args: { p_date: string; p_timezone: string; p_expected_revision: number; p_periods: Json }; Returns: Database["public"]["Tables"]["planning_availability"]["Row"] }
+      save_task_planning: { Args: { p_task_id: string; p_expected_revision: number; p_minutes: number | null; p_planned_on?: string | null }; Returns: Database["public"]["Tables"]["task_planning"]["Row"] }
       _workbench_receipt_visible: { Args: { p_owner: string; p_operation: string; p_target: string; p_before: Json; p_after: Json }; Returns: boolean }
       read_life_receipt_state: { Args: { p_receipt_id: string }; Returns: Json }
       valid_workbench_href: { Args: { p_href: string }; Returns: boolean }

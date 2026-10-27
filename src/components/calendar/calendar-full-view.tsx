@@ -38,7 +38,7 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
   onMove: (event: CalendarEventRecord, range: { startsAt: string; endsAt: string; isAllDay: boolean }) => Promise<void>;
   onRangeChange: (range: Range) => void;
   loadingRange: boolean;
-  onTaskDrop?: (task:{id:string;title:string;modified:string|null}, startsAt:string)=>void;
+  onTaskDrop?: (task:{id:string;title:string;modified:string|null;minutes:number|null}, startsAt:string)=>void;
 }) {
   const calendarRef = useRef<FullCalendar>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -159,7 +159,7 @@ export function CalendarFullView({ events, categories, timezone, initialView, in
         selectMirror
         editable
         droppable
-        drop={(info)=>{const id=info.draggedEl.dataset.calendarTaskId;if(!id||!onTaskDrop)return;onTaskDrop({id,title:info.draggedEl.dataset.calendarTaskTitle??"任务",modified:info.draggedEl.dataset.calendarTaskModified||null},fullCalendarDateToInstant(info.date,timezone));}}
+        drop={(info)=>{const id=info.draggedEl.dataset.calendarTaskId;if(!id||!onTaskDrop)return;onTaskDrop({id,title:info.draggedEl.dataset.calendarTaskTitle??"任务",modified:info.draggedEl.dataset.calendarTaskModified||null,minutes:Number(info.draggedEl.dataset.calendarTaskMinutes)||null},fullCalendarDateToInstant(info.date,timezone));}}
         dayMaxEvents={4}
         longPressDelay={450}
         selectLongPressDelay={450}

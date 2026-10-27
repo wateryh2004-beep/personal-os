@@ -4,8 +4,8 @@ import { diagnosticErrorKind } from "@/lib/diagnostics";
 import { revalidatePath } from "@/lib/workspace-revalidation";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { contentHash } from "@/features/notes/utils";
-import { appendInboxToDailyNote } from "@/features/notes/daily-note-service";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getOrCreateDailyNote } from "@/features/notes/daily-note-service";
 import { inboxCaptureSchema } from "./schemas";
 import { classifyInboxItem } from "./classify";
 import type { InboxCaptureState, InboxClassifyState } from "./state";
@@ -92,6 +92,16 @@ export async function dismissInboxProposal(_: InboxClassifyState, formData: Form
 
 const inboxIdSchema = z.object({ inboxId: z.string().uuid() });
 
+export async function cancelInboxUndispatchedIntent(_: InboxCaptureState, formData: FormData): Promise<InboxCaptureState> {
+  const parsed = inboxIdSchema.safeParse({ inboxId: formData.get("inbox_id") });
+  if (!parsed.success) return { status: "error", message: "无效的收集箱记录。" };
+  const { userId } = await requireOwner();
+  const { data, error } = await createAdminClient().rpc("cancel_inbox_undispatched", { p_owner: userId, p_inbox_id: parsed.data.inboxId });
+  if (error || data !== true) return { status: "error", message: "没有可取消的未发送意图。远端结果待核对时不会释放；原内容和输入仍保留。" };
+  await revalidatePath("/inbox");
+  return { status: "success", message: "已取消尚未发送的意图。可保留当前输入重新确认，或选择其他去向。" };
+}
+
 export async function archiveInboxItem(_: InboxCaptureState, formData: FormData): Promise<InboxCaptureState> {
   const parsed = inboxIdSchema.safeParse({ inboxId: formData.get("inbox_id") });
   if (!parsed.success) return { status: "error", message: "无效的 Inbox 记录。" };
@@ -148,32 +158,13 @@ export async function convertInboxToNote(_: InboxCaptureState, formData: FormDat
   const parsed = noteConversionSchema.safeParse({ inboxId: formData.get("inbox_id"), title: formData.get("title"), bodyMarkdown: formData.get("body_markdown") });
   if (!parsed.success) return { status: "error", message: "笔记内容无效。" };
   try {
-    const { supabase, userId } = await requireOwner();
-    const { data: item } = await supabase.from("inbox_items").select("id,content_markdown").eq("id", parsed.data.inboxId).is("archived_at", null).maybeSingle();
-    if (!item) throw new Error("inbox_not_found");
-    const body = parsed.data.bodyMarkdown || item.content_markdown;
-    const now = new Date().toISOString();
-    const { data: note, error } = await supabase.from("notes").insert({
-      user_id: userId,
-      title: parsed.data.title,
-      body_markdown: body,
-      status: "active",
-      revision: 1,
-      content_hash: contentHash(body),
-      word_count: body.trim() ? body.trim().split(/\s+/).length : 0,
-      character_count: body.length,
-      last_saved_at: now,
-    }).select("id").single();
-    if (error || !note) throw new Error("note_insert_failed");
-    const version = await supabase.from("note_versions").insert({ user_id: userId, note_id: note.id, title: parsed.data.title, body_markdown: body, version_number: 1, created_by: userId, content_hash: contentHash(body), revision: 1, reason: "initial" });
-    if (version.error) throw new Error("version_insert_failed");
-    const { error: processedError } = await supabase.from("inbox_items").update({ converted_note_id: note.id, processed_at: now }).eq("id", item.id);
-    if (processedError) throw new Error("inbox_update_failed");
-    await audit(supabase, userId, "convert_to_note", item.id, { note_id: note.id, content_hash: contentHash(body) });
+    const { supabase } = await requireOwner();
+    const { data: noteId, error } = await supabase.rpc("convert_inbox_note", { p_inbox_id: parsed.data.inboxId, p_title: parsed.data.title, p_body: parsed.data.bodyMarkdown });
+    if (error || typeof noteId !== "string") throw new Error("inbox_note_conversion_failed");
     await revalidatePath("/inbox");
     await revalidatePath("/notes");
     await revalidatePath("/today");
-    return { status: "success", message: "已创建笔记。" };
+    return { status: "success", message: "已创建笔记。", inboxId: parsed.data.inboxId, destinationHref: `/notes/${noteId}` };
   } catch {
     return { status: "error", message: "笔记未能创建，请重试。" };
   }
@@ -193,41 +184,16 @@ export async function convertInboxToDailyNote(_: InboxCaptureState, formData: Fo
     if (item.converted_task_id || item.converted_todo_task_id) {
       return { status: "error", message: "这条内容已经转成任务，不能再次写入日记。" };
     }
-    if (item.converted_note_id) {
-      return {
-        status: "success",
-        message: "这条内容已经写入 Notes。",
-        destinationHref: `/notes/${item.converted_note_id}`,
-      };
-    }
     const { data: profile } = await supabase.from("profiles")
       .select("timezone")
       .eq("user_id", userId)
       .maybeSingle();
-    const destination = await appendInboxToDailyNote(
-      supabase,
-      userId,
-      profile?.timezone || "Asia/Shanghai",
-      item.id,
-      item.content_markdown,
-    );
-    const now = new Date().toISOString();
-    const { data: processed, error } = await supabase.from("inbox_items")
-      .update({
-        converted_note_id: destination.noteId,
-        processed_at: now,
-        archived_at: null,
-      })
-      .eq("user_id", userId)
-      .eq("id", item.id)
-      .select("id")
-      .maybeSingle();
-    if (error || !processed) throw new Error("inbox_daily_update_failed");
-    await audit(supabase, userId, "convert", item.id, {
-      target: "daily",
-      destination_id: destination.noteId,
-      date: destination.date,
-    });
+    const daily = item.converted_note_id ? { id: item.converted_note_id, revision: 0 } : await getOrCreateDailyNote(supabase, userId, profile?.timezone || "Asia/Shanghai");
+    // The RPC locks the source before changing any note. A competing provider
+    // claim or editor save rolls back the append, version and source together.
+    const { data, error } = await supabase.rpc("convert_inbox_daily", { p_inbox_id: item.id, p_note_id: daily.id, p_expected_revision: daily.revision });
+    const destination = z.object({ noteId: z.uuid(), date: z.iso.date() }).parse(data);
+    if (error) throw new Error("inbox_daily_update_failed");
     await revalidatePath("/inbox");
     await revalidatePath("/notes");
     await revalidatePath(`/notes/${destination.noteId}`);
@@ -241,4 +207,29 @@ export async function convertInboxToDailyNote(_: InboxCaptureState, formData: Fo
     console.error("[inbox:daily] failed", { reason: diagnosticErrorKind(error) });
     return { status: "error", message: "暂时无法写入今日日记，请重试。" };
   }
+}
+
+export async function readInboxProjectChoices() {
+  const { supabase, userId } = await requireOwner();
+  const { data, error } = await supabase.from("projects").select("id,name").eq("user_id", userId).is("archived_at", null).order("updated_at", { ascending: false }).limit(201);
+  return { projects: error ? [] : data?.slice(0, 200) ?? [], unavailable: Boolean(error), truncated: (data?.length ?? 0) > 200 };
+}
+export async function convertInboxToProject(_: InboxCaptureState, formData: FormData): Promise<InboxCaptureState> {
+  const parsed = noteConversionSchema.extend({ projectId: z.uuid() }).safeParse({ inboxId: formData.get("inbox_id"), title: formData.get("title"), bodyMarkdown: formData.get("body_markdown"), projectId: formData.get("project_id") });
+  if (!parsed.success) return { status: "error", message: "请选择项目并填写资料标题。" };
+  try {
+    const { supabase } = await requireOwner();
+    const { data: noteId, error } = await supabase.rpc("convert_inbox_project", { p_inbox_id: parsed.data.inboxId, p_project_id: parsed.data.projectId, p_title: parsed.data.title, p_body: parsed.data.bodyMarkdown });
+    if (error || typeof noteId !== "string") throw new Error("inbox_project_failed");
+    await revalidatePath("/inbox"); await revalidatePath("/projects"); await revalidatePath("/notes");
+    return { status: "success", message: "已保存为该项目的笔记资料。", inboxId: parsed.data.inboxId, destinationHref: `/notes/${noteId}` };
+  } catch { return { status: "error", message: "尚未关联项目，原内容仍保留；请核对后重试。" }; }
+}
+export async function convertInboxToLink(previous: InboxCaptureState, formData: FormData): Promise<InboxCaptureState> {
+  const url = z.url().refine(value => ["https:", "http:"].includes(new URL(value).protocol)).safeParse(formData.get("url"));
+  if (!url.success) return { status: "error", message: "请填写完整的 http 或 https 链接。" };
+  const source = String(formData.get("body_markdown") ?? "");
+  const next = new FormData(); next.set("inbox_id", String(formData.get("inbox_id") ?? "")); next.set("title", String(formData.get("title") ?? ""));
+  next.set("body_markdown", `[原始链接](${url.data.replace(/[()]/g, character => character === "(" ? "%28" : "%29")})\n\n${source}`);
+  return convertInboxToNote(previous, next);
 }

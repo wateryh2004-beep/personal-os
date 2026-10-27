@@ -63,10 +63,15 @@ export function multipartService(userId: string, admin = createAdminClient()) {
       const parsed=multipartCreateSchema.safeParse(input);
       if (!parsed.success || !canUpload(parsed.data.filename,parsed.data.contentType,parsed.data.size)) throw new MultipartError(400,"文件类型或大小无效；单个文件最多 100 MiB。");
       const value=parsed.data, filename=safeFilename(value.filename);
-      const identity=createHash("sha256").update(JSON.stringify([value.checksum,value.size,value.contentType,value.folderId??null,filename])).digest("hex");
+      const identity=createHash("sha256").update(JSON.stringify([value.checksum,value.size,value.contentType,value.folderId??null,filename,...(value.requestId?[value.requestId]:[])])).digest("hex");
       const prepared=await admin.rpc("prepare_file_upload_session",{p_user_id:userId,p_identity_key:identity,p_filename:filename,p_content_type:value.contentType,p_file_size:value.size,p_checksum:value.checksum,p_folder_id:value.folderId??null,p_bucket:r2BucketName(),p_extraction_status:initialExtractionStatus(filename,value.contentType,value.size)});
       if (prepared.error || !prepared.data) throw new MultipartError(503,"暂时无法准备断点续传，请稍后重试。");
       let {s,d}=await load((prepared.data as Session).id);
+      if (value.title && d.storage_state === "pending" && d.title === filename) {
+        const renamed = await admin.from("documents").update({ title: value.title }).eq("id", d.id).eq("user_id", userId).eq("storage_state", "pending").eq("title", filename).select("id").maybeSingle();
+        if (renamed.error) throw new MultipartError(503,"显示名称尚未确认，请稍后重试。");
+        ({s,d}=await load(s.id));
+      }
       if (s.status === "initializing") {
         const token=await claim(s,"initialize");
         const uploadId=await beginR2Multipart(s.storage_path,d.mime_type);

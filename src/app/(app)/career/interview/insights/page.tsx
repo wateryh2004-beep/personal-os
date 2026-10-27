@@ -81,7 +81,7 @@ export default async function InterviewInsightsPage({ searchParams }: { searchPa
         <section>
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">反复出现的卡点</h3>
           <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">来自每次练习保存时勾选的卡点，可多选。</p>
-          <ul className="mt-3 space-y-3">{data.issueCounts.slice(0, 10).map((item) => <li key={item.tag} className="flex justify-between gap-4 text-sm text-[var(--text-secondary)]"><span>{issueLabels[item.tag] ?? item.tag}</span><span className="shrink-0 tabular-nums">{item.count} 次</span></li>)}</ul>
+          <ul className="mt-3 space-y-3">{data.issueCounts.slice(0, 10).map((item) => <li key={item.tag} className="flex justify-between gap-4 text-sm text-[var(--text-secondary)]"><details className="w-full"><summary className="min-h-11 cursor-pointer">{issueLabels[item.tag] ?? item.tag} · {item.count} 次</summary><ul>{data.attempts.filter(attempt=>attempt.issue_tags?.includes(item.tag)).toSorted((a,b)=>b.practiced_at.localeCompare(a.practiced_at)).slice(0,8).map(attempt=><li key={attempt.id} className="border-l border-[var(--separator)] py-2 pl-3"><p>{attempt.practiced_at.slice(0,10)} · {attempt.prompt_snapshot}</p><p>上次重点：{attempt.next_focus||"未填写"}</p>{attempt.preparation_id?<Link className="ui-link inline-flex min-h-11 items-center" href={`/career/interview/practice/${attempt.preparation_id}?parent=${attempt.id}`}>继续练这题</Link>:<span>未关联准备题目，无法直接续练</span>}</li>)}</ul><p className="text-xs">最近8条匹配记录；次数来自人工勾选，不代表能力评分。</p></details></li>)}</ul>
           {!data.issueCounts.length ? <p className="mt-3 text-sm text-[var(--text-secondary)]">{data.unavailable ? "暂未读到卡点记录。" : "还没有保存过卡点。"}</p> : null}
         </section>
         <section>

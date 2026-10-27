@@ -1,3 +1,4 @@
+import { parseSourceLocator } from "@/features/links/source-locator";
 import { z } from "zod";
 import type { NoteDocumentData } from "@/features/notes/queries";
 
@@ -13,7 +14,7 @@ export const workbenchRefKey = (value: WorkbenchRef) => `${value.kind}:${value.i
 export const comparableKinds = ["shopping", "opportunity", "trip", "investment"] as const;
 export function workbenchComparable(ref: WorkbenchRef) { return (comparableKinds as readonly string[]).includes(ref.kind); }
 
-const workbenchPathPattern = new RegExp("^/(today|notes(/(trash|ask|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?|files|tasks|calendar|projects|career(/(profile|skills|resumes|applications|certifications|experiences(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|search|interview(/(questions(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|practice(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|targets(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|stories(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|sessions(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|insights|consistency))?|capital|directions|materials|opportunities|roadmap))?|shopping(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|travel(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|leisure(/(artwork-storage|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?|investments|investing|inbox|reviews(/(daily|weekly|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?|briefing(/(interests|sources|history(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?))?|settings|photos|memory)$", "i");
+const workbenchPathPattern = new RegExp("^/(today|notes(/(trash|ask|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?|files|tasks|calendar|projects|career(/(profile|skills|resumes|applications|certifications|experiences(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|search|interview(/(questions(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|practice(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|targets(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|stories(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|sessions(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|insights|consistency))?|capital|directions|materials|opportunities(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/materials)?|roadmap))?|shopping(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|travel(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?|leisure(/(artwork-storage|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?|investments|investing|inbox|reviews(/(daily|weekly|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?|briefing(/(events|interests|sources|history(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?))?|settings|photos|memory)$", "i");
 /** Strict application destinations, never authentication/API/provider or arbitrary URLs. */
 export function safeWorkbenchHref(value: unknown): string | null {
   if (typeof value !== "string" || value.length > 2048 || !value.startsWith("/") || value.startsWith("//") || /[\\\u0000-\u001f]/.test(value)) return null;
@@ -21,8 +22,10 @@ export function safeWorkbenchHref(value: unknown): string | null {
     const url = new URL(value, "https://personal-os.local");
     if (/%(?:2f|5c|00|0a|0d)/i.test(url.pathname)) return null;
     if (url.origin !== "https://personal-os.local" || !workbenchPathPattern.test(url.pathname)) return null;
+    const sourceLocator = parseSourceLocator(value);
+    if (sourceLocator) return `${url.pathname}${url.search}`;
     // A scene may restore view state, but never re-trigger creation or an action.
-    const ids = new Set(["folder", "file", "task", "event", "item", "resume", "context", "question", "answer", "direction"]);
+    const ids = new Set(["entry", "parent", "stop","folder", "file", "task", "event", "item", "resume", "context", "question", "answer", "direction"]);
     const enums: Record<string, readonly string[]> = {
       scope: ["context", "all"],
       view: url.pathname === "/files" ? ["list", "grid"] : url.pathname.startsWith("/notes") ? ["all", "favorites", "recent"] : url.pathname === "/tasks" ? ["today", "upcoming", "all", "completed"] : ["dayGridMonth", "timeGridWeek", "timeGridDay", "listWeek", "month", "week", "day", "agenda"],
@@ -30,20 +33,23 @@ export function safeWorkbenchHref(value: unknown): string | null {
       type: ["all", "photo", "document", "spreadsheet", "presentation", "audio", "video", "archive", "other"],
       tab: ["holdings", "strategies", "research"], mode: ["shopping", "travel", "leisure"].includes(url.pathname.split("/")[1]) ? ["field"] : ["real", "paper"],
       kind: ["film", "series", "game", "book", "music", "outing", "other"], setting: ["home", "out", "either"], company: ["solo", "together", "either"], budget: ["free", "paid", "unknown"],
-      status: ["all", "active", "completed", "watching", "researching", "preparing", "closed", "inbox", "cooling", "ready", "purchased", "abandoned", "planning", "booked", "dream", "shortlist"],
+      draft: ["task", "calendar", "note", "daily", "project", "link"],
+      status: ["all", "active", "completed", "watching", "researching", "preparing", "closed", "inbox", "cooling", "ready", "purchased", "abandoned", "planning", "booked", "dream", "shortlist", "paused", "other"],
     };
     const applicable: Record<string, readonly string[]> = {
+      inbox: ["entry", "draft"], projects: ["status"],
       notes: ["q", "scope", "folder", "view"], files: ["q", "folder", "view", "sort", "type", "page", "file"],
       tasks: ["q", "task", "status", "view"], calendar: ["event", "view", "date"],
-      investments: ["tab", "mode", "item"], career: ["q", "resume", "context", "question", "answer", "direction", "status"],
-      shopping: ["q", "status", "mode"], travel: ["q", "status", "mode"], leisure: ["q", "type", "mode", "kind", "minutes", "setting", "company", "budget"],
+      investments: ["tab", "mode", "item"], career: ["q", "resume", "context", "question", "answer", "direction", "status", "parent"],
+      shopping: ["q", "status", "mode"], travel: ["q", "status", "mode", "day", "stop"], leisure: ["q", "type", "mode", "kind", "minutes", "setting", "company", "budget"],
     };
     const keys = applicable[url.pathname.split("/")[1]] ?? [];
     for (const [key, entry] of [...url.searchParams]) {
-      const valid = keys.includes(key) && (ids.has(key) ? z.uuid().safeParse(entry).success
+      const valid = keys.includes(key) && (ids.has(key) ? (key === "context" && entry === "general") || z.uuid().safeParse(entry).success
         : key === "q" ? entry.length <= 200 && !/[\u0000-\u001f]/.test(entry)
         : key === "page" ? /^[1-9]\d{0,2}$/.test(entry) && Number(entry) <= 200
-        : key === "minutes" ? /^[1-9]\d{0,5}$/.test(entry) && Number(entry) <= 525600
+        : key === "day" ? ["all", "unknown"].includes(entry) || /^[1-9]\d{0,2}$/.test(entry) && Number(entry) <= 366
+        : key === "minutes" ? /^[1-9]\d{0,3}$/.test(entry) && Number(entry) <= 1440
         : key === "date" ? /^\d{4}-\d{2}-\d{2}$/.test(entry) && new Date(`${entry}T00:00:00Z`).toISOString().slice(0, 10) === entry
         : Boolean(enums[key]?.includes(entry)));
       if (!valid) url.searchParams.delete(key);

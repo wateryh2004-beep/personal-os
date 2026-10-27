@@ -135,6 +135,9 @@ describe("Calendar active range resources", () => {
     resourceFor().set({ events: [event("a")], truncated: false });
     await render(); await activate();
     await act(async () => { mocks.fullView!.onCreate({ startsAt: "2026-10-02T13:00:00Z", endsAt: "2026-10-02T14:00:00Z", isAllDay: false }); });
+    const chooseNew=[...document.body.querySelectorAll<HTMLButtonElement>("button")].find(button=>button.textContent?.trim()==="新建日程");
+    expect(chooseNew).toBeDefined();
+    await act(async()=>{chooseNew!.dispatchEvent(new MouseEvent("click",{bubbles:true}));});
     const editor = container.querySelector<HTMLInputElement>("aside input")!;
     editor.value = "Unsaved new event";
     fetcher.mockResolvedValueOnce(response([event("new")]));

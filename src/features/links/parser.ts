@@ -1,3 +1,4 @@
+import { parseSourceLocator } from "./source-locator";
 import type { InternalEntityLink, LinkableEntityType } from "./types";
 
 const uuidSource = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
@@ -14,6 +15,8 @@ const entityHrefPatterns: Array<{ type: LinkableEntityType; pattern: RegExp }> =
 const markdownLinkPattern = /(^|[^!])\[([^\]\n]+)\]\(([^)\s]+)\)/gim;
 
 export function resolveInternalEntityHref(href: string): { type: LinkableEntityType; id: string } | null {
+  const locator = parseSourceLocator(href);
+  if (locator) return locator.kind === "note" ? { type: "note", id: locator.noteId } : { type: "document", id: locator.documentId };
   for (const { type, pattern } of entityHrefPatterns) {
     const match = pattern.exec((href ?? "").trim());
     if (match) return { type, id: match[1].toLowerCase() };

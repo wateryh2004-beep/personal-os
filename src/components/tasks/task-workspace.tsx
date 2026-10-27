@@ -1,4 +1,5 @@
 "use client";
+import { DayCapacity } from "@/components/planning/day-capacity";
 import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
 import { registerWorkbenchViewState } from "@/features/workbench/view-state-registry";
 import { useOperationTimezone } from "@/features/workbench/use-operation-timezone";
@@ -11,6 +12,7 @@ import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 import dynamic from "next/dynamic";
 import {
   CalendarDays,
@@ -385,6 +387,7 @@ function TaskInspector({
   update: (patch: UpdateTaskPatch) => Promise<void>;
   remove: () => Promise<void>;
 }) {
+  const timezone=useOperationTimezone();
   const [title, setTitle] = useState(task.title);
   const [body, setBody] = useState(task.bodyText ?? "");
   const [editing, setEditing] = useState<"title" | "body" | null>(null);
@@ -547,7 +550,7 @@ function TaskInspector({
         </dl>
 
         <div className="pt-4.5">
-          <EntityBacklinks type="todo_task" id={task.id} />
+          {timezone?<DayCapacity date={instantToDate(new Date().toISOString(),timezone)} taskId={task.id}/>:null}<EntityBacklinks type="todo_task" id={task.id} />
         </div>
 
         {message ? (
@@ -771,6 +774,7 @@ export function TaskWorkspace({
     taskNavigationIntent.current = null;
     url.searchParams.delete("task");
     releaseMobileBackLayerForNavigation("side-panel:inspector");
+    announceNavigationIntent();
     router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
   };
 
@@ -784,6 +788,7 @@ export function TaskWorkspace({
   });
 
   const openTask = (task: TodoTask) => {
+    announceNavigationIntent();
     selectionEpoch.current += 1;
     setSelectedId(task.id);
     if ((initialTaskId && initialTaskId !== task.id) || taskNavigationIntent.current !== undefined) {

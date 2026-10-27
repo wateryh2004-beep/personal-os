@@ -1,12 +1,14 @@
 "use client";
 
+import { publishFileRecordChange } from "@/features/files/publication";
+import { startBackgroundOperation } from "@/features/workflow-continuity/background-operations";
 import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { OCR_MAX_BYTES, OCR_TIMEOUT_MS, awaitOcr, ocrErrorMessage, ocrKind } from "@/features/files/ocr-policy";
 import type { FileRecord } from "@/features/files/queries";
 import type { OcrProgress } from "@/lib/adapters/private-ocr-browser";
 
-let activeDocument: string | null = null;
+let activeDocument: symbol | null = null;
 const button = "pressable min-h-9 rounded-[8px] px-3 text-[12px] text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-40";
 export function FileOcrControl({ file, onComplete }: { file: FileRecord; onComplete: (count: number) => void }) {
   const [open, setOpen] = useState(false);
@@ -38,16 +40,20 @@ function OcrSession({ file, onComplete }: { file: FileRecord; onComplete: (count
         job.status === "processing" ? "有一项识别正在运行；可等待完成或租约到期后重试" :
         job.status === "interrupted" ? "上次识别已中断，可重新开始" : ocrErrorMessage(job.error ?? "ocr_cancelled"));
     }).catch(() => {});
-    return () => { active.current = false; query.abort(); controller.current?.abort(); };
+    return () => { active.current = false; query.abort(); };
   }, [url]);
-  async function run() {
+  function run() {
     if (controller.current) return;
     if (activeDocument) { setMessage(ocrErrorMessage("ocr_busy")); return; }
     attempted.current = true;
-    const abort = new AbortController(); controller.current = abort; activeDocument = file.id;
+    const ownRun = Symbol(file.id); activeDocument = ownRun;
+    try { startBackgroundOperation({ kind: "ocr", label: file.title, href: `/files?file=${file.id}`, run: async (context) => {
+    const abort = new AbortController(); controller.current = abort;
+    const cancel = () => abort.abort(); context.signal.addEventListener("abort", cancel, { once: true });
     let token: string | undefined, timedOut = false;
     const timer = setTimeout(() => { timedOut = true; abort.abort(); }, OCR_TIMEOUT_MS);
     const patch = async (value: Record<string, unknown>, signal?: AbortSignal) => {
+      if (!context.current()) throw new Error("ocr_cancelled");
       const response = await fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...value }),
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000) });
       const result = await response.json();
@@ -73,24 +79,28 @@ function OcrSession({ file, onComplete }: { file: FileRecord; onComplete: (count
       if (digest !== sha256) throw new Error("ocr_source_changed");
       const { recognizePrivateDocument } = await awaitOcr(import("@/lib/adapters/private-ocr-browser"), abort.signal);
       const result = await awaitOcr(recognizePrivateDocument({ bytes: new Uint8Array(buffer), filename: file.original_filename, mimeType: file.mime_type, signal: abort.signal,
-        onProgress: value => { if (active.current) setProgress(value); },
+        onProgress: value => { context.report({ phase: value.phase === "loading" ? "正在加载本地识别引擎" : "正在识别文字", ...(value.total > 0 ? { completed: Math.max(0, value.page - 1 + value.progress), total: value.total, unit: "pages" as const } : {}) }); if (active.current && context.current()) setProgress(value); },
         onPage: (pages, total) => patch({ action: "progress", pages, total }, abort.signal).then(() => {}),
       }), abort.signal);
       abort.signal.throwIfAborted();
       const saved = await patch({ action: "complete", text: result.text, pages: result.pages, total: result.pages, emptyPages: result.emptyPages, sha256 }, abort.signal);
-      if (active.current) { setMessage(`已识别并加入全文搜索：${saved.characterCount.toLocaleString("zh-CN")} 字${result.emptyPages ? `；${result.emptyPages} 页未检出文字` : ""}。OCR 可能有误，请以原件为准。`); onComplete(saved.characterCount); }
+      publishFileRecordChange(file.id, context.current);
+      if (active.current && context.current()) { setMessage(`已识别并加入全文搜索：${saved.characterCount.toLocaleString("zh-CN")} 字${result.emptyPages ? `；${result.emptyPages} 页未检出文字` : ""}。OCR 可能有误，请以原件为准。`); onComplete(saved.characterCount); }
     } catch (error) {
       const code = timedOut ? "ocr_timeout" : abort.signal.aborted ? "ocr_cancelled" : error instanceof Error ? error.message : "ocr_failed";
       if (token) await patch({ action: abort.signal.aborted ? "cancel" : "fail", error: code }).catch(() => {});
-      if (active.current) setMessage(ocrErrorMessage(code));
+      if (active.current && context.current()) setMessage(ocrErrorMessage(code));
+      if (context.signal.aborted) return { status: "needs-check" as const, phase: "识别已停止，写入状态可返回文件核对" };
+      throw new Error(code);
     } finally {
-      clearTimeout(timer); controller.current = null; activeDocument = null;
+      clearTimeout(timer); context.signal.removeEventListener("abort", cancel); controller.current = null; if (activeDocument === ownRun) activeDocument = null;
       if (active.current) setBusy(false);
     }
+    } }); } catch { if (activeDocument === ownRun) activeDocument = null; setMessage("当前运行任务较多，请完成或关闭一些任务后重试。"); }
   }
   return <div className="space-y-3 text-[12px] leading-6">
     <p>使用设备上的 Tesseract 离线引擎识别简体中文和英文；语言包从本站加载，文件不会发送给外部 OCR 或 AI 服务。完成后将识别文本存入你的私有搜索索引。</p>
-    <p className="text-[var(--text-secondary)]">支持 PDF、PNG、JPEG、WebP；最多 20 MiB、10 页，图片最多 2000 万像素。识别最多运行 5 分钟，请保持此页面和窗口打开；关闭会取消，重试将重新识别整份文件。优先使用已有 PDF 文字层。</p>
+    <p className="text-[var(--text-secondary)]">支持 PDF、PNG、JPEG、WebP；最多 20 MiB、10 页，图片最多 2000 万像素。识别最多运行 5 分钟，可切换应用页面；关闭浏览器标签页会中断，重试将重新识别整份文件。优先使用已有 PDF 文字层。</p>
     {progress && busy ? <div role="status" aria-live="polite">
       <p>{progress.phase === "loading" ? "正在加载本地识别引擎…" : `第 ${progress.page} / ${progress.total} 页 · ${Math.round(progress.progress * 100)}%`}</p>
       <progress className="w-full" aria-label="OCR 进度" max={100} value={Math.round(((Math.max(1, progress.page) - 1 + progress.progress) / progress.total) * 100)} />

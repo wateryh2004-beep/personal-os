@@ -1,0 +1,37 @@
+name: Continuous workflows PostgreSQL
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'src/types/database.ts'
+      - 'src/features/system-backup/schema.json'
+      - 'scripts/continuous-workflows-postgres-verify.py'
+      - 'tests/continuous-*.sql'
+      - 'tests/fixtures/continuous-workflows/**'
+      - '.github/workflows/continuous-workflows-postgres.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    name: Continuous workflow clean schema, upgrade, ownership and snapshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch official disposable PostgreSQL image
+        run: docker pull postgres:17
+      - name: Apply every actual migration and exercise ownership and CAS
+        run: python3 scripts/continuous-workflows-postgres-verify.py
+      - name: Retain synthetic schema and regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: continuous-workflows-postgres-evidence
+          path: test-results/continuous-workflows-postgres
+          if-no-files-found: ignore
+          retention-days: 7

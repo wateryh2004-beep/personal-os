@@ -8,7 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import type { getResumeVersions } from "@/features/career/queries";
 
-type ResumeData = Awaited<ReturnType<typeof getResumeVersions>>;
+type ResumeReadModel = Awaited<ReturnType<typeof getResumeVersions>>;
+// Additive fields remain optional while an earlier server snapshot is mounted.
+type ResumeData = Omit<ResumeReadModel,"materialChecks"|"materialsUnavailable"|"materialsTruncated"> & Partial<Pick<ResumeReadModel,"materialChecks"|"materialsUnavailable"|"materialsTruncated">>;
 
 export function ResumeWorkspace({ data, createForm }: { data: ResumeData; createForm: ReactNode }) {
   const [dirtyIds, setDirtyIds] = useState<string[]>([]);
@@ -78,6 +80,7 @@ export function ResumeWorkspace({ data, createForm }: { data: ResumeData; create
       <section aria-label="简历版本详情" className={`${explicitDetail ? "" : "hidden lg:block"} min-w-0 rounded-[20px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-5 sm:p-7`}>
         <Link href={makeUrl({ resume: null })} onClick={event => navigate(event, null)} className="ui-link mb-4 inline-flex min-h-11 items-center text-sm lg:hidden">返回版本列表</Link>
         <h2 id="resume-detail-heading" tabIndex={-1} className="mb-5 break-words font-[family-name:var(--font-serif)] text-2xl leading-snug focus-visible:outline-2 focus-visible:outline-[var(--accent)]">{selected?.title ?? "选择简历版本"}</h2>
+        {selected?<section className="mb-4 text-sm"><h3 className="font-medium">这份简历对应的机会材料</h3>{data.materialsUnavailable?<p role="status">关联核对单暂时无法读取。</p>:<ul>{[...new Set((data.materialChecks??[]).filter(check=>check.resume_version_id===selected.id).map(check=>check.opportunity_id))].map(id=><li key={id}><Link className="ui-link inline-flex min-h-11 items-center" href={`/career/opportunities/${id}/materials`}>打开已关联机会的材料核对单</Link></li>)}</ul>}<Link className="ui-link inline-flex min-h-11 items-center" href="/career/opportunities">选择其他机会，关联这份简历</Link>{data.materialsTruncated?<p>关联来自最近500项材料记录。</p>:null}</section>:null}
         {selected && !filtered.some(item => item.id === selected.id) ? <p className="mb-4 text-sm text-[var(--text-secondary)]">当前版本不在筛选结果中。可返回列表调整筛选。</p> : null}
         {data.resumes.filter(resume => mountedIds.has(resume.id)).map(resume => <Activity key={resume.id} mode={resume.id === selected?.id ? "visible" : "hidden"}><ResumeCard showTitle={false} onDirtyChange={dirty => updateDirty(resume.id, dirty)} resume={resume} directions={data.directions} documents={data.documents} linkedDocument={resume.document_id ? documents.get(resume.document_id) : undefined} bullets={data.bullets} selectedBulletIds={new Set(data.links.filter(link => link.resume_version_id === resume.id).map(link => link.bullet_id))} usage={data.applications.filter(item => item.resume_version_id === resume.id).length} /></Activity>)}
         {!selected ? <p className="text-sm leading-7 text-[var(--text-secondary)]">{requestedId ? "这个版本不可用或已归档，请返回版本列表。" : "从左侧选择一份版本查看内容。"}</p> : null}

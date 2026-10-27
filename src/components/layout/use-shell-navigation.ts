@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { perfMark, perfMeasure } from "@/lib/perf";
 import { navigationTransitionType } from "./navigation-motion";
+import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 
 export type ShellNavigationEvent = { preventDefault: () => void };
 
@@ -17,6 +18,7 @@ export function useShellNavigation(pathname: string, router: ShellRouter) {
   const navigation = useRef<NavigationRequest | null>(null);
 
   const navigate = useCallback((href: string) => {
+    announceNavigationIntent();
     const next = { href, from: pathname };
     navigation.current = next;
     // Still push the current URL: it can cancel an older, unfinished navigation.

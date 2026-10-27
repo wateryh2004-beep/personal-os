@@ -20,15 +20,16 @@ export async function completeMultipartSession(sessionId:string,signal?:AbortSig
 }
 /** Browser files are deliberately not retained across refresh: reselect verifies SHA-256. */
 export async function uploadMultipartFile(file:File, options:{
-  folderId:string|null; resume?:MultipartSnapshot; signal:AbortSignal; onProgress:(percent:number)=>void;
+  folderId:string|null; title?:string; requestId?:string; onSession?:(snapshot:MultipartSnapshot)=>void; resume?:MultipartSnapshot; signal:AbortSignal; onProgress:(percent:number)=>void;
 }, fetcher:typeof fetch=fetch) {
   const checksum=await checksumFile(file,options.signal);
   const contentType=file.type||"application/octet-stream";
   if(options.resume && (checksum!==options.resume.checksum || file.size!==options.resume.size || safeFilename(file.name)!==options.resume.filename || contentType!==options.resume.contentType))
     throw new Error("所选文件与未完成上传不一致，请重新选择同一份原文件。");
-  const snapshot=await read<MultipartSnapshot>(await fetcher(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({filename:file.name,contentType,size:file.size,folderId:options.resume?options.resume.folderId:options.folderId,checksum}),
+  const snapshot=options.resume ? await read<MultipartSnapshot>(await fetcher(`${endpoint}?sessionId=${encodeURIComponent(options.resume.sessionId)}`,{cache:"no-store",signal:options.signal})) : await read<MultipartSnapshot>(await fetcher(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({filename:file.name,title:options.title,requestId:options.requestId,contentType,size:file.size,folderId:options.folderId,checksum}),
     signal:AbortSignal.any([options.signal,AbortSignal.timeout(60_000)])}));
+  options.onSession?.(snapshot);
   if(options.resume && snapshot.sessionId!==options.resume.sessionId) throw new Error("续传记录已变化，请刷新列表后重试。");
   if(snapshot.status==="completed" || snapshot.status==="uploaded") return snapshot;
   if(snapshot.status==="completing") return completeMultipartSession(snapshot.sessionId,options.signal,fetcher);

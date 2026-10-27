@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 import { noteAttachmentUrl } from "@/features/notes/attachments";
 import { NoteBacklinks } from "@/components/notes/note-backlinks";
 import { EntityBacklinks } from "@/components/links/entity-backlinks";
@@ -83,7 +84,7 @@ export function NoteDetailsContent({ document, details }: { document: NoteDocume
     <section>
       <h2 className="text-[12px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">文档操作</h2>
       <a className="pressable mt-2.5 flex h-8 items-center gap-2 rounded-[8px] px-2 text-[12px] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]" href={`/api/exports/notes/${data.note.id}`}><Download className="size-4 text-[var(--accent)]" aria-hidden="true" />下载 Markdown</a>
-      <div className="mt-2 grid grid-cols-2 gap-2 border-t border-[var(--separator)] pt-2.5"><form action={archiveNote}><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="expected_revision" value={baseline.revision ?? ""} /><button className="pressable flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] px-2 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Archive className="size-3.5" aria-hidden="true" />归档</button></form><form action={trashNote}><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="expected_revision" value={baseline.revision ?? ""} /><button className="pressable flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] px-2 text-[12px] font-medium text-[var(--danger)] hover:bg-red-50"><Trash2 className="size-3.5" aria-hidden="true" />移入回收站</button></form></div>
+      <div className="mt-2 grid grid-cols-2 gap-2 border-t border-[var(--separator)] pt-2.5"><form onSubmit={announceNavigationIntent} action={archiveNote}><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="expected_revision" value={baseline.revision ?? ""} /><button className="pressable flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] px-2 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Archive className="size-3.5" aria-hidden="true" />归档</button></form><form onSubmit={announceNavigationIntent} action={trashNote}><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="expected_revision" value={baseline.revision ?? ""} /><button className="pressable flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] px-2 text-[12px] font-medium text-[var(--danger)] hover:bg-red-50"><Trash2 className="size-3.5" aria-hidden="true" />移入回收站</button></form></div>
       <p className="mt-2.5 text-[12px] text-[var(--text-tertiary)]">创建于 {compactDate(data.note.created_at)} · 修订 {data.note.revision}</p>
     </section>
   </div>;

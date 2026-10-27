@@ -23,8 +23,9 @@ import { AgentActionGroup } from "./agent-action-group";
 import { AgentSources } from "./agent-sources";
 import { AssistantStreamSources } from "./assistant-stream-sources";
 import { loadWorkspaceSession, saveWorkspaceSession, removeWorkspaceSession } from "@/lib/workspace-session";
-import { captureWorkspaceScope, WorkspaceReadSupersededError } from "@/lib/workspace-resource-cache";
+import { captureWorkspaceScope, registerWorkspaceScopeCleanup, WorkspaceReadSupersededError } from "@/lib/workspace-resource-cache";
 import { perfMark } from "@/lib/perf";
+import { startBackgroundOperation } from "@/features/workflow-continuity/background-operations";
 import { errorMessage, runError, type RunPayload, type RunStep } from "./agent-errors";
 
 const runStorageKey = "agent:active-run:v2";
@@ -76,6 +77,8 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
   const runIdRef = useRef<string | null>(null);
   const pendingSubmitRef = useRef(false);
   const submittedDraft = useRef<string | null>(null);
+  const streamFailed = useRef(false);
+  const initialRestoreStarted = useRef(false);
   const [input, setInput] = useState("");
   const [steps, setSteps] = useState<RunStep[]>([]);
   const [actions, setActions] = useState<AgentAction[]>([]);
@@ -89,11 +92,17 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
     transport,
     onFinish: () => { submittedDraft.current = null; void refreshRun(); },
     onError: () => {
+      streamFailed.current = true;
       const draft = submittedDraft.current;
       if (draft && scopeIsCurrent()) { retainFailedDraft(draft); setInput(current => current || draft); }
     },
   });
   const waiting = status === "submitted" || status === "streaming";
+  useEffect(() => registerWorkspaceScopeCleanup(() => {
+    void stop(); setMessages([]); setInput(""); setSteps([]); setActions([]);
+    setLocalError(null); setActiveRunId(null); runIdRef.current = null;
+    submittedDraft.current = null; pendingSubmitRef.current = false;
+  }), [setMessages, stop]);
 
   const refreshRun = useCallback(async () => {
     if (!open || !scopeIsCurrent()) return;
@@ -123,7 +132,7 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || initialRestoreStarted.current) return;
     let disposed = false;
     const timer = window.setTimeout(async () => {
       if (!scopeIsCurrent()) return;
@@ -164,7 +173,7 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
           // Preserve id for a later retry.
         }
       }
-      if (!disposed && scopeIsCurrent()) setRestoring(false);
+      if (!disposed && scopeIsCurrent()) { initialRestoreStarted.current = true; setRestoring(false); }
     }, 0);
     return () => { disposed = true; window.clearTimeout(timer); };
   }, [open, scopeIsCurrent, setMessages]);
@@ -210,7 +219,7 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
 
   const submitText = useCallback(async (value: string) => {
     const text = value.trim();
-    if (!open || !scopeIsCurrent() || !text || pendingSubmitRef.current) return;
+    if (!open || restoring || !scopeIsCurrent() || !text || pendingSubmitRef.current) return;
     pendingSubmitRef.current = true;
     try {
       const selectedText = window.getSelection()?.toString().trim().slice(0, 4_000) || null;
@@ -224,7 +233,12 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
       submittedDraft.current = text;
       setInput("");
       removeWorkspaceSession(draftStorageKey);
-      await sendMessage({ text }, {
+      streamFailed.current = false;
+      const operation = startBackgroundOperation({ kind: "assistant", label: "AI 回答", href: pathname, run: async ({ signal, report }) => {
+        const cancel = () => { void stop(); };
+        signal.addEventListener("abort", cancel, { once: true });
+        report({ phase: "正在生成，可切换页面继续工作" });
+        try { await sendMessage({ text }, {
         body: {
           surface: "global",
           runId,
@@ -232,7 +246,18 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
           currentEntity,
           surfaceContext: selectedText ? { type: "text", title: "当前选中文字", content: selectedText } : undefined,
         },
-      });
+        });
+        if (streamFailed.current) throw new Error("assistant_stream_failed");
+        return signal.aborted ? { status: "interrupted", phase: "已停止生成，已生成内容保留" } : { status: "succeeded", phase: "回答已生成，待确认操作仍需逐项确认" };
+        } catch (cause) {
+          if (scopeIsCurrent() && !signal.aborted) {
+            retainFailedDraft(text); setInput(current => current || text);
+            setLocalError("请求未完成，输入已保留，可以重试。");
+          }
+          throw cause;
+        } finally { signal.removeEventListener("abort", cancel); }
+      } });
+      await operation.completion;
     } catch {
       if (!scopeIsCurrent()) return;
       retainFailedDraft(text);
@@ -241,7 +266,7 @@ export function GlobalAgent({ open, onClose }: { open: boolean; onClose: () => v
     } finally {
       pendingSubmitRef.current = false;
     }
-  }, [clearError, ensureRun, open, pathname, scopeIsCurrent, sendMessage, setLocalError]);
+  }, [clearError, ensureRun, open, pathname, restoring, scopeIsCurrent, sendMessage, setLocalError, stop]);
 
   useEffect(() => {
     const handler = (event: Event) => {

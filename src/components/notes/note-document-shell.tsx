@@ -15,6 +15,7 @@ import { useContext, useEffect, useState } from "react";
 import { noteAttachmentUrl, notePdfAttachments, type NoteAttachment } from "@/features/notes/attachments";
 import { NotePaperMotion, NotesSurfaceMotion } from "./notes-motion";
 import { NotesNavigationContext } from "./notes-navigation-context";
+import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 
 const FilePdfPreview = dynamic(() => import("@/components/files/file-pdf-preview").then((module) => module.FilePdfPreview), { ssr: false });
 
@@ -53,6 +54,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
   };
 
   const returnToNotesList = () => {
+    announceNavigationIntent();
     const session = loadWorkspaceSession<{ href?: string }>(lastNotesListSessionKey);
     router.replace(notesListHref(session), { scroll: false, transitionTypes: ["note-return"] });
   };

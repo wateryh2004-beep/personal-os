@@ -1,5 +1,7 @@
 "use client";
 
+import { DayCapacity } from "@/components/planning/day-capacity";
+import { getDateKeyInTimeZone } from "@/features/today/utils";
 import { NowWorkspaceView } from "@/components/today/now-workspace";
 import { todayWorkspaceResource } from "@/features/today/workspace-resource";
 import { useWorkspaceResource } from "@/lib/workspace-resource-cache";
@@ -28,5 +30,6 @@ export function TodayWorkspaceLoader() {
   return data ? <>
     <WorkspaceSyncStatus error={snapshot.error} resource={todayWorkspaceResource} />
     <NowWorkspaceView workspace={data} />
+    <div className="mx-auto w-full max-w-[1120px] px-5 sm:px-6"><DayCapacity date={getDateKeyInTimeZone(new Date(),data.timezone??"Asia/Shanghai")!} /></div>
   </> : <TodayShell />;
 }

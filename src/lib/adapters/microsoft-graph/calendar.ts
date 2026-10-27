@@ -86,7 +86,7 @@ type CreateTodoTaskInput = { todoListId: string; title: string; bodyText: string
 export type UpdateTodoTaskInput = { title?: string; bodyText?: string | null; importance?: "low" | "normal" | "high"; dueAt?: string | null };
 
 export class MicrosoftGraphError extends Error {
-  constructor(public readonly code: string) {
+  constructor(public readonly code: string, public readonly writeOutcome: "not_written" | "unknown" = "unknown") {
     super(code);
   }
 }
@@ -211,20 +211,23 @@ export async function graph(accessToken: string, path: string, init?: RequestIni
     }
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      const graphCode = payload && typeof payload === "object" && "error" in payload
-        && payload.error && typeof payload.error === "object" && "code" in payload.error
-        ? String(payload.error.code) : "";
-      if (response.status === 412) throw new MicrosoftGraphError("graph_conflict");
-      if (response.status === 404) throw new MicrosoftGraphError("graph_not_found");
-      if (response.status === 410 || graphCode === "SyncStateNotFound") throw new MicrosoftGraphError("calendar_delta_expired");
-      if (graphCode === "ErrorAccessDenied" || graphCode === "Authorization_RequestDenied") throw new MicrosoftGraphError("graph_access_denied");
-      if (graphCode === "ErrorInvalidRequest" || graphCode === "ErrorInvalidTimeZone") throw new MicrosoftGraphError("graph_invalid_request");
+      const graphCode = payload && typeof payload === "object" && !Array.isArray(payload) && "error" in payload
+        && payload.error && typeof payload.error === "object" && !Array.isArray(payload.error) && "code" in payload.error
+        && typeof payload.error.code === "string" ? payload.error.code.trim() : "";
+      // Only a structured single-request Graph rejection proves no write.
+      // 408/409/429, 5xx, malformed responses and network failures remain unknown.
+      const writeOutcome = !isRead && graphCode && [400,401,403,404,405,413,415,422].includes(response.status) ? "not_written" : "unknown";
+      if (response.status === 412) throw new MicrosoftGraphError("graph_conflict", writeOutcome);
+      if (response.status === 404) throw new MicrosoftGraphError("graph_not_found", writeOutcome);
+      if (response.status === 410 || graphCode === "SyncStateNotFound") throw new MicrosoftGraphError("calendar_delta_expired", writeOutcome);
+      if (graphCode === "ErrorAccessDenied" || graphCode === "Authorization_RequestDenied") throw new MicrosoftGraphError("graph_access_denied", writeOutcome);
+      if (graphCode === "ErrorInvalidRequest" || graphCode === "ErrorInvalidTimeZone") throw new MicrosoftGraphError("graph_invalid_request", writeOutcome);
       if (isRead && attempt + 1 < maxAttempts && (response.status === 429 || response.status >= 500)) {
         const retryAfter = Number(response.headers.get("Retry-After") ?? 0);
         await delay(Math.min(retryAfter > 0 ? retryAfter * 1000 : 300 * 2 ** attempt, 5000));
         continue;
       }
-      throw new MicrosoftGraphError("graph_request_failed");
+      throw new MicrosoftGraphError("graph_request_failed", writeOutcome);
     }
     return payload;
   }
@@ -689,10 +692,12 @@ export async function createMicrosoftTodoTask(connectionId: string, userId: stri
   const { data: list, error: listError } = await admin.from("microsoft_todo_lists")
     .select("id,provider_list_id")
     .eq("id", input.todoListId).eq("user_id", userId).eq("connection_id", connectionId).is("archived_at", null).maybeSingle();
-  if (listError || !list) throw new MicrosoftGraphError("todo_list_not_found");
+  if (listError || !list) throw new MicrosoftGraphError("todo_list_not_found", "not_written");
 
+  let dispatched = false;
   try {
     const accessToken = await accessTokenForConnection(connectionId, userId);
+    dispatched = true;
     const payload = await graph(accessToken, `/me/todo/lists/${encodeURIComponent(list.provider_list_id)}/tasks`, {
       method: "POST",
       body: JSON.stringify({
@@ -724,7 +729,7 @@ export async function createMicrosoftTodoTask(connectionId: string, userId: stri
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "todo_create_failed";
     await markConnectionError(connectionId, code);
-    throw new MicrosoftGraphError(code);
+    throw new MicrosoftGraphError(code, !dispatched || (error instanceof MicrosoftGraphError && error.writeOutcome === "not_written") ? "not_written" : "unknown");
   }
 }
 
@@ -829,6 +834,7 @@ export async function executeCalendarOperation(operationId: string, userId: stri
     .eq("id", operationId).eq("user_id", userId).eq("status", "queued")
     .select("id,connection_id,operation_type,provider_event_id,payload,status").maybeSingle();
   if (error || !operation) throw new MicrosoftGraphError("calendar_operation_already_processed");
+  let createDispatched = false;
   try {
     if (operation.operation_type === "sync") {
       const count = await syncMicrosoftCalendar(operation.connection_id, userId);
@@ -881,6 +887,7 @@ export async function executeCalendarOperation(operationId: string, userId: stri
     const value = operation.payload as CalendarPayload;
     if (!value.subject || !value.startsAt || !value.endsAt) throw new MicrosoftGraphError("operation_payload_invalid");
     const accessToken = await accessTokenForConnection(operation.connection_id, userId);
+    createDispatched = true;
     const created = await graph(accessToken, "/me/events", {
       method: "POST",
       body: JSON.stringify(calendarEventForGraph({ ...value, transactionId: operation.id } as GraphCalendarCreatePayload)),
@@ -896,9 +903,10 @@ export async function executeCalendarOperation(operationId: string, userId: stri
     await audit(userId, "execute", operation.id, { operation_type: "create", result: "succeeded", provider_event_id: record.provider_event_id });
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "calendar_operation_failed";
-    if (code !== "calendar_remote_committed_cache_failed") await admin.from("calendar_operations").update({ status: code === "graph_unavailable" ? "reconciliation_required" : "failed", completed_at: new Date().toISOString(), error_code: code }).eq("id", operation.id);
+    const notWritten = operation.operation_type === "create" && (!createDispatched || (error instanceof MicrosoftGraphError && error.writeOutcome === "not_written"));
+    if (code !== "calendar_remote_committed_cache_failed") await admin.from("calendar_operations").update({ status: code === "graph_unavailable" ? "reconciliation_required" : "failed", completed_at: new Date().toISOString(), error_code: code, ...(notWritten ? { result: { writeOutcome: "not_written" } } : {}) }).eq("id", operation.id);
     await audit(userId, "execute", operation.id, { operation_type: operation.operation_type, result: "failed", error_code: code });
-    throw new MicrosoftGraphError(code);
+    throw new MicrosoftGraphError(code, notWritten ? "not_written" : "unknown");
   }
 }
 

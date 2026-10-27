@@ -8,6 +8,7 @@ import {
   type CompletionContext,
   type CompletionSource,
 } from "@codemirror/autocomplete";
+import { slashCompletion } from "./slash-completion";
 import { keymap, EditorView } from "@codemirror/view";
 import { Prec, type Extension } from "@codemirror/state";
 import type { EntityLinkSuggestion } from "@/features/links/types";
@@ -117,7 +118,8 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities }: NoteLi
 
   const source: CompletionSource = async (context: CompletionContext) => {
     const token = extractNoteLinkQuery(context.state.doc.toString(), context.pos);
-    if (!token || token.from === suppressedFrom) return null;
+    if (!token) return slashCompletion(context);
+    if (token.from === suppressedFrom) return null;
     const query = token.query.trim();
     if (token.kind === "note" || !query) {
       const notes = await loadRemoteSuggestions(query, searchNotes);
@@ -161,6 +163,11 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities }: NoteLi
         update.state.selection.main.head,
       );
       if (!token) {
+        const line = update.state.doc.lineAt(update.state.selection.main.head);
+        if (/^\s{0,3}\/[^\s/]*$/.test(update.state.sliceDoc(line.from, update.state.selection.main.head))) {
+          if (update.docChanged) queueMicrotask(() => { if (update.view.dom.isConnected && !update.view.composing) startCompletion(update.view); });
+          return;
+        }
         suppressedFrom = null;
         if (completionStatus(update.state) === "active") queueMicrotask(() => closeCompletion(update.view));
         return;

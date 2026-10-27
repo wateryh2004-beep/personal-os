@@ -15,6 +15,8 @@ import { createTrip } from "@/features/travel/actions";
 import { createProject } from "@/features/projects/actions";
 import { captureInboxItem } from "@/features/inbox/actions";
 import { perfMark, perfMeasure } from "@/lib/perf";
+import { useWorkflowDraft, type WorkflowDraftKind } from "@/features/workflow-continuity/drafts";
+import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 
 export type CreateKind = "task" | "calendar" | "note" | "inbox" | "shopping" | "travel" | "project";
 export type CreateRequest = { kind?: CreateKind; title?: string };
@@ -45,6 +47,16 @@ export function GlobalCreateLayer({ initialRequest, contentOnly = false, onClose
   const [message, setMessage] = useState("");
   const [pending, start] = useTransition();
   const [lists, setLists] = useState<Array<{ id: string; displayName: string; isDefault: boolean }>>([]);
+  const draftFields = ["title", "subject", "todo_list_id", "due_at", "starts_at", "ends_at", "content", "priceCny", "description", "name", "due_date", "request_id"];
+  const draft = useWorkflowDraft<Record<string, string>>({ kind: (kind === "project" || kind === "inbox" || kind === "note" || !kind ? "capture" : kind) as WorkflowDraftKind, id: `global-create:${kind ?? "chooser"}`, label: options.find(option => option.kind === kind)?.label ?? "快速新建", resumeHref: "/today", createKind: kind ?? undefined, initialValue: {}, parse: value => value && typeof value === "object" && !Array.isArray(value) && Object.entries(value).every(([key, fieldValue]) => draftFields.includes(key) && typeof fieldValue === "string" && fieldValue.length <= 10000) ? value as Record<string, string> : null });
+  const [requestId] = useState(() => crypto.randomUUID());
+  const [timeDefaults] = useState(() => ({ startsAt: localDateTime(), endsAt: localDateTime(60) }));
+  const updateDraftField = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = event.target;
+    const stableRequestId = draft.value.request_id ?? requestId;
+    const defaults: Record<string, string> = kind === "calendar" ? { subject: prefill, starts_at: timeDefaults.startsAt, ends_at: timeDefaults.endsAt } : kind === "task" ? { title: prefill, todo_list_id: lists.find(list => list.isDefault)?.id ?? lists[0]?.id ?? "" } : kind === "inbox" ? { content: prefill } : {};
+    draft.setValue(previous => ({ ...defaults, ...previous, [name]: value, request_id: stableRequestId }));
+  };
   useEffect(() => {
     if (!initialRequest) return;
     perfMark("quick-create-open", { kind: initialRequest.kind ?? "chooser" });
@@ -68,7 +80,10 @@ export function GlobalCreateLayer({ initialRequest, contentOnly = false, onClose
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submissionInFlight.current) return;
+    if (kind === "note") announceNavigationIntent();
     const form = new FormData(event.currentTarget);
+    form.set("request_id", draft.value.request_id ?? requestId);
+    const submittedDraft = draft.value;
     submissionInFlight.current = true;
     setMessage("");
     perfMark("quick-create-submit", { kind });
@@ -94,6 +109,7 @@ export function GlobalCreateLayer({ initialRequest, contentOnly = false, onClose
         else if (kind === "travel") await createTrip(form);
         else if (kind === "project") await createProject(form);
         perfMeasure("quick-create-confirmed", "quick-create-submit", { kind });
+        draft.clear(submittedDraft);
         close();
       } catch (error) {
         unstable_rethrow(error);
@@ -127,38 +143,39 @@ export function GlobalCreateLayer({ initialRequest, contentOnly = false, onClose
       <fieldset disabled={pending} className="grid min-w-0 gap-4 disabled:opacity-70">
         <legend className="sr-only">{selected?.label}内容</legend>
         {kind === "task" ? <>
-          {field("任务内容", <Input key={`task-${prefill}`} autoFocus name="title" required maxLength={500} defaultValue={prefill} placeholder="写下要做的事" />)}
-          {field("清单", <select key={lists.length ? "loaded" : "loading"} name="todo_list_id" required defaultValue={lists.find((list) => list.isDefault)?.id ?? lists[0]?.id ?? ""} className="ui-field h-9 rounded-[var(--radius-md)] border bg-[var(--surface-control)] px-3 text-sm"><option value="" disabled>{lists.length ? "选择清单" : message ? "清单暂未读取" : "正在读取清单…"}</option>{lists.map((list) => <option key={list.id} value={list.id}>{list.displayName}</option>)}</select>)}
+          {field("任务内容", <Input autoFocus name="title" required maxLength={500} value={draft.value["title"] ?? (prefill)} onChange={updateDraftField} placeholder="写下要做的事" />)}
+          {field("清单", <select name="todo_list_id" required value={draft.value["todo_list_id"] ?? (lists.find((list) => list.isDefault)?.id ?? lists[0]?.id ?? "")} onChange={updateDraftField} className="ui-field h-9 rounded-[var(--radius-md)] border bg-[var(--surface-control)] px-3 text-sm"><option value="" disabled>{lists.length ? "选择清单" : message ? "清单暂未读取" : "正在读取清单…"}</option>{lists.map((list) => <option key={list.id} value={list.id}>{list.displayName}</option>)}</select>)}
           {!lists.length && message ? <button type="button" className="min-h-11 justify-self-start text-[13px] text-[var(--accent)]" onClick={() => { setMessage(""); setListAttempt((value) => value + 1); }}>重新读取清单</button> : null}
-          {field("截止时间", <Input name="due_at" type="datetime-local" />, true)}
+          {field("截止时间", <Input name="due_at" type="datetime-local" value={draft.value["due_at"] ?? ("")} onChange={updateDraftField} />, true)}
           <input type="hidden" name="body_text" value="" /><input type="hidden" name="importance" value="normal" />
         </> : null}
         {kind === "calendar" ? <>
-          {field("日程标题", <Input key={`calendar-${prefill}`} autoFocus name="subject" required maxLength={500} defaultValue={prefill} placeholder="日程名称" />)}
+          {field("日程标题", <Input autoFocus name="subject" required maxLength={500} value={draft.value["subject"] ?? (prefill)} onChange={updateDraftField} placeholder="日程名称" />)}
           <div className="grid gap-3 sm:grid-cols-2">
-            {field("开始时间", <Input name="starts_at" type="datetime-local" defaultValue={localDateTime()} required />)}
-            {field("结束时间", <Input name="ends_at" type="datetime-local" defaultValue={localDateTime(60)} required />)}
+            {field("开始时间", <Input name="starts_at" type="datetime-local" value={draft.value["starts_at"] ?? timeDefaults.startsAt} onChange={updateDraftField} required />)}
+            {field("结束时间", <Input name="ends_at" type="datetime-local" value={draft.value["ends_at"] ?? timeDefaults.endsAt} onChange={updateDraftField} required />)}
           </div>
           <input type="hidden" name="is_all_day" value="false" /><input type="hidden" name="description" value="" />
         </> : null}
         {kind === "note" ? <p className="text-[13px] leading-6 text-[var(--text-secondary)]">创建空白笔记，直接开始编辑。</p> : null}
-        {kind === "inbox" ? field("记录内容", <Textarea key={`inbox-${prefill}`} autoFocus name="content" required maxLength={10000} defaultValue={prefill} placeholder="记下这件事，稍后再决定去向" />) : null}
+        {kind === "inbox" ? field("记录内容", <Textarea autoFocus name="content" required maxLength={10000} value={draft.value["content"] ?? (prefill)} onChange={updateDraftField} placeholder="记下这件事，稍后再决定去向" />) : null}
         {kind === "shopping" ? <>
-          {field("物品名称", <Input autoFocus name="title" required placeholder="想买什么？" />)}
-          {field("价格（元）", <Input name="priceCny" type="number" min="0" step="0.01" inputMode="decimal" />, true)}
+          {field("物品名称", <Input autoFocus name="title" required value={draft.value["title"] ?? ("")} onChange={updateDraftField} placeholder="想买什么？" />)}
+          {field("价格（元）", <Input name="priceCny" type="number" min="0" step="0.01" inputMode="decimal" value={draft.value["priceCny"] ?? ("")} onChange={updateDraftField} />, true)}
           <input type="hidden" name="necessity" value="unknown" />
         </> : null}
         {kind === "travel" ? <>
-          {field("目的地或旅行主题", <Input autoFocus name="title" required />)}
-          {field("旅行想法", <Textarea name="description" />, true)}
+          {field("目的地或旅行主题", <Input autoFocus name="title" required value={draft.value["title"] ?? ("")} onChange={updateDraftField} />)}
+          {field("旅行想法", <Textarea name="description" value={draft.value["description"] ?? ("")} onChange={updateDraftField} />, true)}
         </> : null}
         {kind === "project" ? <>
-          {field("项目名称", <Input autoFocus name="name" required maxLength={180} />)}
-          {field("项目说明", <Textarea name="description" />, true)}
-          {field("目标日期", <Input name="due_date" type="date" />, true)}
+          {field("项目名称", <Input autoFocus name="name" required maxLength={180} value={draft.value["name"] ?? ("")} onChange={updateDraftField} />)}
+          {field("项目说明", <Textarea name="description" value={draft.value["description"] ?? ("")} onChange={updateDraftField} />, true)}
+          {field("目标日期", <Input name="due_date" type="date" value={draft.value["due_date"] ?? ("")} onChange={updateDraftField} />, true)}
         </> : null}
       </fieldset>
       <div className="min-h-5">
+        {draft.recoveryUnavailable ? <p role="status" className="text-xs text-[var(--warning)]">输入仍在此处，暂时无法在关闭后恢复。</p> : null}
         {message ? <p id={`${formId}-error`} role="alert" className="text-[13px] leading-5 text-[var(--danger)]">{message}</p> : <p role="status" className="text-[12px] text-[var(--text-tertiary)]">{pending ? "正在保存，请稍候…" : ""}</p>}
       </div>
       <div className="flex justify-end gap-2">

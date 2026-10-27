@@ -58,7 +58,7 @@ export default async function BriefingPage() {
               const readingValue = (num(ai?.learning_value) ?? 0) + (num(ai?.decision_value) ?? 0);
               const worthDeepRead = readingValue >= 140;
               return (
-                <article key={entry.id} className="py-4.5">
+                <article id={`entry-${entry.id}`} key={entry.id} className="py-4.5">
                   <p className="text-[12px] leading-4 text-[var(--text-tertiary)]">
                     {feed?.title ?? "未知来源"}{feed?.category ? ` · ${feed.category}` : ""}{topicLabel ? ` · ${topicLabel}` : ""}{item?.published_at ? ` · ${formatTime(item.published_at, data.timezone)}` : ""}
                   </p>

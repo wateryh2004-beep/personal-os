@@ -1,7 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
 import { OperationLinkTarget } from "./operation-links";
 import { EntityMarkdown } from "@/components/links/entity-markdown";
 import { useWorkspaceResource } from "@/lib/workspace-resource-cache";
@@ -42,7 +42,7 @@ function WorkbenchDocument({ entity, active, editing, sameAsMain, position, onPo
     {entity.currency || entity.mode ? <p className="workbench-record-scope">{entity.currency ? `原币 ${entity.currency}` : ""}{entity.mode ? ` · ${entity.mode === "paper" ? "模拟" : "实盘"}` : ""}</p> : null}
     <dl className="workbench-fields">{entity.fields.map((field) => <div key={field.key}><dt>{field.label}</dt><dd>{entity.ref.kind === "note" && field.key === "updated" && field.value ? <WorkbenchTimestamp value={field.value} /> : field.value ?? "未记录"}</dd></div>)}</dl>
     {entity.note && editing && sameAsMain ? <p role="status">这篇笔记已在主区编辑。可在主区继续，避免同一篇笔记同时保存。</p> : null}
-    {entity.note && editing && !sameAsMain ? <div className="workbench-note-editor"><NoteEditor note={entity.note} noteAiDefaultModel="deepseek-v4-flash" /></div> : <>
+    {entity.note && editing && !sameAsMain ? <div className="workbench-note-editor"><NoteEditor note={entity.note} insertionRole="reference" noteAiDefaultModel="deepseek-v4-flash" /></div> : <>
       {entity.pdf && body ? <div className="workbench-view-tabs"><button type="button" aria-pressed={pdfVisible} onClick={() => setPdfVisible(true)}>PDF</button><button type="button" aria-pressed={!pdfVisible} onClick={() => setPdfVisible(false)}>笔记正文</button></div> : null}
       {entity.pdf && pdfVisible ? <FilePdfPreview documentId={entity.pdf.documentId} title={entity.pdf.title} active={active} persistProgress={false} initialPage={position?.pdfPage} initialSourceVersion={position?.pdfSourceVersion} onPageChange={(pdfPage, pdfSourceVersion) => onPosition?.({ pdfPage, ...(pdfSourceVersion ? { pdfSourceVersion } : {}) })} /> : body ? <EntityMarkdown sourcePositions body={body} className="workbench-markdown" /> : null}
       {entity.ref.kind === "document" && !entity.pdf ? <a className="ui-link" href={`/api/files/${entity.ref.id}/download`}>下载原件</a> : null}

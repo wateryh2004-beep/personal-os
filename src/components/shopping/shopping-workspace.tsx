@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/shared/page-header";
@@ -58,7 +59,7 @@ export function ShoppingWorkspace({ items, stats: _stats, initialCreateOpen }: {
   }
   const group = `shopping:${fieldMode ? "field" : filter}`;
   const selected = rows.filter((item) => workbench?.selected.some((ref) => ref.kind === "shopping" && ref.id === item.id));
-  const setMode = () => { const next = new URLSearchParams(params.toString()); if (fieldMode) next.delete("mode"); else next.set("mode", "field"); router.replace(`/shopping${next.size ? `?${next}` : ""}`, { scroll: false }); };
+  const setMode = () => { announceNavigationIntent(); const next = new URLSearchParams(params.toString()); if (fieldMode) next.delete("mode"); else next.set("mode", "field"); router.replace(`/shopping${next.size ? `?${next}` : ""}`, { scroll: false }); };
   const install = (saved: LifeFieldRow[]) => setRows((current) => current.map((item) => { const patch = saved.find((row) => row.id === item.id); return patch && Number(patch.mutation_revision??0)>=Number(item.mutation_revision??0) ? { ...item, ...patch } as Item : item; }));
   useLifeUndo((operation,saved)=>{if(operation.startsWith("shopping_"))install(saved);});
   async function create(form: FormData) {

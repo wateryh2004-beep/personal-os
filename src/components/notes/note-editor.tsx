@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import type { EditorView } from "@codemirror/view";
+import { registerExternalWorkflowDraft } from "@/features/workflow-continuity/drafts";
+import { registerNoteInsertionTarget } from "@/features/workflow-continuity/note-insertion";
+import { captureNoteSource } from "@/features/notes/source-actions";
+import { NoteSelectionActions } from "./note-selection-actions";
 import { workbenchPositionSchema } from "@/features/workbench/contracts";
 import { useWorkbenchActive } from "@/components/workbench/workbench-activity";
 import { useNoteContinuity } from "./use-note-continuity";
@@ -126,8 +131,9 @@ async function copyText(value: string) {
   if (!copied) throw new Error("copy_failed");
 }
 
-export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false }: { note: Note; noteAiDefaultModel: DeepSeekModelId; loadAiPreferences?: boolean }) {
+export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false, insertionRole = "main" }: { note: Note; noteAiDefaultModel: DeepSeekModelId; loadAiPreferences?: boolean; insertionRole?: "main" | "reference" }) {
   const paneActive = useWorkbenchActive();
+  const liveEditorRef = useRef<EditorView | null>(null);
   const feedback = useActionFeedback();
   const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const [title, setTitle] = useState(note.title);
@@ -179,6 +185,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const isDirtyRef = useRef(false);
   const pendingDraftRef = useRef<NoteDraftSession | null>(null);
   const draftTimerRef = useRef<number | null>(null);
+  const draftDirectoryClear = useRef<(() => void) | null>(null);
   const noteSessionKey = `notes:draft:${note.id}`;
 
   useEffect(() => {
@@ -245,6 +252,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
       publishNotesNavigatorTitle(note.id, draft.title);
       replaceBody(draft.body);
       isDirtyRef.current = true;
+      draftDirectoryClear.current = registerExternalWorkflowDraft({ kind: "note", id: note.id, label: draft.title || "未命名笔记", resumeHref: `/notes/${note.id}`, ttlMs: noteDraftRecoveryTtlMs });
       setState("有未保存修改");
       setEditVersion((version) => version + 1);
     }, 0);
@@ -300,6 +308,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
           const latest = latestContentRef.current;
           if (latest.title === snapshot.title && latest.body === snapshot.body) {
             isDirtyRef.current = false;
+            draftDirectoryClear.current?.(); draftDirectoryClear.current = null;
             clearQueuedDraft();
             setState("已保存");
             removeWorkspaceSession(noteSessionKey);
@@ -434,16 +443,41 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const dirty = useCallback((nextTitle: string, nextBody: string) => {
     latestContentRef.current = { title: nextTitle, body: nextBody };
     isDirtyRef.current = true;
+    draftDirectoryClear.current = registerExternalWorkflowDraft({ kind: "note", id: note.id, label: nextTitle || "未命名笔记", resumeHref: `/notes/${note.id}`, ttlMs: noteDraftRecoveryTtlMs });
     setState("有未保存修改");
     setEditVersion((version) => version + 1);
     queueDraft(nextTitle, nextBody);
-  }, [queueDraft]);
+  }, [queueDraft, note.id]);
   const handleBodyChange = useCallback((value: string) => {
     setBody(value);
     dirty(latestContentRef.current.title, value);
   }, [dirty]);
+  useEffect(() => {
+    if (!paneActive || reading) return;
+    return registerNoteInsertionTarget({ noteId: note.id, label: title, role: insertionRole, canEdit: true,
+      async flush() { await save(); return !isDirtyRef.current; },
+      insert(markdown) {
+        const view = liveEditorRef.current;
+        if (!view || !view.dom.isConnected || view.composing || view.state.readOnly) return { status: "inactive" };
+        const position = view.state.selection.main.to;
+        const insert = `\n\n${markdown}\n\n`;
+        if (view.state.doc.length + insert.length > 200_000) return { status: "conflict" };
+        view.dispatch({ changes: { from: position, insert }, selection: { anchor: position + insert.length }, scrollIntoView: true, userEvent: "input.paste" });
+        return { status: "applied", noteId: note.id };
+      },
+    });
+  }, [note.id, title, insertionRole, paneActive, reading, save]);
+  const captureSelectionSource = async () => {
+    const selected = selection;
+    if (!selected || selected.from === undefined || selected.to === undefined || !selected.isCurrent?.()) return null;
+    await save();
+    if (isDirtyRef.current || !selected.isCurrent?.()) return null;
+    const result = await captureNoteSource({ noteId: note.id, revision: revisionRef.current, body: latestContentRef.current.body, from: selected.from, to: selected.to });
+    return result.status === "ready" ? result.href : null;
+  };
   // AI 生成标题：直接替换标题，旧标题压栈供撤回（支持连续多次生成逐步撤回）。
-  const handleAiReplaceTitle = useCallback((newTitle: string) => {
+  const handleAiReplaceTitle = useCallback((newTitle: string, expectedTitle?: string) => {
+    if (expectedTitle !== undefined && latestContentRef.current.title !== expectedTitle) return false;
     const next = newTitle
       .trim()
       .replace(/^[「『“”‘’"']+/, "")
@@ -613,13 +647,14 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
             {state === "版本冲突" ? <a href={`/notes/${note.id}`} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-8 items-center rounded-[6px] px-2 font-medium underline underline-offset-2">在新标签页核对</a> : null}
           </div>
         ) : null}
+        {paneActive && !reading && selection ? <NoteSelectionActions selection={selection} noteId={note.id} capture={captureSelectionSource} /> : null}
         {/* Keep CodeMirror and its undo/selection/scroll state mounted in both views. */}
         <div hidden={reading} className="notes-document-body min-h-0 flex-1 overflow-hidden bg-[var(--surface-canvas)]">
           <VisualMarkdownEditor
             markdown={body}
             contentRevision={bodyRevision}
             noteId={note.id}
-            onEditorReady={onEditorReady}
+            onEditorReady={(view) => { liveEditorRef.current = view; onEditorReady(view); }}
             onPositionIntent={interruptEditorRestore}
             onPositionChange={rememberPosition}
             onImageUploadStatus={handleImageUploadStatus}
@@ -642,15 +677,19 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         loadPreferences={loadAiPreferences}
         selection={selection}
         onClearSelection={() => setSelection(null)}
-        onReplaceNote={(suggestion) => {
-          replaceBody(suggestion);
-          dirty(title, suggestion);
+        onReplaceNote={(suggestion, expected) => {
+          const view = liveEditorRef.current;
+          if (!view || view.composing || (expected !== undefined && view.state.doc.toString() !== expected)) return false;
+          view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: suggestion }, userEvent: "input.ai" });
+          return true;
         }}
         onReplaceTitle={handleAiReplaceTitle}
-        onInsertNote={(suggestion) => {
-          const nextBody = `${body}${body.trim() ? "\n\n" : ""}${suggestion}`;
-          replaceBody(nextBody);
-          dirty(title, nextBody);
+        onInsertNote={(suggestion, expected) => {
+          const view = liveEditorRef.current;
+          if (!view || view.composing || (expected !== undefined && view.state.doc.toString() !== expected)) return false;
+          const insert = `${view.state.doc.length ? "\n\n" : ""}${suggestion}`;
+          view.dispatch({ changes: { from: view.state.doc.length, insert }, userEvent: "input.ai" });
+          return true;
         }}
       /> : null}
       {pdfSnapshot ? (

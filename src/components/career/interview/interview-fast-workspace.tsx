@@ -4,6 +4,7 @@ import { InterviewModulePicker } from "./interview-module-picker";
 import { DisclosureSummary } from "@/components/ui/disclosure";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { saveWorkspaceSession } from "@/lib/workspace-session";
 import { CAREER_CONTINUE_KEY } from "@/components/career/career-continue";
@@ -78,6 +79,7 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
   }, []);
 
   const handleContextChange = (nextContextId: string) => {
+    announceNavigationIntent();
     const scoped = items.filter((item) => nextContextId ? item.contextId === nextContextId : item.contextId === null);
     setContextId(nextContextId);
     setQuestionId(scoped[0]?.questionId ?? "");
@@ -86,6 +88,7 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
     replaceUrl(nextContextId, "", emptyLibraryFilters);
   };
   const handleFiltersChange = (patch: Partial<LibraryFilters>) => {
+    announceNavigationIntent();
     const next = normalizeLibraryFilters({ ...filters, ...patch });
     const visible = filterWorkspaceItems(contextItems, next, searchIndex);
     setFilters(next);
@@ -96,6 +99,7 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
   const handleQuestionChange = useCallback((nextQuestionId: string) => {
     const nextItem = contextItems.find((item) => item.questionId === nextQuestionId);
     if (!nextItem) return;
+    announceNavigationIntent();
     const nextFilters = filterWorkspaceItems([nextItem], filters, searchIndex).length ? filters : emptyLibraryFilters;
     setFilters(nextFilters);
     const mobile = window.matchMedia("(max-width: 1023px)").matches;
@@ -109,6 +113,7 @@ export function InterviewFastWorkspace({ targets, items, initialContextId, initi
     setMobileDetailOpen(true);
   }, [contextItems, filters, searchIndex, mobileDetailOpen, contextId, replaceUrl]);
   const closeMobileDetail = () => {
+    announceNavigationIntent();
     if (window.history.state?.interviewDetail) window.history.back();
     else {
       setMobileDetailOpen(false);

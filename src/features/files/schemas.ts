@@ -33,6 +33,8 @@ export function canUploadNoteImage(filename: string, contentType: string, size: 
 
 export const uploadRequestSchema = z.object({
   filename: z.string().trim().min(1).max(255),
+  title: z.string().trim().min(1).max(240).optional(),
+  requestId: z.uuid().optional(),
   contentType: z.string().trim().min(3).max(160),
   size: z.number().int().positive().max(maxFileSize),
   folderId: z.string().uuid().nullable().optional(),

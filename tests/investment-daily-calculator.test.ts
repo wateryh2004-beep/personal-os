@@ -102,3 +102,11 @@ describe("complete daily snapshot", () => {
     expect(hasCompleteInvestmentDailySnapshot([{...real,revision:0}],[],{...daily,cashEntries:[],quotes:[]})).toBe(true);
   });
 });
+
+it("explains the same exact decimal snapshot without charging fees or voided records twice",()=>{
+ const [daily]=derive([trade(),trade({id:"sell",sequence:2,kind:"sell",occurred_on:"2026-10-02",quantity:"4",price:"20",fees:"2"})],[cash(),cash({id:"dividend",kind:"dividend",symbol:"TEST:ASSET",amount:"10",tax:"2",fees:"1"})],[quote()]);
+ expect(daily.cash).toBe("984");
+ expect(daily.explanation).toMatchObject({checkedAt:now,accountRevision:0,ledger:[{id:"buy",cashEffect:"-101",fees:"1"},{id:"sell",cashEffect:"78",fees:"2"}],cash:[{id:"opening",effect:"1000"},{id:"dividend",effect:"7"}]});
+ const voided=derive([trade(),trade({id:"void",kind:"void",void_entry_id:"buy"})],[cash()],[quote()])[0];
+ expect(voided.explanation?.ledger).toEqual([]);
+});

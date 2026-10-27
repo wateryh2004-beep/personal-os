@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
 import type { EntityBacklink } from "@/features/links/queries";
 import { publishAssistantContext } from "@/features/assistant/client-context";
 import { CopyNoteReference } from "@/components/notes/copy-note-reference";

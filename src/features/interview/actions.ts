@@ -686,6 +686,10 @@ export async function createPracticeAttempt(formData: FormData) {
   await own(supabase, "interview_question_preparations", value.preparation_id);
   if (value.answer_version_id) await own(supabase, "interview_answer_versions", value.answer_version_id);
   if (value.story_id) await own(supabase, "interview_stories", value.story_id);
+  if(value.parent_attempt_id) {
+    const {data:parent,error:parentError}=await supabase.from("interview_practice_attempts").select("id,preparation_id").eq("id",value.parent_attempt_id).eq("user_id",userId).is("archived_at",null).maybeSingle();
+    if(parentError || !parent || parent.preparation_id!==value.preparation_id) failed(new Error("原练习不可用或不属于这道题，请重新选择。"));
+  }
   const { data: prep, error: prepError } = await supabase.from("interview_question_preparations")
     .select("id,question_id,status,prompt_override,interview_questions(canonical_prompt)")
     .eq("id", value.preparation_id).maybeSingle();
@@ -699,7 +703,7 @@ export async function createPracticeAttempt(formData: FormData) {
     answer_version_id: value.answer_version_id,
     story_id: value.story_id,
     session_id: null,
-    parent_attempt_id: null,
+    parent_attempt_id: value.parent_attempt_id,
     sequence_no: null,
     attempt_kind: "solo",
     input_mode: value.input_mode,
@@ -762,7 +766,10 @@ export async function addSessionAttempt(formData: FormData) {
   const value = parse(interviewSessionAttemptSchema, formObject(formData));
   await own(supabase, "interview_sessions", value.session_id);
   if (value.preparation_id) await own(supabase, "interview_question_preparations", value.preparation_id);
-  if (value.parent_attempt_id) await own(supabase, "interview_practice_attempts", value.parent_attempt_id);
+  if(value.parent_attempt_id) {
+    const {data:parent,error:parentError}=await supabase.from("interview_practice_attempts").select("id,preparation_id,session_id").eq("id",value.parent_attempt_id).eq("user_id",userId).is("archived_at",null).maybeSingle();
+    if(parentError || !parent || parent.preparation_id!==value.preparation_id || parent.session_id!==value.session_id) failed(new Error("只能继续本场、同一题目的练习。"));
+  }
   if (value.story_id) await own(supabase, "interview_stories", value.story_id);
   const [{ data: session, error: sessionError }, { data: sequenceRows, error: seqError }] = await Promise.all([
     supabase.from("interview_sessions").select("session_kind,status,started_at").eq("id", value.session_id).maybeSingle(),

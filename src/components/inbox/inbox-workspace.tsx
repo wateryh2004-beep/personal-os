@@ -1,7 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
+import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
+import { useRouter, useSearchParams } from "next/navigation";
+import { z } from "zod";
+import { useWorkflowDraft } from "@/features/workflow-continuity/drafts";
 import {
   Archive,
   FileText,
@@ -9,16 +12,20 @@ import {
   RotateCcw,
   Sparkles,
 } from "lucide-react";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   createCalendarEvent,
   type CalendarCreateState,
 } from "@/features/calendar/actions";
 import {
   archiveInboxItem,
+  cancelInboxUndispatchedIntent,
   captureInboxItem,
   convertInboxToDailyNote,
   convertInboxToNote,
+  convertInboxToProject,
+  convertInboxToLink,
+  readInboxProjectChoices,
   dismissInboxProposal,
   reclassifyInboxItem,
   restoreInboxItem,
@@ -48,7 +55,7 @@ type InboxItem = {
   ai_error: string | null;
 };
 type TodoList = { id: string; display_name: string; is_default: boolean };
-type ManualKind = "task" | "calendar" | "note" | "daily";
+type ManualKind = "task" | "calendar" | "note" | "daily" | "project" | "link";
 
 const calendarInitial: CalendarCreateState = { status: "idle", message: "" };
 const todoInitial: TodoCreateState = { status: "idle", message: "" };
@@ -56,6 +63,16 @@ const proposalCardClass =
   "mt-2.5 rounded-[11px] bg-[color-mix(in_srgb,var(--accent-soft)_62%,var(--surface-canvas))] p-3";
 const primaryActionClass =
   "pressable h-8 rounded-[8px] bg-[var(--accent)] px-2.5 text-[12px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_18%,transparent)] disabled:cursor-not-allowed disabled:opacity-60";
+
+const inboxDraftSchema = z.object({ title: z.string().max(500).optional(), body: z.string().max(10_000).optional(), listId: z.string().max(36).optional(), dueAt: z.string().max(50).optional(), startsAt: z.string().max(50).optional(), endsAt: z.string().max(50).optional(), projectId: z.string().max(36).optional(), url: z.string().max(2048).optional(), requestId: z.uuid() }).strict();
+type InboxFormDraft = z.infer<typeof inboxDraftSchema>;
+function useInboxFormDraft(item: InboxItem, kind: ManualKind, initial: Omit<InboxFormDraft,"requestId">, result: { status: string }) {
+  const draft = useWorkflowDraft({ kind: "capture", id: `inbox-${kind}-${item.id}`, label: `收集箱 · ${firstLine(item.content_markdown).slice(0,50)}`, resumeHref: `/inbox?entry=${item.id}&draft=${kind}`, initialValue: { ...initial, requestId: crypto.randomUUID() }, parse: value => { const parsed = inboxDraftSchema.safeParse(value); return parsed.success ? parsed.data : null; } });
+  const submitted = useRef<InboxFormDraft | null>(null);
+  const clear = draft.clear;
+  useEffect(() => { if (result.status === "success" && submitted.current) clear(submitted.current); }, [result, clear]);
+  return { ...draft, submit: () => { submitted.current = draft.value; }, patch: (value: Partial<InboxFormDraft>) => draft.setValue(previous => ({ ...previous, ...value })) };
+}
 
 function firstLine(text: string) {
   return text.split(/\n/)[0].trim();
@@ -158,6 +175,7 @@ function CalendarProposal({
   proposal: Extract<InboxProposal, { target: "calendar" }>;
   inboxId: string;
 }) {
+  const [requestId] = useState(() => crypto.randomUUID());
   const [state, action, pending] = useActionState(
     createCalendarEvent,
     calendarInitial,
@@ -183,7 +201,7 @@ function CalendarProposal({
         name="description"
         value={proposal.description ?? ""}
       />
-      <input type="hidden" name="starts_at" value={proposal.startsAt} />
+      <input type="hidden" name="request_id" value={requestId} /><input type="hidden" name="starts_at" value={proposal.startsAt} />
       <input type="hidden" name="ends_at" value={proposal.endsAt} />
       <input
         type="hidden"
@@ -432,10 +450,10 @@ function ManualTaskForm({
   );
   useRefreshOnSuccess(state.status);
   const defaultList = lists.find((list) => list.is_default) ?? lists[0];
-  const [listId, setListId] = useState(defaultList?.id ?? "");
-  const [dueAt, setDueAt] = useState("");
+  const draft = useInboxFormDraft(item, "task", { title: firstLine(item.content_markdown).slice(0,500), listId: defaultList?.id ?? "", dueAt: "" }, state);
+  const listId = draft.value.listId ?? "", dueAt = draft.value.dueAt ?? "";
   return (
-    <form action={action} className={`${proposalCardClass} space-y-2`}>
+    <form action={action} onSubmitCapture={draft.submit} className={`${proposalCardClass} space-y-2`}>
       <p className="text-xs font-semibold text-[var(--foreground)]">手动转成任务</p>
       <input type="hidden" name="todo_list_id" value={listId} />
       <input type="hidden" name="importance" value="normal" />
@@ -446,14 +464,14 @@ function ManualTaskForm({
         name="title"
         required
         maxLength={500}
-        defaultValue={firstLine(item.content_markdown).slice(0, 500)}
+        value={draft.value.title ?? ""} onChange={event => draft.patch({ title: event.target.value })}
         placeholder="任务标题"
         className={inputClass}
       />
       <div className="flex gap-2">
         <select aria-label="任务清单"
           value={listId}
-          onChange={(event) => setListId(event.target.value)}
+          onChange={(event) => draft.patch({ listId: event.target.value })}
           className={inputClass}
         >
           {lists.map((list) => (
@@ -465,7 +483,7 @@ function ManualTaskForm({
         <input
           type="datetime-local"
           value={dueAt}
-          onChange={(event) => setDueAt(event.target.value)}
+          onChange={(event) => draft.patch({ dueAt: event.target.value })}
           className={inputClass}
           aria-label="截止时间（可选）"
         />
@@ -494,20 +512,20 @@ function ManualCalendarForm({ item }: { item: InboxItem }) {
     calendarInitial,
   );
   useRefreshOnSuccess(state.status);
-  const [range, setRange] = useState(() => {
+  const [initialRange] = useState(() => {
     const start = new Date();
     start.setHours(start.getHours() + 1, 0, 0, 0);
     const end = new Date(start.getTime() + 3_600_000);
     return { start: toLocalInput(start), end: toLocalInput(end) };
   });
-  const { start: startsAt, end: endsAt } = range;
-  const setStart = (value: string) =>
-    setRange({ start: value, end: addHoursToInput(value, 1) });
-  const setEnd = (value: string) => setRange((current) => ({ ...current, end: value }));
+  const draft = useInboxFormDraft(item, "calendar", { title: firstLine(item.content_markdown).slice(0,500), startsAt: initialRange.start, endsAt: initialRange.end }, state);
+  const startsAt = draft.value.startsAt ?? "", endsAt = draft.value.endsAt ?? "", requestId = draft.value.requestId;
+  const setStart = (value: string) => draft.patch({ startsAt: value, endsAt: addHoursToInput(value,1) });
+  const setEnd = (value: string) => draft.patch({ endsAt: value });
   return (
-    <form action={action} className={`${proposalCardClass} space-y-2`}>
+    <form action={action} onSubmitCapture={draft.submit} className={`${proposalCardClass} space-y-2`}>
       <p className="text-xs font-semibold text-[var(--foreground)]">手动转成日程</p>
-      <input type="hidden" name="starts_at" value={inputToIso(startsAt)} />
+      <input type="hidden" name="request_id" value={requestId} /><input type="hidden" name="starts_at" value={inputToIso(startsAt)} />
       <input type="hidden" name="ends_at" value={inputToIso(endsAt)} />
       <input type="hidden" name="is_all_day" value="" />
       <input type="hidden" name="inbox_id" value={item.id} />
@@ -516,7 +534,7 @@ function ManualCalendarForm({ item }: { item: InboxItem }) {
         name="subject"
         required
         maxLength={500}
-        defaultValue={firstLine(item.content_markdown).slice(0, 500)}
+        value={draft.value.title ?? ""} onChange={event => draft.patch({ title: event.target.value })}
         placeholder="日程标题"
         className={inputClass}
       />
@@ -560,15 +578,16 @@ function ManualNoteForm({ item }: { item: InboxItem }) {
     initialInboxCaptureState,
   );
   useRefreshOnSuccess(state.status);
+  const draft = useInboxFormDraft(item, "note", { title: firstLine(item.content_markdown).slice(0,240), body: item.content_markdown }, state);
   return (
-    <form action={action} className={`${proposalCardClass} space-y-2`}>
+    <form action={action} onSubmitCapture={draft.submit} className={`${proposalCardClass} space-y-2`}>
       <p className="text-xs font-semibold text-[var(--foreground)]">手动转成笔记</p>
       <input type="hidden" name="inbox_id" value={item.id} />
       <input aria-label="标题"
         name="title"
         required
         maxLength={240}
-        defaultValue={firstLine(item.content_markdown).slice(0, 240)}
+        value={draft.value.title ?? ""} onChange={event=>draft.patch({ title:event.target.value })}
         placeholder="笔记标题"
         className={inputClass}
       />
@@ -576,7 +595,7 @@ function ManualNoteForm({ item }: { item: InboxItem }) {
         name="body_markdown"
         rows={3}
         maxLength={10_000}
-        defaultValue={item.content_markdown}
+        value={draft.value.body ?? ""} onChange={event=>draft.patch({ body:event.target.value })}
         className={inputClass}
       />
       <button
@@ -602,6 +621,68 @@ function ManualNoteForm({ item }: { item: InboxItem }) {
   );
 }
 
+function ManualMaterialForm({ item, kind }: { item: InboxItem; kind: "project" | "link" }) {
+  const [state, action, pending] = useActionState(kind === "project" ? convertInboxToProject : convertInboxToLink, initialInboxCaptureState);
+  useRefreshOnSuccess(state.status);
+  const [choices, setChoices] = useState<Awaited<ReturnType<typeof readInboxProjectChoices>> | null>(null);
+  useEffect(() => { if (kind !== "project") return; const current = captureWorkspaceScope(); let active = true; void readInboxProjectChoices().then(value => { if (active && current()) setChoices(value); }).catch(() => { if (active && current()) setChoices({ projects: [], unavailable: true, truncated: false }); }); return () => { active = false; }; }, [kind]);
+  const link = item.content_markdown.match(/https?:\/\/[^\s<>]+/)?.[0] ?? "";
+  const draft = useInboxFormDraft(item, kind, { title: firstLine(item.content_markdown).slice(0,240), url: link, projectId: "" }, state);
+  return <form action={action} onSubmitCapture={draft.submit} className={`${proposalCardClass} space-y-2`}>
+    <p className="text-xs font-semibold">{kind === "project" ? "保存为项目资料" : "保存链接笔记"}</p>
+    <input type="hidden" name="inbox_id" value={item.id} /><input type="hidden" name="body_markdown" value={item.content_markdown} />
+    <input aria-label="资料标题" name="title" required maxLength={240} value={draft.value.title??""} onChange={event=>draft.patch({title:event.target.value})} className={inputClass}/>
+    {kind === "project" ? <><select aria-label="关联项目" name="project_id" value={draft.value.projectId??""} onChange={event=>draft.patch({projectId:event.target.value})} required className={inputClass}><option value="">选择项目</option>{choices?.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select>{choices?.unavailable ? <p role="alert">项目暂不可用，请重试。</p> : choices?.truncated ? <p>显示最近 200 个项目。</p> : null}</> : <input aria-label="原始链接" name="url" type="url" required value={draft.value.url??""} onChange={event=>draft.patch({url:event.target.value})} className={inputClass}/>}
+    <button disabled={pending || (kind === "project" && (!choices || choices.unavailable))} className={primaryActionClass}>{pending ? "正在保存…" : "确认保存"}</button>
+    {state.message ? <p role="status" className="text-xs">{state.message}</p> : null}
+  </form>;
+}
+
+function InboxTriageQueue({ items, archivedItems, lists }: { items: InboxItem[]; archivedItems: InboxItem[]; lists: TodoList[] }) {
+  const [queue, setQueue] = useState(() => items.filter(item => !item.processed_at).map(item => item.id));
+  const [history, setHistory] = useState<string[]>([]);
+  const [reviewId, setReviewId] = useState<string | null>(null);
+  const [kind, setKind] = useState<ManualKind>("task");
+  const search = useSearchParams();
+  const requestedEntry = search.get("entry"), requestedKind = search.get("draft");
+  useEffect(() => {
+    if (!requestedEntry || !items.some(item=>item.id===requestedEntry && !item.processed_at) || !["task","calendar","note","daily","project","link"].includes(requestedKind??"")) return;
+    const timer = window.setTimeout(() => { setQueue(previous=>[requestedEntry,...previous.filter(id=>id!==requestedEntry)]); setReviewId(null); setKind(requestedKind as ManualKind); },0);
+    return ()=>window.clearTimeout(timer);
+  }, [requestedEntry, requestedKind, items]);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const terminal = new Set([...items.filter(item => item.processed_at), ...archivedItems].map(item => item.id));
+  const activeId = queue.find(id => !terminal.has(id));
+  const handledHistory = [...queue.filter(id => terminal.has(id)), ...history];
+  useEffect(() => { heading.current?.focus(); }, [activeId]);
+  const current = [...items,...archivedItems].find(item => item.id === (reviewId ?? activeId));
+  const start = () => { setQueue(items.filter(item => !item.processed_at).map(item => item.id)); setHistory([]); setReviewId(null); };
+  return <section className="my-5 rounded-[var(--radius-lg)] border border-[var(--separator)] bg-[var(--surface-canvas)] p-4" aria-label="连续整理收集箱">
+    <div className="flex flex-wrap items-center justify-between gap-2"><h2 ref={heading} tabIndex={-1} className="font-serif text-lg outline-none">一条一条，整理清楚</h2><span className="text-xs text-[var(--text-secondary)]">已处理 {queue.filter(id=>terminal.has(id)).length} · 当前队列 {queue.filter(id=>!terminal.has(id)).length}</span></div>
+    {current ? <article key={current.id} className="mt-3"><p className="whitespace-pre-wrap break-words text-sm leading-7">{current.content_markdown}</p>
+      {reviewId || current.processed_at || current.archived_at ? <div className="mt-3 flex flex-wrap items-center gap-3 text-xs"><span>上条记录{current.processed_at ? " · 已处理" : " · 稍后处理"}</span>{current.converted_note_id ? <Link href={`/notes/${current.converted_note_id}`}>打开生成的笔记</Link> : null}{current.converted_todo_task_id ? <Link href={`/tasks?task=${current.converted_todo_task_id}`}>打开任务</Link> : null}<button type="button" onClick={()=>setReviewId(null)} className="min-h-11 px-3">继续当前队列</button></div> : <>
+        <div className="mt-3 flex flex-wrap gap-1" role="group" aria-label="整理去向">{([["task","任务"],["note","笔记"],["link","链接"],["project","项目资料"],["calendar","日程"],["daily","今日日记"]] as const).map(([value,label])=><button key={value} type="button" aria-pressed={kind===value} onClick={()=>setKind(value)} className={`min-h-11 rounded-md px-3 text-xs ${kind===value?"bg-[var(--accent-soft)] text-[var(--accent)]":"hover:bg-[var(--surface-hover)]"}`}>{label}</button>)}</div>
+        <ManualImportForm kind={kind} item={current} lists={lists}/>
+        <div className="mt-2 flex items-center gap-3"><button type="button" className="min-h-11 px-2 text-xs" onClick={()=>{setHistory(previous=>[...previous,current.id]);setQueue(previous=>previous.filter(id=>id!==current.id));heading.current?.focus();}}>稍后处理</button><ArchiveInboxControl inboxId={current.id}/></div>
+      </>}
+    </article> : <div className="py-5 text-sm"><p>{activeId ? "当前记录暂不可用，尚未确认处理。可刷新后继续。" : "本轮已整理完。稍后处理的内容仍在收集盒。"}</p><button type="button" className="mt-2 min-h-11 rounded-md border px-3" onClick={start}>重新整理待处理内容</button></div>}
+    {handledHistory.length ? <button type="button" onClick={()=>setReviewId(handledHistory[handledHistory.length-1])} className="mt-2 min-h-11 text-xs text-[var(--accent)]">回看上一条</button> : null}
+  </section>;
+}
+
+function InboxIntentRecovery({ inboxId }: { inboxId: string }) {
+  const [state, action, pending] = useActionState(cancelInboxUndispatchedIntent, initialInboxCaptureState);
+  useRefreshOnSuccess(state.status);
+  return <details className="mt-2 text-xs text-[var(--text-secondary)]">
+    <summary className="min-h-11 cursor-pointer py-3">上次提交需要处理</summary>
+    <p className="leading-6">只可取消尚未发送的任务或日程。结果未知时保留来源，请先到 Microsoft To Do 或 Outlook 核对；重新创建不会绕过待核对记录。</p>
+    <form action={action}><input type="hidden" name="inbox_id" value={inboxId} />
+      <button disabled={pending} className="ui-action-secondary mt-2 min-h-11 px-3">{pending ? "正在核对…" : "取消尚未发送的意图"}</button>
+      {state.message ? <p role="status" className="mt-2 leading-6">{state.message}</p> : null}
+    </form>
+  </details>;
+}
+
 function ManualImportForm({
   kind,
   item,
@@ -611,10 +692,12 @@ function ManualImportForm({
   item: InboxItem;
   lists: TodoList[];
 }) {
-  if (kind === "task") return <ManualTaskForm item={item} lists={lists} />;
-  if (kind === "calendar") return <ManualCalendarForm item={item} />;
-  if (kind === "note") return <ManualNoteForm item={item} />;
-  return <DailyProposal inboxId={item.id} />;
+  const content = kind === "task" ? <ManualTaskForm item={item} lists={lists} />
+    : kind === "calendar" ? <ManualCalendarForm item={item} />
+      : kind === "note" ? <ManualNoteForm item={item} />
+        : kind === "project" || kind === "link" ? <ManualMaterialForm item={item} kind={kind} />
+          : <DailyProposal inboxId={item.id} />;
+  return <>{content}<InboxIntentRecovery inboxId={item.id} /></>;
 }
 
 export function InboxWorkspace({
@@ -631,7 +714,10 @@ export function InboxWorkspace({
     captureInboxItem,
     initialInboxCaptureState,
   );
-  const [captureInput, setCaptureInput] = useState("");
+  const captureDraft = useWorkflowDraft({ kind:"capture",id:"inbox-capture",label:"收集箱 · 未完成记录",resumeHref:"/inbox",initialValue:"",parse:value=>typeof value==="string"&&value.length<=10_000?value:null });
+  const captureInput = captureDraft.value, setCaptureInput = captureDraft.setValue;
+  const captureSubmitted = useRef("");
+  const commitCapture = captureDraft.commit;
   const [manual, setManual] = useState<{ id: string; kind: ManualKind } | null>(
     null,
   );
@@ -639,11 +725,12 @@ export function InboxWorkspace({
   useEffect(() => {
     if (captureState.status !== "success") return;
     const timer = window.setTimeout(() => {
-      setCaptureInput("");
+      const submitted = captureSubmitted.current;
+      commitCapture(submitted, value => value === submitted ? "" : value);
       router.refresh();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [captureState.status, router]);
+  }, [captureState, router, commitCapture]);
 
   const readyItems = items.filter(
     (item) => item.ai_status === "ready" && item.ai_proposal && !item.processed_at,
@@ -659,7 +746,7 @@ export function InboxWorkspace({
 
   return (
     <div>
-      <form action={captureAction} className="border-b border-[var(--separator)] pb-5">
+      <form action={captureAction} onSubmitCapture={()=>{captureSubmitted.current=captureInput;}} className="border-b border-[var(--separator)] pb-5">
         <label htmlFor="inbox-capture" className="sr-only">
           记录想法
         </label>
@@ -695,6 +782,7 @@ export function InboxWorkspace({
         ) : null}
       </form>
 
+      <InboxTriageQueue items={items} archivedItems={archivedItems} lists={lists}/>
       {readyItems.length ? (
         <section className="mt-5">
           <h2 className="border-b border-[var(--separator)] pb-2.5 text-[13px] font-semibold text-[var(--text-primary)]">

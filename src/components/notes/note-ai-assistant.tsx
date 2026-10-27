@@ -31,11 +31,16 @@ import {
   noteAiUserMessage,
   type NoteAiOperation,
 } from "@/features/notes/ai-prompts";
+import { adoptionHunks, adoptHunks } from "@/features/notes/partial-adoption";
 import { wordDiff } from "@/features/notes/diff-preview";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 
 export type NoteSelection = {
   text: string;
+  from?: number;
+  to?: number;
+  sourceMarkdown?: string;
+  isCurrent?: () => boolean;
   contextBefore?: string;
   contextAfter?: string;
   rect: { left: number; top: number };
@@ -44,6 +49,7 @@ export type NoteSelection = {
 };
 type Request = {
   operation: NoteAiOperation;
+  baselineTitle?: string;
   scope: "note" | "selection";
   instruction?: string;
   content: string;
@@ -114,9 +120,9 @@ export function NoteAiAssistant({
   defaultModel: DeepSeekModelId;
   selection: NoteSelection | null;
   onClearSelection: () => void;
-  onReplaceNote: (text: string) => void;
-  onInsertNote: (text: string) => void;
-  onReplaceTitle: (title: string) => void;
+  onReplaceNote: (text: string, expected?: string) => boolean | void;
+  onInsertNote: (text: string, expected?: string) => boolean | void;
+  onReplaceTitle: (title: string, expectedTitle?: string) => boolean | void;
 }) {
   const [model, setModel] = useState<DeepSeekModelId>(defaultModel);
   const [question, setQuestion] = useState("");
@@ -131,6 +137,7 @@ export function NoteAiAssistant({
     null,
   );
   const [moreSelectionText, setMoreSelectionText] = useState<string | null>(null);
+  const [chosenHunks, setChosenHunks] = useState<Set<number>>(new Set());
   const [showDiff, setShowDiff] = useState(true);
   const [usePersonalContext, setUsePersonalContext] = useState(true);
   const [pending, startTransition] = useTransition();
@@ -197,7 +204,8 @@ export function NoteAiAssistant({
       ...prev,
       { id: `note-ai-user-${Date.now()}`, role: "user", content: userText },
     ]);
-    setRequest(next);
+    setChosenHunks(new Set());
+    setRequest({ ...next, baselineTitle: title });
     setResultSelection(next.scope === "selection" ? targetSelection : null);
     setResult({ status: "idle", message: "", suggestion: "" });
     const data = new FormData();
@@ -231,14 +239,6 @@ export function NoteAiAssistant({
           },
         ]);
       }
-      if (next.operation === "generateTitle" && nextResult.suggestion) {
-        // 标题是自动替换的，立即标记为已写入（撤回由标题栏负责）。
-        setThread((prev) =>
-          prev.map((item) =>
-            item.current ? { ...item, applied: true, current: false } : item,
-          ),
-        );
-      }
       setResult(nextResult);
     });
   };
@@ -251,26 +251,31 @@ export function NoteAiAssistant({
     });
     if (operation === "askNote") setQuestion("");
   };
-  const apply = (mode: "replace" | "insert") => {
+  const apply = (mode: "replace" | "insert", partial?: string) => {
     if (!result.suggestion || !request) return;
+    const suggestion = partial ?? result.suggestion;
+    if ((request.scope === "note" && bodyMarkdown !== request.content) || (request.scope === "selection" && resultSelection?.isCurrent && !resultSelection.isCurrent())) {
+      setResult((current) => ({ ...current, status: "error", message: "原文已改变，建议仍保留。请重新生成或复制需要的内容。" }));
+      return;
+    }
     if (request.scope === "selection") {
       if (!resultSelection) {
-        setResult({ status: "error", message: "原选区已经失效，请重新选择文字后再生成。", suggestion: "" });
+        setResult(current => ({ ...current, status: "error", message: "原选区已经失效，建议仍保留。请重新选择文字后再核对。" }));
         return;
       }
       const applied = mode === "replace"
-        ? resultSelection.replace(result.suggestion)
-        : resultSelection.insertBelow(result.suggestion);
+        ? resultSelection.replace(suggestion)
+        : resultSelection.insertBelow(suggestion);
       if (!applied) {
-        setResult({ status: "error", message: "所选文字已发生变化。为避免覆盖错误内容，请重新选择后再生成。", suggestion: "" });
+        setResult(current => ({ ...current, status: "error", message: "所选文字已发生变化，未覆盖。建议仍保留，请重新核对。" }));
         return;
       }
     } else {
       // 落笔时在 AI 内容前标注来源（分割线 + 生成日期 + 请求目的）。
       // 选区操作不加，避免在段落中间插入分割线打断文档。
-      const attributed = `${noteAiAttribution(request.operation)}${result.suggestion}`;
-      if (mode === "replace") onReplaceNote(attributed);
-      else onInsertNote(attributed);
+      const attributed = partial === undefined ? `${noteAiAttribution(request.operation)}${suggestion}` : `${suggestion}\n\n> 本次选择的段落修改由 AI 协助生成，经手动确认采纳。`;
+      const applied = mode === "replace" ? onReplaceNote(attributed, request.content) : onInsertNote(attributed, request.content);
+      if (applied === false) { setResult(current => ({ ...current, status: "error", message: "原文已改变，未覆盖。建议仍保留，请重新核对。" })); return; }
     }
     const appliedMessage = request.scope === "selection"
       ? mode === "replace" ? "已替换所选文字，笔记正在自动保存。" : "已插入到选区下方，笔记正在自动保存。"
@@ -314,6 +319,7 @@ export function NoteAiAssistant({
     if (!result.suggestion || !request || !rewrite) return null;
     return wordDiff(request.content, result.suggestion);
   }, [request, result.suggestion, rewrite]);
+  const hunks = useMemo(() => rewrite && request && result.suggestion ? adoptionHunks(request.content, result.suggestion) : null, [request, result.suggestion, rewrite]);
   const statusColor =
     result.status === "error" ? "text-red-700" : "text-[var(--accent)]";
   const replaceLabel = request?.scope === "selection"
@@ -331,17 +337,6 @@ export function NoteAiAssistant({
     if (!request || !result.suggestion) return;
     run({ ...request, instruction: `${request.instruction ? `${request.instruction}\n\n` : ""}请从上一段被截断的位置继续。` }, resultSelection, result.suggestion.slice(-32_000));
   };
-
-  // 生成标题是「直接替换」型操作：结果返回后立即替换标题，撤回由标题栏负责。
-  useEffect(() => {
-    if (
-      request?.operation === "generateTitle" &&
-      result.status === "success" &&
-      result.suggestion
-    ) {
-      onReplaceTitle(result.suggestion);
-    }
-  }, [request?.operation, result.status, result.suggestion, onReplaceTitle]);
 
   useEffect(() => {
     if (!result.suggestion) return;
@@ -448,12 +443,24 @@ export function NoteAiAssistant({
         context="当前笔记"
         footer={
           <div className="space-y-3">
+            {result.suggestion && request?.operation === "generateTitle" ? <div className="space-y-2"><p className="text-xs">标题建议尚未写入</p><button type="button" className="min-h-11 rounded-md bg-[var(--accent)] px-3 text-xs text-white" onClick={() => {
+              if (title !== request.baselineTitle || onReplaceTitle(result.suggestion, request.baselineTitle) === false) { setResult(current => ({ ...current, status: "error", message: "标题已改变，建议保留，请重新核对。" })); return; }
+              setRequest(null); setResult({ status: "success", message: "标题建议已采纳，等待自动保存。", suggestion: "" });
+            }}>确认采纳标题</button><button type="button" onClick={discardResult} className="min-h-11 px-3 text-xs">放弃建议</button></div> : null}
             {result.suggestion && request?.operation !== "generateTitle" && !discussion ? (
               <div aria-label="AI 结果确认操作" className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium text-[var(--text-primary)]">AI 结果待确认</p>
                   <span className="text-[12px] text-[var(--text-tertiary)]">尚未写入笔记</span>
                 </div>
+                {hunks?.length ? <fieldset className="max-h-56 space-y-2 overflow-auto rounded-[var(--radius-md)] border p-2">
+                  <legend className="px-1 text-xs">按完整段落采纳</legend>
+                  {hunks.map((hunk) => <label key={hunk.id} className="flex min-h-11 items-start gap-2 text-xs">
+                    <input type="checkbox" checked={chosenHunks.has(hunk.id)} onChange={(event) => setChosenHunks((previous) => { const next = new Set(previous); if (event.target.checked) next.add(hunk.id); else next.delete(hunk.id); return next; })} />
+                    <span className="min-w-0 whitespace-pre-wrap break-words">{hunk.after || `删除：${hunk.before}`}</span>
+                  </label>)}
+                  <button type="button" disabled={!chosenHunks.size} onClick={() => request && apply("replace", adoptHunks(request.content, hunks, chosenHunks))} className="min-h-11 rounded-md border px-3 disabled:opacity-40">确认采纳 {chosenHunks.size} 处</button>
+                </fieldset> : null}
                 <div className="grid gap-2 sm:grid-cols-2">
                   {rewrite ? (
                     <button

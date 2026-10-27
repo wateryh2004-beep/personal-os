@@ -177,6 +177,8 @@
 
 ## 当前实现排查
 
+[连续工作流与全系统体验 · 二十项升级](specs/continuous-workflows-v3.md) 规定2026-10-27后台任务、草稿、来源、材料编辑、规划及全域连续操作的完整范围；公共生命周期见[连续性契约](contracts/workflow-continuity.md)，领域边界见[材料来源定位](contracts/material-source-locators.md)与[连续领域工作流](contracts/continuous-domain-workflows.md)。当前实施中，未据此宣称全批验证或上线。
+
 [全系统视觉与动效精修](specs/visual-motion-polish.md) 固定 2026-10-26 笔记纸面与阅读排版、今日桌面、导航、搜索预览、工作台布局、日历拖放、项目目标、文件查看器和公共反馈十项范围；实现与最终 CI、截图录屏及发布分别验收。 本地检查、构建重验与远程浏览器边界见 [2026-10-27 验收记录](verification/2026-10-27-visual-motion.md)。
 
 [全局搜索协议与偶发 Data API 401](verification/2026-10-25-search-auth-recovery.md) 记录匿名/空查询认证、受限只读恢复、刷新 Cookie/防缓存头与合成及生产验证边界。

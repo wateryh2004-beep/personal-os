@@ -1,4 +1,10 @@
 "use client";
+import { startFileUpload, type UploadPlan } from "@/features/files/upload-runner";
+import { UploadStaging } from "./upload-staging";
+import { parseSourceLocator, type PdfSourceLocator } from "@/features/links/source-locator";
+import { FilePublicationRecovery } from "./file-publication-recovery";
+import { useFilePublications } from "./use-file-publications";
+import { publishFileRecordChange } from "@/features/files/publication";
 import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
 
 import { readWorkbenchReceiptState } from "@/features/workbench/operation-actions";
@@ -8,9 +14,8 @@ import { publishOperationReceipt } from "@/features/workbench/operation-contract
 import { FileOcrControl } from "./file-ocr-control";
 import { WorkspaceReadyMetric } from "@/components/performance/workspace-ready-metric";
 import { FileResumableUploads } from "./file-resumable-uploads";
-import { uploadMultipartFile, completeMultipartSession } from "@/features/files/multipart-client";
-import { multipartThreshold, type MultipartSnapshot } from "@/features/files/multipart-upload";
-import { checksumFile } from "@/features/files/file-checksum";
+import { completeMultipartSession } from "@/features/files/multipart-client";
+import type { MultipartSnapshot } from "@/features/files/multipart-upload";
 import { FilePdfCover } from "./file-pdf-cover";
 import { FilePdfPreview } from "./file-pdf-preview";
 import { isPdfFile } from "@/features/files/preview-format";
@@ -21,16 +26,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { FileRecoveryPanel } from "./file-recovery-panel";
 import { FileMutationForm } from "./file-mutation-form";
 import { useFileRows } from "./use-file-rows";
-import { createUploadProgress } from "@/features/files/upload-progress";
 import { completeFileUpload } from "@/features/files/complete-upload";
-import { canUpload, maxFileSize } from "@/features/files/schemas";
 import { runUploadBatch } from "@/features/files/upload-batch";
 
 import { VaultHideButton } from "@/components/vault/vault-provider";
 import { Archive, ChevronLeft, ChevronRight, Download, Eye, File, FilePlus2, Folder, FolderPlus, LoaderCircle, MoreHorizontal, Upload } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { archiveFile, createFileFolder, moveFile, renameFile, restoreFile, setFileAiVisibility } from "@/features/files/actions";
-import { directUploadFailureMessage } from "@/features/files/r2-errors";
 import type { FileFolder, FileRecord } from "@/features/files/queries";
 import { useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -56,32 +58,6 @@ async function responseError(response: Response, fallback: string) {
   try { const value = await response.json() as ApiError; return value.error || fallback; } catch { return fallback; }
 }
 
-function uploadToR2(url: string, file: File, onProgress: (value: number) => void, signal: AbortSignal) {
-  return new Promise<number | null>((resolve) => {
-    const request = new XMLHttpRequest();
-    request.open("PUT", url); request.timeout = 300_000; request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-    request.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100)); };
-    const abort = () => request.abort();
-    signal.addEventListener("abort", abort, { once: true });
-    request.onloadend = () => signal.removeEventListener("abort", abort);
-    request.onload = () => resolve(request.status);
-    request.onerror = () => resolve(null);
-    request.onabort = () => resolve(null);
-    request.ontimeout = () => resolve(null);
-    if (signal.aborted) { resolve(null); signal.removeEventListener("abort", abort); return; }
-    request.send(file);
-  });
-}
-
-async function browserR2NetworkMessage() {
-  try {
-    const response = await fetch("/api/files/storage-health", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
-    const health = await response.json() as { credentialsReachR2?: boolean };
-    if (response.ok && health.credentialsReachR2) return "无法连接 Cloudflare R2。服务器可以访问 R2，但浏览器直传失败，请检查 R2 Bucket CORS 是否允许当前网站 Origin。";
-  } catch { /* The primary CORS diagnosis remains useful even if diagnostics are unavailable. */ }
-  return directUploadFailureMessage(null);
-}
-
 function FileOperations({ file, folders, onArchive }: { file: FileRecord; folders: FileFolder[]; onArchive: (file: FileRecord) => void }) {
   const [open, setOpen] = useState(false);
   const [baseline,setBaseline] = useState(file);
@@ -102,9 +78,12 @@ function FileOperations({ file, folders, onArchive }: { file: FileRecord; folder
 
 export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, initialUpload = false, initialFileId, initialBrowserState = defaultFileBrowserState }: { folders: FileFolder[]; files: FileRecord[]; archivedFiles?: FileRecord[]; initialUpload?: boolean; initialFileId?: string; initialBrowserState?: FileBrowserState }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const uploadInFlight = useRef(false);
-  const uploadController = useRef<AbortController | null>(null);
-  useEffect(() => () => uploadController.current?.abort(), []);
+  const uploadCancels = useRef<Array<() => void>>([]);
+  const [stagedFiles, setStagedFiles] = useState<File[] | null>(null);
+  const [pdfLocator, setPdfLocator] = useState<PdfSourceLocator | null>(null);
   const [browser, setBrowser] = useState<FileBrowserState>(() => initialFileId ? revealFileState(files, initialBrowserState, initialFileId) : initialBrowserState);
   const [folderId, setFolderId] = useState<string | null>(browser.folderId);
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -112,6 +91,15 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
   const [highlightId, setHighlightId] = useState<string | null>(initialFileId && files.some((item) => item.id === initialFileId) ? initialFileId : null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+    const locator = parseSourceLocator(`${window.location.pathname}${window.location.search}`);
+    if (locator?.kind === "pdf" && files.some((file) => file.id === locator.documentId)) {
+      setPdfLocator(locator); setPreviewId(locator.documentId); setPreviewOpen(true);
+    }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialFileId, files]);
   const previewLauncher = useRef<HTMLElement | null>(null);
   const previewSource = useRef<HTMLElement | null>(null);
   const previewSurface = useFilePreviewMotion(previewOpen, previewSource, previewId);
@@ -136,12 +124,13 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
 
 
   const [archivedRows, setArchivedRows] = useFileRows(archivedFiles);
-  const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error">("neutral");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const { show } = useActionFeedback();
+  const reportPublicationFailure = useCallback(() => show({ message: "文件已变更，但列表状态暂未读取；返回页面、恢复网络或切回窗口后会重试。", tone: "error" }), [show]);
+  useFilePublications(files, archivedRows, setFileRows, reportPublicationFailure, fileRows);
   const canonicalRevisions=useRef(new Map<string,number>());
   useEffect(()=>{for(const row of [...fileRows,...archivedRows]){const revision=row.mutation_revision;if(revision!==undefined)canonicalRevisions.current.set(row.id,Math.max(revision,canonicalRevisions.current.get(row.id)??-1));}},[fileRows,archivedRows]);
   useEffect(()=>{const listener=(event:Event)=>{const receiptId=(event as CustomEvent<{receiptId:string}>).detail?.receiptId;if(!receiptId)return;const current=captureWorkspaceScope();void readWorkbenchReceiptState(receiptId).then(value=>{if(!current()||value.kind!=="document")return;const canonical=(value.rows as FileRecord[]).filter(row=>{const revision=row.mutation_revision;if(revision===undefined||revision<(canonicalRevisions.current.get(row.id)??-1))return false;canonicalRevisions.current.set(row.id,revision);return true;});const ids=new Set(canonical.map(row=>row.id));setFileRows(rows=>[...rows.filter(row=>!ids.has(row.id)),...canonical.filter(row=>!row.archived_at)]);setArchivedRows(rows=>[...rows.filter(row=>!ids.has(row.id)),...canonical.filter(row=>Boolean(row.archived_at))]);}).catch(()=>{if(current())show({message:"文件状态暂未重新读取，请稍后重试。",tone:"error"});});};window.addEventListener("personal-os:operation-undone",listener);window.addEventListener("personal-os:operation-completed",listener);return()=>{window.removeEventListener("personal-os:operation-undone",listener);window.removeEventListener("personal-os:operation-completed",listener);};},[setFileRows,setArchivedRows,show]);
@@ -202,119 +191,54 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
     return () => { window.cancelAnimationFrame(frame); window.clearTimeout(timer); };
   }, [highlightId]);
 
-  async function upload(filesToUpload: FileList | File[] | null, resume?: MultipartSnapshot) {
+  async function upload(filesToUpload: FileList | File[] | null, resume?: MultipartSnapshot, plans?: UploadPlan[]) {
     if (!filesToUpload?.length || uploadInFlight.current) return;
-    uploadInFlight.current = true;
-    const controller = new AbortController(); uploadController.current = controller;
-    setStage("preparing"); setProgress(0); setMessage(""); setMessageTone("neutral");
-    const batch = Array.from(filesToUpload);
-    const calculateProgress = createUploadProgress(batch.map((file) => file.size));
-    let uploadedCount = 0;
-    let extractionDeferred = false;
-    let auditWarning = false;
-    const updateProgress = (index: number, value: number) => {
-      // Uploaded bytes still need a successful server confirmation.
-      setProgress(Math.min(99, calculateProgress(index, value)));
-    };
-    try {
-      const result = await runUploadBatch(batch, async (file, index) => {
-        if (!canUpload(file.name, file.type || "application/octet-stream", file.size)) {
-          throw new Error(file.size > maxFileSize ? `${file.name} 超过 100 MB，请选择较小的文件。` : `${file.name} 为空或不支持上传，请检查文件类型。`);
-        }
-        controller.signal.throwIfAborted();
-        let payload: { documentId?: string; uploadUrl?: string; resumed?: boolean; error?: string; file?: { id: string; title: string; originalFilename: string; mimeType: string; fileSize: number; folderId: string | null; textExtractionStatus: FileRecord["text_extraction_status"] } };
-        if (file.size >= multipartThreshold || resume) {
-          setStage("uploading");
-          payload = await uploadMultipartFile(file, { folderId, resume, signal: controller.signal, onProgress: value => updateProgress(index, value) });
-        } else {
-          const checksum = await checksumFile(file, controller.signal);
-          const created = await fetch("/api/files/upload-url", { method: "POST", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60_000)]), headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename: file.name, contentType: file.type || "application/octet-stream", size: file.size, folderId, checksum }) });
-          try { payload = await created.json() as typeof payload; } catch { throw new Error("上传准备服务返回无效响应，请稍后重试。"); }
-          if (!created.ok || !payload.documentId || !payload.uploadUrl) throw new Error(payload.error || "上传准备失败。");
-          setStage("uploading");
-          const status = await uploadToR2(payload.uploadUrl, file, (value) => updateProgress(index, value), controller.signal);
-          if (status === null) throw new Error(controller.signal.aborted ? "上传已暂停，可重新选择原文件重试。" : await browserR2NetworkMessage());
-          if (status < 200 || status >= 300) throw new Error(directUploadFailureMessage(status));
-        }
-        if (!payload.documentId) throw new Error("上传标识缺失，请刷新检查。");
-        if (batch.length === 1) setStage("verifying");
-        const completed = await completeFileUpload(payload.documentId);
-        if (!completed.ok) throw new Error(await responseError(completed, "文件上传后未能确认。"));
-        const verification = await completed.json() as { extractionStatus?: FileRecord["text_extraction_status"]; warning?: string };
-        if (verification.warning) auditWarning = true;
-        if (payload.file) {
-          const now = new Date().toISOString();
-          const localFile: FileRecord = {
-            id: payload.file.id,
-            title: payload.file.title,
-            original_filename: payload.file.originalFilename,
-            mime_type: payload.file.mimeType,
-            file_size: payload.file.fileSize,
-            folder_id: payload.file.folderId,
-            uploaded_at: now,
-            created_at: now,
-            archived_at: null,
-            ai_visibility: "normal",
-            text_extraction_status: verification.extractionStatus ?? payload.file.textExtractionStatus,
-            extracted_character_count: 0,
-          };
-          setFileRows((current) => [localFile, ...current.filter((item) => item.id !== localFile.id)]);
-        }
-        if (verification.extractionStatus === "pending" && batch.length === 1) {
-          setStage("extracting");
-          try {
-            const extracted = await fetch(`/api/files/${payload.documentId}/extract`, { method: "POST", signal: AbortSignal.timeout(60_000) });
-            const extraction = await extracted.json().catch(() => null) as { status?: FileRecord["text_extraction_status"]; characterCount?: number } | null;
-            if (extraction?.status) setFileRows((current) => current.map((item) => item.id === payload.documentId ? { ...item, text_extraction_status: extraction.status!, extracted_character_count: extraction.characterCount ?? item.extracted_character_count } : item));
-            if (!extracted.ok && extracted.status !== 422) extractionDeferred = true;
-          } catch {
-            // A confirmed upload remains successful even if indexing times out.
-            extractionDeferred = true;
-          }
-        }
-        uploadedCount++;
-        updateProgress(index, 100);
-        setMessage(`已完成 ${uploadedCount} / ${batch.length} 个文件。请保持此页面打开。`);
-      }, 2);
-      setStage(result.errors.length ? "error" : "complete");
-      setMessageTone(result.errors.length || auditWarning ? "error" : "success");
-      if (!result.errors.length) setProgress(100);
-      const errorMessage = controller.signal.aborted ? "上传已暂停；已完成的分片会保留，重新选择原文件即可继续。" : result.errors[0]?.message;
-      setMessage(result.errors.length ? `已上传 ${result.uploaded} 个，${result.errors.length} 个未完成。${errorMessage}` : `已上传 ${result.uploaded} 个文件。${auditWarning ? "部分操作日志未记录，请刷新确认。" : ""}${batch.length > 1 || extractionDeferred ? "文本索引将由后台逐步完成，也可点击解析文本重试。" : ""}`);
-    } catch (error) { setMessageTone("error"); const raw = error instanceof Error ? error.message : "上传失败，请重试。"; setStage("error"); setMessage(/failed to fetch/i.test(raw) ? "无法连接应用服务器，暂时无法准备上传。请检查网络后重试。" : raw); }
-    finally { uploadInFlight.current = false; uploadController.current = null; if (inputRef.current) inputRef.current.value = ""; }
+    const selectedPlans = plans ?? Array.from(filesToUpload).map(file => ({ id: crypto.randomUUID(), file, title: resume?.file.title ?? file.name, folderId: resume?.folderId ?? folderId, resume }));
+    const current = captureWorkspaceScope();
+    uploadInFlight.current = true; setStage("uploading"); setMessage("上传已交给任务托盘，可继续使用其他页面。");
+    const result = await runUploadBatch(selectedPlans, async plan => {
+      if (!current()) throw new Error("工作区已变化，请重新选择原件后上传。");
+      const operation = startFileUpload(plan);
+      uploadCancels.current.push(operation.cancel);
+      await operation.completion;
+    }, 2);
+    if (current() && mounted.current) { setStage("idle"); setMessage(result.errors.length ? `${result.errors.length} 个文件任务未能启动，请保留原件并稍后重新选择；其他任务结果在托盘中。` : "本批任务已结束，请在任务托盘查看每项结果；可仅重试失败项。"); }
+    uploadInFlight.current = false;
+    if (current() && mounted.current && inputRef.current) inputRef.current.value = "";
   }
 
   async function finishPending(session: MultipartSnapshot) {
     if (uploadInFlight.current) return;
+    const current = captureWorkspaceScope();
     uploadInFlight.current = true; setStage("verifying"); setMessage("");
     try {
       const snapshot = await completeMultipartSession(session.sessionId);
+      if (!current()) return;
       const response = await completeFileUpload(snapshot.documentId);
       if (!response.ok) throw new Error(await responseError(response, "保存状态未确认，请稍后重试。"));
       const result = await response.json() as { warning?: string; extractionStatus?: FileRecord["text_extraction_status"] };
-      const now = new Date().toISOString();
-      setFileRows(rows => [{ id: snapshot.file.id, title: snapshot.file.title, original_filename: snapshot.file.originalFilename,
-        mime_type: snapshot.file.mimeType, file_size: snapshot.file.fileSize, folder_id: snapshot.file.folderId,
-        uploaded_at: now, created_at: now, archived_at: null, ai_visibility: "normal",
-        text_extraction_status: result.extractionStatus ?? snapshot.file.textExtractionStatus, extracted_character_count: 0 }, ...rows.filter(row => row.id !== snapshot.documentId)]);
+      if (!current()) return;
+      publishFileRecordChange(snapshot.documentId, current);
+      if (!mounted.current) return;
       setStage("complete"); setMessageTone(result.warning ? "error" : "success"); setMessage(result.warning ?? "文件已完成保存。");
-    } catch (error) { setStage("error"); setMessageTone("error"); setMessage(error instanceof Error ? error.message : "保存暂未完成，可稍后重试。"); }
+    } catch (error) { if (current() && mounted.current) { setStage("error"); setMessageTone("error"); setMessage(error instanceof Error ? error.message : "保存暂未完成，可稍后重试。"); } }
     finally { uploadInFlight.current = false; }
   }
 
   async function retryExtraction(documentId: string) {
+    const current = captureWorkspaceScope();
     setExtractingId(documentId); setMessage(""); setMessageTone("neutral");
     try {
       const response = await fetch(`/api/files/${documentId}/extract`, { method: "POST", signal: AbortSignal.timeout(60_000) });
       if (!response.ok) throw new Error(await responseError(response, "文本解析失败，请稍后重试。"));
-      const extraction = await response.json() as { status?: FileRecord["text_extraction_status"]; characterCount?: number };
-      setFileRows((current) => current.map((file) => file.id === documentId ? { ...file, text_extraction_status: extraction.status ?? "completed", extracted_character_count: extraction.characterCount ?? file.extracted_character_count } : file));
-      setMessage("已完成文件文本解析。"); setMessageTone("success");
+      await response.json();
+      if (!current()) return;
+      publishFileRecordChange(documentId, current);
+      if (!mounted.current) return;
+      setMessage("文件文本解析状态已更新。"); setMessageTone("success");
     } catch (error) {
-      setMessageTone("error");
-      setMessage(error instanceof Error ? error.message : "文本解析失败，请稍后重试。");
-    } finally { setExtractingId(null); }
+      if (current() && mounted.current) { setMessageTone("error"); setMessage(error instanceof Error ? error.message : "文本解析失败，请稍后重试。"); }
+    } finally { if (current() && mounted.current) setExtractingId(null); }
   }
 
   const archive = (file: FileRecord) => {
@@ -374,10 +298,10 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
             <p className="mt-0.5 text-[12px] tabular-nums text-[var(--text-tertiary)]">{`${visibleFiles.length} 个文件${filtering ? ` · 当前目录共 ${fileRows.filter(file => folderId === null || file.folder_id === folderId).length} 个` : ""}`}</p>
           </div>
           <div>
-            <input ref={inputRef} className="hidden" type="file" multiple onChange={(event) => void upload(event.target.files)} />
+            <input ref={inputRef} className="hidden" type="file" multiple onChange={(event) => { if (event.target.files?.length) setStagedFiles(Array.from(event.target.files)); event.target.value = ""; }} />
             <button disabled={uploadBusy} onClick={() => inputRef.current?.click()} className="pressable inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[var(--accent)] px-3 text-[12px] font-medium text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] disabled:opacity-60">
               {uploadBusy ? <LoaderCircle size={14} className="animate-spin" /> : <Upload size={14} />}
-              {stage === "preparing" ? "正在准备…" : stage === "uploading" ? `上传 ${progress}%` : stage === "verifying" ? "正在确认…" : stage === "extracting" ? "正在解析…" : "上传文件"}
+              {stage === "preparing" ? "正在准备…" : stage === "uploading" ? "查看任务托盘" : stage === "verifying" ? "正在确认…" : stage === "extracting" ? "正在解析…" : "上传文件"}
             </button>
           </div>
         </div>
@@ -392,9 +316,11 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           {browser.type === "photo" ? <p className="text-[12px] leading-5 text-[var(--text-tertiary)]">按上传时间管理；不是拍摄时间。预览仅生成受限缩略图，不会自动下载原件。</p> : null}
         </div>
 
+        <Dialog open={!!stagedFiles} onOpenChange={open => { if (!open) setStagedFiles(null); }}><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>整理本次上传</DialogTitle><DialogDescription>确认之前只在当前标签页检查，不会写入云端文件。</DialogDescription></DialogHeader>{stagedFiles ? <UploadStaging files={stagedFiles} folderId={folderId} folders={folders} onCancel={() => setStagedFiles(null)} onConfirm={plans => { setStagedFiles(null); void upload(plans.map(plan => plan.file), undefined, plans); }} /> : null}</DialogContent></Dialog>
         <FileResumableUploads busy={uploadBusy} refresh={stage} onResume={(file, session) => void upload([file], session)} onFinish={session => void finishPending(session)} />
-        {uploadBusy && ["preparing", "uploading"].includes(stage) ? <button type="button" className="mb-2 min-h-9 text-[12px] text-[var(--accent)]" onClick={() => uploadController.current?.abort()}>暂停上传，保留分片</button> : null}
+        {uploadBusy && ["preparing", "uploading"].includes(stage) ? <button type="button" className="mb-2 min-h-9 text-[12px] text-[var(--accent)]" onClick={() => uploadCancels.current.forEach(cancel => cancel())}>暂停上传，保留分片</button> : null}
         <FileRecoveryPanel disabled={uploadBusy} />
+        <FilePublicationRecovery setFileRows={setFileRows} archivedRows={archivedRows} currentRows={fileRows} />
 
         {message ? <p role="status" className={`mt-2.5 text-[12px] ${messageTone === "error" ? "text-[var(--danger)]" : messageTone === "success" ? "text-[var(--success)]" : "text-[var(--text-secondary)]"}`}>{message}</p> : null}
 
@@ -473,7 +399,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
             <output aria-live="polite">{previewIndex >= 0 ? `${previewIndex + 1} / ${previewFiles.length}` : "当前文件"}</output>
             <button type="button" className="pressable" disabled={previewIndex < 0 || previewIndex >= previewFiles.length - 1} onClick={() => switchPreview(1)}>下一文件<ChevronRight aria-hidden="true" size={16} /></button>
           </div>
-          {isPdfFile(previewFile) ? <FilePdfPreview key={previewFile.id} documentId={previewFile.id} title={previewFile.title} active={previewOpen} /> : <div className="file-photo-stage"><FilePhoto file={previewFile} className="max-h-[50dvh] min-h-40 w-full rounded-[10px]" /></div>}
+          {isPdfFile(previewFile) ? <FilePdfPreview key={previewFile.id} documentId={previewFile.id} title={previewFile.title} active={previewOpen} initialPage={pdfLocator?.documentId === previewFile.id ? pdfLocator.page : undefined} initialSourceVersion={pdfLocator?.documentId === previewFile.id ? pdfLocator.sourceVersion : undefined} /> : <div className="file-photo-stage"><FilePhoto file={previewFile} className="max-h-[50dvh] min-h-40 w-full rounded-[10px]" /></div>}
           <p className="break-all text-[12px] text-[var(--text-secondary)]">原始文件名：{previewFile.original_filename}</p>
           <a href={`/api/files/${previewFile.id}/download`} className="pressable inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] bg-[var(--accent)] px-3 text-[13px] text-white"><Download size={15} />下载原件</a>
         </DialogContent> : null}

@@ -211,15 +211,16 @@ export async function getApplications() {
 
 export async function getResumeVersions() {
   const { supabase } = await requireOwner();
-  const [resumes, directions, bullets, links, applications, documents] = await Promise.all([
+  const [resumes, directions, bullets, links, applications, documents, materials] = await Promise.all([
     supabase.from("resume_versions").select("*").is("archived_at", null).order("updated_at", { ascending: false }),
     supabase.from("career_directions").select("id,name").is("archived_at", null).order("priority", { ascending: false }),
     supabase.from("experience_bullets").select("id,content,experience_id,status,experiences(organization,role)").eq("status", "approved").is("archived_at", null).order("approved_at", { ascending: false }),
     supabase.from("resume_version_bullets").select("resume_version_id,bullet_id,position").order("position"),
     supabase.from("career_applications").select("id,resume_version_id,status").is("archived_at", null),
     supabase.from("documents").select("id,title,original_filename").eq("storage_provider", "cloudflare_r2").is("archived_at", null).order("uploaded_at", { ascending: false }).limit(200),
+    supabase.from("career_material_checks").select("opportunity_id,resume_version_id").is("archived_at",null).not("resume_version_id","is",null).limit(501),
   ]);
-  return { resumes: resumes.data ?? [], directions: directions.data ?? [], bullets: bullets.data ?? [], links: links.data ?? [], applications: applications.data ?? [], documents: documents.data ?? [], unavailable: Boolean(resumes.error || directions.error || bullets.error || links.error || applications.error || documents.error) };
+  return { materialChecks:materials.data?.slice(0,500)??[],materialsUnavailable:Boolean(materials.error),materialsTruncated:(materials.data?.length??0)>500,resumes: resumes.data ?? [], directions: directions.data ?? [], bullets: bullets.data ?? [], links: links.data ?? [], applications: applications.data ?? [], documents: documents.data ?? [], unavailable: Boolean(resumes.error || directions.error || bullets.error || links.error || applications.error || documents.error) };
 }
 
 /** Target reader: only this target's preparations, no answers or whole-bank private notes. */

@@ -49,8 +49,20 @@ export async function POST(request: Request) {
     const { data } = await supabase.from("file_folders").select("id").eq("id", parsed.data.folderId).is("archived_at", null).maybeSingle();
     if (!data) return fail("目标文件夹不存在或无权访问。", 404);
   }
+  if (parsed.data.requestId) {
+    const { data: existing, error: existingError } = await supabase.from("documents").select("id,title,original_filename,mime_type,file_size,folder_id,storage_path,storage_state,text_extraction_status,checksum")
+      .eq("id", parsed.data.requestId).eq("user_id", userId).is("archived_at", null).is("vault_group_id", null).maybeSingle();
+    if (existingError) return fail("暂未确认原上传请求。", 503);
+    if (existing) {
+      if (existing.checksum !== (parsed.data.checksum ?? null) || existing.title !== (parsed.data.title ?? safeFilename(parsed.data.filename)) || !["pending", "available"].includes(existing.storage_state) || existing.original_filename !== safeFilename(parsed.data.filename) || existing.mime_type !== parsed.data.contentType || Number(existing.file_size) !== parsed.data.size || existing.folder_id !== (parsed.data.folderId ?? null)) return fail("上传请求已用于其他原件。", 409);
+      return NextResponse.json({ documentId: existing.id,
+        ...(existing.storage_state === "pending" ? { uploadUrl: await createUploadUrl(existing.storage_path, existing.mime_type) } : {}),
+        file: { id: existing.id, title: existing.title, originalFilename: existing.original_filename, mimeType: existing.mime_type, fileSize: existing.file_size, folderId: existing.folder_id, textExtractionStatus: existing.text_extraction_status },
+      }, { headers });
+    }
+  }
   // Resume only this owner's matching pending object; attachment IDs stay stable.
-  if (parsed.data.checksum && !parsed.data.noteId) {
+  if (parsed.data.checksum && !parsed.data.noteId && !parsed.data.requestId) {
     let pendingQuery = supabase.from("documents")
       .select("id,title,original_filename,mime_type,file_size,folder_id,storage_path,text_extraction_status")
       .eq("user_id", userId).eq("checksum", parsed.data.checksum)
@@ -71,11 +83,11 @@ export async function POST(request: Request) {
       } catch { return fail("暂时无法续传，请稍后重试。", 500); }
     }
   }
-  const documentId = randomUUID();
+  const documentId = parsed.data.requestId ?? randomUUID();
   const filename = safeFilename(parsed.data.filename);
   const key = `${userId}/files/${documentId}/${filename}`;
   const { error } = await supabase.from("documents").insert({
-    id: documentId, user_id: userId, title: filename, document_type: "other", original_filename: filename,
+    id: documentId, user_id: userId, title: parsed.data.title ?? filename, document_type: "other", original_filename: filename,
     storage_bucket: r2BucketName(), storage_path: key, storage_provider: "cloudflare_r2", storage_state: "pending",
     mime_type: parsed.data.contentType, file_size: parsed.data.size, folder_id: parsed.data.folderId ?? null,
     checksum: parsed.data.checksum ?? null,
@@ -93,7 +105,7 @@ export async function POST(request: Request) {
       // the user has just uploaded.
       file: {
         id: documentId,
-        title: filename,
+        title: parsed.data.title ?? filename,
         originalFilename: filename,
         mimeType: parsed.data.contentType,
         fileSize: parsed.data.size,
@@ -203,4 +215,20 @@ export async function DELETE(request: Request) {
   try { await deleteR2Object(document.storage_path); } catch { /* Object cleanup is best-effort and deliberately opaque. */ }
   await audit(supabase, userId, "upload_aborted", document.id, {});
   return NextResponse.json({ ok: true }, { headers });
+}
+
+/** Reconcile the exact pending/available original before a retry, never create a replacement. */
+export async function GET(request: Request) {
+  try {
+    const { supabase, userId } = await requireOwnerApi();
+    const parsed = fileIdSchema.safeParse({ documentId: new URL(request.url).searchParams.get("documentId") });
+    if (!parsed.success) return fail("文件标识无效。");
+    const { data: file, error } = await supabase.from("documents").select("id,title,original_filename,mime_type,file_size,folder_id,text_extraction_status,storage_path,storage_state,upload_mode")
+      .eq("id", parsed.data.documentId).eq("user_id", userId).is("vault_group_id", null).is("archived_at", null).in("storage_state", ["pending", "available"]).maybeSingle();
+    if (error || !file) return fail("原上传记录暂不可用，请返回 Files 检查。", 404);
+    return NextResponse.json({ documentId: file.id,
+      ...(file.storage_state === "pending" && file.upload_mode === "single" ? { uploadUrl: await createUploadUrl(file.storage_path, file.mime_type) } : {}),
+      file: { id: file.id, title: file.title, originalFilename: file.original_filename, mimeType: file.mime_type, fileSize: file.file_size, folderId: file.folder_id, textExtractionStatus: file.text_extraction_status },
+    }, { headers });
+  } catch (error) { return apiAuthenticationFailure(error) ?? fail("上传状态暂未确认。", 503); }
 }
