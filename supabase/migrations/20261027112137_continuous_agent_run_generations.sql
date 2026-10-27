@@ -19,7 +19,7 @@ begin
   then raise exception 'agent_generation_server_managed' using errcode='42501';end if;
  return new;
 end $$;
-revoke all on function private.guard_agent_generation() from public,anon,authenticated;
+revoke all on function private.guard_agent_generation() from public,anon,authenticated,service_role;
 create trigger agent_generation_guard before insert or update or delete on public.agent_runs for each row execute function private.guard_agent_generation();
 
 create function private.guard_agent_action_generation() returns trigger
@@ -38,7 +38,7 @@ begin
   then raise exception 'agent_generation_conflict' using errcode='40001';end if;
  return new;
 end $$;
-revoke all on function private.guard_agent_action_generation() from public,anon,authenticated;
+revoke all on function private.guard_agent_action_generation() from public,anon,authenticated,service_role;
 create trigger agent_action_generation_guard before insert or update on public.agent_actions for each row execute function private.guard_agent_action_generation();
 
 create function public.claim_agent_generation(p_run_id uuid,p_token uuid,p_allow_pending boolean) returns boolean
@@ -56,7 +56,7 @@ begin
  update public.agent_runs set generation_token=p_token,generation_expires_at=clock_timestamp()+interval '90 seconds',status='running',error_code=null,started_at=coalesce(started_at,clock_timestamp()),completed_at=null where id=run.id and user_id=owner;
  return true;
 end $$;
-revoke all on function public.claim_agent_generation(uuid,uuid,boolean) from public,anon;
+revoke all on function public.claim_agent_generation(uuid,uuid,boolean) from public,anon,service_role;
 grant execute on function public.claim_agent_generation(uuid,uuid,boolean) to authenticated;
 
 create function public.update_agent_generation(p_run_id uuid,p_token uuid,p_patch jsonb) returns boolean
@@ -97,7 +97,7 @@ begin
   where id=run.id and user_id=owner and generation_token=p_token;
  return true;
 end $$;
-revoke all on function public.update_agent_generation(uuid,uuid,jsonb) from public,anon;
+revoke all on function public.update_agent_generation(uuid,uuid,jsonb) from public,anon,service_role;
 grant execute on function public.update_agent_generation(uuid,uuid,jsonb) to authenticated;
 
 -- Existing human action resolvers may finish the aggregate run, but must not
@@ -113,5 +113,5 @@ begin
  update public.agent_runs set status='completed',completed_at=clock_timestamp() where id=run.id and user_id=owner and status='awaiting_approval';
  return true;
 end $$;
-revoke all on function public.complete_agent_run_if_resolved(uuid) from public,anon;
+revoke all on function public.complete_agent_run_if_resolved(uuid) from public,anon,service_role;
 grant execute on function public.complete_agent_run_if_resolved(uuid) to authenticated;

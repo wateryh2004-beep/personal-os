@@ -185,9 +185,9 @@ export function ReviewComposer({
   };
 
   return (
-    <section ref={resultPanel} data-proposal-id={activeDraft?.id} tabIndex={-1} className="mx-auto max-w-[1080px]">
+    <section ref={resultPanel} data-proposal-id={activeDraft?.id} tabIndex={-1} className="mx-auto min-w-0 max-w-[1080px] leading-[1.6]">
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--separator)] pb-4.5">
-        <div>
+        <div className="min-w-0">
           <p className="text-[12px] font-semibold tracking-[0.08em] text-[var(--accent)]">
             {type === "daily" ? "每日复盘" : "每周复盘"}
           </p>
@@ -199,9 +199,10 @@ export function ReviewComposer({
             {existingReviewId ? "已完成，可继续修正" : "尚未完成"}
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
           <Button
             variant="outline"
+            className="h-auto min-h-[var(--control-height)] max-w-full shrink whitespace-normal py-2 leading-[1.5]"
             onClick={draft}
             disabled={isDrafting || isSaving}
           >
@@ -212,7 +213,7 @@ export function ReviewComposer({
             )}
             {isDrafting ? "正在生成…" : "基于记录生成草稿"}
           </Button>
-          <Button onClick={save} disabled={isSaving || isDrafting}>
+          <Button className="h-auto min-h-[var(--control-height)] max-w-full whitespace-normal py-2 leading-[1.5]" onClick={save} disabled={isSaving || isDrafting}>
             {isSaving ? <LoaderCircle className="animate-spin" /> : null}
             {existingReviewId ? "保存修正" : "完成复盘"}
           </Button>
@@ -235,7 +236,7 @@ export function ReviewComposer({
           {suggestion ? (
             <section className="mb-5 space-y-3 rounded-lg border border-[var(--separator)] p-4">
               <h2 className="font-medium">逐项采纳 AI 草稿 · 尚未保存</h2>
-              <p className="text-xs">
+              <p className="text-xs leading-[1.6]">
                 采纳字段会保留本次AI使用的{suggestion.sources.length}
                 条资料作为上下文来源，独立于你选择的引用。
               </p>
@@ -284,7 +285,7 @@ export function ReviewComposer({
             </section>
           ) : null}
           <ReviewEditor type={type} value={value} onChange={setValue} />
-          <p className="mt-3.5 text-[12px] leading-5 text-[var(--text-tertiary)]">
+          <p className="mt-3.5 text-[12px] leading-[1.6] text-[var(--text-tertiary)]">
             保存后会创建新版本，并记录本次证据来源。AI
             草稿不会自动进入记忆或改变决定。
           </p>

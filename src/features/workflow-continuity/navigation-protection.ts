@@ -24,7 +24,9 @@ export async function prepareWorkflowNavigation(href: string): Promise<boolean> 
   const source = window.location.href;
   let intentCurrent = () => true;
   const current = () => !controller.signal.aborted && currentScope() && intentCurrent() && request === generation && source === window.location.href;
-  const event = new CustomEvent("personal-os:navigation-start", { cancelable: true, detail: { href: destination } });
+  // This is the caller's preflight, not a request for the shell to push a route.
+  // Listeners may still veto it; only the caller commits after every save guard.
+  const event = new CustomEvent("personal-os:navigation-start", { cancelable: true, detail: { href: destination, phase: "prepare" } });
   if (!window.dispatchEvent(event)) { clearTimeout(timer); return false; }
   intentCurrent = beginNavigationIntent();
   const stopped = new Promise<false>(resolve => { if (controller.signal.aborted) resolve(false); else controller.signal.addEventListener("abort", () => resolve(false), { once: true }); });

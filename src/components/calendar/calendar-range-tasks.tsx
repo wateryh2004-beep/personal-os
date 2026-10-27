@@ -1,7 +1,8 @@
 "use client";
 import { SourceLink as Link } from "@/components/workflow-continuity/provider";
 import { instantToWallTime, wallTimeToIso } from "@/features/calendar/timezone";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { handoffMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,11 @@ export function CalendarRangeTasks({
     range: { startsAt: string; endsAt: string },
   ) => void;
 }) {
+  const handingOff = useRef(false);
+  const handoff = () => {
+    handingOff.current = true;
+    handoffMobileBackLayer("dialog", "side-panel:inspector");
+  };
   const [tasks, setTasks] = useState<PendingCalendarTask[]>([]),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
@@ -93,7 +99,7 @@ export function CalendarRangeTasks({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-h-[85dvh] overflow-y-auto">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto" onCloseAutoFocus={event => { if (handingOff.current) event.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle>把这段时间留给什么？</DialogTitle>
           <DialogDescription>
@@ -133,7 +139,7 @@ export function CalendarRangeTasks({
           variant="outline"
           disabled={!selection}
           onClick={() => {
-            if (selection) onNew(selection);
+            if (selection) { handoff(); onNew(selection); }
           }}
         >
           新建日程
@@ -170,7 +176,7 @@ export function CalendarRangeTasks({
                   <Button
                     disabled={!selection}
                     onClick={() => {
-                      if (selection) onTask(task, selection);
+                      if (selection) { handoff(); onTask(task, selection); }
                     }}
                   >
                     预览安排

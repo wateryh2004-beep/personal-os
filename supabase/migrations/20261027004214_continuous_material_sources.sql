@@ -16,7 +16,7 @@ begin
  end if;
  return v;
 end $$;
-revoke all on function public.capture_note_source(uuid,integer,text) from public,anon;
+revoke all on function public.capture_note_source(uuid,integer,text) from public,anon,service_role;
 grant execute on function public.capture_note_source(uuid,integer,text) to authenticated;
 
 create or replace function public.convert_inbox_note(p_inbox_id uuid,p_title text,p_body text)
@@ -45,7 +45,7 @@ begin
  insert into public.audit_logs(user_id,action,entity_type,entity_id,actor_type,after_data) values(auth.uid(),'convert_to_note','inbox_item',i.id,'user',jsonb_build_object('note_id',nid,'content_hash',hash));
  return nid;
 end $$;
-revoke all on function public.convert_inbox_note(uuid,text,text) from public,anon;
+revoke all on function public.convert_inbox_note(uuid,text,text) from public,anon,service_role;
 grant execute on function public.convert_inbox_note(uuid,text,text) to authenticated;
 
 create function public.protect_note_source_version() returns trigger language plpgsql security invoker set search_path=public,pg_temp as $$
@@ -56,5 +56,5 @@ begin
  end if;
  if tg_op='DELETE' then return old;end if;return new;
 end $$;
-revoke all on function public.protect_note_source_version() from public,anon,authenticated;
+revoke all on function public.protect_note_source_version() from public,anon,authenticated,service_role;
 create trigger protect_note_source_version before update or delete on public.note_versions for each row execute function public.protect_note_source_version();

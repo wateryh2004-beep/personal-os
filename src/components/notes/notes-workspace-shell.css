@@ -1,0 +1,4 @@
+/* A split pane can be narrower than the viewport's desktop breakpoint. Keep
+   the document usable and reuse the same explicit navigation Sheet entry. */
+.notes-workspace-shell[data-compact-navigation] > .notes-navigator-panel {display:none}
+.notes-workspace-shell[data-compact-navigation] .notes-navigation-trigger {display:inline-flex}

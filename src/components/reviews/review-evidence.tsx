@@ -60,10 +60,10 @@ export function ReviewEvidencePanel({
     <aside
       ref={pane}
       aria-label="证据时间线"
-      className="min-w-0 lg:max-h-[75dvh] lg:overflow-y-auto lg:border-l lg:border-[var(--separator)] lg:pl-5"
+      className="min-w-0 leading-[1.6] lg:max-h-[75dvh] lg:overflow-y-auto lg:border-l lg:border-[var(--separator)] lg:pl-5"
     >
       <h2 className="font-medium">证据时间线</h2>
-      <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">
+      <p className="mt-2 text-xs leading-[1.6] text-[var(--text-secondary)]">
         {evidence.timezone ?? "Asia/Shanghai"} ·
         每类有读取上限；不是完整生活记录。选择后插入复盘，原文字保留。
       </p>
@@ -88,7 +88,7 @@ export function ReviewEvidencePanel({
           <p
             key={`${item.group}:${index}`}
             role="status"
-            className="my-2 text-xs text-[var(--warning)]"
+            className="my-2 text-xs leading-[1.6] text-[var(--warning)]"
           >
             {labels[item.group as keyof typeof labels] ?? item.group}：
             {item.unavailable
@@ -98,7 +98,7 @@ export function ReviewEvidencePanel({
         ))}
       {onInsert ? (
         <Button
-          className="my-3"
+          className="my-3 h-auto min-h-[var(--control-height)] max-w-full whitespace-normal py-2 leading-[1.5]"
           disabled={!selected.size}
           onClick={() => {
             onInsert(
@@ -118,7 +118,7 @@ export function ReviewEvidencePanel({
         {visible.map(({ item, group }) => (
           <li
             key={selectionKey(group, item)}
-            className="py-3 text-sm leading-6"
+            className="py-3 text-sm leading-[1.6]"
           >
             <div className="flex gap-2">
               {onInsert ? (
@@ -160,11 +160,11 @@ export function ReviewEvidencePanel({
                   </Link>
                 </p>
                 {item.summary ? (
-                  <p className="break-words text-xs text-[var(--text-secondary)]">
+                  <p className="break-words text-xs leading-[1.6] text-[var(--text-secondary)]">
                     {item.summary}
                   </p>
                 ) : null}
-                {item.state ? <p className="text-xs">{item.state}</p> : null}
+                {item.state ? <p className="text-xs leading-[1.6]">{item.state}</p> : null}
               </div>
             </div>
           </li>

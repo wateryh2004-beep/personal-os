@@ -3,7 +3,7 @@
 create function private.inbox_ai_utf16_length(p_text text) returns integer language sql immutable strict set search_path='' as $$
  select coalesce(sum(case when c='' then 0 when ascii(c)>65535 then 2 else 1 end),0)::integer from regexp_split_to_table(p_text,'') c
 $$;
-revoke all on function private.inbox_ai_utf16_length(text) from public,anon,authenticated;
+revoke all on function private.inbox_ai_utf16_length(text) from public,anon,authenticated,service_role;
 
 alter table public.inbox_items
  add column capture_content_hash text,
@@ -38,7 +38,7 @@ begin
   then new.ai_classification_token:=null;new.ai_classification_started_at:=null;new.ai_classification_content_hash:=null;end if;
  return new;
 end $$;
-revoke all on function private.guard_inbox_ai_intent() from public,anon,authenticated;
+revoke all on function private.guard_inbox_ai_intent() from public,anon,authenticated,service_role;
 create trigger inbox_ai_intent_guard before insert or update or delete on public.inbox_items for each row execute function private.guard_inbox_ai_intent();
 
 create function public.capture_inbox_intent(p_intent_id uuid,p_content text) returns jsonb
@@ -60,7 +60,7 @@ begin
   values(owner,'capture','inbox_item',inserted,'user',jsonb_build_object('character_count',private.inbox_ai_utf16_length(p_content)));
  return jsonb_build_object('inbox_id',inserted,'created',true);
 end $$;
-revoke all on function public.capture_inbox_intent(uuid,text) from public,anon;
+revoke all on function public.capture_inbox_intent(uuid,text) from public,anon,service_role;
 grant execute on function public.capture_inbox_intent(uuid,text) to authenticated;
 
 -- Same source row lock and exact external-claim definition as the existing dispatch mutex.
@@ -70,7 +70,7 @@ language sql stable security definer set search_path='' as $$
  and not exists(select 1 from public.calendar_operations c where c.user_id=p_owner and c.operation_type='create' and c.payload->>'sourceInboxId'=p_inbox_id::text
   and not(((c.status='cancelled' and c.claimed_at is null) or (c.status='failed' and coalesce(c.result->>'writeOutcome'='not_written',false))) and c.provider_event_id is null and c.remote_committed_at is null and c.cache_committed_at is null));
 $$;
-revoke all on function private.inbox_ai_dispatch_free(uuid,uuid) from public,anon,authenticated;
+revoke all on function private.inbox_ai_dispatch_free(uuid,uuid) from public,anon,authenticated,service_role;
 
 create function public.claim_inbox_classification(p_inbox_id uuid,p_token uuid,p_expected_content text,p_explicit_restart boolean) returns boolean
 language plpgsql security definer set search_path='' as $$
@@ -86,7 +86,7 @@ begin
  update public.inbox_items set ai_classification_token=p_token,ai_classification_started_at=now(),ai_classification_content_hash=encode(sha256(convert_to(p_expected_content,'UTF8')),'hex') where id=p_inbox_id and user_id=owner;
  return true;
 end $$;
-revoke all on function public.claim_inbox_classification(uuid,uuid,text,boolean) from public,anon;
+revoke all on function public.claim_inbox_classification(uuid,uuid,text,boolean) from public,anon,service_role;
 grant execute on function public.claim_inbox_classification(uuid,uuid,text,boolean) to authenticated;
 
 create function public.commit_inbox_classification(p_inbox_id uuid,p_token uuid,p_expected_content text,p_proposal jsonb,p_error text) returns boolean
@@ -139,5 +139,5 @@ begin
   ai_classification_token=null,ai_classification_started_at=null,ai_classification_content_hash=null where id=p_inbox_id and user_id=owner;
  return true;
 end $$;
-revoke all on function public.commit_inbox_classification(uuid,uuid,text,jsonb,text) from public,anon;
+revoke all on function public.commit_inbox_classification(uuid,uuid,text,jsonb,text) from public,anon,service_role;
 grant execute on function public.commit_inbox_classification(uuid,uuid,text,jsonb,text) to authenticated;

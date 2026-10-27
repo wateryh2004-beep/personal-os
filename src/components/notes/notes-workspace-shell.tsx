@@ -1,4 +1,5 @@
 "use client";
+import "./notes-workspace-shell.css";
 import {useDeclaredFormDraft,readDeclaredDraftFields} from "@/features/workflow-continuity/draft-adapters";
 import {useDraftResumeOpeners,isDraftHostReady,type DraftResumeTarget} from "@/features/workflow-continuity/draft-resume";
 import {OrdinaryOutcomeRecovery} from "@/components/workflow-continuity/ordinary-outcome-recovery";
@@ -9,7 +10,7 @@ import { publishOperationReceipt } from "@/features/workbench/operation-contract
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
-import { useEffect,useLayoutEffect,useCallback, useId, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect,useLayoutEffect,useCallback, useId, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { ChevronDown, ChevronRight, Clock3, FilePlus2, FileText, Folder, FolderPlus, Menu, MoreHorizontal, Search, Sparkles, Star, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -310,6 +311,27 @@ export function NotesWorkspaceShell({ folders, notes, children, documentView }: 
   useDraftResumeOpeners([{kind:"note.folder-create",id:"root"},...folders.flatMap(folder=>[{kind:"note.folder-create" as const,id:folder.id},{kind:"note.folder-rename" as const,id:folder.id}])],(target,context)=>{setDraftRequest({target,nonce:crypto.randomUUID(),current:context.current});setMobileOpen(true);});
   const [navigatorWidth, setNavigatorWidth] = useState(272);
   const navigatorWidthRef = useRef(272);
+  const [workspaceNode, setWorkspaceNode] = useState<HTMLElement | null>(null);
+  const navigatorFocusRef = useRef(false);
+  const navigatorTriggerRef = useRef<{ node: HTMLElement; href: string } | null>(null);
+  const openNavigator = useCallback(() => { navigatorTriggerRef.current = document.activeElement instanceof HTMLElement ? { node: document.activeElement, href: window.location.href } : null; setMobileOpen(true); }, []);
+  const subscribeWorkspaceWidth = useCallback((notify: () => void) => {
+    if (!workspaceNode) return () => {};
+    const changed = () => { navigatorFocusRef.current = Boolean(workspaceNode.querySelector(".notes-navigator-panel")?.contains(document.activeElement)); notify(); };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(changed);
+    observer?.observe(workspaceNode); window.addEventListener("resize", changed);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", changed); };
+  }, [workspaceNode]);
+  const compactNavigation = useSyncExternalStore(subscribeWorkspaceWidth, () => {
+    const width = workspaceNode?.clientWidth ?? 0;
+    return width > 0 && width < navigatorWidth + 360;
+  }, () => false);
+  useLayoutEffect(() => {
+    if (!compactNavigation || !workspaceNode) return;
+    const active = document.activeElement, within = workspaceNode.querySelector(".notes-navigator-panel")?.contains(active);
+    if (within || navigatorFocusRef.current && active === document.body) workspaceNode.querySelector<HTMLElement>(".notes-navigation-trigger")?.focus({ preventScroll: true });
+    navigatorFocusRef.current = false;
+  }, [compactNavigation, workspaceNode]);
   const pathname = usePathname();
   const isEditorRoute = documentView ?? /^\/notes\/[0-9a-f-]{36}$/i.test(pathname);
   const router = useRouter();
@@ -364,9 +386,9 @@ export function NotesWorkspaceShell({ folders, notes, children, documentView }: 
     setNavigatorWidth(272);
     try { localStorage.removeItem("personal-os:notes-navigator-width:v1"); } catch { /* no-op */ }
   };
-  return <NotesNavigationContext value={() => setMobileOpen(true)}><section className="notes-workspace-shell flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
+  return <NotesNavigationContext value={openNavigator}><section ref={setWorkspaceNode} data-compact-navigation={compactNavigation || undefined} className="notes-workspace-shell flex h-[calc(var(--app-viewport-height)-var(--toolbar-height)-var(--tab-bar-height))] min-h-0 overflow-hidden bg-[var(--surface-canvas)]">
     <aside style={{ width: navigatorWidth }} className="notes-navigator-panel relative hidden h-full shrink-0 border-r border-[var(--separator)] bg-[var(--surface-sidebar)] md:block"><NotesNavigator folders={folders} notes={notes} /><button type="button" onPointerDown={resizeNavigator} onDoubleClick={resetNavigator} className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none" aria-label="调整笔记导航宽度，双击恢复默认" /></aside>
-    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" showCloseButton className="notes-navigation-sheet w-[min(88vw,340px)] p-0"><SheetTitle className="sr-only">笔记文件</SheetTitle><NotesNavigator resumeRequest={draftRequest} folders={folders} notes={notes} onNavigate={() => setMobileOpen(false)} /></SheetContent></Sheet>
-    <div className="relative min-w-0 flex-1">{isEditorRoute ? null : <button type="button" onClick={() => setMobileOpen(true)} className="notes-folder-trigger pressable absolute left-3 top-2 z-10 flex h-11 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--separator)] bg-[var(--surface-canvas)] px-3 text-[13px] font-medium text-[var(--text-secondary)] md:hidden" aria-label="打开笔记文件"><Menu className="size-4" />文件夹</button>}{children}</div>
+    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetContent side="left" showCloseButton onCloseAutoFocus={event => { event.preventDefault(); const target = navigatorTriggerRef.current; navigatorTriggerRef.current = null; const active = document.activeElement; if (target?.node.isConnected && target.href === window.location.href && !target.node.closest("[hidden],[inert]") && (active === document.body || event.target instanceof Element && event.target.contains(active))) target.node.focus({ preventScroll: true }); }} className="notes-navigation-sheet w-[min(88vw,340px)] p-0"><SheetTitle className="sr-only">笔记文件</SheetTitle><NotesNavigator resumeRequest={draftRequest} folders={folders} notes={notes} onNavigate={() => { navigatorTriggerRef.current = null; setMobileOpen(false); }} /></SheetContent></Sheet>
+    <div className="relative min-w-0 flex-1">{isEditorRoute ? null : <button type="button" onClick={openNavigator} className="notes-navigation-trigger notes-folder-trigger pressable absolute left-3 top-2 z-10 flex h-11 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--separator)] bg-[var(--surface-canvas)] px-3 text-[13px] font-medium text-[var(--text-secondary)] md:hidden" aria-label="打开笔记文件"><Menu className="size-4" />文件夹</button>}{children}</div>
   </section></NotesNavigationContext>;
 }

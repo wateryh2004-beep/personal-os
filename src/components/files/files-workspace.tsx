@@ -38,7 +38,7 @@ import { Archive, ChevronLeft, ChevronRight, Download, Eye, File, FilePlus2, Fol
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { archiveFile, createFileFolder, moveFile, renameFile, restoreFile, setFileAiVisibility } from "@/features/files/actions";
 import type { FileFolder, FileRecord } from "@/features/files/queries";
-import { useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
+import { handoffMobileBackLayer, useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useActionFeedback } from "@/components/shared/action-feedback";
 
@@ -101,6 +101,7 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
   const [highlightId, setHighlightId] = useState<string | null>(initialFileId && files.some((item) => item.id === initialFileId) ? initialFileId : null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const referenceInsertionHandoff = useRef(false);
   useEffect(() => {
     const timer = window.setTimeout(() => {
     const locator = parseSourceLocator(`${window.location.pathname}${window.location.search}`);
@@ -409,14 +410,14 @@ export function FilesWorkspace({ folders, files, archivedFiles = emptyFiles, ini
           if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.nativeEvent.isComposing) return;
           if (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable="true"],[role="slider"],.file-pdf-viewport')) return;
           if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); switchPreview(event.key === "ArrowLeft" ? -1 : 1); }
-        }} onCloseAutoFocus={event => { event.preventDefault(); if (previewLauncher.current?.isConnected) previewLauncher.current.focus(); else sectionRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus(); }}>
+        }} onCloseAutoFocus={event => { event.preventDefault(); if (referenceInsertionHandoff.current) { referenceInsertionHandoff.current = false; return; } if (previewLauncher.current?.isConnected && !previewLauncher.current.closest("[hidden],[inert]")) previewLauncher.current.focus(); else sectionRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus(); }}>
           <DialogHeader><DialogTitle className="break-words pr-8">{previewFile.title}</DialogTitle><DialogDescription>{isPdfFile(previewFile) ? "PDF 预览" : "受限缩略图预览"} · 上传于 {new Date(previewFile.uploaded_at).toLocaleDateString("zh-CN")} · {formatBytes(previewFile.file_size)}</DialogDescription></DialogHeader>
           <div className="file-preview-navigation" role="group" aria-label="文件切换">
             <button type="button" className="pressable" disabled={previewIndex <= 0} onClick={() => switchPreview(-1)}><ChevronLeft aria-hidden="true" size={16} />上一文件</button>
             <output aria-live="polite">{previewIndex >= 0 ? `${previewIndex + 1} / ${previewFiles.length}` : "当前文件"}</output>
             <button type="button" className="pressable" disabled={previewIndex < 0 || previewIndex >= previewFiles.length - 1} onClick={() => switchPreview(1)}>下一文件<ChevronRight aria-hidden="true" size={16} /></button>
           </div>
-          {isPdfFile(previewFile) ? <FilePdfPreview key={previewFile.id} documentId={previewFile.id} title={previewFile.title} active={previewOpen} initialPage={pdfLocator?.documentId === previewFile.id ? pdfLocator.page : undefined} initialSourceVersion={pdfLocator?.documentId === previewFile.id ? pdfLocator.sourceVersion : undefined} /> : <div className="file-photo-stage"><FilePhoto file={previewFile} className="max-h-[50dvh] min-h-40 w-full rounded-[10px]" /></div>}
+          {isPdfFile(previewFile) ? <FilePdfPreview key={previewFile.id} documentId={previewFile.id} title={previewFile.title} active={previewOpen} onReferenceInsertionHandoff={() => { handoffMobileBackLayer("dialog", "note-insertion"); referenceInsertionHandoff.current = true; setPreviewOpen(false); }} initialPage={pdfLocator?.documentId === previewFile.id ? pdfLocator.page : undefined} initialSourceVersion={pdfLocator?.documentId === previewFile.id ? pdfLocator.sourceVersion : undefined} /> : <div className="file-photo-stage"><FilePhoto file={previewFile} className="max-h-[50dvh] min-h-40 w-full rounded-[10px]" /></div>}
           <p className="break-all text-[12px] text-[var(--text-secondary)]">原始文件名：{previewFile.original_filename}</p>
           <a href={`/api/files/${previewFile.id}/download`} className="pressable inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] bg-[var(--accent)] px-3 text-[13px] text-white"><Download size={15} />下载原件</a>
         </DialogContent> : null}

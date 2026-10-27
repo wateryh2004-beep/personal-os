@@ -24,13 +24,13 @@ create index briefing_judgment_versions_decision on public.briefing_judgment_ver
 alter table public.briefing_judgment_versions enable row level security;
 alter table public.briefing_judgment_versions force row level security;
 create policy briefing_judgment_versions_owner_read on public.briefing_judgment_versions for select to authenticated using(user_id=(select auth.uid()));
-revoke all on public.briefing_judgment_versions from public,anon,authenticated;
+revoke all on public.briefing_judgment_versions from public,anon,authenticated,service_role;
 grant select on public.briefing_judgment_versions to authenticated;
 
 
 create function workflow_private.guard_briefing_judgment_version() returns trigger
 language plpgsql set search_path='' as $$begin raise exception 'briefing_judgment_version_immutable' using errcode='23514';end $$;
-revoke all on function workflow_private.guard_briefing_judgment_version() from public,anon,authenticated;
+revoke all on function workflow_private.guard_briefing_judgment_version() from public,anon,authenticated,service_role;
 create trigger briefing_judgment_versions_immutable before update or delete on public.briefing_judgment_versions for each row execute function workflow_private.guard_briefing_judgment_version();
 
 create function public.save_briefing_judgment_intent(
@@ -91,7 +91,7 @@ begin
   values(owner,'briefing_judgment_saved','decision',linked,'user',jsonb_build_object('entry_id',p_entry_id,'version_id',p_intent_id,'character_count',private.inbox_ai_utf16_length(p_judgment)));
  return jsonb_build_object('decision_id',linked,'updated_at',saved_at,'superseded',false);
 end $$;
-revoke all on function public.save_briefing_judgment_intent(uuid,uuid,uuid,timestamptz,text,integer,text,text) from public,anon;
+revoke all on function public.save_briefing_judgment_intent(uuid,uuid,uuid,timestamptz,text,integer,text,text) from public,anon,service_role;
 grant execute on function public.save_briefing_judgment_intent(uuid,uuid,uuid,timestamptz,text,integer,text,text) to authenticated;
 
 create function public.read_briefing_judgment_intent(
@@ -110,5 +110,5 @@ begin
  if not found then return null;end if;
  return jsonb_build_object('decision_id',previous.decision_id,'updated_at',previous.decision_updated_at,'superseded',updated is distinct from previous.decision_updated_at);
 end $$;
-revoke all on function public.read_briefing_judgment_intent(uuid,uuid,uuid,timestamptz,text,integer,text,text) from public,anon;
+revoke all on function public.read_briefing_judgment_intent(uuid,uuid,uuid,timestamptz,text,integer,text,text) from public,anon,service_role;
 grant execute on function public.read_briefing_judgment_intent(uuid,uuid,uuid,timestamptz,text,integer,text,text) to authenticated;

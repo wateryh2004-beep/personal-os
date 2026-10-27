@@ -75,7 +75,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
           >
             <ChevronLeft className="size-[18px]" aria-hidden="true" />
           </button>
-          {openNavigation ? <button type="button" onClick={openNavigation} aria-label="打开笔记文件" className="pressable inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] md:hidden"><PanelLeft aria-hidden="true" className="size-[18px]" /></button> : null}
+          {openNavigation ? <button type="button" onClick={openNavigation} aria-label="打开笔记文件" className="notes-navigation-trigger pressable inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] md:hidden"><PanelLeft aria-hidden="true" className="size-[18px]" /></button> : null}
           <nav aria-label="文档位置" className="min-w-0 flex-1">
             {location ? <Link href={location.href} title={location.label} aria-label={`返回文件夹：${location.label}`} className="block truncate rounded-[var(--radius-sm)] py-2 text-[12px] leading-7 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]">{location.label}</Link> : null}
           </nav>

@@ -8,6 +8,16 @@ function isPhoneViewport() {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
 }
 
+/** A same-route step replaces its layer in the existing Back entry. Call before
+ * synchronously mounting the named successor; ordinary cancellation still pops. */
+export function handoffMobileBackLayer(fromLayer: string, toLayer: string) {
+  if (!isPhoneViewport()) return;
+  const state = window.history.state as Record<string, unknown> | null;
+  const marker = state?.[historyMarkerKey];
+  if (typeof marker !== "string" || !marker.startsWith(`${fromLayer}:`)) return;
+  window.history.replaceState({ ...state, [historyMarkerKey]: `${toLayer}:handoff:${marker}` }, "", window.location.href);
+}
+
 /** A route-changing dismissal owns its navigation; cleanup must not also Back. */
 export function releaseMobileBackLayerForNavigation(layerName: string) {
   const state = window.history.state as Record<string, unknown> | null;
@@ -40,7 +50,12 @@ export function useMobileBackLayer(open: boolean, onDismiss: () => void | boolea
     const openedAtUrl = window.location.href;
     markerRef.current = marker;
     activeRef.current = true;
-    window.history.pushState({ ...currentState, [historyMarkerKey]: marker }, "", window.location.href);
+    const previousMarker = currentState[historyMarkerKey];
+    if (typeof previousMarker === "string" && previousMarker.startsWith(`${layerName}:handoff:`)) {
+      window.history.replaceState({ ...currentState, [historyMarkerKey]: marker }, "", window.location.href);
+    } else {
+      window.history.pushState({ ...currentState, [historyMarkerKey]: marker }, "", window.location.href);
+    }
 
     const onPopState = (event: PopStateEvent) => {
       if (!activeRef.current) return;

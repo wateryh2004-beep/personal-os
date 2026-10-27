@@ -272,7 +272,7 @@ async function flushTimers() {
   });
 }
 async function click(selector: string) {
-  const target = container.querySelector<HTMLElement>(selector);
+  const target = (mocks.realInspector ? document : container).querySelector<HTMLElement>(selector);
   expect(target, selector).not.toBeNull();
   await act(async () => {
     target!.click();
@@ -1332,7 +1332,7 @@ describe("Real mobile inspector history", () => {
     expect(window.history.state).toEqual(historyState);
     await renderTasks(tasks);
     await flushTimers();
-    expect(container.querySelector('aside[aria-label="任务详情"]')).toBeNull();
+    expect(document.querySelector('aside[aria-label="任务详情"]')).toBeNull();
   });
 
   it.each(["tasks", "calendar"])(

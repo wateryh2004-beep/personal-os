@@ -8,6 +8,7 @@ import { sourceLocatorHref } from "@/features/links/source-locator";
 import { acknowledgePositionRestore, type PdfPositionRequest, type PositionRestoreStatus } from "@/features/workbench/position-requests";
 import { insertIntoAdjacentNote, listNoteInsertionTargets } from "@/features/workflow-continuity/note-insertion";
 import { useWorkbenchActive } from "@/components/workbench/workbench-activity";
+import { useReferenceNoteInsertion } from "@/components/workbench/reference-note-insertion";
 import { useReadingVerificationTransport } from "@/features/files/reading-verification-context";
 import { getReadingProgress, saveReadingProgress } from "@/features/files/reading-progress-actions";
 import { createReadingProgressQueue, type ReadingProgress } from "@/features/files/reading-progress";
@@ -29,7 +30,7 @@ function preflightMessage(status: number) {
 }
 
 /** A keyed session prevents old document loads from painting a newer selection. */
-type PdfPreviewProps = { documentId: string; title: string; embedded?: boolean; active?: boolean; persistProgress?: boolean; initialPage?: number; initialSourceVersion?: string; onPageChange?: (page: number, sourceVersion: string | null) => void };
+type PdfPreviewProps = { documentId: string; title: string; embedded?: boolean; active?: boolean; persistProgress?: boolean; initialPage?: number; initialSourceVersion?: string; onPageChange?: (page: number, sourceVersion: string | null) => void; onReferenceInsertionHandoff?: () => void };
 export function FilePdfPreview(props: PdfPreviewProps) {
   const paneActive = useWorkbenchActive();
   const [resume, setResume] = useState(() => ({ id: props.documentId, page: props.initialPage, source: props.initialSourceVersion }));
@@ -47,7 +48,7 @@ export function FilePdfPreview(props: PdfPreviewProps) {
   </div>;
 }
 
-function PdfPreviewSession({ documentId, title, embedded = false, active: paneActive = true, persistProgress = true, initialPage: restoredPage, initialSourceVersion, onPageChange }: PdfPreviewProps) {
+function PdfPreviewSession({ documentId, title, embedded = false, active: paneActive = true, persistProgress = true, initialPage: restoredPage, initialSourceVersion, onPageChange, onReferenceInsertionHandoff }: PdfPreviewProps) {
   const readingTransport=useReadingVerificationTransport();
   const [originScope] = useState(captureWorkspaceScope);
   const restoreRequest = useRef<{ request: PdfPositionRequest; page: number; status: Exclude<PositionRestoreStatus, "timeout"> } | null>(null);
@@ -251,7 +252,7 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
     </div> : null}
     <div ref={container} className="file-pdf-viewport max-h-[60dvh] min-h-64 overflow-auto rounded-[10px] border border-[var(--separator)] bg-[var(--surface-control)] p-3">
       {error ? <p role="alert" className="text-[12px] leading-5">{error}</p> : pdf ?
-        <PdfCanvasPage key={`${pageNumber}:${zoom}:${width}`} pdf={pdf} pageNumber={pageNumber} title={title} documentId={documentId} sourceVersion={sourceVersion} width={width * zoom} onFailure={fail} onRendered={onRendered} /> :
+        <PdfCanvasPage key={`${pageNumber}:${zoom}:${width}`} pdf={pdf} pageNumber={pageNumber} title={title} documentId={documentId} sourceVersion={sourceVersion} width={width * zoom} onFailure={fail} onRendered={onRendered} onReferenceInsertionHandoff={onReferenceInsertionHandoff} /> :
         <div className="file-pdf-paper-placeholder"><p role="status" className="flex min-h-56 items-center justify-center text-[13px] text-[var(--text-secondary)]">正在准备 PDF 预览…</p></div>}
     </div>
     <p className="text-[12px] leading-5 text-[var(--text-secondary)]">逐页显示 PDF；页内预览上限为 25 MiB。文件通过当前登录会话读取，不会发送给第三方阅读服务。</p>
@@ -262,9 +263,10 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
   </div>;
 }
 
-export function PdfCanvasPage({ pdf, pageNumber, title, documentId, sourceVersion, width, onFailure, onRendered }: {
-  pdf: PDFDocumentProxy; pageNumber: number; title: string; documentId?: string; sourceVersion?: string | null; width: number; onFailure: (message: string) => void; onRendered: (page: number) => void;
+export function PdfCanvasPage({ pdf, pageNumber, title, documentId, sourceVersion, width, onFailure, onRendered, onReferenceInsertionHandoff }: {
+  pdf: PDFDocumentProxy; pageNumber: number; title: string; documentId?: string; sourceVersion?: string | null; width: number; onFailure: (message: string) => void; onRendered: (page: number) => void; onReferenceInsertionHandoff?: () => void;
 }) {
+  const referenceInsertion = useReferenceNoteInsertion();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
   // The page never renews its originating owner/Vault lease on a later click.
@@ -419,6 +421,11 @@ export function PdfCanvasPage({ pdf, pageNumber, title, documentId, sourceVersio
     if (!selectionSource) return;
     const content = noteSelectionContent(selectedText, selectionSource, referenceOnly);
     if (content.status === "over-budget") { setInsertionMessage(`引用格式与来源链接合计 ${content.actual.toLocaleString("en-US")} 个字符，超过单次笔记插入的 ${content.limit.toLocaleString("en-US")} 字符上限。请缩小选区或仅关联本页来源。`); return; }
+    if (referenceInsertion?.noteId === targetNoteId && !targets.some(target => target.noteId === targetNoteId)) {
+      const accepted = referenceInsertion.stage({ noteId: targetNoteId, markdown: content.content, sourceHref: selectionSource.href, beforeActivate: onReferenceInsertionHandoff });
+      if (!accepted && selectionIsCurrent()) setInsertionMessage("参考笔记已变化，请重新选择摘录目标。");
+      return;
+    }
     const result = await insertIntoAdjacentNote({ targetNoteId, markdown: content.content });
     if (!selectionIsCurrent()) return;
     setInsertionMessage(result.status === "applied" ? "已插入，等待笔记自动保存。"
@@ -429,10 +436,10 @@ export function PdfCanvasPage({ pdf, pageNumber, title, documentId, sourceVersio
   };
   return <><div className="flex flex-wrap items-center gap-2 py-2 text-xs" role="status">{textStatus}
     {selectedText && documentId && sourceVersion ? <>
-      <label>目标笔记<select aria-label="摘录目标笔记" value={targetNoteId} onChange={(event) => { if (selectionIsCurrent()) setTargetNoteId(event.target.value); }} className="ui-field ml-2 min-h-11"><option value="">选择旁边已打开的笔记</option>{targets.map((target) => <option key={`${target.role}:${target.noteId}`} value={target.noteId}>{target.label || (target.role === "reference" ? "参照笔记" : "当前笔记")}</option>)}</select></label>
+      <label>目标笔记<select aria-label="摘录目标笔记" value={targetNoteId} onChange={(event) => { if (selectionIsCurrent()) setTargetNoteId(event.target.value); }} className="ui-field ml-2 min-h-11"><option value="">选择旁边已打开的笔记</option>{targets.map((target) => <option key={`${target.role}:${target.noteId}`} value={target.noteId}>{target.label || (target.role === "reference" ? "参照笔记" : "当前笔记")}</option>)}{referenceInsertion && !targets.some(target => target.noteId === referenceInsertion.noteId) ? <option value={referenceInsertion.noteId}>参考笔记（切换后确认）</option> : null}</select></label>
       <button type="button" onClick={() => { if (selectionIsCurrent()) clearSelection(); }} className="min-h-11 px-2">取消选文</button>
       {selectedQuote?.status === "over-budget" ? <p role="status" className="basis-full">引用格式与来源链接合计 {selectedQuote.actual.toLocaleString("en-US")} 个字符，超过单次笔记插入的 {selectedQuote.limit.toLocaleString("en-US")} 字符上限。原选文与页码来源已保留，请缩小选区或仅关联本页来源。</p> : null}
-      <button type="button" disabled={!targetNoteId || selectedQuote?.status !== "ready"} onMouseDown={(event) => event.preventDefault()} onClick={() => void insertSelection(false)} className="min-h-11 rounded-md border px-3 disabled:opacity-40">摘录到笔记</button>
+      <button type="button" disabled={!targetNoteId || selectedQuote?.status !== "ready"} onMouseDown={(event) => event.preventDefault()} onClick={() => void insertSelection(false)} className="min-h-11 rounded-md border px-3 disabled:opacity-40">{referenceInsertion?.noteId === targetNoteId && !targets.some(target => target.noteId === targetNoteId) ? "到参考笔记确认摘录" : "摘录到笔记"}</button>
       <button type="button" disabled={!targetNoteId} onMouseDown={(event) => event.preventDefault()} onClick={() => void insertSelection(true)} className="min-h-11 rounded-md border px-3 disabled:opacity-40">仅关联本页来源</button>
     </> : null}{scopeIsCurrent() ? insertionMessage : "工作区已变化，请重新打开 PDF 后选择文字。"}</div><div className="file-pdf-page" data-rendered={rendered || undefined}>
     {!rendered ? <p role="status" className="file-pdf-drawing-status py-3 text-[12px] text-[var(--text-secondary)]">正在绘制第 {pageNumber} 页…</p> : null}

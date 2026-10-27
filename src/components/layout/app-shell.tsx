@@ -243,8 +243,9 @@ function AppShellInner({ children, presentationPathname, verificationTransport }
 
   useEffect(() => {
     const handleNavigationStart = (event: Event) => {
-      const href = (event as CustomEvent<{ href?: unknown }>).detail?.href;
-      if (typeof href !== "string" || !event.cancelable) return;
+      const detail = (event as CustomEvent<{ href?: unknown; phase?: unknown }>).detail;
+      const href = detail?.href;
+      if (typeof href !== "string" || !event.cancelable || detail?.phase === "prepare") return;
       event.preventDefault();
       beginNavigation(href);
     };
@@ -363,11 +364,23 @@ function AppShellInner({ children, presentationPathname, verificationTransport }
       const height = viewport?.height ?? window.innerHeight;
       document.documentElement.style.setProperty("--app-viewport-height", `${Math.round(height)}px`);
     };
+    const settleResponsiveGeometry = () => {
+      // Responsive breakpoints are layout changes, not a sidebar-collapse
+      // gesture. Resolve their dimensions before the next painted frame.
+      for (const node of document.querySelectorAll<HTMLElement>(".app-sidebar,.app-workspace-frame")) {
+        void getComputedStyle(node).marginLeft;
+        for (const animation of node.getAnimations?.() ?? []) {
+          if ("transitionProperty" in animation && ["width", "margin-left"].includes(String(animation.transitionProperty))) animation.cancel();
+        }
+      }
+    };
     updateViewportHeight();
     viewport?.addEventListener("resize", updateViewportHeight);
+    window.addEventListener("resize", settleResponsiveGeometry);
     window.addEventListener("orientationchange", updateViewportHeight);
     return () => {
       viewport?.removeEventListener("resize", updateViewportHeight);
+      window.removeEventListener("resize", settleResponsiveGeometry);
       window.removeEventListener("orientationchange", updateViewportHeight);
       document.documentElement.style.removeProperty("--app-viewport-height");
     };

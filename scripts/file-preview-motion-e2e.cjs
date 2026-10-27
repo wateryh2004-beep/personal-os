@@ -29,6 +29,12 @@ const output = "test-results/file-preview-motion", evidence = [];
         await launcher.scrollIntoViewIfNeeded();
         await page.evaluate(() => {
           window.__previewMotionFrames = []; window.__previewMotionStop = false;
+          window.__previewEscape = null;
+          document.addEventListener("keydown", event => {
+            if (event.key !== "Escape" || window.__previewEscape) return;
+            const surface = document.querySelector(".file-preview-surface");
+            window.__previewEscape = { trusted: event.isTrusted, open: surface?.dataset.state === "open", running: surface?.getAnimations().filter(animation => animation.playState === "running").length ?? 0, transform: surface ? getComputedStyle(surface).transform : null };
+          }, true);
           const sample = () => {
             const surface = document.querySelector(".file-preview-surface");
             if (surface) {
@@ -38,13 +44,16 @@ const output = "test-results/file-preview-motion", evidence = [];
             if (!window.__previewMotionStop) requestAnimationFrame(sample);
           }; requestAnimationFrame(sample);
         });
-        await launcher.click(); const dialog = page.getByRole("dialog"); await dialog.waitFor();
-        if (mode !== "reduced") {
-          await page.waitForFunction(() => document.querySelector(".file-preview-surface")?.getAnimations().some(animation => animation.playState === "running"));
-          row.interruptedRunning = await dialog.evaluate(surface => surface.getAnimations().some(animation => animation.playState === "running"));
-          assert.equal(row.interruptedRunning, true, "Escape interrupts a genuinely moving viewer");
-        }
-        await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
+        // Send the real key directly after the trusted pointer input. Readiness
+        // polling + a second evaluate consumed the short enter motion on busy CI.
+        // Capture at keydown proves the state actually interrupted by this input.
+        await launcher.click(); const dialog = page.getByRole("dialog");
+        await page.keyboard.press("Escape");
+        row.escape = await page.evaluate(() => window.__previewEscape);
+        assert.equal(row.escape?.trusted, true, "interruption uses a native trusted Escape");
+        assert.equal(row.escape?.open, true, "Escape reaches the actual open viewer");
+        if (mode !== "reduced") assert.ok(row.escape.running > 0, "Escape interrupts a genuinely moving viewer at keydown");
+        await dialog.waitFor({ state: "hidden" });
         await page.waitForFunction(node => document.activeElement === node, await launcher.elementHandle());
         await launcher.click(); await dialog.waitFor(); await dialog.locator('canvas[data-pdf-rendered="true"]').waitFor();
         await dialog.evaluate(async surface => { await Promise.all(surface.getAnimations().map(animation => animation.finished.catch(() => {}))); });

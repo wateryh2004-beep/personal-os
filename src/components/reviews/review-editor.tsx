@@ -48,7 +48,7 @@ export function ReviewEditor({
             value={value[key].join("\n")}
             onChange={(event) => updateList(key, event.target.value)}
             placeholder={placeholder}
-            className="mt-1.5 min-h-20 resize-y leading-5.5 shadow-none"
+            className="mt-1.5 min-h-20 resize-y leading-[1.6] shadow-none"
           />
         </label>
       ))}
@@ -59,7 +59,7 @@ export function ReviewEditor({
           value={value.freeReflection}
           onChange={(event) => onChange(before => ({ ...before, freeReflection: event.target.value }))}
           placeholder="用自己的话写下这一周期真正重要的事……"
-          className="mt-1.5 min-h-40 resize-y leading-6 shadow-none"
+          className="mt-1.5 min-h-40 resize-y leading-[1.6] shadow-none"
         />
       </label>
     </div>

@@ -8,12 +8,17 @@ const output = "test-results/settings-workspace";
   await mkdir(output, { recursive: true });
   const browser = await chromium.launch({ headless: true });
   const evidence = [];
+  let activePage, activeWidth;
+  const diagnostics = [];
   try {
     for (const width of [360, 390, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 1050 }, reducedMotion: "reduce" });
       await context.route("**/*", route => new URL(route.request().url()).origin === baseURL ? route.continue() : route.abort());
       const page = await context.newPage(), errors = [];
+      activePage = page; activeWidth = width;
       page.on("pageerror", error => errors.push(error.message));
+      page.on("pageerror", error => diagnostics.push({ width, kind: "pageerror", message: error.message }));
+      page.on("console", message => { if (message.type() === "error") diagnostics.push({ width, kind: "console", message: message.text() }); });
       await page.goto(baseURL, { waitUntil: "networkidle" });
       assert.equal(await page.evaluate(() => window.fixtureCalls || 0), 0);
       assert.ok(await page.getByRole("heading", { name: "存储空间", exact: true }).isVisible());
@@ -80,5 +85,14 @@ const output = "test-results/settings-workspace";
       await context.close();
     }
     await writeFile(`${output}/evidence.json`, JSON.stringify(evidence, null, 2));
+  } catch (error) {
+    // Capture the original failure before closing the synthetic-only context.
+    // A pre-render module error must not disappear with an empty artifact dir.
+    if (activePage && !activePage.isClosed()) {
+      await activePage.screenshot({ path: `${output}/failure-${activeWidth}.png`, fullPage: true }).catch(() => {});
+      diagnostics.push({ width: activeWidth, kind: "body", message: await activePage.locator("body").innerText().catch(() => "unavailable") });
+    }
+    await writeFile(`${output}/failure.json`, JSON.stringify({ error: String(error), diagnostics, completed: evidence }, null, 2));
+    throw error;
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

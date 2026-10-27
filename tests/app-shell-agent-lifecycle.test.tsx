@@ -5,8 +5,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ChatInit } from "ai";
 import type { AssistantUIMessage } from "@/features/assistant/stream-metadata";
 
-const engine = vi.hoisted(() => ({ loaded: vi.fn(), initialized: vi.fn(), send: vi.fn(), stop: vi.fn(), completion: Promise.resolve(), loading: Promise.resolve() }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/today", useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }) }));
+const engine = vi.hoisted(() => ({ loaded: vi.fn(), initialized: vi.fn(), send: vi.fn(), stop: vi.fn(), completion: Promise.resolve(), loading: Promise.resolve(), push: vi.fn() }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/today", useRouter: () => ({ push: engine.push, prefetch: vi.fn() }) }));
 vi.mock("next/link", () => ({ default: ({ children, onNavigate: _onNavigate, prefetch: _prefetch, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { onNavigate?: unknown; prefetch?: boolean }) => { void _onNavigate; void _prefetch; return createElement("a", props, children); } }));
 vi.mock("next/dynamic", async () => {
   const { lazy, Suspense, createElement } = await import("react");
@@ -99,4 +99,39 @@ it("loads Agent on intent, continues one answer while closed and reopens its com
   expect(document.querySelector('[aria-label="AI 助手"]')?.textContent).toContain("合成请求的同一份完成结果");
   expect(engine.send).toHaveBeenCalledTimes(1);
   expect(engine.stop).not.toHaveBeenCalled();
+});
+
+
+it("the real shell leaves source navigation preflight to its caller, preserving save refusal and the source trail", async () => {
+  const { registerWorkflowNavigationProtection } = await import("@/features/workflow-continuity/navigation-protection");
+  const { beginSourceNavigation, captureSourceNavigation, getSourceTrail } = await import("@/features/workflow-continuity/source-trail");
+  window.history.replaceState({}, "", "/today");
+  await act(async () => root.render(createElement(TooltipProvider, null, createElement(AppShell, null, "合成首页"))));
+  const scene = { version: 1 as const, main: { href: "/today", position: { scrollTop: 42 } }, reference: null, layout: { referenceFirst: false, referenceWidth: 42, mobilePane: "main" as const } };
+  let release!: (accepted: boolean) => void;
+  const guard = vi.fn(() => new Promise<boolean>(resolve => { release = resolve; }));
+  const stop = registerWorkflowNavigationProtection(guard);
+  const navigate = vi.fn();
+  try {
+    let pending!: Promise<void>;
+    await act(async () => { pending = captureSourceNavigation({ capture: async () => scene, destination: "/notes", label: "今日", current: beginSourceNavigation(), navigate }); await Promise.resolve(); });
+    expect(guard).toHaveBeenCalledTimes(1); expect(engine.push).not.toHaveBeenCalled(); expect(navigate).not.toHaveBeenCalled(); expect(getSourceTrail()).toHaveLength(0);
+    await act(async () => { release(false); await pending; });
+    expect(engine.push).not.toHaveBeenCalled(); expect(navigate).not.toHaveBeenCalled(); expect(getSourceTrail()).toHaveLength(0);
+    await act(async () => { pending = captureSourceNavigation({ capture: async () => scene, destination: "/notes", label: "今日", current: beginSourceNavigation(), navigate }); await Promise.resolve(); });
+    await act(async () => { release(true); await pending; });
+    expect(engine.push).not.toHaveBeenCalled(); expect(navigate).toHaveBeenCalledExactlyOnceWith("/notes"); expect(getSourceTrail()).toHaveLength(1); expect(getSourceTrail()[0].scene.main.position?.scrollTop).toBe(42);
+    await act(async () => window.dispatchEvent(new CustomEvent("personal-os:navigation-start", { cancelable: true, detail: { href: "/projects" } })));
+    expect(engine.push).toHaveBeenCalledWith("/projects", { transitionTypes: ["navigation-forward"] });
+  } finally { stop(); }
+});
+
+it("settles responsive sidebar dimensions without cancelling a deliberate collapse or paint animation", async () => {
+  await act(async () => root.render(createElement(TooltipProvider, null, createElement(AppShell, null, "合成首页"))));
+  const width = { transitionProperty: "width", cancel: vi.fn() }, margin = { transitionProperty: "margin-left", cancel: vi.fn() }, paint = { transitionProperty: "opacity", cancel: vi.fn() };
+  const sidebar = host.querySelector<HTMLElement>(".app-sidebar")!, frame = host.querySelector<HTMLElement>(".app-workspace-frame")!;
+  sidebar.getAnimations = vi.fn(() => [width, paint] as unknown as Animation[]); frame.getAnimations = vi.fn(() => [margin] as unknown as Animation[]);
+  expect(width.cancel).not.toHaveBeenCalled(); expect(margin.cancel).not.toHaveBeenCalled();
+  await act(async () => window.dispatchEvent(new Event("resize")));
+  expect(width.cancel).toHaveBeenCalledTimes(1); expect(margin.cancel).toHaveBeenCalledTimes(1); expect(paint.cancel).not.toHaveBeenCalled();
 });

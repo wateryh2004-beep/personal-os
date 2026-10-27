@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { act, createElement, useEffect, useState, type ReactElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PDFDocumentProxy } from "unpdf/pdfjs";
@@ -12,6 +12,7 @@ vi.mock("unpdf/pdfjs", () => ({ TextLayer: class {
   cancel() {}
 } }));
 import { NoteSelectionActions } from "@/components/notes/note-selection-actions";
+import { ReferenceNoteInsertionBoundary } from "@/components/workbench/reference-note-insertion";
 import { PdfCanvasPage } from "@/components/files/file-pdf-preview";
 import { clearWorkspaceResources } from "@/lib/workspace-resource-cache";
 import { insertIntoAdjacentNote, registerNoteInsertionTarget } from "@/features/workflow-continuity/note-insertion";
@@ -120,13 +121,13 @@ describe("actual Note selection UI and real adjacent-note bridge", () => {
   await click("仅关联来源到旁边笔记"); expect(newOwnerInsert).not.toHaveBeenCalled();
  });
 });
-async function showPdf(text: string) {
+async function showPdf(text: string, wrap?: (node: ReactElement) => ReactNode) {
  mocks.pdfText = text;
  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as CanvasRenderingContext2D);
  const page = { getViewport: ({ scale }: { scale: number }) => ({ width: 600 * scale, height: 800 * scale }), render: () => ({ promise: Promise.resolve(), cancel: vi.fn() }), cleanup: vi.fn(), getTextContent: async () => ({ items: [{ str: text }], styles: {} }) };
  const pdf = { getPage: async () => page } as unknown as PDFDocumentProxy;
  const props = { pdf, pageNumber: 7, title: "Synthetic PDF", documentId: pdfId, sourceVersion: versionId, width: 600, onFailure: vi.fn(), onRendered: vi.fn() };
- await act(async () => root.render(createElement(PdfCanvasPage, props)));
+ await act(async () => root.render(wrap ? wrap(createElement(PdfCanvasPage, props)) : createElement(PdfCanvasPage, props)));
  await act(async () => { await vi.waitFor(() => expect(host.querySelector(".file-pdf-text-layer span")).not.toBeNull()); });
  await act(async () => {
   const range = document.createRange(); range.selectNodeContents(host.querySelector(".file-pdf-text-layer span")!);
@@ -205,4 +206,23 @@ describe("retained Note task input on actual nullable selection controller",()=>
   await act(async()=>host.querySelector("form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
   expect(mocks.create).toHaveBeenCalledOnce();expect(mocks.read).toHaveBeenCalledOnce();expect([...mocks.read.mock.calls[0][0].entries()]).toEqual([...original.entries()]);expect(host.querySelector<HTMLInputElement>('input[name="title"]')!.value).toBe("Later B");
  });
+});
+
+
+it("hands the real selected PDF quote to an activated reference, waits for explicit confirmation, and keeps its immutable source after reader teardown", async () => {
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  const insert = vi.fn(() => ({ status: "applied" as const })), handoff = vi.fn();
+  function Target() { useEffect(() => registerNoteInsertionTarget({ noteId: targetId, label: "合成参考", role: "reference", canEdit: true, insert }), []); return createElement("input", { defaultValue: "已有草稿" }); }
+  function Handoff({ page }: { page: ReactElement }) {
+    const [active, setActive] = useState(false);
+    return <ReferenceNoteInsertionBoundary noteId={targetId} activate={() => { handoff(); setActive(true); }}>{active ? <Target /> : page}</ReferenceNoteInsertionBoundary>;
+  }
+  await showPdf("Select the real current page text.", node => createElement(Handoff, { page: node }));
+  expect(host.querySelector('option[value="'+targetId+'"]')?.textContent).toContain("切换后确认");
+  const oldCanvas = host.querySelector("canvas")!;
+  await click("到参考笔记确认摘录");
+  expect(handoff).toHaveBeenCalledOnce(); expect(oldCanvas.isConnected).toBe(false); expect(insert).not.toHaveBeenCalled();
+  await click("确认插入所选内容");
+  expect(insert).toHaveBeenCalledExactlyOnceWith(`> Select the real current page text.\n\n[原文件 · 第 7 页](${pdfSource.href})`);
+  expect(host.textContent).toContain("已插入，等待笔记自动保存。");
 });

@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { handoffMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,11 @@ export function CalendarTaskDuration({
   onChoose: (minutes: number) => void;
 }) {
   const handingOff = useRef(false);
-  const choose = (value: number) => { handingOff.current = true; onChoose(value); };
+  const choose = (value: number) => {
+    handingOff.current = true;
+    handoffMobileBackLayer("dialog", "side-panel:inspector");
+    onChoose(value);
+  };
   const [minutes, setMinutes] = useState("");
   const number = Number(minutes),
     valid =

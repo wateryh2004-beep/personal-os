@@ -256,9 +256,10 @@ export function ProjectProgress({
                 }
               }}
             >
-              <label className="grid gap-1 text-sm">
-                项目目标
+              <div className="grid gap-1 text-sm">
+                <label htmlFor={`${detailsId}-goal`}>项目目标</label>
                 <textarea
+                  id={`${detailsId}-goal`}
                   className="ui-field min-h-24 text-base"
                   maxLength={8000}
                   value={value.goal}
@@ -269,10 +270,11 @@ export function ProjectProgress({
                     }))
                   }
                 />
-              </label>
-              <label className="grid gap-1 text-sm">
-                是什么卡住了
+              </div>
+              <div className="grid gap-1 text-sm">
+                <label htmlFor={`${detailsId}-blocker`}>是什么卡住了</label>
                 <textarea
+                  id={`${detailsId}-blocker`}
                   className="ui-field text-base"
                   maxLength={8000}
                   value={value.blocker}
@@ -283,10 +285,11 @@ export function ProjectProgress({
                     }))
                   }
                 />
-              </label>
-              <label className="grid gap-1 text-sm">
-                下一项 Microsoft To Do
+              </div>
+              <div className="grid gap-1 text-sm">
+                <label htmlFor={`${detailsId}-next-task`}>下一项 Microsoft To Do</label>
                 <select
+                  id={`${detailsId}-next-task`}
                   className="ui-field min-h-11 text-base"
                   disabled={tasksUnavailable}
                   value={value.nextTask}
@@ -320,7 +323,7 @@ export function ProjectProgress({
                       </option>
                     ))}
                 </select>
-              </label>
+              </div>
               {tasksUnavailable ? (
                 <p role="status">任务读取失败，当前关联保留，请稍后再核对。</p>
               ) : tasksTruncated ? (

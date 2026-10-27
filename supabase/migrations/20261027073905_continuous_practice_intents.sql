@@ -18,7 +18,7 @@ begin
  end if;
  return new;
 end $$;
-revoke all on function workflow_private.guard_practice_submission() from public,anon,authenticated;
+revoke all on function workflow_private.guard_practice_submission() from public,anon,authenticated,service_role;
 create trigger practice_submission_immutable before insert or update on public.interview_practice_attempts
 for each row execute function workflow_private.guard_practice_submission();
 
@@ -90,7 +90,7 @@ begin
  insert into public.audit_logs(user_id,action,entity_type,entity_id,actor_type,after_data) values(owner_id,'practice','interview_attempt',p_attempt_id,'user',jsonb_build_object('preparation_id',v.preparation_id,'session_id',v.session_id,'sequence_no',next_sequence));
  return jsonb_build_object('attempt_id',p_attempt_id,'preparation_id',v.preparation_id,'session_id',v.session_id,'sequence_no',next_sequence,'question_id',qid,'created',true,'archived',false);
 end $$;
-revoke all on function public.record_interview_practice_intent(uuid,jsonb) from public,anon;
+revoke all on function public.record_interview_practice_intent(uuid,jsonb) from public,anon,service_role;
 grant execute on function public.record_interview_practice_intent(uuid,jsonb) to authenticated;
 
 -- Pure read-back: no claim/INSERT/audit/schedule. Input must remain the exact
@@ -105,5 +105,5 @@ begin
  if r.submission_fingerprint is distinct from encode(sha256(convert_to(p_payload::text,'UTF8')),'hex') then return jsonb_build_object('status','conflict'); end if;
  return jsonb_build_object('status','saved','attempt_id',r.id,'preparation_id',r.preparation_id,'session_id',r.session_id,'sequence_no',r.sequence_no,'archived',r.archived_at is not null);
 end $$;
-revoke all on function public.reconcile_interview_practice_intent(uuid,jsonb) from public,anon;
+revoke all on function public.reconcile_interview_practice_intent(uuid,jsonb) from public,anon,service_role;
 grant execute on function public.reconcile_interview_practice_intent(uuid,jsonb) to authenticated;

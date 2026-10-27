@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { act, createElement, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WorkbenchActivityContext } from "@/components/workbench/workbench-activity";
 import { SidePanelShell } from "@/components/shared/side-panel-shell";
 
 let host: HTMLDivElement;
@@ -14,8 +15,8 @@ const render = (open = true) => {
   const props = { open, onClose: vi.fn(), title: "Details", children: createElement(Child) };
   root.render(createElement(SidePanelShell, props));
 };
-const panel = () => host.querySelector("aside")!;
-const handle = () => host.querySelector('[role="separator"]')!;
+const panel = () => document.querySelector<HTMLElement>("aside[aria-label=Details],aside[aria-label=详情]")!;
+const handle = () => panel().querySelector('[role="separator"]')!;
 const pointer = (type: string, clientX: number) => new MouseEvent(type, { bubbles: true, clientX, button: 0 });
 
 beforeEach(() => {
@@ -122,4 +123,28 @@ describe("side-panel geometry and input", () => {
       trigger.remove();
     }
   });
+});
+
+
+it("portals outside clipped panes and releases a hidden mobile pane's modal locks while preserving its owner's draft", async () => {
+  Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: true })) });
+  vi.spyOn(window.history, "back").mockImplementation(() => {});
+  function DraftPanel({ active }: { active: boolean }) {
+    const [value, setValue] = useState("原始输入");
+    const props = { open: true, onClose: vi.fn(), title: "Details", children: createElement("input", { value, "aria-label": "保留草稿", onChange: (event: React.ChangeEvent<HTMLInputElement>) => setValue(event.target.value) }) };
+    return createElement(WorkbenchActivityContext.Provider, { value: active }, createElement(SidePanelShell, props));
+  }
+  await act(async () => root.render(createElement(DraftPanel, { active: true })));
+  expect(host.contains(panel())).toBe(false); expect(document.body.style.pointerEvents).toBe("none");
+  const input = panel().querySelector<HTMLInputElement>("input")!;
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "未保存的后续输入"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+  await act(async () => root.render(createElement(DraftPanel, { active: false })));
+  await act(async () => new Promise(resolve => setTimeout(resolve, 0)));
+  expect(document.body.style.pointerEvents).toBe(""); expect(panel()).toBeNull();
+  const nextFocus = document.createElement("button"); document.body.append(nextFocus); nextFocus.focus();
+  await act(async () => root.render(createElement(DraftPanel, { active: true })));
+  expect(panel().querySelector<HTMLInputElement>("input")!.value).toBe("未保存的后续输入");
+  await act(async () => root.render(createElement(DraftPanel, { active: false })));
+  nextFocus.focus(); await act(async () => new Promise(resolve => setTimeout(resolve, 0)));
+  expect(document.activeElement).toBe(nextFocus); nextFocus.remove();
 });

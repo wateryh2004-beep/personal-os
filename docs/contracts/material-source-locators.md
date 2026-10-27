@@ -1,6 +1,6 @@
 # 材料来源、连续整理与编辑事务
 
-状态：本批实施契约。原十条迁移的固定数据库检查点已通过隔离 SQL；第十一条生产基线兼容候选未验，界面远程检查仍有失败，发布未完成，见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，公共生命周期见 [连续性契约](workflow-continuity.md)。
+状态：本批实施契约。`61569c8` 精确十一条 SQL 已完成真实隔离 PostgreSQL 与独立产物复核；随后八条未部署 SQL 创建默认 ACL 修复尚待新 Native。界面修复已形成新候选但未通过统一真实浏览器验收，生产未发布，见[2026-10-28 候选记录](../verification/2026-10-28-continuous-workflows-v3.md)。范围见 [二十项升级](../specs/continuous-workflows-v3.md)，公共生命周期见 [连续性契约](workflow-continuity.md)。
 
 ## 不可变来源
 
@@ -11,6 +11,9 @@ Notes 来源 URL 仅含 note ID、`nv` 版本 UUID、`nr` 修订号、`sf/st` UT
 PDF 来源独立使用 `file/pdfPage/sourceVersion`，其中 `pdfPage` 为 1–500 的 PDF 页码，和 Files 列表分页 `page` 无关。PDF 只从当前授权原件的同一 unpdf bundle 加载 TextLayer，以 CSS viewport 对齐 canvas。每页最多 20000 个文字项、200000 字符；原有字节、页数、像素和超时预算保留。选文仅来自该页文字层，最多 10000 字符，换页/缩放/源变化后失效。无文字或文字层失败仍保留 canvas 阅读和原件下载，不假装已有 OCR 内容。
 
 引用到旁边笔记需要明确可编辑目标，通过 live CodeMirror 单次事务插入，保留 undo；“已插入，待保存”与 canonical 保存分开。选文转任务先展示可编辑标题与真实 Microsoft To Do 清单，用户确认后才创建。
+
+手机上参考笔记不活动时仍不得注册/写入隐藏编辑器。明确点击“到参考笔记确认摘录”可把当前合法 PDF 的不可变 sourceVersion/page 引用和已构造 Markdown 移交到单一 Workbench 内存意图；不超过既有20000字符预算、仅一条、30秒。关闭阅读器并激活精确参考区后，只有真实唯一 live reference editor 就绪且用户再次确认，才走原插入桥接/undo与自动保存。源 reader 在移交前仍核对 origin、render generation、选文与挂载 owner scope；合法移交后的 reader teardown 不等于撤回，但旧 owner 不能续租。routeKey、导航、目标、owner、Esc/Back/取消、卸载和期限失效均撤销意图并清正文，过期明确提示重新选取。确认同步认领，结果待核对不自动重发，“已插入”不冒称“已保存”。当前只是已冻结实现与局部组件证据，手机真实浏览器闭环仍待统一候选重验。
+
 
 ## Markdown 操作
 
@@ -36,7 +39,7 @@ To Do 创建由专门 `todo_creation_receipts` 保留真实发送意图、哈希
 
 ## 迁移与回退
 
-当前完整十一条迁移依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile → production baseline，精确本地文件名与状态见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十一条迁移与生产版本登记)。前十条已有固定隔离证据；末项 `20261027175718_continuous_production_baseline.sql` 独立审查发现 completion 审计原子性问题，修复仍待复审与新 Native。它在缺失时补齐已证的复盘函数/项目搜索维护契约，并仅将匹配已知旧指纹/配置/ACL的 completion 前向升级为同事务正文、来源、版本与审计；已是新版保留，未知定义拒绝，其余健康定义与 ACL 保留，不重放旧 surface CHECK、旧文件或伪造 ledger。实际生产 87 条登记不等于本地 99 条完整旧基线。material receipts 的 task composite FK 依赖领域迁移创建的 owner 唯一索引，mutex 再依赖来源与回执；不能将本材料子集误作完整发布清单。
+当前完整十一条迁移依序为 material sources → domain workflows → material receipts → inbox dispatch mutex → AI capture intents → practice intents → Scene state → Briefing judgment intents → agent run generations → Life request reconcile → production baseline，精确本地文件名与状态见[迁移登记](../verification/2026-10-28-continuous-workflows-v3.md#十一条迁移与生产版本登记)。`61569c8` 的十一条精确 SQL 已有真实隔离与独立产物证据，含末项 `20261027175718_continuous_production_baseline.sql` 对 completion 审计原子性的修复。随后第1/2/3/4/5/6/8/9条仅将 service_role 加入既有 REVOKE 名单以收紧创建默认的多余权限，正文/约束/RLS/并发逻辑、旧99条及第7/10/11条保持；该新候选和新增生产默认 ACL 场景尚待真实 Native，不能直接沿用615旧哈希的通过结论。它在缺失时补齐已证的复盘函数/项目搜索维护契约，并仅将匹配已知旧指纹/配置/ACL的 completion 前向升级为同事务正文、来源、版本与审计；已是新版保留，未知定义拒绝，其余健康定义与 ACL 保留，不重放旧 surface CHECK、旧文件或伪造 ledger。实际生产 87 条登记不等于本地 99 条完整旧基线。material receipts 的 task composite FK 依赖领域迁移创建的 owner 唯一索引，mutex 再依赖来源与回执；不能将本材料子集误作完整发布清单。
 
 生产通过已连接 Supabase MCP 按上述顺序执行；接口不接受 version 参数，实际版本由迁移列表与 schema 核对。时间戳不同只对齐本地文件名、两份严格顺序清单与文档元数据，SQL 字节/哈希不变，不双写 history 或改用 CLI/REST 绕过。当前尚未应用生产。
 

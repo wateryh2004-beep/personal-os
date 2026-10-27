@@ -11,11 +11,17 @@ export type NoteInsertionTarget = {
 };
 type Registration = { token: symbol; current: () => boolean; target: NoteInsertionTarget };
 const targets = new Map<symbol, Registration>();
-registerWorkspaceScopeCleanup(() => targets.clear());
+const listeners = new Set<() => void>();
+let generation = 0;
+const emit = () => { generation += 1; listeners.forEach(listener => listener()); };
+export const subscribeNoteInsertionTargets = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
+export const getNoteInsertionGeneration = () => generation;
+registerWorkspaceScopeCleanup(() => { targets.clear(); emit(); });
 export function registerNoteInsertionTarget(target: NoteInsertionTarget) {
   const token = Symbol(target.noteId);
   targets.set(token, { token, current: captureWorkspaceScope(), target });
-  return () => { targets.delete(token); };
+  emit();
+  return () => { if (targets.delete(token)) emit(); };
 }
 export function listNoteInsertionTargets() {
   return [...targets.values()].filter(entry => entry.current() && entry.target.canEdit).map(({ target }) => ({ noteId: target.noteId, label: target.label.slice(0, 160), role: target.role }));

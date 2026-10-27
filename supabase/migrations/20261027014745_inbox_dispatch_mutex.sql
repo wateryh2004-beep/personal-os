@@ -47,7 +47,7 @@ begin
  end if;
  return new;
 end $$;
-revoke all on function private.guard_todo_inbox_intent() from public,anon,authenticated;
+revoke all on function private.guard_todo_inbox_intent() from public,anon,authenticated,service_role;
 create trigger todo_inbox_intent before insert or update on public.todo_creation_receipts for each row execute function private.guard_todo_inbox_intent();
 
 create function private.guard_calendar_inbox_intent() returns trigger
@@ -94,7 +94,7 @@ begin
  end if;
  return new;
 end $$;
-revoke all on function private.guard_calendar_inbox_intent() from public,anon,authenticated;
+revoke all on function private.guard_calendar_inbox_intent() from public,anon,authenticated,service_role;
 create trigger calendar_inbox_intent before insert or update on public.calendar_operations for each row execute function private.guard_calendar_inbox_intent();
 
 -- New external claims protect every completion field, including direct owner
@@ -118,7 +118,7 @@ begin
   and exists(select 1 from public.calendar_operations c where c.user_id=old.user_id and c.operation_type='create' and c.payload->>'sourceInboxId'=old.id::text and c.status='succeeded') then return new;end if;
  raise exception 'inbox_destination_conflict' using errcode='40001';
 end $$;
-revoke all on function private.guard_inbox_local_destination() from public,anon,authenticated;
+revoke all on function private.guard_inbox_local_destination() from public,anon,authenticated,service_role;
 create trigger inbox_local_destination before update on public.inbox_items for each row execute function private.guard_inbox_local_destination();
 
 -- Append, preserve the previous version, finish source and audit in one DB
@@ -168,7 +168,7 @@ begin
  insert into public.audit_logs(user_id,action,entity_type,entity_id,actor_type,after_data) values(auth.uid(),'convert','inbox_item',i.id,'user',jsonb_build_object('target','daily','destination_id',n.id,'date',target_date));
  return jsonb_build_object('noteId',n.id,'date',target_date);
 end $$;
-revoke all on function public.convert_inbox_daily(uuid,uuid,integer) from public,anon;
+revoke all on function public.convert_inbox_daily(uuid,uuid,integer) from public,anon,service_role;
 grant execute on function public.convert_inbox_daily(uuid,uuid,integer) to authenticated;
 
 -- Service-only preparation: owner comes from the verified action boundary.
@@ -242,7 +242,7 @@ begin
  end if;
  return old;
 end $$;
-revoke all on function private.retain_inbox_dispatch_intent() from public,anon,authenticated;
+revoke all on function private.retain_inbox_dispatch_intent() from public,anon,authenticated,service_role;
 create trigger retain_todo_dispatch before delete on public.todo_creation_receipts for each row execute function private.retain_inbox_dispatch_intent();
 create trigger retain_calendar_inbox_dispatch before delete on public.calendar_operations for each row execute function private.retain_inbox_dispatch_intent();
 create trigger retain_inbox_dispatch_source before delete on public.inbox_items for each row execute function private.retain_inbox_dispatch_intent();

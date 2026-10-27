@@ -19,6 +19,8 @@ record_stage("starting")
 first_continuous=next((index for index,path in enumerate(MIGRATIONS) if path.name.endswith(NEW_SUFFIXES[0])),None)
 actual_suffixes=[] if first_continuous is None else [next((suffix for suffix in NEW_SUFFIXES if path.name.endswith(suffix)),None) for path in MIGRATIONS[first_continuous:]]
 if actual_suffixes!=list(NEW_SUFFIXES): raise RuntimeError("Continuous migration order changed; review the exact strict allowlist")
+acl_spec=importlib.util.spec_from_file_location("continuous_default_acl",ROOT/"scripts/continuous-default-acl.py")
+default_acl=importlib.util.module_from_spec(acl_spec);acl_spec.loader.exec_module(default_acl)
 
 def scene_matrix(db,name):
     matrix=json.loads((ROOT/"tests/fixtures/continuous-workflows/scene-validator-matrix.json").read_text())
@@ -30,7 +32,7 @@ def scene_matrix(db,name):
     db.sql(name,"do $$begin\n"+"\n".join(statements)+"\nend $$;")
     return {"hrefCases":len(matrix["hrefs"]),"snapshotCases":len(matrix["snapshots"])}
 
-def initialize(db,name,upgrade):
+def initialize(db,name,upgrade,production_defaults=False):
     record_stage("create-database",database=name,upgrade=upgrade)
     db.sql("postgres",'create database "'+name+'";')
     db.sql(name,(ROOT/"tests/fixtures/system-backup-sql/bootstrap.sql").read_text())
@@ -42,6 +44,12 @@ def initialize(db,name,upgrade):
             record_stage("migration",database=name,migration=migration.name,upgrade=upgrade)
             db.sql(name,migration.read_text())
     db.sql(name,(ROOT/"tests/fixtures/continuous-workflows/upgrade-seed.sql").read_text())
+    previous_scene_acl=default_acl.existing_scene_acl(db,name) if upgrade else None
+    if production_defaults:
+        if not upgrade or len(deferred)!=len(NEW_SUFFIXES):
+            raise RuntimeError("Production-default scenario requires the complete historical baseline first")
+        record_stage("observed-production-defaults",database=name)
+        observed_defaults=default_acl.install_production_defaults(db,name)
     for migration in deferred:
         record_stage("upgrade-migration",database=name,migration=migration.name,upgrade=upgrade)
         db.sql(name,migration.read_text())
@@ -51,6 +59,22 @@ def initialize(db,name,upgrade):
     for filename in ("tests/continuous-domains-postgres.sql","tests/continuous-materials-postgres.sql","tests/continuous-inbox-mutex-postgres.sql","tests/continuous-ai-capture-postgres.sql","tests/continuous-practice-intents-postgres.sql","tests/continuous-briefing-judgment-postgres.sql","tests/continuous-agent-generations-postgres.sql","tests/continuous-life-request-postgres.sql","tests/continuous-project-replay-postgres.sql"):
         record_stage("regression",database=name,fixture=filename,upgrade=upgrade)
         db.sql(name,(ROOT/filename).read_text())
+    if production_defaults:
+        # The initial upgrade exercised the known legacy completion. Now repair
+        # the actual missing-object variant under the same creation defaults.
+        record_stage("observed-defaults-missing-baseline",database=name)
+        fixture_dir=ROOT/"tests/fixtures/continuous-workflows"
+        gap=(fixture_dir/"baseline-gap-setup.sql").read_text()
+        assertions=(ROOT/"tests/continuous-baseline-postgres.sql").read_text()+(fixture_dir/"baseline-completion-audit.sql").read_text()
+        db.sql(name,"begin;\n"+gap+MIGRATIONS[-1].read_text()+"\ncommit;\nbegin;\n"+assertions+"\nrollback;")
+    record_stage("effective-role-privileges",database=name,productionDefaults=production_defaults)
+    privileges=default_acl.verify(db,name,previous_scene_acl)
+    db.sql(name,(ROOT/"tests/continuous-default-acl-postgres.sql").read_text())
+    privileges.update(observedProductionDefaults=production_defaults,negativeStatementProbes=10)
+    if production_defaults:
+        privileges.update(defaultCreationProbe=observed_defaults,separateDisposableContainer=True,
+                          knownLegacyCompletionUnderObservedDefaults=True,missingBaselineObjectsUnderObservedDefaults=True)
+    return privileges
 def concurrency(db):
     owner="81000000-0000-4000-8000-000000000001"
     cases=[
@@ -102,8 +126,7 @@ def concurrency(db):
     return results
 try:
     with workbench.SyntheticPostgres() as db:
-        initialize(db,"source_fixture",False)
-        initialize(db,"restored_fixture",True)
+        privileges=[initialize(db,"source_fixture",False),initialize(db,"restored_fixture",True)]
         record_stage("actual-production-baseline-compatibility")
         baseline_spec=importlib.util.spec_from_file_location("continuous_baseline_compatibility",ROOT/"scripts/continuous-baseline-compatibility.py")
         baseline=importlib.util.module_from_spec(baseline_spec);baseline_spec.loader.exec_module(baseline)
@@ -120,10 +143,20 @@ try:
         concurrent.extend(baseline.overlap(db,workbench))
         columns=json.loads(db.sql("source_fixture","select json_agg(json_build_object('table',table_name,'column',column_name,'type',udt_name,'nullable',is_nullable='YES') order by table_name,ordinal_position) from information_schema.columns where table_schema='public';"))
         (OUTPUT/"actual-schema-columns.json").write_text(json.dumps(columns,indent=2)+"\n")
-        result={"status":"verified","engine":"PostgreSQL 17","cleanInstall":True,"upgradeFromPreReleaseSchemaWithExistingRows":True,"actualMigrations":len(MIGRATIONS),"ownerAndAnonymousPolicies":True,"immutableSourcesAndCAS":True,"backupInventory":True,"productionBaselineCompatibility":compatibility,"overlappingTransactions":concurrent,"auditRollback":True,"productionAccess":False}
-        (OUTPUT/"verification.json").write_text(json.dumps(result,indent=2)+"\n")
-        (OUTPUT/"progress.json").write_text(json.dumps(result,indent=2)+"\n")
-        print(json.dumps(result))
+        result={"status":"verified","engine":"PostgreSQL 17","cleanInstall":True,"upgradeFromPreReleaseSchemaWithExistingRows":True,"actualMigrations":len(MIGRATIONS),"ownerAndAnonymousPolicies":True,"immutableSourcesAndCAS":True,"backupInventory":True,"productionBaselineCompatibility":compatibility,"effectiveDefaultPrivileges":privileges,"overlappingTransactions":concurrent,"auditRollback":True,"productionAccess":False}
+    # Preserve the existing fixed-name SQL guard and original evidence. The
+    # defaults scenario runs after that container is destroyed, in a new one.
+    record_stage("separate-production-defaults-container")
+    with workbench.SyntheticPostgres() as defaults_db:
+        defaults_isolation=OUTPUT/"production-defaults"
+        defaults_isolation.mkdir(parents=True,exist_ok=True)
+        typegen.verify_synthetic_isolation(defaults_db,defaults_isolation)
+        privileges.append(initialize(defaults_db,"restored_fixture",True,production_defaults=True))
+        privileges[-1]["isolationEvidence"]="production-defaults/typegen-isolation.json"
+    (OUTPUT/"effective-default-acl.json").write_text(json.dumps({"status":"verified","productionAccess":False,"metadataDefaultsSimulationNotFullProductionClone":True,"scenarios":privileges},indent=2)+"\n")
+    (OUTPUT/"verification.json").write_text(json.dumps(result,indent=2)+"\n")
+    (OUTPUT/"progress.json").write_text(json.dumps(result,indent=2)+"\n")
+    print(json.dumps(result))
 except BaseException as error:
     progress=json.loads((OUTPUT/"progress.json").read_text())
     progress.update(status="failed",errorClass=type(error).__name__)

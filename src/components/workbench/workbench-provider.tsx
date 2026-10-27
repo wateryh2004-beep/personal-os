@@ -12,6 +12,7 @@ import { WorkbenchActivityContext } from "./workbench-activity";
 import { safeWorkbenchHref, workbenchComparable, workbenchRefKey, workbenchRefSchema, workspaceSceneSnapshotSchema, type WorkbenchPosition, type WorkbenchRef, type WorkspaceSceneSnapshot, type WorkbenchViewState } from "@/features/workbench/contracts";
 import { captureWorkspaceScope, registerWorkspaceScopeCleanup } from "@/lib/workspace-resource-cache";
 import { containedPaneStart } from "@/lib/motion/contained-transform";
+import { ReferenceNoteInsertionBoundary } from "./reference-note-insertion";
 import { prepareWorkflowNavigation } from "@/features/workflow-continuity/navigation-protection";
 import { cancelSourceNavigation } from "@/features/workflow-continuity/source-trail";
 import { captureWorkbenchPosition, restoreWorkbenchPosition } from "./workbench-position";
@@ -276,6 +277,7 @@ export function WorkbenchToolbar() {
 }
 export function WorkbenchLayout({ children }: { children: ReactNode }) {
   const { mainRef, referenceRef, ...host } = useWorkbenchHost(); const context = useContext(WorkbenchContext)!; const pathname = usePathname();
+  const search = useSearchParams();
   const paneId = useId();
   const divider = useRef<HTMLDivElement>(null);
   const resizeGesture = useRef<{ pointerId: number; width: number; node: HTMLDivElement; container: HTMLElement | null } | null>(null);
@@ -351,7 +353,10 @@ export function WorkbenchLayout({ children }: { children: ReactNode }) {
     if (gesture?.node.hasPointerCapture?.(gesture.pointerId)) gesture.node.releasePointerCapture(gesture.pointerId);
   }, [referenceOpen, mobile]);
   const sameAsMain = reference?.ref.kind === "note" && pathname === `/notes/${reference.ref.id}`;
-  return <>
+  const setReferenceLayout = host.setLayout;
+  const activateReference = useCallback(() => setReferenceLayout(value => ({ ...value, mobilePane: "reference" })), [setReferenceLayout]);
+  const focusReference = useCallback(() => { if (!referenceRef.current?.hidden && !referenceRef.current?.inert) referenceRef.current?.focus({ preventScroll: true }); }, [referenceRef]);
+  return <ReferenceNoteInsertionBoundary routeKey={`${pathname}?${search.toString()}`} focusTarget={focusReference} noteId={referenceOpen && reference?.editing && reference.ref.kind === "note" && !sameAsMain ? reference.ref.id : null} activate={activateReference}>
     {referenceOpen ? <div className="workbench-layout-controls"><div className="workbench-mobile-switch" role="group" aria-label="切换工作区域"><button type="button" aria-pressed={host.layout.mobilePane === "main"} onClick={() => switchPane("main")}>主区</button><button type="button" aria-pressed={host.layout.mobilePane === "reference"} onClick={() => switchPane("reference")}>参考区</button></div><button type="button" onClick={() => { prepareGeometry(); host.setLayout((value) => ({ ...value, referenceFirst: !value.referenceFirst })); }}><ArrowLeftRight size={15} aria-hidden="true"/>交换位置</button><label className="workbench-width-control">参考区宽度<input aria-label="参考区宽度" type="range" min={30} max={65} value={host.layout.referenceWidth} onChange={(event) => resizeTo(Number(event.target.value))}/><output aria-label="参考区比例">{host.layout.referenceWidth}%</output></label><button type="button" onClick={host.closeReference}><X size={15} aria-hidden="true"/>关闭参考区</button></div> : null}
     <div className="workbench-layout" data-reference={Boolean(reference)} data-reference-first={host.layout.referenceFirst} style={{ "--reference-width": `${host.layout.referenceWidth}%` } as CSSProperties}>
       <div id={`${paneId}-main`} className="workbench-main-pane" ref={mainRef} hidden={!mainVisible} inert={!mainVisible} aria-hidden={!mainVisible || undefined}><WorkbenchActivityContext.Provider value={mainVisible}>{children}</WorkbenchActivityContext.Provider></div>
@@ -362,11 +367,11 @@ export function WorkbenchLayout({ children }: { children: ReactNode }) {
         onKeyDown={(event) => { if (event.key === "Escape" && resizeGesture.current) { event.preventDefault(); endResize(true); } else if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { event.preventDefault(); prepareGeometry(); const delta = (event.key === "ArrowRight" ? 1 : -1) * (host.layout.referenceFirst ? 1 : -1) * (event.shiftKey ? 5 : 2); resizeTo(event.key === "Home" ? 30 : event.key === "End" ? 65 : host.layout.referenceWidth + delta); } }}><span aria-hidden="true" /></div> : null}
       <aside className="workbench-reference-pane" data-state={referenceOpen ? "open" : "closed"}
         style={mobile && host.closingReference ? { position: "fixed", left: host.closingReference.exitRect.left, top: host.closingReference.exitRect.top, width: host.closingReference.exitRect.width, height: host.closingReference.exitRect.height, minHeight: 0, zIndex: 21, "--reference-exit-opacity": host.closingReference.exitRect.opacity } as CSSProperties : undefined}
-        id={`${paneId}-reference`} onAnimationEnd={(event) => { if (event.target === event.currentTarget && !referenceOpen && host.closingReference && (event.animationName === "workbench-reference-exit" || event.animationName === "workbench-mobile-reference-exit")) host.finishClosingReference(host.closingReference); }} ref={referenceRef} hidden={!referenceVisible} inert={!referenceOpen || !referenceVisible} aria-hidden={!referenceOpen || !referenceVisible || undefined} aria-label="参考区" onKeyDown={(event) => { if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); host.closeReference(); } }}>
+        id={`${paneId}-reference`} tabIndex={-1} onAnimationEnd={(event) => { if (event.target === event.currentTarget && !referenceOpen && host.closingReference && (event.animationName === "workbench-reference-exit" || event.animationName === "workbench-mobile-reference-exit")) host.finishClosingReference(host.closingReference); }} ref={referenceRef} hidden={!referenceVisible} inert={!referenceOpen || !referenceVisible} aria-hidden={!referenceOpen || !referenceVisible || undefined} aria-label="参考区" onKeyDown={(event) => { if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); host.closeReference(); } }}>
         {reference ? <><div className="workbench-reference-controls"><span>参考区</span>{reference.ref.kind === "note" ? <button type="button" aria-pressed={Boolean(reference.editing)} disabled={sameAsMain} onClick={() => host.setReference({ ...reference, editing: !reference.editing })}>{reference.editing ? "阅读" : "编辑笔记"}</button> : null}</div><WorkbenchEntityView key={workbenchRefKey(reference.ref)} entityRef={reference.ref} active={referenceOpen && referenceVisible} editing={Boolean(reference.editing)} sameAsMain={sameAsMain} position={reference.position} onPosition={(position) => host.setReference((current) => current && workbenchRefKey(current.ref) === workbenchRefKey(reference.ref) ? { ...current, position: { ...current.position, ...position } } : current)}/></> : null}
       </aside>
     </div>
     {host.notice ? <div className="workbench-notice" role="status">{host.notice}<button type="button" aria-label="关闭工作台提示" onClick={() => host.setNotice("")}>×</button></div> : null}
     {context.selected.length ? <div className="workbench-selection-bar" aria-label="工作台选择"><span role="status">已选 {context.selected.length} 项</span>{context.selected.every(workbenchComparable) ? <button type="button" onClick={() => context.compare()}>比较</button> : null}<button type="button" onClick={context.clearSelection}>取消选择</button></div> : null}
-  </>;
+  </ReferenceNoteInsertionBoundary>;
 }

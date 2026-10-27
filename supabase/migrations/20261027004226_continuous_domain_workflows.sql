@@ -110,7 +110,7 @@ create trigger feed_items_immutable_snapshots after insert or update on public.f
 -- Existing rows get a truthful baseline observed now, not invented history.
 insert into public.feed_item_versions(user_id,feed_item_id,title,content_text,excerpt,url,content_hash,published_at,updated_at_source,provenance)
 select user_id,id,title,content_text,excerpt,url,content_hash,published_at,updated_at_source,'baseline' from public.feed_items;
-revoke all on all functions in schema workflow_private from public,anon,authenticated;
+revoke all on all functions in schema workflow_private from public,anon,authenticated,service_role;
 
 do $$ declare t text;begin
  foreach t in array array['task_planning','planning_availability','career_material_checks','purchase_item_documents','briefing_events','briefing_event_sources'] loop
@@ -161,7 +161,7 @@ declare owner_id uuid:=auth.uid();r public.projects;begin
  if p_next_task is not null and p_next_task is distinct from r.next_todo_task_id and not exists(select 1 from public.microsoft_todo_tasks where id=p_next_task and user_id=owner_id and archived_at is null and status<>'completed') then raise exception 'workflow_task_missing';end if;
  update public.projects set description=nullif(p_goal,''),blocker_text=coalesce(p_blocker,''),next_todo_task_id=p_next_task,updated_at=now() where id=p_project_id and user_id=owner_id returning * into r;
  insert into public.audit_logs(user_id,action,entity_type,entity_id,actor_type,after_data) values(owner_id,'workflow_save','project',r.id,'user',jsonb_build_object('revision',r.mutation_revision));return r;end $$;
-revoke all on function public.save_task_planning(uuid,bigint,integer,date),public.save_planning_availability(date,text,bigint,jsonb),public.save_project_workflow(uuid,bigint,text,text,uuid) from public,anon;
+revoke all on function public.save_task_planning(uuid,bigint,integer,date),public.save_planning_availability(date,text,bigint,jsonb),public.save_project_workflow(uuid,bigint,text,text,uuid) from public,anon,service_role;
 grant execute on function public.save_task_planning(uuid,bigint,integer,date),public.save_planning_availability(date,text,bigint,jsonb),public.save_project_workflow(uuid,bigint,text,text,uuid) to authenticated;
 
 create function public.save_purchase_aftercare(p_item_id uuid,p_expected_revision bigint,p_purchased_on date,p_return_until date,p_warranty_until date,p_order_reference text,p_note text,p_document_id uuid default null,p_document_kind text default 'receipt') returns public.purchase_items language plpgsql security invoker set search_path='' as $$
@@ -173,7 +173,7 @@ declare owner_id uuid:=auth.uid();r public.purchase_items;begin
  if p_document_id is not null then insert into public.purchase_item_documents(user_id,item_id,document_id,kind) values(owner_id,p_item_id,p_document_id,p_document_kind) on conflict(user_id,item_id,document_id) do update set kind=excluded.kind,archived_at=null;end if;
  insert into public.audit_logs(user_id,action,entity_type,entity_id,actor_type,after_data) values(owner_id,'aftercare_save','purchase_item',r.id,'user',jsonb_build_object('revision',r.mutation_revision));return r;
 end $$;
-revoke all on function public.save_purchase_aftercare(uuid,bigint,date,date,date,text,text,uuid,text) from public,anon;
+revoke all on function public.save_purchase_aftercare(uuid,bigint,date,date,date,text,text,uuid,text) from public,anon,service_role;
 grant execute on function public.save_purchase_aftercare(uuid,bigint,date,date,date,text,text,uuid,text) to authenticated;
 
 create function public.save_briefing_event_source(p_event_id uuid,p_expected_revision bigint,p_title text,p_item_id uuid,p_linked boolean) returns public.briefing_events language plpgsql security invoker set search_path='' as $$
@@ -185,12 +185,12 @@ declare owner_id uuid:=auth.uid();r public.briefing_events;begin
  else if p_expected_revision<>0 or not p_linked then raise exception 'workflow_conflict';end if;insert into public.briefing_events(id,user_id,title) values(p_event_id,owner_id,btrim(p_title)) returning * into r;end if;
  if p_linked then insert into public.briefing_event_sources(user_id,event_id,feed_item_id) values(owner_id,r.id,p_item_id) on conflict(user_id,event_id,feed_item_id) do update set archived_at=null;
  else update public.briefing_event_sources set archived_at=now() where user_id=owner_id and event_id=r.id and feed_item_id=p_item_id;end if;return r;end $$;
-revoke all on function public.save_briefing_event_source(uuid,bigint,text,uuid,boolean) from public,anon;
+revoke all on function public.save_briefing_event_source(uuid,bigint,text,uuid,boolean) from public,anon,service_role;
 grant execute on function public.save_briefing_event_source(uuid,bigint,text,uuid,boolean) to authenticated;
 
 -- Append-only is enforced for every role, including privileged maintenance clients.
 create function workflow_private.reject_version_rewrite() returns trigger language plpgsql set search_path='' as $$ begin raise exception 'workflow_immutable_version';end $$;
-revoke all on function workflow_private.reject_version_rewrite() from public,anon,authenticated;
+revoke all on function workflow_private.reject_version_rewrite() from public,anon,authenticated,service_role;
 create trigger project_versions_append_only before update or delete on public.project_workflow_versions for each row execute function workflow_private.reject_version_rewrite();
 create trigger feed_versions_append_only before update or delete on public.feed_item_versions for each row execute function workflow_private.reject_version_rewrite();
 create function workflow_private.validate_availability() returns trigger language plpgsql set search_path='' as $$
@@ -201,7 +201,7 @@ declare part jsonb;previous_end integer:=-1;start_min integer;end_min integer;be
  start_min:=split_part(part->>'start',':',1)::integer*60+split_part(part->>'start',':',2)::integer;end_min:=split_part(part->>'end',':',1)::integer*60+split_part(part->>'end',':',2)::integer;
  if start_min<previous_end or end_min<=start_min then raise exception 'workflow_invalid';end if;previous_end:=end_min;
  end loop;return new;end $$;
-revoke all on function workflow_private.validate_availability() from public,anon,authenticated;
+revoke all on function workflow_private.validate_availability() from public,anon,authenticated,service_role;
 create trigger availability_typed_input before insert or update on public.planning_availability for each row execute function workflow_private.validate_availability();
 
 -- New references inherit the same Vault boundary as existing cross-domain links.
@@ -248,5 +248,5 @@ declare owner_id uuid:=auth.uid();prior public.career_material_checks;result pub
  end if;
  return result;
 end $$;
-revoke all on function public.save_career_material_check(uuid,uuid,bigint,text,boolean,uuid,uuid,text,text,text,bigint,timestamptz) from public,anon;
+revoke all on function public.save_career_material_check(uuid,uuid,bigint,text,boolean,uuid,uuid,text,text,text,bigint,timestamptz) from public,anon,service_role;
 grant execute on function public.save_career_material_check(uuid,uuid,bigint,text,boolean,uuid,uuid,text,text,text,bigint,timestamptz) to authenticated;

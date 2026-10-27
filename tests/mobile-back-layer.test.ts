@@ -2,7 +2,7 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { releaseMobileBackLayerForNavigation, useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
+import { handoffMobileBackLayer, releaseMobileBackLayerForNavigation, useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
 
 function Layer({ open, name, onDismiss }: { open: boolean; name: string; onDismiss: () => void | boolean }) {
   useMobileBackLayer(open, onDismiss, name);
@@ -28,6 +28,72 @@ async function flushBack() {
 }
 
 describe("mobile overlay history ownership", () => {
+  it("hands off two distinct same-name dialogs without popping the new confirmation", async () => {
+    const source = vi.fn(), target = vi.fn();
+    const render = (step: "source" | "confirmation" | "closed") => root.render(createElement("div", null,
+      step === "source" ? createElement(Layer, { key: "source", open: true, name: "dialog", onDismiss: source }) : null,
+      step === "confirmation" ? createElement(Layer, { key: "confirmation", open: true, name: "dialog", onDismiss: target }) : null,
+    ));
+    await act(async () => { render("source"); });
+    const length = window.history.length;
+    const sourceMarker = window.history.state.__personalOsMobileLayer;
+    const push = vi.spyOn(window.history, "pushState");
+    const back = vi.spyOn(window.history, "back");
+    handoffMobileBackLayer("dialog", "dialog");
+    await act(async () => { render("confirmation"); });
+    expect(back).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(window.history.length).toBe(length);
+    expect(window.history.state.__personalOsMobileLayer).not.toBe(sourceMarker);
+    await flushBack();
+    expect(source).not.toHaveBeenCalled();
+    expect(target).toHaveBeenCalledOnce();
+    expect(window.history.state).toEqual(state);
+    await act(async () => { render("closed"); });
+    expect(back).toHaveBeenCalledOnce();
+  });
+
+  it("hands a same-route dialog to its inspector without a competing Back or an extra entry", async () => {
+    const dialog = vi.fn(), inspector = vi.fn();
+    const render = (step: "duration" | "preview" | "closed") => root.render(createElement("div", null,
+      step === "duration" ? createElement(Layer, { key: "duration", open: true, name: "dialog", onDismiss: dialog }) : null,
+      createElement(Layer, { key: "inspector", open: step === "preview", name: "side-panel:inspector", onDismiss: inspector }),
+    ));
+    await act(async () => { render("duration"); });
+    const length = window.history.length;
+    const push = vi.spyOn(window.history, "pushState");
+    const back = vi.spyOn(window.history, "back");
+    handoffMobileBackLayer("dialog", "side-panel:inspector");
+    await act(async () => { render("preview"); });
+    expect(back).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(window.history.length).toBe(length);
+    expect(window.history.state).toMatchObject(state);
+    expect(window.history.state.__personalOsMobileLayer).toMatch(/^side-panel:inspector:/);
+    await flushBack();
+    expect(dialog).not.toHaveBeenCalled();
+    expect(inspector).toHaveBeenCalledOnce();
+    expect(window.history.state).toEqual(state);
+    await act(async () => { render("closed"); });
+    expect(back).toHaveBeenCalledOnce();
+  });
+
+  it("keeps cancelling the handed-off preview on a single Back cleanup", async () => {
+    const dismiss = vi.fn();
+    await act(async () => { root.render(createElement(Layer, { open: true, name: "dialog", onDismiss: dismiss })); });
+    handoffMobileBackLayer("dialog", "side-panel:inspector");
+    await act(async () => { root.render(createElement(Layer, { open: true, name: "side-panel:inspector", onDismiss: dismiss })); });
+    const back = vi.spyOn(window.history, "back");
+    await act(async () => { root.render(createElement(Layer, { open: false, name: "side-panel:inspector", onDismiss: dismiss })); });
+    expect(back).toHaveBeenCalledOnce();
+    await act(async () => { await vi.runOnlyPendingTimersAsync(); await vi.runOnlyPendingTimersAsync(); });
+    expect(window.history.state).toEqual(state);
+    expect(dismiss).not.toHaveBeenCalled();
+    await act(async () => { root.unmount(); });
+    expect(back).toHaveBeenCalledOnce();
+    root = createRoot(container);
+  });
+
   it("keeps ordinary same-URL manual dismissal on its existing Back behavior", async () => {
     const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
     const onDismiss = vi.fn();

@@ -13,7 +13,7 @@ create index todo_creation_receipts_task on public.todo_creation_receipts(user_i
 alter table public.todo_creation_receipts enable row level security;
 alter table public.todo_creation_receipts force row level security;
 create policy todo_creation_receipts_owner_read on public.todo_creation_receipts for select to authenticated using(user_id=(select auth.uid()));
-revoke all on public.todo_creation_receipts from public,anon,authenticated;
+revoke all on public.todo_creation_receipts from public,anon,authenticated,service_role;
 grant select on public.todo_creation_receipts to authenticated;
 grant select,insert,update on public.todo_creation_receipts to service_role;
 
@@ -36,7 +36,7 @@ begin
  if i.processed_at is null then insert into public.audit_logs(user_id,action,entity_type,entity_id,actor_type,after_data) values(auth.uid(),'convert','inbox_item',i.id,'user',jsonb_build_object('target',p_target,'destination_id',p_destination_id));end if;
  return true;
 end $$;
-revoke all on function public.finish_inbox_target(uuid,text,uuid) from public,anon;
+revoke all on function public.finish_inbox_target(uuid,text,uuid) from public,anon,service_role;
 grant execute on function public.finish_inbox_target(uuid,text,uuid) to authenticated;
 
 create or replace function public.convert_inbox_project(p_inbox_id uuid,p_project_id uuid,p_title text,p_body text)
@@ -60,7 +60,7 @@ begin
  insert into public.audit_logs(user_id,action,entity_type,entity_id,actor_type,after_data) values(auth.uid(),'associate_project','note',nid,'user',jsonb_build_object('project_id',p_project_id,'inbox_id',i.id));
  return nid;
 end $$;
-revoke all on function public.convert_inbox_project(uuid,uuid,text,text) from public,anon;
+revoke all on function public.convert_inbox_project(uuid,uuid,text,text) from public,anon,service_role;
 grant execute on function public.convert_inbox_project(uuid,uuid,text,text) to authenticated;
 
 -- Service executor only: exactly one audit and terminal receipt transaction.
