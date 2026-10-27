@@ -1,7 +1,7 @@
 -- Stable Inbox capture and classification intent. Server model work stays outside transactions.
 -- JavaScript/Zod text budgets count UTF-16 units, not Unicode code points.
 create function private.inbox_ai_utf16_length(p_text text) returns integer language sql immutable strict set search_path='' as $$
- select coalesce(sum(case when ascii(c)>65535 then 2 else 1 end),0)::integer from regexp_split_to_table(p_text,'') c
+ select coalesce(sum(case when c='' then 0 when ascii(c)>65535 then 2 else 1 end),0)::integer from regexp_split_to_table(p_text,'') c
 $$;
 revoke all on function private.inbox_ai_utf16_length(text) from public,anon,authenticated;
 

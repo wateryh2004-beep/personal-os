@@ -45,6 +45,46 @@ class PostgresRecoverySafety(unittest.TestCase):
     def test_integral_postgres_numeric_has_the_same_semantics_as_sqlite_integer(self):
         self.assertEqual(recovery.verifier.canonical({"budget": 10.0, "nested": [1.0, True, "10.000000"]}), recovery.verifier.canonical({"budget": 10, "nested": [1, True, "10.000000"]}))
 
+    def test_private_snapshot_errors_keep_the_original_generic_message(self):
+        database = recovery.IsolatedPostgres()
+        private = "SENSITIVE_PRIVATE_BODY sentinel=synthetic-secret"
+        stderr = "ERROR:  23502: " + private + "\nTABLE NAME: inbox_items\nCOLUMN NAME: content_markdown\n"
+        with patch.object(recovery.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, "", stderr)):
+            with self.assertRaises(RuntimeError) as raised:
+                database.command(["exec"])
+        self.assertEqual(str(raised.exception), "Isolated PostgreSQL command failed; inspect locally without publishing private row data")
+
+    def test_synthetic_fixture_diagnostics_exclude_private_server_text(self):
+        database = recovery.IsolatedPostgres(fixture=True)
+        database.phase = "fixture-seed"
+        private = "SENSITIVE_PRIVATE_BODY sentinel=synthetic-secret"
+        stderr = "ERROR:  23502: " + private + "\nDETAIL: " + private + "\nTABLE NAME: inbox_items\nCOLUMN NAME: content_markdown\n"
+        with patch.object(recovery.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, "", stderr)):
+            with self.assertRaises(RuntimeError) as raised:
+                database.command(["exec"])
+        message = str(raised.exception)
+        self.assertIn('"phase": "fixture-seed"', message)
+        self.assertIn('"sqlstate": "23502"', message)
+        self.assertIn('"category": "not_null"', message)
+        self.assertIn('"table": "inbox_items"', message)
+        self.assertIn('"column": "content_markdown"', message)
+        self.assertNotIn(private, message)
+        self.assertNotIn("DETAIL", message)
+
+    def test_fixture_diagnostics_allow_only_static_schema_identifiers(self):
+        database = recovery.IsolatedPostgres(fixture=True)
+        message = database.fixture_error_details("ERROR:  23514: synthetic-private-detail\nTABLE NAME: synthetic_private_table\nCOLUMN NAME: synthetic_private_column\n")
+        self.assertIn('"category": "check"', message)
+        self.assertNotIn("synthetic_private", message)
+        self.assertNotIn("synthetic-private-detail", message)
+
+    def test_verbose_sqlstate_collection_is_enabled_only_for_synthetic_fixture(self):
+        for fixture in (False, True):
+            database = recovery.IsolatedPostgres(fixture=fixture)
+            with patch.object(database, "command", return_value="") as command:
+                database.sql("source_fixture", "select 1;")
+            self.assertEqual("VERBOSITY=verbose" in command.call_args.args[0], fixture)
+
     def test_sql_payload_quotes_and_no_existing_target_support(self):
         self.assertEqual(recovery.literal("a'b\\c"), "'a''b\\c'")
         source = (ROOT / "scripts/rehearse-system-backup-postgres.py").read_text()

@@ -10,6 +10,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -28,15 +29,37 @@ def literal(value):
 
 
 class IsolatedPostgres:
-    def __init__(self):
+    def __init__(self, fixture=False):
         self.name = "personal-os-rehearsal-" + uuid.uuid4().hex
         self.started = False
+        self.fixture = fixture
+        self.phase = "container-start"
+
+    def fixture_error_details(self, stderr):
+        # Only --fixture calls this. Never include SQL, DETAIL, row values or
+        # arbitrary server text; identifiers must belong to our static schema.
+        code = re.search(r"(?:ERROR|FATAL):\s+([0-9A-Z]{5})(?::|\s|$)", stderr)
+        sqlstate = code.group(1) if code else "unknown"
+        category = {"23502": "not_null", "23503": "foreign_key", "23505": "unique",
+                    "23514": "check", "42501": "privilege", "22023": "invalid_parameter",
+                    "P0001": "domain_exception", "42P01": "missing_relation",
+                    "42703": "missing_column", "42883": "missing_function"}.get(sqlstate, "postgres_error")
+        details = {"phase": self.phase, "sqlstate": sqlstate, "category": category}
+        tables = set(TABLES) | set(SCHEMA["excludedTables"]) | {"users"}
+        columns = {column for definition in TABLES.values()
+                   for column in list(definition["columns"]) + definition["excludedColumns"]}
+        for label, key, allowed in (("TABLE NAME", "table", tables), ("COLUMN NAME", "column", columns)):
+            match = re.search(r"(?m)^\s*" + label + r":\s+([a-z_][a-z0-9_]*)\s*$", stderr)
+            if match and match.group(1) in allowed:
+                details[key] = match.group(1)
+        return " [synthetic fixture " + json.dumps(details, sort_keys=True) + "]"
 
     def command(self, args, input=None):
         completed = subprocess.run(["docker", *args], input=input, text=True, capture_output=True, timeout=300)
         if completed.returncode:
             # SQL stderr may contain actual private row values; never print it.
-            raise RuntimeError("Isolated PostgreSQL command failed; inspect locally without publishing private row data")
+            details = self.fixture_error_details(completed.stderr) if self.fixture else ""
+            raise RuntimeError("Isolated PostgreSQL command failed; inspect locally without publishing private row data" + details)
         return completed.stdout
 
     def __enter__(self):
@@ -47,6 +70,7 @@ class IsolatedPostgres:
             for _ in range(60):
                 ready = subprocess.run(["docker", "exec", self.name, "pg_isready", "-U", "postgres"], capture_output=True, timeout=5)
                 if ready.returncode == 0:
+                    self.phase = "postgres-bootstrap"
                     self.sql("postgres", "create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;")
                     return self
                 time.sleep(1)
@@ -63,17 +87,23 @@ class IsolatedPostgres:
     def sql(self, database, sql):
         # All database identifiers are fixed literals in this program.
         assert database in ("postgres", "source_fixture", "restored_fixture")
-        return self.command(["exec", "-i", self.name, "psql", "--no-psqlrc", "-X", "-q", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", database], sql)
+        verbosity = ["-v", "VERBOSITY=verbose"] if self.fixture else []
+        return self.command(["exec", "-i", self.name, "psql", "--no-psqlrc", "-X", "-q", "-A", "-t", "-v", "ON_ERROR_STOP=1", *verbosity, "-U", "postgres", "-d", database], sql)
 
     def initialize(self, database):
+        self.phase = "database-create"
         self.sql("postgres", "create database " + verifier.quoted(database) + ";")
+        self.phase = "schema-bootstrap"
         self.sql(database, (ROOT / "tests/fixtures/system-backup-sql/bootstrap.sql").read_text())
         for migration in sorted((ROOT / "supabase/migrations").glob("*.sql")):
             try:
+                self.phase = "migration"
                 self.sql(database, migration.read_text())
             except RuntimeError as error:
-                raise RuntimeError("Migration failed in isolated PostgreSQL: " + migration.name) from error
+                details = "; " + str(error) if self.fixture else ""
+                raise RuntimeError("Migration failed in isolated PostgreSQL: " + migration.name + details) from error
         # Check actual schema coverage, including later improvements in this release.
+        self.phase = "schema-inventory"
         raw = self.sql(database, "select json_agg(json_build_object('table',table_name,'column',column_name)) from information_schema.columns where table_schema='public';")
         columns = json.loads(raw)
         actual = {}
@@ -87,6 +117,7 @@ class IsolatedPostgres:
             raise RuntimeError("Unclassified tables in backup inventory: " + ", ".join(sorted(unknown)))
 
     def rows(self, database, owner):
+        self.phase = "snapshot-read"
         output = {}
         for table, definition in TABLES.items():
             columns = ",".join(map(verifier.quoted, definition["columns"]))
@@ -154,9 +185,11 @@ def restore(pg, owner, data):
             statements.append("insert into public." + verifier.quoted(table) + " (" + columns + ") select " + columns
                               + " from jsonb_populate_record(null::public." + verifier.quoted(table) + ", " + literal(payload) + "::jsonb);")
     statements.append("set local session_replication_role=origin; commit;")
+    pg.phase = "restore-insert"
     pg.sql("restored_fixture", "\n".join(statements))
     # Dynamic inspection checks the real migrated database FK graph, including
     # cycles and auth ownership, rather than only our portable-schema copy.
+    pg.phase = "restore-foreign-keys"
     pg.sql("restored_fixture", """
 do $$ declare r record; match text; nonnull text; bad bigint; begin
  for r in select c.oid,c.conrelid,c.confrelid,c.conkey,c.confkey from pg_constraint c join pg_namespace n on n.oid=c.connamespace where c.contype='f' and n.nspname in ('public','auth') loop
@@ -187,9 +220,10 @@ def main():
                 local = verifier.verify(snapshot, files=args.files)
                 if local["status"] != "verified":
                     raise RuntimeError("Snapshot has unresolved original/relationship gaps; resolve them before PostgreSQL rehearsal")
-            with IsolatedPostgres() as pg:
+            with IsolatedPostgres(fixture=args.fixture) as pg:
                 if args.fixture:
                     pg.initialize("source_fixture")
+                    pg.phase = "fixture-seed"
                     pg.sql("source_fixture", (ROOT / "tests/fixtures/system-backup-sql/seed.sql").read_text())
                     owner = "00000000-0000-4000-8000-000000000001"
                     before = pg.rows("source_fixture", owner)
@@ -207,6 +241,7 @@ def main():
                     assert len(after["briefing_judgment_versions"]) == 1
                     assert after["inbox_items"][0]["capture_content_hash"] is not None
                     assert after["interview_practice_attempts"][0]["submission_fingerprint"] is not None
+                    pg.phase = "restored-technical-exclusions"
                     technical = pg.sql("restored_fixture", "select count(*) from public.inbox_items where ai_classification_token is not null or ai_classification_started_at is not null or ai_classification_content_hash is not null;").strip()
                     assert technical == "0", "classification lease was replayed during restore"
                     technical = pg.sql("restored_fixture", "select count(*) from public.agent_runs where generation_token is not null or generation_expires_at is not null;").strip()

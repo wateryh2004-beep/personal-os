@@ -1,9 +1,18 @@
 -- Actual transactions, RLS, minimum ACL and full-content/token CAS. Synthetic only.
 begin;
+-- Privileged assertions test the private helper without changing its ACL.
+do $$begin
+ assert private.inbox_ai_utf16_length(null) is null, 'UTF16 strict NULL changed';
+ assert private.inbox_ai_utf16_length('')=0, 'UTF16 empty input is not zero';
+ assert private.inbox_ai_utf16_length(btrim(' '))=0, 'UTF16 blank title is not empty';
+ assert private.inbox_ai_utf16_length('a中文🌱')=5, 'UTF16 BMP and astral units changed';
+ assert private.inbox_ai_utf16_length(repeat('🌱',5000))=10000, 'UTF16 budget boundary changed';
+ assert private.inbox_ai_utf16_length(repeat('🌱',5001))=10002, 'UTF16 over-budget boundary changed';
+end $$;
 set local role authenticated;
 set local request.jwt.claim.sub='81000000-0000-4000-8000-000000000001';
 do $$
-declare item uuid:='b2100000-0000-4000-8000-000000000001'; token uuid:='b2100000-0000-4000-8000-000000000011'; newer uuid:='b2100000-0000-4000-8000-000000000012'; result jsonb; proposal jsonb;
+declare item uuid:='b2100000-0000-4000-8000-000000000001'; token uuid:='b2100000-0000-4000-8000-000000000011'; newer uuid:='b2100000-0000-4000-8000-000000000012'; result jsonb; proposal jsonb; case_no integer:=0; before_state jsonb; committed boolean;
 begin
  result:=public.capture_inbox_intent(item,'Synthetic unchanged capture');assert result->>'created'='true';
  result:=public.capture_inbox_intent(item,'Synthetic unchanged capture');assert result->>'created'='false';
@@ -25,8 +34,16 @@ begin
   {"target":"calendar","subject":"Event","description":null,"startsAt":"2026-10-27T09:00:00+0800","endsAt":"2026-10-27T10:00:00+0800","locationName":null,"isAllDay":false},
   {"target":"calendar","subject":"Event","description":null,"startsAt":"2026-10-27T09:00Z","endsAt":"2026-10-27T10:00Z","locationName":null,"isAllDay":"false"}
  ]'::jsonb) loop
-  begin perform public.commit_inbox_classification(item,token,'Synthetic unchanged capture',proposal,null);raise exception 'TEST invalid proposal accepted';exception when invalid_parameter_value then null;end;
+  case_no:=case_no+1;
+  select to_jsonb(i) into before_state from public.inbox_items i where id=item;
+  begin
+   committed:=public.commit_inbox_classification(item,token,'Synthetic unchanged capture',proposal,null);
+   if committed is false then raise exception 'TEST invalid proposal case % lost its active claim',case_no;end if;
+   raise exception 'TEST invalid proposal case % accepted',case_no;
+  exception when invalid_parameter_value then null;end;
+  assert (select to_jsonb(i) from public.inbox_items i where id=item) is not distinct from before_state,format('invalid proposal case %s changed source state',case_no);
  end loop;
+ assert case_no=13, 'invalid proposal matrix changed';
  assert not public.commit_inbox_classification(item,newer,'Synthetic unchanged capture','{"target":"daily"}',null);
  assert not public.commit_inbox_classification(item,token,'Changed content','{"target":"daily"}',null);
  assert public.claim_inbox_classification(item,newer,'Synthetic unchanged capture',true);
