@@ -49,9 +49,7 @@ export function passesHardExclusions(
   return !exclusions.some((phrase) => text.includes(phrase.toLocaleLowerCase().normalize("NFKC").trim()));
 }
 
-export function getBriefingItemHref(item: { canonical_url?: string | null; url?: string | null }) {
-  return item.canonical_url || item.url || undefined;
-}
+export { getBriefingItemHref } from "./item-href";
 
 export function shouldRefreshBriefingFeed(lastFetchedAt: string | null, now = new Date()) {
   if (!lastFetchedAt) return true;
@@ -127,6 +125,7 @@ export async function generateBriefingForOwner(
   userId: string,
   now = new Date(),
   triggerType: "manual" | "scheduled" = "manual",
+  expectedDate?: string,
 ): Promise<BriefingGenerationResult> {
   const recentRun = await findRecentGeneratingRun(supabase, userId, now);
   if (recentRun) throw new Error("今日 Briefing 正在生成，请稍后刷新。");
@@ -160,6 +159,7 @@ export async function generateBriefingForOwner(
 
   const timezone = profile?.timezone || "Asia/Shanghai";
   const briefingDate = getDateKeyInTimeZone(now, timezone)!;
+  if (expectedDate && briefingDate !== expectedDate) throw new Error("briefing_date_changed");
   const candidates: FeedCandidate[] = (items ?? []).flatMap((item) => {
     const feed = Array.isArray(item.feeds) ? item.feeds[0] : item.feeds;
     const member = Array.isArray(item.feed_item_cluster_members)

@@ -78,7 +78,7 @@
    translate(-50%,-50%) alongside transform lets the production optimizer fold
    the placement into transform while Tailwind's translate still applies it a
    second time. Reset those utility variables as well as the independent axis. */
-[data-slot="dialog-content"].file-preview-surface { --file-rest-x:-50%; --file-rest-y:-50%; --tw-translate-x:0px; --tw-translate-y:0px; --file-origin-x:0px; --file-origin-y:24px; --file-origin-scale-x:.96; --file-origin-scale-y:.96; left:50%; top:50%; bottom:auto; max-height:calc(100dvh - 48px); overflow:auto; background:var(--surface-elevated); border-radius:24px; opacity:1; translate:none; transform:translate(var(--file-rest-x),var(--file-rest-y)); transition:transform 460ms var(--ease-emphasized),opacity 180ms var(--ease-standard); animation:none; }
+[data-slot="dialog-content"].file-preview-surface { --file-rest-x:-50%; --file-rest-y:-50%; --tw-translate-x:0px; --tw-translate-y:0px; --file-origin-x:0px; --file-origin-y:0px; --file-origin-scale-x:.96; --file-origin-scale-y:.96; left:calc(var(--file-viewport-left,0px) + var(--file-viewport-width,100vw)/2); top:calc(var(--file-viewport-top,0px) + var(--file-viewport-height,100dvh)/2); bottom:auto; width:calc(var(--file-viewport-width,100vw) - 32px); max-height:calc(var(--file-viewport-height,100dvh) - 48px); transform-origin:50% 50%; overflow:auto; background:var(--surface-elevated); border-radius:24px; opacity:1; translate:none; transform:translate(var(--file-rest-x),var(--file-rest-y)); transition:transform 460ms var(--ease-emphasized),opacity 180ms var(--ease-standard); animation:none; }
 [data-slot="dialog-content"].file-preview-surface [data-slot="dialog-title"] { font-family:var(--font-serif); font-size:26px; font-weight:400; line-height:1.45; letter-spacing:-.02em; }
 [data-slot="dialog-content"].file-preview-surface [data-slot="dialog-close"] { width:44px; height:44px; }
 @starting-style {
@@ -125,7 +125,7 @@
   .notes-mode-control > button { min-width:56px; }
 }
 @media(max-width:639px) {
-  [data-slot="dialog-content"].file-preview-surface { --file-rest-x:0px; --file-rest-y:0px; left:0; right:0; top:auto; bottom:0; width:100%; max-width:100%; max-height:calc(100dvh - 24px); border-radius:24px 24px 0 0; padding-bottom:max(20px,env(safe-area-inset-bottom)); }
+  [data-slot="dialog-content"].file-preview-surface { --file-rest-x:0px; --file-rest-y:0px; left:var(--file-viewport-left,0px); right:auto; top:auto; bottom:var(--file-viewport-bottom,0px); width:var(--file-viewport-width,100vw); max-width:100%; max-height:calc(var(--file-viewport-height,100dvh) - 24px); transform-origin:50% 100%; border-radius:24px 24px 0 0; padding-bottom:max(20px,env(safe-area-inset-bottom)); }
 }
 @media(prefers-reduced-motion:reduce) {
   .notes-mode-control::before { transition:none; }

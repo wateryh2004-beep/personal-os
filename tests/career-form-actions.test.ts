@@ -4,10 +4,10 @@ import { CareerInputError } from "@/features/career/form-state";
 const mocks = vi.hoisted(() => ({ mutation: vi.fn(), owner: vi.fn(), interview: vi.fn(), redirect: vi.fn(), rethrow: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, unstable_rethrow: mocks.rethrow }));
 vi.mock("@/lib/auth/require-owner", () => ({ requireOwner: mocks.owner }));
-vi.mock("@/features/interview/actions", () => ({ createInterviewContext: mocks.interview, updateInterviewContext: mocks.interview, createInterviewQuestion: mocks.interview, ensureInterviewPreparation: mocks.interview }));
+vi.mock("@/features/interview/actions", () => ({ createInterviewContext: mocks.interview,createInterviewContextWithReceipt:mocks.interview, updateInterviewContext: mocks.interview, createInterviewQuestion: mocks.interview,createInterviewQuestionWithReceipt:mocks.interview, ensureInterviewPreparation: mocks.interview,ensureInterviewPreparationWithReceipt:mocks.interview }));
 vi.mock("@/features/career/actions", () => Object.fromEntries([
   "saveCareerProfile", "createSkill", "updateSkill", "archiveSkill", "createDirection", "updateDirection", "archiveDirection", "createCertification", "updateCertification", "archiveCertification",
-  "createFact", "createExperience", "updateFact", "createOutput", "createBullet", "linkFactToBullet", "approveBullet", "uploadEvidence", "archiveExperience", "createOpportunity", "createOpportunityRequirement", "runGapAnalysis", "createCareerApplication", "transitionCareerApplication", "createResumeVersion", "updateResumeVersion", "setResumeVersionBullets", "finalizeResumeVersion", "archiveResumeVersion",
+  "createFact", "createExperience", "createExperienceWithReceipt", "updateFact", "createOutput", "createBullet", "linkFactToBullet", "approveBullet", "uploadEvidence", "archiveExperience", "createOpportunity", "createOpportunityRequirement", "runGapAnalysis", "createCareerApplication", "transitionCareerApplication", "createResumeVersion", "updateResumeVersion", "setResumeVersionBullets", "finalizeResumeVersion", "archiveResumeVersion",
 ].map((name) => [name, mocks.mutation])));
 import { submitCareerForm } from "@/features/career/form-actions";
 

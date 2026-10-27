@@ -1,23 +1,8 @@
 "use client";
-import { DefaultChatTransport } from "ai";
-import { useChat } from "@ai-sdk/react";
-import { useMemo, useState } from "react";
+import { useContinuousAssistantChat } from "@/components/assistant/use-continuous-assistant-chat";
 import { Sparkles } from "lucide-react";
 export function CareerAssistant({ experienceId }: { experienceId: string }) {
-  const [input, setInput] = useState("");
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/assistant",
-        body: () => ({
-          surface: "career",
-          currentEntity: { type: "experience", id: experienceId },
-        }),
-      }),
-    [experienceId],
-  );
-  const { messages, sendMessage, status, error, stop } = useChat({ transport });
-  const waiting = status !== "ready";
+  const { input, setInput, messages, error, waiting, submit, stop, runtime, recoveryUnavailable } = useContinuousAssistantChat({ surface: "career", experienceId }, "职业 AI 输入");
   return (
     <section className="border-t pt-8">
       <div className="flex items-center gap-2">
@@ -43,6 +28,7 @@ export function CareerAssistant({ experienceId }: { experienceId: string }) {
             </div>
           ))}
       </div>
+      {runtime.notice || recoveryUnavailable ? <p role="status" className="mt-3 text-xs text-[var(--text-secondary)]">{runtime.notice || "当前输入仍可使用，本标签页恢复暂不可用。"}</p> : null}
       {error ? (
         <p className="mt-3 text-sm text-red-700">
           {error.message || "AI 分析暂时不可用。"}
@@ -53,11 +39,10 @@ export function CareerAssistant({ experienceId }: { experienceId: string }) {
         onSubmit={(event) => {
           event.preventDefault();
           if (!input.trim() || waiting) return;
-          sendMessage({ text: input });
-          setInput("");
+          void submit({ text: input, currentPath: `/career/experiences/${experienceId}`, currentEntity: { type: "experience", id: experienceId } });
         }}
       >
-        <input aria-label="内容"
+        <input aria-label="内容" data-assistant-input={`career:${experienceId}`}
           value={input}
           onChange={(event) => setInput(event.target.value)}
           disabled={waiting}

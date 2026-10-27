@@ -78,7 +78,8 @@ vi.mock("@/features/notes/use-notes-search", () => ({
     return { results: mocks.remote, state: mocks.searchState, retry: mocks.retrySearch };
   },
 }));
-vi.mock("@/lib/workspace-resource-cache", () => ({
+vi.mock("@/lib/workspace-resource-cache", async (original) => ({
+  ...await original<typeof import("@/lib/workspace-resource-cache")>(),
   captureWorkspaceScope: () => () => true,
   useWorkspaceResourceLease: () => ({ invalidate: vi.fn(), revalidate: vi.fn() }),
 }));

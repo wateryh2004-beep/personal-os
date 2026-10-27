@@ -1,5 +1,8 @@
 "use client";
 
+import {assertContinuousFixtureTransport} from "@/features/testing/continuous-fixture-gate";
+import {useDraftResumeOpeners} from "@/features/workflow-continuity/draft-resume";
+import {useDomainViewAdapter,waitForViewLayout} from "@/features/workbench/domain-adapters/use-domain-view-adapter";
 import { WorkbenchRecord } from "@/components/workbench/workbench-record";
 
 import { useEffect, useRef, useState } from "react";
@@ -9,20 +12,25 @@ import { WorkspaceReadyMetric } from "@/components/performance/workspace-ready-m
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import type { Holding, InvestmentAccount, InvestmentWorkspaceData, LedgerEntry, ResearchRun, StrategyVersion } from "@/features/investment/types";
-import { InvestmentFormDialog, type InvestmentDialog } from "./investment-form-dialog";
+import { InvestmentFormDialog,investmentDraftModeIds, type InvestmentFormTransport,type InvestmentDialog } from "./investment-form-dialog";
 import { formatInvestmentDecimal, investmentHref, safeResearchUrl, type InvestmentMode, type InvestmentTab } from "./presentation";
 import { deriveInvestmentDaily } from "@/features/investment/daily-calculator";
 import type { InvestmentDailyAccount, InvestmentDailyData } from "@/features/investment/daily-types";
 import { InvestmentDailyOverview, HoldingValuation } from "./investment-daily-overview";
-import { InvestmentDailyDialog, type DailyDialog } from "./investment-daily-dialog";
+import { InvestmentDailyDialog,type InvestmentDailyTransport, type DailyDialog } from "./investment-daily-dialog";
 import styles from "./investment.module.css";
 
 const tabs = [{ value: "holdings", label: "持仓" }, { value: "strategies", label: "策略" }, { value: "research", label: "研究" }] as const;
 const kindLabel = { opening: "期初持仓", buy: "买入", sell: "卖出", void: "作废记录" };
 
-type Props = { data: InvestmentWorkspaceData; holdings: Holding[]; tab: InvestmentTab; mode: InvestmentMode; importExample: string; dailyData?: InvestmentDailyData; selectedItem?: string };
+type Props = {formTransport?:InvestmentFormTransport;dailyTransport?:InvestmentDailyTransport; data: InvestmentWorkspaceData; holdings: Holding[]; tab: InvestmentTab; mode: InvestmentMode; importExample: string; dailyData?: InvestmentDailyData; selectedItem?: string };
 
-export function InvestmentWorkspace({ data, holdings, tab, mode, importExample, dailyData, selectedItem }: Props) {
+export function InvestmentWorkspace({formTransport,dailyTransport, data, holdings, tab:initialTab, mode:initialMode, importExample, dailyData, selectedItem }: Props) {
+  assertContinuousFixtureTransport(formTransport);assertContinuousFixtureTransport(dailyTransport);
+  const [route,setRoute]=useState({initialTab,initialMode,tab:initialTab,mode:initialMode});if(route.initialTab!==initialTab||route.initialMode!==initialMode)setRoute({initialTab,initialMode,tab:initialTab,mode:initialMode});
+  const {mode,tab}=route;
+  const [expandedAccountIds,setExpandedAccountIds]=useState<string[]>([]),[explainingAccountId,setExplainingAccountId]=useState<string|null>(null);
+  const rootRef=useRef<HTMLElement>(null);
   const [dialog, setDialog] = useState<InvestmentDialog | null>(null);
   const [notice, setNotice] = useState("");
   const [dailyDialog, setDailyDialog] = useState<DailyDialog | null>(null);
@@ -57,13 +65,28 @@ export function InvestmentWorkspace({ data, holdings, tab, mode, importExample, 
   const voidEntry = (entry: LedgerEntry) => open({ kind: "void", entry, importKey: crypto.randomUUID() });
   const addStrategy = (strategy?: StrategyVersion) => open({ kind: "strategy", strategy });
   const addResearch = () => open({ kind: "research" });
+  useDraftResumeOpeners([
+    ...(["real","paper"] as const).flatMap(value=>[{kind:"investment.account" as const,id:investmentDraftModeIds[value]},{kind:"investment.entry" as const,id:investmentDraftModeIds[value]}]),
+    {kind:"investment.strategy",id:"new"},{kind:"investment.research",id:"new"},...data.strategies.map(strategy=>({kind:"investment.strategy" as const,id:strategy.id})),
+    ...data.entries.filter(row=>row.kind!=="void").map(row=>({kind:"investment.entry-void" as const,id:row.id})),
+    ...data.accounts.flatMap(account=>[{kind:"investment.cash" as const,id:account.id},{kind:"investment.quote" as const,id:account.id}]),
+    ...(dailyData?.cashEntries??[]).filter(row=>row.kind!=="void").map(row=>({kind:"investment.cash-void" as const,id:row.id})),
+  ],target=>{let nextMode=mode,nextTab:InvestmentTab="holdings";
+    if(target.kind==="investment.account"||target.kind==="investment.entry"){nextMode=target.id===investmentDraftModeIds.real?"real":"paper";setDialog(target.kind==="investment.account"?{kind:"account"}:{kind:"entry",importKey:crypto.randomUUID()});}
+    else if(target.kind==="investment.strategy"){nextTab="strategies";const strategy=target.id==="new"?undefined:data.strategies.find(row=>row.id===target.id);if(target.id!=="new"&&!strategy)return false;setDialog({kind:"strategy",strategy});}
+    else if(target.kind==="investment.research"){nextTab="research";setDialog({kind:"research"});}
+    else if(target.kind==="investment.entry-void"){const entry=data.entries.find(row=>row.id===target.id),account=entry&&data.accounts.find(row=>row.id===entry.account_id);if(!entry||!account)return false;nextMode=account.mode;setDialog({kind:"void",entry,importKey:crypto.randomUUID()});}
+    else {const entry=target.kind==="investment.cash-void"?dailyData?.cashEntries.find(row=>row.id===target.id):undefined;const account=data.accounts.find(row=>row.id===(entry?.account_id??target.id));if(!account||target.kind==="investment.cash-void"&&!entry)return false;nextMode=account.mode;if(target.kind==="investment.cash-void"&&entry)setDailyDialog({kind:"cash-void",entry,account,importKey:crypto.randomUUID()});else if(target.kind==="investment.cash"||target.kind==="investment.quote")setDailyDialog({kind:target.kind==="investment.cash"?"cash":"quote",account,importKey:crypto.randomUUID()});else return false;}
+    setRoute(before=>({...before,mode:nextMode,tab:nextTab}));window.history.replaceState(null,"",investmentHref(nextTab,nextMode));
+  });
+  useDomainViewAdapter({kind:"investment",pathname:"/investments",ready:!data.unavailable,capture:()=>({kind:"investment",explainingAccountId,expandedAccountIds,selectedSection:tab==="strategies"?"strategies":tab==="research"?"research":rootRef.current?.querySelector('details[data-investment-section="cash-quotes"][open]')?"cash":expandedAccountIds.length?"ledger":null}),restore:async(state,context)=>{if(!context.current())return {status:"cancelled"};const ids=state.expandedAccountIds.filter(id=>data.accounts.some(row=>row.id===id)),account=state.explainingAccountId?data.accounts.find(row=>row.id===state.explainingAccountId):undefined;const nextMode=account?.mode??data.accounts.find(row=>ids.includes(row.id))?.mode??mode,nextTab=state.selectedSection==="strategies"?"strategies":state.selectedSection==="research"?"research":"holdings";setRoute(before=>({...before,mode:nextMode,tab:nextTab}));setExpandedAccountIds(ids);setExplainingAccountId(account?.id??null);if(!await waitForViewLayout(context))return {status:"cancelled"};if(state.selectedSection==="cash"||state.selectedSection==="quotes")rootRef.current?.querySelectorAll<HTMLDetailsElement>('details[data-investment-section="cash-quotes"]').forEach(node=>{node.open=true;});const missing=ids.length!==state.expandedAccountIds.length||Boolean(state.explainingAccountId&&!account)||Boolean(state.explainingAccountId&&dailyUnavailable);return missing?{status:"partial",reason:"missing-record"}:{status:"applied"};}});
   const primary = tab === "holdings"
     ? <Button disabled={data.unavailable} onClick={() => accounts.length ? addEntry() : addAccount()}><Plus aria-hidden="true" />{accounts.length ? "记录持仓" : "添加账户"}</Button>
     : tab === "strategies"
       ? <Button disabled={data.unavailable} onClick={() => addStrategy()}><Plus aria-hidden="true" />写下策略</Button>
       : <Button disabled={data.unavailable} onClick={addResearch}><Upload aria-hidden="true" />导入研究</Button>;
 
-  return <section className={styles.workspace}>
+  return <section ref={rootRef} className={styles.workspace}>
     {!data.unavailable ? <WorkspaceReadyMetric workspace="investment" /> : null}
     <PageHeader title="投资" description="看清持有，写下判断，让每一次验证都有来处。" action={primary} />
     <div className={styles.navigation}>
@@ -85,7 +108,7 @@ export function InvestmentWorkspace({ data, holdings, tab, mode, importExample, 
           <p className={styles.valuationNotice}>报价来自手工记录或 JSON 导入，按所示截至时间估值；超过 72 小时标记较旧。各账户按原币显示，不跨币种合计。</p>
           {dailyUnavailable ? <p role="status" className={styles.dailyHint}>现金与报价暂不可用，可能尚未启用存储或记录未完整读取。原始持仓与成交仍可查看。</p> : null}
           <dl className={styles.summary}><div><dt>{modeLabel}账户</dt><dd>{accounts.length}</dd></div><div><dt>持有标的（按账户）</dt><dd>{holdings.filter((holding) => holding.quantity !== "0").length}</dd></div><div><dt>估值口径</dt><dd className={styles.unavailableValue}>逐账户 · 原币</dd></div></dl>
-          {accounts.map((account) => <WorkbenchRecord key={account.id} entity={{kind:"investment",id:account.id,investmentType:"account"}} title={account.name} group={`investment:${mode}:accounts`} draggable={false}><AccountHoldings account={account} holdings={holdings.filter((holding) => holding.accountId === account.id)} entries={data.entries.filter((entry) => entry.account_id === account.id)} onAdd={() => addEntry(account.id)} onVoid={voidEntry} daily={dailyUnavailable ? undefined : dailyAccounts.find((row) => row.account.id === account.id)} dailyData={dailyData} onDaily={openDaily} selected={selectedItem === account.id} /></WorkbenchRecord>)}
+          {accounts.map((account) => <WorkbenchRecord key={account.id} entity={{kind:"investment",id:account.id,investmentType:"account"}} title={account.name} group={`investment:${mode}:accounts`} draggable={false}><AccountHoldings ledgerOpen={expandedAccountIds.includes(account.id)} onLedgerChange={open=>setExpandedAccountIds(ids=>open?[...new Set([...ids,account.id])]:ids.filter(id=>id!==account.id))} explaining={explainingAccountId===account.id} onExplainingChange={open=>setExplainingAccountId(open?account.id:null)} account={account} holdings={holdings.filter((holding) => holding.accountId === account.id)} entries={data.entries.filter((entry) => entry.account_id === account.id)} onAdd={() => addEntry(account.id)} onVoid={voidEntry} daily={dailyUnavailable ? undefined : dailyAccounts.find((row) => row.account.id === account.id)} dailyData={dailyData} onDaily={openDaily} selected={selectedItem === account.id} /></WorkbenchRecord>)}
         </>}
         <p className={styles.notice}>成本使用加权平均法。买卖自动计入现金，期初持仓不重复扣款；净分红单独列示，不改变持仓成本。盈亏仅覆盖已录入记录，不代表完整投资回报或投资建议。拆股、汇率换算与自动行情暂不支持。</p>
       </> : tab === "strategies" ? <>
@@ -97,8 +120,8 @@ export function InvestmentWorkspace({ data, holdings, tab, mode, importExample, 
         <p className={styles.notice}>导入只检查数据格式与所需来源信息，不代表已独立复现或验证结论。回测结果属于历史模拟，研究观点不携带已验证的量化收益。</p>
       </>}
     </>}
-    {dailyDialog ? <InvestmentDailyDialog key={`${dailyDialog.kind}:${dailyDialog.importKey}`} dialog={dailyDialog} onClose={() => setDailyDialog(null)} onSaved={(message) => { setNotice(message); setDailyDialog(null); }} onRestoreFocus={() => triggerRef.current?.focus()} /> : null}
-    {dialog ? <InvestmentFormDialog key={dialog.kind} dialog={dialog} mode={mode} accounts={accounts} importExample={importExample} onClose={() => setDialog(null)} onSaved={(message) => { setNotice(message); setDialog(null); }} onRestoreFocus={() => triggerRef.current?.focus()} /> : null}
+    {dailyDialog ? <InvestmentDailyDialog transport={dailyTransport} key={`${dailyDialog.kind}:${dailyDialog.importKey}`} dialog={dailyDialog} onClose={() => setDailyDialog(null)} onSaved={(message) => { setNotice(message); setDailyDialog(null); }} onRestoreFocus={() => triggerRef.current?.focus()} /> : null}
+    {dialog ? <InvestmentFormDialog transport={formTransport} key={dialog.kind} dialog={dialog} mode={mode} accounts={accounts} importExample={importExample} onClose={() => setDialog(null)} onSaved={(message) => { setNotice(message); setDialog(null); }} onRestoreFocus={() => triggerRef.current?.focus()} /> : null}
   </section>;
 }
 
@@ -106,27 +129,27 @@ function EmptyState({ icon, title, description, children }: { icon: React.ReactN
   return <div className={styles.empty}><div className={styles.emptyIcon}>{icon}</div><h2>{title}</h2><p>{description}</p><div className={styles.emptyActions}>{children}</div></div>;
 }
 
-function AccountHoldings({ account, holdings, entries, onAdd, onVoid, daily, dailyData, onDaily, selected }: { account: InvestmentAccount; holdings: Holding[]; entries: InvestmentWorkspaceData["entries"]; onAdd: () => void; onVoid: (entry: LedgerEntry) => void; daily?: InvestmentDailyAccount; dailyData?: InvestmentDailyData; onDaily: (dialog: DailyDialog) => void; selected: boolean }) {
+function AccountHoldings({ledgerOpen,onLedgerChange,explaining,onExplainingChange, account, holdings, entries, onAdd, onVoid, daily, dailyData, onDaily, selected }: {ledgerOpen:boolean;onLedgerChange:(open:boolean)=>void;explaining:boolean;onExplainingChange:(open:boolean)=>void; account: InvestmentAccount; holdings: Holding[]; entries: InvestmentWorkspaceData["entries"]; onAdd: () => void; onVoid: (entry: LedgerEntry) => void; daily?: InvestmentDailyAccount; dailyData?: InvestmentDailyData; onDaily: (dialog: DailyDialog) => void; selected: boolean }) {
   const voidedIds = new Set(entries.filter((entry) => entry.kind === "void").map((entry) => entry.void_entry_id));
   return <section id={`investment-${account.id}`} tabIndex={selected ? -1 : undefined} data-selected={selected || undefined} className={styles.account} aria-label={`${account.name}持仓`}>
     <header className={styles.accountHeader}><div><h2 className={styles.heading}>{account.name}</h2><p className={styles.accountMeta}>{account.currency} · {account.mode === "real" ? "实盘" : "模拟"}</p></div><Button size="sm" variant="ghost" onClick={onAdd}><Plus aria-hidden="true" />添加记录</Button></header>
-    {daily && dailyData ? <InvestmentDailyOverview daily={daily} cashEntries={dailyData.cashEntries.filter((row) => row.account_id === account.id)} quotes={dailyData.quotes.filter((row) => row.account_id === account.id)} onOpen={onDaily} /> : null}
+    {daily && dailyData ? <InvestmentDailyOverview explaining={explaining} onExplainingChange={onExplainingChange} daily={daily} cashEntries={dailyData.cashEntries.filter((row) => row.account_id === account.id)} quotes={dailyData.quotes.filter((row) => row.account_id === account.id)} onOpen={onDaily} /> : null}
     {holdings.length ? <>
       <ul className={styles.holdingCards} aria-label={`${account.name}持仓明细，金额以 ${account.currency} 计价`}>
         {holdings.map((holding) => <li key={holding.symbol} className={styles.holdingCard}>
           <div className={styles.holdingCardHeader}><h3>{holding.symbol}</h3><span className={styles.badge}>{holding.quantity === "0" ? "已清仓" : account.currency}</span></div>
           <dl className={styles.holdingMetrics}>
             <div><dt>数量</dt><dd>{formatInvestmentDecimal(holding.quantity)}</dd></div>
-            <div><dt>剩余成本 · {account.currency}</dt><dd>{holding.costBasis === null ? <span className={styles.missing}>成本未知</span> : formatInvestmentDecimal(holding.costBasis)}</dd></div>
-            <div><dt>已实现盈亏 · {account.currency}</dt><dd>{holding.realizedPnl === null ? <span className={styles.missing}>无法计算</span> : formatInvestmentDecimal(holding.realizedPnl)}</dd></div>
+            <div><dt>剩余成本 · {account.currency}</dt><dd>{daily?<HoldingValuation daily={daily} symbol={holding.symbol} field="costBasis"/>:holding.costBasis === null ? <span className={styles.missing}>成本未知</span> : formatInvestmentDecimal(holding.costBasis)}</dd></div>
+            <div><dt>已实现盈亏 · {account.currency}</dt><dd>{daily?<HoldingValuation daily={daily} symbol={holding.symbol} field="realizedPnl"/>:holding.realizedPnl === null ? <span className={styles.missing}>无法计算</span> : formatInvestmentDecimal(holding.realizedPnl)}</dd></div>
             <div><dt>市值 · {account.currency}</dt><dd><HoldingValuation daily={daily} symbol={holding.symbol} field="marketValue" /></dd></div>
             {daily ? <div><dt>未实现盈亏 · {account.currency}</dt><dd><HoldingValuation daily={daily} symbol={holding.symbol} field="unrealizedPnl" /></dd></div> : null}
           </dl>
         </li>)}
       </ul>
-      <div className={styles.tableScroll} role="region" aria-label={`${account.name}持仓明细，可横向滚动`} tabIndex={0}><table className={styles.table}><caption className="sr-only">{account.name}持仓，金额以 {account.currency} 计价</caption><thead><tr><th scope="col">标的</th><th scope="col">数量</th><th scope="col">剩余成本</th><th scope="col">已实现盈亏</th><th scope="col">市值</th>{daily ? <th scope="col">未实现盈亏</th> : null}</tr></thead><tbody>{holdings.map((holding) => <tr key={holding.symbol}><td>{holding.symbol}{holding.quantity === "0" ? <span className="ml-2 text-[12px] font-normal text-[var(--text-tertiary)]">已清仓</span> : null}</td><td>{formatInvestmentDecimal(holding.quantity)}</td><td>{holding.costBasis === null ? <span className={styles.missing}>成本未知</span> : formatInvestmentDecimal(holding.costBasis)}</td><td>{holding.realizedPnl === null ? <span className={styles.missing}>无法计算</span> : formatInvestmentDecimal(holding.realizedPnl)}</td><td><HoldingValuation daily={daily} symbol={holding.symbol} field="marketValue" /></td>{daily ? <td><HoldingValuation daily={daily} symbol={holding.symbol} field="unrealizedPnl" /></td> : null}</tr>)}</tbody></table></div>
+      <div className={styles.tableScroll} role="region" aria-label={`${account.name}持仓明细，可横向滚动`} tabIndex={0}><table className={styles.table}><caption className="sr-only">{account.name}持仓，金额以 {account.currency} 计价</caption><thead><tr><th scope="col">标的</th><th scope="col">数量</th><th scope="col">剩余成本</th><th scope="col">已实现盈亏</th><th scope="col">市值</th>{daily ? <th scope="col">未实现盈亏</th> : null}</tr></thead><tbody>{holdings.map((holding) => <tr key={holding.symbol}><td>{holding.symbol}{holding.quantity === "0" ? <span className="ml-2 text-[12px] font-normal text-[var(--text-tertiary)]">已清仓</span> : null}</td><td>{formatInvestmentDecimal(holding.quantity)}</td><td>{daily?<HoldingValuation daily={daily} symbol={holding.symbol} field="costBasis"/>:holding.costBasis === null ? <span className={styles.missing}>成本未知</span> : formatInvestmentDecimal(holding.costBasis)}</td><td>{daily?<HoldingValuation daily={daily} symbol={holding.symbol} field="realizedPnl"/>:holding.realizedPnl === null ? <span className={styles.missing}>无法计算</span> : formatInvestmentDecimal(holding.realizedPnl)}</td><td><HoldingValuation daily={daily} symbol={holding.symbol} field="marketValue" /></td>{daily ? <td><HoldingValuation daily={daily} symbol={holding.symbol} field="unrealizedPnl" /></td> : null}</tr>)}</tbody></table></div>
     </> : <p className="border-y border-[var(--separator)] py-5 text-[13px] text-[var(--text-tertiary)]">账户已准备好，添加一笔期初持仓或成交记录。</p>}
-    {entries.length ? <details className={styles.ledger}><summary>查看原始记录（{entries.length}）</summary><ol className={styles.ledgerList}>{entries.toSorted((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.created_at.localeCompare(a.created_at)).map((entry) => <li key={entry.id}><WorkbenchRecord entity={{kind:"investment",id:entry.id,investmentType:"ledger"}} title={`${entry.occurred_on} ${entry.symbol}`} group={`investment:${account.mode}:${account.id}:ledger-desc`} className={styles.ledgerRow} draggable={false}>
+    {entries.length ? <details open={ledgerOpen} onToggle={event=>onLedgerChange(event.currentTarget.open)} className={styles.ledger}><summary>查看原始记录（{entries.length}）</summary><ol className={styles.ledgerList}>{entries.toSorted((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.created_at.localeCompare(a.created_at)).map((entry) => <li id={`ledger-${entry.id}`} key={entry.id}><WorkbenchRecord entity={{kind:"investment",id:entry.id,investmentType:"ledger"}} title={`${entry.occurred_on} ${entry.symbol}`} group={`investment:${account.mode}:${account.id}:ledger-desc`} className={styles.ledgerRow} draggable={false}>
       <div><p>{entry.occurred_on} · {kindLabel[entry.kind]} · <span className="text-[var(--text-primary)]">{entry.symbol}</span>{voidedIds.has(entry.id) ? <span className="ml-2 text-[var(--warning)]">已作废</span> : null}</p><p className="break-all">{entry.kind === "void" ? "作废原因" : "来源"}：{entry.source}</p></div>
       {entry.kind !== "void" ? <div className="text-right"><p>{formatInvestmentDecimal(entry.quantity)} × {entry.price === null ? "单位成本未知" : `${formatInvestmentDecimal(entry.price)} ${account.currency}`}</p><div className="flex items-center justify-end gap-3"><span>费用 {formatInvestmentDecimal(entry.fees)} {account.currency}</span>{!voidedIds.has(entry.id) ? <Button size="xs" variant="ghost" onClick={() => onVoid(entry)} aria-label={`作废 ${entry.occurred_on} ${entry.symbol} 记录`}>作废</Button> : null}</div></div> : null}
     </WorkbenchRecord></li>)}</ol></details> : null}

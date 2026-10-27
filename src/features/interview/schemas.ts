@@ -129,6 +129,7 @@ export const interviewAnswerSchema = z.object({
 });
 
 export const interviewAttemptSchema = z.object({
+  parent_attempt_id: optionalUuid,
   preparation_id: z.string().uuid(),
   answer_version_id: optionalUuid,
   story_id: optionalUuid,

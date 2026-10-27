@@ -17,7 +17,7 @@ import { resolveAssistantPolicy } from "./policy";
 import { buildAssistantTools } from "./tools";
 import { definitionsForNames, unknownToolError } from "./tools/registry";
 import { selectAssistantModel, selectReasoningProviderOptionsForRequest } from "./model-router";
-import { recordAgentStep, updateAgentRun } from "./persistence";
+import { assertOwnedRun, recordAgentStep, updateAgentRun } from "./persistence";
 import { decideContextGate } from "./kernel/context-gate";
 import { buildRootAgentPrompt } from "./kernel/prompt-builder";
 import { createPrepareStep, initialToolNames } from "./kernel/prepare-step";
@@ -147,10 +147,10 @@ async function setup(request: AssistantRequest) {
 
   let previous: Partial<AgentSessionState> | null = null;
   if (request.runId) {
-    const { data } = await supabase.from("agent_runs").select("kernel_state").eq("id", request.runId).eq("user_id", userId).maybeSingle();
-    previous = (data?.kernel_state as Partial<AgentSessionState> | null) ?? null;
+    const run = await assertOwnedRun(supabase, userId, request.runId, { surface: request.surface, currentEntity: request.currentEntity ?? null });
+    previous = run.kernel;
   }
-  const sessionState = deriveSessionState(previous, request.messages, gate);
+  const sessionState = { ...deriveSessionState(previous, request.messages, gate), binding: { surface: request.surface, currentEntity: request.currentEntity ?? null } };
   const selectedModel = selectAssistantModel({ surface: request.surface, requestedModel: request.model, message, contextGate: gate });
   const resolved = await getDeepSeekModel(userId, selectedModel);
 
@@ -191,7 +191,9 @@ async function setup(request: AssistantRequest) {
     timezone, now, userName, sessionState, gateDecision: gate,
     currentSurfaceSummary: gate.needsCurrentSurface || includeSelectedSurface ? formatCurrentSurfaceForModel(executionContext) : null,
   })}${surfaceRules}${personalContextBlock}`;
-  const initial = gate.needsTools ? initialToolNames(gate) : [];
+  const selectedNames = gate.needsTools ? initialToolNames(gate) : [];
+  const constrainedSurface = request.surface === "tasks" || request.surface === "calendar" || request.surface === "career" || request.surface === "notes-library";
+  const initial = constrainedSurface ? definitionsForNames(selectedNames).filter(definition => policy.tools.includes(definition.group)).map(definition => definition.name) : selectedNames;
 
   const auditId = await auditAiRequest({
     userId, runId: request.runId, surface: request.surface, purpose: request.operation ?? request.mode,
@@ -203,7 +205,7 @@ async function setup(request: AssistantRequest) {
 
   if (request.runId) {
     await updateAgentRun({
-      supabase, userId, runId: request.runId, status: "running", model: resolved.modelId,
+      supabase, userId, runId: request.runId, generationToken: request.generationToken, status: "running", model: resolved.modelId,
       kernel: { contextMode: gate.mode, complexity: gate.complexity, initialModules: gate.likelyModules, activeSkills: sessionState.activeSkills, initialToolNames: initial, discoveredToolNames: [], sessionState: { ...sessionState, discoveredToolNames: [] } },
     });
     await recordAgentStep({
@@ -244,6 +246,7 @@ export async function createAssistantAgent(request: AssistantRequest) {
         policy: { ...runtime.policy, tools: toolGroups },
         timezone: runtime.timezone,
         runId: request.runId,
+        generationToken: request.generationToken,
         toolNames: runtime.initial,
         onSources: (sources) => {
           for (const source of sources) streamSources.set(`${source.domain}:${source.href ?? ""}:${source.title}`, source);

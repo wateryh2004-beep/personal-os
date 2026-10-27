@@ -1,17 +1,16 @@
 "use client";
 
-import { useActionState } from "react";
+import type {CaptureFixtureTransport} from "@/features/assistant/capture-fixtures";
+import { useCaptureDraft } from "@/features/workflow-continuity/capture-draft";
+import { DraftRecoveryStatus } from "@/components/workflow-continuity/draft-recovery-status";
 import { ArrowUp } from "lucide-react";
-import { captureInboxItem } from "@/features/inbox/actions";
-import type { InboxCaptureState } from "@/features/inbox/state";
 
-const initialState: InboxCaptureState = { status: "idle", message: "" };
-
-export function QuickCapture() {
-  const [state, action, pending] = useActionState(captureInboxItem, initialState);
+export function QuickCapture({captureTransport}:{captureTransport?:CaptureFixtureTransport}={}) {
+  const {formRef,...draft} = useCaptureDraft("today",captureTransport);
+  const { state, pending } = draft;
 
   return (
-    <form action={action} className="group">
+    <form ref={formRef} {...draft.attributes} onSubmit={event => { event.preventDefault(); void draft.submit(String(new FormData(event.currentTarget).get("content") ?? "")); }} className="group">
       <label className="sr-only" htmlFor="now-quick-capture">
         快速记录到 Inbox
       </label>
@@ -19,6 +18,8 @@ export function QuickCapture() {
         <input
           id="now-quick-capture"
           name="content"
+          value={draft.value}
+          onChange={event => draft.setValue(event.target.value)}
           required
           maxLength={10000}
           autoComplete="off"
@@ -28,11 +29,13 @@ export function QuickCapture() {
         <button
           disabled={pending}
           className="pressable flex size-11 md:size-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_1px_2px_rgba(0,0,0,.07)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-pressed)] disabled:opacity-40"
-          aria-label="加入 Inbox"
+          aria-label={draft.uncertain ? "核对原收集记录" : "加入 Inbox"}
         >
           <ArrowUp className="size-4" aria-hidden="true" />
         </button>
       </div>
+      {draft.recoveryUnavailable ? <p role="status" className="mt-1 text-xs text-[var(--warning)]">输入仍保留在此处，暂时无法在切页后恢复。</p> : null}
+      {draft.restored ? <DraftRecoveryStatus restored /> : null}
       {state.status !== "idle" ? (
         <p
           role="status"

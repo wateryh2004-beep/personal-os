@@ -1,5 +1,5 @@
 import { eventRecordHref } from "@/features/today/record-links";
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
 import type { NowCalendarEvent, NowWorkspace } from "@/features/today/types";
 import { todaySchedulePresentation } from "@/features/today/presentation";
 import { TodaySectionHeader } from "./section-header";

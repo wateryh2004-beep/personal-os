@@ -1,6 +1,8 @@
 import "server-only";
+import type { Json } from "@/types/database";
 import type { UIMessage } from "ai";
 import { z } from "zod";
+import { AgentRunBusyError, AgentRunIdentityError, assertRunIdentity, validateRunBinding, type RunBinding, type RunExpectation } from "./run-identity";
 import type { createClient } from "@/lib/supabase/server";
 import type {
   AgentAction,
@@ -26,6 +28,13 @@ function textFromMessage(message: UIMessage) {
     .slice(0, persistedMessageMaxChars);
 }
 
+const entityTables = { experience: "experiences", note: "notes", document: "documents", todo_task: "microsoft_todo_tasks", calendar_event: "calendar_events", career_direction: "career_directions", career_milestone: "career_milestones", career_track: "career_tracks", career_opportunity: "career_opportunities", career_application: "career_applications", resume_version: "resume_versions", review: "reviews", project: "projects" } as const;
+async function assertRunEntityOwner(supabase: Supabase, userId: string, entity: RunBinding["currentEntity"]) {
+  if (!entity) return;
+  const { data, error } = await supabase.from(entityTables[entity.type]).select("id").eq("id", entity.id).eq("user_id", userId).is("archived_at", null).maybeSingle();
+  if (error || !data) throw new AgentRunIdentityError();
+}
+
 export async function createAgentRun(input: {
   supabase: Supabase;
   userId: string;
@@ -34,6 +43,8 @@ export async function createAgentRun(input: {
   currentPath?: string | null;
   currentEntity?: { type: string; id: string } | null;
 }) {
+  validateRunBinding({ surface: input.surface, currentEntity: (input.currentEntity ?? null) as RunBinding["currentEntity"] });
+  await assertRunEntityOwner(input.supabase, input.userId, (input.currentEntity ?? null) as RunBinding["currentEntity"]);
   const { data, error } = await input.supabase
     .from("agent_runs")
     .insert({
@@ -63,17 +74,25 @@ export async function assertOwnedRun(
   supabase: Supabase,
   userId: string,
   runId: string,
+  expected?: RunExpectation,
 ) {
   const parsed = runIdSchema.safeParse(runId);
   if (!parsed.success) throw new Error("agent_run_invalid");
   const { data, error } = await supabase
     .from("agent_runs")
-    .select("id,status,surface")
+    .select("id,status,surface,current_entity_type,current_entity_id,kernel_state")
     .eq("id", parsed.data)
     .eq("user_id", userId)
     .maybeSingle();
   if (error || !data) throw new Error("agent_run_unavailable");
-  return data as { id: string; status: string; surface: AssistantSurface };
+  const identity = assertRunIdentity(data, expected);
+  if (expected && "currentEntity" in expected) await assertRunEntityOwner(supabase, userId, identity.binding.currentEntity);
+  return { ...data, ...identity };
+}
+
+export async function claimAgentGeneration(supabase: Supabase, runId: string, token: string, allowPending: boolean) {
+  const { data, error } = await supabase.rpc("claim_agent_generation", { p_run_id: runId, p_token: token, p_allow_pending: allowPending });
+  if (error || data !== true) throw new AgentRunBusyError();
 }
 
 export async function persistAgentMessage(input: {
@@ -153,6 +172,7 @@ export async function storeAgentAction(input: {
   supabase: Supabase;
   userId: string;
   runId?: string | null;
+  generationToken?: string | null;
   domain: AgentAction["domain"];
   actionType: string;
   payload: Record<string, unknown>;
@@ -164,6 +184,7 @@ export async function storeAgentAction(input: {
     .from("agent_actions")
     .insert({
       run_id: input.runId,
+      generation_token: input.generationToken ?? null,
       user_id: input.userId,
       domain: input.domain,
       action_type: input.actionType,
@@ -211,6 +232,7 @@ export async function updateAgentRun(input: {
   supabase: Supabase;
   userId: string;
   runId: string;
+  generationToken?: string | null;
   status: "running" | "awaiting_approval" | "completed" | "failed" | "cancelled";
   model?: string | null;
   errorCode?: string | null;
@@ -225,32 +247,19 @@ export async function updateAgentRun(input: {
   };
 }) {
   const now = new Date().toISOString();
-  const { error } = await input.supabase
-    .from("agent_runs")
-    .update({
-      status: input.status,
-      model: input.model ?? undefined,
-      error_code: input.errorCode ?? null,
-      context_mode: input.kernel?.contextMode,
-      request_complexity: input.kernel?.complexity,
-      initial_modules: input.kernel?.initialModules,
-      active_skills: input.kernel?.activeSkills,
-      initial_tool_names: input.kernel?.initialToolNames,
-      discovered_tool_names: input.kernel?.discoveredToolNames,
-      kernel_state: input.kernel?.sessionState,
-      completed_at: ["completed", "failed", "cancelled"].includes(input.status)
-        ? now
-        : null,
-    })
-    .eq("id", input.runId)
-    .eq("user_id", input.userId);
-  if (!error && input.status === "running") {
-    await input.supabase
-      .from("agent_runs")
-      .update({ started_at: now })
-      .eq("id", input.runId)
-      .eq("user_id", input.userId)
-      .is("started_at", null);
+  const patch = { status: input.status, model: input.model ?? undefined, error_code: input.errorCode ?? null,
+    context_mode: input.kernel?.contextMode, request_complexity: input.kernel?.complexity,
+    initial_modules: input.kernel?.initialModules, active_skills: input.kernel?.activeSkills,
+    initial_tool_names: input.kernel?.initialToolNames, discovered_tool_names: input.kernel?.discoveredToolNames, kernel_state: input.kernel?.sessionState };
+  let error: unknown = null;
+  if (input.generationToken) {
+    const result = await input.supabase.rpc("update_agent_generation", { p_run_id: input.runId, p_token: input.generationToken, p_patch: JSON.parse(JSON.stringify(patch)) as Json });
+    if (result.error) throw new Error("agent_generation_update_failed");
+    if (result.data !== true) return; // A superseded generation cannot mutate the new run.
+  } else {
+    const result = await input.supabase.from("agent_runs").update({ ...patch, completed_at: ["completed", "failed", "cancelled"].includes(input.status) ? now : null }).eq("id", input.runId).eq("user_id", input.userId);
+    error = result.error;
+    if (!error && input.status === "running") await input.supabase.from("agent_runs").update({ started_at: now }).eq("id", input.runId).eq("user_id", input.userId).is("started_at", null);
   }
   if (!error && input.status !== "running") {
     await input.supabase.from("audit_logs").insert({
@@ -271,12 +280,13 @@ export async function getAgentRun(
   supabase: Supabase,
   userId: string,
   runId: string,
+  expected?: RunExpectation,
 ) {
-  await assertOwnedRun(supabase, userId, runId);
+  await assertOwnedRun(supabase, userId, runId, expected);
   const [run, messages, steps, actions] = await Promise.all([
     supabase
       .from("agent_runs")
-      .select("id,surface,status,model,current_path,created_at,updated_at,error_code,context_mode,request_complexity,initial_modules,active_skills,initial_tool_names,kernel_state")
+      .select("id,surface,status,model,current_path,current_entity_type,current_entity_id,generation_expires_at,created_at,updated_at,error_code,context_mode,request_complexity,initial_modules,active_skills,initial_tool_names,kernel_state")
       .eq("id", runId)
       .single(),
     supabase

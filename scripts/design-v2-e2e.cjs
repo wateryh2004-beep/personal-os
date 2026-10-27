@@ -40,7 +40,7 @@ const output = "test-results/design-v2";
       await launcher.click();
       await page.getByRole("dialog").waitFor();
       await page.screenshot({ animations: "disabled", path: `${output}/dialog-${width}.png` });
-      await page.getByRole("button", { name: "取消", exact: true }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "稍后继续", exact: true }).click();
       await page.getByRole("dialog").waitFor({ state: "hidden" });
       assert.ok(await launcher.evaluate(node => node === document.activeElement), "closing restores the actual launcher");
       await launcher.click();

@@ -1,21 +1,18 @@
 "use client";
 
-import { DefaultChatTransport } from "ai";
-import { useChat } from "@ai-sdk/react";
+import type { AgentActionFixtureTransport } from "@/features/assistant/action-fixtures";
+import { assertContinuousFixtureTransport } from "@/features/testing/continuous-fixture-gate";
+
+import { useContinuousAssistantChat } from "./use-continuous-assistant-chat";
 import { ArrowUp, LoaderCircle, Plus, RotateCcw, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import type { AgentAction } from "@/features/assistant/types";
-import { createClient as createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { AgentActionCard } from "./agent-action-card";
 import { AgentActionGroup } from "./agent-action-group";
 import { AgentSources } from "./agent-sources";
-import { errorMessage, runError, type RunPayload, type RunStep } from "./agent-errors";
-
-const runStorageKey = "personal-os:agent:notes-library:run:v1";
-const draftStorageKey = "personal-os:agent:notes-library:draft:v1";
+import { errorMessage } from "./agent-errors";
 
 const quickPrompts = [
   "我最近 1 个月写了什么？",
@@ -33,138 +30,22 @@ const quickPrompts = [
  * 布局：占满 Notes 工作区的沉浸式对话（标题栏 + 滚动消息区 + 大输入框），
  * 左侧目录树由 NotesWorkspaceShell 提供。
  */
-export function NotesLibraryChat() {
-  const runIdRef = useRef<string | null>(null);
-  const pendingSubmitRef = useRef(false);
-  const [input, setInput] = useState("");
-  const [steps, setSteps] = useState<RunStep[]>([]);
-  const [actions, setActions] = useState<AgentAction[]>([]);
-  const [restoring, setRestoring] = useState(true);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const [activeRunId, setActiveRunId] = useState<string | null>(null);
-  const transport = useMemo(() => new DefaultChatTransport({ api: "/api/assistant" }), []);
-  const { messages, setMessages, sendMessage, status, error, stop, clearError } = useChat({ transport, onFinish: () => { void refreshRun(); } });
-  const waiting = status !== "ready";
-
-  const refreshRun = useCallback(async () => {
-    const runId = runIdRef.current;
-    if (!runId) return;
-    try {
-      const response = await fetch(`/api/assistant/runs/${runId}`, { cache: "no-store" });
-      if (!response.ok) return;
-      const payload = await response.json() as RunPayload;
-      setSteps(payload.steps ?? []);
-      setActions(payload.actions ?? []);
-      setLocalError(runError(payload));
-      if (!waiting && (payload.messages?.length ?? 0) > messages.length) setMessages(payload.messages ?? []);
-    } catch { /* Streaming messages remain usable if persistence refresh is offline. */ }
-  }, [messages.length, setMessages, waiting]);
-
+export function NotesLibraryChat({ actionTransport }: { actionTransport?: AgentActionFixtureTransport } = {}) {
+  assertContinuousFixtureTransport(actionTransport);
+  const { input, setInput, messages, error, waiting, submit, reset, runtime, refreshRun, recoveryUnavailable } = useContinuousAssistantChat({ surface: "notes-library" }, "笔记库 AI 输入");
+  const steps = runtime.run?.steps ?? [];
+  const actions = runtime.run?.actions ?? [];
+  const restoring = runtime.restoring;
+  const currentError = runtime.notice ?? errorMessage(error);
   useEffect(() => {
-    const timer = window.setTimeout(async () => {
-      const runId = localStorage.getItem(runStorageKey);
-      const draft = localStorage.getItem(draftStorageKey);
-      if (draft) setInput(draft);
-      if (runId) {
-        runIdRef.current = runId;
-        setActiveRunId(runId);
-        try {
-          const response = await fetch(`/api/assistant/runs/${runId}`, { cache: "no-store" });
-          if (response.ok) {
-            const payload = await response.json() as RunPayload;
-            setMessages(payload.messages ?? []);
-            setSteps(payload.steps ?? []);
-            setActions(payload.actions ?? []);
-            setLocalError(runError(payload));
-          } else {
-            runIdRef.current = null;
-            setActiveRunId(null);
-            localStorage.removeItem(runStorageKey);
-          }
-        } catch { /* Keep the run id so a later retry can restore it. */ }
-      }
-      setRestoring(false);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [setMessages]);
-
-  useEffect(() => { localStorage.setItem(draftStorageKey, input); }, [input]);
-
-  const ensureRun = useCallback(async () => {
-    if (runIdRef.current) return runIdRef.current;
-    const response = await fetch("/api/assistant/runs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ surface: "notes-library" }),
-    });
-    const payload = await response.json() as { runId?: string; error?: string };
-    if (!response.ok || !payload.runId) throw new Error(payload.error || "Agent 会话暂时不可用。");
-    runIdRef.current = payload.runId;
-    setActiveRunId(payload.runId);
-    localStorage.setItem(runStorageKey, payload.runId);
-    return payload.runId;
+    try { localStorage.removeItem("personal-os:agent:notes-library:draft:v1"); localStorage.removeItem("personal-os:agent:notes-library:run:v1"); } catch { /* Unowned legacy drafts are never adopted. */ }
   }, []);
-
-  useEffect(() => {
-    if (!activeRunId) return;
-    const supabase = createBrowserSupabaseClient();
-    let refreshTimer: number | null = null;
-    const scheduleRefresh = () => {
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => void refreshRun(), 80);
-    };
-    const channel = supabase
-      .channel(`agent-run:${activeRunId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_runs", filter: `id=eq.${activeRunId}` }, scheduleRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_messages", filter: `run_id=eq.${activeRunId}` }, scheduleRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_steps", filter: `run_id=eq.${activeRunId}` }, scheduleRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_actions", filter: `run_id=eq.${activeRunId}` }, scheduleRefresh)
-      .subscribe((channelStatus) => {
-        if (channelStatus === "SUBSCRIBED") scheduleRefresh();
-      });
-    return () => {
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-      void supabase.removeChannel(channel);
-    };
-  }, [activeRunId, refreshRun]);
-
   const submitText = useCallback(async (value: string) => {
-    const text = value.trim();
-    if (!text || pendingSubmitRef.current) return;
-    pendingSubmitRef.current = true;
-    try {
-      const runId = await ensureRun();
-      clearError();
-      setLocalError(null);
-      setInput("");
-      localStorage.removeItem(draftStorageKey);
-      await sendMessage({ text }, {
-        body: {
-          surface: "notes-library",
-          runId,
-          currentPath: "/notes",
-          surfaceContext: {
-            type: "global_page",
-            title: "笔记库",
-          },
-        },
-      });
-    } catch {
-      setLocalError("无法连接笔记库 AI。会话和草稿仍已保留，请稍后重试。");
-    } finally {
-      pendingSubmitRef.current = false;
-    }
-  }, [clearError, ensureRun, sendMessage]);
-
-  const newRun = () => {
-    if (waiting) void stop();
-    runIdRef.current = null;
-    setActiveRunId(null);
-    localStorage.removeItem(runStorageKey);
-    setMessages([]); setSteps([]); setActions([]); setLocalError(null); clearError();
-  };
-  const currentError = localError ?? errorMessage(error);
-  const stateLabel = restoring ? "正在恢复" : waiting ? steps.at(-1)?.title ?? "正在思考" : actions.some((action) => action.status === "proposed") ? "等待确认" : "";
+    if (!value.trim() || waiting) return;
+    await submit({ text: value, currentPath: "/notes/ask", currentEntity: null, surfaceContext: { type: "global_page", title: "笔记库" } });
+  }, [submit, waiting]);
+  const newRun = reset;
+  const stateLabel = restoring ? "正在恢复" : waiting ? steps.at(-1)?.title ?? "正在思考" : actions.some(action => action.status === "proposed") ? "等待确认" : "";
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--surface-canvas)]">
@@ -187,6 +68,7 @@ export function NotesLibraryChat() {
             </div>
           ) : null}
 
+          {recoveryUnavailable ? <p role="status" className="text-xs text-[var(--danger)]">当前输入仍可使用，本标签页恢复暂不可用。</p> : null}
           {restoring ? <p role="status" className="py-8 text-center text-xs text-[var(--text-tertiary)]">正在恢复会话…</p> : null}
 
           <div className="space-y-6">
@@ -204,19 +86,19 @@ export function NotesLibraryChat() {
           {currentError ? (
             <div className="mt-4 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-xs text-red-800">
               <p>{currentError}</p>
-              <button type="button" onClick={() => { clearError(); setLocalError(null); const last = [...messages].reverse().find((message) => message.role === "user"); const previous = last?.parts.filter((part) => part.type === "text").map((part) => part.type === "text" ? part.text : "").join("\n"); const retryText = previous || input; if (retryText) void submitText(retryText); }} className="mt-2 inline-flex items-center gap-1 font-medium"><RotateCcw className="size-3" />重试</button>
+              <button type="button" onClick={() => { const last = [...messages].reverse().find((message) => message.role === "user"); const previous = last?.parts.filter((part) => part.type === "text").map((part) => part.type === "text" ? part.text : "").join("\n"); const retryText = previous || input; if (retryText) void submitText(retryText); }} className="mt-2 inline-flex items-center gap-1 font-medium"><RotateCcw className="size-3" />重试</button>
             </div>
           ) : null}
 
           <AgentSources steps={steps} />
-          {actions.length ? <section className="mt-4 space-y-2"><h3 className="text-xs font-medium text-[var(--text-secondary)]">待确认操作</h3><AgentActionGroup actions={actions} onChanged={() => void refreshRun()} />{actions.map((action) => <AgentActionCard key={action.id} action={action} onChanged={() => void refreshRun()} />)}</section> : null}
+          {actions.length ? <section className="mt-4 space-y-2"><h3 className="text-xs font-medium text-[var(--text-secondary)]">待确认操作</h3><AgentActionGroup verificationTransport={actionTransport} actions={actions} onChanged={() => void refreshRun()} />{actions.map((action) => <AgentActionCard verificationTransport={actionTransport} key={action.id} action={action} onChanged={() => void refreshRun()} />)}</section> : null}
         </div>
       </div>
 
       <footer className="shrink-0 border-t bg-[var(--surface-app)] p-4">
         <form onSubmit={(event) => { event.preventDefault(); void submitText(input); }} className="mx-auto max-w-3xl">
           <div className="flex items-end gap-2 rounded-[var(--radius-md)] border bg-[var(--surface-canvas)] p-2 transition-colors focus-within:border-[var(--accent)]">
-            <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitText(input); } }} rows={3} maxLength={10_000} placeholder="询问笔记库，或要求跨多篇笔记综合分析…" className="max-h-48 min-h-[3.5rem] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm leading-6 outline-none" aria-label="询问笔记库" />
+            <textarea data-assistant-input="notes-library" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitText(input); } }} rows={3} maxLength={10_000} placeholder="询问笔记库，或要求跨多篇笔记综合分析…" className="max-h-48 min-h-[3.5rem] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm leading-6 outline-none" aria-label="询问笔记库" />
             <button type="submit" disabled={waiting || !input.trim()} className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent)] text-white transition-opacity disabled:opacity-40" aria-label="发送">{waiting ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}</button>
           </div>
           <div className="mt-2 flex items-center justify-between text-[12px] text-[var(--text-tertiary)]">

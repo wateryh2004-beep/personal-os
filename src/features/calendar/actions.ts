@@ -17,7 +17,15 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncEntityReferenceLinks } from "@/features/links/service";
 
-export type CalendarCreateState = { status: "idle" | "success" | "error"; message: string; operationId?:string; receiptId?:string };
+export type CalendarCreateState = { status: "idle" | "success" | "error"; message: string; operationId?:string; receiptId?:string; writeOutcome?: "not_written" | "unknown" };
+
+function creationWasNotWritten(receipt: { status: string; result: unknown; claimed_at: string | null; provider_event_id: string | null; remote_committed_at: string | null; cache_committed_at: string | null }) {
+  if (receipt.provider_event_id !== null || receipt.remote_committed_at !== null || receipt.cache_committed_at !== null) return false;
+  // A failed Graph rejection can retain its historical claim. Cancellation is
+  // safe only if execution was never claimed, matching the existing DB mutex.
+  return receipt.status === "cancelled" ? receipt.claimed_at === null
+    : receipt.status === "failed" && receipt.result !== null && typeof receipt.result === "object" && !Array.isArray(receipt.result) && "writeOutcome" in receipt.result && receipt.result.writeOutcome === "not_written";
+}
 
 function fail(): never { throw new Error("日历操作未能完成，请检查输入、连接状态或网络后重试。"); }
 function operationFailureMessage(error: unknown, verb: "创建" | "更新" | "删除") {
@@ -25,6 +33,8 @@ function operationFailureMessage(error: unknown, verb: "创建" | "更新" | "�
   if (code === "calendar_remote_committed_cache_failed") {
     return `Outlook 已${verb}日程，本地日历正在等待重新同步；请勿重复操作。`;
   }
+  if (error instanceof MicrosoftGraphError && error.writeOutcome === "unknown")
+    return "远端结果尚未确认，请保留输入并重新读取核对；系统不会重复发送。";
   if (code === "calendar_not_connected" || code === "invalid_grant")
     return "Outlook 连接已过期，请重新连接后再试。";
   if (code === "graph_access_denied")
@@ -107,19 +117,60 @@ async function syncCalendarEventLinks(supabase: Awaited<ReturnType<typeof requir
   if (!linkSync.ok) console.error(JSON.stringify({ level: "warn", action: "sync_entity_reference_links", calendarEventId: event.id, code: linkSync.code }));
 }
 
+/** Exact receipt-only read; never reconciles/claims/dispatches or marks a source. */
+export async function readCalendarCreationIntent(formData:FormData):Promise<CalendarCreateState>{
+ try{
+  const {supabase,userId}=await requireOwner();const form=formValue(formData),parsed=createCalendarEventSchema.safeParse(form);
+  const inboxId=z.uuid().optional().parse(form.inboxId||undefined),sourceTaskId=z.uuid().optional().parse(formData.get("source_task_id")||undefined);
+  const requestId=inboxId??z.uuid().parse(formData.get("request_id"));if(!parsed.success)return {status:"error",message:"原日程输入不完整，草稿仍保留。"};
+  const hash=operationRequestHash({event:parsed.data,sourceTaskId:sourceTaskId??null,...(inboxId?{sourceInboxId:inboxId}:{})});
+  const {data:receipt,error}=await supabase.from("calendar_operations").select("id,status,request_hash,provider_event_id,operation_type,result,claimed_at,remote_committed_at,cache_committed_at").eq("user_id",userId).eq("request_id",requestId).maybeSingle();
+  if(error||!receipt)return {status:"error",message:"尚未核对到原日程回执，输入与编号仍保留，未重复发送。"};
+  if(receipt.operation_type!=="create"||receipt.request_hash!==hash)return {status:"error",message:"原提交编号与日程内容不一致，未重复发送。"};
+  if(creationWasNotWritten(receipt)){
+    if(inboxId){
+      const source=await supabase.from("inbox_items").select("processed_at,converted_note_id,converted_todo_task_id,converted_task_id").eq("id",inboxId).eq("user_id",userId).is("archived_at",null).maybeSingle();
+      if(source.error||!source.data||source.data.processed_at||source.data.converted_note_id||source.data.converted_todo_task_id||source.data.converted_task_id)return {status:"error",message:"原日程未确认写入，但收集箱来源已有进展或暂不可读；请保留原请求核对。",operationId:receipt.id,writeOutcome:"unknown"};
+    }
+    return {status:"error",message:"已确认原日程未写入。输入仍保留，可修正后再次明确确认创建。",operationId:receipt.id,writeOutcome:"not_written"};
+  }
+  if(receipt.status!=="succeeded"||!receipt.provider_event_id)return {status:"error",message:"原日程结果仍待确认，系统不会重新创建。",operationId:receipt.id};
+  const canonical=await supabase.from("calendar_events").select("id,subject,starts_at,ends_at").eq("user_id",userId).eq("provider_event_id",receipt.provider_event_id).is("archived_at",null).maybeSingle();
+  if(canonical.error||!canonical.data)return {status:"error",message:"原日程已提交，但当前记录暂不可读，草稿仍保留。",operationId:receipt.id};
+  if(canonical.data.subject!==parsed.data.subject||Date.parse(canonical.data.starts_at)!==Date.parse(parsed.data.startsAt)||Date.parse(canonical.data.ends_at)!==Date.parse(parsed.data.endsAt))return {status:"error",message:"原日程已有后续修改，请核对当前记录，草稿仍保留。",operationId:receipt.id};
+  if(inboxId){const [source,audit]=await Promise.all([supabase.from("inbox_items").select("processed_at,converted_note_id,converted_todo_task_id,converted_task_id").eq("id",inboxId).eq("user_id",userId).is("archived_at",null).maybeSingle(),supabase.from("audit_logs").select("id").eq("user_id",userId).eq("entity_type","inbox_item").eq("entity_id",inboxId).eq("action","convert").contains("after_data",{target:"calendar",destination_id:receipt.id}).limit(1).maybeSingle()]);if(source.error||!source.data?.processed_at||source.data.converted_note_id||source.data.converted_todo_task_id||source.data.converted_task_id||audit.error||!audit.data)return {status:"error",message:"原日程已创建，收集箱来源仍待核对，未重新创建。",operationId:receipt.id};}
+  return {status:"success",message:"已核对原日程与来源，未重复创建。",operationId:receipt.id};
+ }catch{return {status:"error",message:"暂时无法核对原日程，输入与编号仍保留。"};}
+}
+
+export async function readCalendarUpdateIntent(formData:FormData):Promise<CalendarCreateState>{
+ try{const {supabase,userId}=await requireOwner();const parsed=updateCalendarEventSchema.safeParse(updateFormValue(formData)),requestId=z.uuid().parse(formData.get("request_id"));if(!parsed.success)return {status:"error",message:"原日程修改信息不完整，输入仍保留。"};const {data:receipt,error}=await supabase.from("workspace_action_receipts").select("id,status,request_hash,operation,target_id").eq("user_id",userId).eq("request_id",requestId).maybeSingle();if(error||!receipt)return {status:"error",message:"尚未核对到原修改，未重复发送。"};if(receipt.operation!=="calendar_update"||receipt.request_hash!==operationRequestHash(parsed.data))return {status:"error",message:"原修改编号与内容不一致，输入仍保留。"};
+ if(receipt.status==="undone")return {status:"error",message:"原修改曾已保存，之后已撤回；当前未重新保存。"};
+ if(receipt.status!=="available"&&receipt.status!=="remote_committed")return {status:"error",message:"原修改仍待确认，系统不会重新发送。"};
+ const canonical=await supabase.from("calendar_events").select("id").eq("id",receipt.target_id).eq("user_id",userId).eq("provider_event_id",parsed.data.providerEventId).is("archived_at",null).maybeSingle();if(canonical.error||!canonical.data)return {status:"error",message:"原日程当前不可读，输入仍保留。"};
+ if(receipt.status==="remote_committed"){const operation=await supabase.from("calendar_operations").select("id").eq("id",requestId).eq("user_id",userId).eq("status","succeeded").maybeSingle();if(operation.error||!operation.data)return {status:"error",message:"Outlook修改与缓存仍待核对，未重复发送。"};}
+ return {status:"success",message:"已核对原日程修改。",...(receipt.status==="available"?{receiptId:receipt.id}:{})};
+ }catch{return {status:"error",message:"暂时无法核对原修改，输入仍保留。"};}
+}
+
 export async function createCalendarEvent(_previousState: CalendarCreateState, formData: FormData): Promise<CalendarCreateState> {
   try {
     const {supabase,userId}=await requireOwner();
     const form=formValue(formData);const parsed=createCalendarEventSchema.safeParse(form);
-    if(!parsed.success)return {status:"error",message:"请检查日程标题和开始、结束时间。"};
-    const requestId=z.string().uuid().parse(formData.get("request_id")||crypto.randomUUID());
+    if(!parsed.success)return {status:"error",message:"请检查日程标题和开始、结束时间。",writeOutcome:"not_written"};
     const sourceTaskId=z.string().uuid().optional().parse(formData.get("source_task_id")||undefined);
-    const hash=operationRequestHash({event:parsed.data,sourceTaskId:sourceTaskId??null});
-    const {data:old}=await supabase.from("calendar_operations").select("id,status,request_hash").eq("user_id",userId).eq("request_id",requestId).maybeSingle();
-    if(old){
+    const inboxId=z.string().uuid().optional().parse(form.inboxId||undefined);
+    // One source owns one provider intent across tabs, lost responses and fresh forms.
+    let requestId=inboxId??z.string().uuid().parse(formData.get("request_id")||crypto.randomUUID());
+    const hash=operationRequestHash({event:parsed.data,sourceTaskId:sourceTaskId??null,...(inboxId?{sourceInboxId:inboxId}:{})});
+    const finishSource=async(operationId:string)=>!inboxId||await markInboxProcessed(supabase,userId,inboxId,"calendar",operationId);
+    const {data:old}=await supabase.from("calendar_operations").select("id,status,request_hash,result,claimed_at,provider_event_id,remote_committed_at,cache_committed_at").eq("user_id",userId).eq("request_id",requestId).maybeSingle();
+    const safeRejected = old?.status === "failed" && old.result && typeof old.result === "object" && !Array.isArray(old.result) && old.result.writeOutcome === "not_written";
+    const safeRestart = inboxId && old && ((old.status === "cancelled" && !old.claimed_at) || safeRejected) && !old.provider_event_id && !old.remote_committed_at && !old.cache_committed_at;
+    if(old&&!safeRestart){
       if(old.request_hash!==hash)return {status:"error",message:"请求编号已用于其他内容，请重新打开预览。"};
-      if(old.status==="succeeded")return {status:"success",message:"该日程已创建到Outlook，未重复创建。",operationId:old.id};
-      if(["remote_committed","reconciliation_required"].includes(old.status)){try{await reconcileCalendarOperation(old.id,userId);await revalidatePath("/calendar");return {status:"success",message:"Outlook已创建，缓存已重新核对。",operationId:old.id};}catch{return {status:"error",message:"Outlook已接受，缓存仍待核对，请勿重复创建。",operationId:old.id};}}
+      if(old.status==="succeeded"){if(!await finishSource(old.id))return {status:"error",message:"Outlook日程已创建，但收集箱来源尚待核对；再次提交只核对来源，不会重建日程。",operationId:old.id};return {status:"success",message:"该日程已创建到Outlook，未重复创建。",operationId:old.id};}
+      if(["remote_committed","reconciliation_required"].includes(old.status)){try{await reconcileCalendarOperation(old.id,userId);if(!await finishSource(old.id))return {status:"error",message:"Outlook已接受，收集箱来源仍待核对，未重复创建。",operationId:old.id};await revalidatePath("/calendar");return {status:"success",message:"Outlook已创建，缓存已重新核对。",operationId:old.id};}catch{return {status:"error",message:"Outlook已接受，缓存仍待核对，请勿重复创建。",operationId:old.id};}}
       if(old.status!=="pending_confirmation")return {status:"error",message:"请求结果仍待核对，系统不会重复创建。",operationId:old.id};
     }
     const activeConnection=await connection(supabase);
@@ -130,13 +181,22 @@ export async function createCalendarEvent(_previousState: CalendarCreateState, f
     }
     const categoryOptions=await classificationOptions(supabase,(activeConnection.oauth_scope_version??1)>=2);
     const {data:profile}=await supabase.from("profiles").select("timezone").eq("user_id",userId).maybeSingle();
-    const payload={...calendarPayload(parsed.data,categoryOptions),timeZone:profile?.timezone||"Asia/Shanghai"};
-    if(!old){const {error}=await supabase.from("calendar_operations").upsert({id:requestId,user_id:userId,request_id:requestId,request_hash:hash,connection_id:activeConnection.id,operation_type:"create",status:"pending_confirmation",payload},{onConflict:"id",ignoreDuplicates:true});if(error)fail();}
+    const payload={...calendarPayload(parsed.data,categoryOptions),timeZone:profile?.timezone||"Asia/Shanghai",sourceInboxId:inboxId??null};
+    if(inboxId){
+      const prepared=await createAdminClient().rpc("prepare_inbox_calendar_creation",{p_owner:userId,p_inbox_id:inboxId,p_request_hash:hash,p_connection_id:activeConnection.id,p_payload:payload});
+      if(prepared.error||typeof prepared.data!=="string")return {status:"error",message:"这条内容已有其他去向或远端结果待核对；输入已保留，未重复创建。"};
+      requestId=prepared.data;
+    }else if(!old){const {error}=await supabase.from("calendar_operations").upsert({id:requestId,user_id:userId,request_id:requestId,request_hash:hash,connection_id:activeConnection.id,operation_type:"create",status:"pending_confirmation",payload},{onConflict:"id",ignoreDuplicates:true});if(error)fail();}
     const {data:queued,error}=await supabase.from("calendar_operations").update({status:"queued",confirmed_at:new Date().toISOString()}).eq("id",requestId).eq("user_id",userId).eq("request_hash",hash).eq("status","pending_confirmation").select("id").maybeSingle();
     if(error||!queued)return {status:"error",message:"该请求正在处理，未重复提交。",operationId:requestId};
     await audit(supabase,userId,"confirm",requestId,{operation_type:"create",source_task_id:sourceTaskId??null});
-    try{await executeCalendarOperation(requestId,userId);}catch(error){return {status:"error",message:operationFailureMessage(error,"创建"),operationId:requestId};}
-    await markInboxProcessed(supabase,userId,z.string().uuid().optional().safeParse(form.inboxId).data,"calendar",requestId);
+    try{await executeCalendarOperation(requestId,userId);}catch(error){
+      // A thrown response alone does not release an intent: confirm the exact
+      // persisted operation and source through the pure reader first.
+      const outcome=error instanceof MicrosoftGraphError&&error.writeOutcome==="not_written"?await readCalendarCreationIntent(formData):null;
+      return {status:"error",message:operationFailureMessage(error,"创建"),operationId:requestId,writeOutcome:outcome?.writeOutcome==="not_written"?"not_written":"unknown"};
+    }
+    if(!await finishSource(requestId))return {status:"error",message:"Outlook日程已创建，但收集箱来源尚待核对；输入已保留，重试不会重复创建。",operationId:requestId};
     await syncCalendarEventLinks(supabase,userId,requestId,parsed.data.description);
     await revalidatePath("/calendar");await revalidatePath("/inbox");await revalidatePath("/today");
     return {status:"success",message:"已创建并同步到Outlook。",operationId:requestId};

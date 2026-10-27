@@ -19,6 +19,8 @@ it("announces empty search results while the real command list still offers an A
   try {
     await act(async () => root.render(<GlobalCommandPalette open embedded onOpenChange={() => {}} />));
     const input = host.querySelector("input")!;
+    expect(input.getAttribute("role")).toBe("combobox");
+    expect(document.getElementById(input.getAttribute("aria-labelledby")!)?.textContent).toBe("搜索与导航");
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "没有匹配");
       input.dispatchEvent(new Event("input", { bubbles: true }));

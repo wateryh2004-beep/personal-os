@@ -2,7 +2,7 @@
 
 import { useWorkspaceResourceLease } from "@/lib/workspace-resource-cache";
 
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
 import { useRef, useState, useTransition, type ReactNode, type MouseEvent } from "react";
 import { ArrowUpRight, CheckCircle2, Plus, Search, X } from "lucide-react";
 import type { NowTask, TodayFocus } from "@/features/today/types";

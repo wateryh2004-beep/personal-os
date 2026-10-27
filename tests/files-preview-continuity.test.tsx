@@ -6,7 +6,7 @@ import type { FileRecord } from "@/features/files/queries";
 
 const mocks = vi.hoisted(() => ({ getDocument: vi.fn(), show: vi.fn() }));
 vi.mock("unpdf/pdfjs", () => ({ getDocument: mocks.getDocument }));
-vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn(), usePathname: () => "/files" }));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn(), useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }), usePathname: () => "/files" }));
 vi.mock("@/components/shared/action-feedback", () => ({ useActionFeedback: () => ({ show: mocks.show }) }));
 vi.mock("@/features/files/reading-progress-actions", () => ({ getReadingProgress: vi.fn(), saveReadingProgress: vi.fn() }));
 vi.mock("@/features/workbench/operation-actions", () => ({ readWorkbenchReceiptState: vi.fn(), readMetadataOperationTargets: vi.fn(), applyMetadataOperation: vi.fn() }));

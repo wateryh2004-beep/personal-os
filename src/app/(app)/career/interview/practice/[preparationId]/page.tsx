@@ -11,10 +11,10 @@ import { formatDateTime } from "@/features/interview/utils";
 
 export default async function PracticeDetailPage({ params, searchParams }: {
   params: Promise<{ preparationId: string }>;
-  searchParams: Promise<{ saved?: string; review?: string }>;
+  searchParams: Promise<{ saved?: string; review?: string; parent?: string }>;
 }) {
-  const [{ preparationId }, { saved, review }] = await Promise.all([params, searchParams]);
-  const data = await getPracticeDetail(preparationId);
+  const [{ preparationId }, { saved, review, parent }] = await Promise.all([params, searchParams]);
+  const data = await getPracticeDetail(preparationId, parent);
   if (!data) notFound();
 
   const prep = data.preparation;
@@ -54,7 +54,9 @@ export default async function PracticeDetailPage({ params, searchParams }: {
         </div>
       ) : null}
 
-      <PracticeAttemptForm key={data.attempts[0]?.id ?? "first-attempt"} historyHref={`/career/interview/practice/${prep.id}#practice-history`}>
+      {parent ? <section className="my-6 max-w-3xl border-l-2 border-[var(--accent)] pl-4" role="status">{data.parentAttempt?<><p>继续 {formatDateTime(data.parentAttempt.practiced_at)} 的练习</p><p className="whitespace-pre-wrap">上次重点：{data.parentAttempt.next_focus||"未填写"}</p><details><summary className="ui-link min-h-11 cursor-pointer py-3">回看上次回答与反馈</summary><p className="whitespace-pre-wrap">{data.parentAttempt.response_transcript_markdown}</p><p className="whitespace-pre-wrap">{data.parentAttempt.self_review_markdown}</p></details></>:<p>原练习不可用，当前输入仍保留。请返回练习记录重新选择原练习后继续，未自动改为独立练习。</p>}</section>:null}
+      <PracticeAttemptForm key={data.attempts[0]?.id ?? "first-attempt"} preparationId={prep.id} parentAttemptId={parent} blocked={parent&&!data.parentAttempt?"无法核对原练习，暂不能保存这次继续练习。":undefined} historyHref={`/career/interview/practice/${prep.id}#practice-history`}>
+        <input type="hidden" name="parent_attempt_id" value={data.parentAttempt?.id??""} />
         <input type="hidden" name="preparation_id" value={prep.id} />
         <input type="hidden" name="answer_version_id" value="" />
         <input type="hidden" name="input_mode" value="text" />
@@ -122,6 +124,7 @@ export default async function PracticeDetailPage({ params, searchParams }: {
                   {attempt.response_transcript_markdown ? <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-[var(--text-secondary)]">{attempt.response_transcript_markdown}</p> : null}
                   {attempt.self_review_markdown ? <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-[var(--text-secondary)]">复盘：{attempt.self_review_markdown}</p> : null}
                   {attempt.next_focus ? <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]">下次重点：{attempt.next_focus}</p> : null}
+                  <Link className="ui-link inline-flex min-h-11 items-center" href={`/career/interview/practice/${prep.id}?parent=${attempt.id}`}>从这次薄弱点续练</Link>
                 </article>
               ))}
             </div>

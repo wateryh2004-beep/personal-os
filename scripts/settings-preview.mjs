@@ -10,12 +10,23 @@ const mock = path.join(root, "mocks.jsx");
 const server = await createServer({
   configFile: false,
   root,
-  plugins: [react()],
+  plugins: [react(), {
+    name: "isolated-ordinary-comparison-action",
+    enforce: "pre",
+    resolveId(id, importer) {
+      // Next turns this Server Function into a reference. Vite must stop at
+      // that same I/O boundary instead of loading authentication/DB modules.
+      if (id === "./ordinary-comparison" && importer?.split("?")[0] === path.join(project, "src/features/workflow-continuity/ordinary-comparison-transport.tsx")) return mock;
+      return null;
+    },
+  }],
+  define: { "process.env.CONTINUOUS_FIXTURE_COMPILED": JSON.stringify("0"), "process.env.NEXT_PUBLIC_PERF_DEBUG": JSON.stringify("false") },
   resolve: { alias: [
     { find: "@/features/files/storage-inspection/budget-actions", replacement: mock },
     { find: "@/features/ai/actions", replacement: mock },
     { find: "@/features/ai/queries", replacement: mock },
     { find: "@/features/system-status/queries", replacement: mock },
+    { find: "@/features/workflow-continuity/ordinary-comparison", replacement: mock },
     { find: "next/navigation", replacement: mock },
     { find: "next/link", replacement: mock },
     { find: "@", replacement: path.join(project, "src") },

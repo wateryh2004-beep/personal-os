@@ -39,7 +39,7 @@ export default async function SkillsPage() {
       <div className="mb-7 flex justify-end">
         <details>
           <summary className="pressable cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 新增能力</summary>
-          <CareerForm action={submitCareerForm.bind(null, "createSkill")} resetOnSuccess className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
+          <CareerForm action={submitCareerForm.bind(null, "createSkill")} draft={{ operation: "career.skill-create", id: "new", href: "/career/skills", label: "未保存的能力记录" }} resetOnSuccess className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
             <Field label="能力名称" name="name" required />
             <SelectField label="类别" name="category" values={categories} defaultValue="other" />
             <SelectField label="熟练度" name="proficiency" values={proficiencies} defaultValue="learning" />
@@ -63,7 +63,7 @@ export default async function SkillsPage() {
 
             <details className="mt-1.5">
               <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">编辑</summary>
-              <CareerForm action={submitCareerForm.bind(null, "updateSkill")} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
+              <CareerForm action={submitCareerForm.bind(null, "updateSkill")} draft={{ operation: "career.skill-edit", id: skill.id, href: "/career/skills", label: "未保存的能力记录" }} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
                 <input type="hidden" name="skill_id" value={skill.id} />
                 <Field label="能力名称" name="name" defaultValue={skill.name} required />
                 <SelectField label="类别" name="category" values={categories} defaultValue={skill.category} />

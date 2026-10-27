@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-const shortList = z.array(z.string().trim().min(1).max(500)).max(12).default([]);
+const shortList = z
+  .array(z.string().trim().min(1).max(500))
+  .max(12)
+  .default([]);
 
 export const reviewStructuredDataSchema = z.object({
   wins: shortList,
@@ -13,9 +16,26 @@ export const reviewStructuredDataSchema = z.object({
 });
 
 export const completeReviewSchema = z.object({
+  period: z.object({ periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), timezone: z.string().max(100) }).strict().optional(),
   type: z.enum(["daily", "weekly"]),
   structuredData: reviewStructuredDataSchema,
   generatedWithAi: z.boolean().default(false),
+  aiContextSources: z
+    .array(
+      z
+        .object({ sourceType: z.string().max(80), sourceId: z.string().uuid() })
+        .strict(),
+    )
+    .max(200)
+    .default([]),
+  selectedSources: z
+    .array(
+      z
+        .object({ sourceType: z.string().max(80), sourceId: z.string().uuid() })
+        .strict(),
+    )
+    .max(200)
+    .default([]),
 });
 
 export const reviewProposalTypes = [

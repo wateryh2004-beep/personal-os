@@ -1,0 +1,14 @@
+// @vitest-environment jsdom
+import{act,createElement}from"react";
+import{createRoot}from"react-dom/client";
+import{expect,it,vi,afterEach}from"vitest";
+const io=vi.hoisted(()=>({create:vi.fn(),read:vi.fn(),allowed:false}));
+vi.mock("@/features/testing/continuous-fixture-gate",()=>({assertContinuousFixtureTransport:(value:unknown)=>{if(value!==undefined&&!io.allowed)throw Error("fixture_transport_forbidden");}}));
+vi.mock("@/features/tasks/microsoft-todo",()=>({createMicrosoftTodoTaskAction:vi.fn(()=>{throw Error("real_action_forbidden");}),readMicrosoftTodoCreationAction:vi.fn(()=>{throw Error("real_action_forbidden");})}));
+import{NoteSelectionActions}from"@/components/notes/note-selection-actions";
+import{clearWorkspaceResources}from"@/lib/workspace-resource-cache";
+const noteId="11111111-1111-4111-8111-111111111111",version="22222222-2222-4222-8222-222222222222",list="33333333-3333-4333-8333-333333333333";
+let root:ReturnType<typeof createRoot>|undefined,host:HTMLDivElement|undefined;
+afterEach(async()=>{if(root)await act(async()=>root!.unmount());host?.remove();root=undefined;clearWorkspaceResources();vi.unstubAllGlobals();io.allowed=false;});
+it("ordinary builds reject any task transport before it can execute",()=>{expect(()=>NoteSelectionActions({noteId,selection:null,capture:async()=>null,actionTransport:{create:io.create,read:io.read}})).toThrow("fixture_transport_forbidden");expect(io.create).not.toHaveBeenCalled();});
+it("the real selection capture and confirm controller calls only the gated typed task boundary",async()=>{io.allowed=true;Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});io.create.mockResolvedValue({status:"success",message:"合成确认"});vi.stubGlobal("fetch",vi.fn(async()=>Response.json({lists:[{id:list,displayName:"合成清单"}],unavailable:false})));host=document.createElement("div");document.body.append(host);root=createRoot(host);const capture=vi.fn(async()=>`/notes/${noteId}?sourceVersion=${version}&sourceRevision=1&sourceFrom=0&sourceTo=4&sourceHash=${"a".repeat(64)}`);await act(async()=>root!.render(createElement(NoteSelectionActions,{noteId,selection:{text:"原始资料",rect:{left:0,top:0},replace:vi.fn(),insertBelow:vi.fn(),isCurrent:()=>true},capture,actionTransport:{create:io.create,read:io.read}})));const click=async(text:string)=>{await act(async()=>{[...host!.querySelectorAll("button")].find(row=>row.textContent===text)!.click();});};await click("转为任务");expect(capture).toHaveBeenCalledOnce();await act(async()=>host!.querySelector("form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));expect(io.create).toHaveBeenCalledOnce();expect(io.create.mock.calls[0][1].get("body_text")).toContain("原始资料");expect(io.create.mock.calls[0][1].get("body_text")).toContain(version);expect(io.read).not.toHaveBeenCalled();});

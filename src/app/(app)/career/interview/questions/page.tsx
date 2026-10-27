@@ -1,8 +1,9 @@
+import {CareerForm} from "@/components/career/career-form";
+import {submitInterviewForm} from "@/features/interview/form-actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
 import { InterviewNav } from "@/components/career/interview/interview-nav";
 import { QuestionCatalog } from "@/components/career/interview/question-catalog";
-import { createInterviewQuestion } from "@/features/interview/actions";
 import { getInterviewQuestions } from "@/features/interview/queries";
 
 export default async function InterviewQuestionLibraryPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -15,7 +16,7 @@ export default async function InterviewQuestionLibraryPage({ searchParams }: { s
     <CareerNav current="/career/interview" />
     <InterviewNav current="/career/interview/questions" />
     <QuestionCatalog rows={rows} unavailable={data.unavailable} createForm={
-          <form action={createInterviewQuestion} className="space-y-3">
+          <CareerForm draft={{operation:"interview.question-create",id:"new",href:"/career/interview/questions",label:"新建面试题"}} action={submitInterviewForm.bind(null,"questionCreate")} className="space-y-3">
             <label className="grid gap-2 text-sm">题目 *<textarea aria-label="题目"
               required
               name="canonical_prompt"
@@ -37,7 +38,7 @@ export default async function InterviewQuestionLibraryPage({ searchParams }: { s
             <input type="hidden" name="follow_up_kind" value="" />
             <input type="hidden" name="difficulty" value="3" />
             <button className="min-h-11 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white">保存题目</button>
-          </form>
+          </CareerForm>
     } />
   </>;
 }

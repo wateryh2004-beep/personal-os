@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   Check,
   CheckSquare,
@@ -21,7 +21,6 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { AISidecar } from "@/components/ai/ai-sidecar";
 import {
-  generateNoteAiSuggestion,
   type NoteAiState,
 } from "@/features/notes/ai-actions";
 import {
@@ -31,11 +30,28 @@ import {
   noteAiUserMessage,
   type NoteAiOperation,
 } from "@/features/notes/ai-prompts";
+import { adoptionHunks, adoptHunks } from "@/features/notes/partial-adoption";
 import { wordDiff } from "@/features/notes/diff-preview";
+import { assertContinuousFixtureTransport } from "@/features/testing/continuous-fixture-gate";
+import type { AiActionFixtureTransport } from "@/features/assistant/ai-action-fixtures";
+import { captureNoteAiBaseline, applyNoteAiSuggestion } from "@/features/assistant/note-ai-live";
+import { startAiAction, getAiActionRecords, getAiActionServerRecords, subscribeAiActionRecords, toggleNoteAiHunk, consumeAiAction, type AiActionRecord } from "@/features/assistant/ai-action-runtime";
+import { captureNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
+import { registerAiResumeConsumer, notifyAiResumeReady } from "@/features/assistant/ai-continuity";
+import { captureWorkspaceScope, registerWorkspaceScopeCleanup } from "@/lib/workspace-resource-cache";
+import { useWorkflowDraft } from "@/features/workflow-continuity/drafts";
+import { z } from "zod";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
+import { WORKSPACE_SESSION_TTL_MS } from "@/lib/workspace-session";
+
+const questionEditLeases = new WeakMap<() => boolean, { edited: boolean; expiresAt: number }>();
 
 export type NoteSelection = {
   text: string;
+  from?: number;
+  to?: number;
+  sourceMarkdown?: string;
+  isCurrent?: () => boolean;
   contextBefore?: string;
   contextAfter?: string;
   rect: { left: number; top: number };
@@ -44,6 +60,7 @@ export type NoteSelection = {
 };
 type Request = {
   operation: NoteAiOperation;
+  baselineTitle?: string;
   scope: "note" | "selection";
   instruction?: string;
   content: string;
@@ -96,60 +113,151 @@ export function NoteAiAssistant({
   onOpen,
   onClose,
   noteId,
-  title,
   bodyMarkdown,
   defaultModel,
   selection,
   onClearSelection,
-  onReplaceNote,
-  onInsertNote,
-  onReplaceTitle,
+  insertionRole = "main",
+  fixtureTransport,
 }: {
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
   noteId: string;
+  insertionRole?: "main" | "reference";
+  fixtureTransport?: AiActionFixtureTransport;
   title: string;
   bodyMarkdown: string;
   defaultModel: DeepSeekModelId;
   selection: NoteSelection | null;
   onClearSelection: () => void;
-  onReplaceNote: (text: string) => void;
-  onInsertNote: (text: string) => void;
-  onReplaceTitle: (title: string) => void;
+  onReplaceNote: (text: string, expected?: string) => boolean | void;
+  onInsertNote: (text: string, expected?: string) => boolean | void;
+  onReplaceTitle: (title: string, expectedTitle?: string) => boolean | void;
 }) {
+  assertContinuousFixtureTransport(fixtureTransport);
   const [model, setModel] = useState<DeepSeekModelId>(defaultModel);
-  const [question, setQuestion] = useState("");
+  const { value: question, setValue: setDraftQuestion, recoveryUnavailable, isCurrent: draftIsCurrent, scopeRevoked } = useWorkflowDraft({ kind: "note", id: `${noteId}:ai-question`, label: "笔记 AI 输入", resumeAiTarget: { kind: "note-input", noteId, role: insertionRole }, resumeHref: `/notes/${noteId}`, initialValue: "", ttlMs: 900_000, parse: value => { const result = z.string().max(10_000).safeParse(value); return result.success ? result.data : null; } });
   const [result, setResult] = useState<NoteAiState>({
     status: "idle",
     message: "",
     suggestion: "",
   });
   const [request, setRequest] = useState<Request | null>(null);
-  const [resultSelection, setResultSelection] = useState<NoteSelection | null>(null);
   const [customSelection, setCustomSelection] = useState<NoteSelection | null>(
     null,
   );
   const [moreSelectionText, setMoreSelectionText] = useState<string | null>(null);
+  const [chosenHunks, setChosenHunks] = useState<Set<number>>(new Set());
   const [showDiff, setShowDiff] = useState(true);
   const [usePersonalContext, setUsePersonalContext] = useState(true);
-  const [pending, startTransition] = useTransition();
+  const operationRecords = useSyncExternalStore(subscribeAiActionRecords, getAiActionRecords, getAiActionServerRecords);
+  const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
+  const matchingOperations = useMemo(() => operationRecords.filter(item => item.kind === "note-suggestion" && item.input.kind === "note-suggestion" && item.input.baseline.noteId === noteId && item.input.baseline.role === insertionRole && item.current()) as AiActionRecord<"note-suggestion">[], [operationRecords, noteId, insertionRole]);
+  const activeOperation = matchingOperations.find(item => item.id === selectedOperationId && !item.consumed) ?? [...matchingOperations].reverse().find(item => !item.consumed);
+  const currentOperationScope = activeOperation?.current;
+  const setQuestion: typeof setDraftQuestion = useCallback(next => {
+    if (!draftIsCurrent()) return;
+    if (currentOperationScope) questionEditLeases.set(currentOperationScope, { edited: true, expiresAt: questionEditLeases.get(currentOperationScope)?.expiresAt ?? 0 });
+    setDraftQuestion(next);
+  }, [draftIsCurrent, currentOperationScope, setDraftQuestion]);
+  const pending = matchingOperations.some(item => item.status === "running");
+  const resultSelection = activeOperation?.input.baseline.selection ?? null;
+  const requestSerial = useRef(0);
   const [thread, setThread] = useState<ThreadItem[]>([]);
   const [runId, setRunId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef<HTMLDivElement>(null);
+  const resumeState = useRef({ matchingOperations, onOpen, open });
+  useLayoutEffect(() => { resumeState.current = { matchingOperations, onOpen, open }; }, [matchingOperations, onOpen, open]);
+  type ExactHistory = { runId: string; serial: number; controller: AbortController; current: () => boolean; read: Promise<boolean> };
+  const explicitHistory = useRef<ExactHistory | null>(null);
+  const recoveredQuestionId = useRef<string | null>(null);
 
+  useLayoutEffect(() => { notifyAiResumeReady(target => (target.kind === "note-history" || target.kind === "note-suggestion" || target.kind === "note-input") && target.noteId === noteId && (target.kind !== "note-input" || target.role === insertionRole)); }, [open, runId, thread, activeOperation?.id, noteId, insertionRole]);
+
+  useEffect(() => {
+    if (!activeOperation || activeOperation.consumed) return;
+    const input = activeOperation.input;
+    const questionLease = questionEditLeases.get(activeOperation.current);
+    if (draftIsCurrent() && (questionLease?.expiresAt ?? activeOperation.updatedAt + WORKSPACE_SESSION_TTL_MS) > Date.now() && activeOperation.status !== "running" && activeOperation.status !== "succeeded" && input.operation === "askNote" && input.instruction && recoveredQuestionId.current !== activeOperation.id && !questionLease?.edited) {
+      recoveredQuestionId.current = activeOperation.id;
+      const instruction = input.instruction;
+      setDraftQuestion(current => current || instruction);
+    }
+    setRequest({ operation: input.operation, baselineTitle: input.baseline.title, scope: input.scope, instruction: input.instruction, content: input.content, contextBefore: input.contextBefore, contextAfter: input.contextAfter });
+    setChosenHunks(new Set(activeOperation.selectedHunks));
+    if (activeOperation.result) {
+      setResult(activeOperation.result);
+      if (activeOperation.result.runId) setRunId(activeOperation.result.runId);
+      const suggestion = activeOperation.result.suggestion;
+      if (suggestion) setThread(before => before.some(item => item.current && item.content === suggestion) ? before : [...before, { id: `note-ai-assistant-${input.id}`, role: "assistant", content: suggestion, current: true }]);
+    } else if (activeOperation.status !== "running") setResult({ status: "error", message: activeOperation.error || "请求结果待核对，原文与输入保留。", suggestion: "" });
+  }, [activeOperation, draftIsCurrent, setDraftQuestion]);
+  useEffect(() => {
+    let mounted = true;
+    const unregister = registerAiResumeConsumer(target => (target.kind === "note-suggestion" && target.noteId === noteId && resumeState.current.matchingOperations.some(item => item.id === target.proposalId && !item.consumed)) || (target.kind === "note-input" && target.noteId === noteId && target.role === insertionRole) || (target.kind === "note-history" && target.noteId === noteId && insertionRole === "main"), async (target, context) => {
+      const navigation = captureNavigationIntent(), scope = captureWorkspaceScope();
+      const current = () => mounted && draftIsCurrent() && scope() && navigation() && (!context || context.current());
+      if (!current()) return false;
+      if (target.kind === "note-history") {
+        let exact = explicitHistory.current;
+        if (!exact || exact.runId !== target.runId || exact.serial !== requestSerial.current || !exact.current()) {
+          exact?.controller.abort();
+          const serial = ++requestSerial.current, controller = new AbortController();
+          const value: ExactHistory = { runId: target.runId, serial, controller, current, read: Promise.resolve(false) };
+          // Establish the explicit lease before onOpen can start its automatic latest read.
+          explicitHistory.current = value;
+          value.read = (async () => {
+            try {
+              const response = await fetch(`/api/assistant/runs/${target.runId}?surface=notes&entityType=note&entityId=${noteId}`, { cache: "no-store", signal: controller.signal });
+              if (!response.ok || !current() || explicitHistory.current !== value || requestSerial.current !== serial) return false;
+              const payload = await response.json() as { messages?: Array<{id:string;role:string;parts:Array<{type:string;text?:string}>}> };
+              if (!current() || explicitHistory.current !== value || requestSerial.current !== serial) return false;
+              setRunId(target.runId);
+              setThread((payload.messages ?? []).map(message => ({ id: message.id, role: message.role === "user" ? "user" : "assistant", content: message.parts.filter(part => part.type === "text").map(part => part.text || "").join("\n") })));
+              return true;
+            } catch { return false; }
+          })();
+          exact = value;
+          resumeState.current.onOpen();
+        }
+        if (!await exact.read || !current()) return false;
+      } else {
+        resumeState.current.onOpen();
+        if (target.kind === "note-suggestion") setSelectedOperationId(target.proposalId);
+      }
+      const focusTarget = () => {
+        if (!current() || !resumeState.current.open) return false;
+        if (target.kind === "note-suggestion" && resultRef.current?.dataset.proposalId !== target.proposalId) return false;
+        if (target.kind === "note-history" && historyRef.current?.dataset.historyRunId !== target.runId) return false;
+        const focus = target.kind === "note-input" ? document.querySelector<HTMLTextAreaElement>(`[data-note-ai-input="${noteId}:${insertionRole}"]`) : target.kind === "note-history" ? historyRef.current : resultRef.current;
+        if (!focus?.isConnected) return false;
+        focus.focus(); return document.activeElement === focus;
+      };
+      if (focusTarget()) return true;
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      return focusTarget();
+    });
+    return () => { mounted = false; explicitHistory.current?.controller.abort(); explicitHistory.current = null; unregister(); };
+  }, [noteId, insertionRole, draftIsCurrent]);
+  useEffect(() => registerWorkspaceScopeCleanup(() => { requestSerial.current += 1; explicitHistory.current?.controller.abort(); explicitHistory.current = null; setResult({ status: "idle", message: "", suggestion: "" }); setRequest(null); setThread([]); setRunId(null); }), []);
   // 打开面板时从云端恢复这篇笔记的 AI 讨论线程。父组件用 key={note.id} 挂载，
   // 切换笔记会整体重挂载，不需要手动清空旧线程。
   useEffect(() => {
-    if (!open) return;
+    if (!open || !draftIsCurrent()) return;
+    const current = captureWorkspaceScope();
+    const controller = new AbortController();
+    const serial = requestSerial.current;
     const timer = window.setTimeout(async () => {
-      setRestoring(true);
+      if (!draftIsCurrent() || !current() || controller.signal.aborted || requestSerial.current !== serial) return;
+      if (!explicitHistory.current && requestSerial.current === serial) setRestoring(true);
       try {
           const response = await fetch(`/api/assistant/runs?noteId=${encodeURIComponent(noteId)}`, {
-            cache: "no-store",
+            cache: "no-store", signal: controller.signal,
           });
-          if (response.ok) {
+          if (response.ok && current() && !controller.signal.aborted && requestSerial.current === serial && !explicitHistory.current) {
             const payload = (await response.json()) as {
               run?: { id?: string } | null;
               messages?: Array<{
@@ -158,6 +266,7 @@ export function NoteAiAssistant({
                 parts: Array<{ type: string; text?: string }>;
               }>;
             };
+            if (!current() || controller.signal.aborted || requestSerial.current !== serial || explicitHistory.current) return;
             const messages = payload.messages;
             if (payload.run?.id && Array.isArray(messages) && messages.length) {
               setRunId(payload.run.id);
@@ -174,73 +283,39 @@ export function NoteAiAssistant({
             }
           }
         } catch { /* 恢复失败不阻塞面板，下次打开仍会从数据库重试。 */ }
-      setRestoring(false);
+      if (current() && !controller.signal.aborted && requestSerial.current === serial && !explicitHistory.current) setRestoring(false);
     }, 0);
-    return () => window.clearTimeout(timer);
-  }, [open, noteId]);
-  const run = (next: Request, targetSelection: NoteSelection | null = null, continuationAfter?: string) => {
-    if (!next.content.trim()) {
-      setResult({
-        status: "error",
-        message: "先写一些内容，再让 AI 协助。",
-        suggestion: "",
-      });
-      return;
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [open, noteId, draftIsCurrent]);
+  const run = (next: Request, targetSelection: Pick<NoteSelection, "text" | "from" | "to"> | null = null, continuationAfter?: string) => {
+    if (!draftIsCurrent()) { setResult(before => ({ ...before, status: "error", message: "工作区已变化，请重新打开此 AI 入口。" })); return false; }
+    if (pending) return false;
+    const selected = next.scope === "selection" && targetSelection && targetSelection.from !== undefined && targetSelection.to !== undefined ? { from: targetSelection.from, to: targetSelection.to, text: targetSelection.text } : null;
+    const baseline = captureNoteAiBaseline(noteId, insertionRole, selected, isDiscussionOperation(next.operation));
+    if (!baseline || !next.content.trim() || (next.scope === "selection" && !selected) || (next.scope === "note" && next.content !== baseline.sourceMarkdown)) {
+      setResult(before => ({ ...before, status: "error", message: "原文或编辑状态已改变。建议仍保留，请返回编辑并重新核对选区。" })); return false;
     }
-    // 本轮用户消息先进线程；history 只取此前轮次，让模型延续上下文。
-    const userText = noteAiUserMessage(
-      next.operation,
-      next.instruction,
-      next.scope,
-    );
-    setThread((prev) => [
-      ...prev,
-      { id: `note-ai-user-${Date.now()}`, role: "user", content: userText },
-    ]);
-    setRequest(next);
-    setResultSelection(next.scope === "selection" ? targetSelection : null);
-    setResult({ status: "idle", message: "", suggestion: "" });
-    const data = new FormData();
-    data.set("note_id", noteId);
-    data.set("title", title);
-    data.set("content", next.content);
-    data.set("operation", next.operation);
-    data.set("scope", next.scope);
-    data.set("model", next.operation === "generateTitle" ? "deepseek-v4-pro" : model);
-    data.set("use_personal_context", String(usePersonalContext));
-    if (runId) data.set("run_id", runId);
-    const history = threadToHistory(thread);
-    if (history.length) data.set("history", JSON.stringify(history));
-    if (next.instruction) data.set("instruction", next.instruction);
-    if (next.contextBefore) data.set("context_before", next.contextBefore);
-    if (next.contextAfter) data.set("context_after", next.contextAfter);
-    if (continuationAfter) data.set("continuation_after", continuationAfter);
-    startTransition(async () => {
-      const nextResult = await generateNoteAiSuggestion(data);
-      if (nextResult.runId) {
-        setRunId(nextResult.runId);
+    explicitHistory.current?.controller.abort(); explicitHistory.current = null;
+    requestSerial.current += 1;
+    const userText = noteAiUserMessage(next.operation, next.instruction, next.scope);
+    try {
+      setSelectedOperationId(null);
+      const id = crypto.randomUUID();
+      const record = startAiAction({ kind: "note-suggestion", id, baseline, operation: next.operation, scope: next.scope, instruction: next.instruction, content: next.content, model: next.operation === "generateTitle" ? "deepseek-v4-pro" : model, usePersonalContext, runId, history: threadToHistory(thread), contextBefore: next.contextBefore, contextAfter: next.contextAfter, continuationAfter }, fixtureTransport);
+      if (record.id !== id) return false;
+      questionEditLeases.set(record.current, { edited: false, expiresAt: Date.now() + WORKSPACE_SESSION_TTL_MS });
+      setThread(before => [...before, { id: `note-ai-user-${crypto.randomUUID()}`, role: "user", content: userText }]);
+      setResult({ status: "idle", message: "", suggestion: "" });
+      if (next.operation === "askNote" && next.instruction) {
+        const submitted = next.instruction;
+        setDraftQuestion(current => current === submitted ? "" : current);
+        void record.completion.then(() => {
+          const latest = getAiActionRecords().find(item => item.id === id);
+          if (record.current() && latest && latest.status !== "succeeded" && !questionEditLeases.get(record.current)?.edited) setDraftQuestion(current => current || submitted);
+        });
       }
-      if (nextResult.suggestion) {
-        setThread((prev) => [
-          ...prev,
-          {
-            id: `note-ai-assistant-${Date.now()}`,
-            role: "assistant",
-            content: nextResult.suggestion,
-            current: true,
-          },
-        ]);
-      }
-      if (next.operation === "generateTitle" && nextResult.suggestion) {
-        // 标题是自动替换的，立即标记为已写入（撤回由标题栏负责）。
-        setThread((prev) =>
-          prev.map((item) =>
-            item.current ? { ...item, applied: true, current: false } : item,
-          ),
-        );
-      }
-      setResult(nextResult);
-    });
+      return true;
+    } catch (error) { setResult(before => ({ ...before, status: "error", message: error instanceof Error ? error.message : "暂时无法开始，输入仍保留。" })); return false; }
   };
   const runNote = (operation: NoteAiOperation) => {
     run({
@@ -249,29 +324,15 @@ export function NoteAiAssistant({
       content: bodyMarkdown,
       instruction: operation === "askNote" ? question : undefined,
     });
-    if (operation === "askNote") setQuestion("");
   };
-  const apply = (mode: "replace" | "insert") => {
+  const apply = (mode: "replace" | "insert", partial?: string) => {
     if (!result.suggestion || !request) return;
-    if (request.scope === "selection") {
-      if (!resultSelection) {
-        setResult({ status: "error", message: "原选区已经失效，请重新选择文字后再生成。", suggestion: "" });
-        return;
-      }
-      const applied = mode === "replace"
-        ? resultSelection.replace(result.suggestion)
-        : resultSelection.insertBelow(result.suggestion);
-      if (!applied) {
-        setResult({ status: "error", message: "所选文字已发生变化。为避免覆盖错误内容，请重新选择后再生成。", suggestion: "" });
-        return;
-      }
-    } else {
-      // 落笔时在 AI 内容前标注来源（分割线 + 生成日期 + 请求目的）。
-      // 选区操作不加，避免在段落中间插入分割线打断文档。
-      const attributed = `${noteAiAttribution(request.operation)}${result.suggestion}`;
-      if (mode === "replace") onReplaceNote(attributed);
-      else onInsertNote(attributed);
-    }
+    const suggestion = partial ?? result.suggestion;
+    if (!activeOperation?.current()) return;
+    const text = request.scope === "selection" ? suggestion : partial === undefined ? `${noteAiAttribution(request.operation)}${suggestion}` : `${suggestion}\n\n> 本次选择的段落修改由 AI 协助生成，经手动确认采纳。`;
+    const applied = applyNoteAiSuggestion(activeOperation.input.baseline, { mode, text });
+    if (applied.status !== "applied") { setResult(before => ({ ...before, status: "error", message: "原文、版本或编辑实例已改变，未覆盖。建议与原基线保留，请重新核对。" })); return; }
+    consumeAiAction(activeOperation.id);
     const appliedMessage = request.scope === "selection"
       ? mode === "replace" ? "已替换所选文字，笔记正在自动保存。" : "已插入到选区下方，笔记正在自动保存。"
       : mode === "replace" ? "已替换全文，笔记正在自动保存。" : "已插入到笔记末尾，笔记正在自动保存。";
@@ -282,7 +343,6 @@ export function NoteAiAssistant({
       ),
     );
     setRequest(null);
-    setResultSelection(null);
     setResult({ status: "success", message: appliedMessage, suggestion: "" });
   };
   const selectionOperation = (operation: NoteAiOperation) => {
@@ -302,7 +362,6 @@ export function NoteAiAssistant({
   const startCustomSelection = () => {
     if (!selection) return;
     setCustomSelection(selection);
-    setQuestion("");
     onOpen();
   };
   const rewrite = result.operation
@@ -314,6 +373,7 @@ export function NoteAiAssistant({
     if (!result.suggestion || !request || !rewrite) return null;
     return wordDiff(request.content, result.suggestion);
   }, [request, result.suggestion, rewrite]);
+  const hunks = useMemo(() => rewrite && request && result.suggestion ? adoptionHunks(request.content, result.suggestion) : null, [request, result.suggestion, rewrite]);
   const statusColor =
     result.status === "error" ? "text-red-700" : "text-[var(--accent)]";
   const replaceLabel = request?.scope === "selection"
@@ -323,25 +383,15 @@ export function NoteAiAssistant({
     ? "插入到选区下方"
     : "插入到笔记末尾";
   const discardResult = () => {
+    if (activeOperation) questionEditLeases.set(activeOperation.current, { edited: true, expiresAt: questionEditLeases.get(activeOperation.current)?.expiresAt ?? 0 });
     setRequest(null);
-    setResultSelection(null);
     setResult({ status: "idle", message: "", suggestion: "" });
+    if (activeOperation) consumeAiAction(activeOperation.id);
   };
   const continueResult = () => {
     if (!request || !result.suggestion) return;
     run({ ...request, instruction: `${request.instruction ? `${request.instruction}\n\n` : ""}请从上一段被截断的位置继续。` }, resultSelection, result.suggestion.slice(-32_000));
   };
-
-  // 生成标题是「直接替换」型操作：结果返回后立即替换标题，撤回由标题栏负责。
-  useEffect(() => {
-    if (
-      request?.operation === "generateTitle" &&
-      result.status === "success" &&
-      result.suggestion
-    ) {
-      onReplaceTitle(result.suggestion);
-    }
-  }, [request?.operation, result.status, result.suggestion, onReplaceTitle]);
 
   useEffect(() => {
     if (!result.suggestion) return;
@@ -353,6 +403,7 @@ export function NoteAiAssistant({
 
   return (
     <>
+      {recoveryUnavailable ? <p role="status" className="text-xs text-[var(--danger)]">{scopeRevoked ? "工作区已变化，请重新打开此 AI 入口。" : "当前输入仍可使用，本标签页恢复暂不可用。"}</p> : null}
       {selection ? (
         <div
           aria-label="所选文字 AI 工具"
@@ -448,12 +499,25 @@ export function NoteAiAssistant({
         context="当前笔记"
         footer={
           <div className="space-y-3">
+            {result.suggestion && request?.operation === "generateTitle" ? <div className="space-y-2"><p className="text-xs">标题建议尚未写入</p><button type="button" className="min-h-11 rounded-md bg-[var(--accent)] px-3 text-xs text-white" onClick={() => {
+              if (!activeOperation?.current() || applyNoteAiSuggestion(activeOperation.input.baseline, { mode: "title", text: result.suggestion }).status !== "applied") { setResult(current => ({ ...current, status: "error", message: "标题已改变，建议保留，请重新核对。" })); return; }
+              consumeAiAction(activeOperation.id);
+              setRequest(null); setResult({ status: "success", message: "标题建议已采纳，等待自动保存。", suggestion: "" });
+            }}>确认采纳标题</button><button type="button" onClick={discardResult} className="min-h-11 px-3 text-xs">放弃建议</button></div> : null}
             {result.suggestion && request?.operation !== "generateTitle" && !discussion ? (
               <div aria-label="AI 结果确认操作" className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium text-[var(--text-primary)]">AI 结果待确认</p>
                   <span className="text-[12px] text-[var(--text-tertiary)]">尚未写入笔记</span>
                 </div>
+                {hunks?.length ? <fieldset className="max-h-56 space-y-2 overflow-auto rounded-[var(--radius-md)] border p-2">
+                  <legend className="px-1 text-xs">按完整段落采纳</legend>
+                  {hunks.map((hunk) => <label key={hunk.id} className="flex min-h-11 items-start gap-2 text-xs">
+                    <input type="checkbox" checked={chosenHunks.has(hunk.id)} onChange={(event) => { if (activeOperation) toggleNoteAiHunk(activeOperation.id, hunk.id, event.target.checked); }} />
+                    <span className="min-w-0 whitespace-pre-wrap break-words">{hunk.after || `删除：${hunk.before}`}</span>
+                  </label>)}
+                  <button type="button" disabled={!chosenHunks.size} onClick={() => request && apply("replace", adoptHunks(request.content, hunks, chosenHunks))} className="min-h-11 rounded-md border px-3 disabled:opacity-40">确认采纳 {chosenHunks.size} 处</button>
+                </fieldset> : null}
                 <div className="grid gap-2 sm:grid-cols-2">
                   {rewrite ? (
                     <button
@@ -522,7 +586,7 @@ export function NoteAiAssistant({
             </p>
           ) : null}
           {thread.length ? (
-            <div className="mb-4.5 space-y-3.5 border-b border-[var(--separator)] pb-4.5">
+            <div ref={historyRef} data-history-run-id={runId ?? undefined} tabIndex={-1} className="mb-4.5 space-y-3.5 border-b border-[var(--separator)] pb-4.5">
               {thread.map((item) =>
                 item.role === "user" ? (
                   <div key={item.id} className="flex justify-end">
@@ -579,6 +643,7 @@ export function NoteAiAssistant({
             </label>
             <textarea
               id="note-ai-question"
+              data-note-ai-input={`${noteId}:${insertionRole}`}
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               placeholder={
@@ -659,7 +724,7 @@ export function NoteAiAssistant({
             </p>
           ) : null}
           {result.suggestion ? (
-            <div ref={resultRef} className="mt-4 border-t border-[var(--separator)] pt-3.5">
+            <div ref={resultRef} data-proposal-id={activeOperation?.id} tabIndex={-1} className="mt-4 border-t border-[var(--separator)] pt-3.5">
               <div className="flex items-center justify-between gap-3 pb-2.5">
                 <div>
                   <p className="text-[12.5px] font-semibold text-[var(--text-primary)]">{discussion ? "讨论回复" : "AI 结果预览"}</p>

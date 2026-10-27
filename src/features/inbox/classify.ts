@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { createClient } from "@/lib/supabase/server";
 import { getDeepSeekModel } from "@/lib/ai/deepseek";
 import { instantToWallTime } from "@/features/calendar/timezone";
-import type { InboxProposal } from "./schemas";
+import { inboxProposalSchema, type InboxProposal } from "./schemas";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -114,7 +114,14 @@ export function buildInboxClassifyPrompt(input: {
 
 export type InboxClassifyResult =
   | { status: "ready"; proposal: InboxProposal }
-  | { status: "failed"; error: string | null };
+  | { status: "failed"; error: string | null }
+  | { status: "needs-check"; error: string | null }
+  | { status: "superseded"; error: string | null };
+
+type ClassificationCommit = "applied" | "superseded" | "needs-check";
+function unconfirmedClassificationCommit(status: Exclude<ClassificationCommit, "applied">): InboxClassifyResult {
+  return status === "needs-check" ? { status, error: "classification_result_unknown" } : { status, error: "classification_changed" };
+}
 
 /** 识别一条 Inbox：把去向提案落库，供前端直接渲染确认卡。 */
 export async function classifyInboxItem(input: {
@@ -122,15 +129,28 @@ export async function classifyInboxItem(input: {
   userId: string;
   inboxId: string;
   now?: Date;
+  explicitRestart?: boolean;
 }): Promise<InboxClassifyResult> {
   const { data: item } = await input.supabase
     .from("inbox_items")
-    .select("id,content_markdown")
+    .select("id,content_markdown,processed_at")
     .eq("id", input.inboxId)
     .eq("user_id", input.userId)
     .is("archived_at", null)
     .maybeSingle();
-  if (!item) return { status: "failed", error: "inbox_not_found" };
+  if (!item || item.processed_at) return { status: "superseded", error: "inbox_not_available" };
+  const token = crypto.randomUUID();
+  const baseline = item.content_markdown;
+  const { data: claimed, error: claimError } = await input.supabase.rpc("claim_inbox_classification", { p_inbox_id: input.inboxId, p_token: token, p_expected_content: baseline, p_explicit_restart: input.explicitRestart === true });
+  if (claimError || (claimed !== true && claimed !== false)) return { status: "needs-check", error: "classification_claim_unknown" };
+  if (claimed === false) return { status: "superseded", error: "classification_not_claimed" };
+  const commit = async (proposal: InboxProposal | null, error: string | null): Promise<ClassificationCommit> => {
+    try {
+      const { data, error: failure } = await input.supabase.rpc("commit_inbox_classification", { p_inbox_id: input.inboxId, p_token: token, p_expected_content: baseline, p_proposal: proposal, p_error: error });
+      if (failure || (data !== true && data !== false)) return "needs-check";
+      return data === true ? "applied" : "superseded";
+    } catch { return "needs-check"; }
+  };
 
   const { data: profile } = await input.supabase
     .from("profiles")
@@ -142,6 +162,7 @@ export async function classifyInboxItem(input: {
   const { data: lists } = await input.supabase
     .from("microsoft_todo_lists")
     .select("id,display_name,is_default")
+    .eq("user_id", input.userId)
     .is("archived_at", null)
     .order("display_name");
   const todoLists = lists ?? [];
@@ -162,19 +183,15 @@ export async function classifyInboxItem(input: {
       prompt,
     });
     classification = result.object;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown_error";
-    await markFailed(input.supabase, input.userId, input.inboxId, `AI 识别失败：${message}`);
-    return { status: "failed", error: message };
+  } catch {
+    const committed = await commit(null, "classification_failed");
+    if (committed !== "applied") return unconfirmedClassificationCommit(committed);
+    return { status: "failed", error: "classification_failed" };
   }
 
   if (classification.target === "none") {
-    await markFailed(
-      input.supabase,
-      input.userId,
-      input.inboxId,
-      classification.reason || "无法判断去向",
-    );
+    const committed = await commit(null, "classification_unclear");
+    if (committed !== "applied") return unconfirmedClassificationCommit(committed);
     return { status: "failed", error: classification.reason || null };
   }
 
@@ -192,7 +209,8 @@ export async function classifyInboxItem(input: {
     const fallback = todoLists.find((list) => list.is_default) ?? todoLists[0];
     const resolved = exact ?? fuzzy ?? fallback;
     if (!resolved) {
-      await markFailed(input.supabase, input.userId, input.inboxId, "没有可用的 To Do 清单");
+      const committed = await commit(null, "no_todo_list");
+      if (committed !== "applied") return unconfirmedClassificationCommit(committed);
       return { status: "failed", error: "no_todo_list" };
     }
     todoListId = resolved.id;
@@ -200,23 +218,20 @@ export async function classifyInboxItem(input: {
 
   const proposal = toProposal(classification, todoListId);
   if (!proposal) {
-    await markFailed(input.supabase, input.userId, input.inboxId, "无法转换为去向提案");
+    const committed = await commit(null, "invalid_proposal");
+    if (committed !== "applied") return unconfirmedClassificationCommit(committed);
     return { status: "failed", error: "proposal_conversion_failed" };
   }
 
-  const now = new Date().toISOString();
-  const { error: updateError } = await input.supabase
-    .from("inbox_items")
-    .update({
-      ai_proposal: proposal,
-      ai_status: "ready",
-      ai_updated_at: now,
-      ai_error: null,
-    })
-    .eq("id", input.inboxId)
-    .eq("user_id", input.userId);
-  if (updateError) return { status: "failed", error: updateError.message };
-  return { status: "ready", proposal };
+  const valid = inboxProposalSchema.safeParse(proposal);
+  if (!valid.success) {
+    const committed = await commit(null, "invalid_proposal");
+    if (committed !== "applied") return unconfirmedClassificationCommit(committed);
+    return { status: "failed", error: "invalid_proposal" };
+  }
+  const committed = await commit(valid.data, null);
+  if (committed !== "applied") return unconfirmedClassificationCommit(committed);
+  return { status: "ready", proposal: valid.data };
 }
 
 function toProposal(
@@ -254,22 +269,4 @@ function toProposal(
     case "daily":
       return { target: "daily" };
   }
-}
-
-async function markFailed(
-  supabase: Supabase,
-  userId: string,
-  inboxId: string,
-  error: string,
-) {
-  await supabase
-    .from("inbox_items")
-    .update({
-      ai_proposal: null,
-      ai_status: "failed",
-      ai_updated_at: new Date().toISOString(),
-      ai_error: error,
-    })
-    .eq("id", inboxId)
-    .eq("user_id", userId);
 }

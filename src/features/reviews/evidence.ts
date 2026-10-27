@@ -31,6 +31,13 @@ export type ReviewEvidence = {
   periodStart: string;
   periodEnd: string;
   generatedAt: string;
+  timezone?: string;
+  coverage?: {
+    group: string;
+    unavailable: boolean;
+    truncated: boolean;
+    limit: number;
+  }[];
   calendar: ReviewEvidenceItem[];
   tasksCompleted: ReviewEvidenceItem[];
   tasksOpen: ReviewEvidenceItem[];
@@ -66,10 +73,14 @@ function cleanExcerpt(value: string | null | undefined, maxLength = 220) {
     .replace(/\s+/g, " ")
     .trim();
   if (!cleaned) return null;
-  return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength - 1)}…` : cleaned;
+  return cleaned.length > maxLength
+    ? `${cleaned.slice(0, maxLength - 1)}…`
+    : cleaned;
 }
 
-export function getReviewPeriodBounds(period: ReviewPeriod): ReviewPeriodBounds {
+export function getReviewPeriodBounds(
+  period: ReviewPeriod,
+): ReviewPeriodBounds {
   return {
     startIso: wallTimeToIso(`${period.startDate}T00:00`, period.timezone),
     endExclusiveIso: wallTimeToIso(
@@ -106,7 +117,10 @@ export function completedTaskFallsInReviewPeriod(
   task: { status: string; completed_at: string | null },
   bounds: ReviewPeriodBounds,
 ) {
-  return task.status === "completed" && instantFallsInReviewPeriod(task.completed_at, bounds);
+  return (
+    task.status === "completed" &&
+    instantFallsInReviewPeriod(task.completed_at, bounds)
+  );
 }
 
 export function openTaskIsRelevantToReview(
@@ -146,6 +160,7 @@ export function emptyReviewEvidence(input: {
     periodStart: input.period.startDate,
     periodEnd: input.period.endDate,
     generatedAt: input.generatedAt,
+    timezone: input.period.timezone,
     calendar: [],
     tasksCompleted: [],
     tasksOpen: [],
@@ -170,7 +185,9 @@ export function countReviewEvidence(evidence: ReviewEvidence) {
   ].reduce((total, items) => total + items.length, 0);
 }
 
-export function reviewEvidenceSources(evidence: ReviewEvidence): ReviewSourceInput[] {
+export function reviewEvidenceSources(
+  evidence: ReviewEvidence,
+): ReviewSourceInput[] {
   const items = [
     ...evidence.calendar,
     ...evidence.tasksCompleted,
@@ -240,96 +257,110 @@ export async function getReviewEvidence(input: {
   const bounds = getReviewPeriodBounds(period);
   const timestampFilter = `and(created_at.gte.${bounds.startIso},created_at.lt.${bounds.endExclusiveIso}),and(updated_at.gte.${bounds.startIso},updated_at.lt.${bounds.endExclusiveIso})`;
 
-  const [calendar, completedTasks, openTasks, notes, inbox, milestones, opportunities, applications, projects, decisions] =
-    await Promise.all([
-      supabase
-        .from("calendar_events")
-        .select("id,subject,starts_at,ends_at,is_all_day,location_name")
-        .is("archived_at", null)
-        .lt("starts_at", bounds.endExclusiveIso)
-        .gt("ends_at", bounds.startIso)
-        .order("starts_at", { ascending: false })
-        .limit(LIMITS.calendar),
-      supabase
-        .from("microsoft_todo_tasks")
-        .select("id,title,body_text,status,completed_at")
-        .eq("status", "completed")
-        .is("archived_at", null)
-        .gte("completed_at", bounds.startIso)
-        .lt("completed_at", bounds.endExclusiveIso)
-        .order("completed_at", { ascending: false })
-        .limit(LIMITS.tasksCompleted),
-      supabase
-        .from("microsoft_todo_tasks")
-        .select("id,title,body_text,status,due_at,updated_at")
-        .neq("status", "completed")
-        .is("archived_at", null)
-        .or(
-          `and(due_at.gte.${bounds.startIso},due_at.lt.${bounds.endExclusiveIso}),and(updated_at.gte.${bounds.startIso},updated_at.lt.${bounds.endExclusiveIso})`,
-        )
-        .order("due_at", { ascending: true, nullsFirst: false })
-        .limit(LIMITS.tasksOpen),
-      supabase
-        .from("notes")
-        .select("id,title,body_markdown,created_at,updated_at")
-        .eq("status", "active")
-        .is("deleted_at", null)
-        .is("archived_at", null)
-        .or(timestampFilter)
-        .order("updated_at", { ascending: false })
-        .limit(LIMITS.notes),
-      supabase
-        .from("inbox_items")
-        .select("id,content_markdown,created_at,updated_at,processed_at")
-        .is("archived_at", null)
-        .or(
-          `${timestampFilter},and(processed_at.gte.${bounds.startIso},processed_at.lt.${bounds.endExclusiveIso})`,
-        )
-        .order("updated_at", { ascending: false })
-        .limit(LIMITS.inbox),
-      supabase
-        .from("career_milestones")
-        .select("id,title,description,starts_on,target_date,status,updated_at")
-        .is("archived_at", null)
-        .or(
-          `and(starts_on.gte.${period.startDate},starts_on.lte.${period.endDate}),and(target_date.gte.${period.startDate},target_date.lte.${period.endDate}),and(updated_at.gte.${bounds.startIso},updated_at.lt.${bounds.endExclusiveIso})`,
-        )
-        .order("updated_at", { ascending: false })
-        .limit(LIMITS.career),
-      supabase
-        .from("career_opportunities")
-        .select("id,organization,role_title,status,updated_at")
-        .is("archived_at", null)
-        .gte("updated_at", bounds.startIso)
-        .lt("updated_at", bounds.endExclusiveIso)
-        .order("updated_at", { ascending: false })
-        .limit(LIMITS.career),
-      supabase
-        .from("career_applications")
-        .select("id,status,updated_at,career_opportunities(organization,role_title)")
-        .is("archived_at", null)
-        .gte("updated_at", bounds.startIso)
-        .lt("updated_at", bounds.endExclusiveIso)
-        .order("updated_at", { ascending: false })
-        .limit(LIMITS.career),
-      supabase
-        .from("projects")
-        .select("id,name,description,status,updated_at")
-        .is("archived_at", null)
-        .gte("updated_at", bounds.startIso)
-        .lt("updated_at", bounds.endExclusiveIso)
-        .order("updated_at", { ascending: false })
-        .limit(LIMITS.projects),
-      supabase
-        .from("decisions")
-        .select("id,title,decision_text,status,decided_at,last_reviewed_at,updated_at")
-        .is("archived_at", null)
-        .or(
-          `and(decided_at.gte.${bounds.startIso},decided_at.lt.${bounds.endExclusiveIso}),and(updated_at.gte.${bounds.startIso},updated_at.lt.${bounds.endExclusiveIso}),and(last_reviewed_at.gte.${bounds.startIso},last_reviewed_at.lt.${bounds.endExclusiveIso})`,
-        )
-        .order("updated_at", { ascending: false })
-        .limit(LIMITS.decisions),
-    ]);
+  const [
+    calendar,
+    completedTasks,
+    openTasks,
+    notes,
+    inbox,
+    milestones,
+    opportunities,
+    applications,
+    projects,
+    decisions,
+  ] = await Promise.all([
+    supabase
+      .from("calendar_events")
+      .select("id,subject,starts_at,ends_at,is_all_day,location_name")
+      .is("archived_at", null)
+      .lt("starts_at", bounds.endExclusiveIso)
+      .gt("ends_at", bounds.startIso)
+      .order("starts_at", { ascending: false })
+      .limit(LIMITS.calendar + 1),
+    supabase
+      .from("microsoft_todo_tasks")
+      .select("id,title,body_text,status,completed_at")
+      .eq("status", "completed")
+      .is("archived_at", null)
+      .gte("completed_at", bounds.startIso)
+      .lt("completed_at", bounds.endExclusiveIso)
+      .order("completed_at", { ascending: false })
+      .limit(LIMITS.tasksCompleted + 1),
+    supabase
+      .from("microsoft_todo_tasks")
+      .select("id,title,body_text,status,due_at,updated_at")
+      .neq("status", "completed")
+      .is("archived_at", null)
+      .or(
+        `and(due_at.gte.${bounds.startIso},due_at.lt.${bounds.endExclusiveIso}),and(updated_at.gte.${bounds.startIso},updated_at.lt.${bounds.endExclusiveIso})`,
+      )
+      .order("due_at", { ascending: true, nullsFirst: false })
+      .limit(LIMITS.tasksOpen + 1),
+    supabase
+      .from("notes")
+      .select("id,title,body_markdown,created_at,updated_at")
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .is("archived_at", null)
+      .or(timestampFilter)
+      .order("updated_at", { ascending: false })
+      .limit(LIMITS.notes + 1),
+    supabase
+      .from("inbox_items")
+      .select("id,content_markdown,created_at,updated_at,processed_at")
+      .is("archived_at", null)
+      .or(
+        `${timestampFilter},and(processed_at.gte.${bounds.startIso},processed_at.lt.${bounds.endExclusiveIso})`,
+      )
+      .order("updated_at", { ascending: false })
+      .limit(LIMITS.inbox + 1),
+    supabase
+      .from("career_milestones")
+      .select("id,title,description,starts_on,target_date,status,updated_at")
+      .is("archived_at", null)
+      .or(
+        `and(starts_on.gte.${period.startDate},starts_on.lte.${period.endDate}),and(target_date.gte.${period.startDate},target_date.lte.${period.endDate}),and(updated_at.gte.${bounds.startIso},updated_at.lt.${bounds.endExclusiveIso})`,
+      )
+      .order("updated_at", { ascending: false })
+      .limit(LIMITS.career + 1),
+    supabase
+      .from("career_opportunities")
+      .select("id,organization,role_title,status,updated_at")
+      .is("archived_at", null)
+      .gte("updated_at", bounds.startIso)
+      .lt("updated_at", bounds.endExclusiveIso)
+      .order("updated_at", { ascending: false })
+      .limit(LIMITS.career + 1),
+    supabase
+      .from("career_applications")
+      .select(
+        "id,status,updated_at,career_opportunities(organization,role_title)",
+      )
+      .is("archived_at", null)
+      .gte("updated_at", bounds.startIso)
+      .lt("updated_at", bounds.endExclusiveIso)
+      .order("updated_at", { ascending: false })
+      .limit(LIMITS.career + 1),
+    supabase
+      .from("projects")
+      .select("id,name,description,status,updated_at")
+      .is("archived_at", null)
+      .gte("updated_at", bounds.startIso)
+      .lt("updated_at", bounds.endExclusiveIso)
+      .order("updated_at", { ascending: false })
+      .limit(LIMITS.projects + 1),
+    supabase
+      .from("decisions")
+      .select(
+        "id,title,decision_text,status,decided_at,last_reviewed_at,updated_at",
+      )
+      .is("archived_at", null)
+      .or(
+        `and(decided_at.gte.${bounds.startIso},decided_at.lt.${bounds.endExclusiveIso}),and(updated_at.gte.${bounds.startIso},updated_at.lt.${bounds.endExclusiveIso}),and(last_reviewed_at.gte.${bounds.startIso},last_reviewed_at.lt.${bounds.endExclusiveIso})`,
+      )
+      .order("updated_at", { ascending: false })
+      .limit(LIMITS.decisions + 1),
+  ]);
 
   const evidence = emptyReviewEvidence({
     type: input.type,
@@ -344,7 +375,7 @@ export async function getReviewEvidence(input: {
       title: row.subject || "无标题日程",
       summary: row.location_name,
       occurredAt: row.starts_at,
-      href: "/calendar",
+      href: `/calendar?event=${row.id}`,
       state: row.is_all_day ? "全天" : null,
     }));
   evidence.tasksCompleted = (completedTasks.data ?? [])
@@ -355,30 +386,34 @@ export async function getReviewEvidence(input: {
       title: row.title,
       summary: cleanExcerpt(row.body_text),
       occurredAt: row.completed_at!,
-      href: "/tasks",
+      href: `/tasks?task=${row.id}`,
       state: "已完成",
     }));
   evidence.tasksOpen = (openTasks.data ?? [])
     .filter((row) => openTaskIsRelevantToReview(row, bounds))
     .map((row) => ({
-    type: "todo_task" as const,
-    id: row.id,
-    title: row.title,
-    summary: cleanExcerpt(row.body_text),
-    occurredAt: row.due_at || row.updated_at,
-    href: "/tasks",
-    state: row.due_at ? "到期但未完成" : "本周期有更新",
+      type: "todo_task" as const,
+      id: row.id,
+      title: row.title,
+      summary: cleanExcerpt(row.body_text),
+      occurredAt: instantFallsInReviewPeriod(row.due_at, bounds)
+        ? row.due_at!
+        : row.updated_at,
+      href: `/tasks?task=${row.id}`,
+      state: instantFallsInReviewPeriod(row.due_at, bounds)
+        ? "本周期到期但未完成"
+        : "本周期有更新",
     }));
   evidence.notes = (notes.data ?? [])
     .filter((row) => noteChangedInReviewPeriod(row, bounds))
     .map((row) => ({
-    type: "note" as const,
-    id: row.id,
-    title: row.title || "无标题笔记",
-    summary: cleanExcerpt(row.body_markdown),
-    occurredAt: row.updated_at,
-    href: `/notes/${row.id}`,
-    state: row.created_at === row.updated_at ? "新建" : "已更新",
+      type: "note" as const,
+      id: row.id,
+      title: row.title || "无标题笔记",
+      summary: cleanExcerpt(row.body_markdown),
+      occurredAt: row.updated_at,
+      href: `/notes/${row.id}`,
+      state: row.created_at === row.updated_at ? "新建" : "已更新",
     }));
   evidence.inbox = (inbox.data ?? []).map((row) => ({
     type: "inbox_item" as const,
@@ -386,7 +421,7 @@ export async function getReviewEvidence(input: {
     title: cleanExcerpt(row.content_markdown, 90) || "Inbox 记录",
     summary: null,
     occurredAt: row.processed_at || row.updated_at || row.created_at,
-    href: "/inbox",
+    href: `/inbox?entry=${row.id}`,
     state: row.processed_at ? "已处理" : "待整理",
   }));
   evidence.career = newestFirst(
@@ -397,7 +432,7 @@ export async function getReviewEvidence(input: {
         title: row.title,
         summary: cleanExcerpt(row.description),
         occurredAt: row.updated_at,
-        href: "/career/roadmap",
+        href: `/career/roadmap?milestone=${row.id}`,
         state: row.status,
       })),
       ...(opportunities.data ?? []).map((row) => ({
@@ -405,7 +440,7 @@ export async function getReviewEvidence(input: {
         id: row.id,
         title: `${row.organization} · ${row.role_title}`,
         occurredAt: row.updated_at,
-        href: "/career/opportunities",
+        href: `/career/opportunities#opportunity-${row.id}`,
         state: row.status,
       })),
       ...(applications.data ?? []).map((row) => {
@@ -419,7 +454,7 @@ export async function getReviewEvidence(input: {
             ? `${opportunity.organization} · ${opportunity.role_title}`
             : "求职申请",
           occurredAt: row.updated_at,
-          href: "/career/applications",
+          href: `/career/applications#application-${row.id}`,
           state: row.status,
         };
       }),
@@ -432,7 +467,7 @@ export async function getReviewEvidence(input: {
     title: row.name,
     summary: cleanExcerpt(row.description),
     occurredAt: row.updated_at,
-    href: "/projects",
+    href: `/projects#project-${row.id}`,
     state: row.status,
   }));
   evidence.decisions = (decisions.data ?? []).map((row) => ({
@@ -441,8 +476,41 @@ export async function getReviewEvidence(input: {
     title: row.title,
     summary: cleanExcerpt(row.decision_text),
     occurredAt: row.last_reviewed_at || row.updated_at || row.decided_at,
-    href: "/memory",
+    href: `/memory#decision-${row.id}`,
     state: row.status,
   }));
+  const groups = [
+    ["calendar", calendar],
+    ["tasksCompleted", completedTasks],
+    ["tasksOpen", openTasks],
+    ["notes", notes],
+    ["inbox", inbox],
+    ["career", milestones],
+    ["career", opportunities],
+    ["career", applications],
+    ["projects", projects],
+    ["decisions", decisions],
+  ] as const;
+  evidence.coverage = groups.map(([group, result]) => ({
+    group,
+    unavailable: Boolean(result.error),
+    truncated: (result.data?.length ?? 0) > LIMITS[group],
+    limit: LIMITS[group],
+  }));
+  if (
+    evidence.career.length >= LIMITS.career &&
+    (milestones.data?.length ?? 0) +
+      (opportunities.data?.length ?? 0) +
+      (applications.data?.length ?? 0) >
+      LIMITS.career
+  )
+    evidence.coverage.push({
+      group: "career",
+      unavailable: false,
+      truncated: true,
+      limit: LIMITS.career,
+    });
+  for (const key of Object.keys(LIMITS) as (keyof typeof LIMITS)[])
+    evidence[key] = evidence[key].slice(0, LIMITS[key]);
   return evidence;
 }

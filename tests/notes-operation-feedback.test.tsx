@@ -7,7 +7,7 @@ import { OperationHistory } from "@/components/workbench/operation-history";
 import { ActionFeedbackProvider } from "@/components/shared/action-feedback";
 const receipt="10000000-0000-4000-8000-000000000001";
 vi.mock("next/link",()=>({default:(props:Record<string,unknown>)=>createElement("a",props)}));
-vi.mock("next/navigation",()=>({useRouter:()=>({push:vi.fn()}),useSearchParams:()=>new URLSearchParams(),unstable_rethrow:()=>{}}));
+vi.mock("next/navigation",()=>({usePathname:()=>"/notes",useRouter:()=>({push:vi.fn()}),useSearchParams:()=>new URLSearchParams(),unstable_rethrow:()=>{}}));
 vi.mock("next/dynamic",()=>({default:()=>()=>null}));
 vi.mock("@/components/shared/use-workspace-scroll-restoration",()=>({useWorkspaceScrollRestoration:()=>null}));
 vi.mock("@/features/notes/workspace-resource",()=>({notesWorkspaceResource:{revalidate:vi.fn().mockResolvedValue(undefined),invalidate:vi.fn()}}));

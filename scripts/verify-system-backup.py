@@ -40,7 +40,7 @@ ENTITY_TABLES = {
     "interview_session": "interview_sessions", "interview_attempt": "interview_practice_attempts",
     "interview_answer_version": "interview_answer_versions", "interview_story": "interview_stories",
     "interview_archetype": "interview_question_archetypes", "inbox_item": "inbox_items",
-    "feed_item": "feed_items", "briefing": "briefings", "leisure_experience": "leisure_experiences",
+    "feed_item": "feed_items", "briefing": "briefings", "briefing_entry": "briefing_entries", "leisure_experience": "leisure_experiences",
 }
 
 

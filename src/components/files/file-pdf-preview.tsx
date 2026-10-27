@@ -1,8 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./file-pdf-preview.css";
+import { captureWorkspaceScope, registerWorkspaceScopeCleanup } from "@/lib/workspace-resource-cache";
+import { noteSelectionContent } from "@/features/notes/selection-content";
+import { sourceLocatorHref } from "@/features/links/source-locator";
+import { acknowledgePositionRestore, type PdfPositionRequest, type PositionRestoreStatus } from "@/features/workbench/position-requests";
+import { insertIntoAdjacentNote, listNoteInsertionTargets } from "@/features/workflow-continuity/note-insertion";
 import { useWorkbenchActive } from "@/components/workbench/workbench-activity";
+import { useReferenceNoteInsertion } from "@/components/workbench/reference-note-insertion";
+import { useReadingVerificationTransport } from "@/features/files/reading-verification-context";
 import { getReadingProgress, saveReadingProgress } from "@/features/files/reading-progress-actions";
 import { createReadingProgressQueue, type ReadingProgress } from "@/features/files/reading-progress";
 import type { OnProgressParameters, PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, RenderTask } from "unpdf/pdfjs";
@@ -13,7 +20,7 @@ export const maxPdfCanvasPixels = 4_000_000;
 export const pdfLoadTimeoutMs = 30_000;
 export const pdfRenderTimeoutMs = 20_000;
 const fallbackMessage = "PDF 预览暂不可用，可在新窗口打开或下载原件。";
-const buttonClass = "inline-flex min-h-9 items-center justify-center rounded-md px-2 text-[12px] hover:bg-[var(--surface-control)] disabled:cursor-default disabled:opacity-40";
+const buttonClass = "inline-flex min-h-11 min-w-11 md:min-h-9 md:min-w-0 items-center justify-center rounded-md px-2 text-[12px] hover:bg-[var(--surface-control)] disabled:cursor-default disabled:opacity-40";
 
 function preflightMessage(status: number) {
   if (status === 401 || status === 403) return "请重新登录后预览。";
@@ -23,7 +30,7 @@ function preflightMessage(status: number) {
 }
 
 /** A keyed session prevents old document loads from painting a newer selection. */
-type PdfPreviewProps = { documentId: string; title: string; embedded?: boolean; active?: boolean; persistProgress?: boolean; initialPage?: number; initialSourceVersion?: string; onPageChange?: (page: number, sourceVersion: string | null) => void };
+type PdfPreviewProps = { documentId: string; title: string; embedded?: boolean; active?: boolean; persistProgress?: boolean; initialPage?: number; initialSourceVersion?: string; onPageChange?: (page: number, sourceVersion: string | null) => void; onReferenceInsertionHandoff?: () => void };
 export function FilePdfPreview(props: PdfPreviewProps) {
   const paneActive = useWorkbenchActive();
   const [resume, setResume] = useState(() => ({ id: props.documentId, page: props.initialPage, source: props.initialSourceVersion }));
@@ -41,7 +48,10 @@ export function FilePdfPreview(props: PdfPreviewProps) {
   </div>;
 }
 
-function PdfPreviewSession({ documentId, title, embedded = false, active: paneActive = true, persistProgress = true, initialPage: restoredPage, initialSourceVersion, onPageChange }: PdfPreviewProps) {
+function PdfPreviewSession({ documentId, title, embedded = false, active: paneActive = true, persistProgress = true, initialPage: restoredPage, initialSourceVersion, onPageChange, onReferenceInsertionHandoff }: PdfPreviewProps) {
+  const readingTransport=useReadingVerificationTransport();
+  const [originScope] = useState(captureWorkspaceScope);
+  const restoreRequest = useRef<{ request: PdfPositionRequest; page: number; status: Exclude<PositionRestoreStatus, "timeout"> } | null>(null);
   const url = `/api/files/${documentId}/preview`;
   const [initialRestore] = useState(() => ({ page: restoredPage, source: initialSourceVersion }));
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
@@ -62,8 +72,16 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
     resumePage.current = page;
     onPageRef.current?.(page, previousSource.current);
     if (persistProgress && userNavigated.current) progressQueue.current?.record(page);
-  }, [persistProgress]);
-  const navigate = (page: number) => { userNavigated.current = true; setPageNumber(page); };
+    const restore = restoreRequest.current;
+    if (restore && restore.page === page && originScope()) {
+      restoreRequest.current = null;
+      acknowledgePositionRestore(restore.request, restore.status);
+    }
+  }, [persistProgress, originScope]);
+  const navigate = (page: number) => {
+    if (restoreRequest.current) acknowledgePositionRestore(restoreRequest.current.request, "cancelled");
+    restoreRequest.current = null; userNavigated.current = true; setPageNumber(page);
+  };
   const [zoom, setZoom] = useState(1);
   const [width, setWidth] = useState(640);
   const container = useRef<HTMLDivElement>(null);
@@ -132,7 +150,7 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
           return;
         }
         // Old deployments remain readable without pretending progress was saved.
-        const snapshot = persistProgress && sourceVersion ? await getReadingProgress(documentId).catch(() => null) : null;
+        const snapshot = persistProgress && sourceVersion ? await (readingTransport?.read??getReadingProgress)(documentId).catch(() => null) : null;
         if (!active) return;
         if (snapshot && snapshot.sourceVersion === sourceVersion &&
             (!snapshot.progress || snapshot.progress.totalPages === document.numPages)) {
@@ -142,7 +160,7 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
           if (saved && saved.page > 1) setReadingMessage(`已接续第 ${saved.page} 页`);
           progressQueue.current = createReadingProgressQueue({
             documentId, sourceVersion, totalPages: document.numPages, revision: saved?.revision ?? 0,
-            save: saveReadingProgress,
+            save: readingTransport?.save??saveReadingProgress,
             report(result) {
               if (!active) return;
               if (result.status === "saved") setReadingMessage("阅读进度已同步");
@@ -167,18 +185,28 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
       controller.abort();
       destroy();
     };
-  }, [url, documentId, destroy, fail, paneActive, persistProgress, initialRestore]);
+  }, [url, documentId, destroy, fail, paneActive, persistProgress, initialRestore, readingTransport]);
 
   useEffect(() => {
     const restore = (event: Event) => {
-      if (!(event instanceof CustomEvent) || event.detail?.documentId !== documentId || !pdf) return;
-      const page = event.detail.page;
-      if (!sourceVersion || event.detail.sourceVersion !== sourceVersion || !Number.isInteger(page) || page < 1 || page > pdf.numPages) return;
-      userNavigated.current = false; resumePage.current = page; setPageNumber(page);
+      if (!(event instanceof CustomEvent) || event.detail?.documentId !== documentId || !pdf || !originScope() || !paneActive) return;
+      const request = event.detail as PdfPositionRequest;
+      if (restoreRequest.current) acknowledgePositionRestore(restoreRequest.current.request, "cancelled");
+      if (!sourceVersion) { acknowledgePositionRestore(request, "unavailable"); return; }
+      const changed = request.sourceVersion !== sourceVersion;
+      const page = changed ? 1 : request.page;
+      if (!Number.isInteger(page) || page < 1 || page > pdf.numPages) { acknowledgePositionRestore(request, "missing"); return; }
+      if (changed) setReadingMessage("原文件版本已变化，已从第一页开始");
+      userNavigated.current = false; resumePage.current = page;
+      const status = changed ? "changed-source" : "applied";
+      const rendered = container.current?.querySelector<HTMLCanvasElement>('canvas[data-pdf-rendered="true"]');
+      if (Number(rendered?.dataset.pdfPage) === page) acknowledgePositionRestore(request, status);
+      else restoreRequest.current = { request, page, status };
+      setPageNumber(page);
     };
     window.addEventListener("personal-os:restore-pdf-position", restore);
-    return () => window.removeEventListener("personal-os:restore-pdf-position", restore);
-  }, [documentId, pdf, sourceVersion]);
+    return () => { window.removeEventListener("personal-os:restore-pdf-position", restore); if (restoreRequest.current) acknowledgePositionRestore(restoreRequest.current.request, "cancelled"); restoreRequest.current = null; };
+  }, [documentId, pdf, sourceVersion, originScope, paneActive]);
 
   useEffect(() => {
     const element = container.current;
@@ -224,7 +252,7 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
     </div> : null}
     <div ref={container} className="file-pdf-viewport max-h-[60dvh] min-h-64 overflow-auto rounded-[10px] border border-[var(--separator)] bg-[var(--surface-control)] p-3">
       {error ? <p role="alert" className="text-[12px] leading-5">{error}</p> : pdf ?
-        <PdfCanvasPage key={`${pageNumber}:${zoom}:${width}`} pdf={pdf} pageNumber={pageNumber} title={title} width={width * zoom} onFailure={fail} onRendered={onRendered} /> :
+        <PdfCanvasPage key={`${pageNumber}:${zoom}:${width}`} pdf={pdf} pageNumber={pageNumber} title={title} documentId={documentId} sourceVersion={sourceVersion} width={width * zoom} onFailure={fail} onRendered={onRendered} onReferenceInsertionHandoff={onReferenceInsertionHandoff} /> :
         <div className="file-pdf-paper-placeholder"><p role="status" className="flex min-h-56 items-center justify-center text-[13px] text-[var(--text-secondary)]">正在准备 PDF 预览…</p></div>}
     </div>
     <p className="text-[12px] leading-5 text-[var(--text-secondary)]">逐页显示 PDF；页内预览上限为 25 MiB。文件通过当前登录会话读取，不会发送给第三方阅读服务。</p>
@@ -235,24 +263,80 @@ function PdfPreviewSession({ documentId, title, embedded = false, active: paneAc
   </div>;
 }
 
-export function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure, onRendered }: {
-  pdf: PDFDocumentProxy; pageNumber: number; title: string; width: number; onFailure: (message: string) => void; onRendered: (page: number) => void;
+export function PdfCanvasPage({ pdf, pageNumber, title, documentId, sourceVersion, width, onFailure, onRendered, onReferenceInsertionHandoff }: {
+  pdf: PDFDocumentProxy; pageNumber: number; title: string; documentId?: string; sourceVersion?: string | null; width: number; onFailure: (message: string) => void; onRendered: (page: number) => void; onReferenceInsertionHandoff?: () => void;
 }) {
+  const referenceInsertion = useReferenceNoteInsertion();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textRef = useRef<HTMLDivElement>(null);
+  // The page never renews its originating owner/Vault lease on a later click.
+  const [scopeIsCurrent] = useState(captureWorkspaceScope);
+  const origin = useMemo(() => ({ pdf, documentId, sourceVersion, pageNumber, width, onFailure, onRendered }), [pdf, documentId, sourceVersion, pageNumber, width, onFailure, onRendered]);
+  type PageSelection = { text: string; origin: typeof origin; generation: number };
   const generationRef = useRef(0);
+  const renderedOrigin = useRef<typeof origin | null>(null);
+  const selectionRef = useRef<PageSelection | null>(null);
+  const [selection, setSelection] = useState<PageSelection | null>(null);
+  const selectedText = selection?.origin === origin ? selection.text : "";
+  const [textStatus, setTextStatus] = useState("");
+  const [insertionMessage, setInsertionMessage] = useState("");
+  const [targets, setTargets] = useState<ReturnType<typeof listNoteInsertionTargets>>([]);
+  const [targetNoteId, setTargetNoteId] = useState("");
+  const clearSelection = useCallback(() => {
+    selectionRef.current = null;
+    setSelection(null); setTargetNoteId(""); setTargets([]); setInsertionMessage("");
+  }, []);
+  useEffect(() => {
+    const invalidate = () => {
+      renderedOrigin.current = null;
+      clearSelection(); setTextStatus("");
+      setInsertionMessage("工作区已变化，请重新打开 PDF 后选择文字。");
+    };
+    const unregister = registerWorkspaceScopeCleanup(invalidate);
+    const select = () => {
+      if (!scopeIsCurrent()) { invalidate(); return; }
+      if (renderedOrigin.current !== origin) return;
+      const range = window.getSelection(), layer = textRef.current;
+      const valid = layer && range?.rangeCount && layer.contains(range.anchorNode) && layer.contains(range.focusNode);
+      const text = valid ? range!.toString().trim() : "";
+      if (text) {
+        const selected = text.length <= 10_000 ? { text, origin, generation: generationRef.current } : null;
+        selectionRef.current = selected; setSelection(selected);
+        setTargets(listNoteInsertionTargets());
+      }
+    };
+    document.addEventListener("selectionchange", select);
+    return () => {
+      unregister(); document.removeEventListener("selectionchange", select);
+      selectionRef.current = null; renderedOrigin.current = null;
+    };
+  }, [origin, scopeIsCurrent, clearSelection]);
   const [rendered, setRendered] = useState(false);
+  const [previousOrigin, setPreviousOrigin] = useState(origin);
+  // Reset page-local UI with the changed input, before committing controls for
+  // the next page. Effect cleanup separately revokes already-queued callbacks.
+  if (previousOrigin !== origin) {
+    setPreviousOrigin(origin); setSelection(null); setTargetNoteId(""); setTargets([]);
+    setInsertionMessage(""); setTextStatus(""); setRendered(false);
+  }
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !scopeIsCurrent()) return;
     const generation = ++generationRef.current;
+    renderedOrigin.current = null;
+    selectionRef.current = null;
     let active = true;
     let released = false;
     let page: PDFPageProxy | undefined;
     let render: RenderTask | undefined;
+    let textLayer: import("unpdf/pdfjs").TextLayer | undefined;
+    const textContainer = textRef.current;
     const release = () => {
       if (released) return;
       released = true;
       render?.cancel();
+      textLayer?.cancel();
+      if (textContainer) textContainer.replaceChildren();
       const settled = render ? render.promise.catch(() => {}) : Promise.resolve();
       void settled.then(() => {
         page?.cleanup();
@@ -268,6 +352,9 @@ export function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure, onRend
       release();
       onFailure("这一页渲染超时，可在新窗口打开或下载原件。");
     }, pdfRenderTimeoutMs);
+    const unregisterScope = registerWorkspaceScopeCleanup(() => {
+      active = false; clearTimeout(timer); release();
+    });
     void (async () => {
       try {
         page = await pdf.getPage(pageNumber);
@@ -284,6 +371,8 @@ export function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure, onRend
         canvas.style.width = `${base.width * cssScale}px`;
         canvas.style.height = `${base.height * cssScale}px`;
         canvas.parentElement?.style.setProperty("--pdf-page-ratio", String(base.width / base.height));
+        canvas.parentElement?.parentElement?.style.setProperty("--pdf-page-ratio", String(base.width / base.height));
+        canvas.parentElement?.parentElement?.style.setProperty("--pdf-page-width", `${base.width * cssScale}px`);
         canvas.parentElement?.style.setProperty("--pdf-page-width", `${base.width * cssScale}px`);
         if (!canvas.getContext("2d")) throw new Error("canvas_unavailable");
         render = page.render({ canvas, viewport, annotationMode: 0, background: "rgb(255,255,255)" });
@@ -294,15 +383,67 @@ export function PdfCanvasPage({ pdf, pageNumber, title, width, onFailure, onRend
         canvas.dataset.pdfRendered = "true";
         setRendered(true);
         onRendered(pageNumber);
+        if (textContainer) {
+          try {
+          const content = await page.getTextContent();
+          if (!active) return;
+          const characters = content.items.reduce((count, item) => count + ("str" in item ? item.str.length : 0), 0);
+          if (content.items.length > 20_000 || characters > 200_000) { setTextStatus("这一页文字量超出选择范围，可下载原件阅读。"); return; }
+          if (!characters) { setTextStatus("此页没有可选文字，可关闭预览后使用文件 OCR。"); return; }
+          const { TextLayer } = await import("unpdf/pdfjs");
+          if (!active) return;
+          textContainer.style.setProperty("--total-scale-factor", String(cssScale));
+          textLayer = new TextLayer({ textContentSource: content, container: textContainer, viewport: page.getViewport({ scale: cssScale }) });
+          await textLayer.render();
+          if (active && scopeIsCurrent()) { renderedOrigin.current = origin; setTextStatus("可选择文字，摘录到旁边笔记。"); }
+          } catch { if (active) setTextStatus("这一页文字暂不可选择，仍可阅读或下载原件。"); }
+        }
       } catch {
         if (active) onFailure(fallbackMessage);
       } finally { clearTimeout(timer); }
     })();
-    return () => { active = false; clearTimeout(timer); release(); };
-  }, [pdf, pageNumber, width, onFailure, onRendered]);
-  return <div className="file-pdf-page" data-rendered={rendered || undefined}>
+    return () => { unregisterScope(); active = false; clearTimeout(timer); release(); };
+  }, [pdf, pageNumber, width, onFailure, onRendered, origin, scopeIsCurrent]);
+  const selectionSource = selectedText && documentId && sourceVersion ? { kind: "pdf" as const, href: sourceLocatorHref({ kind: "pdf", documentId, sourceVersion, page: pageNumber }), page: pageNumber } : null;
+  const selectedQuote = selectionSource ? noteSelectionContent(selectedText, selectionSource) : null;
+  // Capture the selection record, not a fresh scope at dispatch time. Even a
+  // queued old callback must fail before handing private content to a target.
+  const selectionIsCurrent = () => scopeIsCurrent() && selection !== null && selectionRef.current === selection &&
+    selection.origin === origin && renderedOrigin.current === origin &&
+    selection.generation === generationRef.current && !!canvasRef.current?.isConnected;
+  const insertSelection = async (referenceOnly: boolean) => {
+    if (!selectionIsCurrent()) {
+      if (!scopeIsCurrent()) {
+        clearSelection(); setInsertionMessage("工作区已变化，请重新打开 PDF 后选择文字。");
+      }
+      return;
+    }
+    if (!selectionSource) return;
+    const content = noteSelectionContent(selectedText, selectionSource, referenceOnly);
+    if (content.status === "over-budget") { setInsertionMessage(`引用格式与来源链接合计 ${content.actual.toLocaleString("en-US")} 个字符，超过单次笔记插入的 ${content.limit.toLocaleString("en-US")} 字符上限。请缩小选区或仅关联本页来源。`); return; }
+    if (referenceInsertion?.noteId === targetNoteId && !targets.some(target => target.noteId === targetNoteId)) {
+      const accepted = referenceInsertion.stage({ noteId: targetNoteId, markdown: content.content, sourceHref: selectionSource.href, beforeActivate: onReferenceInsertionHandoff });
+      if (!accepted && selectionIsCurrent()) setInsertionMessage("参考笔记已变化，请重新选择摘录目标。");
+      return;
+    }
+    const result = await insertIntoAdjacentNote({ targetNoteId, markdown: content.content });
+    if (!selectionIsCurrent()) return;
+    setInsertionMessage(result.status === "applied" ? "已插入，等待笔记自动保存。"
+      : result.status === "too-large" ? `本次插入超过 ${result.limit.toLocaleString("en-US")} 字符上限，请缩小选区或仅关联本页来源。`
+      : result.status === "inactive" ? "目标笔记不可编辑，请重新打开后选择。"
+      : result.status === "conflict" ? "目标笔记内容或可插入空间已变化，请缩小选区或选择另一篇笔记。"
+      : "来源或目标状态已变化，请重新选择文字后重试。");
+  };
+  return <><div className="flex flex-wrap items-center gap-2 py-2 text-xs" role="status">{textStatus}
+    {selectedText && documentId && sourceVersion ? <>
+      <label>目标笔记<select aria-label="摘录目标笔记" value={targetNoteId} onChange={(event) => { if (selectionIsCurrent()) setTargetNoteId(event.target.value); }} className="ui-field ml-2 min-h-11"><option value="">选择旁边已打开的笔记</option>{targets.map((target) => <option key={`${target.role}:${target.noteId}`} value={target.noteId}>{target.label || (target.role === "reference" ? "参照笔记" : "当前笔记")}</option>)}{referenceInsertion && !targets.some(target => target.noteId === referenceInsertion.noteId) ? <option value={referenceInsertion.noteId}>参考笔记（切换后确认）</option> : null}</select></label>
+      <button type="button" onClick={() => { if (selectionIsCurrent()) clearSelection(); }} className="min-h-11 px-2">取消选文</button>
+      {selectedQuote?.status === "over-budget" ? <p role="status" className="basis-full">引用格式与来源链接合计 {selectedQuote.actual.toLocaleString("en-US")} 个字符，超过单次笔记插入的 {selectedQuote.limit.toLocaleString("en-US")} 字符上限。原选文与页码来源已保留，请缩小选区或仅关联本页来源。</p> : null}
+      <button type="button" disabled={!targetNoteId || selectedQuote?.status !== "ready"} onMouseDown={(event) => event.preventDefault()} onClick={() => void insertSelection(false)} className="min-h-11 rounded-md border px-3 disabled:opacity-40">{referenceInsertion?.noteId === targetNoteId && !targets.some(target => target.noteId === targetNoteId) ? "到参考笔记确认摘录" : "摘录到笔记"}</button>
+      <button type="button" disabled={!targetNoteId} onMouseDown={(event) => event.preventDefault()} onClick={() => void insertSelection(true)} className="min-h-11 rounded-md border px-3 disabled:opacity-40">仅关联本页来源</button>
+    </> : null}{scopeIsCurrent() ? insertionMessage : "工作区已变化，请重新打开 PDF 后选择文字。"}</div><div className="file-pdf-page" data-rendered={rendered || undefined}>
     {!rendered ? <p role="status" className="file-pdf-drawing-status py-3 text-[12px] text-[var(--text-secondary)]">正在绘制第 {pageNumber} 页…</p> : null}
-    <canvas ref={canvasRef} role="img" aria-label={`${title}，第 ${pageNumber} 页`} data-pdf-page={pageNumber}
-      className="mx-auto block bg-[var(--surface-canvas)] shadow-sm" style={{ visibility: rendered ? "visible" : "hidden" }} />
-  </div>;
+    <div className="file-pdf-text-page relative mx-auto" style={{ width: "var(--pdf-page-width)" }}><canvas ref={canvasRef} role="img" aria-label={`${title}，第 ${pageNumber} 页`} data-pdf-page={pageNumber}
+      className="mx-auto block bg-[var(--surface-canvas)] shadow-sm" style={{ visibility: rendered ? "visible" : "hidden" }} /><div ref={textRef} className="file-pdf-text-layer" aria-label={`第 ${pageNumber} 页可选文字`} /></div>
+  </div></>;
 }

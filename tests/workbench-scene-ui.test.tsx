@@ -3,7 +3,7 @@ import { act, createElement, lazy, Suspense, useSyncExternalStore, type AnchorHT
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { WorkspaceScene, WorkspaceSceneSnapshot } from "@/features/workbench/contracts";
-const transport = vi.hoisted(() => ({ save: vi.fn(), rows: [] as WorkspaceScene[], push: vi.fn(), mobile: false }));
+const transport = vi.hoisted(() => ({ save: vi.fn(), rows: [] as unknown[], push: vi.fn(), mobile: false }));
 vi.mock("@/features/workbench/scenes", () => ({ saveWorkspaceScene: transport.save }));
 vi.mock("next/dynamic", () => ({ default: (load: () => Promise<ComponentType>) => lazy(async () => ({ default: await load() })) }));
 vi.mock("@/components/workbench/workbench-entity-view", () => ({ WorkbenchEntityView: ({ onNavigate }: { onNavigate?: () => void }) => <div className="workbench-document"><p>Read projection · synthetic only</p><button onClick={onNavigate}>Open primary</button></div> }));
@@ -14,11 +14,13 @@ vi.mock("next/navigation", () => {
 });
 vi.mock("next/link", () => ({ default: ({ href, children, onNavigate, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { onNavigate?: () => void }) => createElement("a", { ...props, href, onClick: (event: React.MouseEvent) => { event.preventDefault(); onNavigate?.(); if (href) transport.push(href); } }, children) }));
 import { WorkbenchProvider, WorkbenchLayout, WorkbenchToolbar, useWorkbenchHost } from "@/components/workbench/workbench-provider";
-import { clearWorkspaceResources } from "@/lib/workspace-resource-cache";
+import { clearWorkspaceResources, reconcileWorkspaceScope } from "@/lib/workspace-resource-cache";
 import { workbenchEntityResource, workspaceScenesResource } from "@/features/workbench/resource";
+import { parseWorkspaceSceneListResponse } from "@/features/workbench/scene-read-contracts";
 import { useWorkbench } from "@/components/workbench/workbench-context";
 import { captureWorkbenchPosition, restoreWorkbenchPosition } from "@/components/workbench/workbench-position";
 let root: Root; let host: HTMLDivElement;
+const scrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
 function Harness() {
   const workbench = useWorkbenchHost();
   const actions = useWorkbench()!;
@@ -31,7 +33,8 @@ async function submit() { await act(async () => document.querySelector(".workben
 async function closeDialog() { const button = document.querySelector<HTMLButtonElement>('[role="dialog"] [data-slot="dialog-close"]')!; expect(button).not.toBeNull(); await act(async () => button.click()); }
 function changedLocation(path: string) { window.history.pushState(null, "", path); window.dispatchEvent(new Event("fixture:navigation")); }
 beforeEach(async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); clearWorkspaceResources();
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); clearWorkspaceResources(); reconcileWorkspaceScope("synthetic-scene-owner", "scene-revision-1");
   window.history.replaceState(null, "", "/notes");
   transport.mobile = false;
   vi.stubGlobal("matchMedia", (query: string) => ({ get matches() { return transport.mobile && query === "(max-width: 767px)"; }, addEventListener() {}, removeEventListener() {} }));
@@ -43,7 +46,7 @@ beforeEach(async () => {
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
   await act(async () => root.render(<Suspense fallback={null}><WorkbenchProvider><Harness /></WorkbenchProvider></Suspense>));
 });
-afterEach(async () => { await act(async () => root.unmount()); host.remove(); clearWorkspaceResources(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.innerHTML = ""; });
+afterEach(async () => { await act(async () => root.unmount()); host.remove(); clearWorkspaceResources(); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.innerHTML = ""; if (scrollIntoViewDescriptor) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", scrollIntoViewDescriptor); else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView; });
 function confirmSaves() {
   transport.save.mockImplementation(async (input: { id: string; name: string; snapshot: WorkspaceSceneSnapshot; expectedRevision: number }) => {
     const scene: WorkspaceScene = { id: input.id, name: input.name, snapshot: input.snapshot, revision: input.expectedRevision + 1, created_at: "2026-10-26T00:00:00Z", updated_at: "2026-10-26T00:00:00Z", archived_at: null };
@@ -84,7 +87,7 @@ it("captures and restores the document scroll owner separately from a reference 
   Object.defineProperty(document, "scrollingElement", { configurable: true, value: document.documentElement }); document.documentElement.scrollTop = 530;
   const position = await captureWorkbenchPosition(main, "main"); expect(position).toMatchObject({ scrollOwner: "document", scrollTop: 530 });
   const settled = vi.fn(); restoreWorkbenchPosition(main, position, { scope: "main", onSettled: settled });
-  expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 530, behavior: "instant" }); expect(settled).toHaveBeenCalledExactlyOnceWith(true);
+  expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 530, behavior: "instant" }); expect(settled).toHaveBeenCalledExactlyOnceWith(true, "applied");
   const reference = document.createElement("aside"); reference.innerHTML = '<div class="workbench-document" style="overflow-y:auto">Reference</div>'; document.body.append(reference);
   const scroller = reference.firstElementChild as HTMLElement; Object.defineProperty(scroller, "clientHeight", { value: 100 }); Object.defineProperty(scroller, "scrollHeight", { value: 1000 }); scroller.scrollTop = 270;
   expect(await captureWorkbenchPosition(reference, "reference")).toMatchObject({ scrollOwner: "pane", scrollTop: 270 });
@@ -123,4 +126,178 @@ it("releases mobile overlay history before slow primary navigation or scene rest
   confirmSaves(); await click("工作台"); await inputName("Mobile scene"); await submit();
   await click("恢复");
   expect(window.history.state.__personalOsMobileLayer).toBeUndefined(); expect(back).not.toHaveBeenCalled();
+});
+
+const savedScene = (id = "90000000-0000-4000-8000-000000000001"): WorkspaceScene => ({ id, name: "可恢复合成现场", revision: 1, created_at: "2026-10-27T00:00:00Z", updated_at: "2026-10-27T00:00:00Z", archived_at: null, snapshot: { version: 1, main: { href: "/notes" }, reference: null, layout: { referenceFirst: true, referenceWidth: 50, mobilePane: "main" } } });
+const futureScene = () => ({ ...savedScene("90000000-0000-4000-8000-000000000002"), name: "未知格式合成现场", snapshot: { version: 20, body: "PRIVATE FUTURE BODY", signedUrl: "https://secret.test?token=SECRET" } });
+it("shows supported and unsupported rows together without exposing or executing the unsupported payload", async () => {
+  transport.rows = [savedScene(), futureScene(), { ...savedScene("90000000-0000-4000-8000-000000000003"), name: "" }];
+  workspaceScenesResource.invalidate(); await click("工作台");
+  const rows = [...document.querySelectorAll(".workbench-scene-list li")]; expect(rows).toHaveLength(2);
+  const supported = rows.find(row => row.textContent?.includes("可恢复合成现场"))!;
+  const unsupported = rows.find(row => row.textContent?.includes("未知格式合成现场"))!;
+  expect(unsupported.textContent).toContain("现场格式暂不支持"); expect(document.body.textContent).toContain("有 1 份现场的基本信息无法读取");
+  expect(document.querySelector(".workbench-scenes-body")?.textContent).not.toMatch(/PRIVATE FUTURE BODY|SECRET|还没有保存现场/);
+  expect(unsupported.querySelectorAll("button")).toHaveLength(1); expect(unsupported.querySelector("button")?.disabled).toBe(true);
+  await act(async () => unsupported.querySelector<HTMLButtonElement>("button")!.click());
+  expect(transport.push).not.toHaveBeenCalled(); expect(transport.save).not.toHaveBeenCalled();
+  await click("恢复", supported); expect(transport.push).toHaveBeenCalledExactlyOnceWith("/notes", { scroll: false });
+  expect(host.querySelector(".workbench-layout")?.getAttribute("data-reference-first")).toBe("true"); expect(transport.save).not.toHaveBeenCalled();
+});
+it.each([1, 2])("revokes an update selection when the same row becomes unsupported at revision %s", async revision => {
+  const old = savedScene(); transport.rows = [old]; workspaceScenesResource.invalidate(); await click("工作台"); await click("选择更新");
+  expect(buttons("用当前布局更新")).toHaveLength(1); await closeDialog();
+  transport.rows = [{ ...old, revision, snapshot: futureScene().snapshot }]; workspaceScenesResource.invalidate(); await click("工作台");
+  expect(buttons("用当前布局更新")).toHaveLength(0); expect(buttons("保存当前现场")).toHaveLength(1);
+  expect(document.body.textContent).toContain("原选现场已变化或当前格式不受支持"); expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.value).toBe(old.name);
+  expect(buttons("恢复")).toHaveLength(0); expect(buttons("选择更新")).toHaveLength(0); expect(buttons("归档")).toHaveLength(0);
+  expect(transport.save).not.toHaveBeenCalled(); expect(transport.push).not.toHaveBeenCalled();
+});
+it("reports wholly unreadable metadata without claiming empty records or a newer format", async () => {
+  transport.rows = [{ ...futureScene(), name: "" }]; workspaceScenesResource.invalidate(); await click("工作台");
+  const body = document.querySelector(".workbench-scenes-body")!;
+  expect(body.textContent).toContain("有 1 份现场的基本信息无法读取");
+  expect(body.textContent).not.toMatch(/还没有保存现场|格式暂不支持|新版本|PRIVATE FUTURE BODY/);
+  expect(buttons("恢复", body)).toHaveLength(0); expect(buttons("归档", body)).toHaveLength(0);
+  expect(transport.save).not.toHaveBeenCalled(); expect(transport.push).not.toHaveBeenCalled();
+});
+it("clears a previous owner's metadata, selection and pending save on a scope replacement", async () => {
+  transport.rows = [savedScene(), futureScene()]; workspaceScenesResource.invalidate(); await click("工作台"); await click("选择更新");
+  let resolve!: (value: { status: "saved"; scene: WorkspaceScene }) => void;
+  transport.save.mockReturnValue(new Promise(done => { resolve = done; })); await submit();
+  await act(async () => clearWorkspaceResources());
+  expect(document.body.textContent).not.toContain("未知格式合成现场"); expect(document.body.textContent).not.toContain("可恢复合成现场");
+  expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.value).toBe("");
+  transport.rows = []; await click("读取最新现场");
+  expect(document.body.textContent).toContain("还没有保存现场");
+  await act(async () => resolve({ status: "saved", scene: savedScene() }));
+  expect(document.body.textContent).not.toContain("可恢复合成现场"); expect([...document.querySelectorAll('[role="status"]')].some(node => node.textContent === "现场已保存")).toBe(false);
+  expect(buttons("用当前布局更新")).toHaveLength(0); expect(transport.push).not.toHaveBeenCalled();
+});
+
+it.each([
+  { refresh: "direct", revision: 1 }, { refresh: "direct", revision: 2 },
+  { refresh: "owner-revision", revision: 1 }, { refresh: "owner-revision", revision: 2 },
+])("reacts to a mounted $refresh refresh when a row becomes unsupported at revision $revision", async ({ refresh, revision }) => {
+  const old = savedScene();
+  const remaining = { ...savedScene("90000000-0000-4000-8000-000000000004"), name: "仍然可用的现场" };
+  transport.rows = [old, remaining]; workspaceScenesResource.invalidate(); await click("工作台");
+  const original = [...document.querySelectorAll(".workbench-scene-list li")].find(row => row.textContent?.includes(old.name))!;
+  await click("选择更新", original); await inputName("保留当前命名输入");
+  const dialog = document.querySelector('[role="dialog"]');
+  transport.rows = [{ ...old, revision, snapshot: futureScene().snapshot }, remaining];
+  await act(async () => {
+    if (refresh === "owner-revision") {
+      const previousReads = vi.mocked(fetch).mock.calls.length;
+      reconcileWorkspaceScope("synthetic-scene-owner", "scene-revision-2");
+      expect(vi.mocked(fetch).mock.calls.length).toBe(previousReads + 1);
+      const automaticRead = workspaceScenesResource.get().promise;
+      expect(automaticRead).toBeDefined(); await automaticRead;
+    } else await workspaceScenesResource.revalidate({ force: true });
+  });
+  expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+  expect(workspaceScenesResource.get().data?.scenes.map(scene => scene.id)).toEqual([remaining.id]);
+  expect(buttons("恢复")).toHaveLength(1); expect(buttons("选择更新")).toHaveLength(1); expect(buttons("归档")).toHaveLength(1);
+  expect(buttons("用当前布局更新")).toHaveLength(0); expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.value).toBe("保留当前命名输入");
+  const unsupported = [...document.querySelectorAll(".workbench-scene-list li")].find(row => row.textContent?.includes("现场格式暂不支持"))!;
+  expect(unsupported.querySelectorAll("button")).toHaveLength(1); expect(unsupported.querySelector("button")?.disabled).toBe(true);
+  await act(async () => unsupported.querySelector<HTMLButtonElement>("button")!.click());
+  expect(transport.push).not.toHaveBeenCalled(); expect(transport.save).not.toHaveBeenCalled();
+  const available = [...document.querySelectorAll(".workbench-scene-list li")].find(row => row.textContent?.includes(remaining.name))!;
+  await click("恢复", available); expect(transport.push).toHaveBeenCalledExactlyOnceWith("/notes", { scroll: false });
+});
+
+it("uses the newly published supported revision while revoking its old update selection", async () => {
+  const old = savedScene(); transport.rows = [old]; workspaceScenesResource.invalidate(); await click("工作台"); await click("选择更新");
+  await inputName("尚未保存的名称");
+  const latest = { ...old, revision: 2, name: "服务端新名称", snapshot: { ...old.snapshot, main: { href: "/projects" } } };
+  transport.rows = [latest];
+  await act(async () => {
+    reconcileWorkspaceScope("synthetic-scene-owner", "scene-revision-2");
+    const automaticRead = workspaceScenesResource.get().promise;
+    expect(automaticRead).toBeDefined(); await automaticRead;
+  });
+  expect(buttons("用当前布局更新")).toHaveLength(0); expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.value).toBe("尚未保存的名称");
+  expect(document.querySelector(".workbench-scene-list")?.textContent).toContain(latest.name);
+  await click("恢复"); expect(transport.push).toHaveBeenCalledExactlyOnceWith("/projects", { scroll: false }); expect(transport.save).not.toHaveBeenCalled();
+});
+
+it("retains entered names and readable rows during a failed automatic refresh, then recovers in place", async () => {
+  const old = savedScene(); transport.rows = [old]; workspaceScenesResource.invalidate(); await click("工作台"); await click("选择更新");
+  await inputName("失败前继续输入"); vi.mocked(fetch).mockRejectedValueOnce(new Error("synthetic read failure"));
+  await act(async () => { await workspaceScenesResource.revalidate({ force: true }).catch(() => {}); });
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain("现场暂时无法读取"); expect(buttons("恢复")).toHaveLength(1);
+  expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.value).toBe("失败前继续输入");
+  transport.rows = [{ ...old, snapshot: futureScene().snapshot }];
+  await act(async () => { await workspaceScenesResource.revalidate({ force: true }); });
+  expect(document.querySelector('[role="alert"]')).toBeNull(); expect(buttons("恢复")).toHaveLength(0); expect(buttons("用当前布局更新")).toHaveLength(0);
+  expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.value).toBe("失败前继续输入"); expect(transport.save).not.toHaveBeenCalled();
+});
+
+it("does not let a late save response resurrect a row made unsupported by a mounted refresh", async () => {
+  const old = savedScene(); transport.rows = [old]; workspaceScenesResource.invalidate(); await click("工作台"); await click("选择更新");
+  await inputName("当前请求名称");
+  let resolve!: (value: { status: "saved"; scene: WorkspaceScene }) => void;
+  transport.save.mockReturnValue(new Promise(done => { resolve = done; })); await submit();
+  const request = transport.save.mock.calls[0][0];
+  transport.rows = [{ ...old, snapshot: futureScene().snapshot }];
+  await act(async () => { await workspaceScenesResource.revalidate({ force: true }); });
+  expect(buttons("恢复")).toHaveLength(0); expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.value).toBe("当前请求名称");
+  await act(async () => resolve({ status: "saved", scene: { ...old, name: "迟到的已保存名称", revision: request.expectedRevision + 1 } }));
+  expect(buttons("用当前布局更新")).toHaveLength(0); expect(buttons("恢复")).toHaveLength(0);
+  expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.value).toBe("当前请求名称");
+  expect(transport.save).toHaveBeenCalledTimes(1); expect(transport.push).not.toHaveBeenCalled();
+});
+
+it("keeps subsequent input while a confirmed save's automatic list refresh is pending", async () => {
+  const old = savedScene(); transport.rows = [old]; workspaceScenesResource.invalidate(); await click("工作台"); await click("选择更新"); await inputName("本次提交名称");
+  let finishSave!: (value: { status: "saved"; scene: WorkspaceScene }) => void;
+  let finishRead!: (value: Response) => void;
+  transport.save.mockReturnValue(new Promise(done => { finishSave = done; })); await submit();
+  vi.mocked(fetch).mockReturnValueOnce(new Promise<Response>(done => { finishRead = done; }));
+  const confirmed = { ...old, name: "本次提交名称", revision: 2 };
+  await act(async () => finishSave({ status: "saved", scene: confirmed }));
+  expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.disabled).toBe(false);
+  await inputName("确认保存后继续输入");
+  await act(async () => { finishRead(Response.json({ scenes: [confirmed] })); await workspaceScenesResource.revalidate({ force: true }); });
+  expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.value).toBe("确认保存后继续输入");
+  expect(buttons("用当前布局更新")).toHaveLength(1); expect(transport.save).toHaveBeenCalledTimes(1); expect(transport.push).not.toHaveBeenCalled();
+});
+
+it("revokes stale row handlers in the publication-to-commit window as well as updating their rendered controls", async () => {
+  const old = savedScene(); transport.rows = [old]; workspaceScenesResource.invalidate(); await click("工作台");
+  const restore = buttons("恢复")[0], update = buttons("选择更新")[0], archive = buttons("归档")[0];
+  await act(async () => {
+    workspaceScenesResource.set(parseWorkspaceSceneListResponse({ scenes: [{ ...old, snapshot: futureScene().snapshot }] }));
+    restore.click(); update.click(); archive.click();
+  });
+  expect(transport.push).not.toHaveBeenCalled(); expect(transport.save).not.toHaveBeenCalled();
+  expect(buttons("恢复")).toHaveLength(0); expect(buttons("选择更新")).toHaveLength(0); expect(buttons("归档")).toHaveLength(0);
+});
+
+it("restores the real new-scene name form through its typed opener without writing", async () => {
+  const { getWorkflowDrafts } = await import("@/features/workflow-continuity/drafts");
+  const { requestDraftResume, getDraftResumeStatus } = await import("@/features/workflow-continuity/draft-resume");
+  await click("工作台"); await inputName("未保存的新现场名称"); await closeDialog();
+  const draft = getWorkflowDrafts().find(item => item.resumeTarget?.kind === "scene.create")!; expect(draft).toBeDefined();
+  await act(async () => { await requestDraftResume(draft.resumeTarget!); });
+  for (let attempt = 0; attempt < 20 && getDraftResumeStatus().status === "pending"; attempt++) {
+    await act(async () => new Promise(resolve => setTimeout(resolve, 20)));
+  }
+  expect(getDraftResumeStatus().status).toBe("accepted");
+  const field = document.querySelector<HTMLInputElement>("#workbench-scene-name")!;
+  expect(field.value).toBe("未保存的新现场名称"); expect(document.activeElement).toBe(field); expect(transport.save).not.toHaveBeenCalled();
+});
+it("preserves a resumed rename baseline and name when the saved scene changed", async () => {
+  const { getWorkflowDrafts } = await import("@/features/workflow-continuity/drafts");
+  const { requestDraftResume, getDraftResumeStatus } = await import("@/features/workflow-continuity/draft-resume");
+  transport.rows = [savedScene()]; workspaceScenesResource.invalidate(); await click("工作台"); await click("选择更新"); await inputName("保留旧名称输入"); await closeDialog();
+  const draft = getWorkflowDrafts().find(item => item.resumeTarget?.kind === "scene.rename")!; expect(draft).toBeDefined();
+  transport.rows = [{ ...savedScene(), revision: 2, name: "另一设备的新名称" }];
+  await act(async () => { await requestDraftResume(draft.resumeTarget!); });
+  for (let attempt = 0; attempt < 20 && getDraftResumeStatus().status === "pending"; attempt++) {
+    await act(async () => new Promise(resolve => setTimeout(resolve, 20)));
+  }
+  expect(getDraftResumeStatus().message).toBeUndefined(); expect(getDraftResumeStatus()).toMatchObject({ status: "accepted" }); expect(document.querySelector<HTMLInputElement>("#workbench-scene-name")?.value).toBe("保留旧名称输入");
+  await submit(); expect(transport.save).not.toHaveBeenCalled(); expect(document.body.textContent).toContain("名称对应的原现场已变化");
 });

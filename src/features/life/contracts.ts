@@ -22,3 +22,12 @@ export const lifeFieldRowSchema = z.record(z.string(), z.union([z.string(), z.nu
 export const lifeFieldResultSchema = z.object({ rows: z.array(lifeFieldRowSchema).min(1).max(20), receiptId: z.uuid(), duplicate: z.boolean() });
 export type LifeFieldRow = z.infer<typeof lifeFieldRowSchema>;
 export type LifeFieldResult = { ok: true; rows: LifeFieldRow[]; receiptId: string; replayed?: boolean } | { ok: false; error: "invalid" | "conflict" | "unavailable" | "not_ready"; message: string };
+
+/** Only a matching authoritative receipt can confirm a frozen request. Missing never authorizes retry. */
+export const lifeRequestOutcomeSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("saved"), receiptId: z.uuid(), receiptStatus: z.enum(["available", "undone"]), operation: z.enum(["shopping_quantity", "shopping_purchased", "travel_stop_metadata", "travel_stop_arrival", "travel_stop_order", "travel_next_stop", "travel_document", "leisure_progress"]), rows: z.array(lifeFieldRowSchema).min(1).max(20) }).strict(),
+  z.object({ status: z.literal("missing") }).strict(),
+  z.object({ status: z.literal("needs-check") }).strict(),
+  z.object({ status: z.literal("rejected"), code: z.enum(["invalid", "conflict"]) }).strict(),
+]);
+export type LifeRequestOutcome = z.infer<typeof lifeRequestOutcomeSchema>;

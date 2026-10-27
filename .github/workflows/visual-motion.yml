@@ -24,6 +24,9 @@ jobs:
           - suite: editorial-notes-files
             script: editorial-notes-files-e2e.cjs
             timeout: 360
+          - suite: file-preview-motion
+            script: file-preview-motion-e2e.cjs
+            timeout: 180
           - suite: shell-visual
             script: shell-visual-e2e.cjs
             timeout: 240

@@ -5,11 +5,13 @@ import { deepSeekModelIds } from "@/lib/ai/deepseek";
 import { createAssistantAgent } from "@/features/assistant/runtime";
 import { assistantSurfaces } from "@/features/assistant/types";
 import type { AssistantMessageMetadata, AssistantStreamSource } from "@/features/assistant/stream-metadata";
+import { AgentRunIdentityError, AgentRunBusyError } from "@/features/assistant/run-identity";
 import { normalizeAssistantError } from "@/features/assistant/errors";
 import { decideContextGate } from "@/features/assistant/kernel/context-gate";
 import { graphEntityRefSchema } from "@/features/graph/types";
 import {
   assertOwnedRun,
+  claimAgentGeneration,
   createAgentRun,
   persistAgentMessage,
   recordAgentStep,
@@ -70,6 +72,7 @@ export async function POST(request: Request) {
   let setupMs = 0;
   let lockId: string | null = null;
   let runId: string | null = null;
+  let generationToken: string | null = null;
   let runUserId: string | null = null;
   let lockClient: Awaited<ReturnType<typeof requireOwnerApi>>["supabase"] | null = null;
 
@@ -87,11 +90,16 @@ export async function POST(request: Request) {
       currentPath: parsed.data.currentPath,
       hasCurrentSurface: Boolean(parsed.data.surfaceContext?.content || parsed.data.currentEntity),
     });
-    const runCapable = parsed.data.surface === "global" || parsed.data.surface === "notes-library";
-    const shouldPersistRun = runCapable && (Boolean(parsed.data.runId) || parsed.data.surface === "notes-library" || previewGate.mode === "action");
+    const runCapable = ["global", "notes-library", "tasks", "calendar", "career"].includes(parsed.data.surface);
+    const shouldPersistRun = runCapable && (Boolean(parsed.data.runId) || parsed.data.surface !== "global" || previewGate.mode === "action");
+
+    if (parsed.data.surface === "calendar") {
+      lockId = await acquireCalendarRequestLock(owner.supabase);
+      if (!lockId) return Response.json({ error: "你的账户正在另一台设备处理日历请求，请稍后重试。" }, { status: 409, headers: noStore });
+    }
 
     if (shouldPersistRun) {
-      runId = parsed.data.runId ?? await createAgentRun({
+      const candidateRunId = parsed.data.runId ?? await createAgentRun({
         supabase: owner.supabase,
         userId: owner.userId,
         surface: parsed.data.surface,
@@ -99,15 +107,15 @@ export async function POST(request: Request) {
         currentPath: parsed.data.currentPath,
         currentEntity: parsed.data.currentEntity ?? null,
       });
-      await assertOwnedRun(owner.supabase, owner.userId, runId);
+      await assertOwnedRun(owner.supabase, owner.userId, candidateRunId, { surface: parsed.data.surface, currentEntity: parsed.data.currentEntity ?? null });
+      const candidateToken = crypto.randomUUID();
+      await claimAgentGeneration(owner.supabase, candidateRunId, candidateToken, previewGate.mode !== "action");
+      runId = candidateRunId; generationToken = candidateToken;
       const latestUserMessage = [...parsed.data.messages].reverse().find((item) => Boolean(item && typeof item === "object" && "role" in item && item.role === "user"));
       if (latestUserMessage) await persistAgentMessage({ supabase: owner.supabase, userId: owner.userId, runId, message: latestUserMessage as never });
     }
 
-    if (parsed.data.surface === "calendar") {
-      lockId = await acquireCalendarRequestLock(owner.supabase);
-      if (!lockId) return Response.json({ error: "你的账户正在另一台设备处理日历请求，请稍后重试。" }, { status: 409, headers: noStore });
-    }
+
 
     const assistantRuntime = await createAssistantAgent({
       surface: parsed.data.surface,
@@ -116,6 +124,7 @@ export async function POST(request: Request) {
       model: parsed.data.model,
       currentEntity: parsed.data.currentEntity,
       runId,
+      generationToken,
       currentPath: parsed.data.currentPath,
       currentSurface: parsed.data.surfaceContext ? {
         type: parsed.data.surfaceContext.type as "global_page",
@@ -210,6 +219,7 @@ export async function POST(request: Request) {
             supabase: owner.supabase,
             userId: owner.userId,
             runId,
+            generationToken,
             status: streamFailure ? "failed" : isAborted ? "cancelled" : (count ?? 0) > 0 ? "awaiting_approval" : "completed",
             errorCode: streamFailure?.code ?? null,
           });
@@ -231,7 +241,9 @@ export async function POST(request: Request) {
     if (lockId && lockClient) await releaseCalendarRequestLock(lockClient, lockId);
     const auth = apiAuthenticationFailure(error);
     if (auth) return auth;
-    if (runId && runUserId && lockClient) await updateAgentRun({ supabase: lockClient, userId: runUserId, runId, status: "failed", errorCode: normalizeAssistantError(error).code }).catch(() => undefined);
+    if (error instanceof AgentRunBusyError) return Response.json({ error: "原会话仍在生成或已有待确认操作，请先核对原结果。不会重复生成。" }, { status: 409, headers: noStore });
+    if (error instanceof AgentRunIdentityError) return Response.json({ error: "会话与当前界面或对象不一致，请返回原会话查看。" }, { status: 409, headers: noStore });
+    if (runId && runUserId && lockClient) await updateAgentRun({ supabase: lockClient, userId: runUserId, runId, generationToken, status: "failed", errorCode: normalizeAssistantError(error).code }).catch(() => undefined);
     if (runUserId) {
       const normalized = normalizeAssistantError(error);
       await recordStatusSafely(runUserId, "ai", { state: "failed", lastAttemptAt: new Date().toISOString(), errorCode: normalized.code, errorSummary: normalized.message, retryAfter: new Date(Date.now() + 30_000).toISOString(), nextStep: "检查 AI 配置或网络后重试。" }, { type: "retry_scheduled", operationKey: runId ? `agent-run-${runId}` : undefined, errorCode: normalized.code, errorSummary: normalized.message, retryAfter: new Date(Date.now() + 30_000).toISOString() });

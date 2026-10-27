@@ -14,7 +14,7 @@ vi.mock("@/features/notes/actions", () => ({ saveNote: fixture.save, setNoteCont
 vi.mock("@/components/shared/action-feedback", () => ({ useActionFeedback: () => ({ show: fixture.show }) }));
 vi.mock("@/components/layout/workspace-panel-provider", () => ({ useWorkspacePanel: () => ({ isOpen: false, open: fixture.noop, close: fixture.noop, toggle: fixture.noop }) }));
 vi.mock("@/features/notes/workspace-resource", () => ({ notesWorkspaceResource: { mutate: fixture.noop, invalidate: fixture.noop } }));
-vi.mock("@/lib/workspace-resource-cache", () => ({ captureWorkspaceScope: () => () => true }));
+vi.mock("@/lib/workspace-resource-cache", async (original) => ({ ...await original<typeof import("@/lib/workspace-resource-cache")>(), captureWorkspaceScope: () => () => true }));
 vi.mock("@/lib/workspace-session", () => ({ loadWorkspaceSession: fixture.loadDraft, saveWorkspaceSession: vi.fn(), removeWorkspaceSession: vi.fn() }));
 
 import { NoteEditor } from "@/components/notes/note-editor";

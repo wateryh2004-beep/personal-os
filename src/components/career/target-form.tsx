@@ -3,7 +3,7 @@ import { instantToWallTime } from "@/features/calendar/timezone";
 import { CareerTaskDialog } from "./experience-form-dialog";
 import { Field, TextField, SelectField } from "./form-controls";
 export function TargetForm({ target, timezone }: { target?: Tables<"interview_contexts">; timezone: string }) {
-  return <CareerTaskDialog operation={target ? "updateTargetContext" : "createTargetContext"} title={target ? "编辑面试情境" : "新建面试情境"} description={`这里保存题库与练习范围，不创建招聘机会或投递记录。时间按 ${timezone} 填写；关联真实招聘请从招聘机会页进入。`} submitLabel={target ? "保存情境" : "创建情境"} primary={!target} recoveryHref={target ? `/career/interview/targets/${target.id}` : "/career/interview/targets"}>
+  return <CareerTaskDialog draft={{operation:target?"career.target-edit":"career.target-create",id:target?.id??"new",href:target?`/career/interview/targets/${target.id}`:"/career/interview/targets",label:"面试情境"}} operation={target ? "updateTargetContext" : "createTargetContext"} title={target ? "编辑面试情境" : "新建面试情境"} description={`这里保存题库与练习范围，不创建招聘机会或投递记录。时间按 ${timezone} 填写；关联真实招聘请从招聘机会页进入。`} submitLabel={target ? "保存情境" : "创建情境"} primary={!target} recoveryHref={target ? `/career/interview/targets/${target.id}` : "/career/interview/targets"}>
     {target ? <input type="hidden" name="context_id" value={target.id}/> : null}
     <input type="hidden" name="context_type" value={target?.context_type ?? "target"}/>
     <input type="hidden" name="career_direction_id" value={target?.career_direction_id ?? ""}/><input type="hidden" name="opportunity_id" value={target?.opportunity_id ?? ""}/><input type="hidden" name="application_id" value={target?.application_id ?? ""}/>

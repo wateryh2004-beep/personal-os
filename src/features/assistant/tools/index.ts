@@ -98,6 +98,7 @@ export function buildAssistantTools(input: {
   policy: AssistantPolicy;
   timezone?: string;
   runId?: string | null;
+  generationToken?: string | null;
   toolNames?: string[];
   onToolsDiscovered?: (toolNames: string[]) => void;
   onSources?: (sources: AssistantStreamSource[]) => void;
@@ -121,6 +122,7 @@ export function buildAssistantTools(input: {
           userId: input.userId ?? "",
           timezone: input.timezone ?? "Asia/Shanghai",
           runId: input.runId,
+          generationToken: input.generationToken,
           onToolsDiscovered: input.onToolsDiscovered,
         });
         const allowed = new Set(

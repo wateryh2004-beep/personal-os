@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import ts from "typescript";
 
 const source = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -29,6 +30,20 @@ const notesPage = source("src/app/(app)/notes/page.tsx");
 const calendarPage = source("src/app/(app)/calendar/page.tsx");
 const systemHealth = source("src/components/settings/system-health.tsx");
 const controlPlane = source("src/features/system-status/control-plane.ts");
+const calendarTree = ts.createSourceFile("calendar-workspace.tsx", calendarWorkspace, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const shellTree = ts.createSourceFile("app-shell.tsx", appShell, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+function descendants<T extends ts.Node>(node: ts.Node, predicate: (value: ts.Node) => value is T): T[] {
+  const result: T[] = [];
+  const visit = (value: ts.Node) => { if (predicate(value)) result.push(value); ts.forEachChild(value, visit); };
+  visit(node);
+  return result;
+}
+const print = (node: ts.Node) => ts.createPrinter().printNode(ts.EmitHint.Unspecified, node, node.getSourceFile());
+function componentKey(name: string) {
+  const component = descendants(calendarTree, ts.isJsxSelfClosingElement).find(node => node.tagName.getText(calendarTree) === name);
+  const key = component?.attributes.properties.find((attribute): attribute is ts.JsxAttribute => ts.isJsxAttribute(attribute) && attribute.name.getText(calendarTree) === "key");
+  return key?.initializer && ts.isJsxExpression(key.initializer) ? key.initializer.expression : undefined;
+}
 
 describe("interaction performance guardrails", () => {
   it("keeps the calendar instance stable and gives the workspace one cache owner", () => {
@@ -75,7 +90,14 @@ describe("interaction performance guardrails", () => {
   it("uses the Profile timezone in the category management surface and defaults phones to Day", () => {
     expect(calendarWorkspace).toContain('window.matchMedia("(max-width: 767px)")');
     expect(calendarWorkspace).toContain('current === "week" ? "day"');
-    expect(calendarWorkspace).toContain('compactViewport ? ["day", "month"]');
+    const views = descendants(calendarTree, ts.isVariableDeclaration).find(node => ts.isIdentifier(node.name) && node.name.text === "availableViews")?.initializer;
+    expect(views && ts.isConditionalExpression(views)).toBe(true);
+    if (!views || !ts.isConditionalExpression(views)) throw new Error("availableViews must choose views by viewport");
+    expect(print(views.condition)).toBe("compactViewport");
+    for (const [branch, expected] of [[views.whenTrue, ["day", "month"]], [views.whenFalse, ["day", "week", "month"]]] as const) {
+      expect(ts.isArrayLiteralExpression(branch) && branch.elements.map(value => ts.isStringLiteral(value) ? value.text : null)).toEqual(expected);
+    }
+    expect(calendarWorkspace).toContain("availableViews.map");
     const categoryManager = source("src/components/calendar/calendar-category-manager.tsx");
     expect(categoryManager).toContain('timeZone: timezone');
   });
@@ -89,10 +111,17 @@ describe("interaction performance guardrails", () => {
     const createForm = source("src/components/calendar/calendar-create-form.tsx");
     const editForm = source("src/components/calendar/calendar-event-edit-form.tsx");
     expect(createForm).toContain("createdHandledRef");
-    expect(editForm).toContain("updateHandledRef");
+    // Update now reconciles inside its guarded explicit submit; React action effects
+    // no longer own uncontrolled input reset or success handling.
+    expect(editForm).toContain("if(unchanged)await onReconcile?.(\"update\")");
+    expect(editForm).toContain("busy.current=true");
     expect(editForm).toContain("deleteHandledRef");
-    expect(calendarWorkspace).toContain("<CalendarEventEditForm key={selected.id}");
-    expect(calendarWorkspace).toContain("<CalendarCreateForm key={`${draft.startsAt}:${draft.endsAt}");
+    const editKey = componentKey("CalendarEventEditForm");
+    expect(editKey && print(editKey)).toBe("selected.id");
+    const createKey = componentKey("CalendarCreateForm");
+    expect(createKey && ts.isTemplateExpression(createKey)).toBe(true);
+    if (!createKey || !ts.isTemplateExpression(createKey)) throw new Error("new event identity needs its draft range");
+    expect(createKey.templateSpans.slice(0, 2).map(span => print(span.expression))).toEqual(["draft.startsAt", "draft.endsAt"]);
   });
 
   it("re-reads the authoritative mirror after drag and keeps edit times ordered", () => {
@@ -116,8 +145,13 @@ describe("interaction performance guardrails", () => {
   });
 
   it("loads heavy agent surfaces only after the user opens them", () => {
-    expect(appShell).toContain("dynamic(");
-    expect(appShell).toContain("<PanelPresence open={globalAgentOpen}>");
+    // Runtime cold-open/close/reopen behavior lives in app-shell-agent-lifecycle;
+    // this only guards the actual split point against an eager static import.
+    const declaration = descendants(shellTree, ts.isVariableDeclaration).find(node => ts.isIdentifier(node.name) && node.name.text === "GlobalAgent");
+    expect(declaration?.initializer && ts.isCallExpression(declaration.initializer) && print(declaration.initializer.expression)).toBe("dynamic");
+    const imports = declaration?.initializer ? descendants(declaration.initializer, ts.isCallExpression).filter(node => node.expression.kind === ts.SyntaxKind.ImportKeyword) : [];
+    expect(imports.map(node => node.arguments[0]).map(node => node && ts.isStringLiteral(node) ? node.text : null)).toEqual(["@/components/assistant/global-agent"]);
+    expect(descendants(shellTree, ts.isImportDeclaration).some(node => ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === "@/components/assistant/global-agent")).toBe(false);
     expect(globalAgent).toContain('perfMark("agent-lazy-mounted")');
   });
 

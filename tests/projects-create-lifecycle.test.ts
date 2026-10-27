@@ -4,8 +4,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectsWorkspace } from "@/components/projects/projects-workspace";
 
-const mocks = vi.hoisted(() => ({ createProject: vi.fn(), canonicalHref: "" }));
-vi.mock("@/features/projects/actions", () => ({ createProject: mocks.createProject }));
+const mocks = vi.hoisted(() => ({ createProject: vi.fn(),readProject:vi.fn(), canonicalHref: "" }));
+vi.mock("@/features/projects/creation-intents",()=>({submitProjectCreationIntent:mocks.createProject,readProjectCreationIntent:mocks.readProject}));
+import {clearWorkspaceResources} from "@/lib/workspace-resource-cache";
 // Subscribe to Next's canonical URL, including its internal-history bypass.
 // Re-rendering with manually changed query fixtures would miss stale create=1.
 vi.mock("next/navigation", async () => {
@@ -35,7 +36,7 @@ const routeState = { __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: ["projects"] }
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: false })) });
-  vi.clearAllMocks();
+  vi.clearAllMocks();clearWorkspaceResources();
   window.history.replaceState(routeState, "", "/projects");
   mocks.canonicalHref = window.location.href;
   for (const method of ["replaceState", "pushState"] as const) {
@@ -54,7 +55,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   await act(async () => root.unmount());
-  host.remove();
+  host.remove();clearWorkspaceResources();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -95,21 +96,20 @@ describe("project creation lifecycle", () => {
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
     expect(mocks.createProject).toHaveBeenCalledTimes(1);
-    expect(Object.fromEntries(mocks.createProject.mock.calls[0][0])).toEqual({ name: "主线项目", description: "保留这段说明", due_date: "2026-10-20" });
+    expect(mocks.createProject.mock.calls[0][1]).toEqual({ name: "主线项目", description: "保留这段说明", due_date: "2026-10-20" });
     expect(form.getAttribute("aria-busy")).toBe("true");
-    expect(form.querySelector("fieldset")?.disabled).toBe(true);
+    expect(form.querySelector("fieldset")?.disabled).toBe(false);expect(name.matches(":disabled")).toBe(false);
     await click("关闭");
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     await act(async () => reject(new Error("网络暂不可用，请重试")));
-    expect(document.querySelector('[role="alert"]')?.textContent).toContain("网络暂不可用");
-    expect(form.getAttribute("aria-describedby")).toBe(document.querySelector('[role="alert"]')?.id);
+    expect(document.body.textContent).toContain("保存结果尚未确认");
     expect([name.value, description.value, dueDate.value]).toEqual(["主线项目", "保留这段说明", "2026-10-20"]);
     expect(form.querySelector("fieldset")?.disabled).toBe(false);
-    mocks.createProject.mockResolvedValue(undefined);
+    mocks.readProject.mockResolvedValue({status:"saved",id:"11111111-1111-4111-8111-111111111111"});
     await submit(form);
-    expect(mocks.createProject).toHaveBeenCalledTimes(2);
+    expect(mocks.createProject).toHaveBeenCalledTimes(1);expect(mocks.readProject).toHaveBeenCalledOnce();expect(mocks.readProject.mock.calls[0]).toEqual(mocks.createProject.mock.calls[0]);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.querySelector('[role="status"]')?.textContent).toBe("项目已创建");
     await click("新建项目");
@@ -118,15 +118,27 @@ describe("project creation lifecycle", () => {
     expect(document.querySelector('[role="status"]')).toBeNull();
   });
 
-  it("discards a cancelled draft without writing and opens a clean form", async () => {
+  it("keeps a deferred draft without writing and restores its raw form", async () => {
     await render();
     await click("新建项目");
-    document.querySelector<HTMLInputElement>('[name="name"]')!.value = "不要创建";
-    await click("取消");
+    const rawName="  不要自动创建  ",rawDescription="原始说明\n\n  继续输入  ";
+    await act(async()=>{
+      const name=document.querySelector<HTMLInputElement>('[name="name"]')!,description=document.querySelector<HTMLTextAreaElement>('[name="description"]')!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(name,rawName);name.dispatchEvent(new Event("input",{bubbles:true}));
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,"value")!.set!.call(description,rawDescription);description.dispatchEvent(new Event("input",{bubbles:true}));
+    });
+    await click("稍后继续");
     expect(mocks.createProject).not.toHaveBeenCalled();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await click("新建项目");
-    expect(document.querySelector<HTMLInputElement>('[name="name"]')?.value).toBe("");
+    expect(document.querySelector<HTMLInputElement>('[name="name"]')?.value).toBe(rawName);
+    expect(document.querySelector<HTMLTextAreaElement>('[name="description"]')?.value).toBe(rawDescription);
+    expect(mocks.createProject).not.toHaveBeenCalled();
+    mocks.createProject.mockResolvedValue({status:"saved",id:"11111111-1111-4111-8111-111111111111"});
+    await submit(document.querySelector<HTMLFormElement>("form")!);
+    expect(mocks.createProject).toHaveBeenCalledOnce();
+    expect(mocks.createProject.mock.calls[0][1]).toMatchObject({name:rawName,description:rawDescription});
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it("consumes create intent before mobile history and supports another same-route request", async () => {
@@ -157,7 +169,7 @@ describe("project creation lifecycle", () => {
     window.history.replaceState(null, "", "/projects?create=1&filter=active#list");
     await render(true);
     expect(mocks.canonicalHref).toBe(window.location.href);
-    await click("取消");
+    await click("稍后继续");
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await act(async () => window.history.pushState(null, "", "/projects?create=1&filter=active#list"));
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();

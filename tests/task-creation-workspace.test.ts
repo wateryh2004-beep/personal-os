@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import {clearWorkspaceResources} from "@/lib/workspace-resource-cache";
 import { act, createElement, useSyncExternalStore } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,7 +9,7 @@ const mocks = vi.hoisted(() => ({ create: vi.fn(), fetch: vi.fn(), update: vi.fn
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }), usePathname: () => "/tasks", useSearchParams: () => new URLSearchParams(window.location.search) }));
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
 vi.mock("@/features/tasks/microsoft-todo", () => ({
-  createMicrosoftTodoTaskAction: mocks.create, updateMicrosoftTodoTaskAction: mocks.update,
+  createMicrosoftTodoTaskAction: mocks.create, updateMicrosoftTodoTaskAction: mocks.update,submitMicrosoftTodoTaskUpdateIntent:mocks.update,readMicrosoftTodoTaskUpdateIntent:vi.fn(),
   completeMicrosoftTodoTaskAction: vi.fn(), reopenMicrosoftTodoTaskAction: vi.fn(), deleteMicrosoftTodoTaskAction: vi.fn(),
   syncMicrosoftTodoAction: vi.fn(), syncAndBackupMicrosoftTodoAction: vi.fn(),
 }));
@@ -17,7 +18,7 @@ vi.mock("@/features/tasks/workspace-resource", async () => {
   return { tasksWorkspaceResource: createWorkspaceResource<TasksWorkspaceData>("test:task-creation", (signal) => mocks.fetch(signal), 45_000) };
 });
 vi.mock("@/components/shared/action-feedback", () => ({ useActionFeedback: () => ({ show: mocks.show }) }));
-vi.mock("@/components/shared/use-workspace-scroll-restoration", () => ({ useWorkspaceScrollRestoration: () => null }));
+vi.mock("@/components/shared/use-workspace-scroll-restoration", () => ({ useWorkspaceScrollRestoration: () => ({current:null}) }));
 vi.mock("@/components/links/entity-backlinks", () => ({ EntityBacklinks: () => null }));
 vi.mock("@/components/links/entity-markdown", () => ({ EntityMarkdown: ({ body }: { body: string }) => createElement("p", null, body) }));
 vi.mock("@/components/links/entity-mention-textarea", () => ({ MentionTextarea: () => null }));
@@ -47,6 +48,7 @@ async function openAndFill() {
 async function submit() { await act(async () => createDialog()!.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))); }
 
 beforeEach(() => {
+  clearWorkspaceResources();
   vi.resetAllMocks(); sessionStorage.clear(); localStorage.clear();
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   window.history.replaceState({ __NA: true }, "", "/tasks");
@@ -155,7 +157,7 @@ describe("creation through the mounted task workspace", () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(due, "2026-10-07T10:45");
       due.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    expect(mocks.update).toHaveBeenCalledWith({ taskId: created.id, dueAt: "2026-10-07T02:45:00.000Z", requestId: expect.stringMatching(/^[0-9a-f-]{36}$/), expected: { title: created.title, status: created.status, lastModifiedAt: created.lastModifiedAt } });
+    expect(mocks.update).toHaveBeenCalledWith({ taskId: created.id, dueAt: "2026-10-07T02:45:00.000Z", requestId: expect.stringMatching(/^[0-9a-f-]{36}$/), expected: { title: created.title,bodyText:created.bodyText, status: created.status, lastModifiedAt: created.lastModifiedAt } });
   });
 
   it("closes the mobile creation entry so the next Back returns to the prior route", async () => {

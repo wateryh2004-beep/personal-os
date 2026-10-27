@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
 import { ChevronDown } from "lucide-react";
 import type { AssistantStreamSource } from "@/features/assistant/stream-metadata";
 

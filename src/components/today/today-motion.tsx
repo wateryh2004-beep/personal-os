@@ -16,11 +16,13 @@ export function TodayMotion({ date, children }: { date: string; children: ReactN
 }
 
 /** Native disclosure semantics with an explicitly interruptible height transition. */
-export function TodayDisclosure({ label, children, className = "", testId }: { label: ReactNode; children: ReactNode; className?: string; testId?: string }) {
-  const [expanded, setExpanded] = useState(false);
+export function TodayDisclosure({ label, children, className = "", testId, expanded: controlled, onExpandedChange }: { label: ReactNode; children: ReactNode; className?: string; testId?: string; expanded?: boolean; onExpandedChange?: (expanded: boolean) => void }) {
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const expanded = controlled ?? localExpanded;
+  const setExpanded = (next: boolean) => { if (controlled === undefined) setLocalExpanded(next); onExpandedChange?.(next); };
   const id = useId();
   return <div className={`today-disclosure ${className}`} data-expanded={expanded} data-testid={testId}>
-    <DisclosureTrigger className="today-disclosure-trigger" expanded={expanded} aria-controls={id} onClick={() => setExpanded(value => !value)}>{label}</DisclosureTrigger>
+    <DisclosureTrigger className="today-disclosure-trigger" expanded={expanded} aria-controls={id} onClick={() => setExpanded(!expanded)}>{label}</DisclosureTrigger>
     <div id={id} className="today-disclosure-grid" inert={!expanded} aria-hidden={!expanded}><div className="today-disclosure-clip"><div className="today-disclosure-content">{children}</div></div></div>
   </div>;
 }

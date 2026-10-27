@@ -31,7 +31,7 @@ export default async function CertificationsPage() {
       <div className="mb-7 flex justify-end">
         <details>
           <summary className="pressable cursor-pointer list-none rounded-[8px] px-1.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">+ 新增证书</summary>
-          <CareerForm action={submitCareerForm.bind(null, "createCertification")} resetOnSuccess className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
+          <CareerForm action={submitCareerForm.bind(null, "createCertification")} draft={{ operation: "career.certification-create", id: "new", href: "/career/certifications", label: "未保存的证书记录" }} resetOnSuccess className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
             <Field label="名称" name="name" required />
             <Field label="发证机构" name="issuer" />
             <SelectField label="状态" name="status" values={statuses} defaultValue="planned" />
@@ -63,7 +63,7 @@ export default async function CertificationsPage() {
 
             <details className="mt-1.5">
               <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[12px] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">编辑</summary>
-              <CareerForm action={submitCareerForm.bind(null, "updateCertification")} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
+              <CareerForm action={submitCareerForm.bind(null, "updateCertification")} draft={{ operation: "career.certification-edit", id: item.id, href: "/career/certifications", label: "未保存的证书记录" }} className="mt-3.5 grid gap-3.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4.5 shadow-[var(--shadow-hairline)] md:grid-cols-3">
                 <input type="hidden" name="certification_id" value={item.id} />
                 <Field label="名称" name="name" defaultValue={item.name} required />
                 <Field label="发证机构" name="issuer" defaultValue={item.issuer} />

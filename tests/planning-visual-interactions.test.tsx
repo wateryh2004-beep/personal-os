@@ -27,6 +27,11 @@ describe("planning visual behavior preserves factual boundaries", () => {
     expect(button.getAttribute("aria-expanded")).toBe("true");
     expect(panel.getAttribute("aria-hidden")).toBe("false");
     expect(panel.textContent).toContain(project.description);
+    const goal = panel.querySelector<HTMLTextAreaElement>("textarea")!;
+    expect(goal.labels?.length).toBe(1);
+    expect(goal.labels?.[0]?.textContent).toBe("项目目标");
+    expect(goal.labels?.[0]?.htmlFor).toBe(goal.id);
+    expect(goal.value).toBe(project.description);
     await act(async () => { button.click(); button.click(); });
     expect(button.getAttribute("aria-expanded")).toBe("true");
     expect(document.getElementById(panel.id)).toBe(panel);

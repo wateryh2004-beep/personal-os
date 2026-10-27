@@ -1,0 +1,53 @@
+name: Continuous workflows PostgreSQL
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'src/types/database.ts'
+      - 'src/features/system-backup/schema.json'
+      - 'scripts/continuous-workflows-postgres-verify.py'
+      - 'scripts/continuous-default-acl.py'
+      - 'scripts/continuous-schema-typegen.py'
+      - 'scripts/continuous-phase2-concurrency.py'
+      - 'scripts/verify-continuous-database-types.cjs'
+      - 'tests/continuous-*.sql'
+      - 'tests/test_continuous_default_acl.py'
+      - 'tests/fixtures/continuous-workflows/**'
+      - '.github/workflows/continuous-workflows-postgres.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    name: Continuous workflow clean schema, upgrade, ownership and snapshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Reject incomplete or excessive effective role privileges
+        run: python3 -m unittest tests/test_continuous_default_acl.py
+      - name: Fetch official isolated type generator
+        run: docker pull supabase/postgres-meta:v0.96.4
+      - name: Fetch official disposable PostgreSQL image
+        run: docker pull postgres:17
+      - name: Apply every actual migration and exercise ownership and CAS
+        run: python3 scripts/continuous-workflows-postgres-verify.py
+      - name: Retain synthetic schema and regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: continuous-workflows-postgres-evidence
+          path: test-results/continuous-workflows-postgres
+          if-no-files-found: ignore
+          retention-days: 7

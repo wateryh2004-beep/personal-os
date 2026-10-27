@@ -55,6 +55,7 @@ export type BriefingGenerationResult = {
 };
 
 export type BriefingGenerationState = {
+  needsCheck?: boolean;
   status: "idle" | "success" | "warning" | "error";
   message: string;
   selected: number | null;

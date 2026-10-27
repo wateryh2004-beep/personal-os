@@ -26,3 +26,4 @@ export const saveInvestmentQuotes = previewWrite;
 export const voidInvestmentCash = previewWrite;
 
 export const usePathname = () => window.location.pathname;
+export const readOrdinaryDraftComparison = async () => ({ status: "unavailable" });

@@ -7,8 +7,9 @@ import Link from "next/link";
 import { WorkbenchRecord } from "@/components/workbench/workbench-record";
 import { OperationMetadataBar } from "@/components/workbench/operation-metadata-bar";
 import { publishOperationReceipt } from "@/features/workbench/operation-contracts";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { unstable_rethrow, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { unstable_rethrow, useRouter, useSearchParams,usePathname } from "next/navigation";
+import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 import { AlignJustify, FilePlus2, List, LoaderCircle, MoreHorizontal, Pin, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,11 +20,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FolderPicker } from "@/components/notes/folder-picker";
+import {NoteMoveForm,NoteRenameForm} from "./note-metadata-forms";
+import {getWorkflowDrafts,getWorkflowDraftsServerSnapshot,subscribeWorkflowDrafts} from "@/features/workflow-continuity/drafts";
+import {useDomainViewAdapter,waitForViewLayout} from "@/features/workbench/domain-adapters/use-domain-view-adapter";
+import {useDraftResumeOpeners} from "@/features/workflow-continuity/draft-resume";
 import {
   createNoteInFolder,
-  moveNote,
-  renameNote,
+  readNoteMetadataForDraft,
   toggleNotePinned,
   trashNote,
 } from "@/features/notes/actions";
@@ -72,9 +75,7 @@ function NoteRow({
   folders,
   timezone,
   renaming,
-  renameValue,
-  onRenameChange,
-  onRenameCommit,
+  onRenamed,
   onRenameCancel,
   onRename,
   onMove,
@@ -89,9 +90,7 @@ function NoteRow({
   folders: Folder[];
   timezone: string;
   renaming: boolean;
-  renameValue: string;
-  onRenameChange: (value: string) => void;
-  onRenameCommit: () => void;
+  onRenamed:()=>void;
   onRenameCancel: () => void;
   onRename: (note: NoteListItem) => void;
   onMove: (note: NoteListItem) => void;
@@ -108,20 +107,7 @@ function NoteRow({
       <div className="notes-list-row-content relative min-h-16 py-3 pr-12 md:pr-10">
         <div className="flex min-w-0 items-center gap-2">
           {renaming ? (
-            <input
-              autoFocus
-              disabled={pending}
-              maxLength={240}
-              value={renameValue}
-              onChange={(event) => onRenameChange(event.target.value)}
-              onBlur={onRenameCommit}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") onRenameCommit();
-                if (event.key === "Escape") onRenameCancel();
-              }}
-              className="h-7 min-w-0 flex-1 border-b border-[var(--accent)] bg-transparent px-0 text-[14px] font-medium leading-[22px] text-[var(--text-primary)] outline-none"
-              aria-label="笔记标题"
-            />
+            <NoteRenameForm noteId={note.id} revision={note.mutation_revision} initialTitle={note.title} onSaved={onRenamed} onCancel={onRenameCancel}/>
           ) : (
             <Link
               href={`/notes/${note.id}`}
@@ -219,9 +205,9 @@ export function NotesWorkspace({
   useEffect(()=>{const listener=()=>{const current=captureWorkspaceScope();notesWorkspaceResource.invalidate();void notesWorkspaceResource.revalidate({force:true}).catch(()=>{if(current()){/* Existing stale/error read model remains visible. */}});};window.addEventListener("personal-os:operation-undone",listener);return()=>window.removeEventListener("personal-os:operation-undone",listener);},[notesWorkspaceResource]);
 
   const metadataRequest = useRef<{key:string;id:string}|null>(null);
-  const [renaming, setRenaming] = useState<NoteListItem | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const [moving, setMoving] = useState<NoteListItem | null>(null);
+  const [renaming, setRenaming] = useState<Omit<NoteListItem,"excerpt"> | null>(null);
+  const [moving, setMoving] = useState<Omit<NoteListItem,"excerpt"> | null>(null);
+  const [moveProgress,setMoveProgress]=useState<{id:string;pending:boolean}>({id:"",pending:false});const movePending=Boolean(moving&&moveProgress.id===moving.id&&moveProgress.pending);
   const [pending, startTransition] = useTransition();
   const listing = useNotesListing({ notes, hasMore: initialHasMore, folderId: selectedFolder?.id, view: initialView });
   const normalizedQuery = query.trim();
@@ -230,6 +216,8 @@ export function NotesWorkspace({
   const listScrollRef = useWorkspaceScrollRestoration("notes:list", normalizedQuery ? searchState !== "loading" : listing.loaded);
 
   const allNotes = listing.notes;
+  const pathname=usePathname();
+
 
   const localSearchResults = useMemo(() => {
     if (!normalizedQuery) return [];
@@ -278,6 +266,14 @@ export function NotesWorkspace({
     setSearchDraft({ routeQuery, value });
     syncSearchUrl(value, scope);
   };
+  const draftSummaries=useSyncExternalStore(subscribeWorkflowDrafts,getWorkflowDrafts,getWorkflowDraftsServerSnapshot);
+  const noteTargets=[...new Set([...allNotes.map(note=>note.id),...draftSummaries.flatMap(row=>row.resumeTarget?.kind==="note.rename"||row.resumeTarget?.kind==="note.move"?[row.resumeTarget.id]:[])])].flatMap(id=>[{kind:"note.rename" as const,id},{kind:"note.move" as const,id}]);
+  useDraftResumeOpeners(noteTargets,async(target,context)=>{
+    const note=allNotes.find(note=>note.id===target.id)??await readNoteMetadataForDraft(target.id);
+    if(!context.current()||!note)return false;
+    updateQuery("");if(target.kind==="note.rename")setRenaming(note);else setMoving(note);
+  });
+  useDomainViewAdapter({kind:"notes",pathname,ready:listing.loaded,capture:()=>({kind:"notes",pathname,previewId:null,scroll:{list:listScrollRef.current?.scrollTop??0}}),restore:async(state,context)=>{await waitForViewLayout(context);if(!context.current())return {status:"cancelled"};if(listScrollRef.current)listScrollRef.current.scrollTop=state.scroll.list??0;return state.previewId?{status:"partial",reason:"missing-record"}:{status:"applied"};}});
 
   const mutate = (action: (form: FormData) => Promise<void | { receiptId?: string }>, form: FormData, message: string, onSuccess?: () => void) => {
     const scopeCurrent=captureWorkspaceScope();
@@ -320,7 +316,7 @@ export function NotesWorkspace({
   };
 
   const newNoteForm = (className?: string, compact = false) => (
-    <form action={createNoteInFolder} className={className}>
+    <form onSubmit={announceNavigationIntent} action={createNoteInFolder} className={className}>
       <input type="hidden" name="folder_id" value={selectedFolder?.id ?? ""} />
       <Button type="submit" size="sm" aria-label="新建笔记" title="新建笔记" className={compact ? "max-md:size-11 max-md:px-0" : undefined}><FilePlus2 aria-hidden="true" /><span className={compact ? "hidden md:inline" : undefined}>新建笔记</span></Button>
     </form>
@@ -368,7 +364,7 @@ export function NotesWorkspace({
             </p>
           </div>
           {selectedFolder ? <VaultHideButton kind="note_folder" id={selectedFolder.id} /> : null}
-          <AskNotesButton onClick={() => router.push("/notes/ask")} />
+          <AskNotesButton onClick={() => { announceNavigationIntent(); router.push("/notes/ask"); }} />
           {newNoteForm("shrink-0", true)}
         </header>
         <div aria-live="polite" className="notes-list-status mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
@@ -461,25 +457,10 @@ export function NotesWorkspace({
                 folders={folders}
                 timezone={timezone}
                 renaming={renaming?.id === note.id}
-                renameValue={renaming?.id === note.id ? renameValue : note.title}
-                onRenameChange={setRenameValue}
-                onRenameCommit={() => {
-                  if (renaming?.id !== note.id) return;
-                  const nextTitle = renameValue.trim();
-                  if (nextTitle && nextTitle !== note.title) {
-                    const form = new FormData();
-                    form.set("note_id", note.id);
-                    form.set("title", nextTitle);
-                    form.set("expected_revision", String(renaming.mutation_revision ?? ""));
-                    mutate(renameNote, form, "笔记标题已保存", () => setRenaming(null));
-                  } else {
-                    setRenaming(null);
-                  }
-                }}
+                onRenamed={()=>{setRenaming(null);refreshList();}}
                 onRenameCancel={() => setRenaming(null)}
                 onRename={(item) => {
                   setRenaming(item);
-                  setRenameValue(item.title);
                 }}
                 onMove={setMoving}
                 onTogglePinned={(item) => {
@@ -528,26 +509,14 @@ export function NotesWorkspace({
         ) : null}
       </div>
 
-      <Dialog open={Boolean(moving)} onOpenChange={(open) => { if (!open && !pending) setMoving(null); }}>
-        {moving ? <DialogContent showCloseButton={!pending} onEscapeKeyDown={(event) => { if (pending) event.preventDefault(); }} onPointerDownOutside={(event) => { if (pending) event.preventDefault(); }}>
+      <Dialog open={Boolean(renaming&&!allNotes.some(note=>note.id===renaming.id))} onOpenChange={open=>{if(!open)setRenaming(null);}}>
+        {renaming&&!allNotes.some(note=>note.id===renaming.id)?<DialogContent><DialogHeader><DialogTitle>重命名原笔记</DialogTitle><DialogDescription>已重新读取原笔记的标题与位置。原文不会带入草稿。</DialogDescription></DialogHeader><NoteRenameForm noteId={renaming.id} revision={renaming.mutation_revision} initialTitle={renaming.title} onSaved={()=>{setRenaming(null);refreshList();}} onCancel={()=>setRenaming(null)}/></DialogContent>:null}
+      </Dialog>
+      <Dialog open={Boolean(moving)} onOpenChange={(open) => { if (!open && !pending&&!movePending) setMoving(null); }}>
+        {moving ? <DialogContent showCloseButton={!pending&&!movePending} onEscapeKeyDown={(event) => { if (pending||movePending) event.preventDefault(); }} onPointerDownOutside={(event) => { if (pending||movePending) event.preventDefault(); }}>
           <DialogHeader><DialogTitle>移动笔记</DialogTitle><DialogDescription>为“{moving.title || "无标题笔记"}”选择文件夹。</DialogDescription></DialogHeader>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              const form = new FormData(event.currentTarget);
-              mutate(moveNote, form, "笔记位置已更新", () => setMoving(null));
-            }}
-            className="grid gap-2"
-          >
-            <input type="hidden" name="note_id" value={moving.id} />
-            <input type="hidden" name="expected_revision" value={moving.mutation_revision ?? ""} />
-            {mutationError ? <div role="alert" className="mb-3 text-[12px] leading-5 text-[var(--danger)]"><p>{mutationError}</p><Button type="button" variant="ghost" size="sm" disabled={pending} onClick={refreshList}>重新读取列表</Button></div> : null}
-            <FolderPicker folders={folders} initialFolderId={moving.folder_id} idPrefix={`move-${moving.id}`} label="移动到" />
-            <div className="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="ghost" disabled={pending} onClick={() => setMoving(null)}>取消</Button>
-              <Button type="submit" disabled={pending}>{pending ? "正在移动…" : "移动"}</Button>
-            </div>
-          </form>
+          <NoteMoveForm key={moving.id} noteId={moving.id} revision={moving.mutation_revision} initialFolderId={moving.folder_id} folders={folders} onPendingChange={value=>setMoveProgress(before=>value?{id:moving.id,pending:true}:before.id===moving.id?{id:moving.id,pending:false}:before)} onSaved={()=>{setMoving(null);refreshList();}}/>
+          <Button type="button" variant="ghost" disabled={movePending} onClick={()=>setMoving(null)}>取消</Button>
         </DialogContent> : null}
       </Dialog>
 

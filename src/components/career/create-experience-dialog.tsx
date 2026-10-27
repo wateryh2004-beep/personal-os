@@ -4,7 +4,7 @@ import { careerOptions } from "@/features/career/labels";
 import { experienceTypes } from "@/features/career/schemas";
 
 export function CreateExperienceDialog({ initialOpen = false }: { initialOpen?: boolean }) {
-  return <ExperienceFormDialog operation="createExperience" title="新增经历" description="先记录真实发生的经历，再补充事实、成果与表达。进行中的经历请留空结束日期。" submitLabel="创建并继续补充" initialOpen={initialOpen} primary>
+  return <ExperienceFormDialog draft={{operation:"career.experience-create",id:"new",href:"/career/experiences",label:"新增经历"}} operation="createExperience" title="新增经历" description="先记录真实发生的经历，再补充事实、成果与表达。进行中的经历请留空结束日期。" submitLabel="创建并继续补充" initialOpen={initialOpen} primary>
     <Field label="组织、学校或项目" name="organization" required maxLength={200} />
     <Field label="角色" name="role" maxLength={200} />
     <SelectField label="类别" name="experience_type" values={careerOptions(experienceTypes)} defaultValue="internship" />

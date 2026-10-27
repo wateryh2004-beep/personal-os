@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
+import type { AiActionFixtureTransport } from "@/features/assistant/ai-action-fixtures";
 import { addDateKeyDays, getDateKeyInTimeZone } from "@/lib/date-keys";
 import { ArrowUpRight } from "lucide-react";
 import { TodayPriorities } from "./today-priorities";
@@ -12,7 +13,7 @@ import { TodayMotion } from "./today-motion";
 import { CommitmentActions } from "./today-commitments";
 import { TodayDisclosure } from "./today-motion";
 
-export function NowWorkspaceView({ workspace }: { workspace: NowWorkspace }) {
+export function NowWorkspaceView({ workspace, fixtureTransport }: { workspace: NowWorkspace; fixtureTransport?: AiActionFixtureTransport }) {
   const composition = buildTodayComposition(workspace);
   const lead = composition.lead;
   const eventDay = lead?.kind === "event" ? getDateKeyInTimeZone(lead.event.starts_at, workspace.timezone) : null;
@@ -32,6 +33,6 @@ export function NowWorkspaceView({ workspace }: { workspace: NowWorkspace }) {
       {workspace.focus ? <TodayPriorities key={workspace.focus.date} focus={workspace.focus} timezone={workspace.timezone} header={<NowHeader workspace={workspace} />} leadBefore={eventLead} compactAll={lead?.kind !== "focus"} primaryTaskId={lead?.kind === "focus" ? lead.task.id : undefined} /> : <><NowHeader workspace={workspace} />{eventLead}</>}
     </div>
     <div data-motion-group="ledger" className="today-desk-agenda"><TodayLedger workspace={workspace} composition={composition} /><TodayContinue /></div>
-    <div data-motion-group="future" className="today-desk-context"><TodaySecondary workspace={workspace} future={composition.future} pastEvents={composition.pastEvents} isEvening={composition.isEvening} /></div>
+    <div data-motion-group="future" className="today-desk-context"><TodaySecondary fixtureTransport={fixtureTransport} workspace={workspace} future={composition.future} pastEvents={composition.pastEvents} isEvening={composition.isEvening} /></div>
   </TodayMotion>;
 }

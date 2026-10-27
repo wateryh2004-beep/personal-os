@@ -1,3 +1,4 @@
+import { parseSourceLocator } from "@/features/links/source-locator";
 import type { InternalNoteLink } from "./types";
 
 export type WikiNoteLink = {
@@ -9,7 +10,7 @@ export type WikiNoteLink = {
 
 const uuidSource = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const internalNoteLinkPattern = new RegExp(
-  `(^|[^!])\\[([^\\]\\n]+)\\]\\((/notes/(${uuidSource}))\\)`,
+  `(^|[^!])\\[([^\\]\\n]+)\\]\\((/notes/(${uuidSource})(?:\\?[^)\\s]+)?)\\)`,
   "gim",
 );
 const fullInternalNoteHref = new RegExp(`^/notes/(${uuidSource})$`, "i");
@@ -23,7 +24,7 @@ export function parseInternalNoteLinkOccurrences(markdown: string): InternalNote
     const label = (match[2] ?? "").trim();
     const noteId = match[4]?.toLowerCase();
     const index = match.index ?? 0;
-    if (!label || !noteId) continue;
+    if (!label || !noteId || internalNoteIdFromHref(match[3]) !== noteId) continue;
     const from = index + prefix.length;
     links.push({ noteId, label, from, to: from + match[0].length - prefix.length });
   }
@@ -48,6 +49,8 @@ export function parseWikiNoteLinkOccurrences(markdown: string): WikiNoteLink[] {
 }
 
 export function internalNoteIdFromHref(href: string | null | undefined): string | null {
+  const locator = parseSourceLocator(href ?? "");
+  if (locator?.kind === "note") return locator.noteId.toLowerCase();
   const match = fullInternalNoteHref.exec(href ?? "");
   return match?.[1]?.toLowerCase() ?? null;
 }

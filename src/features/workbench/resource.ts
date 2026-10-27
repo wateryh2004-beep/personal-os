@@ -1,9 +1,9 @@
 "use client";
-import { z } from "zod";
 import { createWorkspaceResource, readWorkspaceResponse, type WorkspaceCacheEntry, type WorkspaceResource } from "@/lib/workspace-resource-cache";
 import { noteDocumentCache } from "@/features/notes/document-resource";
 import type { NoteDocumentData } from "@/features/notes/queries";
-import { workspaceSceneSchema, workbenchRefKey, type WorkbenchReadResult, type WorkbenchRef } from "./contracts";
+import { workbenchRefKey, type WorkbenchReadResult, type WorkbenchRef } from "./contracts";
+import { parseWorkspaceSceneListResponse } from "./scene-read-contracts";
 const maximumEntries = 8;
 const maximumBytes = 3 * 1024 * 1024;
 type Slot = { resource: WorkspaceResource<WorkbenchReadResult>; active: number; bytes: number };
@@ -60,5 +60,5 @@ export function inspectWorkbenchEntityCache() { return { count: entries.size, by
 
 export const workspaceScenesResource = createWorkspaceResource("workbench:scenes", async (signal) => {
   const response = await readWorkspaceResponse<unknown>("/api/workbench/scenes", signal);
-  return z.object({ scenes: z.array(workspaceSceneSchema).max(20) }).strict().parse(response);
+  return parseWorkspaceSceneListResponse(response);
 }, 45_000);

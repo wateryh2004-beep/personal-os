@@ -1,0 +1,16 @@
+/* Files has viewport-level Portal dialogs and no embedded fullscreen surface.
+   Its actual Workbench pane, rather than the outer desktop breakpoint, owns
+   the folder/content split and gallery density. Existing controllers stay put. */
+.files-pane-frame {min-width:0;container:files-pane / inline-size}
+.files-grid {grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))}
+@container files-pane (max-width:560px) {
+  .files-workspace {grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  .files-folder-pane {max-height:192px;border-right:0;border-bottom:1px solid var(--separator)}
+  .files-content-pane {padding-inline:16px}
+  .files-list-row-content {display:grid;grid-template-columns:16px minmax(0,1fr)}
+  .files-list-actions {grid-column:1 / -1;min-width:0;flex-wrap:wrap;justify-content:flex-start}
+  .files-list-actions > :is(button,a) {min-width:44px;min-height:44px;flex-shrink:0}
+  .files-list-title {min-width:0}
+  .files-list-title > button {min-height:44px}
+  .files-workspace .workbench-record-actions {flex-wrap:wrap;justify-content:flex-start}
+}

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
 import { CopyNoteReference } from "@/components/notes/copy-note-reference";
 import { relatedWorkFromNote } from "@/features/notes/links/reference";
 

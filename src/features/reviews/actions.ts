@@ -38,7 +38,10 @@ const decisionReviewSchema = z
     rationale: z.string().max(20000).optional(),
   })
   .superRefine((value, context) => {
-    if (value.outcome === "reverse" && (!value.newTitle || !value.newDecisionText)) {
+    if (
+      value.outcome === "reverse" &&
+      (!value.newTitle || !value.newDecisionText)
+    ) {
       context.addIssue({
         code: "custom",
         message: "反转决定时必须记录新的决定。",
@@ -56,18 +59,56 @@ async function ownerTimezone() {
   return { ...owner, timezone: profile?.timezone || "Asia/Shanghai" };
 }
 
-function reviewTitle(type: "daily" | "weekly", startDate: string, endDate: string) {
+function reviewTitle(
+  type: "daily" | "weekly",
+  startDate: string,
+  endDate: string,
+) {
   return type === "daily"
     ? `每日复盘 · ${startDate}`
     : `每周复盘 · ${startDate} — ${endDate}`;
 }
 
-async function saveCompletedReview(input: z.infer<typeof completeReviewSchema>) {
-  const { supabase, userId, timezone } = await ownerTimezone();
+async function saveCompletedReview(
+  input: z.infer<typeof completeReviewSchema>,
+) {
+  const { supabase, timezone } = await ownerTimezone();
   const now = new Date();
   const period = getReviewPeriod(input.type, now, timezone);
+  if (input.period && (input.period.periodStart !== period.startDate || input.period.periodEnd !== period.endDate || input.period.timezone !== timezone)) throw new Error("复盘周期已变化，当前文字保留，请重新核对周期。");
   const evidence = await getReviewEvidence({ type: input.type, now });
-  const sources = reviewEvidenceSources(evidence);
+  const availableSources = reviewEvidenceSources(evidence);
+  const selectedKeys = new Set(
+    input.selectedSources.map((item) => `${item.sourceType}:${item.sourceId}`),
+  );
+  if (
+    [...input.selectedSources, ...input.aiContextSources].some(
+      (item) =>
+        !availableSources.some(
+          (source) =>
+            source.sourceType === item.sourceType &&
+            source.sourceId === item.sourceId,
+        ),
+    )
+  )
+    throw new Error(
+      "部分选中来源已不在当前可见周期内，请重新读取证据核对。文字草稿保留。",
+    );
+  const contextKeys = new Set(
+    input.aiContextSources.map((item) => `${item.sourceType}:${item.sourceId}`),
+  );
+  const sources = availableSources
+    .filter(
+      (item) =>
+        selectedKeys.has(`${item.sourceType}:${item.sourceId}`) ||
+        contextKeys.has(`${item.sourceType}:${item.sourceId}`),
+    )
+    .map((item) => ({
+      ...item,
+      sourceRole: selectedKeys.has(`${item.sourceType}:${item.sourceId}`)
+        ? ("cited" as const)
+        : ("context" as const),
+    }));
   const content = reviewStructuredDataToMarkdown(input.structuredData);
   if (!content) throw new Error("请至少写下一项复盘内容。 ");
 
@@ -83,26 +124,14 @@ async function saveCompletedReview(input: z.infer<typeof completeReviewSchema>) 
     p_sources: sources,
   });
   const result = (data ?? {}) as Record<string, unknown>;
-  const reviewId = typeof result.review_id === "string" ? result.review_id : null;
+  const reviewId =
+    typeof result.review_id === "string" ? result.review_id : null;
   const sourceCount = Number(result.source_count ?? 0);
   const versionNumber = Number(result.version_number ?? 0);
   if (error || !reviewId || !versionNumber) {
     throw new Error("无法原子保存复盘、来源与版本快照，请稍后再试。");
   }
 
-  await supabase.from("audit_logs").insert({
-    user_id: userId,
-    action: versionNumber > 1 ? "review_amend" : "review_complete",
-    entity_type: "review",
-    entity_id: reviewId,
-    actor_type: "user",
-    after_data: {
-      review_type: input.type,
-      period: period.key,
-      source_count: sourceCount,
-      generated_with_ai: input.generatedWithAi,
-    },
-  });
   revalidatePath("/reviews");
   revalidatePath(`/reviews/${input.type}`);
   revalidatePath(`/reviews/${reviewId}`);
@@ -127,12 +156,19 @@ export async function createReview(input: unknown) {
       freeReflection: value.content,
     },
     generatedWithAi: false,
+    selectedSources: [],
+    aiContextSources: [],
   });
 }
 
 export async function generateReviewDraft(typeInput: unknown) {
-  const type = reviewTypeSchema.parse(typeInput);
+  const request = typeof typeInput === "string" ? { type: reviewTypeSchema.parse(typeInput), period: null } : (() => {
+    const parsed = z.object({ type: reviewTypeSchema, periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), timezone: z.string().max(100) }).strict().parse(typeInput);
+    return { type: parsed.type, period: parsed };
+  })();
+  const type = request.type;
   const evidence = await getReviewEvidence({ type });
+  if (request.period && (request.period.periodStart !== evidence.periodStart || request.period.periodEnd !== evidence.periodEnd || request.period.timezone !== evidence.timezone)) return { ok: false as const, error: "复盘周期已变化，草稿和原输入保留，请核对周期后再生成。", coverage: 0 };
   const coverage = countReviewEvidence(evidence);
   if (!coverage) {
     return {
@@ -154,9 +190,20 @@ export async function generateReviewDraft(typeInput: unknown) {
         content: serializeReviewEvidence(evidence),
       },
     });
-    const parsedDraft = reviewStructuredDataSchema.parse(parseJsonObject(result.text));
+    const parsedDraft = reviewStructuredDataSchema.parse(
+      parseJsonObject(result.text),
+    );
     const draft = humanizeReviewDraftSources(parsedDraft, evidence);
-    return { ok: true as const, draft, coverage };
+    return {
+      ok: true as const,
+      period: { periodStart: evidence.periodStart, periodEnd: evidence.periodEnd, timezone: evidence.timezone },
+      draft,
+      coverage,
+      sources: reviewEvidenceSources(evidence).map((source) => ({
+        sourceType: source.sourceType,
+        sourceId: source.sourceId,
+      })),
+    };
   } catch {
     return {
       ok: false as const,
@@ -166,27 +213,39 @@ export async function generateReviewDraft(typeInput: unknown) {
   }
 }
 
+/** Status-only reconciliation; never invokes the model or creates candidates. */
+export async function readReviewProposalGeneration(reviewIdInput: unknown) {
+  const reviewId = reviewIdSchema.parse(reviewIdInput);
+  const { supabase, userId } = await requireOwner();
+  const { data: review, error: readError } = await supabase.from("reviews").select("id").eq("id", reviewId).eq("user_id", userId).is("archived_at", null).maybeSingle();
+  if (readError || !review) throw new Error("复盘当前不可读取。");
+  const { data, error } = await supabase.from("review_proposals").select("id,status").eq("review_id", reviewId).eq("user_id", userId).eq("status", "pending").limit(9);
+  if (error) throw new Error("候选结果尚未核对。");
+  return { pendingIds: (data ?? []).map(row => row.id), truncated: (data?.length ?? 0) > 8 };
+}
+
 export async function generateReviewProposals(reviewIdInput: unknown) {
   const reviewId = reviewIdSchema.parse(reviewIdInput);
   const { supabase, userId } = await requireOwner();
-  const [{ data: review }, { data: sources }, { count: pendingCount }] = await Promise.all([
-    supabase
-      .from("reviews")
-      .select("id,title,review_type,content_markdown,structured_data,status")
-      .eq("id", reviewId)
-      .eq("status", "completed")
-      .is("archived_at", null)
-      .maybeSingle(),
-    supabase
-      .from("review_sources")
-      .select("source_type,source_id,source_role")
-      .eq("review_id", reviewId),
-    supabase
-      .from("review_proposals")
-      .select("id", { count: "exact", head: true })
-      .eq("review_id", reviewId)
-      .eq("status", "pending"),
-  ]);
+  const [{ data: review }, { data: sources }, { count: pendingCount }] =
+    await Promise.all([
+      supabase
+        .from("reviews")
+        .select("id,title,review_type,content_markdown,structured_data,status")
+        .eq("id", reviewId)
+        .eq("status", "completed")
+        .is("archived_at", null)
+        .maybeSingle(),
+      supabase
+        .from("review_sources")
+        .select("source_type,source_id,source_role")
+        .eq("review_id", reviewId),
+      supabase
+        .from("review_proposals")
+        .select("id", { count: "exact", head: true })
+        .eq("review_id", reviewId)
+        .eq("status", "pending"),
+    ]);
   if (!review) throw new Error("找不到已完成复盘或无权访问。");
   if (pendingCount) return { created: 0, alreadyPending: true };
   const sourceIds = new Set((sources ?? []).map((source) => source.source_id));
@@ -195,7 +254,10 @@ export async function generateReviewProposals(reviewIdInput: unknown) {
   }
 
   const sourceIndex = (sources ?? [])
-    .map((source) => `${source.source_type}:${source.source_id}:${source.source_role}`)
+    .map(
+      (source) =>
+        `${source.source_type}:${source.source_id}:${source.source_role}`,
+    )
     .join("\n");
   const result = await runAssistant({
     surface: "reviews",
@@ -209,11 +271,15 @@ export async function generateReviewProposals(reviewIdInput: unknown) {
       content: `${review.content_markdown}\n\nSOURCE INDEX\n${sourceIndex}`,
     },
   });
-  const envelope = reviewProposalEnvelopeSchema.parse(parseJsonObject(result.text));
+  const envelope = reviewProposalEnvelopeSchema.parse(
+    parseJsonObject(result.text),
+  );
   const proposals = envelope.proposals
     .map((proposal) => ({
       ...proposal,
-      evidenceSourceIds: proposal.evidenceSourceIds.filter((id) => sourceIds.has(id)),
+      evidenceSourceIds: proposal.evidenceSourceIds.filter((id) =>
+        sourceIds.has(id),
+      ),
     }))
     .filter((proposal) => proposal.evidenceSourceIds.length > 0);
   if (!proposals.length) return { created: 0, alreadyPending: false };
@@ -233,7 +299,8 @@ export async function generateReviewProposals(reviewIdInput: unknown) {
       },
     })),
   );
-  if (error) throw new Error("长期信息候选未能保存；Memory 与 Decision 均未改变。");
+  if (error)
+    throw new Error("长期信息候选未能保存；Memory 与 Decision 均未改变。");
   revalidatePath(`/reviews/${reviewId}`);
   return { created: proposals.length, alreadyPending: false };
 }
@@ -274,17 +341,20 @@ export async function completeDecisionReview(input: unknown) {
   if (!decision) throw new Error("找不到待复核决定或无权访问。");
   const period = getReviewPeriod("daily", new Date(), timezone);
   const key = `decision:${decision.id}:${period.startDate}`;
-  const { data: reviewId, error } = await supabase.rpc("complete_decision_review", {
-    p_decision_id: decision.id,
-    p_review_key: key,
-    p_title: `决定复核 · ${decision.title}`,
-    p_review_date: period.startDate,
-    p_content: value.content,
-    p_outcome: value.outcome,
-    p_new_title: value.newTitle || null,
-    p_new_decision_text: value.newDecisionText || null,
-    p_rationale: value.rationale || "",
-  });
+  const { data: reviewId, error } = await supabase.rpc(
+    "complete_decision_review",
+    {
+      p_decision_id: decision.id,
+      p_review_key: key,
+      p_title: `决定复核 · ${decision.title}`,
+      p_review_date: period.startDate,
+      p_content: value.content,
+      p_outcome: value.outcome,
+      p_new_title: value.newTitle || null,
+      p_new_decision_text: value.newDecisionText || null,
+      p_rationale: value.rationale || "",
+    },
+  );
   if (error || !reviewId) {
     throw new Error("决定复核未能原子保存，决定仍保持原状。");
   }

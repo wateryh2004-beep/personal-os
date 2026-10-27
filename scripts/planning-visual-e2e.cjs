@@ -25,12 +25,12 @@ async function closeContext(context) {
   }
   await context.close();
 }
-async function isolate(context) {
+async function isolate(context, knownDuration = false) {
   let writes = 0;
   await context.route("**/*", route => {
     if (!["GET", "HEAD"].includes(route.request().method())) { writes += 1; return route.fulfill({ status: 409, json: { error: "All writes blocked in synthetic planning verification" } }); }
     const pathname = new URL(route.request().url()).pathname;
-    if (pathname === "/api/calendar/pending-tasks") return route.fulfill({ json: pendingTasks });
+    if (pathname === "/api/calendar/pending-tasks") return route.fulfill({ json: knownDuration ? { ...pendingTasks, tasks: pendingTasks.tasks.map(item => ({ ...item, estimated_minutes: 45 })) } : pendingTasks });
     if (pathname.startsWith("/api/")) return route.fulfill({ status: 503, json: { error: "Synthetic fixture does not access a live backend" } });
     return route.continue();
   });
@@ -285,7 +285,7 @@ async function monitorTransition(page, action) {
     for (const width of [390, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: "no-preference", hasTouch: width < 768, isMobile: width < 768, recordVideo: { dir: output, size: { width, height: 1000 } } });
       await startTrace(context, `motion-${width}`);
-      const writes = await isolate(context); const page = await context.newPage(); activePage = page;
+      const writes = await isolate(context, true); const page = await context.newPage(); activePage = page;
       await page.goto(`${baseURL}/mobile-native-e2e?scene=planning-visual`, { waitUntil: "networkidle" });
       const button = page.getByRole("button", { name: title, exact: true });
       await monitorTransition(page, async () => { await button.click(); await button.click(); await button.click(); });
@@ -298,6 +298,7 @@ async function monitorTransition(page, action) {
         await page.emulateMedia({ reducedMotion: "no-preference" });
         await page.goto(`${baseURL}/mobile-native-e2e?scene=planning-visual&mode=calendar`, { waitUntil: "networkidle" });
         const source = page.locator(`[data-calendar-task-id="${task.id}"]`);
+        assert.equal(await source.getAttribute("data-calendar-task-minutes"), "45", "drag uses a real known estimate; unknown tasks remain non-draggable");
         const slot = page.locator('.fc-timegrid-slot-lane[data-time="11:00:00"]');
         await slot.scrollIntoViewIfNeeded();
         const start = await source.boundingBox(); const end = await slot.boundingBox();

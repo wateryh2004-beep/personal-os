@@ -2,13 +2,16 @@
 import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const { apply, refresh, readReceipt, createPurchase, readPurchase, startPlanning, readTrip, searchQuery } = vi.hoisted(() => ({ apply: vi.fn(), refresh: vi.fn(), readReceipt: vi.fn(),createPurchase:vi.fn(),readPurchase:vi.fn(),startPlanning:vi.fn(),readTrip:vi.fn(),searchQuery:{value:""} }));
+const { apply, readRequest,refresh, readReceipt, createPurchase, readPurchase, startPlanning, readTrip, searchQuery } = vi.hoisted(() => ({ apply: vi.fn(),readRequest:vi.fn(),refresh: vi.fn(), readReceipt: vi.fn(),createPurchase:vi.fn(),readPurchase:vi.fn(),startPlanning:vi.fn(),readTrip:vi.fn(),searchQuery:{value:""} }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh,replace:vi.fn() }),useSearchParams:()=>new URLSearchParams(searchQuery.value) }));
 vi.mock("next/link", () => ({ default: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => createElement("a", props) }));
-vi.mock("@/features/life/actions", () => ({ applyLifeFieldOperation: apply, readLifeReceiptState: readReceipt }));
+vi.mock("@/features/life/actions", () => ({ applyLifeFieldOperation: apply, readLifeReceiptState: readReceipt,readLifeRequestOutcome:readRequest }));
 vi.mock("@/features/leisure/actions", () => ({ saveLeisureFeedback: vi.fn(), readLeisureFeedback: vi.fn() }));
+import {clearWorkspaceResources} from "@/lib/workspace-resource-cache";
 import { reconcileWorkspaceScope } from "@/lib/workspace-resource-cache";
 import { useLifeUndo } from "@/components/life/use-life-undo";
+vi.mock("@/features/shopping/creation-intents",()=>({submitPurchaseCreationIntent:createPurchase,readPurchaseCreationIntent:vi.fn()}));
+vi.mock("@/features/travel/create-intents",()=>({submitTravelCreationIntent:vi.fn(),readTravelCreationIntent:vi.fn()}));
 vi.mock("@/features/shopping/actions",()=>({createPurchaseItem:createPurchase,readPurchaseItemState:readPurchase}));
 vi.mock("@/features/travel/actions",()=>({startTripPlanning:startPlanning,readTripState:readTrip,addTripStop:vi.fn(),updateTripStop:vi.fn(),resolveTripStop:vi.fn()}));
 vi.mock("@/components/travel/travel-map",()=>({TravelMap:()=>null}));
@@ -25,7 +28,7 @@ async function input(label: string, value: string) {
   const node = [...document.querySelectorAll("label")].find((element) => element.textContent?.startsWith(label))!.querySelector("input")!;
   await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(node, value); node.dispatchEvent(new Event("input", { bubbles: true })); });
 }
-beforeEach(() => { searchQuery.value="";window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }); (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; apply.mockReset(); refresh.mockReset(); readReceipt.mockReset();readReceipt.mockResolvedValue(null);createPurchase.mockReset();readPurchase.mockReset();startPlanning.mockReset();readTrip.mockReset(); host = document.createElement("div"); document.body.append(host); root = createRoot(host); });
+beforeEach(() => {clearWorkspaceResources();searchQuery.value="";window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }); (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; apply.mockReset();readRequest.mockReset(); refresh.mockReset(); readReceipt.mockReset();readReceipt.mockResolvedValue(null);createPurchase.mockReset();readPurchase.mockReset();startPlanning.mockReset();readTrip.mockReset(); host = document.createElement("div"); document.body.append(host); root = createRoot(host); });
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT; });
 it("previews a precise batch without writing; cancel is side-effect free", async () => {
   const close = vi.fn(); await act(async () => root.render(createElement(ShoppingChange, { items, kind: "quantity", onClose: close, onSaved: vi.fn() })));
@@ -40,8 +43,8 @@ it("keeps a stable request on failed retry, sends only selected metadata, instal
   await input("数量", "3"); await input("单位", "袋"); await act(async () => document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
   await act(async () => button("确认保存").click()); expect(saved).not.toHaveBeenCalled(); expect(document.body.textContent).toContain("请先读取最新内容");
   const rows = items.map((item) => ({ id: item.id, mutation_revision: (item.mutation_revision ?? 0) + 1, quantity: "3", quantity_unit: "袋" }));
-  apply.mockResolvedValueOnce({ ok: true, receiptId: receipt, rows }); await act(async () => { button("确认保存").click(); button("确认保存").click(); });
-  expect(apply).toHaveBeenCalledTimes(2); expect(apply.mock.calls[0][0].requestId).toBe(apply.mock.calls[1][0].requestId); expect(apply.mock.calls[1][0].items).toEqual([{ id, expected_revision: 4, quantity: "3", quantity_unit: "袋" }, { id: second, expected_revision: 8, quantity: "3", quantity_unit: "袋" }]); expect(saved).toHaveBeenCalledWith(rows);
+  readRequest.mockResolvedValueOnce({status:"saved",receiptId:receipt,receiptStatus:"available",operation:"shopping_quantity",rows});await act(async()=>{button("核对原保存").click();button("核对原保存").click();});
+  expect(apply).toHaveBeenCalledTimes(1);expect(readRequest).toHaveBeenCalledTimes(1);expect(readRequest.mock.calls[0][0]).toEqual(apply.mock.calls[0][0]);expect(readRequest.mock.calls[0][0].items).toEqual([{ id, expected_revision: 4, quantity: "3", quantity_unit: "袋" }, { id: second, expected_revision: 8, quantity: "3", quantity_unit: "袋" }]); expect(saved).toHaveBeenCalledWith(rows);
 });
 it("records structured progress then shares the returned revision with feedback without overwriting a note", async () => {
   const onSave = vi.fn(async (value: LeisureFeedbackInput) => ({ ok: true as const, feedback: { status: value.status, reaction: value.reaction, personal_note: value.personal_note, linked_note_id: null, linked_note_title: null, linked_note_available: false, revision: value.expected_revision + 1, updated_at: "2026-10-25T00:00:00Z" } }));
@@ -62,13 +65,13 @@ it("undo events contain only an opaque receipt and reconcile authoritative rows"
 });
 
 it("creates once and installs a canonical owned record without reloading or guessing server fields",async()=>{
- createPurchase.mockResolvedValue(id);readPurchase.mockResolvedValueOnce({ok:false});
+ createPurchase.mockResolvedValue({status:"saved",id});readPurchase.mockResolvedValueOnce({ok:false});
  const canonical={id,title:"Server canonical title",price_cny:12,status:"cooling",cooldown_until:"2099-01-01T00:00:00Z",category:null,necessity:"unknown",quantity:"2.125",quantity_unit:"kg",mutation_revision:3};
  await act(async()=>root.render(createElement(ShoppingWorkspace,{items:[],stats:{active:0,ready:0,purchased:0},initialCreateOpen:true})));
  await input("名称","Local draft title");await input("数量","2");await input("单位","bag");
  await act(async()=>document.querySelector("form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
- expect(createPurchase).toHaveBeenCalledOnce();expect(document.body.textContent).toContain("项目已创建");expect([...document.querySelectorAll("label")].find(label=>label.textContent?.startsWith("名称"))!.querySelector("input")!.value).toBe("Local draft title");
- readPurchase.mockResolvedValueOnce({ok:true,item:canonical});await act(async()=>document.querySelector("form")!.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true})));
+ expect(createPurchase).toHaveBeenCalledOnce();expect(document.body.textContent).toContain("已保存待购记录");
+ readPurchase.mockResolvedValueOnce({ok:true,item:canonical});await act(async()=>button("重新读取已保存记录").click());
  expect(createPurchase).toHaveBeenCalledOnce();expect(host.textContent).toContain("Server canonical title");expect(host.textContent).toContain("2.125 kg");expect(refresh).not.toHaveBeenCalled();
 });
 it("reconciles planning with canonical trip rows while another station's dirty notes stay mounted",async()=>{
@@ -125,4 +128,21 @@ it("groups same normalized titles for field display but preserves units, unknown
  expect(apply.mock.calls[0][0].items).toEqual([{id,expected_revision:1}]);
  expect(host.querySelector(`[data-shopping-record="${id}"]`)).toBeNull();
  expect(record(second).textContent).toContain("0.125 kg");expect(record(third).textContent).toContain("数量未记录");expect(host.textContent).toContain("1 组 · 2 条记录");
+});
+
+
+it("retains the actual trip form, raw input and plan through a narrow pane and enlarged text",async()=>{
+ const trip={id,title:"长旅行标题 "+"Synthetic ".repeat(8),status:"planning",description:null,mutation_revision:1};
+ const stops=[{id:second,place_name:"长地点名称 "+"Destination ".repeat(8),day_number:1,sort_order:0,latitude:0,longitude:0,notes:"Original note",planned_time:"09:15:00",duration_minutes:45,mutation_revision:4}];
+ await act(async()=>root.render(createElement(TripDetail,{trip,stops})));
+ const workspace=host.querySelector<HTMLElement>(".trip-workspace")!,grid=workspace.querySelector(".trip-content-grid")!;
+ const note=host.querySelector<HTMLInputElement>('input[name="notes"]')!,form=note.closest("form")!;
+ const details=note.closest("details")!;details.open=true;
+ await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(note,"Keep an unfinished original 🌱 note");note.dispatchEvent(new Event("input",{bubbles:true}));});
+ note.focus();note.setSelectionRange(5,17);workspace.scrollTop=91;
+ await act(async()=>{workspace.style.width="260px";workspace.style.fontSize="200%";window.dispatchEvent(new Event("resize"));});
+ expect(host.querySelector('input[name="notes"]')).toBe(note);expect(note.closest("form")).toBe(form);expect(workspace.querySelector(".trip-content-grid")).toBe(grid);
+ expect(note.value).toBe("Keep an unfinished original 🌱 note");expect(document.activeElement).toBe(note);expect(note.selectionStart).toBe(5);expect(note.selectionEnd).toBe(17);expect(workspace.scrollTop).toBe(91);
+ expect(workspace.textContent).toContain("09:15");expect(workspace.textContent).toContain("45 分钟");expect(host.querySelector<HTMLInputElement>('input[name="plannedTime"]')!.value).toBe("09:15");expect(host.querySelector<HTMLInputElement>('input[name="expectedRevision"]')!.value).toBe("4");
+ expect(apply).not.toHaveBeenCalled();expect(readTrip).not.toHaveBeenCalled();
 });

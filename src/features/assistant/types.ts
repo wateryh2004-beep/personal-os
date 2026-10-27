@@ -17,6 +17,8 @@ export type AssistantMode = "chat" | "transform" | "triage";
 export type AssistantRequest = {
   surface: AssistantSurface;
   mode: AssistantMode;
+  /** Server-created generation lease, never accepted from the assistant HTTP body. */
+  generationToken?: string | null;
   messages?: UIMessage[];
   instruction?: string | null;
   model?: DeepSeekModelId | null;

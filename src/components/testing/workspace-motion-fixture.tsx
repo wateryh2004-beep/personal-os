@@ -92,8 +92,9 @@ export function WorkspaceMotionFixture() {
   }, []);
   useLayoutEffect(() => {
     const navigate = (event: Event) => {
-      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
-      if (!href) return;
+      const detail = (event as CustomEvent<{ href?: string; phase?: string }>).detail;
+      const href = detail?.href;
+      if (!href || event.defaultPrevented || detail?.phase === "prepare") return;
       event.preventDefault(); event.stopImmediatePropagation(); go(href);
     };
     window.addEventListener("personal-os:navigation-start", navigate, true);

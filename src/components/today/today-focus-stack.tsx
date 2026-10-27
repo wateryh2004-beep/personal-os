@@ -1,5 +1,5 @@
 import { taskRecordHref } from "@/features/today/record-links";
-import Link from "next/link";
+import { SourceLink as Link } from "@/components/workflow-continuity/source-link";
 import { CircleAlert } from "lucide-react";
 import type { NowWorkspace } from "@/features/today/types";
 import { buildTodayFocusStack } from "@/features/today/utils";

@@ -1,6 +1,11 @@
 "use client";
 
 import { useId, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
+import {assertContinuousFixtureTransport} from "@/features/testing/continuous-fixture-gate";
+import {useDeclaredFormDraft,readDeclaredDraftFields} from "@/features/workflow-continuity/draft-adapters";
+import type {DraftFields} from "@/features/workflow-continuity/draft-contracts";
+import {OrdinaryOutcomeRecovery} from "@/components/workflow-continuity/ordinary-outcome-recovery";
+import {DraftRecoveryStatus} from "@/components/workflow-continuity/draft-recovery-status";
 import { useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
@@ -12,16 +17,25 @@ import { addInvestmentEntry, createInvestmentAccount, importInvestmentResearch, 
 import type { InvestmentAccount, InvestmentActionResult, LedgerEntry, StrategyVersion } from "@/features/investment/types";
 import type { InvestmentMode } from "./presentation";
 
+export const investmentDraftModeIds={real:"06f00000-0000-4000-8000-000000000001",paper:"06f00000-0000-4000-8000-000000000002"} as const;
 export type InvestmentDialog = { kind: "account" } | { kind: "entry"; accountId?: string; importKey: string } | { kind: "strategy"; strategy?: StrategyVersion } | { kind: "research" } | { kind: "void"; entry: LedgerEntry; importKey: string };
 const selectClass = "h-9 min-w-0 w-full rounded-[var(--radius-md)] border border-[var(--control-border)] bg-[var(--surface-control)] px-3 text-[14px] text-[var(--text-primary)]";
 const decimalPattern = "[0-9]{1,12}(\\.[0-9]{1,8})?";
 
-export function InvestmentFormDialog({ dialog, mode, accounts, importExample, onClose, onSaved, onRestoreFocus }: { dialog: InvestmentDialog; mode: InvestmentMode; accounts: InvestmentAccount[]; importExample: string; onClose: () => void; onSaved: (message: string) => void; onRestoreFocus: () => void }) {
+export type InvestmentFormTransport={account:typeof createInvestmentAccount;entry:typeof addInvestmentEntry;strategy:typeof saveInvestmentStrategy;research:typeof importInvestmentResearch;void:typeof voidInvestmentEntry};
+export function InvestmentFormDialog({ transport,dialog, mode, accounts, importExample, onClose, onSaved, onRestoreFocus }: { transport?:InvestmentFormTransport; dialog: InvestmentDialog; mode: InvestmentMode; accounts: InvestmentAccount[]; importExample: string; onClose: () => void; onSaved: (message: string) => void; onRestoreFocus: () => void }) {
+  assertContinuousFixtureTransport(transport);
+  const actions=transport??{account:createInvestmentAccount,entry:addInvestmentEntry,strategy:saveInvestmentStrategy,research:importInvestmentResearch,void:voidInvestmentEntry};
   const router = useRouter();
   const id = useId();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const busyRef = useRef(false);
+  const [importKey,setImportKey]=useState("importKey" in dialog?dialog.importKey:"");
+  const [restoredFields,setRestoredFields]=useState<DraftFields|null>(null);
+  const operation=dialog.kind==="void"?"investment.entry-void":dialog.kind==="account"?"investment.account":dialog.kind==="entry"?"investment.entry":dialog.kind==="research"?"investment.research":"investment.strategy";
+  const draftId=dialog.kind==="void"?dialog.entry.id:dialog.kind==="account"||dialog.kind==="entry"?investmentDraftModeIds[mode]:dialog.kind==="strategy"&&dialog.strategy?dialog.strategy.id:"new";
+  const {formRef,...recovery}=useDeclaredFormDraft({operation,id:draftId,href:"/investments",label:"未保存的投资记录"},fields=>{setRestoredFields(fields);if(typeof fields.import_key==="string")setImportKey(fields.import_key);});
   useMobileBackLayer(true, () => {
     if (busyRef.current) return false;
     onClose();
@@ -30,26 +44,30 @@ export function InvestmentFormDialog({ dialog, mode, accounts, importExample, on
   const title = dialog.kind === "void" ? "作废一条记录" : dialog.kind === "account" ? `添加${modeLabel}账户` : dialog.kind === "entry" ? `添加${modeLabel}记录` : dialog.kind === "research" ? "导入研究" : dialog.strategy ? "保存策略新版本" : "写下策略";
   const description = dialog.kind === "void" ? "作废会重新计算持仓，原记录与作废原因都会保留。这不会执行任何真实交易。" : dialog.kind === "account" ? "一个账户使用一种币种。实盘和模拟会分别记录。" : dialog.kind === "entry" ? "只记录已经发生的持仓或成交，不会连接券商或下单。" : dialog.kind === "strategy" ? "记录判断、执行条件与风险。保存后保留版本，后续修改另存为新版本。" : "粘贴包含来源与方法的 JSON。导入后保留原始结论，不会自动变成持仓或交易。";
   const saveLabel = dialog.kind === "void" ? "确认作废" : dialog.kind === "account" ? "创建账户" : dialog.kind === "entry" ? "确认记录" : dialog.kind === "research" ? "导入研究" : "保存版本";
-  const action = dialog.kind === "void" ? voidInvestmentEntry : dialog.kind === "account" ? createInvestmentAccount : dialog.kind === "entry" ? addInvestmentEntry : dialog.kind === "research" ? importInvestmentResearch : saveInvestmentStrategy;
+  const action = dialog.kind === "void" ? actions.void : dialog.kind === "account" ? actions.account : dialog.kind === "entry" ? actions.entry : dialog.kind === "research" ? actions.research : actions.strategy;
 
   function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+    event.preventDefault();if(!recovery.isCurrent())return;
     // A synchronous guard covers repeated submissions before React paints pending.
-    if (busyRef.current) return;
-    const form = new FormData(event.currentTarget);
+    if (busyRef.current||recovery.uncertain) return;
+    const node=event.currentTarget,form = new FormData(node),snapshot=recovery.capture(event),current=recovery.captureGuard();
     busyRef.current = true;
     setError("");
     startTransition(async () => {
       try {
         const result: InvestmentActionResult = await action(form);
-        if (!result.ok) {
+        if(!current())return;
+        if (!result.ok) {if(result.needsCheck)recovery.markUncertain();
           setError(result.error || "尚未保存，请检查填写内容后重试。");
           return;
         }
+        const unchanged=JSON.stringify(readDeclaredDraftFields(node,operation))===JSON.stringify(snapshot);recovery.complete(snapshot);
+        if(!unchanged){if(importKey){const next=crypto.randomUUID();setImportKey(next);recovery.setValue(before=>({...before,import_key:next}));}setError("原记录已保存，当前新输入尚未保存。");router.refresh();return;}
         onSaved(result.duplicate ? "这份记录已经保存，没有重复添加。" : dialog.kind === "void" ? "记录已作废，原始记录仍保留" : dialog.kind === "account" ? "账户已创建" : dialog.kind === "entry" ? "持仓记录已保存" : dialog.kind === "research" ? "研究已导入" : "策略新版本已保存");
         router.refresh();
       } catch {
-        setError("暂时无法确认保存结果。内容已保留，请稍后重试。");
+        if(!current())return;
+        recovery.markUncertain();setError("暂时无法确认保存结果。输入和原编号保留，未重复发送。");
       } finally {
         busyRef.current = false;
       }
@@ -59,12 +77,13 @@ export function InvestmentFormDialog({ dialog, mode, accounts, importExample, on
   return <DialogPrimitive.Root open onOpenChange={(open) => { if (!open && !busyRef.current) onClose(); }}>
     <DialogContent showCloseButton={!pending} className="max-h-[85dvh] overflow-y-auto sm:max-w-xl" onEscapeKeyDown={(event) => { if (busyRef.current) event.preventDefault(); }} onInteractOutside={(event) => { if (busyRef.current) event.preventDefault(); }} onCloseAutoFocus={(event) => { event.preventDefault(); onRestoreFocus(); }}>
       <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
-      <form onSubmit={submit} aria-busy={pending} aria-describedby={error ? `${id}-error` : undefined}>
-        <fieldset disabled={pending} className="grid min-w-0 gap-4">
-          {dialog.kind === "void" ? <VoidFields id={id} entry={dialog.entry} importKey={dialog.importKey} /> : dialog.kind === "account" ? <AccountFields id={id} mode={mode} /> : dialog.kind === "entry" ? <EntryFields id={id} accounts={accounts} initialAccountId={dialog.accountId} importKey={dialog.importKey} mode={mode} /> : dialog.kind === "strategy" ? <StrategyFields id={id} strategy={dialog.strategy} /> : <ResearchFields id={id} example={importExample} />}
+      <form ref={formRef} {...recovery.attributes} onInputCapture={recovery.capture} onChangeCapture={recovery.capture} onSubmit={submit} aria-busy={pending} aria-describedby={error ? `${id}-error` : undefined}>
+        <fieldset className="grid min-w-0 gap-4">
+          {dialog.kind === "void" ? <VoidFields id={id} entry={dialog.entry} importKey={importKey} /> : dialog.kind === "account" ? <AccountFields id={id} mode={mode} /> : dialog.kind === "entry" ? <EntryFields restoredFields={restoredFields} id={id} accounts={accounts} initialAccountId={dialog.accountId} importKey={importKey} mode={mode} /> : dialog.kind === "strategy" ? <StrategyFields id={id} strategy={dialog.strategy} /> : <ResearchFields id={id} example={importExample} />}
         </fieldset>
+        {recovery.uncertain?<OrdinaryOutcomeRecovery key={recovery.key} uncertain target={recovery.target} href="/investments" captureGuard={recovery.captureGuard} onCompared={recovery.adoptComparedBaseline}/>:null}<DraftRecoveryStatus dirty={recovery.dirty} restored={recovery.restored} recoveryUnavailable={recovery.recoveryUnavailable}/>
         {error ? <p id={`${id}-error`} role="alert" className="mt-4 rounded-[var(--radius-md)] bg-[var(--danger-soft)] p-3 text-[13px] leading-6 text-[var(--danger)]">{error}</p> : null}
-        <div className="mt-5 flex justify-end gap-2 border-t border-[var(--separator)] pt-4"><Button type="button" variant="outline" disabled={pending} onClick={onClose}>取消</Button><Button type="submit" disabled={pending}>{pending ? "保存中…" : error ? "重试保存" : saveLabel}</Button></div>
+        <div className="mt-5 flex justify-end gap-2 border-t border-[var(--separator)] pt-4"><Button type="button" variant="outline" disabled={pending} onClick={onClose}>取消</Button><Button type="submit" disabled={pending||recovery.uncertain}>{pending ? "保存中…" : error ? "重试保存" : saveLabel}</Button></div>
       </form>
     </DialogContent>
   </DialogPrimitive.Root>;
@@ -78,9 +97,10 @@ function AccountFields({ id, mode }: { id: string; mode: InvestmentMode }) {
   return <><input type="hidden" name="mode" value={mode} /><Field id={`${id}-name`} label="账户名称"><Input id={`${id}-name`} name="name" required maxLength={80} autoComplete="off" placeholder="用你熟悉的名称区分账户" /></Field><Field id={`${id}-currency`} label="账户币种" hint="不同币种请分开建账，当前不做汇率换算。"><select id={`${id}-currency`} name="currency" defaultValue="CNY" className={selectClass} aria-describedby={`${id}-currency-hint`}><option value="CNY">CNY · 人民币</option><option value="USD">USD · 美元</option><option value="HKD">HKD · 港币</option></select></Field></>;
 }
 
-function EntryFields({ id, accounts, initialAccountId, importKey, mode }: { id: string; accounts: InvestmentAccount[]; initialAccountId?: string; importKey: string; mode: InvestmentMode }) {
+function EntryFields({ restoredFields,id, accounts, initialAccountId, importKey, mode }: { restoredFields:DraftFields|null; id: string; accounts: InvestmentAccount[]; initialAccountId?: string; importKey: string; mode: InvestmentMode }) {
   const [kind, setKind] = useState("opening");
   const [accountId, setAccountId] = useState(initialAccountId || accounts[0]?.id || "");
+  const [restoredSource,setRestoredSource]=useState(restoredFields);if(restoredFields&&restoredSource!==restoredFields){setRestoredSource(restoredFields);if(typeof restoredFields.kind==="string")setKind(restoredFields.kind);if(typeof restoredFields.account_id==="string")setAccountId(restoredFields.account_id);}
   const currency = accounts.find((account) => account.id === accountId)?.currency ?? "";
   return <>
     <input type="hidden" name="import_key" value={importKey} />

@@ -34,6 +34,7 @@ import {
   markdownUploadPlaceholder,
   removeMarkdownUploadPlaceholder,
 } from "@/features/notes/editor/markdown-upload-placeholder";
+import { markdownBlockControls } from "@/features/notes/editor/markdown-block-controls";
 import { extractPastedUrl } from "@/features/links/link-url";
 
 type VisualMarkdownEditorProps = {
@@ -282,6 +283,7 @@ export function VisualMarkdownEditor({
       selectionRef.current?.(null);
       return;
     }
+    const sourceDocument = currentView.state.doc;
     const selectedText = currentView.state.sliceDoc(range.from, range.to);
     if (!selectedText.trim()) {
       selectionRef.current?.(null);
@@ -295,11 +297,13 @@ export function VisualMarkdownEditor({
     const coordinates = currentView.coordsAtPos(range.from);
     selectionRef.current?.({
       text: selectedText,
+      from: range.from, to: range.to, sourceMarkdown: sourceDocument.toString(),
+      isCurrent: () => currentView.dom.isConnected && currentView.state.doc === sourceDocument && !currentView.composing,
       contextBefore,
       contextAfter,
       rect: { left: coordinates?.left ?? 0, top: coordinates?.top ?? 0 },
       replace: (text) => {
-        if (currentView.state.sliceDoc(range.from, range.to) !== selectedText) return false;
+        if (!currentView.dom.isConnected || currentView.state.doc !== sourceDocument || currentView.composing || currentView.state.sliceDoc(range.from, range.to) !== selectedText) return false;
         currentView.dispatch({
           changes: { from: range.from, to: range.to, insert: text },
           selection: { anchor: range.from + text.length },
@@ -310,7 +314,7 @@ export function VisualMarkdownEditor({
         return true;
       },
       insertBelow: (text) => {
-        if (currentView.state.sliceDoc(range.from, range.to) !== selectedText) return false;
+        if (!currentView.dom.isConnected || currentView.state.doc !== sourceDocument || currentView.composing || currentView.state.sliceDoc(range.from, range.to) !== selectedText) return false;
         const insert = `\n\n${text}`;
         currentView.dispatch({
           changes: { from: range.to, insert },
@@ -516,6 +520,7 @@ export function VisualMarkdownEditor({
       markdownImagePreview,
       noteLinkDecoration,
       noteLinkCompletion,
+      markdownBlockControls,
       markdownUploadPlaceholder,
       documentCharacterCount,
       sourceLineAttributes,

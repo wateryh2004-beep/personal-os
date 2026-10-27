@@ -15,6 +15,7 @@ export type BriefingJudgment = {
   confidence: number | null;
   falsificationCondition: string | null;
   reviewAt: string | null;
+  updatedAt?: string;
 };
 
 export function reviewAtForPeriod(now: Date, period: JudgmentReviewPeriod) {
@@ -37,7 +38,7 @@ export async function getJudgmentsByEntryId(
   if (!entryIds.length) return map;
   const { data } = await supabase
     .from("decision_sources")
-    .select("source_id, decisions(id,decision_text,confidence,falsification_condition,review_at)")
+    .select("source_id, decisions(id,decision_text,confidence,falsification_condition,review_at,updated_at)")
     .eq("user_id", userId)
     .eq("source_type", "briefing_entry")
     .in("source_id", entryIds);
@@ -46,6 +47,7 @@ export async function getJudgmentsByEntryId(
     if (!decision) continue;
     map.set(String(row.source_id), {
       id: decision.id,
+      updatedAt: decision.updated_at,
       decisionText: decision.decision_text,
       confidence: decision.confidence == null ? null : Number(decision.confidence),
       falsificationCondition: decision.falsification_condition ?? null,

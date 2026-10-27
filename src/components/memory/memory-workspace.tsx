@@ -1,5 +1,12 @@
 "use client";
-import { useState, useTransition } from "react";
+import {DraftForm,type DraftSaveResult} from "@/components/workflow-continuity/draft-form";
+import {OrdinaryOutcomeRecovery} from "@/components/workflow-continuity/ordinary-outcome-recovery";
+import {DraftRecoveryStatus} from "@/components/workflow-continuity/draft-recovery-status";
+import {useDraftResumeOpeners,draftResumeKey} from "@/features/workflow-continuity/draft-resume";
+import {useWorkflowDraft} from "@/features/workflow-continuity/drafts";
+import {captureWorkspaceScope} from "@/lib/workspace-resource-cache";
+import {z} from "zod";
+import { useEffect,useRef,useState, useTransition } from "react";
 import {
   createDecisionAction,
   createPersonalMemoryAction,
@@ -24,11 +31,13 @@ export function MemoryWorkspace({
   );
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
-  const [importText, setImportText] = useState("");
+  const importDraft=useWorkflowDraft({kind:"capture",id:"memory-import",label:"未导入的个人上下文",resumeHref:"/memory",resumeTarget:{kind:"memory.import",id:"owner"},initialValue:{importText:""},parse:input=>{const parsed=z.object({importText:z.string().max(200000)}).strict().safeParse(input);return parsed.success?parsed.data:null;}});
+  const importText=importDraft.value.importText,setImportText=(importText:string)=>importDraft.setValue({importText});
+  const importBusy=useRef(false);
+  const importMounted=useRef(true);useEffect(()=>{importMounted.current=true;return()=>{importMounted.current=false;};},[]);
   const [importPreview, setImportPreview] =
     useState<CodexMemoryImportDocument | null>(null);
-  const createMemory = (type: "profile" | "working", form: FormData) =>
-    start(async () => {
+  const createMemory = async(type: "profile" | "working", form: FormData):Promise<DraftSaveResult> => {
       try {
         await createPersonalMemoryAction({
           memoryType: type,
@@ -38,13 +47,12 @@ export function MemoryWorkspace({
           validUntil: form.get("valid_until") || null,
           reviewAt: form.get("review_at") || null,
         });
-        setMessage("已保存。刷新后可见。");
+        return {status:"saved"};
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "无法保存。");
+        return {status:"needs-check",message:error instanceof Error?error.message:"无法确认保存结果，输入保留，请先核对。"};
       }
-    });
-  const createDecision = (form: FormData) =>
-    start(async () => {
+    };
+  const createDecision = async(form: FormData):Promise<DraftSaveResult> => {
       try {
         await createDecisionAction({
           title: form.get("title"),
@@ -54,11 +62,11 @@ export function MemoryWorkspace({
           importance: form.get("importance"),
           aiVisibility: form.get("ai_visibility"),
         });
-        setMessage("决定已记录。刷新后可见。");
+        return {status:"saved"};
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "无法保存。");
+        return {status:"needs-check",message:error instanceof Error?error.message:"无法确认保存结果，输入保留，请先核对。"};
       }
-    });
+    };
   const visible =
     tab === "decisions"
       ? decisions
@@ -78,22 +86,25 @@ export function MemoryWorkspace({
       setMessage("无法解析 JSON，请检查格式。");
     }
   };
-  const confirmImport = () =>
+  const confirmImport = () => {
+    if(!importDraft.isCurrent()||importBusy.current||importDraft.uncertain||!importPreview)return;const snapshot={importText},preview=importPreview,scope=captureWorkspaceScope(),current=()=>importDraft.isCurrent()&&scope()&&importMounted.current;importBusy.current=true;
     start(async () => {
-      if (!importPreview) return;
       try {
-        const result = await importCodexMemoriesAction(importPreview);
+        const result = await importCodexMemoriesAction(preview);
+        if(!current())return;
         setMessage(
           `Codex 上下文已同步：新增 ${result.created} 条，更新 ${result.superseded} 条，确认未变化 ${result.verified} 条。`,
         );
-        setImportText("");
+        importDraft.commit(snapshot,before=>({importText:before.importText===snapshot.importText?"":before.importText}));
         setImportPreview(null);
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "无法导入上下文。");
-      }
-    });
-  const replaceMemory = (item: Record<string, unknown>, form: FormData) => start(async()=>{try{await replacePersonalMemoryAction({memoryId:item.id,memoryType:item.memory_type,title:form.get("title"),content:form.get("content"),aiVisibility:form.get("ai_visibility"),validUntil:form.get("valid_until")||null,reviewAt:form.get("review_at")||null});setMessage("已建立新版本，旧记忆保留为 superseded。");}catch(error){setMessage(error instanceof Error?error.message:"无法替换记忆。");}});
-  const reverseDecision = (item: Record<string, unknown>, form: FormData) => start(async()=>{try{await reverseDecisionAction({decisionId:item.id,title:form.get("title"),decisionText:form.get("decision_text"),rationaleMarkdown:form.get("rationale"),reviewAt:form.get("review_at")||null});setMessage("已记录反转决定，原决定历史已保留。");}catch(error){setMessage(error instanceof Error?error.message:"无法反转决定。");}});
+        if(current()){importDraft.markUncertain();setMessage(error instanceof Error ? error.message : "无法导入上下文。");}
+      }finally{importBusy.current=false;}
+    });};
+  const replaceMemory = async(item:Record<string,unknown>,form:FormData):Promise<DraftSaveResult>=>{try{await replacePersonalMemoryAction({memoryId:item.id,memoryType:item.memory_type,title:form.get("title"),content:form.get("content"),aiVisibility:form.get("ai_visibility"),validUntil:form.get("valid_until")||null,reviewAt:form.get("review_at")||null});return{status:"saved"};}catch(error){return{status:"needs-check",message:error instanceof Error?error.message:"无法确认替换结果，原输入已保留。"};}};
+  const reverseDecision=async(item:Record<string,unknown>,form:FormData):Promise<DraftSaveResult>=>{try{await reverseDecisionAction({decisionId:item.id,title:form.get("title"),decisionText:form.get("decision_text"),rationaleMarkdown:form.get("rationale"),reviewAt:form.get("review_at")||null});return{status:"saved"};}catch(error){return{status:"needs-check",message:error instanceof Error?error.message:"无法确认反转结果，原输入已保留。"};}};
+  useDraftResumeOpeners([{kind:"memory.profile",id:"new"},{kind:"memory.working",id:"new"},{kind:"decision.create",id:"new"},{kind:"memory.import",id:"owner"},...memories.map(item=>({kind:"memory.replace" as const,id:String(item.id)})),...decisions.map(item=>({kind:"decision.reverse" as const,id:String(item.id)}))],target=>{if(target.kind==="memory.import")return;if(target.kind==="decision.create"||target.kind==="decision.reverse"){setTab("decisions");return;}if(target.kind==="memory.working"){setTab("working");return;}if(target.kind==="memory.profile"){setTab("profile");return;}const row=memories.find(item=>item.id===target.id);if(!row)return false;setTab(row.memory_type==="working"?"working":"profile");});
+  useEffect(()=>{const reveal=()=>{const id=window.location.hash.replace(/^#decision-/,"");if(!decisions.some(item=>item.id===id))return;setTab("decisions");requestAnimationFrame(()=>{if(window.location.hash===`#decision-${id}`){const node=document.getElementById(`decision-${id}`);node?.scrollIntoView({block:"nearest"});node?.focus({preventScroll:true});}});};const timer=setTimeout(reveal,0);window.addEventListener("hashchange",reveal);return()=>{clearTimeout(timer);window.removeEventListener("hashchange",reveal);};},[decisions]);
   const control = "ui-field h-9 w-full rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 text-[12.5px] text-[var(--text-primary)] outline-none hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
   const textArea = "min-h-20 w-full resize-y rounded-[10px] border border-transparent bg-[var(--surface-control)] px-3 py-2.5 text-[12.5px] leading-5.5 text-[var(--text-primary)] outline-none hover:bg-[var(--surface-control-hover)] focus:bg-[var(--surface-canvas)] focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_14%,transparent)]";
   const stateLabel: Record<string,string> = { active:"有效", superseded:"已更新", archived:"已归档", current:"当前", stale:"待复核", expired:"已过期" };
@@ -113,7 +124,7 @@ export function MemoryWorkspace({
         ))}
       </nav>
 
-      <details className="mb-5 border-y border-[var(--separator)] py-3">
+      <details data-workflow-draft-key={draftResumeKey({kind:"memory.import",id:"owner"})} className="mb-5 border-y border-[var(--separator)] py-3">
         <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">
           从 Codex 导入个人上下文
         </summary>
@@ -131,6 +142,7 @@ export function MemoryWorkspace({
           <button type="button" disabled={!importText.trim() || pending} onClick={previewImport} className="pressable h-8 rounded-[8px] bg-[var(--surface-control)] px-2.5 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-control-hover)] disabled:opacity-50">预览</button>
           {importPreview ? <button type="button" disabled={pending} onClick={confirmImport} className="pressable h-8 rounded-[8px] bg-[var(--accent)] px-2.5 text-[12px] font-medium text-white disabled:opacity-50">{pending ? "导入中…" : `确认导入 ${importPreview.items.length} 条`}</button> : null}
         </div>
+        {importDraft.uncertain?<OrdinaryOutcomeRecovery uncertain target={{kind:"memory.import",id:"owner"}} href="/memory" captureGuard={()=>{const scope=captureWorkspaceScope();return()=>scope()&&importMounted.current;}} onCompared={()=>{}}/>:null}<DraftRecoveryStatus dirty={Boolean(importText)} restored={importDraft.restored} recoveryUnavailable={importDraft.recoveryUnavailable}/>
         {importPreview ? (
           <div className="mt-3 max-w-3xl divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
             {importPreview.items.map((item) => (
@@ -146,7 +158,7 @@ export function MemoryWorkspace({
         ) : null}
       </details>
 
-      <form action={tab === "decisions" ? createDecision : (form) => createMemory(tab, form)} className="grid max-w-3xl gap-2.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4">
+      <DraftForm key={tab} draft={{operation:tab==="decisions"?"decision.create":tab==="working"?"memory.working":"memory.profile",id:"new",href:"/memory",label:tab==="decisions"?"记录决定":"记录记忆"}} action={tab === "decisions" ? createDecision : (form) => createMemory(tab, form)} className="grid max-w-3xl gap-2.5 rounded-[14px] border border-[var(--separator)] bg-[var(--material-regular)] p-4">
         <label className="grid min-w-0 gap-2 text-[12px] text-[var(--text-secondary)]">标题<input name="title" required maxLength={tab === "decisions" ? 200 : 160} placeholder={tab === "decisions" ? "决定标题" : "标题"} className={control} /></label>
         <label className="grid min-w-0 gap-2 text-[12px] text-[var(--text-secondary)]">内容<textarea name={tab === "decisions" ? "decision_text" : "content"} required placeholder={tab === "decisions" ? "我决定……" : "只保存你确认的重要信息。"} className={textArea} /></label>
         {tab === "decisions" ? (
@@ -164,7 +176,7 @@ export function MemoryWorkspace({
         <button disabled={pending} className="pressable h-9 w-fit rounded-[9px] bg-[var(--accent)] px-3 text-[12px] font-medium text-white hover:bg-[var(--accent-hover)] disabled:opacity-50">
           {pending ? "保存中…" : tab === "decisions" ? "记录决定" : tab === "profile" ? "添加长期事实" : "添加当前状态"}
         </button>
-      </form>
+      </DraftForm>
 
       {message ? <p role="status" className="mt-2.5 text-[12px] text-[var(--text-secondary)]">{message}</p> : null}
 
@@ -172,7 +184,7 @@ export function MemoryWorkspace({
         {visible.length ? visible.map((item) => {
           const state = tab === "working" ? getWorkingMemoryState(item as never) : item.status;
           return (
-            <article key={String(item.id)} className="py-3.5">
+            <article id={`${tab==="decisions"?"decision":"memory"}-${String(item.id)}`} tabIndex={-1} key={String(item.id)} className="py-3.5">
               <div className="flex justify-between gap-4">
                 <h2 className="text-[13px] font-medium text-[var(--text-primary)]">{String(item.title)}</h2>
                 <span className="shrink-0 text-[12px] text-[var(--text-tertiary)]">{stateLabel[String(state)] ?? String(state)} · {visibilityLabel[String(item.ai_visibility)] ?? String(item.ai_visibility)}</span>
@@ -184,15 +196,15 @@ export function MemoryWorkspace({
                 <details className="mt-2.5">
                   <summary className="pressable inline-flex cursor-pointer list-none rounded-[7px] px-1 py-0.5 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">{tab === "decisions" ? "反转此决定…" : "更正此记忆…"}</summary>
                   {tab === "decisions" ? (
-                    <form action={(form) => reverseDecision(item, form)} className="mt-2.5 grid max-w-2xl gap-2 border-l-2 border-[var(--separator)] pl-3">
+                    <DraftForm draft={{operation:"decision.reverse",id:String(item.id),href:"/memory",label:"反转决定"}} action={(form) => reverseDecision(item, form)} className="mt-2.5 grid max-w-2xl gap-2 border-l-2 border-[var(--separator)] pl-3">
                       <label className="grid min-w-0 gap-2 text-[12px] text-[var(--text-secondary)]">标题<input name="title" required defaultValue={`反转：${String(item.title)}`} className={control}/></label><label className="grid min-w-0 gap-2 text-[12px] text-[var(--text-secondary)]">决定<textarea name="decision_text" required placeholder="现在的新决定" className={textArea}/></label><label className="grid min-w-0 gap-2 text-[12px] text-[var(--text-secondary)]">理由<textarea name="rationale" placeholder="为什么反转" className={`${textArea} min-h-16`}/></label><label className="grid gap-1 text-[12px] text-[var(--text-secondary)]">下次复核<input name="review_at" type="datetime-local" className={control}/></label><button disabled={pending} className="pressable h-8 w-fit rounded-[8px] bg-[var(--surface-control)] px-2.5 text-[12px] font-medium text-[var(--text-secondary)]">确认反转并保留历史</button>
-                    </form>
+                    </DraftForm>
                   ) : (
-                    <form action={(form) => replaceMemory(item, form)} className="mt-2.5 grid max-w-2xl gap-2 border-l-2 border-[var(--separator)] pl-3">
+                    <DraftForm draft={{operation:"memory.replace",id:String(item.id),href:"/memory",label:"更正记忆"}} action={(form) => replaceMemory(item, form)} className="mt-2.5 grid max-w-2xl gap-2 border-l-2 border-[var(--separator)] pl-3">
                       <label className="grid min-w-0 gap-2 text-[12px] text-[var(--text-secondary)]">标题<input name="title" required defaultValue={String(item.title)} className={control}/></label><label className="grid min-w-0 gap-2 text-[12px] text-[var(--text-secondary)]">内容<textarea name="content" required defaultValue={String(item.content)} className={textArea}/></label><label className="grid min-w-0 gap-2 text-[12px] text-[var(--text-secondary)]">AI 可见范围<select name="ai_visibility" defaultValue={String(item.ai_visibility)} className={control}><option value="normal">AI 可正常使用</option><option value="sensitive">敏感</option><option value="never">永不发送给 AI</option></select></label>
                       {tab === "working" ? <div className="grid gap-2 sm:grid-cols-2"><label className="grid gap-1 text-[12px] text-[var(--text-secondary)]">有效至<input required={!item.review_at} name="valid_until" type="datetime-local" className={control}/></label><label className="grid gap-1 text-[12px] text-[var(--text-secondary)]">复核时间<input required={!item.valid_until} name="review_at" type="datetime-local" className={control}/></label></div> : null}
                       <button disabled={pending} className="pressable h-8 w-fit rounded-[8px] bg-[var(--surface-control)] px-2.5 text-[12px] font-medium text-[var(--text-secondary)]">建立更正版本</button>
-                    </form>
+                    </DraftForm>
                   )}
                 </details>
               ) : null}

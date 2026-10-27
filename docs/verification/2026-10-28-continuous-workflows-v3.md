@@ -1,0 +1,259 @@
+# 连续工作流二十项升级：数据库候选验收与发布计划
+
+记录日期：2026-10-28（Asia/Shanghai）。状态：**`bd977e1` 实际Native与不变DB输入已核，四套Visual实际通过；远程仍11成功/2失败，PDF空原生选区根因未关闭。新布局/驱动与只读诊断候选待统一验证，生产尚未迁移或部署**。范围见[二十项规格](../specs/continuous-workflows-v3.md)与[连续性契约](../contracts/workflow-continuity.md)。本记录不是全批完成声明。
+
+## 当前已提交bd候选与实际证据
+
+| 对象 | 实际值与边界 |
+| --- | --- |
+| 精确提交 | [`bd977e1e73761bfd22599c02bb17eda40c9abad5`](https://github.com/wateryh2004-beep/personal-os/commit/bd977e1e73761bfd22599c02bb17eda40c9abad5)，tree`3294d2f9df28a6186f6ec162a4fedb46e58160fa`；精确30路径正常提交/推送 |
+| 固定内容 | 1887个canonical提交blob与本地已验清单一致，摘要`c78b5b37a9915aac675243097e567e7e6cf89eba2fc61e902e11fb28b583d40f`；后续未提交修复不自动沿用 |
+| 本地全仓 | 七CLI、454文件/3123测试、Python11及suite后顺序TypeScript/lint全部通过，零错误/警告；1499 TS/1601 lint/98 work代码在该候选冻结前后稳定，不排除证据或放松规则 |
+| 实际Native | [run40581571058](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571058)，[artifact12769517698](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571058/artifacts/12769517698)；actual checkout精确bd，事件merge`aedee2c682a0e715b2047126d269c9974c84c830`分开记录 |
+| Native原件 | ZIP SHA`d74e3bcaa9cdda6df22a681f4a06e4d62f1f3e84894b7ef70007b190d861d8d1`；实际110 SQL/49 DB路径与f6逐字相同，官方types/catalog、633字段/38RPC、24真实等待锁、三ACL场景各240权限/55函数/10真实拒绝和两隔离容器已读产物核对 |
+| 语义与备份 | 相同49DB输入沿用`review-native-f6b`独立语义复核，不把新bd产物初核冒称另一轮完整独审；[backup run40581571026](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571026)实际118表/55合成行内容/计数/关系一致，未恢复生产 |
+| PR/生产 | [PR93](https://github.com/wateryh2004-beep/personal-os/pull/93)仍Draft；生产`a5803dda30457ec3b3b712e80b885a8552353a3d`/87ledger，本批十一迁移、合并及部署均未执行 |
+
+### bd真实浏览器范围：11成功、2失败
+
+13工作流实际结束，仅Canonical和Verify失败。[Canonical run40581571160](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571160)普通构建、严格404与fixture构建均过；五suite各7配置，35配置中只有planning六配置整套成功，29配置失败。110条尝试为81PASS/29FAIL。**81是重复配置成功记录，不是功能数量；12个至少一次整case成功编号为01/05/06/07/11/12/13/14/15/16/17/18，其中12/13/18未全7配置。**二十编号、22 named基础动作与扩展分支未完成。
+
+[Visual run40581571213](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571213)四套editorial/shell/planning/filepreview全部实际通过：editorial四normal尺寸分别28/28/26/21个真实transform，关闭f6图片仅两姿态的失败；Shell四宽360/390/768/1440真实preview路线/Back/mobile marker/200%/reduced/forced已执行；Preview12配置所有surface/controls帧边界与trusted Escape保留，Workbench亦实过。完整PNG/webm已下载核SHA、看代表图与ffprobe抽帧，不只读SUCCESS。专项成功不代替尚未完成的Canonical PDF/来源/完整业务闭环。
+
+| 范围 | bd的真实失败与边界 |
+| --- | --- |
+| Runtime | 01真实同源上传/bytes/封存/跨route/失败项retry全7配置通过。02等待旧虚构反馈，实际A回执已成功、B输入和焦点仍在且显示“原输入已保存，当前新输入尚未保存。”；03/20未跑，不能改生产文案迎合驱动 |
+| Sources | 04已到搜索，但全页option同时匹配cmdk结果DIV与原生预览OPTION，strict失败；须限定真实受控listbox，不能盲first。02/20未跑 |
+| Planning/材料 | 六配置05/06/11/12/13过；text200的12在动作后capture根宽485>390，13未跑。动作/版本核对成功不抵消布局失败 |
+| Domains | 六配置14–18过，19对全页库排除剩余90分钟条目得到2；完整库与75分钟推荐组应分开核，不能先当纯驱动问题。text200的18根宽522>390，19未跑 |
+| PDF/Files | 六配置08原生拖选后Selection.text仍为空；768预览标题由resolved变不可见，前一轮单列container已经生效。未到目标/手机确认/canonical精确citation/page/原editor返回，09/10未跑；PDF根因仍未关闭 |
+| Verify | [run40581571143](https://github.com/wateryh2004-beep/personal-os/actions/runs/40581571143)实际454/3123、构建、Notes全视口导航/短屏/200%/reduced/forced、Settings与Today已过；mobile coreflow仍等新建Project旧“取消”，未完成整个mobile bundle及后续步骤 |
+
+逐配置ledger、actual checkout、12份原始ZIP摘要与已看媒体时间段见`remote-ui-candidate-bd977e1e73761bfd22599c02bb17eda40c9abad5.md/json`及`remote-ui-bd977`。新Native解压另24 TS/0TSX原样保留，后续全仓必须重新发现输入，不再假称仍1499 roots。原f6/615/f200失败与媒体不改写。
+
+### bd之后的20路径修复与诊断候选
+
+Forms13路径冻结`50684de3135c581d34ac022d94f7648158ca3e9354d67e49ed3a07c8c3897487`，Source7路径冻结`9594642ec44fc8e6cfaba1fd6587fcd426ccb191f4cd851b63ffee377251f819`。独立`review-bd-browser-repairs-final`结论为**PASS_FOR_REMOTE_DIAGNOSTIC_NOT_PDF_FIX_OR_BROWSER_PASS**：20路径前后无漂移，Forms12文件/99测试、Source7文件/100测试、fixture门禁1文件/12测试分别实际通过，18路径lint、5 CJS语法、2 CSS解析与7实际编译规则通过。四个恢复/材料TSX及TripDetail共5文件只去className/纯CSS import后业务AST等价，22 named case编号/顺序原样。这是局部与源码证据，不是新全仓/浏览器/生产通过；既有React act与Vite警告未压制，不冒称所有console清洁。
+
+新驱动从combobox实际aria-controls取得唯一可见listbox，所有点击/回选仅在真实结果组；Runtime在点击前监听真实A POST，核成功id/一次写和同fixture state严格id/name投影读回A，保持B和焦点；投影最多100项、同session、compiled/CI/loopback/cookie/非Vercel门禁仍在，不扩生产API。闲暇负断言覆盖真实continue/start推荐组而保留合法全库；Project“稍后继续”/Esc保留raw空白与零写，Calendar先核取消保留、再明确“放弃修改”恢复原值，不抹掉原断言或业务行为。
+
+材料/共享恢复区仅class布局修相对1.6行高、min-width0、长文本完整断行与可换行44px按钮，value/draft/lease/unknown/CAS/读回/回调不变；Travel独立scoped布局修522px问题，地图/时间/冲突/保存AST不变。Files窄pane正文改标题与actions两行wrap，标题minmax与44px触达；原单列断言保持，并新增真实标题宽至少44及可见性要求。新实际200%根宽/命中仍待远程。
+
+**PDF本轮只有真实scroll/hover动作准备恢复及只读诊断，没有找到空选区根因，未改生产PDF guard。**原trace拖选中没有toolbar出现/TextLayer重建证据，不能写成loading、460ms entry或ResizeObserver已确认原因。诊断只读hit/caret/trusted事件、Selection双端点与精确sourceVersion、span连接性/mutation和surface时序，finally清监听/observer/handle；不改Selection、不派发人工选文事件、不强制focus、不延长预算。原精确全文/1Range/layer两端/sourceVersion/page/手机确认前零写/canonical保存与相邻editor返回断言完整保留，新candidate必须实际执行且未过不能关闭。手机viewport上的native mouse仍非实体触摸。
+
+历史证据澄清：旧f6作者“10文件135项”仅保留真实summary及SHA，精确argv未留，先前猜测清单已撤回；不得反推命令或充作独立精确复现，原manifest/log字节不改。原独审10文件110项与bd完整454文件3123项各自有独立证据；本轮99/100/12有明确argv及原log，不由旧135摘要替代。
+
+Root12项有限只读metadata/16绑定0差异仍只作前置，不是生产业务写、用户流程或完整克隆。当前十一实际版本未执行，后续新稳定全仓、真实浏览器和发布仍待完成；不预填新head成功。
+
+## 历史：已提交f6候选与实际证据
+
+| 对象 | 实际值与边界 |
+| --- | --- |
+| 已推送候选 | [`f6bff7aa5eb6b82adf436247526d4b87a083fa65`](https://github.com/wateryh2004-beep/personal-os/commit/f6bff7aa5eb6b82adf436247526d4b87a083fa65)，tree `d7712843da8f8e9563f604b5ee46e454d0dacccc`；精确61路径提交并正常推送 |
+| 固定内容 | 全1886个canonical提交blob与本地已验清单一致，内容摘要`988c542bd53f7327e16e8025d0f7669dac34059b3ae9db4e939edb4f030169ff`，不自动覆盖后续未提交修复 |
+| 本地全仓 | 七CLI、454文件/3115测试、Python11全部通过；suite后顺序TypeScript/lint再次通过，零错误/警告；1475个TS root、1577个lint输入与74个work代码均稳定，未排除证据或放松规则 |
+| PR与生产 | [PR #93](https://github.com/wateryh2004-beep/personal-os/pull/93)仍Draft，生产仍`a5803dda30457ec3b3b712e80b885a8552353a3d`/87条ledger，本批十一条未应用、未合并部署 |
+| 实际Native | [Continuous PG run40575436241](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436241)，job`122440497774`、[artifact12767895902](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436241/artifacts/12767895902)；实际checkout精确f6，事件merge`e91a358772025d33a967335b9d01b5bb638b670b`单独记录 |
+| Native ZIP | SHA-256`573d46f19c75fa18f1bb7a3e50eac02bc64d9703f122c95799ccf80d711c12fe`；36个entry逐一核对，110条SQL、49个DB冻结路径与实际生成记录/f6提交/当前文件匹配 |
+| 独立复核 | `review-native-f6b.md/json`，结论仅为精确数据库候选与有限生产只读前置通过；MD SHA`de542d52bc8d82be629bc18bc914cd792f1fe4e4e68da5ed06ffda716a4a5a23` |
+
+### f6真实Native与有限只读前置
+
+原clean、完整旧99加合成行升级、九组fixture、Scene matrix、真实官方typegen、24组第二writer真实Lock等待均实际完成。两baseline兼容场景包含已知旧completion精确升级、新body幂等、未知body/config/匿名ACL精确55000拒绝、真正drop四Review函数与Project维护对象后由同一第11修复，审计/版本故障按完整正文/版本/来源/审计JSON指纹回滚。原旧99及第7/10/11条保持，第11SHA仍`3277cdf414d1dfb7d064fd03ee6c961fd92c86d97af9245747612f537b3f94c2`。
+
+八条SQL中36条原有REVOKE名单的service_role收紧，已由这次新哈希真实执行证明。三个有效ACL场景各核10表×3角色×8权限=240项、55函数EXECUTE与10条真实角色拒绝；两个upgrade场景保留原三个Scene ACL。第三场景在旧99之后先安装实际观察到的ALL/X默认，由临时probe硬证三角色全部8表权限（含MAINTAIN）及函数EXECUTE，再依序执行十一迁移、九fixture、knownLegacy/missing baseline及原子审计。拒绝仅接受42501，以固定合成sub和metadata共同证明，避免未登录body错误冒充EXECUTE拒绝。不是全拒绝或从待测GRANT反推宽松期望。
+
+第二场景容器在原容器退出销毁后创建，二者都是官方PG17、network none、无hostport/caller mount、只含自动销毁匿名卷；两份实际隔离产物各13项检查全true。固定数据库名及共享隔离guard不变，生产默认模拟不是完整生产克隆。
+
+官方`supabase/postgres-meta:v0.96.4`实际types SHA`062412a7c741432e0b56760a0377eb89501aecb2a9f057824d3b5eaba88cdf72`、catalog SHA`6a1117c10e64d365e2e737638d6a7483926e21ff676c06cad91621325db8d62d`独立匹配，633字段/38RPC再次比较通过。独立AST重比不是本地重新官方生成；23个静态探针、Python验证器与真实Native分开。[同批backup run40575436099](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436099)实际118表/55合成行内容、计数与关系一致，未执行生产恢复。
+
+Root经Primary MCP实际完成十项有限只读依赖查询及后续两项查询，共12项，覆盖六enum/三角色/16trigger绑定、函数body指纹核对，独立复核无未解释差异：40基础表663必需列差异0、目标对象碰撞0，生产87ledger未变，五个第11函数及Project trigger仍缺失，符合已证前向补齐目标。记录为`production-preflight-fresh-readonly-root-v2.json`与`production-preflight-followup-root-executed.json`。这些仅是metadata/聚合与有限策略推断，不是SET ROLE、生产业务行/写入、完整克隆或上线验收；发布前仍须核资源与时效。
+
+### f6远程界面：10成功、3失败
+
+13工作流结束，Canonical、Verify、Visual失败，其余10个成功。[Canonical run40575436221](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436221)的普通构建、严格404门禁和fixture构建实际成功；5 suite各7配置共35配置均未完整成功，84条尝试记录为49PASS/35FAIL。**49是重复配置成功记录，不能称49功能；唯一完整通过编号只有05/06/07/11/14/15/16，各7配置。**22个named基础动作及二十编号和扩展分支仍未全部执行。
+
+| 范围 | 实际结果与剩余失败 |
+| --- | --- |
+| Workbench | [run40575436113](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436113)实际通过，8场景/102帧覆盖swap、viewport resize中断和1440/768/390/360两pane，原nav重叠门槛通过 |
+| Filepreview | Visual专项12配置（360×600/390×640/768×600/1440×900 × normal/reduced/forced）真实surface/controls轨迹通过；原生Escape capture为trusted/open true、running2并有中间transform，不是伪事件或放松时限 |
+| Review与已执行域 | 14/15/16及05/06/07/11各7配置通过；Review200% root390=390、body32/normal16、说明相对行高1.6，动作换行。不能据这部分推定其它功能通过 |
+| Runtime | 01上传两次POST已发，但fixture生成localhost绝对PUT，浏览器只允许127同origin而正确阻断，available为0；02/03/20尚未跑，不放宽外站门槛 |
+| Sources | Project→Note→返回Project已恢复展开；随后真实cmdk labelled-by“搜索与导航”与旧驱动名不符，搜索段失败；后续02/20未跑 |
+| Materials | 08手机真实PDF句子已高亮但摘录UI未出现，768更早因Files窄main失去预览入口；精确引用、保存返回未到，09/10未跑 |
+| Domains/Planning | 17购后select标签关联、12材料核验项未展开/标签定位失败；18/19/13未跑。既有Calendar未知/已知预览与Project A保存期间继续B/冲突已实过 |
+| Verify | [run40575436116](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436116)454文件/3115测试、构建及多项Notes等实过；Notes导航768实际pane552px已正确收起，旧驱动仍找隐藏导航而失败，Settings/Today/mobile后续跳过 |
+| Visual | [run40575436160](https://github.com/wateryh2004-beep/personal-os/actions/runs/40575436160)editorial图片53呈现帧仅.96/1两种transform，未达到连续几何；shell“在主区打开”落真实`/login?error=configuration`，不能冒充fixture完整打开。planning与filepreview通过不抵消整workflow失败 |
+
+逐配置ledger、actual checkout/merge区分、artifact SHA和原始PNG/trace/webm见`remote-ui-candidate-f6bff7aa5eb6b82adf436247526d4b87a083fa65.md/json`及`remote-ui-f6b`。独立QA实际查看代表图、核ffprobe并抽帧，只有已看时间段可据此评论，媒体存在不代替未完成动作。下载新增24个TS/0TSX未改名/排除，后续完整CLI须重新冻结输入。
+
+### 历史：f6之后、bd之前的局部修复候选
+
+`repair-f6-runtime-forms`已冻结11路径，作者10文件/64测试、归属lint、5 CJS语法及diff通过；22项named case只做静态语义逐项对照，不是22功能或浏览器通过。修复仅合成上传I/O为同源相对bytes路径、按真实cmdk可访问名/实际Notes Sheet入口驱动、购后/材料独立for-id标签与真实核验disclosure、明确原parent续练/闲暇入口/未知去向核对及等待原地图rAF焦点；生产认证、日期/CAS/审计/输入、网络拒绝与原动作断言保留。
+
+`repair-f6b-motion-source`当时冻结13路径；其作者summary记10文件/135项，但精确argv未保留，猜测名单已撤回，不作为可复现命令或独立精确复现证据。原freeze/log字节保留；原独审10文件110项另有明确命令。对精确f6原hook的4个真实测试为2FAIL/2PASS，修后4PASS；首次临时React解析错误发生在测试执行前并保留日志，不冒充生产负例。新实现区分内容解码与viewport变化：内容只以原native CSS剩余时间从当前pose重定向，viewport仍同步contained；guard通过后的明确commit命令复用壳/fixture单一路由，已handled不双push、无人处理才fallback一次，不重复prepare/save；Files按实际pane容器叠排和自适应gallery保留原controller/输入。
+
+材料驱动等真实ready后按首尾字形Range几何做native mouse drag，读回唯一Range全文、同layer两端与精确sourceVersion，不写Selection或人工selectionchange。旧390trace ready在三击开始前约2.4秒，不能将其归为loading race，旧三击端点是否越layer未证。引用、页码、确认前零写、同一reference、canonical保存与来源返回强断言保留；手机viewport的鼠标操作不是实体触摸。13路径冻结摘要`cafaa26f072c33f0ad1e1101760c6d2a1374b8f0bff8fdd60492901c122875c7`，新图片中间帧/Shell Back/七配置PDF闭环/Files窄pane仍待实际远程。
+
+这两lane随后进入bd，局部新浏览器结果以上述bd实际执行为准；其共24路径的独立源码/反模式复审 `review-f6-browser-repairs-final` 已完成，审前/后哈希匹配：Forms10文件/64测试、Source10文件/110测试分别通过，23代码路径lint、7 CJS语法与Files CSS解析通过；22个named case的静态AST编号/顺序未变。该结论只允许进入统一远程检查，不冒称作者135测试或全仓/浏览器通过。全部后续局部改动仍须新稳定全仓及精确新head的真实浏览器/截图/连续录屏；当前49DB路径未随UI修改改变，未来头仍须按来源/字节等价核对对应检查。没有合并、生产迁移或部署。
+
+## 历史：已提交615候选的固定对象与证据
+
+| 对象 | 实际值与边界 |
+| --- | --- |
+| 已推送候选 | [`61569c892097349233d7c7834ceb12b754bfbd1e`](https://github.com/wateryh2004-beep/personal-os/commit/61569c892097349233d7c7834ceb12b754bfbd1e)，tree `e0dc9a386cb17680df80b1c5b9ba65bd7fd7a97c` |
+| 提交内容 | 1879 个 canonical 文件逐 blob 与本地验证清单一致；内容摘要 `700827ca1981edf49bb9f2984832dc3bd65da9252cf0bb7fcb01bea0370ff465`，提交后工作树干净；此后修复不由该结论自动覆盖 |
+| 工作分支与 PR | `codex/continuous-workflows-v3`；[PR #93](https://github.com/wateryh2004-beep/personal-os/pull/93) 保持 Draft，界面检查未达到发布门槛 |
+| 原生数据库工作流 | [Continuous workflows PostgreSQL，run 40563600833](https://github.com/wateryh2004-beep/personal-os/actions/runs/40563600833)，job `122398856931`；实际 checkout 为上述 `61569c8`，事件合成 merge 为 `8c8de8f6d0b65b9335192976dc07cf8db3c992eb`，两者分别记录 |
+| 数据库产物 | [artifact 12762490425](https://github.com/wateryh2004-beep/personal-os/actions/runs/40563600833/artifacts/12762490425)，ZIP SHA-256 `451e0b661fee9b0d2dd9c33bb0c99091f70c6127769138c36c89fbddc809b88b`；该次全部 110 条迁移与 46 个数据库冻结路径和615提交、生成记录均零哈希漂移；后续8条 SQL 的新哈希不在此结论内 |
+| 同批备份工作流 | [System backup recovery，run 40563600860](https://github.com/wateryh2004-beep/personal-os/actions/runs/40563600860)，job `122398856856`；实际 checkout 为合成 merge `8c8de8f6d0b65b9335192976dc07cf8db3c992eb`，不把它冒称 PR head |
+| 生产代码与数据库基线 | 代码仍为 `a5803dda30457ec3b3b712e80b885a8552353a3d`；实际 migration ledger 87 条，末项 `20261026073240_workbench_policy_fk_performance`；本批十一条迁移及代码部署均未执行 |
+
+独立验收实际下载并核对 ZIP 摘要、逐 entry 文件、生成文件、catalog、并发实现/结果和源码哈希，结论不只来自工作流 SUCCESS。后续 SQL、类型、验证脚本或相关 schema 如改变，必须记录新候选的实际对应证据，不能直接沿用本次结论。独立复核记录为 `review-615-native-semantic.md/json`；工作流产物有保留期限。
+
+## 历史：615之后、f6提交之前的修复与审查
+
+只读生产 `pg_default_acl` 元数据进一步证实，public 新表默认授予 anon/authenticated/service_role 全部 `arwdDxtm` 表权限、函数 EXECUTE。615 Native 的原 bootstrap 默认比生产窄，因此它的通过不证明该默认环境下的有效最小权限。没有为排障改生产默认，也不把这一差异写成规则例外。
+
+已冻结 `repair-615-default-acl` 的13个归属路径、49个数据库冻结路径：第1/2/3/4/5/6/8/9条未部署 SQL 仅在已有 REVOKE 名单的36处加入 service_role，反向替换可逐字恢复615；函数正文、RLS、约束、并发和审计逻辑不变，旧99条与第7/10/11条保持字节。service-only 回执/准备/取消 RPC 和明确共享 Scene helper 的正向授权保留。`todo_creation_receipts` 的 service 仅 SELECT/INSERT/UPDATE，`briefing_judgment_versions` 不给 service 直接表权限，owner RPC/内部 helper 不继承无关默认 EXECUTE；实际调用方已核 owner/admin 边界。
+
+新 Native 接线保留原 clean/upgrade、baseline缺口/已知旧升级/幂等/未知指纹拒绝、官方类型、24真实并发与审计回滚。在原容器销毁后，单独创建同样隔离的官方 PG17 容器，使用既有白名单 `restored_fixture`：完整旧99条及合成行 → 安装元数据已观察到的创建默认 → 真 probe 硬证全部授权 → 原十一顺序与九组 fixture → 再执行Review/Project缺口及原子审计。三场景核10新表×3角色×8权限=240项，以及55函数ACL、PUBLIC显式授权、RLS/FORCE RLS、既有三个Scene函数ACL保持和10条真实角色拒绝。拒绝使用合成已登录sub，不能以函数体未登录错误冒充EXECUTE拒绝。此为创建默认模拟，不是完整生产克隆，未更改固定数据库/容器隔离守卫、全局bootstrap或旧99迁移。
+
+在此历史修复冻结时，新增Native尚未执行；其后已由上述f6真实工作流和独立产物复核完成，旧等待状态不再代表当前。作者11项 Python 验证器单测（8新3旧）、8文件/40 Vitest、编译与workflow解析等局部检查通过；独立审查 `review-615-default-acl` 已完成，49路径前后哈希匹配，11项Python、7个额外synthetic负探针及4文件/11 Vitest通过，未发现阻断进入新Native的源码问题。这些当时的纯验证器/组件/静态结果均不冒称Native；随后f6成功产物来自新精确提交，未引用615旧110哈希替代。第11 SQL SHA仍为下文记录值。
+
+界面三组修复已冻结：forms v2的12路径、Settings/Career的5路径、Source/空间/PDF/Notes的25路径。前两组及前一五文档共22路径曾通过独立复审 `review-615-browser-repairs-v2`，仅证明对应冻结内容；本次文档再同步需按新哈希核对。空间组已完成独立源码/反模式/React复审 `review-615-spatial-final`：25路径前后哈希一致，独立12文件/154测试、23路径lint、2 CSS解析和4 CJS语法检查通过，仅允许进入统一候选远程重验。当时完整候选CLI和修后浏览器尚未执行；随后f6的454/3115本地与10成功/3失败远程结果见上，不把作者typecheck/定向测试充作全仓或浏览器。
+
+## 历史：615已完成的隔离数据库检查
+
+以下仅属于已提交 `61569c8` 的精确迁移与runner；包含新ACL字节的实际f6结果见上，不能混用哈希。
+
+| 检查 | `61569c8` 的实际结果 |
+| --- | --- |
+| PostgreSQL 17 干净安装与旧行升级 | 110 条迁移重放通过；旧行升级从完整本地 99 条旧基线加合成行开始，再依序执行本批十一条 |
+| 九组 SQL fixture 与 Scene matrix | owner/非 owner/匿名、关联归属、来源不可变、CAS、重放与审计失败回滚等实际执行通过 |
+| 第十一条兼容控制 | 两个隔离数据库分别验证已知旧 completion 的精确 body/config/ACL 升级、新 body 再执行幂等、未知 body/search_path/匿名 ACL 改动均以精确 `55000` 拒绝；其余函数、trigger、owner/ACL/config 与项目投影保持 |
+| 生产缺口模拟 | 真正移除四个 Review 函数及项目投影函数/trigger，再应用实际第十一条，核对补齐与回填；原项目、工作流版本及非项目投影保持，不称完整生产克隆 |
+| 官方类型与 catalog | 实际 `supabase/postgres-meta:v0.96.4` 生成，image ID/digest 与运行来源可追溯；候选映射的 633 字段、38 RPC 比较通过（含四个复盘函数） |
+| 真实并发 | 24 组重叠均通过独立 psql session 实际观察第二 writer 等待锁后放行；新增 accept/accept、dismiss/dismiss、completion 同 owner/key 版本递增，保留原 21 组 |
+| 审计与原子性 | 完成/修订审计失败及版本失败，实际比较 review/version/source/audit 全部 JSON 指纹确认回滚；完成/修订内容、版本、来源及脱敏审计在同一事务 |
+| 同批备份恢复与重导出 | 118 张纳入备份的表、55 条合成记录，计数、内容和关系一致；隔离容器已销毁，未执行生产恢复 |
+
+本批 10 张新增表包括业务元数据、历史版本和 `todo_creation_receipts` 技术执行回执，不能统称业务表。技术回执继续排除备份恢复与外部重放。类型门禁的覆盖范围与备份清单的 118 表是不同统计职责，不表示覆盖数据库全部类型接口。
+
+实际生成文件 SHA-256 为 `062412a7c741432e0b56760a0377eb89501aecb2a9f057824d3b5eaba88cdf72`；实际 catalog SHA-256 为 `6a1117c10e64d365e2e737638d6a7483926e21ff676c06cad91621325db8d62d`。候选映射比较通过不等于将手写映射改称官方生成文件。23 项 AST/catalog 探针为 **20 项预期拒绝、3 项合法通过**，明确为 synthetic，不冒称 23 项 Native 执行。
+
+实际类型生成隔离为随机、自动销毁的官方 PostgreSQL 17 容器，`none` 网络、无主机端口/外部数据库 URL/调用者挂载；唯一数据卷是官方镜像自动创建并自动销毁的精确匿名卷。生成器不挂载文件，只加入该隔离网络命名空间。未放宽为任意 mount，产物不保存卷名、主机路径、环境值或签名 URL。
+
+这些是合成 SQL 数据与逻辑恢复的证据，不证明生产物理备份、真实私有原件恢复、RPO/RTO 或自动备份调度。生产 87 条 ledger 的对象状态仍须发布前新鲜核对。
+
+## 生产基线差异与第十一条候选
+
+生产 ledger 为 87 条，本地旧基线为 99 条；十二个旧文件未登记不代表其对象都缺失。多个旧定义已存在或被后续合法定义替代，不能重放这十二个文件、补造历史登记，或把干净安装/旧行升级 PASS 等同实际生产前置完全一致。只读预检仅涉及对象、签名、约束、ACL、选定函数 hash 与授权聚合，没有取得完整生产 schema/data clone。
+
+确切缺口为 helper `review_source_is_owned(text,uuid,uuid)` 和实际调用的三个 RPC：`complete_review_with_sources(text,text,text,date,date,text,jsonb,boolean,jsonb)`、`accept_review_proposal(uuid)`、`dismiss_review_proposal(uuid)`。它们在所查生产基线均不存在，所需表列已存在。另一缺口是 `sync_project_search_document()` 及其投影维护 trigger；授权聚合为 **1 个有效项目、0 条项目搜索投影**，没有读取项目 ID 或内容。
+
+第十一条 `20261027175718_continuous_production_baseline.sql` 的已验 SQL SHA-256 为 `3277cdf414d1dfb7d064fd03ee6c961fd92c86d97af9245747612f537b3f94c2`，加入第11条的615提交中原109条SQL字节未变；随后默认ACL候选另改八条未部署SQL，已由f6实际验证，旧99条保持。原独立审查发现 P2：旧 completion 返回后 Action 独立写审计并忽略错误，无法在审计失败时回滚业务写入，违反[安全契约](../security.md#写入版本与审计)。修复及独立复审已完成，并由本次真实 Native 证明，不再沿用最初仅合成依赖的复现作为最终证据。
+
+迁移仅前向升级精确已知旧 completion body MD5 `72426d437364e96e3596d8c9c0424215`、`public` search_path 与预期 ACL 的组合；新版 body MD5 `01d9d71c10f6e5eaae96beed1dd9f685`、空 search_path 再执行保持不变，未知 body/config/ACL 拒绝。缺失时创建相同新版。新版先取得 owner/review_key 事务锁，再在同事务写正文、不可变版本、来源及 `review_complete`/`review_amend` 审计，Action 移除外层重复写入。其余三个复盘函数（含 helper）和项目同步定义、ACL、投影按缺失补齐并保留健康既有对象，不重放旧 `agent_runs` surface CHECK、不回退 `notes-library` 等合法状态、不改生产 history 或删除资料。
+
+迁移先于代码部署的旧 `a5803dda` 窗口中，新 completion RPC 的权威审计已在事务内，但旧 Action 仍可能额外追加日志；不能宣称旧客户端恰一条审计，不静默去重或删除日志。新 Action 的完成/修订各一次审计、失败全回滚已在隔离候选验证；生产仍须相应核对。缺口模拟只针对 metadata 已证对象，不称完整生产克隆，也不证明生产已存在这些函数。
+
+## 十一条迁移与生产版本登记
+
+以下仍是**未应用生产的本地候选名**。当前十一条精确字节（含八条ACL收紧）已由f6真实Native执行；其通过来自新哈希实测，不能按文件名相同继承615结论。生产均未执行；前三条建立来源、领域模型与回执，第四条加入 Inbox 互斥，第五至十条补齐捕捉、练习、Scene、判断、generation 与未知结果核对，最后补生产基线缺口及审计原子性。
+
+| 顺序 | 本地候选 migration | 生产实际版本 |
+| --- | --- | --- |
+| 1 | `20261027004214_continuous_material_sources.sql` | 未执行 |
+| 2 | `20261027004226_continuous_domain_workflows.sql` | 未执行 |
+| 3 | `20261027004853_continuous_material_receipts.sql` | 未执行 |
+| 4 | `20261027014745_inbox_dispatch_mutex.sql` | 未执行 |
+| 5 | `20261027073649_continuous_ai_capture_intents.sql` | 未执行 |
+| 6 | `20261027073905_continuous_practice_intents.sql` | 未执行 |
+| 7 | `20261027095503_continuous_scene_state.sql` | 未执行 |
+| 8 | `20261027100142_continuous_briefing_judgment_intents.sql` | 未执行 |
+| 9 | `20261027112137_continuous_agent_run_generations.sql` | 未执行 |
+| 10 | `20261027132428_continuous_life_request_reconcile.sql` | 未执行 |
+| 11 | `20261027175718_continuous_production_baseline.sql` | 未执行 |
+
+发布时沿已有授权，通过已连接 Supabase MCP 逐条执行已审 SQL，并核对目标项目、前置 schema、实际版本及 RLS/ACL。`apply_migration` 不接受 `version` 参数，不能预填生产版本；每条执行后读回列表与 schema，结果不明先核对，不盲目重复应用。
+
+登记“本地候选名 → 实际 version/name → SQL SHA-256”。平台时间戳不同只对齐仓库文件名、两份严格顺序清单与发布文档等元数据，SQL 原字节/哈希保持不变，再完成校验及必要 CI。不改写已部署 SQL、不手写 history 双记账，不改用 CLI/REST 绕过生产 MCP。
+
+## 历史：615的本地与远程界面检查
+
+`61569c8` 的本地固定内容七 CLI 全部通过：完整 TypeScript、**452 文件/3092 测试**、完整 lint 零错误/警告、system standards、项目文档、UI 提示审计与 diff/空白检查；额外 Python 3 项边界检查是合成检查。完整 suite 后显式冻结 1448 个编译 root（包含 work/test-results 中实际生成类型）并顺序复查 TypeScript/lint，前后无漂移。UI 审计保留 108 条提示/547 处计数，不能写成全视觉合规。随后 UI 修复须再冻结和验证。
+
+13 个远程工作流全部结束，**9 成功、4 失败**。Canonical 实际 checkout 为 `61569c8`；旧专项 UI 工作流实际 checkout 为合成 merge `8c8de8f6d0b65b9335192976dc07cf8db3c992eb`，不能只按 artifact 的 PR head 标签命名实际 checkout。
+
+| 远程检查 | 实际结果与未通过边界 |
+| --- | --- |
+| [Canonical，run 40563600872](https://github.com/wateryh2004-beep/personal-os/actions/runs/40563600872) | ordinary Next 构建、严格 404 拒绝门禁和 fixture 构建通过；5 suite 各 7 配置共 35 配置实际执行，均因流程中的失败结束。55 条已尝试 case 记录中 20 PASS/35 FAIL，仅编号 05/06/07/14 有至少一次完整动作及 capture 成功。**20 是重复配置成功记录数，绝不是二十项功能通过**，后续未执行项不推定通过 |
+| Canonical 首失败 | runtime 上传 input 不唯一；domains 原文匹配不唯一及 390px/200% Review 宽 406px；sources 无来时路径；materials 参考区/来源点击被遮挡；planning 手机未知时长预览被关闭、桌面 Project label 未关联；materials/planning 的 normal 字体基线也被放大。保留原始 trace、媒体和失败断言 |
+| [Verify，run 40563600734](https://github.com/wateryh2004-beep/personal-os/actions/runs/40563600734) | 452 文件/3092 测试、Next 构建、投资及 Notes startup/editor/drawer/motion/200%/forced 实际通过；Settings 的“存储空间”heading 不可见而失败，后续 Today/mobile 步骤跳过 |
+| [Workbench browser，run 40563601139](https://github.com/wateryh2004-beep/personal-os/actions/runs/40563601139) | 768px/both 的真实运动帧 main.left 185.28125 小于 nav.right 216；焦点与命中可用不能抵消几何侵入，不能只等落定截图掩盖 |
+| [Visual motion，run 40563600740](https://github.com/wateryh2004-beep/personal-os/actions/runs/40563600740) | editorial/planning/shell 通过；file preview 的 360/390/768 正常、reduced、forced 共 9 配置轨迹通过，但 1440×900 正常中断采样在观察 running 后下一次采样已不 moving，真实 Escape 中断验收未过，不能直接称纯 flaky |
+| [Document continuity，run 40563600742](https://github.com/wateryh2004-beep/personal-os/actions/runs/40563600742) | 三 job 实际通过，含实际 PDF、multipart 和 SQL |
+| [Private OCR，run 40563600904](https://github.com/wateryh2004-beep/personal-os/actions/runs/40563600904) | 两 job 实际通过；关闭显示后同 operation 继续、重开与真实 Stop 按原 300ms worker 关闭门槛执行，不再把关闭面板等同取消后台任务 |
+| [System standards，run 40563600741](https://github.com/wateryh2004-beep/personal-os/actions/runs/40563600741) | 实际通过，含 Project“稍后继续”、焦点、Escape、动效与 runtime closure |
+
+独立 QA 已下载并核对原始 artifact 摘要，实际查看代表 PNG、用 ffprobe 核连续 webm 并抽帧查看，未篡改媒体。原始证据与逐配置 ledger 位于 `remote-ui-candidate-61569c892097349233d7c7834ceb12b754bfbd1e.md/json` 及其 `remote-ui-615` 目录；不能因存在媒体就称后续动作执行完成。
+
+后续作者局部记录与独立审查分开：`repair-615-canonical-forms-v2` 保留原12路径，补Review coverage/summary/state/AI来源的显式相对1.6行高及同名dialog实例的Back交接回归；v1的10文件/84测试与v2的8文件/61测试不相加冒称总量。真实生产组件加当前Tailwind/PostCSS编译核对五段落，属于分支/声明证据，不是浏览器computed layout。`repair-615-settings` 的5路径局部2文件/13测试与无listen Vite模块图通过，仅替身Server Function I/O，保留生产server-only。严格字体2倍、computed行高至少1.4倍与overflow断言保留。对应17代码/测试/驱动路径及前一五文档共22路径独立复审通过，仅限当时冻结哈希。
+
+`repair-615-spatial` 冻结25路径，作者局部17文件/239测试、typecheck/归属lint/CSS解析/CJS检查通过；独立源码/反模式/React复审另以12文件/154测试及归属静态检查通过，25路径前后哈希一致，两组测试不相加冒称全仓。实现包括：保存保护事件以prepare阶段避开壳提前提交；标准Portal与active surface释放隐藏菜单/Inspector锁而保留草稿；窗口resize同步结算壳几何但保留用户折叠动效；真实trusted Escape capture核中断而不延长duration或等待；手机PDF显式移交一条30秒、有源版本/页码/精确参考目标的意图，激活唯一live reference后再次确认走原bridge，inactive guard保持；Notes按实际pane宽收目录、保留同一editor/输入/选区/偏好及Sheet入口焦点。当时原报告保留几何关闭待远程的限制；后续f6仅对实际执行通过的Workbench/文件预览/Review等补证，其余失败如上，不把静态诊断直接称浏览器全部修好。
+
+canonical驱动仍实际关闭/恢复Inspector、编辑同一参考实例、点击真实来源链接，手机确认前零写/确认后等canonical保存并核sourceVersion/page与返回，768检查窄pane目录入口；没有force click、盲first、放宽边界或增加超时。这三组随后进入f6精确提交；其稳定全仓通过但实际浏览器仍10成功/3失败，不能把未执行后续动作推定成功。
+
+## 历史检查点与原失败保留
+
+- 原十条数据库检查点 [`b271ae3023a11bf3870692776983aa3a5059d858`](https://github.com/wateryh2004-beep/personal-os/commit/b271ae3023a11bf3870692776983aa3a5059d858)，tree `f27769750cd370646c3a5c2649bf23e501322305`：[Native run 40547194361](https://github.com/wateryh2004-beep/personal-os/actions/runs/40547194361)，job `122340847978`、artifact `12751749603`，ZIP SHA `e456b9f7189e550e1519b842c9f13ab113f6490d937bbd7ccd1f822e0d9cebf8`，实际 109 迁移、629 字段、34 RPC、21 组并发；17 探针/14 拒绝/3 合法是合成层。该时点 catalog SHA `1e3dbe0162797a4918c15f4d8b00552f90bfcea27fe34003d67b1709d61dbcea` 与当前 catalog 不同，不能混用。此前 SQL 分支闭合、UTF-16 空计数、变量歧义、题型 fixture 与备份引用映射错误均保留原失败后修复重验。
+- [原备份 run 40547194355](https://github.com/wateryh2004-beep/personal-os/actions/runs/40547194355)，job `122340848126` 的 checkout 为 merge `cc39f66bd7fe9a8430d7b4caa812a60da78f9652`，当时独立核对 tree 与 `b271ae3` 一致，118 表/55 行内容关系相同；不是生产恢复。
+- 前一 UI 候选 [`f2009acfc3268f556d63e3506102fdefad67d9a0`](https://github.com/wateryh2004-beep/personal-os/commit/f2009acfc3268f556d63e3506102fdefad67d9a0)，tree `0005a4796bed3218909e7e682e02a6b63ee96f64`，1865 文件内容摘要 `6a262a1ad493d208e619be42baf4220971368a717ee899edb6388ff65b3669e4`。本地七 CLI、447 文件/3062 测试通过；远程 7 成功/6 失败。[Canonical run 40554321664](https://github.com/wateryh2004-beep/personal-os/actions/runs/40554321664) 的专用 route 307 而应 404，导致 fixture/五 suite 跳过，二十项基础动作实际 0；615 已实际通过该门禁，不能改写旧失败为通过。
+- f200 的[Document run 40554321585](https://github.com/wateryh2004-beep/personal-os/actions/runs/40554321585) PDF canvas locator、[System standards run 40554321537](https://github.com/wateryh2004-beep/personal-os/actions/runs/40554321537) 旧关闭按钮语义、[OCR run 40554321695](https://github.com/wateryh2004-beep/personal-os/actions/runs/40554321695) 关闭 UI/后台任务边界、[Visual run 40554321573](https://github.com/wateryh2004-beep/personal-os/actions/runs/40554321573) 360×600 中间帧 bottom 624、[Verify run 40554321555](https://github.com/wateryh2004-beep/personal-os/actions/runs/40554321555) 投资 preview server-only 解析失败的日志与媒体保留。旧 UI 实际 checkout 是 merge `09fd654e681064b623d0becaa29aeab205df78da`；运动窗口截图不能独自证明持久终态遮挡。
+
+## 二十项界面与发布待办
+
+20项基础驱动已落；以下表格仍需按最终统一候选结算，不把615的20条、f6的49条或bd的81条重复配置成功记录改写为全部功能通过。已有单元、组件、数据库与专项浏览器分别按其真实范围引用。
+
+| # | 体验主题 | 最终候选仍需记录的界面证据 |
+| --- | --- | --- |
+| 1 | 真实后台托盘 | 上传/OCR/导出/AI 跨路由、取消及失败项重试 |
+| 2 | 未完成输入恢复 | 实际恢复焦点、保存期间续写、scope/卸载撤权与冲突 |
+| 3 | Inbox 连续整理 | 三条连续去向、终态后推进、回看与未知结果核对 |
+| 4 | 来时路径 | 原过滤、选择、滚动、PDF/笔记位置及返回中断 |
+| 5 | 今日容量 | 实际容量展示、未知估时与覆盖失败状态 |
+| 6 | 空档排程 | 键盘/触摸、预览取消、重复确认与晚到状态 |
+| 7 | 笔记选段操作 | 真实选区、输入法合成事件边界、引用/任务与来源回跳 |
+| 8 | PDF 摘录 | 中英/旋转/无文字页、文字层对齐、相邻引用和页码返回 |
+| 9 | Markdown 块操作 | 完整块键盘/指针移动、拖动中断及 undo 字节还原 |
+| 10 | 上传前整理 | 确认前零写、原名/显示名、查重、独立副本及部分失败 |
+| 11 | 项目下一步 | 真实任务关联、保存期间续写与版本冲突 |
+| 12 | 材料核对 | 人工核验、仅改备注、来源修订变化和不可用提示 |
+| 13 | 同题续练 | 原历史展开、父项范围、独立新记录与缺失父项 |
+| 14 | 复盘证据 | 所选来源插入、原手写内容、过滤/选择与返回位置 |
+| 15 | 简报事件 | 原文版本对照、判断历史与未知保存核对 |
+| 16 | 投资解释 | 同一计算快照、原账簿定位、decimal/void/unknown 边界 |
+| 17 | 购后资料 | 实际 DATE、私有票据、保存/撤销及来源往返 |
+| 18 | 旅行现场 | 地图/时间线、按日、重排取消、相机与返回历史 |
+| 19 | 闲暇时长 | 已知剩余、自定空闲、未知/零进度与来源返回 |
+| 20 | AI 与快捷交互 | 子集采纳、冲突、重连前后输入焦点及长按取消/键盘替代 |
+
+浏览器记录应区分 360/390/768/1440px、200% 文字、减少动态效果、forced colors、键盘/触摸与正常/失败/中断路径，保留完整录屏及实际 checkout SHA。Microsoft 原地重连的合成组件检查不等于真实 OAuth 浏览器授权；断网再联网也不能称 OAuth 重连已验。DOM composition 事件不冒充操作系统输入法实测；390px viewport 不冒充物理手机。扩展分支逐项注明本候选单元、组件、数据库或浏览器证据，未执行的列未验证。
+
+| 交付阶段 | 本记录状态 |
+| --- | --- |
+| 当前数据库隔离门槛 | bd真实Native已核110SQL/49DB与f6相同，633/38/24与ACL三场景实过；相同输入语义引用f6独审，备份118/55 |
+| 默认ACL场景 | f6三场景各240表权限/55函数/10真实拒绝及两容器各13隔离检查实际通过，不是生产克隆或实写 |
+| 生产前置 | Root有限只读metadata/聚合与独立依赖复核通过；87ledger不等于99旧基线，发布前仍核目标与时效，不是生产用户流程通过 |
+| 已推送候选的本地全仓 | bd七CLI、454文件/3123测试、Python11与suite后tsc/lint通过；新20路径/文档候选待第六轮统一检查 |
+| 完整浏览器、截图与动效录屏 | bd远程11成功/2失败，四Visual全过；Canonical81重复成功/12曾成功编号，12/13/18未全7；PDF空选区仍未定位 |
+| 生产迁移 | 十一条均未执行，待完整候选通过后按顺序登记实际版本 |
+| GitHub 合并与代码部署 | 未完成，后续记录实际 merge SHA、部署及域名对应关系 |
+| 生产验证 | 未执行；匿名协议、版本、数据权限和可自动完成的受保护流程分别记录，不要求所有者手动测试 |
+
+## 回退边界
+
+Schema 以扩展为主，但新 Scene JSON 并非任意旧代码都能解析。最早已登记的兼容 reader 检查点为 [`93f88f9f127717cca3f8a6895b515ffd0b381357`](https://github.com/wateryh2004-beep/personal-os/commit/93f88f9f127717cca3f8a6895b515ffd0b381357)；生产基线 `a5803dda` 不能作为读取本批新 Scene 的兼容回退候选。实际回退部署仍须核对构建、配置与运行状态，不把代码检查点当作已就绪生产回退部署。
+
+回退保留版本、原件、引用、购后资料、审计和 provider 意图，不通过 down migration 或删除真实资料恢复旧界面，不重发未知外部操作。浏览器关闭后后台任务仍可能中断，不能将托盘称为跨浏览器持久执行服务。遵循[运行手册](../release-operations.md)与[系统备份](../system-backup.md)，本记录不建立额外审批、备份承诺或规则例外。

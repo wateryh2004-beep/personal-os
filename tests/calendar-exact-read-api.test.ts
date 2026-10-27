@@ -1,0 +1,19 @@
+import { beforeEach, expect, it, vi } from "vitest";
+const mock = vi.hoisted(() => ({ owner: vi.fn(), from: vi.fn(), select: vi.fn(), eq: vi.fn(), is: vi.fn(), maybeSingle: vi.fn() }));
+vi.mock("@/lib/auth/require-owner", async original => ({ ...await original<typeof import("@/lib/auth/require-owner")>(), requireOwnerApi: mock.owner }));
+import { OwnerAuthenticationError } from "@/lib/auth/require-owner";
+import { GET } from "@/app/api/calendar/events/by-id/route";
+const id = "e6000000-0000-4000-8000-000000000001", owner = "e1000000-0000-4000-8000-000000000001";
+const event = { id, provider_event_id: "AAMk+synth/opaque==", subject: "合成日程", body_text: null, starts_at: "2026-10-27T09:00:00Z", ends_at: "2026-10-27T10:00:00Z", is_all_day: false, location_name: null, categories: [], importance: "normal", show_as: "busy", last_synced_at: "2026-10-27T08:00:00Z" };
+beforeEach(() => { vi.clearAllMocks(); const query = { select: mock.select, eq: mock.eq, is: mock.is, maybeSingle: mock.maybeSingle }; mock.from.mockReturnValue(query); mock.select.mockReturnValue(query); mock.eq.mockReturnValue(query); mock.is.mockReturnValue(query); mock.maybeSingle.mockResolvedValue({ data: event, error: null }); mock.owner.mockResolvedValue({ userId: owner, supabase: { from: mock.from } }); });
+async function read(query: string) { const response = await GET(new Request("http://localhost/api/calendar/events/by-id?" + query)); expect(response.headers.get("cache-control")).toBe("private, no-store, max-age=0"); expect(response.headers.get("vary")).toBe("Cookie"); return response; }
+it.each([`id=${id}`, `providerId=${encodeURIComponent(event.provider_event_id)}`])("reads exactly the authorized identity %s and never a whole range", async query => {
+ const response = await read(query); expect(response.status).toBe(200); expect(await response.json()).toEqual({ event });
+ expect(mock.owner).toHaveBeenCalledTimes(1); expect(mock.eq).toHaveBeenCalledWith("user_id", owner); expect(mock.is).toHaveBeenCalledWith("archived_at", null);
+ expect(mock.eq).toHaveBeenCalledWith(query.startsWith("id=") ? "id" : "provider_event_id", query.startsWith("id=") ? id : event.provider_event_id);
+ expect(mock.select.mock.calls[0][0]).not.toContain("user_id"); expect(mock.select.mock.calls[0][0]).not.toContain("*");
+});
+it.each([`id=${id}&providerId=opaque`, `id=${id}&id=${id}`, `providerId=one&providerId=two`, "id=bad", "providerId=bad%20value", `id=${id}&user_id=forged`])("rejects ambiguous/forged exact query %s before any data read", async query => { expect((await read(query)).status).toBe(400); expect(mock.from).not.toHaveBeenCalled(); });
+it.each(["unauthenticated", "not-authorized", "configuration"] as const)("uses the real API auth error mapper for %s, never a redirect", async code => { mock.owner.mockRejectedValue(new OwnerAuthenticationError(code)); const response = await read(`id=${id}`); expect(response.status).toBe(code === "not-authorized" ? 403 : 401); expect(response.headers.has("location")).toBe(false); expect(mock.from).not.toHaveBeenCalled(); });
+it("reports a missing mirror separately from a failed authorized read", async () => { mock.maybeSingle.mockResolvedValueOnce({ data: null, error: null }); expect((await read(`id=${id}`)).status).toBe(404); mock.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: "PRIVATE DATA MUST NOT LEAK" } }); const response = await read(`id=${id}`); expect(response.status).toBe(503); expect(await response.text()).not.toContain("PRIVATE"); });
+it("does not return an invalid mirror DTO as successful restoration", async () => { mock.maybeSingle.mockResolvedValue({ data: { ...event, starts_at: "bad", privateRaw: "PRIVATE" }, error: null }); const response = await read(`id=${id}`); expect(response.status).toBe(503); expect(await response.text()).not.toContain("PRIVATE"); });

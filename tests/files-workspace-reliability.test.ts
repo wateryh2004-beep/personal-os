@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import { clearWorkspaceResources } from "@/lib/workspace-resource-cache";
+import { randomUUID } from "node:crypto";
+import { getBackgroundOperations, dismissBackgroundOperation } from "@/features/workflow-continuity/background-operations";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,7 +10,7 @@ import { FileMutationForm } from "@/components/files/file-mutation-form";
 import { useFileRows } from "@/components/files/use-file-rows";
 import type { FileRecord } from "@/features/files/queries";
 
-vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn(), usePathname: () => "/files" }));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn(), useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }), usePathname: () => "/files" }));
 vi.mock("@/components/shared/action-feedback", () => ({ useActionFeedback: () => ({ show: vi.fn() }) }));
 vi.mock("@/features/files/actions", () => ({ archiveFile: vi.fn(), createFileFolder: vi.fn(), moveFile: vi.fn(), renameFile: vi.fn(), restoreFile: vi.fn(), setFileAiVisibility: vi.fn() }));
 
@@ -21,10 +24,12 @@ let host: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  clearWorkspaceResources();
+  vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
   vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
-afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(async () => { for (const row of getBackgroundOperations()) dismissBackgroundOperation(row.id); await act(async () => root.unmount()); host.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 function renderFiles(files: FileRecord[], archivedFiles: FileRecord[] = [], initialFileId?: string) {
   return act(async () => root.render(createElement(FilesWorkspace, { folders, files, archivedFiles, initialFileId })));
@@ -127,8 +132,10 @@ describe("upload confirmation and indexing", () => {
       send() { put(); completePut = () => this.onload?.(); }
     }
     vi.stubGlobal("XMLHttpRequest", UploadRequest);
-    vi.stubGlobal("crypto", { subtle: { digest: vi.fn(async () => new ArrayBuffer(32)) } });
+    vi.stubGlobal("crypto", { randomUUID, subtle: { digest: vi.fn(async () => new ArrayBuffer(32)) } });
     const fetchMock = vi.fn(async (url: string, options?: RequestInit) => {
+      if (url === "/api/files/upload-candidates") return Response.json({ matches: [] });
+      if (url === "/api/files/uploaded/record") return Response.json({ file: { ...file, id: "uploaded", title: "fixture.pdf", text_extraction_status: "pending", mutation_revision: 1 } });
       if (url.endsWith("/extract")) throw new DOMException("Timed out", "TimeoutError");
       if (options?.method === "PATCH") return Response.json({ extractionStatus: "pending" });
       return Response.json({ documentId: "uploaded", uploadUrl: "https://example.invalid/upload", file: {
@@ -142,12 +149,15 @@ describe("upload confirmation and indexing", () => {
     const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
     Object.defineProperty(input, "files", { value: [uploadFile] });
     await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); input.dispatchEvent(new Event("change", { bubbles: true })); });
-    expect(put).toHaveBeenCalledTimes(1);
+    expect(put).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.some(([,options])=>options?.method==="PATCH")).toBe(false);
+    await act(async () => { [...document.querySelectorAll("button")].find(button=>button.textContent==="确认上传 1 个文件")!.click(); });
+    await vi.waitFor(()=>expect(put).toHaveBeenCalledTimes(1));
     const leaving = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(leaving); expect(leaving.defaultPrevented).toBe(true);
     await act(async () => completePut());
-    expect(host.textContent).toContain("已上传 1 个文件");
-    expect(host.textContent).toContain("文本索引将由后台逐步完成");
+    expect(getBackgroundOperations().find(row=>row.kind==="upload")?.status).toBe("succeeded");
+    expect(getBackgroundOperations().find(row=>row.kind==="upload")?.phase).toContain("原件已入库");
     expect(host.textContent).not.toContain("个未完成");
     expect(host.querySelector("#file-uploaded")).not.toBeNull();
     const finished = new Event("beforeunload", { cancelable: true });
@@ -161,8 +171,10 @@ describe("upload confirmation and indexing", () => {
       send(file: File) { if (file.name === "bad.pdf") this.status = 403; queueMicrotask(() => this.onload?.()); }
     }
     vi.stubGlobal("XMLHttpRequest", UploadRequest);
-    vi.stubGlobal("crypto", { subtle: { digest: vi.fn(async () => new ArrayBuffer(32)) } });
+    vi.stubGlobal("crypto", { randomUUID, subtle: { digest: vi.fn(async () => new ArrayBuffer(32)) } });
     vi.stubGlobal("fetch", vi.fn(async (_url: string, options?: RequestInit) => {
+      if (_url === "/api/files/upload-candidates") return Response.json({ matches: [] });
+      if (_url === "/api/files/good.pdf/record") return Response.json({ file: { ...file, id: "good.pdf", title: "good.pdf", mutation_revision: 1 } });
       if (_url === "/api/files/multipart") return Response.json([]);
       if (options?.method === "DELETE") throw new Error("cleanup offline");
       if (options?.method === "PATCH") return Response.json({ extractionStatus: "completed" });
@@ -180,20 +192,41 @@ describe("upload confirmation and indexing", () => {
     const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
     Object.defineProperty(input, "files", { value: files });
     await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
-    const feedback = host.querySelector('[role="status"]')!;
-    expect(feedback.textContent).toContain("已上传 1 个，1 个未完成");
-    expect(feedback.className).toContain("danger");
+    await act(async()=>{[...document.querySelectorAll("button")].find(button=>button.textContent==="确认上传 2 个文件")!.click();});
+    await vi.waitFor(()=>expect(getBackgroundOperations().filter(row=>row.kind==="upload").map(row=>row.status).sort()).toEqual(["failed","succeeded"]));
+    expect(getBackgroundOperations().find(row=>row.status==="failed")?.canRetry).toBe(true);
+    expect(getBackgroundOperations().find(row=>row.status==="succeeded")?.canRetry).toBe(false);
     expect(host.querySelectorAll('li[id^="file-"]')).toHaveLength(1);
   });
 
   it("rejects oversized files before hashing or preparing a network upload", async () => {
-    const digest = vi.fn(); vi.stubGlobal("crypto", { subtle: { digest } });
+    const digest = vi.fn(); vi.stubGlobal("crypto", { randomUUID, subtle: { digest } });
     const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
     await renderFiles([]);
     const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
     Object.defineProperty(input, "files", { value: [{ name: "large.pdf", type: "application/pdf", size: 101 * 1024 * 1024, arrayBuffer: vi.fn() }] });
     await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
-    expect(host.textContent).toContain("超过 100 MB");
+    expect(document.body.textContent).toContain("类型或大小不受支持，已排除");
     expect(digest).not.toHaveBeenCalled(); expect(fetchMock.mock.calls.every(([, options]) => !options?.method || options.method === "GET")).toBe(true);
   });
+});
+
+
+it("keeps one Files controller, search input, selection and scroll owner in the pane-sized layout host", async () => {
+  window.history.replaceState({}, "", "/files"); await renderFiles([file]);
+  const frame = host.querySelector<HTMLElement>(".files-pane-frame")!, workspace = frame.querySelector(".files-workspace")!, content = frame.querySelector<HTMLElement>(".files-content-pane")!, foldersNode = frame.querySelector(".files-folder-pane")!;
+  const search = content.querySelector<HTMLInputElement>('[aria-label="搜索文件名称"]')!;
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, "旧"); search.dispatchEvent(new Event("input", { bubbles: true })); });
+  search.focus(); search.setSelectionRange(0, 1); content.scrollTop = 124;
+  await act(async () => { frame.style.width = "260px"; window.dispatchEvent(new Event("resize")); });
+  expect(frame.querySelector(".files-workspace")).toBe(workspace); expect(frame.querySelector(".files-folder-pane")).toBe(foldersNode); expect(frame.querySelector(".files-content-pane")).toBe(content);
+  expect(content.querySelector('[aria-label="搜索文件名称"]')).toBe(search); expect(search.value).toBe("旧"); expect([search.selectionStart, search.selectionEnd]).toEqual([0, 1]); expect(document.activeElement).toBe(search); expect(content.scrollTop).toBe(124);
+  expect(window.location.search).toContain("q=");
+  const { readFile } = await import("node:fs/promises"), css = await readFile("src/components/files/files-workspace.css", "utf8");
+  expect(content.querySelector(".files-list-title")).not.toBeNull();
+  expect(content.querySelector(".files-list-actions")).not.toBeNull();
+  expect(content.querySelector(".files-list-title .files-list-actions")).toBeNull();
+  expect(css).toContain(".files-list-row-content {display:grid;grid-template-columns:16px minmax(0,1fr)}");
+  expect(css).toContain("grid-column:1 / -1;min-width:0;flex-wrap:wrap");
+  expect(css).toContain("container:files-pane / inline-size"); expect(css).toContain("@container files-pane (max-width:560px)"); expect(css).toContain("grid-template-columns:minmax(0,1fr)"); expect(css).toContain("max-height:192px"); expect(css).not.toContain("display:none");
 });

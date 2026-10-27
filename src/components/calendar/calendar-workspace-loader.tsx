@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 
 import { CalendarShell } from "./calendar-workspace-skeleton";
 import { CalendarWorkspace } from "@/components/calendar/calendar-workspace";
@@ -18,11 +19,14 @@ function CalendarMessage({ children }: { children: React.ReactNode }) {
 
 export function CalendarWorkspaceLoader({ initialCreateOpen = false, initialEventId }: { initialCreateOpen?: boolean; initialEventId?: string }) {
   const snapshot = useWorkspaceResource(calendarWorkspaceResource, "calendar");
+  const [workspaceVisited, setWorkspaceVisited] = useState(false);
 
   const data = snapshot.data;
+  const disconnected = !data?.connection || data.connection.last_error_code === "calendar_not_connected";
+  if (data && !disconnected && !workspaceVisited) setWorkspaceVisited(true);
   if (!data && snapshot.error) return <WorkspaceReadError resource={calendarWorkspaceResource} />;
   if (!data) return <CalendarShell />;
-  if (data.unavailable) return <CalendarMessage>日历数据尚未连接。</CalendarMessage>;
-  if (!data.connection || data.connection.last_error_code === "calendar_not_connected") return <MicrosoftDeviceConnect reconnect={Boolean(data.connection)} />;
-  return <CalendarWorkspace events={[]} categories={data.categories} timezone={data.timezone} syncStatus={data.sync} scopeReady={(data.connection.oauth_scope_version ?? 1) >= 2} initialCreateOpen={initialCreateOpen} initialEventId={initialEventId} />;
+  if (data.unavailable && !workspaceVisited) return <CalendarMessage>日历数据尚未连接。</CalendarMessage>;
+  if (disconnected && !workspaceVisited) return <MicrosoftDeviceConnect reconnect={Boolean(data.connection)} />;
+  return <div>{disconnected ? <MicrosoftDeviceConnect reconnect /> : null}{data.unavailable ? <p role="status" className="p-4 text-sm">暂时无法读取日历。未保存输入已保留，可稍后重试。</p> : null}<CalendarWorkspace events={[]} categories={data.categories} timezone={data.timezone} syncStatus={data.sync} scopeReady={(data.connection?.oauth_scope_version ?? 1) >= 2} initialCreateOpen={initialCreateOpen} initialEventId={initialEventId} /></div>;
 }

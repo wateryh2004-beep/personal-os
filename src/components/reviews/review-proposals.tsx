@@ -1,14 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Check, LoaderCircle, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   acceptReviewProposal,
   dismissReviewProposal,
-  generateReviewProposals,
 } from "@/features/reviews/actions";
+import { assertContinuousFixtureTransport } from "@/features/testing/continuous-fixture-gate";
+import type { AiActionFixtureTransport } from "@/features/assistant/ai-action-fixtures";
+import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
+import { startAiAction, getAiActionRecords, getAiActionServerRecords, subscribeAiActionRecords, reconcileReviewProposalAction, reconcileAiAction, type AiActionRecord } from "@/features/assistant/ai-action-runtime";
+import { registerAiResumeConsumer } from "@/features/assistant/ai-continuity";
 import type { ReviewSourceDetail } from "@/features/reviews/queries";
 
 type ProposalRow = {
@@ -38,56 +42,58 @@ export function ReviewProposals({
   reviewId,
   proposals,
   sources,
+  verificationTransport,
 }: {
   reviewId: string;
   proposals: ProposalRow[];
   sources: ReviewSourceDetail[];
+  verificationTransport?: { ai: AiActionFixtureTransport; accept: typeof acceptReviewProposal; dismiss: typeof dismissReviewProposal };
 }) {
+  assertContinuousFixtureTransport(verificationTransport);
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [isGenerating, startGenerating] = useTransition();
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const panel = useRef<HTMLElement>(null);
+  const operations = useSyncExternalStore(subscribeAiActionRecords, getAiActionRecords, getAiActionServerRecords);
+  const operation = [...operations].reverse().find(value => value.kind === "review-proposals" && value.input.kind === "review-proposals" && value.input.reviewId === reviewId && value.current()) as AiActionRecord<"review-proposals"> | undefined;
+  const isGenerating = operation?.status === "running";
+  const generatedMessage = operation?.result ? operation.result.alreadyPending ? "已有待确认候选，请先逐条处理。" : operation.result.created ? `已生成 ${operation.result.created} 条候选；记忆与决定尚未改变。` : "没有足够证据形成长期信息候选。" : operation?.error;
+  const displayedMessage = message ?? generatedMessage;
+  useEffect(() => registerAiResumeConsumer(target => target.kind === "review-proposals" && target.reviewId === reviewId, async () => { panel.current?.focus(); return document.activeElement === panel.current; }), [reviewId]);
   const [isResolving, startResolving] = useTransition();
   const sourceById = new Map(sources.map((source) => [source.source_id, source]));
   const pending = proposals.filter((proposal) => proposal.status === "pending");
 
   const generate = () => {
     setMessage(null);
-    startGenerating(async () => {
-      try {
-        const result = await generateReviewProposals(reviewId);
-        setMessage(
-          result.alreadyPending
-            ? "已有待确认候选，请先逐条处理。"
-            : result.created
-              ? `已生成 ${result.created} 条候选；记忆与决定尚未改变。`
-              : "没有足够证据形成长期信息候选。",
-        );
-        router.refresh();
-      } catch (error) {
-        setMessage(error instanceof Error ? error.message : "候选生成失败。");
-      }
-    });
+    const current = captureWorkspaceScope();
+    if (operation?.status === "needs-check") { void reconcileReviewProposalAction(reviewId, verificationTransport?.ai).then(result => { if (!mounted.current || !current()) return; setMessage(result.pendingIds.length ? "已读到待确认候选，请先逐条处理。" : "尚未读到已保存候选，上次请求仍可能完成，不会自动重复生成。"); if (result.pendingIds.length) { void reconcileAiAction(operation.id); router.refresh(); } }).catch(() => { if (mounted.current && current()) setMessage("候选结果尚未核对，原记录保留。"); }); return; }
+    try { startAiAction({ kind: "review-proposals", id: crypto.randomUUID(), reviewId }, verificationTransport?.ai); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "暂时无法开始，原记录保留。"); }
   };
 
   const resolve = (proposalId: string, outcome: "accept" | "dismiss") => {
     setPendingId(proposalId);
     setMessage(null);
+    const current = captureWorkspaceScope();
     startResolving(async () => {
       try {
-        if (outcome === "accept") await acceptReviewProposal(proposalId);
-        else await dismissReviewProposal(proposalId);
-        router.refresh();
+        if (outcome === "accept") await (verificationTransport?.accept ?? acceptReviewProposal)(proposalId);
+        else await (verificationTransport?.dismiss ?? dismissReviewProposal)(proposalId);
+        if (current() && mounted.current) router.refresh();
       } catch (error) {
+        if (!current() || !mounted.current) return;
         setMessage(error instanceof Error ? error.message : "候选处理失败。");
       } finally {
-        setPendingId(null);
+        if (current() && mounted.current) setPendingId(null);
       }
     });
   };
 
   return (
-    <section className="border-t border-[var(--separator)] pt-5">
+    <section ref={panel} tabIndex={-1} className="border-t border-[var(--separator)] pt-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[13.5px] font-semibold text-[var(--text-primary)]">长期信息候选</h2>
@@ -100,7 +106,7 @@ export function ReviewProposals({
           {isGenerating ? "正在提炼…" : "从本次复盘提炼长期信息"}
         </Button>
       </div>
-      {message ? <p className="mt-2.5 rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[12px] text-[var(--text-secondary)]">{message}</p> : null}
+      {displayedMessage ? <p className="mt-2.5 rounded-[9px] bg-[var(--surface-control)] px-3 py-2 text-[12px] text-[var(--text-secondary)]">{displayedMessage}</p> : null}
       <div className="mt-3.5 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">
         {proposals.length ? (
           proposals.map((proposal) => {

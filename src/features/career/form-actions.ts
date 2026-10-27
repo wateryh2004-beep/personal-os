@@ -3,15 +3,15 @@
 import { instantToWallTime, wallTimeToInstant } from "@/features/calendar/timezone";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { requireOwner } from "@/lib/auth/require-owner";
-import { createInterviewContext, updateInterviewContext, createInterviewQuestion, ensureInterviewPreparation } from "@/features/interview/actions";
+import { createInterviewContext, createInterviewContextWithReceipt, updateInterviewContext, createInterviewQuestionWithReceipt, ensureInterviewPreparationWithReceipt } from "@/features/interview/actions";
 import * as actions from "./actions";
 import { CareerInputError, type CareerFormResult } from "./form-state";
 
 const formActions = {
   createTargetContext,
   updateTargetContext,
-  createInterviewQuestion,
-  ensureInterviewPreparation,
+  createInterviewQuestion: createInterviewQuestionWithReceipt,
+  ensureInterviewPreparation: ensureInterviewPreparationWithReceipt,
   saveCareerProfile: actions.saveCareerProfile,
   createSkill: actions.createSkill,
   updateSkill: actions.updateSkill,
@@ -24,7 +24,7 @@ const formActions = {
   archiveCertification: actions.archiveCertification,
 
   createFact: actions.createFact,
-  createExperience: actions.createExperience,
+  createExperience: actions.createExperienceWithReceipt,
   prepareOpportunityInterview,
   updateFact: actions.updateFact,
   createOutput: actions.createOutput,
@@ -49,13 +49,13 @@ const formActions = {
 export async function submitCareerForm(operation: keyof typeof formActions, formData: FormData): Promise<CareerFormResult> {
   if (!Object.hasOwn(formActions, operation)) return { status: "error", message: "无法识别此操作，请刷新后重试。" };
   try {
-    await formActions[operation](formData);
-    return { status: "success", message: "已保存。" };
+    const receipt = await formActions[operation](formData);
+    return receipt ? { status: "success", message: "已保存。", recordId: receipt.id, redirectTo: receipt.href } : { status: "success", message: "已保存。" };
   } catch (error) {
     // Authentication redirects and framework control flow must never become inline errors.
     unstable_rethrow(error);
     if (error instanceof CareerInputError) return { status: "error", message: error.message, fieldErrors: error.fieldErrors };
-    return { status: "error", message: "操作未完成，输入已保留。请检查连接后重试。" };
+    return { status: "error",needsCheck:true, message: "保存结果尚未确认，输入已保留。请先核对原记录。" };
   }
 }
 
@@ -93,5 +93,5 @@ async function targetTimeForm(form: FormData) {
   form.delete("interview_wall_time");
   return form;
 }
-async function createTargetContext(form: FormData) { await createInterviewContext(await targetTimeForm(form)); }
+async function createTargetContext(form: FormData) { return createInterviewContextWithReceipt(await targetTimeForm(form)); }
 async function updateTargetContext(form: FormData) { await updateInterviewContext(await targetTimeForm(form)); }

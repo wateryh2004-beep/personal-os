@@ -85,7 +85,7 @@ afterEach(async () => {
 describe("Calendar active range resources", () => {
   it("captures and restores scene date, view and filters through the mounted calendar",async()=>{
     await render();const original=captureWorkbenchViewState("/calendar");expect(original?.kind).toBe("calendar");
-    const state={kind:"calendar" as const,view:"month" as const,cursor:"2026-11-04",selectedCategories:[primaryCalendarCategories[0].displayName,"Removed category"],hideInternship:true};
+    const state={kind:"calendar" as const,view:"month" as const,cursor:"2026-11-04",selectedCategories:[primaryCalendarCategories[0].displayName,"Removed category"],hideInternship:true,selectedEventId:null,inspectorOpen:false};
     await act(async()=>restoreWorkbenchViewState(state));
     expect(captureWorkbenchViewState("/calendar")).toEqual({...state,selectedCategories:[primaryCalendarCategories[0].displayName]});
     await act(async()=>restoreWorkbenchViewState(original!));expect(captureWorkbenchViewState("/calendar")).toEqual(original);
@@ -135,6 +135,9 @@ describe("Calendar active range resources", () => {
     resourceFor().set({ events: [event("a")], truncated: false });
     await render(); await activate();
     await act(async () => { mocks.fullView!.onCreate({ startsAt: "2026-10-02T13:00:00Z", endsAt: "2026-10-02T14:00:00Z", isAllDay: false }); });
+    const chooseNew=[...document.body.querySelectorAll<HTMLButtonElement>("button")].find(button=>button.textContent?.trim()==="新建日程");
+    expect(chooseNew).toBeDefined();
+    await act(async()=>{chooseNew!.dispatchEvent(new MouseEvent("click",{bubbles:true}));});
     const editor = container.querySelector<HTMLInputElement>("aside input")!;
     editor.value = "Unsaved new event";
     fetcher.mockResolvedValueOnce(response([event("new")]));

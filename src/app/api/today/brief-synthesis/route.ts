@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { todayBriefFingerprint } from "@/features/today/brief-snapshot";
+import { getDateKeyInTimeZone } from "@/lib/date-keys";
 import { NextResponse } from "next/server";
 import { synthesizeTodayBrief } from "@/features/today/ai-synthesis";
 import { getTodayWorkspace } from "@/features/today/queries";
@@ -8,13 +11,18 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 45;
 const headers = { "Cache-Control": "private, no-store, max-age=0" };
 
-export async function POST() {
+export async function POST(request?: Request) {
   try {
     const owner = await requireOwnerApi();
     const { supabase, userId } = owner;
+    const expected = request ? z.object({ localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), sourceFingerprint: z.string().regex(/^[0-9a-f]{64}$/) }).strict().safeParse(await request.json().catch(() => null)) : null;
+    if (expected && !expected.success) return NextResponse.json({ error: "总结来源标识无效。" }, { status: 400, headers });
     const workspace = await getTodayWorkspace(new Date(), owner);
     if (!workspace.todayBrief.length)
       return NextResponse.json({ error: "今天还没有足够信息可供总结。" }, { status: 422, headers });
+    const localDate = getDateKeyInTimeZone(workspace.generatedAt || new Date().toISOString(), workspace.timezone);
+    const sourceFingerprint = todayBriefFingerprint(workspace.todayBrief);
+    if (expected?.success && (expected.data.localDate !== localDate || expected.data.sourceFingerprint !== sourceFingerprint)) return NextResponse.json({ error: "今日日期或来源已变化，请核对当前内容后再生成。" }, { status: 409, headers });
     const result = await synthesizeTodayBrief({
       userId,
       timezone: workspace.timezone,
@@ -27,7 +35,7 @@ export async function POST() {
       actor_type: "assistant",
       after_data: { model: result.modelId, source_count: workspace.todayBrief.length },
     });
-    return NextResponse.json(result, { headers });
+    return NextResponse.json({ ...result, localDate, sourceFingerprint }, { headers });
   } catch (error) {
     const auth = apiAuthenticationFailure(error);
     if (auth) return auth;

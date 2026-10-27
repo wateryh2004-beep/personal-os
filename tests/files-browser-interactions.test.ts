@@ -8,7 +8,7 @@ import { renameFile } from "@/features/files/actions";
 import type { FileRecord } from "@/features/files/queries";
 const receiptMocks=vi.hoisted(()=>({read:vi.fn()}));
 vi.mock("@/features/workbench/operation-actions",()=>({readWorkbenchReceiptState:receiptMocks.read,readMetadataOperationTargets:vi.fn(),applyMetadataOperation:vi.fn()}));
-vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn(), usePathname: () => "/files" }));
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn(), useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }), usePathname: () => "/files" }));
 vi.mock("@/components/shared/action-feedback", () => ({ useActionFeedback: () => ({ show: vi.fn() }) }));
 vi.mock("@/features/files/actions", () => ({ archiveFile: vi.fn(), createFileFolder: vi.fn(), moveFile: vi.fn(), renameFile: vi.fn(), restoreFile: vi.fn(), setFileAiVisibility: vi.fn() }));
 const files: FileRecord[] = [

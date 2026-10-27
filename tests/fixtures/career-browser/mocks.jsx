@@ -6,8 +6,10 @@ window.addEventListener("popstate", () => listeners.forEach(listener => listener
 export function useSearchParams() { const raw=useSyncExternalStore(listener => { listeners.add(listener);return () => listeners.delete(listener); }, () => location.search); return new URLSearchParams(raw); }
 export function usePathname() { return location.pathname; }
 export function unstable_rethrow() {}
+export const readOrdinaryDraftComparison = async () => ({ status: "unavailable", message: "隔离预览不读取真实记录。" });
 export function useRouter() { return { refresh() {} }; }
 export async function submitCareerForm(action, form) { if (["createTargetContext","updateTargetContext","ensureInterviewPreparation","createInterviewQuestion","createExperience","createFact","updateFact","createOutput","createBullet","linkFactToBullet","approveBullet","uploadEvidence","archiveExperience"].includes(action) || form.get("title") === "失败测试") return { status:"error",message:"合成保存失败，输入保留。" }; return { status:"success",message:action }; }
+export async function submitInterviewForm() { return { status: "error", message: "合成保存失败，输入保留。" }; }
 
 export async function createGraphLink() { throw new Error("隔离预览不执行真实关联"); }
 export async function dismissGraphSuggestion() { throw new Error("隔离预览不执行真实变更"); }

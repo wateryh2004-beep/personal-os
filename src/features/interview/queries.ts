@@ -524,7 +524,7 @@ export async function getPracticeQueue(contextId?: string | null) {
   };
 }
 
-export async function getPracticeDetail(preparationId: string) {
+export async function getPracticeDetail(preparationId: string, parentAttemptId?: string) {
   const { supabase } = await ownerWithSchema();
   const { data: preparation, error: preparationError } = await supabase.from("interview_question_preparations")
     .select("*,interview_questions(*),interview_contexts(id,title,organization_snapshot,role_title_snapshot)")
@@ -544,6 +544,8 @@ export async function getPracticeDetail(preparationId: string) {
   ]);
 
   assertAvailable([answers, attempts, links, archetypeLinks, stories]);
+  const parentResult=parentAttemptId?await supabase.from("interview_practice_attempts").select("*").eq("id",parentAttemptId).eq("preparation_id",preparationId).is("archived_at",null).maybeSingle():null;
+  if(parentResult?.error) throw new Error("暂时无法读取原练习，请重试。");
   const storyById = new Map((stories.data ?? []).map((story) => [story.id, story]));
   const linkedStories = (archetypeLinks.data ?? [])
     .map((link) => ({ ...link, story: storyById.get(link.story_id) }))
@@ -559,6 +561,7 @@ export async function getPracticeDetail(preparationId: string) {
     preparation,
     answers: answers.data ?? [],
     attempts: attempts.data ?? [],
+    parentAttempt: parentResult?.data ?? null,
     evidenceCount: (links.data ?? []).length,
     linkedStories,
   };
@@ -609,7 +612,7 @@ export async function getInterviewInsights(contextId?: string | null) {
     readAllRows(supabase.from("interview_questions").select("id,archetype_id,question_type_id,question_style,category").is("archived_at", null).order("id")),
     readAllRows(supabase.from("interview_question_competencies").select("question_id,competency_id,relevance,is_primary").order("id")),
     readAllRows(supabase.from("interview_competencies").select("id,key,label").is("archived_at", null).order("id")),
-    readAllRows(supabase.from("interview_practice_attempts").select("id,preparation_id,story_id,issue_tags,strength_tags,practiced_at,duration_seconds").is("archived_at", null).order("practiced_at").order("id")),
+    readAllRows(supabase.from("interview_practice_attempts").select("id,preparation_id,story_id,issue_tags,strength_tags,practiced_at,duration_seconds,next_focus,prompt_snapshot").is("archived_at", null).order("practiced_at").order("id")),
     readAllRows(supabase.from("interview_contexts").select("id,title,status").is("archived_at", null).order("priority", { ascending: false }).order("id")),
     readAllRows(supabase.from("interview_archetype_stories").select("archetype_id,story_id,evidence_role").is("archived_at", null).order("id")),
     readAllRows(supabase.from("interview_stories").select("id,title,status,experience_id").is("archived_at", null).order("id")),

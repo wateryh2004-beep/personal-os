@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 
 import { TasksShell } from "./tasks-workspace-skeleton";
 import { MicrosoftDeviceConnect } from "@/components/calendar/microsoft-device-connect";
@@ -33,26 +34,29 @@ export function TaskWorkspaceLoader({
   initialTaskId?: string;
 }) {
   const snapshot = useWorkspaceResource(tasksWorkspaceResource, "tasks");
+  const [workspaceVisited, setWorkspaceVisited] = useState(false);
 
   const data = snapshot.data;
+  const disconnected = !data?.connection || data.connection.last_error_code === "calendar_not_connected";
+  if (data && !disconnected && !workspaceVisited) setWorkspaceVisited(true);
   if (!data && snapshot.error) return <WorkspaceReadError resource={tasksWorkspaceResource} />;
   if (!data) return <TasksShell />;
-  if (data.unavailable) {
+  if (data.unavailable && !workspaceVisited) {
     return <WorkspaceMessage tone="danger" title="任务">无法读取 Microsoft To Do 缓存。请检查数据库连接。</WorkspaceMessage>;
   }
-  if (data.schemaMissing) {
+  if (data.schemaMissing && !workspaceVisited) {
     return <WorkspaceMessage tone="warning">Microsoft To Do 数据库尚未升级。部署后请应用本次 migration，才能同步任务。</WorkspaceMessage>;
   }
-  if (!data.connection || data.connection.last_error_code === "calendar_not_connected") {
+  if (disconnected && !workspaceVisited) {
     return <MicrosoftDeviceConnect reconnect={Boolean(data.connection)} />;
   }
   return (
-    <TaskWorkspace
+    <div>{disconnected ? <MicrosoftDeviceConnect reconnect /> : null}{data.unavailable ? <p role="status" className="p-4 text-sm">暂时无法读取任务。未保存输入已保留，可稍后重试。</p> : null}<TaskWorkspace
       lists={data.lists}
       tasks={data.tasks}
       initialDayBounds={initialDayBounds}
       initialCreateOpen={initialCreateOpen}
       initialTaskId={initialTaskId}
-    />
+    /></div>
   );
 }

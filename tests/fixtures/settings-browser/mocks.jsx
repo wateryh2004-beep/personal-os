@@ -1,5 +1,7 @@
 import React from "react";
 export default function Link({ href, children, ...props }) { return <a href={href} {...props}>{children}</a>; }
+export function unstable_rethrow() {}
+export const readOrdinaryDraftComparison = async () => ({ status: "unavailable", message: "隔离预览不读取真实记录。" });
 export const saveDeepSeekKey = async () => {};
 export const removeDeepSeekKey = async () => {};
 export const resetAiPromptOverride = async () => {};

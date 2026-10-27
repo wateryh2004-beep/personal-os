@@ -21,6 +21,8 @@ import {
 } from "./schemas";
 import { questionTypeByLegacyCategory, type EvidenceType } from "./constants";
 import { selectWorkspaceAnswer, workspaceAnswerMetadata, type WorkspaceAnswer } from "./workspace-answers";
+import { z } from "zod";
+import { normalizePracticeIntent, practiceReceiptSchema, type PracticeIntentOutcome, type PracticeMode } from "./practice-intents";
 
 function failed(error: unknown): never {
   void error;
@@ -108,7 +110,7 @@ function revalidateInterview(questionId?: string, preparationId?: string, sessio
   if (sessionId) revalidatePath(`/career/interview/sessions/${sessionId}`);
 }
 
-export async function createInterviewQuestion(formData: FormData) {
+async function createInterviewQuestionRecord(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const contextId = String(formData.get("context_id") || "") || null;
   const returnToWorkspace = String(formData.get("return_to_workspace") || "") === "1";
@@ -151,11 +153,11 @@ export async function createInterviewQuestion(formData: FormData) {
   revalidateInterview(data.id);
   if (contextId) revalidatePath(`/career/interview/targets/${contextId}`);
   if (contextId) revalidatePath(`/career/interview/targets/${contextId}`);
-  if (returnToWorkspace) {
-    redirect(contextId ? `/career/interview?context=${contextId}&question=${data.id}` : `/career/interview?question=${data.id}`);
-  }
-  redirect(contextId ? `/career/interview/questions/${data.id}?context=${contextId}` : `/career/interview/questions/${data.id}`);
+  return { id: data.id, href: returnToWorkspace ? (contextId ? `/career/interview?context=${contextId}&question=${data.id}` : `/career/interview?question=${data.id}`) : (contextId ? `/career/interview/questions/${data.id}?context=${contextId}` : `/career/interview/questions/${data.id}`) };
 }
+
+export async function createInterviewQuestion(formData: FormData) { const receipt = await createInterviewQuestionRecord(formData); redirect(receipt.href); }
+export async function createInterviewQuestionWithReceipt(formData: FormData) { return createInterviewQuestionRecord(formData); }
 
 export async function updateInterviewQuestion(formData: FormData) {
   const { supabase, userId } = await requireOwner();
@@ -198,7 +200,7 @@ export async function archiveInterviewQuestion(formData: FormData) {
   redirect("/career/interview/questions");
 }
 
-export async function createInterviewContext(formData: FormData) {
+async function createInterviewContextRecord(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const returnToWorkspace = String(formData.get("return_to_workspace") || "") === "1";
   const raw = { ...formObject(formData) } as Record<string, unknown>;
@@ -224,9 +226,11 @@ export async function createInterviewContext(formData: FormData) {
   if (error || !data) failed(error);
   await audit(supabase, userId, "create", "interview_context", data.id, { context_type: value.context_type, title: value.title });
   revalidateInterview();
-  if (returnToWorkspace) redirect(`/career/interview?context=${data.id}`);
-  redirect(value.context_type === "general" ? "/career/interview" : `/career/interview/targets/${data.id}`);
+  return { id: data.id, href: returnToWorkspace ? `/career/interview?context=${data.id}` : value.context_type === "general" ? "/career/interview" : `/career/interview/targets/${data.id}` };
 }
+
+export async function createInterviewContext(formData: FormData) { const receipt = await createInterviewContextRecord(formData); redirect(receipt.href); }
+export async function createInterviewContextWithReceipt(formData: FormData) { return createInterviewContextRecord(formData); }
 
 export async function updateInterviewContext(formData: FormData) {
   const { supabase, userId } = await requireOwner();
@@ -261,7 +265,7 @@ export async function archiveInterviewContext(formData: FormData) {
   revalidateInterview();
 }
 
-export async function ensureInterviewPreparation(formData: FormData) {
+async function ensureInterviewPreparationRecord(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const questionId = String(formData.get("question_id") || "");
   const contextId = String(formData.get("context_id") || "") || null;
@@ -292,8 +296,11 @@ export async function ensureInterviewPreparation(formData: FormData) {
   }
   revalidateInterview(questionId, preparationId);
   if (contextId) revalidatePath(`/career/interview/targets/${contextId}`);
-  redirect(contextId ? `/career/interview/questions/${questionId}?context=${contextId}` : `/career/interview/questions/${questionId}`);
+  return { id: preparationId, href: contextId ? `/career/interview/questions/${questionId}?context=${contextId}` : `/career/interview/questions/${questionId}` };
 }
+
+export async function ensureInterviewPreparation(formData: FormData) { const receipt = await ensureInterviewPreparationRecord(formData); redirect(receipt.href); }
+export async function ensureInterviewPreparationWithReceipt(formData: FormData) { return ensureInterviewPreparationRecord(formData); }
 
 export async function saveInterviewWorkspace(formData: FormData) {
   const { supabase, userId } = await requireOwner();
@@ -404,13 +411,14 @@ export async function updateInterviewPreparation(formData: FormData) {
     }
   }
 
-  const { error } = await supabase.from("interview_question_preparations").update({
-    ...value,
-    ready_at: value.status === "ready" ? new Date().toISOString() : null,
-  }).eq("id", preparationId);
-  if (error) failed(error);
+  const expected=formData.has("expected_updated_at")?z.string().datetime({offset:true}).parse(formData.get("expected_updated_at")):null;
+  let update=supabase.from("interview_question_preparations").update({...value,ready_at:value.status==="ready"?new Date().toISOString():null}).eq("id",preparationId).eq("user_id",userId).is("archived_at",null);
+  if(expected)update=update.eq("updated_at",expected);
+  const {data:saved,error}=await update.select("id,updated_at").maybeSingle();
+  if(error)failed(error);if(!saved)throw new Error("这份准备已更新或不可用，原输入已保留，请重新读取后核对。");
   await audit(supabase, userId, "update", "interview_preparation", preparationId, { status: value.status, importance: value.importance, confidence: value.confidence });
   revalidateInterview(questionId, preparationId);
+  return {id:saved.id,href:undefined,savedUpdatedAt:saved.updated_at};
 }
 
 export async function addInterviewNote(formData: FormData) {
@@ -438,7 +446,7 @@ export async function archiveInterviewNote(formData: FormData) {
   revalidateInterview(undefined, preparationId);
 }
 
-export async function createInterviewAnswerVersion(formData: FormData) {
+async function createInterviewAnswerVersionRecord(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const makeCurrent = String(formData.get("make_current") || "") === "1";
   const value = parse(interviewAnswerSchema, formObject(formData));
@@ -495,12 +503,12 @@ export async function createInterviewAnswerVersion(formData: FormData) {
   }
   await audit(supabase, userId, "create", "interview_answer_version", data.id, { preparation_id: value.preparation_id, answer_mode: value.answer_mode, language: value.language, target_seconds: value.target_seconds, make_current: makeCurrent });
   revalidateInterview(preparation.question_id, value.preparation_id);
-  if (formData.get("return_to_question") === "1") {
-    const params = new URLSearchParams({ answer: data.id });
-    if (preparation.context_id) params.set("context", preparation.context_id);
-    redirect(`/career/interview/questions/${preparation.question_id}?${params}`);
-  }
+  const params = new URLSearchParams({ answer: data.id });
+  if (preparation.context_id) params.set("context", preparation.context_id);
+  return {id:data.id,href:`/career/interview/questions/${preparation.question_id}?${params}`};
 }
+export async function createInterviewAnswerVersion(formData:FormData){const receipt=await createInterviewAnswerVersionRecord(formData);if(formData.get("return_to_question")==="1")redirect(receipt.href);}
+export async function createInterviewAnswerVersionWithReceipt(formData:FormData){return createInterviewAnswerVersionRecord(formData);}
 
 export async function promoteInterviewAnswerVersion(formData: FormData) {
   const { supabase, userId } = await requireOwner();
@@ -548,7 +556,7 @@ export async function archiveInterviewAnswerVersion(formData: FormData) {
   revalidateInterview(undefined, preparationId);
 }
 
-export async function createInterviewStory(formData: FormData) {
+async function createInterviewStoryRecord(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const value = parse(interviewStorySchema, formObject(formData));
   if (value.experience_id) await own(supabase, "experiences", value.experience_id);
@@ -563,8 +571,11 @@ export async function createInterviewStory(formData: FormData) {
     status: value.status,
   });
   revalidateInterview();
-  redirect(`/career/interview/stories/${data.id}`);
+  return { id: data.id, href: `/career/interview/stories/${data.id}` };
 }
+
+export async function createInterviewStory(formData: FormData) { const receipt = await createInterviewStoryRecord(formData); redirect(receipt.href); }
+export async function createInterviewStoryWithReceipt(formData: FormData) { return createInterviewStoryRecord(formData); }
 
 export async function updateInterviewStory(formData: FormData) {
   const { supabase, userId } = await requireOwner();
@@ -686,6 +697,10 @@ export async function createPracticeAttempt(formData: FormData) {
   await own(supabase, "interview_question_preparations", value.preparation_id);
   if (value.answer_version_id) await own(supabase, "interview_answer_versions", value.answer_version_id);
   if (value.story_id) await own(supabase, "interview_stories", value.story_id);
+  if(value.parent_attempt_id) {
+    const {data:parent,error:parentError}=await supabase.from("interview_practice_attempts").select("id,preparation_id").eq("id",value.parent_attempt_id).eq("user_id",userId).is("archived_at",null).maybeSingle();
+    if(parentError || !parent || parent.preparation_id!==value.preparation_id) failed(new Error("原练习不可用或不属于这道题，请重新选择。"));
+  }
   const { data: prep, error: prepError } = await supabase.from("interview_question_preparations")
     .select("id,question_id,status,prompt_override,interview_questions(canonical_prompt)")
     .eq("id", value.preparation_id).maybeSingle();
@@ -699,7 +714,7 @@ export async function createPracticeAttempt(formData: FormData) {
     answer_version_id: value.answer_version_id,
     story_id: value.story_id,
     session_id: null,
-    parent_attempt_id: null,
+    parent_attempt_id: value.parent_attempt_id,
     sequence_no: null,
     attempt_kind: "solo",
     input_mode: value.input_mode,
@@ -730,7 +745,48 @@ export async function createPracticeAttempt(formData: FormData) {
   redirect(`/career/interview/practice/${value.preparation_id}?${receipt}`);
 }
 
-export async function createInterviewSession(formData: FormData) {
+/** New ordinary-draft UI uses a stable primary-key intent; legacy redirect callers remain compatible. */
+export async function savePracticeIntent(mode: PracticeMode, attemptId: string, formData: FormData): Promise<PracticeIntentOutcome> {
+  const { supabase } = await requireOwner();
+  const identity = z.string().uuid().safeParse(attemptId);
+  if (!identity.success || !["solo", "session"].includes(mode)) return { status: "rejected", message: "练习保存标识无效，输入已保留。" };
+  let payload;
+  try { payload = normalizePracticeIntent(mode, formData); } catch { return { status: "rejected", message: "请检查题目、时长和回答格式，输入已保留。" }; }
+  try {
+    const result = await supabase.rpc("record_interview_practice_intent", { p_attempt_id: identity.data, p_payload: payload });
+    if (result.error) {
+      if (result.error.code === "40001") return { status: "conflict", message: "这次保存意图已对应另一份回答，请先核对原练习。" };
+      if (["22023", "23514", "23503", "42501"].includes(result.error.code)) return { status: "rejected", message: "练习未保存，请核对题目、原练习和权限后重试。" };
+      return { status: "needs-check", message: "暂时无法确认保存结果，请核对同一次保存，避免重复记录。" };
+    }
+    const receipt = practiceReceiptSchema.safeParse(result.data);
+    if (!receipt.success || receipt.data.attempt_id !== identity.data || receipt.data.preparation_id !== payload.preparation_id || receipt.data.session_id !== payload.session_id) return { status: "needs-check", message: "保存回执尚未核对，当前输入已保留。" };
+    try { revalidateInterview(receipt.data.question_id ?? undefined, receipt.data.preparation_id ?? undefined, receipt.data.session_id ?? undefined); }
+    catch { return { status: "saved", receipt: receipt.data, warning: "练习已保存，页面暂未更新；无需重复保存。" }; }
+    return { status: "saved", receipt: receipt.data };
+  } catch { return { status: "needs-check", message: "未收到保存回执，输入与本次保存意图已保留。" }; }
+}
+
+/** Pure read-back; never starts a second attempt or moves the practice schedule. */
+export async function reconcilePracticeIntent(mode: PracticeMode, attemptId: string, formData: FormData): Promise<PracticeIntentOutcome> {
+  const { supabase } = await requireOwner();
+  const identity = z.string().uuid().safeParse(attemptId);
+  if (!identity.success || !["solo", "session"].includes(mode)) return { status: "rejected", message: "练习保存标识无效。" };
+  let payload;
+  try { payload = normalizePracticeIntent(mode, formData); } catch { return { status: "rejected", message: "原保存内容不完整，未重新发送。" }; }
+  try {
+    const result = await supabase.rpc("reconcile_interview_practice_intent", { p_attempt_id: identity.data, p_payload: payload });
+    if (result.error || !result.data || typeof result.data !== "object" || Array.isArray(result.data)) return { status: "needs-check", message: "暂时无法核对，请保留当前输入。" };
+    if ("status" in result.data && result.data.status === "missing") return { status: "missing" };
+    if ("status" in result.data && result.data.status === "conflict") return { status: "conflict", message: "原保存意图与当前记录不一致，请检查已有练习。" };
+    const { status, ...raw } = result.data;
+    const receipt = practiceReceiptSchema.safeParse(raw);
+    if (status !== "saved" || !receipt.success || receipt.data.attempt_id !== identity.data || receipt.data.preparation_id !== payload.preparation_id || receipt.data.session_id !== payload.session_id) return { status: "needs-check", message: "暂时无法核对保存回执，输入已保留。" };
+    return { status: "saved", receipt: receipt.data };
+  } catch { return { status: "needs-check", message: "核对尚未完成，未重新发送练习。" }; }
+}
+
+async function createInterviewSessionRecord(formData: FormData) {
   const { supabase, userId } = await requireOwner();
   const value = parse(interviewSessionSchema, formObject(formData));
   if (value.context_id) await own(supabase, "interview_contexts", value.context_id);
@@ -744,8 +800,11 @@ export async function createInterviewSession(formData: FormData) {
   if (error || !data) failed(error);
   await audit(supabase, userId, "create", "interview_session", data.id, { session_kind: value.session_kind, session_format: value.session_format, context_id: value.context_id });
   revalidateInterview(undefined, undefined, data.id);
-  redirect(`/career/interview/sessions/${data.id}`);
+  return { id: data.id, href: `/career/interview/sessions/${data.id}` };
 }
+
+export async function createInterviewSession(formData: FormData) { const receipt = await createInterviewSessionRecord(formData); redirect(receipt.href); }
+export async function createInterviewSessionWithReceipt(formData: FormData) { return createInterviewSessionRecord(formData); }
 
 export async function startInterviewSession(formData: FormData) {
   const { supabase, userId } = await requireOwner();
@@ -762,7 +821,10 @@ export async function addSessionAttempt(formData: FormData) {
   const value = parse(interviewSessionAttemptSchema, formObject(formData));
   await own(supabase, "interview_sessions", value.session_id);
   if (value.preparation_id) await own(supabase, "interview_question_preparations", value.preparation_id);
-  if (value.parent_attempt_id) await own(supabase, "interview_practice_attempts", value.parent_attempt_id);
+  if(value.parent_attempt_id) {
+    const {data:parent,error:parentError}=await supabase.from("interview_practice_attempts").select("id,preparation_id,session_id").eq("id",value.parent_attempt_id).eq("user_id",userId).is("archived_at",null).maybeSingle();
+    if(parentError || !parent || parent.preparation_id!==value.preparation_id || parent.session_id!==value.session_id) failed(new Error("只能继续本场、同一题目的练习。"));
+  }
   if (value.story_id) await own(supabase, "interview_stories", value.story_id);
   const [{ data: session, error: sessionError }, { data: sequenceRows, error: seqError }] = await Promise.all([
     supabase.from("interview_sessions").select("session_kind,status,started_at").eq("id", value.session_id).maybeSingle(),

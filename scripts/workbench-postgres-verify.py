@@ -38,6 +38,17 @@ WORKBENCH_SUFFIXES = (
     "_workspace_scenes.sql",
     "_workbench_undo_dispatch.sql",
     "_workbench_policy_fk_performance.sql",
+    "_continuous_material_sources.sql",
+    "_continuous_domain_workflows.sql",
+    "_continuous_material_receipts.sql",
+    "_inbox_dispatch_mutex.sql",
+    "_continuous_ai_capture_intents.sql",
+    "_continuous_practice_intents.sql",
+    "_continuous_scene_state.sql",
+    "_continuous_briefing_judgment_intents.sql",
+    "_continuous_agent_run_generations.sql",
+    "_continuous_life_request_reconcile.sql",
+    "_continuous_production_baseline.sql",
 )
 OWNER = "a1000000-0000-4000-8000-000000000001"
 SCENE_OWNER = "a1000000-0000-4000-8000-000000000002"

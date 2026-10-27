@@ -86,7 +86,7 @@ type CreateTodoTaskInput = { todoListId: string; title: string; bodyText: string
 export type UpdateTodoTaskInput = { title?: string; bodyText?: string | null; importance?: "low" | "normal" | "high"; dueAt?: string | null };
 
 export class MicrosoftGraphError extends Error {
-  constructor(public readonly code: string) {
+  constructor(public readonly code: string, public readonly writeOutcome: "not_written" | "unknown" = "unknown") {
     super(code);
   }
 }
@@ -211,20 +211,23 @@ export async function graph(accessToken: string, path: string, init?: RequestIni
     }
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      const graphCode = payload && typeof payload === "object" && "error" in payload
-        && payload.error && typeof payload.error === "object" && "code" in payload.error
-        ? String(payload.error.code) : "";
-      if (response.status === 412) throw new MicrosoftGraphError("graph_conflict");
-      if (response.status === 404) throw new MicrosoftGraphError("graph_not_found");
-      if (response.status === 410 || graphCode === "SyncStateNotFound") throw new MicrosoftGraphError("calendar_delta_expired");
-      if (graphCode === "ErrorAccessDenied" || graphCode === "Authorization_RequestDenied") throw new MicrosoftGraphError("graph_access_denied");
-      if (graphCode === "ErrorInvalidRequest" || graphCode === "ErrorInvalidTimeZone") throw new MicrosoftGraphError("graph_invalid_request");
+      const graphCode = payload && typeof payload === "object" && !Array.isArray(payload) && "error" in payload
+        && payload.error && typeof payload.error === "object" && !Array.isArray(payload.error) && "code" in payload.error
+        && typeof payload.error.code === "string" ? payload.error.code.trim() : "";
+      // Only a structured single-request Graph rejection proves no write.
+      // 408/409/429, 5xx, malformed responses and network failures remain unknown.
+      const writeOutcome = !isRead && graphCode && [400,401,403,404,405,413,415,422].includes(response.status) ? "not_written" : "unknown";
+      if (response.status === 412) throw new MicrosoftGraphError("graph_conflict", writeOutcome);
+      if (response.status === 404) throw new MicrosoftGraphError("graph_not_found", writeOutcome);
+      if (response.status === 410 || graphCode === "SyncStateNotFound") throw new MicrosoftGraphError("calendar_delta_expired", writeOutcome);
+      if (graphCode === "ErrorAccessDenied" || graphCode === "Authorization_RequestDenied") throw new MicrosoftGraphError("graph_access_denied", writeOutcome);
+      if (graphCode === "ErrorInvalidRequest" || graphCode === "ErrorInvalidTimeZone") throw new MicrosoftGraphError("graph_invalid_request", writeOutcome);
       if (isRead && attempt + 1 < maxAttempts && (response.status === 429 || response.status >= 500)) {
         const retryAfter = Number(response.headers.get("Retry-After") ?? 0);
         await delay(Math.min(retryAfter > 0 ? retryAfter * 1000 : 300 * 2 ** attempt, 5000));
         continue;
       }
-      throw new MicrosoftGraphError("graph_request_failed");
+      throw new MicrosoftGraphError("graph_request_failed", writeOutcome);
     }
     return payload;
   }
@@ -689,10 +692,12 @@ export async function createMicrosoftTodoTask(connectionId: string, userId: stri
   const { data: list, error: listError } = await admin.from("microsoft_todo_lists")
     .select("id,provider_list_id")
     .eq("id", input.todoListId).eq("user_id", userId).eq("connection_id", connectionId).is("archived_at", null).maybeSingle();
-  if (listError || !list) throw new MicrosoftGraphError("todo_list_not_found");
+  if (listError || !list) throw new MicrosoftGraphError("todo_list_not_found", "not_written");
 
+  let dispatched = false;
   try {
     const accessToken = await accessTokenForConnection(connectionId, userId);
+    dispatched = true;
     const payload = await graph(accessToken, `/me/todo/lists/${encodeURIComponent(list.provider_list_id)}/tasks`, {
       method: "POST",
       body: JSON.stringify({
@@ -724,7 +729,7 @@ export async function createMicrosoftTodoTask(connectionId: string, userId: stri
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "todo_create_failed";
     await markConnectionError(connectionId, code);
-    throw new MicrosoftGraphError(code);
+    throw new MicrosoftGraphError(code, !dispatched || (error instanceof MicrosoftGraphError && error.writeOutcome === "not_written") ? "not_written" : "unknown");
   }
 }
 
@@ -829,6 +834,7 @@ export async function executeCalendarOperation(operationId: string, userId: stri
     .eq("id", operationId).eq("user_id", userId).eq("status", "queued")
     .select("id,connection_id,operation_type,provider_event_id,payload,status").maybeSingle();
   if (error || !operation) throw new MicrosoftGraphError("calendar_operation_already_processed");
+  let createDispatched = false;
   try {
     if (operation.operation_type === "sync") {
       const count = await syncMicrosoftCalendar(operation.connection_id, userId);
@@ -881,6 +887,7 @@ export async function executeCalendarOperation(operationId: string, userId: stri
     const value = operation.payload as CalendarPayload;
     if (!value.subject || !value.startsAt || !value.endsAt) throw new MicrosoftGraphError("operation_payload_invalid");
     const accessToken = await accessTokenForConnection(operation.connection_id, userId);
+    createDispatched = true;
     const created = await graph(accessToken, "/me/events", {
       method: "POST",
       body: JSON.stringify(calendarEventForGraph({ ...value, transactionId: operation.id } as GraphCalendarCreatePayload)),
@@ -896,9 +903,10 @@ export async function executeCalendarOperation(operationId: string, userId: stri
     await audit(userId, "execute", operation.id, { operation_type: "create", result: "succeeded", provider_event_id: record.provider_event_id });
   } catch (error) {
     const code = error instanceof MicrosoftGraphError ? error.code : "calendar_operation_failed";
-    if (code !== "calendar_remote_committed_cache_failed") await admin.from("calendar_operations").update({ status: code === "graph_unavailable" ? "reconciliation_required" : "failed", completed_at: new Date().toISOString(), error_code: code }).eq("id", operation.id);
+    const notWritten = operation.operation_type === "create" && (!createDispatched || (error instanceof MicrosoftGraphError && error.writeOutcome === "not_written"));
+    if (code !== "calendar_remote_committed_cache_failed") await admin.from("calendar_operations").update({ status: code === "graph_unavailable" ? "reconciliation_required" : "failed", completed_at: new Date().toISOString(), error_code: code, ...(notWritten ? { result: { writeOutcome: "not_written" } } : {}) }).eq("id", operation.id);
     await audit(userId, "execute", operation.id, { operation_type: operation.operation_type, result: "failed", error_code: code });
-    throw new MicrosoftGraphError(code);
+    throw new MicrosoftGraphError(code, notWritten ? "not_written" : "unknown");
   }
 }
 
@@ -929,25 +937,27 @@ export async function reconcileCalendarOperation(operationId: string, userId: st
 export const microsoftCalendarConfiguration = { clientId: MICROSOFT_CLIENT_ID, scopes: MICROSOFT_SCOPES, scopeVersion: MICROSOFT_SCOPE_VERSION };
 
 /** Live provider snapshot for observed-conflict checks. No If-Match guarantee is claimed. */
-export async function readMicrosoftTodoMutationSnapshot(connectionId: string, userId: string, localTaskId: string) {
+export async function readMicrosoftTodoMutationSnapshot(connectionId: string, userId: string, localTaskId: string, options?: { includeBody?: boolean }) {
   const { task, providerListId } = await ownedTodoTask(connectionId, userId, localTaskId);
   const accessToken = await accessTokenForConnection(connectionId, userId);
   const remote = await graph(accessToken, `/me/todo/lists/${encodeURIComponent(providerListId)}/tasks/${encodeURIComponent(task.provider_task_id)}`) as GraphTodoTask;
   if (remote.id !== task.provider_task_id) throw new MicrosoftGraphError("todo_task_not_found");
-  return { id: localTaskId, title: remote.title ?? task.title, importance: remote.importance ?? task.importance ?? "normal", dueAt: optionalIso(remote.dueDateTime?.dateTime), status: remote.status ?? task.status, completedAt: optionalIso(remote.completedDateTime?.dateTime), lastModifiedAt: optionalIso(remote.lastModifiedDateTime), etag: remote["@odata.etag"] ?? null };
+  return { id: localTaskId, ...(options?.includeBody ? { bodyText: remote.body?.content ?? task.body_text ?? null } : {}), title: remote.title ?? task.title, importance: remote.importance ?? task.importance ?? "normal", dueAt: optionalIso(remote.dueDateTime?.dateTime), status: remote.status ?? task.status, completedAt: optionalIso(remote.completedDateTime?.dateTime), lastModifiedAt: optionalIso(remote.lastModifiedDateTime), etag: remote["@odata.etag"] ?? null };
 }
 export type TodoMutationSnapshot = Awaited<ReturnType<typeof readMicrosoftTodoMutationSnapshot>>;
-export type TodoMetadataPatch = { title?: string; importance?: "low" | "normal" | "high"; dueAt?: string | null; status?: TodoMutationSnapshot["status"]; completedAt?: string | null };
+export type TodoMetadataPatch = { bodyText?: string | null; title?: string; importance?: "low" | "normal" | "high"; dueAt?: string | null; status?: TodoMutationSnapshot["status"]; completedAt?: string | null };
 export function sameTodoMutationSnapshot(a: TodoMutationSnapshot, b: TodoMutationSnapshot) {
-  return a.id === b.id && a.title === b.title && a.importance === b.importance && a.dueAt === b.dueAt && a.status === b.status && a.completedAt === b.completedAt && (a.etag && b.etag ? a.etag === b.etag : a.lastModifiedAt === b.lastModifiedAt);
+  return (b.bodyText === undefined || a.bodyText === b.bodyText) && a.id === b.id && a.title === b.title && a.importance === b.importance && a.dueAt === b.dueAt && a.status === b.status && a.completedAt === b.completedAt && (a.etag && b.etag ? a.etag === b.etag : a.lastModifiedAt === b.lastModifiedAt);
 }
 /** Read/check then minimal PATCH. External clients may still race after the GET. */
 export async function patchMicrosoftTodoMetadata(connectionId: string, userId: string, localTaskId: string, expected: TodoMutationSnapshot, patch: TodoMetadataPatch) {
-  const current = await readMicrosoftTodoMutationSnapshot(connectionId, userId, localTaskId);
+  if (patch.bodyText !== undefined && expected.bodyText === undefined) throw new MicrosoftGraphError("graph_conflict");
+  const current = await readMicrosoftTodoMutationSnapshot(connectionId, userId, localTaskId, { includeBody: expected.bodyText !== undefined });
   if (!sameTodoMutationSnapshot(current, expected)) throw new MicrosoftGraphError("graph_conflict");
   const { admin, task, providerListId } = await ownedTodoTask(connectionId, userId, localTaskId);
   const accessToken = await accessTokenForConnection(connectionId, userId);
   const body: Record<string, unknown> = {};
+  if (patch.bodyText !== undefined) body.body = patch.bodyText === null ? null : { content: patch.bodyText, contentType: "text" };
   if (patch.title !== undefined) body.title = patch.title;
   if (patch.importance !== undefined) body.importance = patch.importance;
   if (patch.dueAt !== undefined) body.dueDateTime = patch.dueAt ? { dateTime: patch.dueAt.replace("Z", ""), timeZone: "UTC" } : null;
@@ -955,8 +965,8 @@ export async function patchMicrosoftTodoMetadata(connectionId: string, userId: s
   if (patch.status === "completed" && patch.completedAt === undefined) body.completedDateTime={dateTime:new Date().toISOString().replace("Z",""),timeZone:"UTC"};
   if (patch.completedAt !== undefined) body.completedDateTime = patch.completedAt ? { dateTime: patch.completedAt.replace("Z", ""), timeZone: "UTC" } : null;
   const updated = await graph(accessToken, `/me/todo/lists/${encodeURIComponent(providerListId)}/tasks/${encodeURIComponent(task.provider_task_id)}`, { method: "PATCH", body: JSON.stringify(body) }) as GraphTodoTask;
-  const after: TodoMutationSnapshot = { id: localTaskId, title: updated.title ?? (patch.title ?? current.title), importance: updated.importance ?? (patch.importance ?? current.importance), dueAt: updated.dueDateTime === null ? null : optionalIso(updated.dueDateTime?.dateTime) ?? (patch.dueAt === undefined ? current.dueAt : patch.dueAt), status: updated.status ?? (patch.status ?? current.status), completedAt: updated.completedDateTime === null ? null : optionalIso(updated.completedDateTime?.dateTime) ?? (patch.completedAt === undefined ? current.completedAt : patch.completedAt), lastModifiedAt: optionalIso(updated.lastModifiedDateTime), etag: updated["@odata.etag"] ?? null };
-  const { error } = await admin.from("microsoft_todo_tasks").update({ title: after.title, importance: after.importance, due_at: after.dueAt, status: after.status, completed_at: after.completedAt, provider_last_modified_at: after.lastModifiedAt, last_synced_at: new Date().toISOString() }).eq("id", task.id).eq("user_id", userId);
+  const after: TodoMutationSnapshot = { id: localTaskId, ...(expected.bodyText !== undefined ? { bodyText: updated.body?.content ?? (patch.bodyText === undefined ? current.bodyText : patch.bodyText) ?? null } : {}), title: updated.title ?? (patch.title ?? current.title), importance: updated.importance ?? (patch.importance ?? current.importance), dueAt: updated.dueDateTime === null ? null : optionalIso(updated.dueDateTime?.dateTime) ?? (patch.dueAt === undefined ? current.dueAt : patch.dueAt), status: updated.status ?? (patch.status ?? current.status), completedAt: updated.completedDateTime === null ? null : optionalIso(updated.completedDateTime?.dateTime) ?? (patch.completedAt === undefined ? current.completedAt : patch.completedAt), lastModifiedAt: optionalIso(updated.lastModifiedDateTime), etag: updated["@odata.etag"] ?? null };
+  const { error } = await admin.from("microsoft_todo_tasks").update({ ...(after.bodyText !== undefined ? { body_text: after.bodyText } : {}), title: after.title, importance: after.importance, due_at: after.dueAt, status: after.status, completed_at: after.completedAt, provider_last_modified_at: after.lastModifiedAt, last_synced_at: new Date().toISOString() }).eq("id", task.id).eq("user_id", userId);
   return { after, cacheSaved: !error };
 }
 

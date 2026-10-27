@@ -352,3 +352,12 @@ export async function openDailyNote() {
     redirect("/notes?daily=error");
   }
 }
+
+/** Recover a metadata form without fetching note text or versions. */
+export async function readNoteMetadataForDraft(id:string) {
+  const noteId=z.string().uuid().parse(id);
+  const {supabase,userId}=await requireOwner();
+  const {data,error}=await supabase.from("notes").select("id,title,folder_id,mutation_revision,updated_at,pinned_at,content_origin").eq("id",noteId).eq("user_id",userId).eq("status","active").is("deleted_at",null).is("archived_at",null).is("vault_group_id",null).maybeSingle();
+  if(error)throw new Error("暂时无法读取原笔记，输入仍保留。");
+  return data;
+}

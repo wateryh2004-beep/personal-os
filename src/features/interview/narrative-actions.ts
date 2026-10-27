@@ -17,6 +17,14 @@ async function ownerDb() {
   return { userId, db: supabase as unknown as SupabaseClient };
 }
 
+/** Metadata for an explicit comparison; it does not confirm a prior mutation. */
+export async function readNarrativeDraftComparison(input:unknown):Promise<{id:string;selectedVersionId:string}> {
+ const id=uuid.parse(input),{db,userId}=await ownerDb();const result=await db.from("interview_narratives").select("id,user_id,archived_at,selected_version_id").eq("id",id).eq("user_id",userId).is("archived_at",null).maybeSingle();
+ const row=z.object({id:uuid,user_id:uuid,archived_at:z.null(),selected_version_id:uuid}).strict().safeParse(result.data);
+ if(result.error||!row.success||row.data.id!==id||row.data.user_id!==userId)throw new Error("原母版当前不可读，原选择与待核对状态仍保留。");
+ return {id:row.data.id,selectedVersionId:row.data.selected_version_id};
+}
+
 async function logChange(db: SupabaseClient, userId: string, action: string, id: string, metadata: Record<string, string>) {
   const { error } = await db.from("audit_logs").insert({
     user_id: userId,
@@ -53,6 +61,7 @@ export async function selectNarrativeBaselineVersion(data: FormData) {
   if (versionError || !version || version.preparation_id !== narrative.master_preparation_id || version.answer_mode !== "spoken") {
     throw new Error("只能选择当前母题中可用的口述版本。");
   }
+  const baseline=data.get("baseline_selected_version_id");if(baseline!==null&&uuid.parse(String(baseline))!==narrative.selected_version_id)throw new Error("母版版本已经变化，原选择已保留，请重新读取后核对。");
   if (narrative.selected_version_id === selectedVersionId) return;
   const { error } = await db.from("interview_narratives")
     .update({ selected_version_id: selectedVersionId, review_status: "draft" })

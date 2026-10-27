@@ -10,6 +10,9 @@ import { createNote } from "@/features/notes/actions";
 import { useGlobalSearch } from "@/features/search/use-global-search";
 import { releaseMobileBackLayerForNavigation } from "@/lib/mobile/use-mobile-back-layer";
 import { SearchResultPreview } from "./search-result-preview";
+import { useSourceNavigation } from "@/components/workflow-continuity/source-link";
+import { takeSourceSearchRestore } from "@/features/workflow-continuity/source-trail";
+import { announceNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
 import {
   commandPaletteNavigation,
   parseRecentNavigation,
@@ -22,20 +25,36 @@ const domainLabels: Record<string, string> = { notes: "笔记", career: "职业"
 
 export function GlobalCommandPalette({ open, onOpenChange, initialSection = "search", contentOnly = false, embedded = false, registerPreviewDismiss }: { open: boolean; onOpenChange: (open: boolean) => void; initialSection?: CommandCenterSection; contentOnly?: boolean; embedded?: boolean; registerPreviewDismiss?: (handler: (() => boolean) | null) => void }) {
   const router = useRouter();
+  const sourceNavigate = useSourceNavigation();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [selectedValue, setSelectedValue] = useState("");
+  const [resultScrollTop, setResultScrollTop] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const indicator = useRef<HTMLDivElement>(null);
   const previewTrigger = useRef<HTMLButtonElement>(null);
+  const restoredSearch = useRef<ReturnType<typeof takeSourceSearchRestore>>(null);
+  useEffect(() => {
+    const restore = () => {
+      const saved = takeSourceSearchRestore(); if (!saved) return;
+      restoredSearch.current = saved;
+      setQuery(saved.query); setSelectedValue(saved.selectedValue);
+    };
+    const timer = setTimeout(restore, 0);
+    window.addEventListener("personal-os:search-restore", restore);
+    return () => { clearTimeout(timer); window.removeEventListener("personal-os:search-restore", restore); };
+  }, []);
   const [recents, setRecents] = useState<RecentNavigationItem[]>([]);
   const [commandMessage,setCommandMessage]=useState("");
   const [commandBusy,startCommand]=useTransition();
   const [, startTransition] = useTransition();
   const search = useGlobalSearch({ query, enabled: open, debounceMs: 160 });
   const results = search.results;
+  useLayoutEffect(() => {
+    if (results.length && restoredSearch.current && list.current) { list.current.scrollTop = restoredSearch.current.scrollTop; restoredSearch.current = null; }
+  }, [results]);
   const loading = search.status === "loading";
   const selectedResult = results.find((result) => `result:${result.id}` === selectedValue) ?? null;
   const visiblePreview = open && previewOpen && selectedResult;
@@ -82,11 +101,16 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
     onOpenChange(false);
   };
   const go = (href: string) => {
+    announceNavigationIntent();
     dismissForNavigation();
     const unhandled = window.dispatchEvent(new CustomEvent("personal-os:navigation-start", { cancelable: true, detail: { href } }));
     if (unhandled) router.push(href);
   };
-  const newNote = () => { dismissForNavigation(); startTransition(() => createNote()); };
+  const goSource = (href: string) => {
+    if (sourceNavigate(href, "搜索结果", { query, selectedValue, scrollTop: resultScrollTop })) dismissForNavigation();
+    else go(href);
+  };
+  const newNote = () => { announceNavigationIntent(); dismissForNavigation(); startTransition(() => createNote()); };
   const openCreate = (kind?: string) => { onOpenChange(false); window.dispatchEvent(new CustomEvent("personal-os:create-open", { detail: kind ? { kind } : undefined })); };
   const askAgent = (value: string) => {
     onOpenChange(false);
@@ -100,7 +124,7 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
   const content = <Command shouldFilter={!query} label="搜索与导航" value={selectedValue} onValueChange={setSelectedValue}>
       <CommandInput ref={input} value={query} onValueChange={(value) => { setQuery(value); setPreviewOpen(false); }} placeholder={showQuick ? "选择要新建的内容…" : "搜索 Personal OS 或输入命令…"} aria-label="搜索或执行命令" />
       <div className="command-results-layout" data-preview={Boolean(visiblePreview)}>
-      <CommandList ref={list} className="command-results-list max-h-[min(68dvh,580px)] py-1">
+      <CommandList onScroll={event => setResultScrollTop(event.currentTarget.scrollTop)} ref={list} className="command-results-list max-h-[min(68dvh,580px)] py-1">
         <div ref={indicator} className="command-selection-indicator" aria-hidden="true" />
         {isWorkbenchCommandCandidate(query) ? <CommandGroup heading="参数命令"><CommandItem disabled={commandBusy} value={`command ${query}`} onSelect={()=>startCommand(async()=>{try{const preview=await previewWorkbenchCommand(query);if(!preview){setCommandMessage("可输入：周五15点模拟面试45分钟，或把选中任务移到明天。");return;}onOpenChange(false);window.dispatchEvent(new CustomEvent(preview.kind==="calendar"?"personal-os:calendar-command-preview":"personal-os:todo-command-preview",{detail:preview}));}catch{setCommandMessage("命令预览暂不可用，未执行修改。");}})}><CalendarPlus aria-hidden="true"/>{commandBusy?"解析中…":"预览参数命令"}<CommandShortcut>确认后执行</CommandShortcut></CommandItem>{commandMessage?<p role="status" className="px-3 py-2 text-sm">{commandMessage}</p>:null}</CommandGroup>:null}
         {query && loading ? <p role="status" aria-live="polite" className="px-4 py-8 text-center text-sm text-[var(--text-tertiary)]">正在搜索…</p> : null}
@@ -125,9 +149,9 @@ export function GlobalCommandPalette({ open, onOpenChange, initialSection = "sea
           return <CommandItem key={item.href} onSelect={() => go(item.href)}><Icon aria-hidden="true" />{item.name}<CommandShortcut>{item.href}</CommandShortcut></CommandItem>;
         })}</CommandGroup></> : null}
         {query && !loading ? <CommandGroup heading="询问"><CommandItem value={`ask ${query}`} onSelect={() => askAgent(query)}><Sparkles aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">询问 Personal OS</p><p className="mt-0.5 truncate text-xs text-[var(--text-tertiary)]">“{query}”</p></div><CommandShortcut>AI</CommandShortcut></CommandItem></CommandGroup> : null}
-        {query && !loading ? groups.map(([label, items]) => <CommandGroup key={label} heading={label}>{(items ?? []).map((result) => <CommandItem key={result.id} value={`result:${result.id}`} onSelect={() => go(result.href)}><FileText aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{result.title}</p>{result.subtitle || result.snippet ? <p className="mt-0.5 line-clamp-2 text-xs text-[var(--text-tertiary)]">{result.subtitle ?? result.snippet}</p> : null}</div><CommandShortcut>{label}</CommandShortcut></CommandItem>)}</CommandGroup>) : null}
+        {query && !loading ? groups.map(([label, items]) => <CommandGroup key={label} heading={label}>{(items ?? []).map((result) => <CommandItem key={result.id} value={`result:${result.id}`} onSelect={() => goSource(result.href)}><FileText aria-hidden="true" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{result.title}</p>{result.subtitle || result.snippet ? <p className="mt-0.5 line-clamp-2 text-xs text-[var(--text-tertiary)]">{result.subtitle ?? result.snippet}</p> : null}</div><CommandShortcut>{label}</CommandShortcut></CommandItem>)}</CommandGroup>) : null}
       </CommandList>
-      {visiblePreview ? <aside className="command-result-preview" id="command-result-preview" aria-label="搜索结果预览" onKeyDown={(event) => { if (event.key === "Escape" && dismissPreview()) { event.preventDefault(); event.stopPropagation(); } }}><SearchResultPreview key={visiblePreview.id} result={visiblePreview} onNavigate={(event) => { event.preventDefault(); go(visiblePreview.href); }} /></aside> : null}
+      {visiblePreview ? <aside className="command-result-preview" id="command-result-preview" aria-label="搜索结果预览" onKeyDown={(event) => { if (event.key === "Escape" && dismissPreview()) { event.preventDefault(); event.stopPropagation(); } }}><SearchResultPreview key={visiblePreview.id} result={visiblePreview} onNavigate={(event) => { event.preventDefault(); goSource(visiblePreview.href); }} /></aside> : null}
       </div>
       {query && results.length ? <div className="command-results-footer"><span className="command-keyboard-hint">↑ ↓ 选择，Enter 打开</span><label className="command-preview-picker"><span className="sr-only">预览内容</span><select aria-label="预览内容" value={selectedResult ? `result:${selectedResult.id}` : ""} onChange={(event) => setSelectedValue(event.target.value)}><option value="" disabled>选择预览内容</option>{results.map((result) => <option key={result.id} value={`result:${result.id}`}>{result.title}</option>)}</select></label><button ref={previewTrigger} type="button" disabled={!selectedResult} aria-expanded={Boolean(visiblePreview)} aria-controls="command-result-preview" onClick={() => setPreviewOpen((value) => !value)}>{visiblePreview ? "收起预览" : "预览所选"}</button></div> : null}
     </Command>;

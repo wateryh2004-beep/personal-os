@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
-import { unstable_rethrow } from "next/navigation";
+import { unstable_rethrow, useRouter } from "next/navigation";
+import { beginNavigationIntent } from "@/features/workflow-continuity/navigation-intent";
+import { useDeclaredFormDraft, readDeclaredDraftFields } from "@/features/workflow-continuity/draft-adapters";
+import { useDraftResumeOpeners } from "@/features/workflow-continuity/draft-resume";
+import { DraftRecoveryStatus } from "@/components/workflow-continuity/draft-recovery-status";
+import {OrdinaryOutcomeRecovery} from "@/components/workflow-continuity/ordinary-outcome-recovery";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { createInterviewStory, updateInterviewStory } from "@/features/interview/actions";
+import { createInterviewStoryWithReceipt, updateInterviewStory } from "@/features/interview/actions";
 import { storyStatusLabels } from "@/features/interview/constants";
 import { storySections, type EditableStory, type StoryExperience } from "@/features/interview/story-library";
 
@@ -18,11 +23,13 @@ export function StoryFormDialog({ story, experiences }: { story?: EditableStory;
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
   const inFlight = useRef(false);
-  const formRef = useRef<HTMLFormElement>(null);
+  const router=useRouter();
+  const {formRef,...recovery}=useDeclaredFormDraft({operation:story?"career.story-edit":"career.story-create",id:story?.id??"new",href:"/career/interview/stories",label:story?"编辑故事":"新建故事"});
+  useDraftResumeOpeners([recovery.target],()=>{setDiscarding(false);setOpen(true);});
   const discardRef = useRef<HTMLDivElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const editing = Boolean(story);
-  const action = editing ? updateInterviewStory : createInterviewStory;
+  const action = editing ? updateInterviewStory : createInterviewStoryWithReceipt;
   const label = editing ? "编辑故事" : "新建故事";
 
   useEffect(() => {
@@ -47,19 +54,22 @@ export function StoryFormDialog({ story, experiences }: { story?: EditableStory;
   }
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (inFlight.current) return;
+    if (!recovery.isCurrent()||inFlight.current||recovery.uncertain) return;
     const snapshot = new FormData(event.currentTarget);
+    const submitted=recovery.capture(event),current=recovery.captureGuard(),navigationCurrent=beginNavigationIntent();
     inFlight.current = true;
     setFailed(false);
     startTransition(async () => {
       try {
-        await action(snapshot);
-        setDirty(false);
-        setOpen(false);
-        setSaved(true);
+        const receipt=await action(snapshot);
+        if(!current())return;
+        const unchanged=JSON.stringify(readDeclaredDraftFields(formRef.current!,editing?"career.story-edit":"career.story-create"))===JSON.stringify(submitted);
+        recovery.complete(submitted);
+        setDirty(!unchanged);setSaved(unchanged);
+        if(unchanged){setOpen(false);if(receipt&&navigationCurrent())router.push(receipt.href);}
       } catch (error) {
         unstable_rethrow(error);
-        setFailed(true);
+        if(current()){recovery.markUncertain();setFailed(true);}
       } finally { inFlight.current = false; }
     });
   }
@@ -73,11 +83,11 @@ export function StoryFormDialog({ story, experiences }: { story?: EditableStory;
         {discarding ? <div ref={discardRef} tabIndex={-1} role="alert" className="space-y-4 outline-none">
           <p className="text-base font-medium">放弃尚未保存的修改？</p>
           <p className="text-sm leading-6 text-[var(--text-secondary)]">继续编辑会保留当前输入；放弃后不会保存这些修改。</p>
-          <div className="flex flex-wrap gap-3"><Button onClick={resume}>继续编辑</Button><Button variant="outline" onClick={() => { setDirty(false); setDiscarding(false); setOpen(false); }}>放弃修改</Button></div>
+          <div className="flex flex-wrap gap-3"><Button onClick={resume}>继续编辑</Button><Button variant="outline" onClick={() => { recovery.clear(); setDirty(false); setDiscarding(false); setOpen(false); }}>放弃修改</Button></div>
         </div> : null}
         <div hidden={discarding}>
-          <form ref={formRef} action={action} onSubmit={submit} onChange={() => setDirty(true)} aria-busy={pending}>
-            <fieldset disabled={pending} className="min-w-0 space-y-5">
+          <form ref={formRef} {...recovery.attributes} onInputCapture={recovery.capture} onChangeCapture={recovery.capture} onSubmit={submit} onChange={() => setDirty(true)} aria-busy={pending}>
+            <fieldset className="min-w-0 space-y-5">
               {story ? <input type="hidden" name="story_id" value={story.id} /> : null}
               <div className={editing ? "grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_160px]" : "grid min-w-0 gap-4"}>
                 <label className="grid min-w-0 gap-2 text-sm font-medium">故事标题<input name="title" required maxLength={180} defaultValue={story?.title ?? ""} className={fieldClass} /></label>
@@ -93,8 +103,10 @@ export function StoryFormDialog({ story, experiences }: { story?: EditableStory;
               </select></label>
               <label className="grid gap-2 text-sm font-medium">一句话概括<textarea name="one_line" maxLength={800} defaultValue={story?.one_line ?? ""} rows={2} className={fieldClass} placeholder="这段具体经历说明了什么？" /></label>
               {storySections.map(section => editing ? <label key={section.name} className="grid gap-2 text-sm font-medium">{section.label}<textarea name={section.name} maxLength={section.max} defaultValue={story?.[section.name] ?? ""} rows={section.rows} className={fieldClass} placeholder={section.hint} /></label> : <input key={section.name} type="hidden" name={section.name} value="" />)}
-              <div className="flex flex-wrap gap-3"><Button type="submit" aria-busy={pending}>{pending ? "保存中…" : editing ? "保存故事" : "创建并补充故事"}</Button><Button type="button" variant="outline" onClick={() => changeOpen(false)}>取消</Button></div>
+              <div className="flex flex-wrap gap-3"><Button type="submit" disabled={pending} aria-busy={pending}>{pending ? "保存中…" : editing ? "保存故事" : "创建并补充故事"}</Button><Button type="button" disabled={pending} variant="outline" onClick={() => changeOpen(false)}>取消</Button></div>
             </fieldset>
+            <DraftRecoveryStatus dirty={recovery.dirty} restored={recovery.restored} recoveryUnavailable={recovery.recoveryUnavailable}/>
+            {recovery.uncertain?<OrdinaryOutcomeRecovery key={recovery.key} uncertain target={recovery.target} href="/career/interview/stories" captureGuard={recovery.captureGuard} onCompared={recovery.adoptComparedBaseline}/>:null}
             {failed ? <div ref={errorRef} role="alert" tabIndex={-1} className="mt-4 text-sm leading-6 text-[var(--danger)] outline-none">
               <p>未能确认保存结果，输入已保留。请先核对故事记录，再重试，避免重复创建或覆盖。</p>
               <a href={story ? `/career/interview/stories/${story.id}` : "/career/interview/stories"} target="_blank" rel="noopener noreferrer" className="ui-link inline-flex min-h-11 items-center">在新标签页核对记录</a>

@@ -1,6 +1,6 @@
 {
   "format": "personal-os-system/v1",
-  "schemaRevision": "2026-10-system-workbench/v2",
+  "schemaRevision": "2026-10-continuous-workflows/v3",
   "tables": {
     "activity_events": {
       "columns": {
@@ -130,7 +130,9 @@
           ]
         }
       ],
-      "excludedColumns": []
+      "excludedColumns": [
+        "generation_token"
+      ]
     },
     "agent_messages": {
       "columns": {
@@ -284,7 +286,10 @@
         "id"
       ],
       "foreignKeys": [],
-      "excludedColumns": []
+      "excludedColumns": [
+        "generation_token",
+        "generation_expires_at"
+      ]
     },
     "agent_steps": {
       "columns": {
@@ -958,6 +963,103 @@
       ],
       "excludedColumns": []
     },
+    "briefing_event_sources": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "event_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "feed_item_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "event_id"
+          ],
+          "table": "briefing_events",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "feed_item_id"
+          ],
+          "table": "feed_items",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "briefing_events": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
     "briefing_exclusions": {
       "columns": {
         "archived_at": {
@@ -1038,6 +1140,86 @@
         "id"
       ],
       "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "briefing_judgment_versions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "entry_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "decision_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "judgment": {
+          "type": "string",
+          "nullable": false
+        },
+        "confidence": {
+          "type": "number",
+          "nullable": false
+        },
+        "falsification": {
+          "type": "string",
+          "nullable": true
+        },
+        "review_period": {
+          "type": "string",
+          "nullable": false
+        },
+        "expected_decision_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "expected_updated_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "decision_updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "user_id",
+            "entry_id"
+          ],
+          "table": "briefing_entries",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "user_id",
+            "decision_id"
+          ],
+          "table": "decisions",
+          "targetColumns": [
+            "user_id",
+            "id"
+          ]
+        }
+      ],
       "excludedColumns": []
     },
     "briefing_settings": {
@@ -1784,6 +1966,99 @@
         "id"
       ],
       "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "career_material_checks": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "document_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "label": {
+          "type": "string",
+          "nullable": false
+        },
+        "note": {
+          "type": "string",
+          "nullable": false
+        },
+        "opportunity_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "required": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "resume_version_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "verified_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "verified_object_revision": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "opportunity_id"
+          ],
+          "table": "career_opportunities",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "document_id"
+          ],
+          "table": "documents",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "resume_version_id"
+          ],
+          "table": "resume_versions",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
       "excludedColumns": []
     },
     "career_milestones": {
@@ -3218,6 +3493,73 @@
       ],
       "excludedColumns": []
     },
+    "feed_item_versions": {
+      "columns": {
+        "content_hash": {
+          "type": "string",
+          "nullable": true
+        },
+        "content_text": {
+          "type": "string",
+          "nullable": true
+        },
+        "excerpt": {
+          "type": "string",
+          "nullable": true
+        },
+        "feed_item_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "observed_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "provenance": {
+          "type": "string",
+          "nullable": false
+        },
+        "published_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at_source": {
+          "type": "string",
+          "nullable": true
+        },
+        "url": {
+          "type": "string",
+          "nullable": true
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "feed_item_id"
+          ],
+          "table": "feed_items",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
     "feed_items": {
       "columns": {
         "archived_at": {
@@ -3721,6 +4063,10 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "capture_content_hash": {
+          "type": "string",
+          "nullable": true
         }
       },
       "primaryKey": [
@@ -3755,7 +4101,11 @@
           ]
         }
       ],
-      "excludedColumns": []
+      "excludedColumns": [
+        "ai_classification_token",
+        "ai_classification_started_at",
+        "ai_classification_content_hash"
+      ]
     },
     "interview_answer_fact_links": {
       "columns": {
@@ -4490,6 +4840,10 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "submission_fingerprint": {
+          "type": "string",
+          "nullable": true
         }
       },
       "primaryKey": [
@@ -6804,6 +7158,48 @@
       ],
       "excludedColumns": []
     },
+    "planning_availability": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "local_date": {
+          "type": "string",
+          "nullable": false
+        },
+        "periods": {
+          "type": "json",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "timezone": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "user_id",
+        "local_date"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
     "profiles": {
       "columns": {
         "archived_at": {
@@ -6847,6 +7243,57 @@
         "id"
       ],
       "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "project_workflow_versions": {
+      "columns": {
+        "blocker_text": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "next_todo_task_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "project_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "project_id"
+          ],
+          "table": "projects",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
       "excludedColumns": []
     },
     "projects": {
@@ -6898,6 +7345,18 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "blocker_text": {
+          "type": "string",
+          "nullable": false
+        },
+        "next_todo_task_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "mutation_revision": {
+          "type": "number",
+          "nullable": false
         }
       },
       "primaryKey": [
@@ -6909,6 +7368,83 @@
             "area_id"
           ],
           "table": "areas",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "next_todo_task_id"
+          ],
+          "table": "microsoft_todo_tasks",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "purchase_item_documents": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "document_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "item_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "kind": {
+          "type": "string",
+          "nullable": false
+        },
+        "label": {
+          "type": "string",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "item_id"
+          ],
+          "table": "purchase_items",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "document_id"
+          ],
+          "table": "documents",
           "targetColumns": [
             "id"
           ]
@@ -7020,6 +7556,26 @@
         },
         "mutation_revision": {
           "type": "number",
+          "nullable": false
+        },
+        "purchased_on": {
+          "type": "string",
+          "nullable": true
+        },
+        "return_until": {
+          "type": "string",
+          "nullable": true
+        },
+        "warranty_until": {
+          "type": "string",
+          "nullable": true
+        },
+        "order_reference": {
+          "type": "string",
+          "nullable": false
+        },
+        "aftercare_note": {
+          "type": "string",
           "nullable": false
         }
       },
@@ -7478,6 +8034,58 @@
         "id"
       ],
       "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "task_planning": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "estimated_minutes": {
+          "type": "number",
+          "nullable": true
+        },
+        "planned_on": {
+          "type": "string",
+          "nullable": true
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "task_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "user_id",
+        "task_id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "task_id"
+          ],
+          "table": "microsoft_todo_tasks",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
       "excludedColumns": []
     },
     "tasks": {
@@ -7943,7 +8551,8 @@
     "vault_sessions": "Independent verification credentials, session capabilities or throttle; never export or restore.",
     "vault_attempts": "Independent verification credentials, session capabilities or throttle; never export or restore.",
     "workspace_action_receipts": "Transient undo capabilities and execution state; never restore or replay.",
-    "workspace_original_checks": "Short-lived original-byte verification proofs; never restore or replay."
+    "workspace_original_checks": "Short-lived original-byte verification proofs; never restore or replay.",
+    "todo_creation_receipts": "Provider creation idempotency/reconciliation receipts; never restore or replay external execution state."
   },
   "exclusions": [
     "Authentication users, sessions, passwords, API keys, OAuth credentials and deployment configuration.",

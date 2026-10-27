@@ -1,5 +1,6 @@
 "use client";
 
+import type { Dispatch, SetStateAction } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import type { ReviewStructuredData } from "@/features/reviews/types";
 
@@ -27,17 +28,16 @@ export function ReviewEditor({
 }: {
   type: "daily" | "weekly";
   value: ReviewStructuredData;
-  onChange: (next: ReviewStructuredData) => void;
+  onChange: Dispatch<SetStateAction<ReviewStructuredData>>;
 }) {
   const fields = type === "daily" ? DAILY_FIELDS : WEEKLY_FIELDS;
   const updateList = (key: ListKey, raw: string) => {
-    onChange({
-      ...value,
-      [key]: raw
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    });
+    onChange(before => ({
+      ...before,
+      // Preserve intermediate whitespace and blank lines; canonical validation
+      // belongs to the save boundary, never to the current typing session.
+      [key]: raw.split("\n"),
+    }));
   };
   return (
     <div className="space-y-5">
@@ -48,7 +48,7 @@ export function ReviewEditor({
             value={value[key].join("\n")}
             onChange={(event) => updateList(key, event.target.value)}
             placeholder={placeholder}
-            className="mt-1.5 min-h-20 resize-y leading-5.5 shadow-none"
+            className="mt-1.5 min-h-20 resize-y leading-[1.6] shadow-none"
           />
         </label>
       ))}
@@ -57,9 +57,9 @@ export function ReviewEditor({
         <span className="ml-2 text-[12px] font-normal text-[var(--text-tertiary)]">自由写作，可留空</span>
         <Textarea
           value={value.freeReflection}
-          onChange={(event) => onChange({ ...value, freeReflection: event.target.value })}
+          onChange={(event) => onChange(before => ({ ...before, freeReflection: event.target.value }))}
           placeholder="用自己的话写下这一周期真正重要的事……"
-          className="mt-1.5 min-h-40 resize-y leading-6 shadow-none"
+          className="mt-1.5 min-h-40 resize-y leading-[1.6] shadow-none"
         />
       </label>
     </div>

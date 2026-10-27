@@ -6,6 +6,7 @@ import { Dialog as DialogPrimitive } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useMobileBackLayer } from "@/lib/mobile/use-mobile-back-layer";
+import { useWorkbenchActive } from "@/components/workbench/workbench-activity";
 
 type SidePanelShellProps = {
   open: boolean;
@@ -51,6 +52,8 @@ export function SidePanelShell({
   const resizeHandleRef = useRef<HTMLButtonElement | null>(null);
   const dragCleanup = useRef<(() => void) | null>(null);
   const isMobile = useSyncExternalStore(subscribePhone, phoneSnapshot, () => false);
+  const paneActive = useWorkbenchActive();
+  const surfaceOpen = open && paneActive;
 
   const applyWidth = (next: number) => {
     widthRef.current = next;
@@ -58,10 +61,10 @@ export function SidePanelShell({
     resizeHandleRef.current?.setAttribute("aria-valuenow", String(Math.round(next)));
   };
 
-  useMobileBackLayer(open, onClose, `side-panel:${variant}`);
+  useMobileBackLayer(surfaceOpen, onClose, `side-panel:${variant}`);
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!surfaceOpen) return;
     let next = defaults;
     try {
       const saved = localStorage.getItem(storageKey);
@@ -71,14 +74,14 @@ export function SidePanelShell({
     widthRef.current = next;
     asideRef.current?.style.setProperty("--panel-width", `${next}px`);
     resizeHandleRef.current?.setAttribute("aria-valuenow", String(Math.round(next)));
-  }, [bounds.max, bounds.min, defaults, open, storageKey]);
+  }, [bounds.max, bounds.min, defaults, surfaceOpen, storageKey]);
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!surfaceOpen) return;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  }, [open]);
+  }, [surfaceOpen]);
 
-  useEffect(() => () => dragCleanup.current?.(), [open]);
+  useEffect(() => () => dragCleanup.current?.(), [surfaceOpen]);
 
   const persistWidth = () => {
     try { localStorage.setItem(storageKey, String(Math.round(widthRef.current))); } catch { /* no-op */ }
@@ -135,7 +138,7 @@ export function SidePanelShell({
     persistWidth();
   };
 
-  return <DialogPrimitive.Root open={open} modal={isMobile} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+  return <DialogPrimitive.Root open={surfaceOpen} modal={isMobile} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}><DialogPrimitive.Portal>
     {isMobile ? <DialogPrimitive.Overlay className="side-panel-veil fixed inset-0 z-50 bg-black/12" /> : null}
     <DialogPrimitive.Content
       asChild
@@ -148,12 +151,12 @@ export function SidePanelShell({
       }}
       onCloseAutoFocus={(event) => {
         event.preventDefault();
-        if (previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true });
+        if (paneActive && previousFocus.current?.isConnected && !previousFocus.current.closest('[hidden],[inert]')) previousFocus.current.focus({ preventScroll: true });
       }}
       onInteractOutside={(event) => { if (!isMobile) event.preventDefault(); }}
     >
     <aside
-      ref={asideRef}
+      ref={node => { asideRef.current = node; node?.style.setProperty("--panel-width", `${widthRef.current}px`); }}
       style={{ "--panel-width": `${defaults}px` } as React.CSSProperties}
       className={cn(
         "side-panel-surface fixed bottom-0 right-0 top-[var(--toolbar-height)] z-50 flex h-[calc(var(--app-viewport-height)-var(--toolbar-height))] min-h-0 w-full max-w-full flex-col overflow-hidden border-l border-[var(--border-subtle)] bg-[var(--surface-canvas)] text-popover-foreground shadow-[var(--shadow-panel)] ui-panel-transition md:z-40 md:w-[min(var(--panel-width),calc(100vw-8px))]",
@@ -163,7 +166,7 @@ export function SidePanelShell({
     >
       <button
         type="button"
-        ref={resizeHandleRef}
+        ref={node => { resizeHandleRef.current = node; node?.setAttribute("aria-valuenow", String(Math.round(widthRef.current))); }}
         role="separator"
         tabIndex={isMobile ? -1 : 0}
         aria-orientation="vertical"
@@ -199,5 +202,5 @@ export function SidePanelShell({
       ) : null}
     </aside>
     </DialogPrimitive.Content>
-  </DialogPrimitive.Root>;
+  </DialogPrimitive.Portal></DialogPrimitive.Root>;
 }

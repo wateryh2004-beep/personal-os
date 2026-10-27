@@ -14,8 +14,10 @@ is managed at the client boundary.
   revision to the existing editor and must not call `router.refresh()`.
 - Calendar date/view changes keep one FullCalendar instance. Ranges are cached
   and concurrent requests for the same range are deduplicated.
-- Closed Agent and page AI panels must not mount, restore runs, subscribe to
-  Realtime, or ship their heavy runtime eagerly.
+- Initially closed Agent and page AI panels must not mount, restore runs, subscribe to
+  Realtime, or ship their heavy runtime eagerly. An explicitly started background
+  run may retain its owner-scoped engine after its display closes; hidden display
+  subscriptions stop, progress follows the real runner, and scope eviction releases it.
 - Reversible, appropriate mutations may show a clearly pending optimistic local state, then reconcile provider truth.
   A failure visibly rolls back and reports the failure. Authentication, password updates and consequential writes never show confirmed success before the trusted result.
 - `location.reload()` is forbidden for business operations. New
@@ -35,8 +37,10 @@ synchronization:
 - Calendar's **Outlook reconcile** button refreshes the server tree only after
   an explicit full Microsoft synchronization. Drag, resize, create, filter,
   view, and date navigation stay local-first.
-- Microsoft device authorization reloads once after an OAuth connection has
-  changed. This is session/connection recovery, not a business mutation.
+- Microsoft device authorization invalidates/revalidates its task, calendar,
+  range and Today resources after the server confirms the connection. A single
+  `router.refresh()` then reconciles server-rendered connection capabilities;
+  existing client editors stay mounted. It never uses `location.reload()`.
 - Notes folder administration, career-roadmap administration, and review
   proposal workflows are low-frequency administrative operations. Any new
   high-frequency mutation there must adopt local optimistic state instead.

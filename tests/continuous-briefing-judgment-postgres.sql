@@ -1,0 +1,51 @@
+begin;
+insert into public.feeds(id,user_id,title,feed_url) values('30000000-0000-4000-8000-000000000001','81000000-0000-4000-8000-000000000001','Synthetic feed','https://example.test/feed');
+insert into public.feed_items(id,user_id,feed_id,identity_key,title,normalized_title) values('30000000-0000-4000-8000-000000000002','81000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001','synthetic-one','Synthetic evidence','synthetic evidence');
+insert into public.feed_item_clusters(id,user_id,fingerprint,representative_item_id,normalized_title) values('30000000-0000-4000-8000-000000000003','81000000-0000-4000-8000-000000000001','synthetic-one','30000000-0000-4000-8000-000000000002','synthetic evidence');
+insert into public.briefings(id,user_id,briefing_date,timezone,ranking_method,source_window_start,source_window_end,status) values('30000000-0000-4000-8000-000000000004','81000000-0000-4000-8000-000000000001','2026-10-27','Asia/Shanghai','deterministic','2026-10-26T00:00:00Z','2026-10-27T00:00:00Z','completed');
+insert into public.briefing_entries(id,user_id,briefing_id,cluster_id,representative_item_id,section,position) values('30000000-0000-4000-8000-000000000005','81000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000004','30000000-0000-4000-8000-000000000003','30000000-0000-4000-8000-000000000002','must_know',1);
+set local role authenticated;set local request.jwt.claim.sub='81000000-0000-4000-8000-000000000001';
+do $$declare first jsonb; replay jsonb; second jsonb; decision uuid; saved timestamptz;begin
+ first:=public.save_briefing_judgment_intent('30000000-0000-4000-8000-000000000006','30000000-0000-4000-8000-000000000005',null,null,'Synthetic explicit judgment',60,'Synthetic falsification','1_month');
+ decision:=(first->>'decision_id')::uuid;saved:=(first->>'updated_at')::timestamptz;
+ assert first->>'superseded'='false';
+ replay:=public.save_briefing_judgment_intent('30000000-0000-4000-8000-000000000006','30000000-0000-4000-8000-000000000005',null,null,'Synthetic explicit judgment',60,'Synthetic falsification','1_month');assert first=replay;
+ replay:=public.read_briefing_judgment_intent('30000000-0000-4000-8000-000000000006','30000000-0000-4000-8000-000000000005',null,null,'Synthetic explicit judgment',60,'Synthetic falsification','1_month');assert first=replay;
+ assert(select count(*)=1 from public.decisions where id=decision and decision_text='Synthetic explicit judgment' and created_via='manual');
+ assert(select count(*)=2 from public.decision_sources where decision_id=decision);
+ assert(select count(*)=1 from public.briefing_judgment_versions where decision_id=decision);
+ assert(select count(*)=1 from public.audit_logs where entity_id=decision and action='briefing_judgment_saved');
+ begin perform public.save_briefing_judgment_intent('30000000-0000-4000-8000-000000000006','30000000-0000-4000-8000-000000000005',null,null,'Different same intent',60,'Synthetic falsification','1_month');raise exception 'TEST changed judgment replay';exception when serialization_failure then null;end;
+ begin perform public.read_briefing_judgment_intent('30000000-0000-4000-8000-000000000006','30000000-0000-4000-8000-000000000005',null,null,'Different same intent',60,'Synthetic falsification','1_month');raise exception 'TEST mismatched pure read accepted';exception when serialization_failure then null;end;
+ begin perform public.save_briefing_judgment_intent('30000000-0000-4000-8000-000000000007','30000000-0000-4000-8000-000000000005',decision,saved+interval '1 microsecond','New judgment',70,null,'3_months');raise exception 'TEST microsecond stale revision accepted';exception when serialization_failure then null;end;
+ second:=public.save_briefing_judgment_intent('30000000-0000-4000-8000-000000000007','30000000-0000-4000-8000-000000000005',decision,saved,'New judgment',70,null,'3_months');
+ assert second->>'decision_id'=decision::text;
+ assert(select count(*)=2 from public.briefing_judgment_versions where decision_id=decision);
+ assert(select count(*)=2 from public.decision_sources where decision_id=decision);
+ begin update public.briefing_judgment_versions set judgment='forged' where decision_id=decision;raise exception 'TEST owner immutable UPDATE granted';exception when insufficient_privilege then null;end;
+ begin delete from public.briefing_judgment_versions where decision_id=decision;raise exception 'TEST owner immutable DELETE granted';exception when insufficient_privilege then null;end;
+ assert public.read_briefing_judgment_intent('30000000-0000-4000-8000-000000000099','30000000-0000-4000-8000-000000000005',null,null,'Never saved',60,null,'1_month') is null;
+end $$;
+set local request.jwt.claim.sub='81000000-0000-4000-8000-000000000002';
+do $$begin
+ assert not exists(select 1 from public.briefing_judgment_versions where id='30000000-0000-4000-8000-000000000006');
+ assert public.read_briefing_judgment_intent('30000000-0000-4000-8000-000000000006','30000000-0000-4000-8000-000000000005',null,null,'Synthetic explicit judgment',60,'Synthetic falsification','1_month') is null;
+ begin perform public.save_briefing_judgment_intent('30000000-0000-4000-8000-000000000008','30000000-0000-4000-8000-000000000005',null,null,'Other owner',50,null,'1_month');raise exception 'TEST cross-owner judgment';exception when insufficient_privilege then null;end;
+end $$;
+reset role;
+do $$begin
+ assert not has_function_privilege('anon','public.save_briefing_judgment_intent(uuid,uuid,uuid,timestamptz,text,integer,text,text)','EXECUTE');
+ assert not has_function_privilege('anon','public.read_briefing_judgment_intent(uuid,uuid,uuid,timestamptz,text,integer,text,text)','EXECUTE');
+ begin update public.briefing_judgment_versions set judgment='privileged forged';raise exception 'TEST privileged immutable UPDATE';exception when check_violation then if sqlerrm<>'briefing_judgment_version_immutable' then raise;end if;end;
+ begin delete from public.briefing_judgment_versions;raise exception 'TEST privileged immutable DELETE';exception when check_violation then if sqlerrm<>'briefing_judgment_version_immutable' then raise;end if;end;
+end $$;
+create function public.synthetic_judgment_audit_failure() returns trigger language plpgsql as $$begin raise exception 'synthetic_judgment_audit_failure';end $$;
+create trigger synthetic_judgment_audit_failure before insert on public.audit_logs for each row when(new.action='briefing_judgment_saved') execute function public.synthetic_judgment_audit_failure();
+set local role authenticated;set local request.jwt.claim.sub='81000000-0000-4000-8000-000000000001';
+do $$declare decision uuid; saved timestamptz;begin
+ select decision_id,decision_updated_at into decision,saved from public.briefing_judgment_versions where id='30000000-0000-4000-8000-000000000007';
+ begin perform public.save_briefing_judgment_intent('30000000-0000-4000-8000-000000000008','30000000-0000-4000-8000-000000000005',decision,saved,'Must roll back',50,null,'1_month');raise exception 'TEST failed audit judgment accepted';exception when raise_exception then if sqlerrm<>'synthetic_judgment_audit_failure' then raise;end if;end;
+ assert(select decision_text='New judgment' from public.decisions where id=decision);
+ assert not exists(select 1 from public.briefing_judgment_versions where id='30000000-0000-4000-8000-000000000008');
+end $$;
+rollback;

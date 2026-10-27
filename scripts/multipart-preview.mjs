@@ -15,7 +15,7 @@ const json = (res, value, status = 200) => {
 };
 async function body(req) { let text = ''; for await (const chunk of req) text += chunk; return JSON.parse(text); }
 const snapshot = session => ({ ...session, parts: session.parts.map(part => ({ ...part })) });
-const server = await createServer({ configFile: false, root: path.join(project, 'tests/fixtures/multipart-browser'), plugins: [react(), {
+const server = await createServer({ configFile: false, define: { "process.env.CONTINUOUS_FIXTURE_COMPILED": JSON.stringify("0") }, root: path.join(project, 'tests/fixtures/multipart-browser'), plugins: [react(), {
   name: 'multipart-fixture', configureServer(server) {
     server.middlewares.use(async (req, res, next) => {
       try {
@@ -29,7 +29,14 @@ const server = await createServer({ configFile: false, root: path.join(project, 
         if (url.pathname === '/fixture/reset-failure') { failPart = true; return json(res, { ok: true }); }
         if (url.pathname === '/api/files/multipart') {
           // The real service lists uploaded-but-not-published sessions for Finish Save.
-          if (req.method === 'GET') return json(res, [...sessions.values()].filter(session => !['completed', 'aborted'].includes(session.status)).map(snapshot));
+          if (req.method === 'GET') {
+            const id = url.searchParams.get('sessionId');
+            if (id) {
+              const session = sessions.get(id);
+              return session ? json(res, snapshot(session)) : json(res, { error: 'Upload not found' }, 404);
+            }
+            return json(res, [...sessions.values()].filter(session => !['completed', 'aborted'].includes(session.status)).map(snapshot));
+          }
           if (req.method === 'DELETE') {
             const session = sessions.get(url.searchParams.get('sessionId'));
             if (!session || !['uploading', 'aborted'].includes(session.status)) return json(res, { error: 'Only unfinished uploads can be canceled' }, 409);

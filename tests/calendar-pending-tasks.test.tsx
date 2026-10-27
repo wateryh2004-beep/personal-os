@@ -31,3 +31,7 @@ describe("Calendar pending tasks truthful read states",()=>{
   await act(async()=>[...host.querySelectorAll("button")].find(button=>button.textContent==="安排")!.click());expect(schedule).toHaveBeenCalledExactlyOnceWith(task);
  });
 });
+
+it("only exposes draggable estimates for known durations and never silently assigns unknown work 45 minutes",async()=>{
+ const known={id:"known",title:"Known",provider_last_modified_at:null,estimated_minutes:120},unknown={id:"unknown",title:"Unknown",provider_last_modified_at:null,estimated_minutes:null};mocks.read.mockResolvedValue({tasks:[known,unknown],timezone:"UTC",truncated:false});await act(async()=>root.render(createElement(CalendarPendingTasks,{onSchedule:vi.fn()})));expect(host.querySelector('[data-calendar-task-id="known"]')?.getAttribute("data-calendar-task-minutes")).toBe("120");expect(host.querySelector('[data-calendar-task-id="unknown"]')?.hasAttribute("data-calendar-task-minutes")).toBe(false);expect(host.textContent).toContain("未估时请点击安排并明确选择本次时长");
+});

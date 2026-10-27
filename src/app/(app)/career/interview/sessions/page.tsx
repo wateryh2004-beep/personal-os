@@ -1,8 +1,9 @@
+import {CareerForm} from "@/components/career/career-form";
+import {submitInterviewForm} from "@/features/interview/form-actions";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { CareerNav } from "@/components/career/career-nav";
 import { InterviewNav } from "@/components/career/interview/interview-nav";
-import { createInterviewSession } from "@/features/interview/actions";
 import { getInterviewSessions } from "@/features/interview/queries";
 import { languageLabels } from "@/features/interview/constants";
 import { formatDateTime } from "@/features/interview/utils";
@@ -28,7 +29,7 @@ export default async function InterviewSessionsPage() {
         <details className="group">
           <summary className="cursor-pointer list-none text-sm font-medium text-[var(--accent)]">+ 新建面试记录</summary>
           <div className="mt-4 rounded-2xl bg-[var(--surface-canvas)] p-5">
-            <form action={createInterviewSession} className="grid gap-4 md:grid-cols-3 lg:w-[760px]">
+            <CareerForm draft={{operation:"practice.session-create",id:"new",href:"/career/interview/sessions",label:"新建面试记录"}} action={submitInterviewForm.bind(null,"sessionCreate")} className="grid gap-4 md:grid-cols-3 lg:w-[760px]">
               <Field name="title" label="标题" required placeholder="太古 MT · 模拟面试 #1" />
               <Select name="context_id" label="目标岗位" defaultValue="" options={[["", "通用"] as [string, string], ...data.contexts.map((context) => [String(context.id), String(context.title)] as [string, string])]} />
               <Select name="session_kind" label="类型" defaultValue="mock" options={[["mock","模拟面试"],["real","真实面试"]]} />
@@ -44,7 +45,7 @@ export default async function InterviewSessionsPage() {
               <Field name="interviewer_label" label="面试官" placeholder="HR / 业务负责人" />
               <Field name="scheduled_at" label="计划时间" type="datetime-local" />
               <button className="w-fit rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white">创建记录</button>
-            </form>
+            </CareerForm>
           </div>
         </details>
       </div>

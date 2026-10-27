@@ -4,8 +4,13 @@ import { type FormEvent, type ReactNode, useRef, useState, useTransition } from 
 import { unstable_rethrow } from "next/navigation";
 import { createPracticeAttempt } from "@/features/interview/actions";
 import { PracticeReflectionFields } from "./practice-reflection-fields";
+import { PracticeIntentForm,type PracticeIntentTransport } from "./practice-intent-form";
 
-export function PracticeAttemptForm({ children, historyHref }: { children?: ReactNode; historyHref: string }) {
+export function PracticeAttemptForm({ children, historyHref, preparationId, parentAttemptId,blocked,transport }: { children?: ReactNode; historyHref: string; preparationId?: string; parentAttemptId?: string;blocked?:string;transport?:PracticeIntentTransport }) {
+  if (preparationId) return <PracticeIntentForm blocked={blocked} transport={transport} mode="solo" preparationId={preparationId} parentAttemptId={parentAttemptId} historyHref={historyHref} className="mt-8 max-w-3xl">{children}<PracticeReflectionFields /></PracticeIntentForm>;
+  return <LegacyPracticeAttemptForm historyHref={historyHref}>{children}</LegacyPracticeAttemptForm>;
+}
+function LegacyPracticeAttemptForm({ children, historyHref }: { children?: ReactNode; historyHref: string }) {
   const [pending, startTransition] = useTransition();
   const [failed, setFailed] = useState(false);
   const inFlight = useRef(false);

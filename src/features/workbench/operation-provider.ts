@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { readMicrosoftTodoMutationSnapshot, patchMicrosoftTodoMetadata, sameTodoMutationSnapshot, readCalendarMutationSnapshot, sameCalendarMutationSnapshot, executeCalendarOperation, type CalendarMutationSnapshot, type TodoMetadataPatch } from "@/lib/adapters/microsoft-graph/calendar";
 import type { OperationResult } from "./operation-contracts";
-const snapshotSchema = z.object({ id: z.string().uuid(), title: z.string(), importance: z.enum(["low", "normal", "high"]), dueAt: z.string().nullable(), status: z.enum(["notStarted", "inProgress", "completed", "waitingOnOthers", "deferred"]), completedAt: z.string().nullable(), lastModifiedAt: z.string().nullable(), etag: z.string().nullable() });
+const snapshotSchema = z.object({ id: z.string().uuid(), title: z.string(), bodyText: z.string().nullable().optional(), importance: z.enum(["low", "normal", "high"]), dueAt: z.string().nullable(), status: z.enum(["notStarted", "inProgress", "completed", "waitingOnOthers", "deferred"]), completedAt: z.string().nullable(), lastModifiedAt: z.string().nullable(), etag: z.string().nullable() });
 export function operationRequestHash(value: unknown) { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 export async function activeOperationConnection(userId: string) {
   const { data } = await createAdminClient().from("calendar_connections").select("id,status").eq("user_id", userId).is("archived_at", null).maybeSingle();
@@ -22,15 +22,16 @@ export async function prepareProviderReceipt(input: { userId: string; requestId:
   const { data: claimed } = await admin.from("workspace_action_receipts").update({ status: "processing" }).eq("id", row.id).eq("user_id", input.userId).eq("status", "prepared").select("id").maybeSingle();
   return { row, claimed: Boolean(claimed) };
 }
-export async function runTodoMetadataOperation(input: { userId: string; requestId: string; taskId: string; patch: TodoMetadataPatch; expected?: { title?: string; lastModifiedAt?: string | null; status?: string }; operation?: "tasks_update" | "tasks_complete" }): Promise<OperationResult> {
+export async function runTodoMetadataOperation(input: { userId: string; requestId: string; taskId: string; patch: TodoMetadataPatch; expected?: { title?: string; bodyText?: string | null; lastModifiedAt?: string | null; status?: string }; operation?: "tasks_update" | "tasks_complete" }): Promise<OperationResult> {
+  if (input.patch.bodyText !== undefined && (!input.expected || !Object.hasOwn(input.expected, "bodyText") || !Object.hasOwn(input.expected, "lastModifiedAt"))) return { status: "conflict", message: "任务原正文版本不完整，请重新读取后核对。" };
   const admin = createAdminClient();
   const intent = await prepareProviderReceipt({ ...input, operation: input.operation ?? "tasks_update", targetId: input.taskId, request: { taskId: input.taskId, patch: input.patch, expected: input.expected ?? null } });
   if (!intent.claimed) return intent.row.status === "available" || intent.row.status === "undone" ? { status: "success", receiptId: intent.row.status === "available" ? intent.row.id : undefined, message: "该操作已经处理。" } : { status: "unknown", message: "操作仍在核对；保留相同请求编号，不会重复写入。", requestId: input.requestId };
   let dispatched = false;
   try {
     const connectionId = await activeOperationConnection(input.userId);
-    const before = await readMicrosoftTodoMutationSnapshot(connectionId, input.userId, input.taskId);
-    if (input.expected && ((input.expected.title !== undefined && input.expected.title !== before.title) || (input.expected.status !== undefined && input.expected.status !== before.status) || (input.expected.lastModifiedAt !== undefined && input.expected.lastModifiedAt !== before.lastModifiedAt))) throw new Error("graph_conflict");
+    const before = await readMicrosoftTodoMutationSnapshot(connectionId, input.userId, input.taskId, { includeBody: input.patch.bodyText !== undefined });
+    if (input.expected && ((input.expected.bodyText !== undefined && input.expected.bodyText !== before.bodyText) || (input.expected.title !== undefined && input.expected.title !== before.title) || (input.expected.status !== undefined && input.expected.status !== before.status) || (input.expected.lastModifiedAt !== undefined && input.expected.lastModifiedAt !== before.lastModifiedAt))) throw new Error("graph_conflict");
     const saved=await admin.from("workspace_action_receipts").update({ before_data: before, after_data: { intendedPatch: input.patch } }).eq("id", intent.row.id).eq("user_id", input.userId);
     if(saved.error)throw new Error("operation_prepare_failed");
     dispatched = true;
@@ -45,6 +46,22 @@ export async function runTodoMetadataOperation(input: { userId: string; requestI
     await admin.from("workspace_action_receipts").update({ status: conflict ? "conflict" : unknown ? "unknown" : "failed" }).eq("id", intent.row.id).eq("user_id", input.userId);
     return { status: conflict ? "conflict" : unknown ? "unknown" : "error", message: conflict ? "Microsoft 任务已发生变化，未覆盖它。请重新读取。" : unknown ? "远端结果尚未确认，系统不会重复发送；请重新读取核对。" : "任务未能保存。", requestId: input.requestId };
   }
+}
+/** Read a frozen logical request only. Never prepare, claim, repair, or dispatch PATCH. */
+export async function readTodoMetadataOutcome(input: Parameters<typeof runTodoMetadataOperation>[0]): Promise<OperationResult> {
+  const owner = await requireOwner();
+  if (owner.userId !== input.userId || !z.uuid().safeParse(input.requestId).success || !z.uuid().safeParse(input.taskId).success) return { status: "error", message: "该任务操作不可读取。" };
+  const operation = input.operation ?? "tasks_update", hash = operationRequestHash({ taskId: input.taskId, patch: input.patch, expected: input.expected ?? null });
+  const { data: receipt, error } = await createAdminClient().from("workspace_action_receipts").select("id,operation,target_id,request_hash,status").eq("user_id", owner.userId).eq("request_id", input.requestId).maybeSingle();
+  if (error || !receipt) return { status: "unknown", message: "目前尚未核对到原操作，请保留输入，不会自动重发。", requestId: input.requestId };
+  if (receipt.operation !== operation || receipt.target_id !== input.taskId || receipt.request_hash !== hash) return { status: "conflict", message: "原操作编号与提交内容不一致，输入已保留。", requestId: input.requestId };
+  try {
+    const connectionId = await activeOperationConnection(owner.userId);
+    const canonical = await readMicrosoftTodoMutationSnapshot(connectionId, owner.userId, input.taskId, { includeBody: input.patch.bodyText !== undefined });
+    if (receipt.status === "undone" || receipt.status === "conflict" || receipt.status === "failed") return { status: "conflict", message: "原操作已撤回或未能按原版本保存，请比较当前 Microsoft 记录。", rows: [canonical], requestId: input.requestId };
+    if (receipt.status !== "available") return { status: "unknown", message: "已读取 Microsoft 当前记录，原提交仍未确认；不会重新发送。", rows: [canonical], requestId: input.requestId };
+    return { status: "success", message: "原操作已确认，并读取 Microsoft 当前记录。", receiptId: receipt.id, rows: [canonical], requestId: input.requestId };
+  } catch { return { status: "unknown", message: "暂时无法读取 Microsoft 当前记录，原输入仍保留。", requestId: input.requestId }; }
 }
 export async function undoProviderReceipt(receiptId: string, userId: string): Promise<OperationResult> {
   await requireOwner();
@@ -67,15 +84,15 @@ export async function undoProviderReceipt(receiptId: string, userId: string): Pr
   if (!receipt.operation.startsWith("tasks_")) return { status: "error", message: "此操作不可撤销。" };
   const before = snapshotSchema.parse(receipt.before_data); const after = snapshotSchema.parse(receipt.after_data);
   const connectionId = await activeOperationConnection(userId);
-  const current = await readMicrosoftTodoMutationSnapshot(connectionId, userId, receipt.target_id);
+  const current = await readMicrosoftTodoMutationSnapshot(connectionId, userId, receipt.target_id, { includeBody: after.bodyText !== undefined });
   if (!sameTodoMutationSnapshot(current, after)) return { status: "conflict", message: "任务已有后续修改，未撤销。" };
   // A separate stable logical operation protects duplicate compensation dispatch.
   const undoRequestId = receipt.id;
   const patch: TodoMetadataPatch = {};
   const changedFields=Array.isArray(receipt.after_data.changedFields)?receipt.after_data.changedFields:null;
-  for (const key of ["title", "importance", "dueAt", "status", "completedAt"] as const) if ((!changedFields||changedFields.includes(key))&&before[key] !== after[key]) Object.assign(patch, { [key]: before[key] });
+  for (const key of ["title", "bodyText", "importance", "dueAt", "status", "completedAt"] as const) if ((!changedFields||changedFields.includes(key))&&before[key] !== after[key]) Object.assign(patch, { [key]: before[key] });
   // The original request id differs from receipt.id; this is a deterministic undo key.
-  const result = await runTodoMetadataOperation({ userId, requestId: undoRequestId, taskId: receipt.target_id, expected: { title: after.title, status: after.status, lastModifiedAt: after.lastModifiedAt }, patch });
+  const result = await runTodoMetadataOperation({ userId, requestId: undoRequestId, taskId: receipt.target_id, expected: { title: after.title, ...(after.bodyText !== undefined ? { bodyText: after.bodyText } : {}), status: after.status, lastModifiedAt: after.lastModifiedAt }, patch });
   if (result.status === "success") await admin.from("workspace_action_receipts").update({ status: "undone", undone_at: new Date().toISOString() }).eq("id", receipt.id).eq("user_id", userId).eq("status", "available");
   return result.status === "success" ? { status: "success", message: "已向 Microsoft To Do 提交补偿。" } : result;
 }

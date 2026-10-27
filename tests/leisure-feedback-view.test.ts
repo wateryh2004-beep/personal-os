@@ -5,13 +5,14 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { LeisureExperience, LeisureFeedbackInput, LeisureFeedbackResult, LeisureSource } from "@/features/leisure/types";
 vi.mock("next/link", () => ({ default: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => createElement("a", props) }));
 vi.mock("@/features/leisure/actions", () => ({ saveLeisureFeedback: vi.fn(), readLeisureFeedback: vi.fn() }));
+import {clearWorkspaceResources} from "@/lib/workspace-resource-cache";
 import { LeisureDetail } from "@/components/leisure/leisure-detail";
 const experience: LeisureExperience = { id: "10000000-0000-4000-8000-000000000001", title: "Synthetic experience", kind: "film", why: "", body_markdown: "", how_to_start: null, duration_minutes: null, platform: null, location: null, starts_at: null, cost_text: null, setting: null, company: null, budget: "unknown", sources: [], ratings: [], content_revision: 1, created_at: "2026-10-04T00:00:00Z", updated_at: "2026-10-04T00:00:00Z", feedback: null };
 let host: HTMLDivElement, root: Root;
 const button = (text: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find((node) => node.textContent?.trim() === text)!;
 const result = (input: LeisureFeedbackInput): LeisureFeedbackResult => ({ ok: true, feedback: { status: input.status, reaction: input.reaction, personal_note: input.personal_note, linked_note_id: input.linked_note_id, linked_note_title: null, linked_note_available: false, revision: input.expected_revision + 1, updated_at: experience.updated_at } });
-beforeEach(() => { (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; host = document.createElement("div"); document.body.append(host); root = createRoot(host); });
-afterEach(async () => { await act(async () => root.unmount()); host.remove(); delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT; });
+beforeEach(() => {clearWorkspaceResources(); (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; host = document.createElement("div"); document.body.append(host); root = createRoot(host); });
+afterEach(async () => { await act(async () => root.unmount()); host.remove();clearWorkspaceResources(); delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT; });
 async function render(item: LeisureExperience, onSave: (input: LeisureFeedbackInput) => Promise<LeisureFeedbackResult>) { await act(async () => root.render(createElement(LeisureDetail, { experience: item, now: Date.parse("2026-10-04T12:00:00Z"), onSave }))); }
 async function editNote(text: string) { await act(async () => { const input = host.querySelector("textarea")!; Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(input, text); input.dispatchEvent(new Event("input", { bubbles: true })); }); }
 it("preserves an unsaved reflection across status save and server revision refresh", async () => {
@@ -108,6 +109,7 @@ it("rebases a conflict onto a fresh revision while preserving the user's draft",
   await act(async () => button("读取最新状态").click());
   expect(read).toHaveBeenCalledWith(experience.id);
   expect(host.querySelector("textarea")!.value).toBe("My unfinished thought");
+  expect(button("保存感想").disabled).toBe(true);expect(host.textContent).toContain("Remote synthetic text");await act(async()=>button("采用比较后的当前版本，保留感想输入").click());
   expect(button("准备去").getAttribute("aria-pressed")).toBe("true");
   await act(async () => button("保存感想").click());
   expect(save.mock.calls[1][0]).toMatchObject({ expected_revision: 5, status: "planned", reaction: "liked", personal_note: "My unfinished thought" });
