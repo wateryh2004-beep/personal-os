@@ -78,6 +78,21 @@ async function mount() {
 }
 
 describe("Experience Library quick capture", () => {
+  it("explains an invalid source link locally without losing text or calling the server", async () => {
+    await mount();
+    const textarea = host.querySelector<HTMLTextAreaElement>("textarea")!;
+    await act(async () => setTextarea(textarea, "合成的原始评论"));
+    const url = host.querySelector<HTMLInputElement>('input[type="url"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(url, "不是链接");
+      url.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const save = [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("保存经验"))!;
+    await act(async () => save.click());
+    expect(host.textContent).toContain("来源链接格式不正确");
+    expect(textarea.value).toBe("合成的原始评论");
+    expect(actions.appendExperienceCapture).not.toHaveBeenCalled();
+  });
   it("keeps both text and image from a mixed clipboard paste", async () => {
     await mount();
     const textarea = host.querySelector<HTMLTextAreaElement>("textarea")!;

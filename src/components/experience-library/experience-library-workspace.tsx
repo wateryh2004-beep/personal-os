@@ -44,6 +44,7 @@ import {
 } from "@/features/experience-library/actions";
 import {
   extractExperienceTags,
+  normalizeExperienceSourceUrl,
   suggestExperienceTitle,
 } from "@/features/experience-library/parsing";
 import type {
@@ -340,6 +341,13 @@ export function ExperienceLibraryWorkspace({
       setError("请先粘贴文字、评论或图片。");
       return;
     }
+    let normalizedSourceUrl: string | null;
+    try {
+      normalizedSourceUrl = normalizeExperienceSourceUrl(sourceUrl);
+    } catch {
+      setError("来源链接格式不正确。请填写以 http:// 或 https:// 开头的完整链接，或清空后保存。");
+      return;
+    }
     setSaving(true);
     setError(null);
     setNotice(null);
@@ -353,7 +361,7 @@ export function ExperienceLibraryWorkspace({
         const appended = await appendExperienceCapture({
           requestId: requestIdRef.current,
           entryId: initialEntry?.id ?? result?.entryId ?? null,
-          sourceUrl: sourceUrl || null,
+          sourceUrl: normalizedSourceUrl,
           title: title.trim() || suggestedTitle,
           captureType,
           content,
@@ -368,7 +376,7 @@ export function ExperienceLibraryWorkspace({
         const imageOnly = await createImageOnlyExperience({
           requestId: requestIdRef.current,
           entryId: initialEntry?.id ?? result?.entryId ?? null,
-          sourceUrl: sourceUrl || null,
+          sourceUrl: normalizedSourceUrl,
           title: title.trim() || "未命名经验",
         });
         saved = { entryId: imageOnly.entryId, captureId: null };
@@ -449,7 +457,10 @@ export function ExperienceLibraryWorkspace({
               : image);
         });
       } else {
-        setError(saveError instanceof Error ? saveError.message : "保存未完成，请重试。");
+        const message = saveError instanceof Error ? saveError.message : "";
+        setError(message.includes("Minified React error")
+          ? "服务器未能完成保存。文字和待上传图片仍在本页，请稍后重试。"
+          : message || "保存未完成，请重试。");
       }
     } finally {
       setSaving(false);
