@@ -118,7 +118,7 @@ export async function POST(request: Request) {
       ...point,
       ...verifiedExperienceCitation(sourceIndex, point.sourceQuote, included),
     }));
-    const { error: updateError } = await supabase.from("experience_library_entries").update({
+    const { data: savedEntry, error: updateError } = await supabase.from("experience_library_entries").update({
       ai_summary: result.analysis.summary,
       ai_key_points: keyPoints,
       ai_status: "completed",
@@ -127,19 +127,20 @@ export async function POST(request: Request) {
       ai_model: configuration.modelId,
       ai_analyzed_at: new Date().toISOString(),
       tags: [...new Set([...(entry.tags ?? []), ...result.analysis.tags])].slice(0, 20),
-    }).eq("id", entry.id).eq("user_id", userId).is("archived_at", null);
-    if (updateError) throw new Error("experience_ai_save_failed");
-    await completeAiRequestWithUsage(
+    }).eq("id", entry.id).eq("user_id", userId).is("archived_at", null).select("id").maybeSingle();
+    if (updateError || !savedEntry) throw new Error("experience_ai_save_failed");
+    const auditCompleted = await completeAiRequestWithUsage(
       auditId,
       "completed",
       { inputTokens: result.inputTokens, outputTokens: result.outputTokens },
       null,
       governance,
-    );
+    ).catch(() => false);
     return NextResponse.json({
       ...result.analysis,
       keyPoints,
       truncated,
+      auditIncomplete: !auditCompleted,
       provider: configuration.provider,
       modelId: configuration.modelId,
     }, { headers });
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
       ai_status: "failed",
       ai_error_code: "experience_ai_failed",
     }).eq("id", entry.id).eq("user_id", userId);
-    await completeAiRequestWithUsage(auditId, "failed", {}, "experience_ai_failed", governance);
+    await completeAiRequestWithUsage(auditId, "failed", {}, "experience_ai_failed", governance).catch(() => false);
     return fail("AI 整理未完成；原始文字与图片已保留，可稍后重试。", 502);
   }
 }

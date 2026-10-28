@@ -77,7 +77,7 @@ export function ExperienceAiAnalyzeButton({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "AI 整理未完成。");
-      if (payload.truncated) setNotice("内容较长，本次仅整理了各来源的部分文字；请结合原文核对。");
+      if (payload.truncated || payload.auditIncomplete) setNotice([payload.truncated ? "内容较长，本次仅整理了各来源的部分文字；请结合原文核对。" : "", payload.auditIncomplete ? "整理结果已保存，但使用记录尚未确认；请勿重复整理。" : ""].filter(Boolean).join(" "));
       router.refresh();
     } catch (analysisError) {
       setError(analysisError instanceof Error ? analysisError.message : "AI 整理未完成。");

@@ -157,5 +157,6 @@ export async function completeAiRequestWithUsage(
       ? { ...completion.sourceSummary, telemetry: completion.telemetry }
       : completion.sourceSummary;
   }
-  await admin.from("ai_request_audits").update(patch).eq("id", auditId);
+  const { error } = await admin.from("ai_request_audits").update(patch).eq("id", auditId);
+  return !error;
 }
