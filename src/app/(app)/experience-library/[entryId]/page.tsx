@@ -13,6 +13,7 @@ import {
   getExperienceAiConfig,
   getExperienceEntry,
 } from "@/features/experience-library/queries";
+import { experienceSegmentHighlights } from "@/features/experience-library/segment-highlights";
 import { resolveExperienceCitation } from "@/features/experience-library/citation-display";
 import type { ExperienceMedia, ExperienceSegment } from "@/features/experience-library/types";
 
@@ -34,29 +35,14 @@ function mediaInSegment(media: ExperienceMedia, segment: ExperienceSegment) {
     && (media.selectionEnd ?? media.selectionStart) <= segment.end;
 }
 
-function SegmentText({
-  segment,
-  linked,
-  citation,
-}: {
-  segment: ExperienceSegment;
-  linked: ExperienceMedia | undefined;
-  citation?: string;
-}) {
-  if (!linked || linked.selectionStart === null || linked.selectionEnd === null) {
-    const offset = citation ? segment.text.indexOf(citation) : -1;
-    if (offset >= 0 && citation) return <p className="experience-segment-text">{segment.text.slice(0, offset)}<mark>{citation}</mark>{segment.text.slice(offset + citation.length)}</p>;
-    return <p className="experience-segment-text">{segment.text}</p>;
-  }
-  const localStart = Math.max(0, linked.selectionStart - segment.start);
-  const localEnd = Math.min(segment.text.length, linked.selectionEnd - segment.start);
-  return (
-    <p className="experience-segment-text">
-      {segment.text.slice(0, localStart)}
-      <mark>{segment.text.slice(localStart, localEnd)}</mark>
-      {segment.text.slice(localEnd)}
-    </p>
-  );
+function SegmentText({ segment, linked, citations }: { segment: ExperienceSegment; linked: ExperienceMedia | undefined; citations: string[] }) {
+  const ranges = experienceSegmentHighlights(segment, linked, citations);
+  const pieces = ranges.map((range, index) => {
+    const before = segment.text.slice(index ? ranges[index - 1].end : 0, range.start);
+    const highlighted = segment.text.slice(range.start, range.end);
+    return <span key={`${range.start}-${range.end}`}>{before}<mark>{highlighted}</mark></span>;
+  });
+  return <p className="experience-segment-text">{pieces}{segment.text.slice(ranges.at(-1)?.end ?? 0)}</p>;
 }
 
 export default async function ExperienceEntryPage({
@@ -185,7 +171,7 @@ export default async function ExperienceEntryPage({
                   <SegmentText
                     segment={segment}
                     linked={segmentMedia[0]}
-                    citation={detail.aiKeyPoints.find((point) => point.sourceCaptureId === capture.id && point.sourceQuote && segment.text.includes(point.sourceQuote))?.sourceQuote ?? undefined}
+                    citations={detail.aiKeyPoints.flatMap((point) => point.sourceCaptureId === capture.id && point.sourceQuote ? [point.sourceQuote] : [])}
                   />
                   {segmentMedia.length ? (
                     <div className="experience-media-strip">
