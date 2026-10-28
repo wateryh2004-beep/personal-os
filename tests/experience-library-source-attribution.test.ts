@@ -19,3 +19,22 @@ describe("experience AI evidence", () => {
     expect(verifiedExperienceCitation(1, "需要查看官网", included).sourceCaptureId).toBeNull();
   });
 });
+
+it("reserves context for image evidence when a capture is much longer than the budget", () => {
+  const result = assembleExperienceSources([
+    { type: "capture", id: "capture", text: "原文".repeat(1000), label: "正文" },
+    { type: "image", id: "image", text: "图片证据：报名截止时间", label: "图片识别" },
+  ], 120);
+  expect(result.text.length).toBeLessThanOrEqual(120);
+  expect(result.truncated).toBe(true);
+  expect(result.included).toHaveLength(2);
+  expect(result.included[1].text).toContain("图片证据");
+  expect(verifiedExperienceCitation(2, "图片证据", result.included).sourceMediaId).toBe("image");
+});
+
+it("does not let a long list of captures crowd all images out of a small context", () => {
+  const captures = Array.from({ length: 100 }, (_, i) => ({ type: "capture" as const, id: String(i), label: "正文", text: "原文".repeat(100) }));
+  const result = assembleExperienceSources([...captures, { type: "image", id: "img", label: "图片", text: "截图文字" }], 100);
+  expect(result.included.some((source) => source.id === "img")).toBe(true);
+  expect(result.text.length).toBeLessThanOrEqual(100);
+});

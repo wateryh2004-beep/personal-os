@@ -3,20 +3,35 @@ export type ExperienceAiSource = { type: "capture" | "image"; id: string; text: 
 export type IncludedAiSource = ExperienceAiSource & { index: number };
 
 export function assembleExperienceSources(sources: ExperienceAiSource[], limit: number) {
+  const usable = sources.map((source) => ({ ...source, text: source.text.trimStart() })).filter((source) => source.text.trim());
+  const captures = usable.filter((source) => source.type === "capture");
+  const images = usable.filter((source) => source.type === "image");
+  const ordered: ExperienceAiSource[] = [];
+  for (let i = 0; i < Math.max(captures.length, images.length); i += 1) {
+    if (captures[i]) ordered.push(captures[i]);
+    if (images[i]) ordered.push(images[i]);
+  }
+  const chosen: { source: ExperienceAiSource; prefix: string }[] = [];
+  let headers = 0;
+  // Reserve at least one character per selected source, including later images.
+  for (const source of ordered) {
+    const prefix = `${chosen.length ? "\n\n" : ""}[片段 ${chosen.length + 1} · ${source.label}]\n`;
+    if (headers + prefix.length + chosen.length + 1 > limit) break;
+    headers += prefix.length;
+    chosen.push({ source, prefix });
+  }
+  let available = Math.max(0, limit - headers);
   let text = "";
   const included: IncludedAiSource[] = [];
-  for (const source of sources) {
-    const index = included.length + 1;
-    const prefix = `${text ? "\n\n" : ""}[片段 ${index} · ${source.label}]\n`;
-    const remaining = limit - text.length - prefix.length;
-    if (remaining <= 0) break;
-    const sourceText = source.text.slice(0, remaining);
-    if (!sourceText.trim()) continue;
+  for (const [position, { source, prefix }] of chosen.entries()) {
+    const share = Math.max(1, Math.floor(available / (chosen.length - position)));
+    const sourceText = source.text.slice(0, share);
+    available -= sourceText.length;
     text += prefix + sourceText;
-    included.push({ ...source, text: sourceText, index });
-    if (sourceText.length < source.text.length) break;
+    included.push({ ...source, text: sourceText, index: position + 1 });
   }
-  return { text, included };
+  const truncated = chosen.length < usable.length || included.some((item, index) => item.text.length < chosen[index].source.text.length);
+  return { text, included, truncated };
 }
 
 export function verifiedExperienceCitation(sourceIndex: number | null, quote: string | null, sources: IncludedAiSource[]) {

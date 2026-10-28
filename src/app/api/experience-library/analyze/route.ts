@@ -81,7 +81,7 @@ export async function POST(request: Request) {
   if (!configuration) return fail("尚未配置经验资料库的 AI 模型。", 409);
 
   const governance = await getAiGovernance(userId);
-  const { text: assembled, included } = assembleExperienceSources(sources, governance.maxContextCharsPerRequest);
+  const { text: assembled, included, truncated } = assembleExperienceSources(sources, governance.maxContextCharsPerRequest);
   const sourceSummary = {
     modules: ["experience_library"],
     entitiesByModule: { experience_library: 1 },
@@ -139,6 +139,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ...result.analysis,
       keyPoints,
+      truncated,
       provider: configuration.provider,
       modelId: configuration.modelId,
     }, { headers });

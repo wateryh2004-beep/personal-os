@@ -62,11 +62,13 @@ export function ExperienceAiAnalyzeButton({
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function analyze() {
     if (!configured || pending) return;
     setPending(true);
     setError(null);
+    setNotice(null);
     try {
       const response = await fetch("/api/experience-library/analyze", {
         method: "POST",
@@ -75,6 +77,7 @@ export function ExperienceAiAnalyzeButton({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "AI 整理未完成。");
+      if (payload.truncated) setNotice("内容较长，本次仅整理了各来源的部分文字；请结合原文核对。");
       router.refresh();
     } catch (analysisError) {
       setError(analysisError instanceof Error ? analysisError.message : "AI 整理未完成。");
@@ -92,6 +95,7 @@ export function ExperienceAiAnalyzeButton({
       {!configured ? <span>先在资料库首页配置模型。未配置时原文与图片照常使用。</span> : null}
       {configured && previouslyFailed ? <span role="alert">上次 AI 整理未完成，原文与图片仍完整保留。</span> : null}
       {configured && !previouslyFailed ? <span>发送当前经验原文和已允许 AI 使用的图片识别文字；不发送图片原件。</span> : null}
+      {notice ? <span role="status">{notice}</span> : null}
       {error ? <span role="alert">{error}</span> : null}
     </div>
   );

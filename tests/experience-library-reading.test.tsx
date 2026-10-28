@@ -28,3 +28,12 @@ it("keeps image controls hidden while reading and opens a keyboard-navigable gal
   await act(async () => document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
   await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
 });
+
+it("tells the reader when AI had to use partial source text", async () => {
+  const { ExperienceAiAnalyzeButton } = await import("@/components/experience-library/experience-entry-actions");
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ truncated: true })));
+  await act(async () => root.render(<ExperienceAiAnalyzeButton entryId="entry" configured previouslyFailed={false} />));
+  const button = [...host.querySelectorAll("button")].find((item) => item.textContent?.includes("AI 整理"))!;
+  await act(async () => button.click());
+  expect(host.textContent).toContain("本次仅整理了各来源的部分文字");
+});
