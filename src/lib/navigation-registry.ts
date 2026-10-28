@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   BriefcaseBusiness,
   CalendarDays,
   ChartNoAxesCombined,
@@ -45,6 +46,7 @@ export const navigationRegistry: readonly NavigationRegistryItem[] = [
   { name: "项目", href: "/projects", icon: SquareKanban, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true, contextualCreate: { kind: "project" } },
   { name: "回顾", href: "/reviews", icon: Star, group: "plan", desktopMain: true, mobileTab: false, commandPalette: true },
   { name: "文件", href: "/files", icon: FolderClosed, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true },
+  { name: "经验", href: "/experience-library", icon: BookOpen, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true },
   { name: "简报", href: "/briefing", icon: Newspaper, group: "knowledge", desktopMain: true, mobileTab: false, commandPalette: true },
   { name: "投资", href: "/investments", icon: ChartNoAxesCombined, group: "life", desktopMain: true, mobileTab: false, commandPalette: true },
   { name: "闲暇", href: "/leisure", icon: Compass, group: "life", desktopMain: true, mobileTab: false, commandPalette: true },

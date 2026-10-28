@@ -1,6 +1,6 @@
 {
   "format": "personal-os-system/v1",
-  "schemaRevision": "2026-10-system-workbench/v2",
+  "schemaRevision": "2026-10-experience-library/v1",
   "tables": {
     "activity_events": {
       "columns": {
@@ -2879,6 +2879,231 @@
             "source_document_id"
           ],
           "table": "documents",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experience_library_captures": {
+      "columns": {
+        "capture_type": {
+          "type": "string",
+          "nullable": false
+        },
+        "content_sha256": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "entry_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "raw_content": {
+          "type": "string",
+          "nullable": false
+        },
+        "request_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "segments": {
+          "type": "json",
+          "nullable": false
+        },
+        "speaker": {
+          "type": "string",
+          "nullable": true
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "entry_id"
+          ],
+          "table": "experience_library_entries",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experience_library_entries": {
+      "columns": {
+        "ai_analyzed_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "ai_key_points": {
+          "type": "json",
+          "nullable": true
+        },
+        "ai_error_code": {
+          "type": "string",
+          "nullable": true
+        },
+        "ai_model": {
+          "type": "string",
+          "nullable": true
+        },
+        "ai_provider": {
+          "type": "string",
+          "nullable": true
+        },
+        "ai_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "ai_summary": {
+          "type": "string",
+          "nullable": true
+        },
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "creation_request_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_url": {
+          "type": "string",
+          "nullable": true
+        },
+        "tags": {
+          "type": "array",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [],
+      "excludedColumns": []
+    },
+    "experience_library_media": {
+      "columns": {
+        "archived_at": {
+          "type": "string",
+          "nullable": true
+        },
+        "caption": {
+          "type": "string",
+          "nullable": true
+        },
+        "capture_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "document_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "entry_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "position": {
+          "type": "number",
+          "nullable": false
+        },
+        "selection_end": {
+          "type": "number",
+          "nullable": true
+        },
+        "selection_quote": {
+          "type": "string",
+          "nullable": true
+        },
+        "selection_start": {
+          "type": "number",
+          "nullable": true
+        },
+        "source_kind": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "capture_id"
+          ],
+          "table": "experience_library_captures",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "document_id"
+          ],
+          "table": "documents",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "entry_id"
+          ],
+          "table": "experience_library_entries",
           "targetColumns": [
             "id"
           ]
@@ -7943,7 +8168,8 @@
     "vault_sessions": "Independent verification credentials, session capabilities or throttle; never export or restore.",
     "vault_attempts": "Independent verification credentials, session capabilities or throttle; never export or restore.",
     "workspace_action_receipts": "Transient undo capabilities and execution state; never restore or replay.",
-    "workspace_original_checks": "Short-lived original-byte verification proofs; never restore or replay."
+    "workspace_original_checks": "Short-lived original-byte verification proofs; never restore or replay.",
+    "experience_library_ai_settings": "Experience Library provider credentials; reconnect manually and keep ciphertext out of portable exports."
   },
   "exclusions": [
     "Authentication users, sessions, passwords, API keys, OAuth credentials and deployment configuration.",

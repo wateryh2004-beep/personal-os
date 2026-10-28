@@ -2528,6 +2528,213 @@ export type Database = {
         }
         Relationships: []
       }
+      experience_library_ai_settings: {
+        Row: {
+          api_key_ciphertext: string
+          created_at: string
+          last_tested_at: string | null
+          model_id: string
+          provider: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key_ciphertext: string
+          created_at?: string
+          last_tested_at?: string | null
+          model_id: string
+          provider: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key_ciphertext?: string
+          created_at?: string
+          last_tested_at?: string | null
+          model_id?: string
+          provider?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      experience_library_captures: {
+        Row: {
+          capture_type: string
+          content_sha256: string
+          created_at: string
+          entry_id: string
+          id: string
+          raw_content: string
+          request_id: string
+          segments: Json
+          speaker: string | null
+          user_id: string
+        }
+        Insert: {
+          capture_type: string
+          content_sha256: string
+          created_at?: string
+          entry_id: string
+          id?: string
+          raw_content: string
+          request_id: string
+          segments: Json
+          speaker?: string | null
+          user_id: string
+        }
+        Update: {
+          capture_type?: string
+          content_sha256?: string
+          created_at?: string
+          entry_id?: string
+          id?: string
+          raw_content?: string
+          request_id?: string
+          segments?: Json
+          speaker?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "experience_library_captures_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "experience_library_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      experience_library_entries: {
+        Row: {
+          ai_analyzed_at: string | null
+          ai_key_points: Json | null
+          ai_error_code: string | null
+          ai_model: string | null
+          ai_provider: string | null
+          ai_status: string
+          ai_summary: string | null
+          archived_at: string | null
+          created_at: string
+          creation_request_id: string
+          id: string
+          source_url: string | null
+          tags: string[]
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_analyzed_at?: string | null
+          ai_key_points?: Json | null
+          ai_error_code?: string | null
+          ai_model?: string | null
+          ai_provider?: string | null
+          ai_status?: string
+          ai_summary?: string | null
+          archived_at?: string | null
+          created_at?: string
+          creation_request_id: string
+          id?: string
+          source_url?: string | null
+          tags?: string[]
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_analyzed_at?: string | null
+          ai_key_points?: Json | null
+          ai_error_code?: string | null
+          ai_model?: string | null
+          ai_provider?: string | null
+          ai_status?: string
+          ai_summary?: string | null
+          archived_at?: string | null
+          created_at?: string
+          creation_request_id?: string
+          id?: string
+          source_url?: string | null
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      experience_library_media: {
+        Row: {
+          archived_at: string | null
+          caption: string | null
+          capture_id: string | null
+          created_at: string
+          document_id: string
+          entry_id: string
+          id: string
+          position: number
+          selection_end: number | null
+          selection_quote: string | null
+          selection_start: number | null
+          source_kind: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          caption?: string | null
+          capture_id?: string | null
+          created_at?: string
+          document_id: string
+          entry_id: string
+          id?: string
+          position?: number
+          selection_end?: number | null
+          selection_quote?: string | null
+          selection_start?: number | null
+          source_kind?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          caption?: string | null
+          capture_id?: string | null
+          created_at?: string
+          document_id?: string
+          entry_id?: string
+          id?: string
+          position?: number
+          selection_end?: number | null
+          selection_quote?: string | null
+          selection_start?: number | null
+          source_kind?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "experience_library_media_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "experience_library_captures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "experience_library_media_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "experience_library_media_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "experience_library_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       experience_bullets: {
         Row: {
           approved_at: string | null
@@ -6844,6 +7051,39 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      append_experience_library_capture: {
+        Args: {
+          p_entry_id: string | null
+          p_source_url: string | null
+          p_title: string
+          p_capture_type: string
+          p_raw_content: string | null
+          p_segments: Json | null
+          p_tags: string[]
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      search_experience_library: {
+        Args: { p_query: string }
+        Returns: {
+          id: string
+          source_url: string | null
+          title: string
+          tags: string[]
+          ai_summary: string | null
+          ai_status: string
+          ai_error_code: string | null
+          ai_provider: string | null
+          ai_model: string | null
+          ai_analyzed_at: string | null
+          updated_at: string
+          created_at: string
+          capture_count: number
+          media_count: number
+        }[]
+      }
+
       _workbench_receipt_visible: { Args: { p_owner: string; p_operation: string; p_target: string; p_before: Json; p_after: Json }; Returns: boolean }
       read_life_receipt_state: { Args: { p_receipt_id: string }; Returns: Json }
       valid_workbench_href: { Args: { p_href: string }; Returns: boolean }

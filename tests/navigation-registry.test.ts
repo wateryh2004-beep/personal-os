@@ -17,7 +17,7 @@ describe("navigation registry", () => {
     const hrefs = navigationRegistry.map((item) => item.href);
     expect(new Set(hrefs).size).toBe(hrefs.length);
     expect(desktopNavigationGroups.flatMap((group) => group.items).map((item) => item.href)).toEqual([
-      "/today", "/notes", "/career", "/inbox", "/calendar", "/tasks", "/projects", "/reviews", "/files", "/briefing", "/investments", "/leisure", "/shopping", "/travel",
+      "/today", "/notes", "/career", "/inbox", "/calendar", "/tasks", "/projects", "/reviews", "/files", "/experience-library", "/briefing", "/investments", "/leisure", "/shopping", "/travel",
     ]);
     expect(mobileTabNavigation.map((item) => item.href)).toEqual(["/today", "/notes", "/career"]);
     expect(commandPaletteNavigation.map((item) => item.href)).toContain("/settings");

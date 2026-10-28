@@ -177,6 +177,8 @@
 
 ## 当前实现排查
 
+[经验资料库 V1](specs/experience-library-v1.md) 规定手动图文收录、追加式原文、选区图片关联、私有 R2 原件、独立 DeepSeek/Qwen 设置、检索与两部分恢复边界；[验收记录](verification/2026-10-28-experience-library-v1.md)记录实际验证与限制。
+
 [全系统视觉与动效精修](specs/visual-motion-polish.md) 固定 2026-10-26 笔记纸面与阅读排版、今日桌面、导航、搜索预览、工作台布局、日历拖放、项目目标、文件查看器和公共反馈十项范围；实现与最终 CI、截图录屏及发布分别验收。 本地检查、构建重验与远程浏览器边界见 [2026-10-27 验收记录](verification/2026-10-27-visual-motion.md)。
 
 [全局搜索协议与偶发 Data API 401](verification/2026-10-25-search-auth-recovery.md) 记录匿名/空查询认证、受限只读恢复、刷新 Cookie/防缓存头与合成及生产验证边界。

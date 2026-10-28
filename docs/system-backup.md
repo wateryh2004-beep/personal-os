@@ -16,6 +16,8 @@
 
 系统包内嵌既有 Leisure 私有图片的原件、640/1280 变体和原始 activation manifest（base64 二进制记录，每个对象校验 SHA-256）。下载时只读既有固定 16 项 registry 对应的 owner 前缀 R2 对象，不重新下载外部图片、不触发 import、不列举其他对象、不写存储。每项分为 present / not_imported / unavailable，只有明确 404 的未导入项才能不要求原件；读取配置/权限失败绝不冒充空集合。恢复时以 artwork/<原 key 后缀> 重建原字节和 manifest，provider 上传需要另行授权。
 
+Experience Library 的 entries、append-only captures、media 选区关系与 document 外键进入系统快照；其独立模型 API 密钥密文明确排除。经验图片仍按 `documents` 出现在 Files 原件范围，不能只用经验 JSON 声称完成完整恢复。
+
 Files 原件通过已有 Files portable packages 做独立 SHA-256 校验，再严格匹配 document ID、大小、历史 checksum、原名、标题、归档/更新字段、目录和文件关系。包来自其他状态、缺分包、缺文档、额外文档或关系不符均不能当完整副本。旧版 Supabase Storage 原件与部署中的静态资源需要独立保留；报告 originals.recordsByProvider 与 missingDocuments 逐项列出缺失原件 ID、原名、provider 与原因，不会悄悄认作已恢复。pending 上传仅保留元数据，不算已保存原件；用户已明确取消并变为 cancelled 的上传只需保留取消元数据，不要求不存在的提交原件，报告单列 cancelledUploadsMetadataOnly，绝不记为恢复了字节。参考 [Files portable export](./files/portable-export.md)。
 
 排除范围都写入包及报告：认证账户/会话/密钥、部署配置、派生搜索/PDF/健康缓存、临时上传/同步租约、执行队列等。数据中的日历/Agent 历史操作仅作证据保存，任何恢复过程都不重放。外部 Outlook / To Do 仍是各自权威源。
