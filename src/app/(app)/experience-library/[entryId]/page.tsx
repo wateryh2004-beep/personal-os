@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, ExternalLink, ImageIcon } from "lucide-react";
+import { ExperiencePersonalNote } from "@/components/experience-library/experience-personal-note";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   ExperienceAiAnalyzeButton,
@@ -118,6 +119,8 @@ export default async function ExperienceEntryPage({
         ) : null}
         <Link href={`/experience-library?entry=${detail.entry.id}`} className="ui-action-secondary">补充内容</Link>
       </div>
+
+      <ExperiencePersonalNote entryId={detail.entry.id} initialNote={detail.entry.personalNote ?? ""} initialStatus={detail.entry.reviewStatus ?? "unmarked"} />
 
       {detail.entry.summary ? (
         <section className="experience-analysis" aria-labelledby="experience-analysis-title">

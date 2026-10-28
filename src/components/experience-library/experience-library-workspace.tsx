@@ -66,6 +66,8 @@ type WorkspaceData = {
   total: number;
   captureTotal: number;
   mediaTotal: number;
+  tags?: string[];
+  filters?: { tag?: string; status?: string; hasMedia?: boolean; analyzed?: boolean; sort?: string };
 };
 
 type InitialEntry = {
@@ -791,7 +793,9 @@ export function ExperienceLibraryWorkspace({
             <p className="experience-kicker">已收录</p>
             <h2 id="experience-recent-title">最近经验</h2>
           </div>
-          <form action="/experience-library" role="search" className="experience-search">
+        </header>
+          <form key={JSON.stringify([data.query, data.filters])} action="/experience-library" role="search" className="experience-filters">
+          <div className="experience-search">
             <Search aria-hidden="true" />
             <Input
               name="q"
@@ -800,14 +804,22 @@ export function ExperienceLibraryWorkspace({
               aria-label="搜索经验资料"
             />
             <Button type="submit" variant="outline">搜索</Button>
-          </form>
-        </header>
+          </div>
+          <div className="experience-filter-controls">
+            <label>标签 <select name="tag" defaultValue={data.filters?.tag ?? ""}><option value="">全部标签</option>{(data.tags ?? []).map((tag) => <option value={tag} key={tag}>{tag}</option>)}</select></label>
+            <label>标记 <select name="status" defaultValue={data.filters?.status ?? ""}><option value="">全部标记</option><option value="unmarked">未标记</option><option value="to_read">待看</option><option value="useful">值得参考</option><option value="outdated">已过时</option></select></label>
+            <label>排序 <select name="sort" defaultValue={data.filters?.sort === "created" ? "created" : "updated"}><option value="updated">最近更新</option><option value="created">最近收录</option></select></label>
+            <label><input type="checkbox" name="media" value="1" defaultChecked={data.filters?.hasMedia} /> 有图片</label>
+            <label><input type="checkbox" name="analyzed" value="1" defaultChecked={data.filters?.analyzed} /> 已 AI 整理</label>
+            <Button type="submit" variant="outline" size="sm">应用筛选</Button>
+            <Link href="/experience-library" className="ui-link">清除</Link>
+          </div></form>
 
         {!data.available ? (
           <p className="experience-empty">经验资料暂时无法读取。请确认 migration 已应用并稍后刷新。</p>
         ) : data.entries.length === 0 ? (
           <p className="experience-empty">
-            {data.query ? `没有找到包含“${data.query}”的经验。` : "还没有保存经验。粘贴第一篇正文或截图即可开始。"}
+            {data.query || data.filters?.tag || data.filters?.status || data.filters?.hasMedia || data.filters?.analyzed ? "没有找到符合条件的经验，请调整搜索或筛选。" : "还没有保存经验。粘贴第一篇正文或截图即可开始。"}
           </p>
         ) : (
           <div className="experience-recent-list">
@@ -815,9 +827,9 @@ export function ExperienceLibraryWorkspace({
               <article key={entry.id} className="experience-recent-row">
                 <Link href={`/experience-library/${entry.id}`} className="experience-recent-main">
                   <span className="experience-entry-title">{entry.title}</span>
-                  <span className="experience-entry-excerpt">{entry.summary || entry.tags.map((tag) => `#${tag}`).join(" ")}</span>
+                  <span className="experience-entry-excerpt">{entry.matchExcerpt || entry.summary || entry.tags.map((tag) => `#${tag}`).join(" ")}</span>
                   <span className="experience-entry-meta">
-                    {entry.captureCount} 次原文 · {entry.mediaCount} 张图片 · {formatDate(entry.updatedAt)}
+                    {entry.reviewStatus && entry.reviewStatus !== "unmarked" ? `${{ to_read: "待看", useful: "值得参考", outdated: "已过时" }[entry.reviewStatus]} · ` : ""}{entry.captureCount} 次原文 · {entry.mediaCount} 张图片 · {formatDate(entry.updatedAt)}
                   </span>
                 </Link>
                 <Button asChild variant="outline" size="sm">

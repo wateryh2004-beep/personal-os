@@ -401,3 +401,12 @@ export async function removeExperienceAiSettings() {
   await audit(admin as typeof admin, userId, "remove_experience_ai", userId);
   revalidatePath("/experience-library");
 }
+
+export async function saveExperiencePersonalNote(input: { entryId: string; note: string; status: string }) {
+  if (!/^[0-9a-f-]{36}$/i.test(input.entryId) || typeof input.note !== "string" || input.note.length > 10000 || !["unmarked", "to_read", "useful", "outdated"].includes(input.status)) throw new Error("备注或标记无效。");
+  const { supabase, userId } = await requireOwner();
+  const { data, error } = await supabase.from("experience_library_entries").update({ personal_note: input.note, review_status: input.status }).eq("id", input.entryId).eq("user_id", userId).is("archived_at", null).select("id").maybeSingle();
+  if (error || !data) throw new Error("保存未完成，请稍后重试。");
+  revalidatePath("/experience-library");
+  revalidatePath(`/experience-library/${input.entryId}`);
+}

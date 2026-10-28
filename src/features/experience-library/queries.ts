@@ -10,7 +10,7 @@ import type {
   ExperienceSegment,
 } from "./types";
 
-const entryColumns = "id,source_url,title,tags,ai_summary,ai_status,ai_error_code,ai_provider,ai_model,ai_analyzed_at,updated_at,created_at";
+const entryColumns = "id,source_url,title,tags,ai_summary,ai_status,ai_error_code,ai_provider,ai_model,ai_analyzed_at,updated_at,created_at,personal_note,review_status";
 
 type SearchEntryRow = {
   id: string;
@@ -27,6 +27,9 @@ type SearchEntryRow = {
   created_at: string;
   capture_count: number;
   media_count: number;
+  personal_note: string;
+  review_status: ExperienceEntrySummary["reviewStatus"];
+  match_excerpt: string | null;
 };
 
 function asSegments(value: unknown): ExperienceSegment[] {
@@ -82,6 +85,9 @@ function summary(
     ai_analyzed_at: string | null;
     updated_at: string;
     created_at: string;
+    personal_note?: string;
+    review_status?: ExperienceEntrySummary["reviewStatus"];
+    match_excerpt?: string | null;
   },
   captureCount = 0,
   mediaCount = 0,
@@ -101,20 +107,26 @@ function summary(
     createdAt: row.created_at,
     captureCount,
     mediaCount,
+    personalNote: row.personal_note ?? "",
+    reviewStatus: row.review_status ?? "unmarked",
+    matchExcerpt: row.match_excerpt ?? null,
   };
 }
 
-export async function getExperienceLibraryWorkspace(query = "") {
+export type ExperienceFilters = { tag?: string; status?: string; hasMedia?: boolean; analyzed?: boolean; sort?: string };
+
+export async function getExperienceLibraryWorkspace(query = "", filters: ExperienceFilters = {}) {
   try {
     const { supabase } = await requireOwner();
     const needle = query.trim().slice(0, 120);
-    const [search, entries, captures, media] = await Promise.all([
-      supabase.rpc("search_experience_library", { p_query: needle }),
+    const [search, entries, captures, media, tags] = await Promise.all([
+      supabase.rpc("search_experience_library_v2", { p_query: needle, p_tag: filters.tag ?? "", p_status: filters.status ?? "", p_has_media: !!filters.hasMedia, p_analyzed: !!filters.analyzed, p_sort: filters.sort === "created" ? "created" : "updated" }),
       supabase.from("experience_library_entries").select("*", { count: "exact", head: true }).is("archived_at", null),
       supabase.from("experience_library_captures").select("*", { count: "exact", head: true }),
       supabase.from("experience_library_media").select("*", { count: "exact", head: true }).is("archived_at", null),
+      supabase.from("experience_library_entries").select("tags").is("archived_at", null).limit(1000),
     ]);
-    if (search.error || entries.error || captures.error || media.error) {
+    if (search.error || entries.error || captures.error || media.error || tags.error) {
       throw new Error("experience_library_read_failed");
     }
     const result = ((search.data ?? []) as SearchEntryRow[]).map((entry) => summary(
@@ -126,6 +138,8 @@ export async function getExperienceLibraryWorkspace(query = "") {
       available: true,
       query: needle,
       entries: result,
+      tags: Array.from(new Set((tags.data ?? []).flatMap((row) => row.tags ?? []))).sort(),
+      filters,
       total: entries.count ?? 0,
       captureTotal: captures.count ?? 0,
       mediaTotal: media.count ?? 0,
@@ -135,6 +149,8 @@ export async function getExperienceLibraryWorkspace(query = "") {
       available: false,
       query,
       entries: [] as ExperienceEntrySummary[],
+      tags: [] as string[],
+      filters,
       total: 0,
       captureTotal: 0,
       mediaTotal: 0,

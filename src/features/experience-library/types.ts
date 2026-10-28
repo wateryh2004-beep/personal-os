@@ -26,6 +26,8 @@ export type ExperienceAiAnalysis = {
   keyPoints: ExperienceAiKeyPoint[];
 };
 
+export type ExperienceReviewStatus = "unmarked" | "to_read" | "useful" | "outdated";
+
 export type ExperienceEntrySummary = {
   id: string;
   sourceUrl: string | null;
@@ -41,6 +43,9 @@ export type ExperienceEntrySummary = {
   createdAt: string;
   captureCount: number;
   mediaCount: number;
+  personalNote?: string;
+  reviewStatus?: ExperienceReviewStatus;
+  matchExcerpt?: string | null;
 };
 
 export type ExperienceCapture = {

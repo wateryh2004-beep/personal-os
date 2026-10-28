@@ -38,6 +38,7 @@ beforeEach(() => {
     const builder = {
       select() { return builder; },
       is() { return builder; },
+      limit() { return builder; },
       then(resolve: (value: unknown) => unknown) {
         return Promise.resolve({ count: 3, error: null }).then(resolve);
       },
@@ -51,8 +52,8 @@ describe("Experience Library workspace query", () => {
     const query = `  ${"留".repeat(140)}  `;
     const result = await getExperienceLibraryWorkspace(query);
     expect(state.rpc).toHaveBeenCalledOnce();
-    expect(state.rpc).toHaveBeenCalledWith("search_experience_library", {
-      p_query: "留".repeat(120),
+    expect(state.rpc).toHaveBeenCalledWith("search_experience_library_v2", {
+      p_query: "留".repeat(120), p_tag: "", p_status: "", p_has_media: false, p_analyzed: false, p_sort: "updated",
     });
     expect(result).toMatchObject({
       available: true,

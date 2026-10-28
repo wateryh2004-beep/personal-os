@@ -35,10 +35,15 @@ export async function GET(request: Request) {
     }
     const entries = await ownerRows((after) => {
       let query = supabase.from("experience_library_entries")
-        .select("id,source_url,title,tags,ai_summary,ai_key_points,ai_status,ai_error_code,ai_provider,ai_model,ai_analyzed_at,created_at,updated_at,archived_at")
+        .select("id,source_url,title,tags,ai_summary,ai_key_points,ai_status,ai_error_code,ai_provider,ai_model,ai_analyzed_at,personal_note,review_status,created_at,updated_at,archived_at")
         .eq("user_id", userId)
         .order("id")
         .limit(500);
+      if (after) query = query.gt("id", after);
+      return query;
+    });
+    const noteVersions = await ownerRows((after) => {
+      let query = supabase.from("experience_library_note_versions").select("id,entry_id,personal_note,review_status,created_at").eq("user_id", userId).order("id").limit(500);
       if (after) query = query.gt("id", after);
       return query;
     });
@@ -85,6 +90,7 @@ export async function GET(request: Request) {
         documents: documents.length,
       },
       entries,
+      noteVersions,
       captures,
       media,
       documents,
