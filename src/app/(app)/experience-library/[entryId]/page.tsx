@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import {
   ExperienceAiAnalyzeButton,
   ExperienceMediaManager,
+  ExperienceMediaProvider,
 } from "@/components/experience-library/experience-entry-actions";
 import {
   getExperienceAiConfig,
@@ -64,14 +65,17 @@ export default async function ExperienceEntryPage({
   if (!detail) notFound();
 
   const linkedSelectionIds = new Set<string>();
-  for (const segment of detail.captures.flatMap((capture) => capture.segments)) {
-    for (const item of detail.media) {
-      if (item.captureId && mediaInSegment(item, segment)) linkedSelectionIds.add(item.id);
+  for (const capture of detail.captures) {
+    for (const segment of capture.segments) {
+      for (const item of detail.media) {
+        if (item.captureId === capture.id && mediaInSegment(item, segment)) linkedSelectionIds.add(item.id);
+      }
     }
   }
+  const captureIds = new Set(detail.captures.map((capture) => capture.id));
   const wholeCaptureIds = new Set(
     detail.media
-      .filter((item) => item.captureId && item.selectionStart === null)
+      .filter((item) => item.captureId && captureIds.has(item.captureId) && item.selectionStart === null)
       .map((item) => item.id),
   );
   const otherMedia = detail.media.filter((item) => !linkedSelectionIds.has(item.id) && !wholeCaptureIds.has(item.id));
@@ -139,6 +143,7 @@ export default async function ExperienceEntryPage({
         </section>
       ) : null}
 
+      <ExperienceMediaProvider media={detail.media}>
       <section className="experience-transcript" aria-labelledby="experience-transcript-title">
         <div className="experience-section-heading">
           <div>
@@ -223,6 +228,7 @@ export default async function ExperienceEntryPage({
           </div>
         </section>
       ) : null}
+      </ExperienceMediaProvider>
     </div>
   );
 }

@@ -34,6 +34,7 @@ export default async function ExperienceLibraryPage({
   }
   return (
     <ExperienceLibraryWorkspace
+      key={initialDetail?.entry.id ?? "new"}
       data={data}
       aiConfig={aiConfig}
       initialEntry={initialDetail ? {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -38,6 +38,7 @@ import {
   appendExperienceCapture,
   attachExperienceMedia,
   createImageOnlyExperience,
+  findExistingExperience,
   removeExperienceAiSettings,
   saveExperienceAiSettings,
   testExperienceAiSettings,
@@ -54,6 +55,9 @@ import type {
   ExperienceEntrySummary,
 } from "@/features/experience-library/types";
 import { cn } from "@/lib/utils";
+import { experienceChunkCount, experienceChunkSize } from "@/features/experience-library/chunks";
+import { experienceDraftSchema, type ExperienceDraft } from "@/features/experience-library/draft";
+import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 
 type WorkspaceData = {
   available: boolean;
@@ -138,14 +142,85 @@ export function ExperienceLibraryWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AppendExperienceResult | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [targetEntry, setTargetEntry] = useState(initialEntry);
+  const [duplicate, setDuplicate] = useState<InitialEntry>(null);
+  const [reselectCount, setReselectCount] = useState(0);
+  const [recoveryReady, setRecoveryReady] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const requestIdRef = useRef<string | null>(null);
   const textSavedRef = useRef<{ entryId: string; captureId: string | null } | null>(null);
   const previewUrlsRef = useRef(new Set<string>());
+  const lookupSequence = useRef(0);
+  const draftKey = `experience-library:${initialEntry?.id ?? "new"}`;
 
   const suggestedTitle = useMemo(() => suggestExperienceTitle(content), [content]);
   const tags = useMemo(() => extractExperienceTags(content), [content]);
   const unsavedCount = images.filter((image) => image.status !== "saved").length;
+  const hasUnsaved = Boolean(content || unsavedCount || reselectCount || saving || (sourceUrl && sourceUrl !== targetEntry?.sourceUrl) || (title && title !== targetEntry?.title));
+
+  useEffect(() => () => { cancelController?.abort(); }, [cancelController]);
+  useEffect(() => () => {
+    for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
+    previewUrlsRef.current.clear();
+  }, []);
+
+  useEffect(() => {
+    const saved = experienceDraftSchema.safeParse(loadWorkspaceSession<unknown>(draftKey));
+    if (saved.success) {
+      const draft = saved.data;
+      // The owner-scoped shell clears these same-tab snapshots on identity change.
+      setTitle(draft.title); setSourceUrl(draft.sourceUrl); setContent(draft.content); setCaptureType(draft.captureType);
+      setReselectCount(draft.pendingImages); requestIdRef.current = draft.requestId;
+      if (draft.savedTarget) {
+        textSavedRef.current = { entryId: draft.savedTarget.entryId, captureId: draft.savedTarget.captureId };
+        setResult({ ...draft.savedTarget, createdEntry: false, appended: Boolean(draft.savedTarget.captureId) });
+        setTargetEntry({ id: draft.savedTarget.entryId, title: draft.savedTarget.title, sourceUrl: draft.sourceUrl || null });
+      }
+      setNotice(draft.pendingImages ? `已恢复未完成的文字；请重新选择此前的 ${draft.pendingImages} 张图片，并核对图片关联。` : "已恢复未完成的文字。");
+    }
+    setRecoveryReady(true);
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!recoveryReady) return;
+    if (!hasUnsaved) { removeWorkspaceSession(draftKey); return; }
+    const target = textSavedRef.current;
+    const draft: ExperienceDraft = {
+      title, sourceUrl, content, captureType,
+      pendingImages: Math.min(200, unsavedCount + reselectCount),
+      savedTarget: target ? { ...target, title: (result?.title ?? title) || "未命名经验" } : null,
+      requestId: requestIdRef.current,
+    };
+    const timer = window.setTimeout(() => saveWorkspaceSession(draftKey, draft), 350);
+    return () => window.clearTimeout(timer);
+  }, [captureType, content, draftKey, hasUnsaved, recoveryReady, reselectCount, result, sourceUrl, title, unsavedCount, saving]);
+
+  useEffect(() => {
+    if (!hasUnsaved) return;
+    const persist = () => {
+      const target = textSavedRef.current;
+      saveWorkspaceSession(draftKey, {
+        title, sourceUrl, content, captureType, pendingImages: Math.min(200, unsavedCount + reselectCount),
+        savedTarget: target ? { ...target, title: (result?.title ?? title) || "未命名经验" } : null,
+        requestId: requestIdRef.current,
+      } satisfies ExperienceDraft);
+    };
+    const beforeUnload = (event: BeforeUnloadEvent) => { persist(); event.preventDefault(); event.returnValue = ""; };
+    const guardLink = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+      if (!link || link.target === "_blank" || link.download) return;
+      const destination = new URL(link.href, window.location.href);
+      if (destination.origin === window.location.origin && destination.href === window.location.href) return;
+      persist();
+      if (!window.confirm(saving ? "图片仍在保存，离开会中断上传。确定离开吗？" : "有未完成的内容。离开后文字会暂时保留，图片需重新选择。确定离开吗？")) {
+        event.preventDefault(); event.stopPropagation();
+      }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    document.addEventListener("click", guardLink, true);
+    return () => { window.removeEventListener("beforeunload", beforeUnload); document.removeEventListener("click", guardLink, true); };
+  }, [captureType, content, draftKey, hasUnsaved, reselectCount, result, saving, sourceUrl, title, unsavedCount]);
 
   function currentSelection() {
     const textarea = textareaRef.current;
@@ -176,6 +251,13 @@ export function ExperienceLibraryWorkspace({
     if (unsupported.length) {
       setError(`有 ${unsupported.length} 张图片超过 15MB，未加入保存队列。`);
     }
+    const seen = new Set(images.map((image) => fileKey(image.file)));
+    const newCount = imageFiles.filter((file) => {
+      const key = fileKey(file);
+      if (file.size > 15 * 1024 * 1024 || seen.has(key)) return false;
+      seen.add(key); return true;
+    }).length;
+    setReselectCount((remaining) => Math.max(0, remaining - newCount));
     setImages((current) => {
       const existing = new Set(current.map((image) => fileKey(image.file)));
       const additions = imageFiles
@@ -266,6 +348,7 @@ export function ExperienceLibraryWorkspace({
     saved: { entryId: string; captureId: string | null },
     signal: AbortSignal,
     onDocumentPrepared: (documentId: string) => void,
+    onProgress: (message: string) => void,
   ) {
     let documentId = image.documentId;
     let uploadUrl: string | null = null;
@@ -303,15 +386,24 @@ export function ExperienceLibraryWorkspace({
     }
     if (uploadUrl) {
       const throughApp = image.file.size <= 4 * 1024 * 1024;
-      const sent = await fetch(throughApp ? "/api/experience-library/upload-bytes" : uploadUrl, {
-        method: throughApp ? "POST" : "PUT",
-        headers: { "Content-Type": image.file.type, ...(throughApp ? { "X-Experience-Document-Id": documentId } : {}) },
-        body: image.file,
-        signal,
-      });
-      if (!sent.ok) {
-        const payload = throughApp ? await json(sent) : {};
-        throw new Error(typeof payload.error === "string" ? payload.error : "图片未传入私有存储，请检查网络后重试。");
+      if (throughApp) {
+        const sent = await fetch("/api/experience-library/upload-bytes", {
+          method: "POST", headers: { "Content-Type": image.file.type, "X-Experience-Document-Id": documentId }, body: image.file, signal,
+        });
+        if (!sent.ok) { const payload = await json(sent); throw new Error(typeof payload.error === "string" ? payload.error : "图片未传入私有存储，请重试。"); }
+      } else {
+        const count = experienceChunkCount(image.file.size);
+        for (let index = 0; index < count; index += 1) {
+          onProgress(`正在上传图片 ${index + 1}/${count}`);
+          const sent = await fetch("/api/experience-library/upload-chunks", {
+            method: "POST", headers: { "Content-Type": "application/octet-stream", "X-Experience-Document-Id": documentId, "X-Experience-Chunk-Index": String(index) },
+            body: image.file.slice(index * experienceChunkSize, (index + 1) * experienceChunkSize), signal,
+          });
+          if (!sent.ok) { const payload = await json(sent); throw new Error(typeof payload.error === "string" ? payload.error : "图片上传中断，请重试。"); }
+        }
+        onProgress("正在核验图片原件");
+        const assembled = await fetch("/api/experience-library/upload-chunks", { method: "PATCH", headers: { "X-Experience-Document-Id": documentId }, signal });
+        if (!assembled.ok) { const payload = await json(assembled); throw new Error(typeof payload.error === "string" ? payload.error : "图片原件校验未完成，请重试。"); }
       }
     }
     {
@@ -335,6 +427,10 @@ export function ExperienceLibraryWorkspace({
       caption: image.caption || null,
       sourceKind: image.sourceKind,
     });
+    if (image.file.size > 4 * 1024 * 1024) {
+      // Cleanup is best effort; confirmed originals and associations are never rolled back.
+      void fetch("/api/experience-library/upload-chunks", { method: "DELETE", headers: { "X-Experience-Document-Id": documentId } }).catch(() => {});
+    }
     return documentId;
   }
 
@@ -343,6 +439,10 @@ export function ExperienceLibraryWorkspace({
     const pending = images.filter((image) => image.status !== "saved");
     if (!content.trim() && !pending.length) {
       setError("请先粘贴文字、评论或图片。");
+      return;
+    }
+    if (reselectCount > 0) {
+      setError(`还有 ${reselectCount} 张此前的图片需要重新选择，或明确选择暂不恢复。`);
       return;
     }
     let normalizedSourceUrl: string | null;
@@ -360,11 +460,19 @@ export function ExperienceLibraryWorkspace({
     let saved = content.trim() ? null : textSavedRef.current;
     let failedImageCount = 0;
     try {
+      if (!targetEntry && !saved && normalizedSourceUrl) {
+        const existing = await findExistingExperience(normalizedSourceUrl).catch(() => null);
+        if (existing) {
+          setDuplicate(existing);
+          setNotice("这篇已收录。请选择“补充到这篇”后继续保存，原文和图片仍保留在本页。");
+          return;
+        }
+      }
       if (content.trim() && !saved) {
         requestIdRef.current ??= crypto.randomUUID();
         const appended = await appendExperienceCapture({
           requestId: requestIdRef.current,
-          entryId: initialEntry?.id ?? result?.entryId ?? null,
+          entryId: targetEntry?.id ?? null,
           sourceUrl: normalizedSourceUrl,
           title: title.trim() || suggestedTitle,
           captureType,
@@ -379,7 +487,7 @@ export function ExperienceLibraryWorkspace({
         requestIdRef.current ??= crypto.randomUUID();
         const imageOnly = await createImageOnlyExperience({
           requestId: requestIdRef.current,
-          entryId: initialEntry?.id ?? result?.entryId ?? null,
+          entryId: targetEntry?.id ?? null,
           sourceUrl: normalizedSourceUrl,
           title: title.trim() || "未命名经验",
         });
@@ -409,6 +517,7 @@ export function ExperienceLibraryWorkspace({
                 ? { ...image, documentId }
                 : image));
             },
+            (message) => setImages((current) => current.map((image) => image.localId === original.localId ? { ...image, message } : image)),
           );
           setImages((current) => current.map((image) => image.localId === original.localId
             ? { ...image, status: "saved", documentId: completedDocumentId, message: "图片已保存并关联" }
@@ -432,8 +541,12 @@ export function ExperienceLibraryWorkspace({
       setNotice(failedImageCount
         ? `文字已保存；${failedImageCount} 张图片未完成，失败项已保留，可再次点击保存重试。`
         : "文字和图片均已保存并关联。");
-      setTitle("");
-      if (failedImageCount === 0) textSavedRef.current = null;
+      if (failedImageCount === 0) {
+        textSavedRef.current = null;
+        setTitle(""); setSourceUrl(""); setTargetEntry(null); setDuplicate(null); setReselectCount(0);
+        removeWorkspaceSession(draftKey);
+        if (initialEntry) router.replace("/experience-library");
+      }
       setImages((current) => {
         for (const image of current) {
           if (image.status === "saved") {
@@ -493,13 +606,13 @@ export function ExperienceLibraryWorkspace({
         )}
       />
 
-      {initialEntry ? (
+      {targetEntry ? (
         <div className="experience-library-resume mt-5">
           <div>
             <span>正在补充</span>
-            <strong>{initialEntry.title}</strong>
+            <strong>{targetEntry.title}</strong>
           </div>
-          <Link href="/experience-library" className="ui-link">改为新建</Link>
+          <Button type="button" variant="ghost" disabled={Boolean(initialEntry && hasUnsaved)} title={initialEntry && hasUnsaved ? "请先保存当前内容，再新建经验" : undefined} onClick={() => { setTargetEntry(null); setSourceUrl(""); setTitle(""); setDuplicate(null); if (initialEntry) router.replace("/experience-library"); }}>改为新建</Button>
         </div>
       ) : null}
 
@@ -521,9 +634,14 @@ export function ExperienceLibraryWorkspace({
             <Input
               type="url"
               value={sourceUrl}
-              onChange={(event) => setSourceUrl(event.target.value)}
+              onChange={(event) => { lookupSequence.current += 1; setDuplicate(null); setSourceUrl(event.target.value); }}
+              onBlur={() => {
+                const current = sourceUrl; const sequence = ++lookupSequence.current;
+                if (!current.trim() || targetEntry) return;
+                void findExistingExperience(current).then((found) => { if (lookupSequence.current === sequence) setDuplicate(found); }).catch(() => {});
+              }}
               placeholder="https://www.xiaohongshu.com/…"
-              disabled={saving || Boolean(initialEntry)}
+              disabled={saving || Boolean(targetEntry)}
             />
           </label>
           <label>
@@ -537,6 +655,8 @@ export function ExperienceLibraryWorkspace({
             />
           </label>
         </div>
+
+        {duplicate && !targetEntry ? <div className="experience-library-resume mt-3" role="status"><div><span>这篇已收录</span><strong>{duplicate.title}</strong></div><Button type="button" variant="outline" onClick={() => { setTargetEntry(duplicate); setTitle(duplicate.title); setSourceUrl(duplicate.sourceUrl ?? ""); setDuplicate(null); }}>补充到这篇</Button></div> : null}
 
         <div className="experience-text-shell">
           <div className="experience-text-tools">
@@ -642,10 +762,13 @@ export function ExperienceLibraryWorkspace({
 
         {error ? <p className="experience-message is-error" role="alert">{error}</p> : null}
         {notice ? <p className="experience-message" role="status">{notice}</p> : null}
+        {reselectCount > 0 ? <div className="experience-message" role="status">还有 {reselectCount} 张图片需要重新选择；请重新核对图片关联的位置。<Button type="button" variant="ghost" size="sm" onClick={() => setReselectCount(0)}>暂不恢复这些图片</Button></div> : null}
         {result ? (
-          <p className="experience-saved-link">
-            已保存到 <Link href={`/experience-library/${result.entryId}`} className="ui-link">《{result.title}》</Link>
-          </p>
+          <div className="experience-saved-link flex flex-wrap items-center gap-3">
+            <span>已保存到《{result.title}》</span>
+            <Link href={`/experience-library/${result.entryId}`} className="ui-link">查看刚保存的内容</Link>
+            {!unsavedCount && !reselectCount ? <Button type="button" variant="outline" size="sm" onClick={() => { setResult(null); setNotice(null); textareaRef.current?.focus(); }}>继续收录下一篇</Button> : null}
+          </div>
         ) : null}
 
         <div className="experience-submit-row">

@@ -11,14 +11,16 @@ const actions = vi.hoisted(() => ({
   saveExperienceAiSettings: vi.fn(),
   testExperienceAiSettings: vi.fn(),
   removeExperienceAiSettings: vi.fn(),
+  findExistingExperience: vi.fn(),
   refresh: vi.fn(),
+  replace: vi.fn(),
 }));
 
 vi.mock("next/link", () => ({
   default: (props: Record<string, unknown>) => createElement("a", props),
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: actions.refresh }),
+  useRouter: () => ({ refresh: actions.refresh, replace: actions.replace }),
 }));
 vi.mock("@/features/experience-library/actions", () => actions);
 
@@ -48,6 +50,8 @@ function setTextarea(textarea: HTMLTextAreaElement, value: string) {
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  window.sessionStorage.clear();
+  actions.findExistingExperience.mockResolvedValue(null);
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
     addEventListener() {},
@@ -79,6 +83,48 @@ async function mount() {
 }
 
 describe("Experience Library quick capture", () => {
+  it("protects unfinished input on close and restores text with an explicit image reselection warning", async () => {
+    await mount();
+    await act(async () => setTextarea(host.querySelector<HTMLTextAreaElement>("textarea")!, "尚未保存的合成文字"));
+    const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["image"], "draft.png", { type: "image/png" })] });
+    await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    const event = new Event("beforeunload", { cancelable: true });
+    await act(async () => window.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(true);
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await mount();
+    expect(host.querySelector<HTMLTextAreaElement>("textarea")!.value).toBe("尚未保存的合成文字");
+    expect(host.textContent).toContain("请重新选择此前的 1 张图片");
+  });
+
+  it("starts a new entry after a successful save instead of appending the next paste", async () => {
+    actions.appendExperienceCapture.mockResolvedValue({ entryId: "11111111-1111-4111-8111-111111111111", captureId: "22222222-2222-4222-8222-222222222222", title: "第一篇", createdEntry: true, appended: true });
+    vi.stubGlobal("crypto", { randomUUID: () => "33333333-3333-4333-8333-333333333333" });
+    await mount();
+    const textarea = host.querySelector<HTMLTextAreaElement>("textarea")!;
+    await act(async () => setTextarea(textarea, "第一篇"));
+    const save = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.includes("保存经验"))!;
+    await act(async () => save.click());
+    await vi.waitFor(() => expect(host.textContent).toContain("继续收录下一篇"));
+    await act(async () => setTextarea(textarea, "第二篇"));
+    await act(async () => save.click());
+    await vi.waitFor(() => expect(actions.appendExperienceCapture).toHaveBeenCalledTimes(2));
+    expect(actions.appendExperienceCapture.mock.calls[1][0]).toMatchObject({ entryId: null, content: "第二篇" });
+  });
+
+  it("offers an explicit append target when the source URL has already been saved", async () => {
+    actions.findExistingExperience.mockResolvedValue({ id: "11111111-1111-4111-8111-111111111111", title: "已收录的帖子", sourceUrl: "https://example.test/post" });
+    await mount();
+    const input = host.querySelector<HTMLInputElement>('input[type="url"]')!;
+    await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "https://example.test/post"); input.dispatchEvent(new Event("input", { bubbles: true })); input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
+    await vi.waitFor(() => expect(host.textContent).toContain("这篇已收录"));
+    const append = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.includes("补充到这篇"))!;
+    await act(async () => append.click());
+    expect(host.textContent).toContain("正在补充");
+    expect(input.disabled).toBe(true);
+  });
   it("saves a Xiaohongshu share message using the extracted URL and keeps its query", async () => {
     const link = "https://www.xiaohongshu.com/discovery/item/synthetic?source=webshare&xsec_token=synthetic%3D";
     actions.appendExperienceCapture.mockResolvedValue({ entryId: "11111111-1111-4111-8111-111111111111", captureId: "22222222-2222-4222-8222-222222222222", title: "合成评论", createdEntry: true, appended: true });

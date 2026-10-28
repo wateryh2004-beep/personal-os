@@ -9,11 +9,12 @@ await mkdir(output, { recursive: true });
 
 const stubs = {
   "next/link": `import{createElement}from"react";export default function Link({children,...p}){return createElement("a",p,children)}`,
-  "next/navigation": `export const useRouter=()=>({refresh(){}});`,
+  "next/navigation": `export const useRouter=()=>({refresh(){},replace(){}});`,
   "@/features/experience-library/actions": `
     export const appendExperienceCapture=async()=>({entryId:"11111111-1111-4111-8111-111111111111",captureId:"22222222-2222-4222-8222-222222222222",title:"Synthetic",createdEntry:false,appended:true});
     export const attachExperienceMedia=async()=>({mediaId:"33333333-3333-4333-8333-333333333333",alreadyAttached:false});
     export const createImageOnlyExperience=appendExperienceCapture;
+    export const findExistingExperience=async()=>null;
     export const saveExperienceAiSettings=async()=>{};
     export const testExperienceAiSettings=async()=>{};
     export const removeExperienceAiSettings=async()=>{};

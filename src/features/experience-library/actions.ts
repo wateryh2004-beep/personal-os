@@ -47,6 +47,24 @@ async function audit(
   });
 }
 
+async function touchEntry(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, entryId: string) {
+  // A recent-list timestamp is a convenience; a failed touch must never turn
+  // an already saved original into a false failure.
+  try { await supabase.from("experience_library_entries").update({ updated_at: new Date().toISOString() }).eq("id", entryId).eq("user_id", userId).is("archived_at", null); } catch { /* next read still preserves the source */ }
+}
+
+/** Owner-scoped duplicate hint; raw share text is never logged. */
+export async function findExistingExperience(source: string) {
+  let url: string | null;
+  try { url = normalizeExperienceSourceUrl(source); } catch { return null; }
+  if (!url) return null;
+  const { supabase, userId } = await requireOwner();
+  const { data, error } = await supabase.from("experience_library_entries")
+    .select("id,title,source_url").eq("user_id", userId).eq("source_url", url).is("archived_at", null).maybeSingle();
+  if (error || !data) return null;
+  return { id: data.id, title: data.title, sourceUrl: data.source_url };
+}
+
 export async function appendExperienceCapture(rawInput: unknown): Promise<AppendExperienceResult> {
   const parsed = appendExperienceInputSchema.safeParse(rawInput);
   if (!parsed.success) throw new Error("粘贴内容或来源信息无效。");
@@ -60,7 +78,7 @@ export async function appendExperienceCapture(rawInput: unknown): Promise<Append
   const split = splitExperienceSegments(content, parsed.data.captureType);
   const title = parsed.data.title?.trim() || suggestExperienceTitle(content);
   const tags = extractExperienceTags(content);
-  const { supabase } = await requireOwner();
+  const { supabase, userId } = await requireOwner();
   const { data, error } = await supabase.rpc("append_experience_library_capture", {
     p_entry_id: parsed.data.entryId ?? null,
     p_source_url: sourceUrl,
@@ -74,6 +92,7 @@ export async function appendExperienceCapture(rawInput: unknown): Promise<Append
   if (error) throw new Error("原文未能保存，请检查登录状态和数据库配置后重试。");
   const result = appendExperienceRpcResultSchema.safeParse(data);
   if (!result.success) throw new Error("原文保存结果无法确认，请刷新后检查，避免重复提交。");
+  await touchEntry(supabase, userId, result.data.entry_id);
   revalidatePath("/experience-library");
   revalidatePath(`/experience-library/${result.data.entry_id}`);
   return {
@@ -216,6 +235,7 @@ export async function attachExperienceMedia(rawInput: unknown) {
     source_kind: parsed.data.sourceKind,
   }).select("id").single();
   if (error || !data) throw new Error("图片已上传，但关联信息未能保存；请保留此页并重试关联。");
+  await touchEntry(supabase, userId, parsed.data.entryId);
   await audit(supabase, userId, "attach_media", parsed.data.entryId, {
     media_id: data.id,
     document_id: parsed.data.documentId,

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronUp, LoaderCircle, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, LoaderCircle, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,33 @@ import {
   updateExperienceMedia,
 } from "@/features/experience-library/actions";
 import type { ExperienceCapture, ExperienceMedia } from "@/features/experience-library/types";
+
+const MediaContext = createContext<{ managing: boolean; open: (id: string) => void } | null>(null);
+
+export function ExperienceMediaProvider({ media, children }: { media: ExperienceMedia[]; children: ReactNode }) {
+  const [managing, setManaging] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const available = media.filter((item) => item.available && item.documentId);
+  const index = available.findIndex((item) => item.id === selected);
+  const current = index >= 0 ? available[index] : null;
+  function move(direction: number) {
+    if (!available.length || index < 0) return;
+    const next = Math.max(0, Math.min(available.length - 1, index + direction));
+    setSelected(available[next].id);
+  }
+  return <MediaContext.Provider value={{ managing, open: setSelected }}>
+    {media.length ? <div className="experience-media-toolbar"><span>{media.length} 张图片</span><Button type="button" variant={managing ? "default" : "outline"} onClick={() => setManaging(!managing)} aria-pressed={managing}>{managing ? "完成管理" : "管理图片"}</Button></div> : null}
+    {children}
+    <Dialog open={Boolean(current)} onOpenChange={(open) => { if (!open) setSelected(null); }}>
+      <DialogContent className="experience-lightbox sm:max-w-5xl" onKeyDown={(event) => { if (event.key === "ArrowLeft") { event.preventDefault(); move(-1); } if (event.key === "ArrowRight") { event.preventDefault(); move(1); } }}>
+        <DialogHeader><DialogTitle>图片预览</DialogTitle><DialogDescription>{current ? `${index + 1} / ${available.length}${current.caption ? ` · ${current.caption}` : ""}` : ""}</DialogDescription></DialogHeader>
+        {current?.documentId ? <img // eslint-disable-line @next/next/no-img-element
+          src={`/api/files/${current.documentId}/download?inline=1`} alt={current.caption || current.originalFilename || "经验图片"} className="experience-lightbox-image" /> : null}
+        <div className="experience-lightbox-controls"><Button type="button" variant="outline" disabled={index <= 0} onClick={() => move(-1)}><ChevronLeft aria-hidden="true" />上一张</Button><Button type="button" variant="outline" disabled={index >= available.length - 1} onClick={() => move(1)}>下一张<ChevronRight aria-hidden="true" /></Button></div>
+      </DialogContent>
+    </Dialog>
+  </MediaContext.Provider>;
+}
 
 export function ExperienceAiAnalyzeButton({
   entryId,
@@ -76,6 +104,7 @@ export function ExperienceMediaManager({
   order: number;
 }) {
   const router = useRouter();
+  const mediaContext = useContext(MediaContext);
   const [pending, startTransition] = useTransition();
   const [caption, setCaption] = useState(media.caption ?? "");
   const [captureId, setCaptureId] = useState(media.captureId ?? "");
@@ -99,18 +128,22 @@ export function ExperienceMediaManager({
       <div className="experience-media-frame">
         {media.documentId && media.available ? (
           // Authenticated same-origin private original; never a public object URL.
-          <img // eslint-disable-line @next/next/no-img-element
+          <button type="button" className="experience-media-open" aria-label={`放大查看图片 ${order}`} onClick={() => mediaContext?.open(media.id)}><img // eslint-disable-line @next/next/no-img-element
             src={`/api/files/${media.documentId}/download?inline=1`}
             alt={media.caption || media.originalFilename || "经验图片"}
             loading="lazy"
             decoding="async"
-          />
+          /></button>
         ) : (
           <p>图片原件暂时不可用。记录关联仍保留，请检查文件是否已归档。</p>
         )}
         <span className="experience-media-order">{String(order).padStart(2, "0")}</span>
       </div>
       <figcaption>
+        {!mediaContext?.managing ? <>
+          {media.caption ? <p className="experience-media-caption">{media.caption}</p> : null}
+          {media.selectionQuote ? <blockquote>“{media.selectionQuote}”</blockquote> : null}
+        </> : <>
         <label>
           <span className="sr-only">图片说明</span>
           <Input
@@ -191,6 +224,7 @@ export function ExperienceMediaManager({
           </Button>
         </div>
         {message ? <p className="experience-media-message" role="status">{message}</p> : null}
+        </>}
       </figcaption>
     </figure>
   );

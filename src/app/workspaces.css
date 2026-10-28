@@ -202,6 +202,14 @@
 .experience-media-card { min-width:0; overflow:hidden; border:1px solid var(--separator); border-radius:14px; background:var(--surface-canvas); }
 .experience-media-frame { position:relative; aspect-ratio:4/3; background:var(--surface-control); }
 .experience-media-frame img { width:100%; height:100%; object-fit:contain; }
+.experience-media-open { display:block; width:100%; height:100%; cursor:zoom-in; }
+.experience-media-open:focus-visible { outline:2px solid var(--accent); outline-offset:-3px; }
+.experience-media-card figcaption:empty { display:none; }
+.experience-media-caption { color:var(--text-secondary); font-size:12px; line-height:1.55; }
+.experience-media-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:24px; color:var(--text-secondary); font-size:12px; }
+.experience-lightbox { max-height:calc(100dvh - 2rem); overflow:auto; }
+.experience-lightbox-image { display:block; max-width:100%; max-height:65dvh; margin:auto; object-fit:contain; }
+.experience-lightbox-controls { display:flex; justify-content:center; gap:12px; }
 .experience-media-frame>p { display:grid; height:100%; place-items:center; padding:20px; color:var(--text-tertiary); font-size:12px; text-align:center; }
 .experience-media-card figcaption { display:grid; gap:7px; padding:10px; }
 .experience-media-card select { width:100%; }
