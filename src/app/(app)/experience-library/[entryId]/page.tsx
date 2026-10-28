@@ -13,6 +13,7 @@ import {
   getExperienceAiConfig,
   getExperienceEntry,
 } from "@/features/experience-library/queries";
+import { resolveExperienceCitation } from "@/features/experience-library/citation-display";
 import type { ExperienceMedia, ExperienceSegment } from "@/features/experience-library/types";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +91,9 @@ export default async function ExperienceEntryPage({
     opinion: "主观评价或建议",
     inference: "AI 推断",
   } as const;
+  const citations = detail.aiKeyPoints.map((point) => ({ point, citation: resolveExperienceCitation(point, detail.captures, detail.media) }));
+  const located = citations.filter((item) => item.citation !== null);
+  const unlocated = citations.filter((item) => item.citation === null);
 
   return (
     <div className="experience-detail">
@@ -133,27 +137,26 @@ export default async function ExperienceEntryPage({
           <p className="experience-kicker">AI 整理 · 可在原文旁核对</p>
           <h2 id="experience-analysis-title">摘要</h2>
           <p>{detail.entry.summary}</p>
-          {detail.aiKeyPoints.length ? (
+          <p className="experience-summary-disclaimer">摘要未逐句标注来源；下方可定位的引用也需要结合原文判断。</p>
+          {located.length ? (
             <div className="experience-key-points">
-              {detail.aiKeyPoints.map((point, index) => {
-                const capture = detail.captures.find((item) => item.id === point.sourceCaptureId);
-                const image = detail.media.find((item) => item.id === point.sourceMediaId && item.available);
-                const verifiedCapture = Boolean(point.sourceQuote && capture?.rawContent.includes(point.sourceQuote));
-                const sourceSegment = verifiedCapture && capture && point.sourceQuote ? capture.segments.find((segment) => segment.text.includes(point.sourceQuote!)) : undefined;
-                const verifiedImage = Boolean(point.sourceQuote && image?.ocrText?.includes(point.sourceQuote));
-                return <article key={`${point.kind}-${index}`}>
+              {located.map(({ point, citation }, index) => (
+                <article key={`${point.kind}-${index}`}>
                   <div className="experience-key-point-labels">
                     <span data-kind={point.kind}>{kindLabels[point.kind]}</span>
-                    {verifiedCapture && capture ? <a className="ui-link" href={sourceSegment ? `#experience-segment-${capture.id}-${sourceSegment.start}` : `#experience-capture-${capture.id}`}>查看原文 {detail.captures.findIndex((item) => item.id === capture.id) + 1}</a> : null}
-                    {verifiedImage && image ? <a className="ui-link" href={`#experience-media-${image.id}`}>查看图片 {detail.media.findIndex((item) => item.id === image.id) + 1}</a> : null}
-                    {!verifiedCapture && !verifiedImage ? <span>暂无可核对的原文定位</span> : null}
+                    <a className="ui-link" href={citation!.href}>{citation!.label}</a>
                   </div>
                   <p>{point.text}</p>
-                  {(verifiedCapture || verifiedImage) && point.sourceQuote ? <blockquote>{verifiedImage ? "图片识别文字" : "原文"}：{point.sourceQuote}</blockquote> : null}
-                </article>;
-              })}
+                  <blockquote>{citation!.kind === "image" ? "图片识别文字" : "原文"}：{point.sourceQuote}</blockquote>
+                </article>
+              ))}
             </div>
           ) : null}
+          {unlocated.length ? <details className="experience-unlocated-points">
+            <summary>{unlocated.length} 条暂时无法定位来源的 AI 候选</summary>
+            <p>这些内容缺少可核对的原文位置，请自行核实。</p>
+            {unlocated.map(({ point }, index) => <article key={`${point.kind}-${index}`}><span>{kindLabels[point.kind]}</span><p>{point.text}</p></article>)}
+          </details> : null}
         </section>
       ) : null}
 
