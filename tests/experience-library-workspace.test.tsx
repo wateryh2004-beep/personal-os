@@ -182,7 +182,7 @@ describe("Experience Library quick capture", () => {
       const url = String(input);
       if (url === "/api/experience-library/upload-url" && init?.method === "POST") return Response.json({ documentId, uploadUrl: "https://r2.example/put" });
       if (url.startsWith("/api/experience-library/upload-url?")) return Response.json({ documentId, state: "pending", uploadUrl: "https://r2.example/put" });
-      if (url === "https://r2.example/put") return new Response(null, { status: ++putCount === 1 ? 503 : 200 });
+      if (url === "/api/experience-library/upload-bytes") return new Response(null, { status: ++putCount === 1 ? 503 : 200 });
       if (url === "/api/files/upload-url" && init?.method === "PATCH") return Response.json({ ok: true });
       throw new Error("unexpected request");
     });
@@ -203,5 +203,37 @@ describe("Experience Library quick capture", () => {
     expect(fetcher.mock.calls.some(([url, init]) => String(url) === "/api/files/upload-url" && init?.method === "PATCH")).toBe(true);
     expect(actions.appendExperienceCapture).toHaveBeenCalledOnce();
     expect(actions.attachExperienceMedia).toHaveBeenCalledWith(expect.objectContaining({ entryId, captureId, documentId }));
+  });
+
+  it("saves three images in selection order through the same-origin relay and attaches each to the saved capture", async () => {
+    const entryId = "11111111-1111-4111-8111-111111111111";
+    const captureId = "22222222-2222-4222-8222-222222222222";
+    actions.appendExperienceCapture.mockResolvedValue({ entryId, captureId, title: "合成评论", createdEntry: true, appended: true });
+    actions.attachExperienceMedia.mockResolvedValue({ mediaId: "55555555-5555-4555-8555-555555555555", alreadyAttached: false });
+    let sequence = 0;
+    vi.stubGlobal("crypto", { randomUUID: () => `33333333-3333-4333-8333-${String(++sequence).padStart(12, "0")}`, subtle: { digest: async () => new Uint8Array(32).buffer } });
+    const order: string[] = [];
+    const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/experience-library/upload-url") {
+        const filename = JSON.parse(String(init?.body)).filename as string;
+        order.push(filename);
+        return Response.json({ documentId: `44444444-4444-4444-8444-${String(order.length).padStart(12, "0")}`, uploadUrl: "https://r2.example/put" });
+      }
+      if (url === "/api/experience-library/upload-bytes" || (url === "/api/files/upload-url" && init?.method === "PATCH")) return Response.json({ ok: true });
+      throw new Error("unexpected request");
+    });
+    vi.stubGlobal("fetch", fetcher);
+    await mount();
+    await act(async () => setTextarea(host.querySelector<HTMLTextAreaElement>("textarea")!, "合成评论"));
+    const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, "files", { configurable: true, value: ["one.png", "two.png", "three.png"].map(name => new File(["image"], name, { type: "image/png" })) });
+    await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    const save = [...host.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent?.includes("保存经验"))!;
+    await act(async () => save.click());
+    await vi.waitFor(() => expect(actions.attachExperienceMedia).toHaveBeenCalledTimes(3));
+    expect(order).toEqual(["one.png", "two.png", "three.png"]);
+    expect(actions.attachExperienceMedia.mock.calls.map(([value]) => value.captureId)).toEqual([captureId, captureId, captureId]);
+    expect(fetcher.mock.calls.filter(([url]) => String(url) === "/api/experience-library/upload-bytes")).toHaveLength(3);
   });
 });

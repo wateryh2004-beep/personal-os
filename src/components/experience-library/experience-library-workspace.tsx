@@ -302,13 +302,17 @@ export function ExperienceLibraryWorkspace({
       }
     }
     if (uploadUrl) {
-      const sent = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": image.file.type },
+      const throughApp = image.file.size <= 4 * 1024 * 1024;
+      const sent = await fetch(throughApp ? "/api/experience-library/upload-bytes" : uploadUrl, {
+        method: throughApp ? "POST" : "PUT",
+        headers: { "Content-Type": image.file.type, ...(throughApp ? { "X-Experience-Document-Id": documentId } : {}) },
         body: image.file,
         signal,
       });
-      if (!sent.ok) throw new Error("图片未传入私有存储。");
+      if (!sent.ok) {
+        const payload = throughApp ? await json(sent) : {};
+        throw new Error(typeof payload.error === "string" ? payload.error : "图片未传入私有存储，请检查网络后重试。");
+      }
     }
     {
       const completed = await fetch("/api/files/upload-url", {
