@@ -17,6 +17,8 @@ it("restores exact experience text, selected-image relation and original bytes f
     rows.experience_library_entries = [backupRow("experience_library_entries", 802, { title: "合成经验", creation_request_id: backupId(805), tags: ["申请"] })];
     rows.experience_library_captures = [backupRow("experience_library_captures", 803, { entry_id: backupId(802), request_id: backupId(806), raw_content: "😀评论 GPA", capture_type: "comment", content_sha256: createHash("sha256").update("😀评论 GPA").digest("hex"), segments: [{ kind: "comment", text: "😀评论 GPA", start: 0, end: 8, label: "评论" }] })];
     rows.experience_library_media = [backupRow("experience_library_media", 804, { entry_id: backupId(802), capture_id: backupId(803), document_id: backupId(801), selection_start: 5, selection_end: 8, selection_quote: "GPA", source_kind: "clipboard" })];
+    rows.experience_library_note_versions = [backupRow("experience_library_note_versions", 807, { entry_id: backupId(802), personal_note: "旧判断", review_status: "to_read" })];
+    rows.experience_library_ocr_corrections = [backupRow("experience_library_ocr_corrections", 808, { media_id: backupId(804), document_id: backupId(801), text_content: "修订的截图文字", source_sha256: createHash("sha256").update(original).digest("hex") })];
     const snapshot: Uint8Array[] = [];
     for await (const chunk of systemBackup(backupSource(rows), backupOwner, new AbortController().signal, undefined, noArtwork())) snapshot.push(chunk);
     const snapshotPath = path.join(directory, "system.ndjson");
@@ -32,5 +34,7 @@ it("restores exact experience text, selected-image relation and original bytes f
     expect(readFileSync(path.join(target, "files/objects", backupId(801)))).toEqual(original);
     const query = spawnSync("python3", ["-c", "import sqlite3,sys,json; d=sqlite3.connect(sys.argv[1]); print(json.dumps(d.execute('select c.raw_content,m.selection_start,m.selection_end,m.selection_quote,m.document_id from experience_library_media m join experience_library_captures c on c.id=m.capture_id').fetchone(),ensure_ascii=False))", path.join(target, "system.sqlite3")], { encoding: "utf8" });
     expect(JSON.parse(query.stdout)).toEqual(["😀评论 GPA", 5, 8, "GPA", backupId(801)]);
+    const derived = spawnSync("python3", ["-c", "import sqlite3,sys,json; d=sqlite3.connect(sys.argv[1]); print(json.dumps([d.execute('select personal_note from experience_library_note_versions').fetchone()[0],d.execute('select text_content from experience_library_ocr_corrections').fetchone()[0]],ensure_ascii=False))", path.join(target, "system.sqlite3")], { encoding: "utf8" });
+    expect(JSON.parse(derived.stdout)).toEqual(["旧判断", "修订的截图文字"]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

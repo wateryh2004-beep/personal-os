@@ -8,7 +8,7 @@ import type { OcrProgress } from "@/lib/adapters/private-ocr-browser";
 
 let activeDocument: string | null = null;
 const button = "pressable min-h-9 rounded-[8px] px-3 text-[12px] text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-40";
-export function FileOcrControl({ file, onComplete }: { file: FileRecord; onComplete: (count: number) => void }) {
+export function FileOcrControl({ file, onComplete }: { file: Pick<FileRecord, "id" | "title" | "original_filename" | "mime_type" | "file_size">; onComplete: (count: number) => void }) {
   const [open, setOpen] = useState(false);
   if (!ocrKind(file.original_filename, file.mime_type)) return null;
   return <>
@@ -19,7 +19,7 @@ export function FileOcrControl({ file, onComplete }: { file: FileRecord; onCompl
     </DialogContent></Dialog>
   </>;
 }
-function OcrSession({ file, onComplete }: { file: FileRecord; onComplete: (count: number) => void }) {
+function OcrSession({ file, onComplete }: { file: Pick<FileRecord, "id" | "title" | "original_filename" | "mime_type" | "file_size">; onComplete: (count: number) => void }) {
   const [busy, setBusy] = useState(false), [message, setMessage] = useState("");
   const [provenance, setProvenance] = useState<string>("");
   const [progress, setProgress] = useState<OcrProgress | null>(null);

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { sealSecret } from "@/lib/crypto/sealed-secret";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -409,4 +410,50 @@ export async function saveExperiencePersonalNote(input: { entryId: string; note:
   if (error || !data) throw new Error("保存未完成，请稍后重试。");
   revalidatePath("/experience-library");
   revalidatePath(`/experience-library/${input.entryId}`);
+}
+
+/** Add an immutable correction for the currently verified image; never alter its original OCR. */
+export async function correctExperienceImageText(input: { mediaId: string; documentId: string; sourceSha256: string; text: string; expectedCorrectionId: string | null; expectedExtractedAt: string | null }) {
+  const value = z.object({ mediaId: z.uuid(), documentId: z.uuid(), sourceSha256: z.string().regex(/^[a-f0-9]{64}$/), text: z.string().max(300000), expectedCorrectionId: z.uuid().nullable(), expectedExtractedAt: z.string().datetime({ offset: true }).nullable() }).strict().parse(input);
+  const { supabase, userId } = await requireOwner();
+  const { data: media, error } = await supabase.from("experience_library_media").select("entry_id,document_id").eq("id", value.mediaId).eq("user_id", userId).is("archived_at", null).maybeSingle();
+  if (error || !media || media.document_id !== value.documentId) throw new Error("图片关联已变化，请刷新后重试。");
+  const result = await supabase.rpc("save_experience_ocr_correction", { p_media_id: value.mediaId, p_document_id: value.documentId, p_source_sha256: value.sourceSha256, p_text: value.text, p_expected_correction: value.expectedCorrectionId, p_expected_extracted_at: value.expectedExtractedAt });
+  if (result.error || !result.data) throw new Error("识别结果可能已更新；原图和旧版本仍保留，请复制当前输入并刷新后核对重试。");
+  revalidatePath("/experience-library"); revalidatePath(`/experience-library/${media.entry_id}`);
+}
+
+/** Opting in changes this file's existing AI visibility setting, with explicit user intent. */
+export async function setExperienceImageAiVisibility(input: { mediaId: string; allow: boolean }) {
+  const value = z.object({ mediaId: z.uuid(), allow: z.boolean() }).strict().parse(input);
+  const { supabase, userId } = await requireOwner();
+  const { data: media, error } = await supabase.from("experience_library_media").select("entry_id,document_id").eq("id", value.mediaId).eq("user_id", userId).is("archived_at", null).maybeSingle();
+  if (error || !media?.document_id) throw new Error("图片关联不存在。");
+  const updated = await supabase.from("documents").update({ ai_visibility: value.allow ? "normal" : "sensitive" }).eq("id", media.document_id).eq("user_id", userId).eq("ai_visibility", value.allow ? "sensitive" : "normal").is("archived_at", null).select("id").maybeSingle();
+  if (updated.error || !updated.data) throw new Error("图片 AI 使用设置未能保存。");
+  await audit(supabase, userId, "experience_image_ai_visibility_changed", media.entry_id, { media_id: value.mediaId, visibility: value.allow ? "normal" : "sensitive" });
+  revalidatePath(`/experience-library/${media.entry_id}`);
+}
+
+export async function getExperienceTaskLists() {
+  const { supabase, userId } = await requireOwner();
+  const [connection, lists] = await Promise.all([
+    supabase.from("calendar_connections").select("id,status").eq("user_id", userId).is("archived_at", null).maybeSingle(),
+    supabase.from("microsoft_todo_lists").select("id,display_name,is_default,connection_id").eq("user_id", userId).is("archived_at", null).order("display_name"),
+  ]);
+  if (connection.error || lists.error) throw new Error("任务清单暂时无法读取，请稍后重试。");
+  return { connected: connection.data?.status === "enabled", lists: (lists.data ?? []).filter((item) => item.connection_id === connection.data?.id).map((item) => ({ id: item.id, name: item.display_name, isDefault: item.is_default })) };
+}
+
+/** Associate an already confirmed provider task without dispatching another task write. */
+export async function linkExperienceTask(input: { entryId: string; taskId: string }) {
+  const value = z.object({ entryId: z.uuid(), taskId: z.uuid() }).strict().parse(input);
+  const { supabase, userId } = await requireOwner();
+  const { data: existing, error: readError } = await supabase.from("experience_library_task_links").select("id").eq("user_id", userId).eq("entry_id", value.entryId).eq("todo_task_id", value.taskId).maybeSingle();
+  if (readError) throw new Error("任务已创建，但来源关联尚未确认，请重试关联。");
+  if (!existing) {
+    const { error } = await supabase.from("experience_library_task_links").insert({ user_id: userId, entry_id: value.entryId, todo_task_id: value.taskId });
+    if (error) throw new Error("任务已创建，但来源关联尚未确认，请重试关联。");
+  }
+  revalidatePath(`/experience-library/${value.entryId}`);
 }

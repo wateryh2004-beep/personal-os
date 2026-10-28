@@ -3,6 +3,8 @@
 import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, LoaderCircle, Sparkles, Trash2 } from "lucide-react";
+import { ExperienceBulkOcr } from "./experience-bulk-ocr";
+import { ExperienceImageText } from "./experience-image-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -35,6 +37,7 @@ export function ExperienceMediaProvider({ media, children }: { media: Experience
   }
   return <MediaContext.Provider value={{ managing, open: setSelected }}>
     {media.length ? <div className="experience-media-toolbar"><span>{media.length} 张图片</span><Button type="button" variant={managing ? "default" : "outline"} onClick={() => setManaging(!managing)} aria-pressed={managing}>{managing ? "完成管理" : "管理图片"}</Button></div> : null}
+    <ExperienceBulkOcr media={media} />
     {children}
     <Dialog open={Boolean(current)} onOpenChange={(open) => { if (!open) setSelected(null); }}>
       <DialogContent className="experience-lightbox sm:max-w-5xl" onKeyDown={(event) => { if (event.key === "ArrowLeft") { event.preventDefault(); move(-1); } if (event.key === "ArrowRight") { event.preventDefault(); move(1); } }}>
@@ -88,7 +91,7 @@ export function ExperienceAiAnalyzeButton({
       </Button>
       {!configured ? <span>先在资料库首页配置模型。未配置时原文与图片照常使用。</span> : null}
       {configured && previouslyFailed ? <span role="alert">上次 AI 整理未完成，原文与图片仍完整保留。</span> : null}
-      {configured && !previouslyFailed ? <span>只发送当前经验的文字，不发送图片。</span> : null}
+      {configured && !previouslyFailed ? <span>发送当前经验原文和已允许 AI 使用的图片识别文字；不发送图片原件。</span> : null}
       {error ? <span role="alert">{error}</span> : null}
     </div>
   );
@@ -124,7 +127,7 @@ export function ExperienceMediaManager({
   }
 
   return (
-    <figure className="experience-media-card">
+    <figure className="experience-media-card" id={`experience-media-${media.id}`}>
       <div className="experience-media-frame">
         {media.documentId && media.available ? (
           // Authenticated same-origin private original; never a public object URL.
@@ -140,6 +143,7 @@ export function ExperienceMediaManager({
         <span className="experience-media-order">{String(order).padStart(2, "0")}</span>
       </div>
       <figcaption>
+        <ExperienceImageText media={media} />
         {!mediaContext?.managing ? <>
           {media.caption ? <p className="experience-media-caption">{media.caption}</p> : null}
           {media.selectionQuote ? <blockquote>“{media.selectionQuote}”</blockquote> : null}

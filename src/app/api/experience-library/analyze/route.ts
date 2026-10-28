@@ -10,6 +10,7 @@ import {
   completeAiRequestWithUsage,
   getAiGovernance,
 } from "@/features/ai/governance";
+import { assembleExperienceSources, verifiedExperienceCitation, type ExperienceAiSource } from "@/features/experience-library/source-attribution";
 import { experienceEntryIdSchema } from "@/features/experience-library/schemas";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +48,29 @@ export async function POST(request: Request) {
     .eq("entry_id", entry.id)
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
-  if (captureError || !captures?.length) return fail("此经验还没有可整理的正文或评论。", 409);
+  if (captureError) return fail("原文暂时无法读取，请重试。", 503);
+  const { data: imageRows, error: imageError } = await supabase.from("experience_library_media")
+    .select("id,document_id,position").eq("entry_id", entry.id).eq("user_id", userId).is("archived_at", null).order("position");
+  if (imageError) return fail("图片文字暂时无法读取，请重试。", 503);
+  const documentIds = (imageRows ?? []).flatMap((image) => image.document_id ? [image.document_id] : []);
+  const { data: documents, error: documentError } = documentIds.length ? await supabase.from("documents")
+    .select("id,extracted_text,text_extraction_method,text_extraction_source_sha256")
+    .eq("user_id", userId).eq("ai_visibility", "normal").eq("storage_state", "available").is("archived_at", null).in("id", documentIds)
+    : { data: [], error: null };
+  if (documentError) return fail("图片文字暂时无法读取，请重试。", 503);
+  const usableImages = (imageRows ?? []).filter((image) => documents?.some((document) => document.id === image.document_id && document.text_extraction_method === "ocr_local"));
+  const { data: corrections, error: correctionError } = usableImages.length ? await supabase.from("experience_library_ocr_corrections")
+    .select("media_id,document_id,source_sha256,text_content").eq("user_id", userId).in("media_id", usableImages.map((image) => image.id)).order("created_at", { ascending: false }).order("id", { ascending: false })
+    : { data: [], error: null };
+  if (correctionError) return fail("图片文字暂时无法读取，请重试。", 503);
+  const sources: ExperienceAiSource[] = (captures ?? []).map((capture) => ({ type: "capture", id: capture.id, label: capture.capture_type, text: capture.raw_content }));
+  for (const [index, image] of usableImages.entries()) {
+    const document = documents?.find((item) => item.id === image.document_id);
+    const correction = corrections?.find((item) => item.media_id === image.id && item.document_id === document?.id && item.source_sha256 === document?.text_extraction_source_sha256);
+    const text = correction?.text_content ?? document?.extracted_text;
+    if (text?.trim()) sources.push({ type: "image", id: image.id, label: `图片 ${index + 1} 的识别文字`, text });
+  }
+  if (!sources.length) return fail("此经验没有可整理的原文或已允许 AI 使用的图片文字。", 409);
 
   let configuration: Awaited<ReturnType<typeof getExperienceAiConfiguration>>;
   try {
@@ -58,10 +81,7 @@ export async function POST(request: Request) {
   if (!configuration) return fail("尚未配置经验资料库的 AI 模型。", 409);
 
   const governance = await getAiGovernance(userId);
-  const assembled = captures
-    .map((capture, index) => `[片段 ${index + 1} · ${capture.capture_type}]\n${capture.raw_content}`)
-    .join("\n\n")
-    .slice(0, governance.maxContextCharsPerRequest);
+  const { text: assembled, included } = assembleExperienceSources(sources, governance.maxContextCharsPerRequest);
   const sourceSummary = {
     modules: ["experience_library"],
     entitiesByModule: { experience_library: 1 },
@@ -96,9 +116,7 @@ export async function POST(request: Request) {
     });
     const keyPoints = result.analysis.keyPoints.map(({ sourceIndex, ...point }) => ({
       ...point,
-      sourceCaptureId: sourceIndex && captures[sourceIndex - 1]
-        ? captures[sourceIndex - 1].id
-        : null,
+      ...verifiedExperienceCitation(sourceIndex, point.sourceQuote, included),
     }));
     const { error: updateError } = await supabase.from("experience_library_entries").update({
       ai_summary: result.analysis.summary,

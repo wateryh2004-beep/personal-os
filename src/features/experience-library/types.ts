@@ -17,6 +17,7 @@ export type ExperienceAiKeyPoint = {
   text: string;
   kind: "reported" | "opinion" | "inference";
   sourceCaptureId: string | null;
+  sourceMediaId?: string | null;
   sourceQuote: string | null;
 };
 
@@ -72,6 +73,12 @@ export type ExperienceMedia = {
   originalFilename: string | null;
   mimeType: string | null;
   available: boolean;
+  fileSize?: number;
+  ocrText?: string | null;
+  ocrSourceSha256?: string | null;
+  ocrCorrectionId?: string | null;
+  ocrExtractedAt?: string | null;
+  aiVisibility?: "normal" | "sensitive" | "never";
 };
 
 export type ExperienceEntryDetail = {
@@ -79,6 +86,7 @@ export type ExperienceEntryDetail = {
   captures: ExperienceCapture[];
   media: ExperienceMedia[];
   aiKeyPoints: ExperienceAiKeyPoint[];
+  tasks?: { id: string; title: string; status: string }[];
 };
 
 export type ExperienceAiConfig = {

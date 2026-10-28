@@ -249,3 +249,8 @@
 .experience-personal-note label { margin-top:4px; color:var(--text-secondary); font-size:13px; }
 .experience-personal-note select { width:max-content; }
 .experience-note-actions { display:flex; align-items:center; flex-wrap:wrap; gap:12px; color:var(--text-secondary); font-size:13px; }
+.experience-image-text { margin-top:8px; color:var(--text-secondary); font-size:12px; line-height:1.7; }
+.experience-image-text summary { cursor:pointer; color:var(--accent); font-weight:600; }
+.experience-image-text>p,.experience-image-text>div { margin-top:8px; }
+.experience-ocr-content { max-height:240px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
+.experience-bulk-ocr { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:12px 0; color:var(--text-secondary); font-size:13px; }

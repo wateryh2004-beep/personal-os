@@ -1,6 +1,6 @@
 {
   "format": "personal-os-system/v1",
-  "schemaRevision": "2026-10-experience-library/v1",
+  "schemaRevision": "2026-10-experience-library/v2",
   "tables": {
     "activity_events": {
       "columns": {
@@ -3010,6 +3010,14 @@
         "user_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "personal_note": {
+          "type": "string",
+          "nullable": false
+        },
+        "review_status": {
+          "type": "string",
+          "nullable": false
         }
       },
       "primaryKey": [
@@ -3104,6 +3112,153 @@
             "entry_id"
           ],
           "table": "experience_library_entries",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experience_library_note_versions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "entry_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "personal_note": {
+          "type": "string",
+          "nullable": false
+        },
+        "review_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "entry_id"
+          ],
+          "table": "experience_library_entries",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experience_library_ocr_corrections": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "media_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "document_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "source_sha256": {
+          "type": "string",
+          "nullable": false
+        },
+        "text_content": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "media_id"
+          ],
+          "table": "experience_library_media",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "document_id"
+          ],
+          "table": "documents",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experience_library_task_links": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "entry_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "todo_task_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "entry_id"
+          ],
+          "table": "experience_library_entries",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "todo_task_id"
+          ],
+          "table": "microsoft_todo_tasks",
           "targetColumns": [
             "id"
           ]

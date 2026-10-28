@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, ExternalLink, ImageIcon } from "lucide-react";
+import { ExperienceTaskAction } from "@/components/experience-library/experience-task-action";
 import { ExperiencePersonalNote } from "@/components/experience-library/experience-personal-note";
 import { PageHeader } from "@/components/shared/page-header";
 import {
@@ -35,11 +36,15 @@ function mediaInSegment(media: ExperienceMedia, segment: ExperienceSegment) {
 function SegmentText({
   segment,
   linked,
+  citation,
 }: {
   segment: ExperienceSegment;
   linked: ExperienceMedia | undefined;
+  citation?: string;
 }) {
   if (!linked || linked.selectionStart === null || linked.selectionEnd === null) {
+    const offset = citation ? segment.text.indexOf(citation) : -1;
+    if (offset >= 0 && citation) return <p className="experience-segment-text">{segment.text.slice(0, offset)}<mark>{citation}</mark>{segment.text.slice(offset + citation.length)}</p>;
     return <p className="experience-segment-text">{segment.text}</p>;
   }
   const localStart = Math.max(0, linked.selectionStart - segment.start);
@@ -82,7 +87,7 @@ export default async function ExperienceEntryPage({
   const otherMedia = detail.media.filter((item) => !linkedSelectionIds.has(item.id) && !wholeCaptureIds.has(item.id));
   const kindLabels = {
     reported: "网友自述",
-    opinion: "主观评价",
+    opinion: "主观评价或建议",
     inference: "AI 推断",
   } as const;
 
@@ -121,6 +126,7 @@ export default async function ExperienceEntryPage({
       </div>
 
       <ExperiencePersonalNote entryId={detail.entry.id} initialNote={detail.entry.personalNote ?? ""} initialStatus={detail.entry.reviewStatus ?? "unmarked"} />
+      <ExperienceTaskAction entryId={detail.entry.id} entryTitle={detail.entry.title} tasks={detail.tasks ?? []} />
 
       {detail.entry.summary ? (
         <section className="experience-analysis" aria-labelledby="experience-analysis-title">
@@ -129,18 +135,23 @@ export default async function ExperienceEntryPage({
           <p>{detail.entry.summary}</p>
           {detail.aiKeyPoints.length ? (
             <div className="experience-key-points">
-              {detail.aiKeyPoints.map((point, index) => (
-                <article key={`${point.kind}-${index}`}>
+              {detail.aiKeyPoints.map((point, index) => {
+                const capture = detail.captures.find((item) => item.id === point.sourceCaptureId);
+                const image = detail.media.find((item) => item.id === point.sourceMediaId && item.available);
+                const verifiedCapture = Boolean(point.sourceQuote && capture?.rawContent.includes(point.sourceQuote));
+                const sourceSegment = verifiedCapture && capture && point.sourceQuote ? capture.segments.find((segment) => segment.text.includes(point.sourceQuote!)) : undefined;
+                const verifiedImage = Boolean(point.sourceQuote && image?.ocrText?.includes(point.sourceQuote));
+                return <article key={`${point.kind}-${index}`}>
                   <div className="experience-key-point-labels">
                     <span data-kind={point.kind}>{kindLabels[point.kind]}</span>
-                    {point.sourceCaptureId ? (
-                      <span>来源片段 {detail.captures.findIndex((capture) => capture.id === point.sourceCaptureId) + 1}</span>
-                    ) : null}
+                    {verifiedCapture && capture ? <a className="ui-link" href={sourceSegment ? `#experience-segment-${capture.id}-${sourceSegment.start}` : `#experience-capture-${capture.id}`}>查看原文 {detail.captures.findIndex((item) => item.id === capture.id) + 1}</a> : null}
+                    {verifiedImage && image ? <a className="ui-link" href={`#experience-media-${image.id}`}>查看图片 {detail.media.findIndex((item) => item.id === image.id) + 1}</a> : null}
+                    {!verifiedCapture && !verifiedImage ? <span>暂无可核对的原文定位</span> : null}
                   </div>
                   <p>{point.text}</p>
-                  {point.sourceQuote ? <blockquote>原文：{point.sourceQuote}</blockquote> : null}
-                </article>
-              ))}
+                  {(verifiedCapture || verifiedImage) && point.sourceQuote ? <blockquote>{verifiedImage ? "图片识别文字" : "原文"}：{point.sourceQuote}</blockquote> : null}
+                </article>;
+              })}
             </div>
           ) : null}
         </section>
@@ -156,7 +167,7 @@ export default async function ExperienceEntryPage({
           <span>{detail.captures.length} 次追加</span>
         </div>
         {detail.captures.length ? detail.captures.map((capture, captureIndex) => (
-          <article key={capture.id} className="experience-capture-read" data-kind={capture.captureType}>
+          <article id={`experience-capture-${capture.id}`} key={capture.id} className="experience-capture-read" data-kind={capture.captureType}>
             <header>
               <span>{capture.captureType === "comment" ? "评论" : capture.captureType === "mixed" ? "图文混合" : capture.captureType === "post" ? "正文" : "原文"}</span>
               <span>第 {captureIndex + 1} 次粘贴 · {formatDate(capture.createdAt)}</span>
@@ -164,13 +175,14 @@ export default async function ExperienceEntryPage({
             {capture.segments.map((segment) => {
               const segmentMedia = detail.media.filter((item) => item.captureId === capture.id && mediaInSegment(item, segment));
               return (
-                <section key={`${capture.id}-${segment.start}`} className="experience-segment" data-kind={segment.kind}>
+                <section id={`experience-segment-${capture.id}-${segment.start}`} key={`${capture.id}-${segment.start}`} className="experience-segment" data-kind={segment.kind}>
                   {segment.kind === "comment" ? (
                     <div className="experience-comment-label">{segment.label ?? "评论"}</div>
                   ) : null}
                   <SegmentText
                     segment={segment}
                     linked={segmentMedia[0]}
+                    citation={detail.aiKeyPoints.find((point) => point.sourceCaptureId === capture.id && point.sourceQuote && segment.text.includes(point.sourceQuote))?.sourceQuote ?? undefined}
                   />
                   {segmentMedia.length ? (
                     <div className="experience-media-strip">

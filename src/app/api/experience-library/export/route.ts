@@ -65,12 +65,22 @@ export async function GET(request: Request) {
       if (after) query = query.gt("id", after);
       return query;
     });
+    const ocrCorrections = await ownerRows((after) => {
+      let query = supabase.from("experience_library_ocr_corrections").select("id,media_id,document_id,source_sha256,text_content,created_at").eq("user_id", userId).order("id").limit(500);
+      if (after) query = query.gt("id", after);
+      return query;
+    });
+    const taskLinks = await ownerRows((after) => {
+      let query = supabase.from("experience_library_task_links").select("id,entry_id,todo_task_id,created_at").eq("user_id", userId).order("id").limit(500);
+      if (after) query = query.gt("id", after);
+      return query;
+    });
     const documentIds = [...new Set(media.flatMap((item) => item.document_id ? [item.document_id] : []))];
     const documentIdSet = new Set(documentIds);
     const documents = documentIds.length
       ? (await ownerRows((after) => {
         let query = supabase.from("documents")
-          .select("id,title,original_filename,mime_type,file_size,checksum,storage_provider,storage_state,confidentiality_level,ai_visibility,created_at,uploaded_at,archived_at")
+          .select("id,title,original_filename,mime_type,file_size,checksum,storage_provider,storage_state,confidentiality_level,ai_visibility,extracted_text,text_extraction_method,text_extraction_source_sha256,created_at,uploaded_at,archived_at")
           .eq("user_id", userId)
           .eq("storage_provider", "cloudflare_r2")
           .order("id")
@@ -91,6 +101,8 @@ export async function GET(request: Request) {
       },
       entries,
       noteVersions,
+      ocrCorrections,
+      taskLinks,
       captures,
       media,
       documents,

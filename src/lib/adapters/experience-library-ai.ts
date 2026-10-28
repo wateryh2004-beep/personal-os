@@ -74,8 +74,8 @@ export async function analyzeExperienceText(input: {
 区分“网友自述”(reported)、“主观评价”(opinion) 和“AI 推断”(inference)。
 输出单个 JSON 对象，结构：
 {"summary":"简短摘要","tags":["主题"],"keyPoints":[{"text":"要点","kind":"reported|opinion|inference","sourceIndex":1,"sourceQuote":"最接近的原文短句或 null"}]}。
-sourceIndex 必须是下方片段编号；无法定位时填 null。
-不要输出 Markdown，不要声称已查看图片。`,
+sourceIndex 必须是下方片段编号；sourceQuote 必须逐字摘录该片段的短句，不能改写；无法定位时两者均填 null。
+图片识别文字是可能有误的派生文本，不代表你看到了图片。不要输出 Markdown。`,
     prompt: `请整理以下原始经验文字：\n<<<DATA\n${input.text}\nDATA`,
     maxOutputTokens: Math.min(Math.max(input.maxOutputTokens, 300), 1600),
     temperature: 0.1,

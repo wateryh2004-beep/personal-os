@@ -161,6 +161,7 @@
 | [Personal Intelligence Agent](personal-intelligence-agent.md) | 领域参考/专门契约；核对当前实现与适用范围 |
 | [Personal OS 2.0 产品与技术架构方案](personal-os-2.0-architecture.md) | 方案/演进参考；仅明确采纳且仍符合当前契约的部分生效 |
 | [Private document OCR](private-document-ocr.md) | 领域参考/专门契约；核对当前实现与适用范围 |
+| [经验资料库图片文字、来源与行动](experience-library-ocr-actions.md) | 领域契约与发布/恢复边界；检查当前代码和实际部署 |
 | [Phase 1 施工路线图](roadmap.md) | 领域参考/专门契约；核对当前实现与适用范围 |
 | [Bounded runtime dependency security patch](security/runtime-dependencies-2026-10-07.md) | 领域参考/专门契约；核对当前实现与适用范围 |
 | [Settings workspace redesign](settings-redesign.md) | 历史批次/基线证据；状态与参数仅属于当时对象 |

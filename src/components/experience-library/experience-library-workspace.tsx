@@ -55,6 +55,7 @@ import type {
   ExperienceEntrySummary,
 } from "@/features/experience-library/types";
 import { cn } from "@/lib/utils";
+import { recognizeExperienceImage } from "@/features/experience-library/browser-image-ocr";
 import { experienceChunkCount, experienceChunkSize } from "@/features/experience-library/chunks";
 import { experienceDraftSchema, type ExperienceDraft } from "@/features/experience-library/draft";
 import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
@@ -461,6 +462,8 @@ export function ExperienceLibraryWorkspace({
     setCancelController(controller);
     let saved = content.trim() ? null : textSavedRef.current;
     let failedImageCount = 0;
+    let unrecognizedImageCount = 0;
+    let unsupportedImageCount = 0;
     try {
       if (!targetEntry && !saved && normalizedSourceUrl) {
         const existing = await findExistingExperience(normalizedSourceUrl).catch(() => null);
@@ -522,8 +525,17 @@ export function ExperienceLibraryWorkspace({
             (message) => setImages((current) => current.map((image) => image.localId === original.localId ? { ...image, message } : image)),
           );
           setImages((current) => current.map((image) => image.localId === original.localId
-            ? { ...image, status: "saved", documentId: completedDocumentId, message: "图片已保存并关联" }
+            ? { ...image, status: "saved", documentId: completedDocumentId, message: "原件已保存，正在本机识别文字" }
             : image));
+          try {
+            const ocr = await recognizeExperienceImage(original.file, completedDocumentId, controller.signal, (value) => {
+              setImages((current) => current.map((image) => image.localId === original.localId ? { ...image, message: value.phase === "loading" ? "正在加载本机文字识别" : `正在识别文字 ${Math.round(value.progress * 100)}%` } : image));
+            });
+            if (ocr === "unsupported") unsupportedImageCount += 1;
+          } catch {
+            unrecognizedImageCount += 1;
+            if (controller.signal.aborted) throw new DOMException("已取消", "AbortError");
+          }
         } catch (uploadError) {
           if (controller.signal.aborted) throw uploadError;
           failedImageCount += 1;
@@ -542,7 +554,7 @@ export function ExperienceLibraryWorkspace({
 
       setNotice(failedImageCount
         ? `文字已保存；${failedImageCount} 张图片未完成，失败项已保留，可再次点击保存重试。`
-        : "文字和图片均已保存并关联。");
+        : unrecognizedImageCount || unsupportedImageCount ? `原文和图片均已保存。${unrecognizedImageCount ? `${unrecognizedImageCount} 张图片识别未完成，可在详情页重试。` : ""}${unsupportedImageCount ? `${unsupportedImageCount} 张图片的格式暂不支持文字识别，可使用 PNG、JPG 或 WebP。` : ""}` : pending.length ? "文字和图片均已保存并关联，图片文字已加入搜索。" : "原文已保存。" );
       if (failedImageCount === 0) {
         textSavedRef.current = null;
         setTitle(""); setSourceUrl(""); setTargetEntry(null); setDuplicate(null); setReselectCount(0);
