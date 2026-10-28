@@ -13,6 +13,7 @@ import {
   getExperienceAiConfig,
   getExperienceEntry,
 } from "@/features/experience-library/queries";
+import { matchingExperienceImages } from "@/features/experience-library/image-search";
 import { experienceSegmentHighlights } from "@/features/experience-library/segment-highlights";
 import { resolveExperienceCitation } from "@/features/experience-library/citation-display";
 import type { ExperienceMedia, ExperienceSegment } from "@/features/experience-library/types";
@@ -47,10 +48,13 @@ function SegmentText({ segment, linked, citations }: { segment: ExperienceSegmen
 
 export default async function ExperienceEntryPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ entryId: string }>;
+  searchParams: Promise<{ q?: string | string[] }>;
 }) {
-  const { entryId } = await params;
+  const [{ entryId }, queryParams] = await Promise.all([params, searchParams]);
+  const searchQuery = typeof queryParams.q === "string" ? queryParams.q.trim().slice(0, 120) : "";
   const [detail, aiConfig] = await Promise.all([
     getExperienceEntry(entryId),
     getExperienceAiConfig(),
@@ -77,6 +81,7 @@ export default async function ExperienceEntryPage({
     opinion: "主观评价或建议",
     inference: "AI 推断",
   } as const;
+  const imageMatches = matchingExperienceImages(detail.media, searchQuery);
   const citations = detail.aiKeyPoints.map((point) => ({ point, citation: resolveExperienceCitation(point, detail.captures, detail.media) }));
   const located = citations.filter((item) => item.citation !== null);
   const unlocated = citations.filter((item) => item.citation === null);
@@ -92,7 +97,7 @@ export default async function ExperienceEntryPage({
           </span>
         )}
         back={(
-          <Link href="/experience-library" className="experience-back" aria-label="返回经验资料库">
+          <Link href={searchQuery ? `/experience-library?q=${encodeURIComponent(searchQuery)}` : "/experience-library"} className="experience-back" aria-label="返回经验资料库">
             <ArrowLeft aria-hidden="true" />
           </Link>
         )}
@@ -114,6 +119,12 @@ export default async function ExperienceEntryPage({
         ) : null}
         <Link href={`/experience-library?entry=${detail.entry.id}`} className="ui-action-secondary">补充内容</Link>
       </div>
+
+      {imageMatches.length ? <section className="experience-search-matches" aria-labelledby="experience-image-search-title">
+        <p className="experience-kicker">图片文字搜索</p>
+        <h2 id="experience-image-search-title">“{searchQuery}”出现在 {imageMatches.length} 张图片中</h2>
+        <ul>{imageMatches.map((match) => <li key={match.id}><a className="ui-link" href={`#experience-media-${match.id}`}>查看图片 {match.order}</a><span>{match.excerpt}</span></li>)}</ul>
+      </section> : null}
 
       <ExperiencePersonalNote entryId={detail.entry.id} initialNote={detail.entry.personalNote ?? ""} initialStatus={detail.entry.reviewStatus ?? "unmarked"} />
       <ExperienceTaskAction entryId={detail.entry.id} entryTitle={detail.entry.title} tasks={detail.tasks ?? []} unavailable={detail.tasksUnavailable} />

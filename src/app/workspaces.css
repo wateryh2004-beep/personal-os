@@ -257,3 +257,7 @@
 .experience-summary-disclaimer,.experience-unlocated-points { margin-top:12px; color:var(--text-secondary); font-size:13px; line-height:1.7; }
 .experience-unlocated-points summary { cursor:pointer; color:var(--accent); }
 .experience-unlocated-points article { margin-top:10px; padding-left:12px; border-left:2px solid var(--separator); }
+.experience-search-matches { margin-top:24px; padding:18px 22px; border:1px solid var(--separator); border-radius:16px; background:var(--surface-canvas); }
+.experience-search-matches h2 { margin-top:4px; font-family:var(--font-serif); font-size:21px; font-weight:500; }
+.experience-search-matches ul { display:grid; gap:10px; margin-top:12px; }
+.experience-search-matches li { display:grid; gap:2px; color:var(--text-secondary); font-size:13px; overflow-wrap:anywhere; }

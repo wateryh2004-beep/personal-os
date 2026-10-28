@@ -837,7 +837,7 @@ export function ExperienceLibraryWorkspace({
           <div className="experience-recent-list">
             {data.entries.map((entry) => (
               <article key={entry.id} className="experience-recent-row">
-                <Link href={`/experience-library/${entry.id}`} className="experience-recent-main">
+                <Link href={`/experience-library/${entry.id}${data.query ? `?q=${encodeURIComponent(data.query)}` : ""}`} className="experience-recent-main">
                   <span className="experience-entry-title">{entry.title}</span>
                   <span className="experience-entry-excerpt">{entry.matchExcerpt || entry.summary || entry.tags.map((tag) => `#${tag}`).join(" ")}</span>
                   <span className="experience-entry-meta">

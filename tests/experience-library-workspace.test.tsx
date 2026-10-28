@@ -299,3 +299,9 @@ describe("Experience Library quick capture", () => {
     expect(fetcher.mock.calls.filter(([url]) => String(url) === "/api/experience-library/upload-bytes")).toHaveLength(3);
   });
 });
+
+it("carries the search term into the selected experience so image matches can be located", async () => {
+  const entry = { id: "11111111-1111-4111-8111-111111111111", title: "合成资料", sourceUrl: null, tags: [], summary: null, aiStatus: "not_requested" as const, aiErrorCode: null, aiProvider: null, aiModel: null, aiAnalyzedAt: null, createdAt: "2026-10-28T00:00:00Z", updatedAt: "2026-10-28T00:00:00Z", captureCount: 0, mediaCount: 1, matchExcerpt: "图片识别：秋招经验" };
+  await act(async () => root.render(createElement(ExperienceLibraryWorkspace, { data: { ...data, query: "秋招", entries: [entry] }, aiConfig, initialEntry: null })));
+  expect(host.querySelector<HTMLAnchorElement>(".experience-recent-main")?.getAttribute("href")).toBe(`/experience-library/${entry.id}?q=${encodeURIComponent("秋招")}`);
+});
