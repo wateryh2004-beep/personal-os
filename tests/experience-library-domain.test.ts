@@ -39,9 +39,19 @@ describe("Experience Library source preservation", () => {
     expect(normalizeExperienceSourceUrl(" https://www.xiaohongshu.com/explore/abc#comments ")).toBe(
       "https://www.xiaohongshu.com/explore/abc",
     );
-    expect(() => normalizeExperienceSourceUrl("javascript:alert(1)")).toThrow("只支持");
+    expect(() => normalizeExperienceSourceUrl("javascript:alert(1)")).toThrow("来源链接格式不正确");
     expect(splitExperienceSegments("  原样空格  \n", "post").segments[0].text).toBe(
       "  原样空格  \n",
     );
+  });
+
+  it("extracts a link from a Xiaohongshu share message without dropping query tokens", () => {
+    const link = "https://www.xiaohongshu.com/discovery/item/synthetic?source=webshare&xsec_token=synthetic%2Btoken%3D&xsec_source=pc_share";
+    const share = `40 【合成的经验分享 - 用户 | 小红书】 😆 ABC123 😆 ${link}`;
+    expect(normalizeExperienceSourceUrl(share)).toBe(link);
+    expect(normalizeExperienceSourceUrl(`查看：${link}，更多信息`)).toBe(link);
+    expect(normalizeExperienceSourceUrl(" https://xhslink.com/synthetic ")).toBe("https://xhslink.com/synthetic");
+    expect(() => normalizeExperienceSourceUrl("没有链接的分享文字")).toThrow("来源链接格式不正确");
+    expect(() => normalizeExperienceSourceUrl("https://user:password@example.test/secret")).toThrow("不能包含用户名或密码");
   });
 });

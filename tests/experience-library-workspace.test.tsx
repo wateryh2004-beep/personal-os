@@ -24,6 +24,7 @@ vi.mock("@/features/experience-library/actions", () => actions);
 
 let host: HTMLDivElement;
 let root: Root;
+const NativeURL = globalThis.URL;
 
 const data = {
   available: true,
@@ -52,11 +53,11 @@ beforeEach(() => {
     addEventListener() {},
     removeEventListener() {},
   }));
-  vi.stubGlobal("URL", {
-    ...URL,
-    createObjectURL: vi.fn(() => "blob:synthetic-preview"),
-    revokeObjectURL: vi.fn(),
-  });
+  class TestURL extends NativeURL {
+    static createObjectURL = vi.fn(() => "blob:synthetic-preview");
+    static revokeObjectURL = vi.fn();
+  }
+  vi.stubGlobal("URL", TestURL);
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -78,6 +79,21 @@ async function mount() {
 }
 
 describe("Experience Library quick capture", () => {
+  it("saves a Xiaohongshu share message using the extracted URL and keeps its query", async () => {
+    const link = "https://www.xiaohongshu.com/discovery/item/synthetic?source=webshare&xsec_token=synthetic%3D";
+    actions.appendExperienceCapture.mockResolvedValue({ entryId: "11111111-1111-4111-8111-111111111111", captureId: "22222222-2222-4222-8222-222222222222", title: "合成评论", createdEntry: true, appended: true });
+    vi.stubGlobal("crypto", { randomUUID: () => "33333333-3333-4333-8333-333333333333" });
+    await mount();
+    await act(async () => setTextarea(host.querySelector<HTMLTextAreaElement>("textarea")!, "合成的原始评论"));
+    const input = host.querySelector<HTMLInputElement>('input[type="url"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, `40 【合成分享 | 小红书】 😆 ABC 😆 ${link}`);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const save = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.includes("保存经验"))!;
+    await act(async () => save.click());
+    await vi.waitFor(() => expect(actions.appendExperienceCapture).toHaveBeenCalledWith(expect.objectContaining({ sourceUrl: link, content: "合成的原始评论" })));
+  });
   it("explains an invalid source link locally without losing text or calling the server", async () => {
     await mount();
     const textarea = host.querySelector<HTMLTextAreaElement>("textarea")!;

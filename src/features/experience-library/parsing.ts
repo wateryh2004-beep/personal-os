@@ -10,15 +10,20 @@ const tagPattern = /#([\p{L}\p{N}_-]{1,40})/gu;
 export function normalizeExperienceSourceUrl(value: string | null | undefined) {
   const trimmed = value?.trim();
   if (!trimmed) return null;
+  // Platforms often copy a title and emoji around the actual share URL.
+  // Keep its query string (including share tokens) intact and never fetch it.
+  const candidate = trimmed.match(/https?:\/\/[^\s<>"'，。！？、】）「」]+/i)?.[0];
+  if (!candidate) throw new Error("来源链接格式不正确，请粘贴以 http:// 或 https:// 开头的完整链接。");
   let url: URL;
   try {
-    url = new URL(trimmed);
+    url = new URL(candidate);
   } catch {
     throw new Error("来源链接格式不正确，请粘贴以 http:// 或 https:// 开头的完整链接。");
   }
   if (!["http:", "https:"].includes(url.protocol)) {
     throw new Error("来源链接只支持 http:// 或 https://。");
   }
+  if (url.username || url.password) throw new Error("来源链接不能包含用户名或密码。");
   url.hash = "";
   return url.toString();
 }
