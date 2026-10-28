@@ -75,6 +75,7 @@ export type ExperienceMedia = {
   available: boolean;
   fileSize?: number;
   ocrText?: string | null;
+  ocrUnavailable?: boolean;
   ocrSourceSha256?: string | null;
   ocrCorrectionId?: string | null;
   ocrExtractedAt?: string | null;
@@ -87,6 +88,7 @@ export type ExperienceEntryDetail = {
   media: ExperienceMedia[];
   aiKeyPoints: ExperienceAiKeyPoint[];
   tasks?: { id: string; title: string; status: string }[];
+  tasksUnavailable?: boolean;
 };
 
 export type ExperienceAiConfig = {

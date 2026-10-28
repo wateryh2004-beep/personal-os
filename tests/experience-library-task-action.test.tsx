@@ -69,3 +69,14 @@ it("retries only the association when Microsoft To Do has already confirmed crea
   expect(document.body.textContent).toContain("任务已创建并关联");
   await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals();
 });
+
+it("keeps task creation disabled if existing associations cannot be read", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  state.create.mockReset();
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  await act(async () => root.render(<ExperienceTaskAction entryId="11111111-1111-4111-8111-111111111111" entryTitle="合成经验" tasks={[]} unavailable />));
+  expect(host.textContent).toContain("关联任务暂时无法读取");
+  expect(host.querySelector<HTMLButtonElement>("button")?.disabled).toBe(true);
+  expect(state.create).not.toHaveBeenCalled();
+  await act(async () => root.unmount()); host.remove();
+});

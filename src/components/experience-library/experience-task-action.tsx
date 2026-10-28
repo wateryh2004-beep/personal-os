@@ -9,7 +9,7 @@ import { getExperienceTaskLists, linkExperienceTask } from "@/features/experienc
 import { createMicrosoftTodoTaskAction } from "@/features/tasks/microsoft-todo";
 
 type Target = { id: string; name: string; isDefault: boolean };
-export function ExperienceTaskAction({ entryId, entryTitle, tasks }: { entryId: string; entryTitle: string; tasks: { id: string; title: string; status: string }[] }) {
+export function ExperienceTaskAction({ entryId, entryTitle, tasks, unavailable = false }: { entryId: string; entryTitle: string; tasks: { id: string; title: string; status: string }[]; unavailable?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false), [loading, setLoading] = useState(false), [pending, setPending] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -47,8 +47,8 @@ export function ExperienceTaskAction({ entryId, entryTitle, tasks }: { entryId: 
   }
   return <section className="experience-personal-note" aria-labelledby="experience-task-title">
     <p className="experience-kicker">从资料到行动</p><h2 id="experience-task-title">关联行动</h2>
-    {tasks.length ? <ul>{tasks.map((task) => <li key={task.id}><Link className="ui-link" href={`/tasks?task=${task.id}`}>{task.title}</Link> · {task.status === "completed" ? "已完成" : "未完成"}</li>)}</ul> : <p>把值得尝试的建议变成你自己的任务。</p>}
-    <div><Button type="button" variant="outline" onClick={() => void show()}>创建关联任务</Button></div>
+    {unavailable ? <p role="status">关联任务暂时无法读取，请稍后刷新。</p> : tasks.length ? <ul>{tasks.map((task) => <li key={task.id}><Link className="ui-link" href={`/tasks?task=${task.id}`}>{task.title}</Link> · {task.status === "completed" ? "已完成" : "未完成"}</li>)}</ul> : <p>把值得尝试的建议变成你自己的任务。</p>}
+    <div><Button type="button" variant="outline" disabled={unavailable} onClick={() => void show()}>创建关联任务</Button></div>
     <Dialog open={open} onOpenChange={(next) => { if (!pending && (next || !dirty || window.confirm("行动尚未创建，关闭会丢失输入。确定关闭吗？"))) { setOpen(next); if (!next) setDirty(false); } }}><DialogContent className="sm:max-w-lg">
       <DialogHeader><DialogTitle>创建关联任务</DialogTitle><DialogDescription>确认后写入 Microsoft To Do，任务说明会保留这篇经验的链接。</DialogDescription></DialogHeader>
       {loading ? <p role="status">正在读取任务清单…</p> : connected && lists.length ? <form onChange={() => setDirty(true)} onSubmit={(event) => void submit(event)} className="grid gap-3">

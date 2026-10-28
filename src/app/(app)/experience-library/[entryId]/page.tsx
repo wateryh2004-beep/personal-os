@@ -116,7 +116,7 @@ export default async function ExperienceEntryPage({
       </div>
 
       <ExperiencePersonalNote entryId={detail.entry.id} initialNote={detail.entry.personalNote ?? ""} initialStatus={detail.entry.reviewStatus ?? "unmarked"} />
-      <ExperienceTaskAction entryId={detail.entry.id} entryTitle={detail.entry.title} tasks={detail.tasks ?? []} />
+      <ExperienceTaskAction entryId={detail.entry.id} entryTitle={detail.entry.title} tasks={detail.tasks ?? []} unavailable={detail.tasksUnavailable} />
 
       {detail.entry.summary ? (
         <section className="experience-analysis" aria-labelledby="experience-analysis-title">

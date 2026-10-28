@@ -15,6 +15,7 @@ export function ExperienceImageText({ media }: { media: ExperienceMedia }) {
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
   if (!media.documentId || !media.available || !media.originalFilename || !media.mimeType) return null;
+  if (media.ocrUnavailable) return <p role="status">图片文字暂时无法读取，原图仍可查看；请稍后刷新。</p>;
   const file = { id: media.documentId, title: media.caption || media.originalFilename, original_filename: media.originalFilename, mime_type: media.mimeType, file_size: media.fileSize ?? 0 };
   function perform(action: () => Promise<void>, success: string) {
     setMessage("");

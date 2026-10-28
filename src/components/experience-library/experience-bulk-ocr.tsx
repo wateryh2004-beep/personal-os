@@ -11,7 +11,7 @@ export function ExperienceBulkOcr({ media }: { media: ExperienceMedia[] }) {
   const mounted = useRef(true);
   const [busy, setBusy] = useState(false), [message, setMessage] = useState("");
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; controller.current?.abort(); }; }, []);
-  const pending = media.filter((item) => item.available && item.documentId && item.originalFilename && item.mimeType && item.fileSize && item.ocrText == null);
+  const pending = media.filter((item) => item.available && !item.ocrUnavailable && item.documentId && item.originalFilename && item.mimeType && item.fileSize && item.ocrText == null);
   if (!pending.length && !message) return null;
   async function run() {
     if (controller.current) return;

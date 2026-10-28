@@ -214,11 +214,17 @@ export async function getExperienceEntry(entryId: string): Promise<ExperienceEnt
     if (documentError) return null;
     const documentsById = new Map((documents ?? []).map((document) => [document.id, document]));
     const mediaIds = (mediaRows ?? []).map((item) => item.id);
-    const { data: correctionRows, error: correctionError } = mediaIds.length
-      ? await supabase.from("experience_library_ocr_corrections").select("id,media_id,document_id,source_sha256,text_content,created_at").eq("user_id", userId).in("media_id", mediaIds).order("created_at", { ascending: false }).order("id", { ascending: false })
-      : { data: [], error: null };
-    if (correctionError) return null;
-    const corrections = new Map<string, (typeof correctionRows)[number]>();
+    type OcrCorrection = { id: string; media_id: string; document_id: string; source_sha256: string; text_content: string; created_at: string };
+    let correctionRows: OcrCorrection[] = [];
+    let correctionsUnavailable = false;
+    if (mediaIds.length) {
+      try {
+        const result = await supabase.from("experience_library_ocr_corrections").select("id,media_id,document_id,source_sha256,text_content,created_at").eq("user_id", userId).in("media_id", mediaIds).order("created_at", { ascending: false }).order("id", { ascending: false });
+        if (result.error) correctionsUnavailable = true;
+        else correctionRows = result.data ?? [];
+      } catch { correctionsUnavailable = true; }
+    }
+    const corrections = new Map<string, OcrCorrection>();
     for (const row of correctionRows ?? []) {
       const document = documentsById.get(row.document_id);
       if (document?.text_extraction_source_sha256 === row.source_sha256 && !corrections.has(row.media_id)) corrections.set(row.media_id, row);
@@ -249,22 +255,32 @@ export async function getExperienceEntry(entryId: string): Promise<ExperienceEnt
         mimeType: document?.mime_type ?? null,
         available: Boolean(document && document.storage_state === "available" && !document.archived_at),
         fileSize: document?.file_size ?? 0,
-        ocrText: document?.text_extraction_method === "ocr_local" ? corrections.get(item.id)?.text_content ?? document.extracted_text ?? null : null,
+        ocrText: !correctionsUnavailable && document?.text_extraction_method === "ocr_local" ? corrections.get(item.id)?.text_content ?? document.extracted_text ?? null : null,
+        ocrUnavailable: correctionsUnavailable,
         ocrSourceSha256: document?.text_extraction_method === "ocr_local" ? document.text_extraction_source_sha256 : null,
         ocrCorrectionId: corrections.get(item.id)?.id ?? null,
         ocrExtractedAt: document?.text_extracted_at ?? null,
         aiVisibility: document?.ai_visibility ?? "sensitive",
       };
     });
-    const { data: taskLinks, error: taskLinkError } = await supabase.from("experience_library_task_links")
-      .select("todo_task_id").eq("entry_id", entryId).eq("user_id", userId).order("created_at", { ascending: false });
-    if (taskLinkError) return null;
-    const taskIds = (taskLinks ?? []).map((link) => link.todo_task_id);
-    const { data: taskRows, error: taskError } = taskIds.length ? await supabase.from("microsoft_todo_tasks")
-      .select("id,title,status").eq("user_id", userId).is("archived_at", null).in("id", taskIds) : { data: [], error: null };
-    if (taskError) return null;
+    let tasksUnavailable = false;
+    let tasks: { id: string; title: string; status: string }[] = [];
+    try {
+      const links = await supabase.from("experience_library_task_links")
+        .select("todo_task_id").eq("entry_id", entryId).eq("user_id", userId).order("created_at", { ascending: false });
+      if (links.error) tasksUnavailable = true;
+      else {
+        const taskIds = (links.data ?? []).map((link) => link.todo_task_id);
+        if (taskIds.length) {
+          const result = await supabase.from("microsoft_todo_tasks").select("id,title,status").eq("user_id", userId).is("archived_at", null).in("id", taskIds);
+          if (result.error) tasksUnavailable = true;
+          else tasks = (result.data ?? []).map((task) => ({ id: task.id, title: task.title, status: task.status }));
+        }
+      }
+    } catch { tasksUnavailable = true; }
     return {
-      tasks: (taskRows ?? []).map((task) => ({ id: task.id, title: task.title, status: task.status })),
+      tasks,
+      tasksUnavailable,
       entry: summary(
         entry,
         captures.length,
