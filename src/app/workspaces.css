@@ -261,3 +261,28 @@
 .experience-search-matches h2 { margin-top:4px; font-family:var(--font-serif); font-size:21px; font-weight:500; }
 .experience-search-matches ul { display:grid; gap:10px; margin-top:12px; }
 .experience-search-matches li { display:grid; gap:2px; color:var(--text-secondary); font-size:13px; overflow-wrap:anywhere; }
+.experience-pagination { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:16px; font-size:13px; color:var(--text-secondary); }
+.experience-maintenance { display:grid; gap:12px; margin-top:24px; padding:18px 22px; border:1px solid var(--separator); border-radius:16px; color:var(--text-secondary); font-size:13px; line-height:1.65; }
+.experience-maintenance-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+.experience-maintenance details summary { cursor:pointer; color:var(--accent); }
+.experience-maintenance li { margin-top:10px; }
+.experience-merge-candidates { display:grid; gap:12px; max-height:55vh; overflow:auto; }
+.experience-merge-candidates article { display:grid; gap:6px; padding:12px; border:1px solid var(--separator); border-radius:10px; }
+.experience-task-outcome { display:grid; gap:8px; margin-top:8px; }
+.experience-task-outcome summary { cursor:pointer; color:var(--accent); }
+.experience-task-outcome label { display:grid; gap:5px; margin-top:8px; }
+.experience-task-outcome select { width:max-content; min-height:36px; border:1px solid var(--separator); border-radius:8px; background:var(--surface-canvas); padding:4px 8px; }
+.experience-task-history { display:grid; gap:6px; margin-top:10px; }
+.experience-applied-filters,.experience-compare-selection { display:flex; align-items:center; flex-wrap:wrap; gap:9px; margin-top:12px; color:var(--text-secondary); font-size:13px; }
+.experience-applied-filters a { border:1px solid var(--separator); border-radius:999px; padding:4px 9px; color:var(--accent); }
+.experience-compare-checkbox { display:flex; align-items:center; padding:10px 4px; }
+.experience-compare-checkbox input { width:17px; height:17px; accent-color:var(--accent); }
+.experience-compare-page { display:grid; gap:18px; }
+.experience-compare-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:16px; align-items:start; }
+.experience-compare-grid article { display:grid; gap:14px; padding:18px; border:1px solid var(--separator); border-radius:16px; background:var(--surface-canvas); min-width:0; }
+.experience-compare-grid h2 { font-family:var(--font-serif); font-size:23px; font-weight:500; }
+.experience-compare-grid h3 { font-weight:600; }
+.experience-compare-grid p { color:var(--text-secondary); overflow-wrap:anywhere; white-space:pre-wrap; }
+.experience-compare-grid section { display:grid; gap:8px; border-top:1px solid var(--separator); padding-top:12px; }
+.experience-compare-original { max-height:280px; overflow:auto; }
+.experience-compare-common,.experience-compare-footnote { color:var(--text-secondary); font-size:13px; }

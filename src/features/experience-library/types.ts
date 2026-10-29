@@ -47,10 +47,14 @@ export type ExperienceEntrySummary = {
   personalNote?: string;
   reviewStatus?: ExperienceReviewStatus;
   matchExcerpt?: string | null;
+  reviewedAt?: string | null;
+  mergedCount?: number;
+  mergedIntoId?: string | null;
 };
 
 export type ExperienceCapture = {
   id: string;
+  entryId?: string;
   captureType: ExperienceCaptureType;
   rawContent: string;
   segments: ExperienceSegment[];
@@ -87,8 +91,10 @@ export type ExperienceEntryDetail = {
   captures: ExperienceCapture[];
   media: ExperienceMedia[];
   aiKeyPoints: ExperienceAiKeyPoint[];
-  tasks?: { id: string; title: string; status: string }[];
+  tasks?: { id: string; title: string; status: string; sourceEntryId?: string }[];
   tasksUnavailable?: boolean;
+  mergedSources?: { id: string; title: string; sourceUrl: string | null; personalNote: string; aiSummary: string | null }[];
+  actionReviews?: { taskId: string; verdict: "effective" | "partly" | "not_effective" | "not_tried"; note: string; createdAt: string }[];
 };
 
 export type ExperienceAiConfig = {

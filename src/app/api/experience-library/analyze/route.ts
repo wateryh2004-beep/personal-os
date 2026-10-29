@@ -37,20 +37,25 @@ export async function POST(request: Request) {
   const { supabase, userId } = owner;
 
   const { data: entry } = await supabase.from("experience_library_entries")
-    .select("id,title,tags")
+    .select("id,title,tags,merged_into_id")
     .eq("id", parsed.data.entryId)
     .eq("user_id", userId)
     .is("archived_at", null)
     .maybeSingle();
   if (!entry) return fail("经验不存在或无权访问。", 404);
+  if (entry.merged_into_id) return fail("请从合并后的主记录发起整理。", 409);
+  const { data: children, error: childrenError } = await supabase.from("experience_library_entries")
+    .select("id").eq("user_id", userId).eq("merged_into_id", entry.id).is("archived_at", null);
+  if (childrenError) return fail("合并的原记录暂时无法读取，请重试。", 503);
+  const groupIds = [entry.id, ...(children ?? []).map((child) => child.id)];
   const { data: captures, error: captureError } = await supabase.from("experience_library_captures")
     .select("id,capture_type,raw_content")
-    .eq("entry_id", entry.id)
+    .in("entry_id", groupIds)
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
   if (captureError) return fail("原文暂时无法读取，请重试。", 503);
   const { data: imageRows, error: imageError } = await supabase.from("experience_library_media")
-    .select("id,document_id,position").eq("entry_id", entry.id).eq("user_id", userId).is("archived_at", null).order("position");
+    .select("id,document_id,position").in("entry_id", groupIds).eq("user_id", userId).is("archived_at", null).order("position");
   if (imageError) return fail("图片文字暂时无法读取，请重试。", 503);
   const documentIds = (imageRows ?? []).flatMap((image) => image.document_id ? [image.document_id] : []);
   const { data: documents, error: documentError } = documentIds.length ? await supabase.from("documents")

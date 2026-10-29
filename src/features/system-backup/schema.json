@@ -1,6 +1,6 @@
 {
   "format": "personal-os-system/v1",
-  "schemaRevision": "2026-10-experience-library/v2",
+  "schemaRevision": "2026-10-experience-library/v3",
   "tables": {
     "activity_events": {
       "columns": {
@@ -2886,6 +2886,66 @@
       ],
       "excludedColumns": []
     },
+    "experience_library_action_reviews": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "entry_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "todo_task_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "request_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "verdict": {
+          "type": "string",
+          "nullable": false
+        },
+        "note": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "entry_id"
+          ],
+          "table": "experience_library_entries",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "todo_task_id"
+          ],
+          "table": "microsoft_todo_tasks",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
     "experience_library_captures": {
       "columns": {
         "capture_type": {
@@ -3018,12 +3078,30 @@
         "review_status": {
           "type": "string",
           "nullable": false
+        },
+        "merged_into_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "reviewed_at": {
+          "type": "string",
+          "nullable": true
         }
       },
       "primaryKey": [
         "id"
       ],
-      "foreignKeys": [],
+      "foreignKeys": [
+        {
+          "columns": [
+            "merged_into_id"
+          ],
+          "table": "experience_library_entries",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
       "excludedColumns": []
     },
     "experience_library_media": {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, ExternalLink, ImageIcon } from "lucide-react";
+import { ExperienceMaintenance } from "@/components/experience-library/experience-maintenance";
 import { ExperienceTaskAction } from "@/components/experience-library/experience-task-action";
 import { ExperiencePersonalNote } from "@/components/experience-library/experience-personal-note";
 import { PageHeader } from "@/components/shared/page-header";
@@ -117,7 +118,7 @@ export default async function ExperienceEntryPage({
             查看原帖<ExternalLink aria-hidden="true" size={14} />
           </a>
         ) : null}
-        <Link href={`/experience-library?entry=${detail.entry.id}`} className="ui-action-secondary">补充内容</Link>
+        <Link href={`/experience-library?entry=${detail.entry.mergedIntoId ?? detail.entry.id}`} className="ui-action-secondary">补充内容</Link>
       </div>
 
       {imageMatches.length ? <section className="experience-search-matches" aria-labelledby="experience-image-search-title">
@@ -126,8 +127,9 @@ export default async function ExperienceEntryPage({
         <ul>{imageMatches.map((match) => <li key={match.id}><a className="ui-link" href={`#experience-media-${match.id}`}>查看图片 {match.order}</a><span>{match.excerpt}</span></li>)}</ul>
       </section> : null}
 
+      <ExperienceMaintenance entryId={detail.entry.id} title={detail.entry.title} createdAt={detail.entry.createdAt} reviewedAt={detail.entry.reviewedAt} mergedIntoId={detail.entry.mergedIntoId} sources={detail.mergedSources ?? []} />
       <ExperiencePersonalNote entryId={detail.entry.id} initialNote={detail.entry.personalNote ?? ""} initialStatus={detail.entry.reviewStatus ?? "unmarked"} />
-      <ExperienceTaskAction entryId={detail.entry.id} entryTitle={detail.entry.title} tasks={detail.tasks ?? []} unavailable={detail.tasksUnavailable} />
+      <ExperienceTaskAction entryId={detail.entry.id} entryTitle={detail.entry.title} tasks={detail.tasks ?? []} reviews={detail.actionReviews ?? []} unavailable={detail.tasksUnavailable} />
 
       {detail.entry.summary ? (
         <section className="experience-analysis" aria-labelledby="experience-analysis-title">
@@ -170,7 +172,7 @@ export default async function ExperienceEntryPage({
           <article id={`experience-capture-${capture.id}`} key={capture.id} className="experience-capture-read" data-kind={capture.captureType}>
             <header>
               <span>{capture.captureType === "comment" ? "评论" : capture.captureType === "mixed" ? "图文混合" : capture.captureType === "post" ? "正文" : "原文"}</span>
-              <span>第 {captureIndex + 1} 次粘贴 · {formatDate(capture.createdAt)}</span>
+              <span>第 {captureIndex + 1} 次粘贴 · {formatDate(capture.createdAt)}{capture.entryId !== detail.entry.id ? ` · ${detail.mergedSources?.find((source) => source.id === capture.entryId)?.title ?? "原记录"}` : ""}</span>
             </header>
             {capture.segments.map((segment) => {
               const segmentMedia = detail.media.filter((item) => item.captureId === capture.id && mediaInSegment(item, segment));

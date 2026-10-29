@@ -12,12 +12,12 @@ export const dynamic = "force-dynamic";
 export default async function ExperienceLibraryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; entry?: string; tag?: string; status?: string; media?: string; analyzed?: string; sort?: string }>;
+  searchParams: Promise<{ q?: string; entry?: string; tag?: string; status?: string; media?: string; analyzed?: string; sort?: string; page?: string }>;
 }) {
   const params = await searchParams;
   const query = (params.q ?? "").trim().slice(0, 120);
   const [data, aiConfig, initialDetail] = await Promise.all([
-    getExperienceLibraryWorkspace(query, { tag: params.tag?.slice(0, 100), status: ["unmarked", "to_read", "useful", "outdated"].includes(params.status ?? "") ? params.status : "", hasMedia: params.media === "1", analyzed: params.analyzed === "1", sort: params.sort }),
+    getExperienceLibraryWorkspace(query, { tag: params.tag?.slice(0, 100), status: ["unmarked", "to_read", "useful", "outdated"].includes(params.status ?? "") ? params.status : "", hasMedia: params.media === "1", analyzed: params.analyzed === "1", sort: params.sort }, Number(params.page ?? "1")),
     getExperienceAiConfig(),
     params.entry ? getExperienceEntry(params.entry) : Promise.resolve(null),
   ]);

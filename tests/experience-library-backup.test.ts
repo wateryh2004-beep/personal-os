@@ -19,6 +19,11 @@ it("restores exact experience text, selected-image relation and original bytes f
     rows.experience_library_media = [backupRow("experience_library_media", 804, { entry_id: backupId(802), capture_id: backupId(803), document_id: backupId(801), selection_start: 5, selection_end: 8, selection_quote: "GPA", source_kind: "clipboard" })];
     rows.experience_library_note_versions = [backupRow("experience_library_note_versions", 807, { entry_id: backupId(802), personal_note: "旧判断", review_status: "to_read" })];
     rows.experience_library_ocr_corrections = [backupRow("experience_library_ocr_corrections", 808, { media_id: backupId(804), document_id: backupId(801), text_content: "修订的截图文字", source_sha256: createHash("sha256").update(original).digest("hex") })];
+    rows.calendar_connections = [backupRow("calendar_connections", 809)];
+    rows.microsoft_todo_lists = [backupRow("microsoft_todo_lists", 810, { connection_id: backupId(809), display_name: "合成清单" })];
+    rows.microsoft_todo_tasks = [backupRow("microsoft_todo_tasks", 811, { todo_list_id: backupId(810), title: "合成行动" })];
+    rows.experience_library_task_links = [backupRow("experience_library_task_links", 812, { entry_id: backupId(802), todo_task_id: backupId(811) })];
+    rows.experience_library_action_reviews = [backupRow("experience_library_action_reviews", 813, { entry_id: backupId(802), todo_task_id: backupId(811), request_id: backupId(814), verdict: "effective", note: "合成结果" })];
     const snapshot: Uint8Array[] = [];
     for await (const chunk of systemBackup(backupSource(rows), backupOwner, new AbortController().signal, undefined, noArtwork())) snapshot.push(chunk);
     const snapshotPath = path.join(directory, "system.ndjson");
@@ -36,5 +41,7 @@ it("restores exact experience text, selected-image relation and original bytes f
     expect(JSON.parse(query.stdout)).toEqual(["😀评论 GPA", 5, 8, "GPA", backupId(801)]);
     const derived = spawnSync("python3", ["-c", "import sqlite3,sys,json; d=sqlite3.connect(sys.argv[1]); print(json.dumps([d.execute('select personal_note from experience_library_note_versions').fetchone()[0],d.execute('select text_content from experience_library_ocr_corrections').fetchone()[0]],ensure_ascii=False))", path.join(target, "system.sqlite3")], { encoding: "utf8" });
     expect(JSON.parse(derived.stdout)).toEqual(["旧判断", "修订的截图文字"]);
+    const outcome = spawnSync("python3", ["-c", "import sqlite3,sys,json; d=sqlite3.connect(sys.argv[1]); print(json.dumps(d.execute('select verdict,note from experience_library_action_reviews').fetchone(),ensure_ascii=False))", path.join(target, "system.sqlite3")], { encoding: "utf8" });
+    expect(JSON.parse(outcome.stdout)).toEqual(["effective", "合成结果"]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

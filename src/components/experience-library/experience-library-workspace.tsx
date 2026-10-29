@@ -68,6 +68,8 @@ type WorkspaceData = {
   total: number;
   captureTotal: number;
   mediaTotal: number;
+  page?: number;
+  hasMore?: boolean;
   tags?: string[];
   filters?: { tag?: string; status?: string; hasMedia?: boolean; analyzed?: boolean; sort?: string };
 };
@@ -115,6 +117,19 @@ async function json(response: Response) {
   return response.json().catch(() => ({})) as Promise<Record<string, unknown>>;
 }
 
+function experiencePageHref(data: WorkspaceData, page: number, remove?: string) {
+  const query = new URLSearchParams();
+  if (data.query) query.set("q", data.query);
+  if (data.filters?.tag) query.set("tag", data.filters.tag);
+  if (data.filters?.status) query.set("status", data.filters.status);
+  if (data.filters?.hasMedia) query.set("media", "1");
+  if (data.filters?.analyzed) query.set("analyzed", "1");
+  if (data.filters?.sort === "created") query.set("sort", "created");
+  if (page > 1) query.set("page", String(page));
+  if (remove) query.delete(remove);
+  return `/experience-library${query.size ? `?${query}` : ""}`;
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
     year: "numeric",
@@ -140,6 +155,7 @@ export function ExperienceLibraryWorkspace({
   const [content, setContent] = useState("");
   const [captureType, setCaptureType] = useState<ExperienceCaptureChoice>("auto");
   const [images, setImages] = useState<PendingImage[]>([]);
+  const [selectedCompareIds, setSelectedCompareIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [ocrNotice, setOcrNotice] = useState<string | null>(null);
   const [ocrRunning, setOcrRunning] = useState(false);
@@ -166,6 +182,7 @@ export function ExperienceLibraryWorkspace({
   const suggestedTitle = useMemo(() => suggestExperienceTitle(content), [content]);
   const tags = useMemo(() => extractExperienceTags(content), [content]);
   const unsavedCount = images.filter((image) => image.status !== "saved").length;
+  const visibleCompareIds = selectedCompareIds.filter((id) => data.entries.some((entry) => entry.id === id));
   const hasUnsaved = Boolean(content || unsavedCount || reselectCount || saving || (sourceUrl && sourceUrl !== targetEntry?.sourceUrl) || (title && title !== targetEntry?.title));
 
   useEffect(() => () => { cancelController?.abort(); }, [cancelController]);
@@ -855,6 +872,14 @@ export function ExperienceLibraryWorkspace({
             <Link href="/experience-library" className="ui-link">清除</Link>
           </div></form>
 
+        {data.query || data.filters?.tag || data.filters?.status || data.filters?.hasMedia || data.filters?.analyzed ? <div className="experience-applied-filters" aria-label="当前搜索和筛选">
+          {data.query ? <Link href={experiencePageHref(data, 1, "q")}>关键词：{data.query} ×</Link> : null}
+          {data.filters?.tag ? <Link href={experiencePageHref(data, 1, "tag")}>#{data.filters.tag} ×</Link> : null}
+          {data.filters?.status ? <Link href={experiencePageHref(data, 1, "status")}>标记：{data.filters.status} ×</Link> : null}
+          {data.filters?.hasMedia ? <Link href={experiencePageHref(data, 1, "media")}>有图片 ×</Link> : null}
+          {data.filters?.analyzed ? <Link href={experiencePageHref(data, 1, "analyzed")}>已 AI 整理 ×</Link> : null}
+        </div> : null}
+
         {!data.available ? (
           <p className="experience-empty">经验资料暂时无法读取。请确认 migration 已应用并稍后刷新。</p>
         ) : data.entries.length === 0 ? (
@@ -865,6 +890,7 @@ export function ExperienceLibraryWorkspace({
           <div className="experience-recent-list">
             {data.entries.map((entry) => (
               <article key={entry.id} className="experience-recent-row">
+                <label className="experience-compare-checkbox"><input type="checkbox" checked={visibleCompareIds.includes(entry.id)} aria-label={`对照《${entry.title}》`} disabled={!visibleCompareIds.includes(entry.id) && visibleCompareIds.length >= 3} onChange={(event) => setSelectedCompareIds((current) => event.target.checked ? [...current, entry.id].slice(0, 3) : current.filter((id) => id !== entry.id))} /></label>
                 <Link href={`/experience-library/${entry.id}${data.query ? `?q=${encodeURIComponent(data.query)}` : ""}`} className="experience-recent-main">
                   <span className="experience-entry-title">{entry.title}</span>
                   <span className="experience-entry-excerpt">{entry.matchExcerpt || entry.summary || entry.tags.map((tag) => `#${tag}`).join(" ")}</span>
@@ -879,6 +905,12 @@ export function ExperienceLibraryWorkspace({
             ))}
           </div>
         )}
+        {visibleCompareIds.length ? <div className="experience-compare-selection"><span>已选 {visibleCompareIds.length} 篇（最多 3 篇）</span>{visibleCompareIds.length >= 2 ? <Link className="ui-action-secondary" href={`/experience-library/compare?ids=${visibleCompareIds.join(",")}`}>并排对照</Link> : <span>再选一篇即可对照</span>}<Button type="button" variant="ghost" size="sm" onClick={() => setSelectedCompareIds([])}>清除选择</Button></div> : null}
+        {data.page && (data.page > 1 || data.hasMore) ? <nav className="experience-pagination" aria-label="经验资料翻页">
+          {data.page > 1 ? <Link className="ui-link" href={experiencePageHref(data, data.page - 1)}>上一页</Link> : <span />}
+          <span>第 {data.page} 页</span>
+          {data.hasMore ? <Link className="ui-link" href={experiencePageHref(data, data.page + 1)}>下一页</Link> : <span />}
+        </nav> : null}
       </section>
 
       <ExperienceAiSettingsDialog

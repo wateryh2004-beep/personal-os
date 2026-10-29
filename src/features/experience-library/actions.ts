@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { readAllRows } from "@/lib/supabase/read-all-rows";
+import { experienceDuplicateKey } from "./duplicates";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { sealSecret } from "@/lib/crypto/sealed-secret";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -60,9 +62,20 @@ export async function findExistingExperience(source: string) {
   try { url = normalizeExperienceSourceUrl(source); } catch { return null; }
   if (!url) return null;
   const { supabase, userId } = await requireOwner();
-  const { data, error } = await supabase.from("experience_library_entries")
-    .select("id,title,source_url").eq("user_id", userId).eq("source_url", url).is("archived_at", null).maybeSingle();
-  if (error || !data) return null;
+  const key = experienceDuplicateKey(url);
+  const query = supabase.from("experience_library_entries").select("id,title,source_url,merged_into_id")
+    .eq("user_id", userId).is("archived_at", null);
+  const result = key?.startsWith("xhs:")
+    ? await query.ilike("source_url", `%/${key.slice(4)}%`).limit(20)
+    : await query.eq("source_url", url).limit(20);
+  if (result.error) return null;
+  const data = (result.data ?? []).find((item) => experienceDuplicateKey(item.source_url) === key);
+  if (!data) return null;
+  if (data.merged_into_id) {
+    const { data: root } = await supabase.from("experience_library_entries").select("id,title,source_url")
+      .eq("id", data.merged_into_id).eq("user_id", userId).is("archived_at", null).maybeSingle();
+    if (root) return { id: root.id, title: root.title, sourceUrl: root.source_url };
+  }
   return { id: data.id, title: data.title, sourceUrl: data.source_url };
 }
 
@@ -455,5 +468,58 @@ export async function linkExperienceTask(input: { entryId: string; taskId: strin
     const { error } = await supabase.from("experience_library_task_links").insert({ user_id: userId, entry_id: value.entryId, todo_task_id: value.taskId });
     if (error) throw new Error("任务已创建，但来源关联尚未确认，请重试关联。");
   }
+  revalidatePath(`/experience-library/${value.entryId}`);
+}
+
+export async function findExperienceMergeCandidates(entryId: string) {
+  const selected = z.uuid().parse(entryId);
+  const { supabase, userId } = await requireOwner();
+  const { data: source, error } = await supabase.from("experience_library_entries")
+    .select("id,title,source_url,merged_into_id").eq("id", selected).eq("user_id", userId).is("archived_at", null).maybeSingle();
+  if (error || !source || source.merged_into_id) throw new Error("请从未合并的经验中选择主记录。");
+  const { data: entries, error: listError } = await readAllRows<{ id: string; title: string; source_url: string | null; merged_into_id: string | null; created_at: string }>(
+    supabase.from("experience_library_entries").select("id,title,source_url,merged_into_id,created_at").eq("user_id", userId).is("archived_at", null).order("id"),
+  );
+  if (listError || !entries) throw new Error("暂时无法完整读取资料，请稍后重试。");
+  const key = experienceDuplicateKey(source.source_url);
+  const candidates = entries.filter((item) => item.id !== selected && !item.merged_into_id
+    && ((key && experienceDuplicateKey(item.source_url) === key) || item.title.trim().toLowerCase() === source.title.trim().toLowerCase())).slice(0, 20);
+  return Promise.all(candidates.map(async (item) => {
+    const { data: first, error: firstError } = await supabase.from("experience_library_captures")
+      .select("raw_content").eq("entry_id", item.id).eq("user_id", userId).order("created_at").limit(1).maybeSingle();
+    if (firstError) throw new Error("重复资料预览暂时无法读取。");
+    return { id: item.id, title: item.title, sourceUrl: item.source_url, createdAt: item.created_at, excerpt: first?.raw_content?.slice(0, 240) ?? "仅有图片" };
+  }));
+}
+
+export async function mergeExperienceEntries(input: { sourceId: string; targetId: string }) {
+  const value = z.object({ sourceId: z.uuid(), targetId: z.uuid() }).strict().parse(input);
+  const { supabase } = await requireOwner();
+  const { data, error } = await supabase.rpc("set_experience_library_merge", { p_source: value.sourceId, p_target: value.targetId });
+  if (error || data !== value.targetId) throw new Error("合并未完成；请刷新并核对两篇资料后重试。");
+  revalidatePath("/experience-library"); revalidatePath(`/experience-library/${value.targetId}`);
+}
+
+export async function undoExperienceMerge(input: { sourceId: string; targetId: string }) {
+  const value = z.object({ sourceId: z.uuid(), targetId: z.uuid() }).strict().parse(input);
+  const { supabase } = await requireOwner();
+  const { data, error } = await supabase.rpc("undo_experience_library_merge", { p_source: value.sourceId, p_expected_target: value.targetId });
+  if (error || data !== true) throw new Error("拆分未完成，请刷新核对。");
+  revalidatePath("/experience-library"); revalidatePath(`/experience-library/${value.targetId}`);
+}
+
+export async function markExperienceReviewed(entryId: string) {
+  const id = z.uuid().parse(entryId);
+  const { supabase } = await requireOwner();
+  const { data, error } = await supabase.rpc("mark_experience_library_reviewed", { p_entry: id });
+  if (error || !data) throw new Error("复核时间未能保存，请重试。");
+  revalidatePath("/experience-library"); revalidatePath(`/experience-library/${id}`);
+}
+
+export async function recordExperienceActionOutcome(input: { entryId: string; taskId: string; requestId: string; verdict: string; note: string }) {
+  const value = z.object({ entryId: z.uuid(), taskId: z.uuid(), requestId: z.uuid(), verdict: z.enum(["effective", "partly", "not_effective", "not_tried"]), note: z.string().trim().max(5000) }).strict().parse(input);
+  const { supabase } = await requireOwner();
+  const { data, error } = await supabase.rpc("record_experience_action_review", { p_entry: value.entryId, p_task: value.taskId, p_request: value.requestId, p_verdict: value.verdict, p_note: value.note });
+  if (error || !data) throw new Error("行动复盘结果未能确认，请刷新核对后重试。");
   revalidatePath(`/experience-library/${value.entryId}`);
 }
