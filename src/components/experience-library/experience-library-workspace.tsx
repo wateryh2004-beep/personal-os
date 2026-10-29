@@ -57,7 +57,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { mapWithConcurrency } from "@/features/experience-library/parallel-upload";
 import { recognizeExperienceImage } from "@/features/experience-library/browser-image-ocr";
-import { experienceChunkCount, experienceChunkSize } from "@/features/experience-library/chunks";
+import { uploadExperienceChunks } from "@/features/experience-library/chunks-client";
 import { experienceDraftSchema, type ExperienceDraft } from "@/features/experience-library/draft";
 import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
 
@@ -433,15 +433,7 @@ export function ExperienceLibraryWorkspace({
         });
         if (!sent.ok) { const payload = await json(sent); throw new Error(typeof payload.error === "string" ? payload.error : "图片未传入私有存储，请重试。"); }
       } else {
-        const count = experienceChunkCount(image.file.size);
-        for (let index = 0; index < count; index += 1) {
-          onProgress(`正在上传图片 ${index + 1}/${count}`);
-          const sent = await fetch("/api/experience-library/upload-chunks", {
-            method: "POST", headers: { "Content-Type": "application/octet-stream", "X-Experience-Document-Id": documentId, "X-Experience-Chunk-Index": String(index) },
-            body: image.file.slice(index * experienceChunkSize, (index + 1) * experienceChunkSize), signal,
-          });
-          if (!sent.ok) { const payload = await json(sent); throw new Error(typeof payload.error === "string" ? payload.error : "图片上传中断，请重试。"); }
-        }
+        await uploadExperienceChunks(image.file, documentId, signal, (done, total) => onProgress(`正在上传图片 ${done}/${total}`));
         onProgress("正在核验图片原件");
         const assembled = await fetch("/api/experience-library/upload-chunks", { method: "PATCH", headers: { "X-Experience-Document-Id": documentId }, signal });
         if (!assembled.ok) { const payload = await json(assembled); throw new Error(typeof payload.error === "string" ? payload.error : "图片原件校验未完成，请重试。"); }
@@ -527,11 +519,38 @@ export function ExperienceLibraryWorkspace({
       }
       if (!saved) throw new Error("经验记录尚未建立。");
 
-      // Upload and seal at most three originals concurrently. Associations are
-      // committed afterward in the user's original order, so the existing
-      // position allocation and image ordering remain deterministic.
+      // Upload originals concurrently, while attaching ready images in the
+      // user's selection order. Never dispatch two position writes at once.
       const currentTarget = saved;
-      const uploaded = await mapWithConcurrency(pending, 3, async (original) => {
+      type UploadResult = { original: PendingImage; target: { entryId: string; captureId: string | null }; documentId: string | null; error: string | null };
+      const ready = new Map<number, UploadResult>();
+      let nextAttachment = 0;
+      let attachmentQueue = Promise.resolve();
+      async function attach(item: UploadResult) {
+        if (controller.signal.aborted) return;
+        try {
+          if (!item.documentId) throw new Error(item.error || "图片保存失败，可重试。");
+          await attachExperienceMedia({
+            entryId: item.target.entryId, captureId: item.target.captureId, documentId: item.documentId,
+            selectionStart: item.original.selectionStart, selectionEnd: item.original.selectionEnd,
+            selectionQuote: item.original.selectionQuote, caption: item.original.caption || null, sourceKind: item.original.sourceKind,
+          });
+          if (item.original.file.size > 4 * 1024 * 1024) {
+            void fetch("/api/experience-library/upload-chunks", { method: "DELETE", headers: { "X-Experience-Document-Id": item.documentId } }).catch(() => {});
+          }
+          recognitionJobs.push({ file: item.original.file, documentId: item.documentId });
+          setImages((current) => current.map((image) => image.localId === item.original.localId
+            ? { ...image, status: "saved", documentId: item.documentId, message: "图片已保存并关联" } : image));
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          failedImageCount += 1;
+          setImages((current) => current.map((image) => image.localId === item.original.localId
+            ? { ...image, status: "failed", associationInitialized: true, entryId: item.target.entryId,
+              captureId: item.target.captureId, message: error instanceof Error ? error.message : "图片关联未完成，可重试。" } : image));
+        }
+      }
+      const imageConcurrency = pending.every((image) => image.file.size <= 4 * 1024 * 1024) ? 4 : 3;
+      await mapWithConcurrency(pending, imageConcurrency, async (original): Promise<UploadResult> => {
         const target = {
           entryId: original.entryId ?? currentTarget.entryId,
           captureId: original.associationInitialized ? original.captureId : currentTarget.captureId,
@@ -548,31 +567,16 @@ export function ExperienceLibraryWorkspace({
         } catch (error) {
           return { original, target, documentId: null, error: error instanceof Error ? error.message : "图片保存失败，可重试。" };
         }
-      });
-      controller.signal.throwIfAborted();
-      for (const item of uploaded) {
-        controller.signal.throwIfAborted();
-        try {
-          if (!item.documentId) throw new Error(item.error || "图片保存失败，可重试。");
-          await attachExperienceMedia({
-            entryId: item.target.entryId, captureId: item.target.captureId, documentId: item.documentId,
-            selectionStart: item.original.selectionStart, selectionEnd: item.original.selectionEnd,
-            selectionQuote: item.original.selectionQuote, caption: item.original.caption || null, sourceKind: item.original.sourceKind,
-          });
-          if (item.original.file.size > 4 * 1024 * 1024) {
-            void fetch("/api/experience-library/upload-chunks", { method: "DELETE", headers: { "X-Experience-Document-Id": item.documentId } }).catch(() => {});
-          }
-          recognitionJobs.push({ file: item.original.file, documentId: item.documentId });
-          setImages((current) => current.map((image) => image.localId === item.original.localId
-            ? { ...image, status: "saved", documentId: item.documentId, message: "图片已保存并关联" } : image));
-        } catch (error) {
-          if (controller.signal.aborted) throw error;
-          failedImageCount += 1;
-          setImages((current) => current.map((image) => image.localId === item.original.localId
-            ? { ...image, status: "failed", associationInitialized: true, entryId: item.target.entryId,
-              captureId: item.target.captureId, message: error instanceof Error ? error.message : "图片关联未完成，可重试。" } : image));
+      }, (item, index) => {
+        ready.set(index, item);
+        while (ready.has(nextAttachment)) {
+          const next = ready.get(nextAttachment)!;
+          ready.delete(nextAttachment++);
+          attachmentQueue = attachmentQueue.then(() => attach(next));
         }
-      }
+      });
+      await attachmentQueue;
+      controller.signal.throwIfAborted();
       setNotice(failedImageCount
         ? `文字已保存；${failedImageCount} 张图片未完成，失败项已保留，可再次点击保存重试。`
         : pending.length ? "文字和图片均已保存并关联。图片文字会在本机继续识别。" : "原文已保存。");

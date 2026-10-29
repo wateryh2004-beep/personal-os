@@ -64,3 +64,26 @@ it("never publishes a corrupted assembly or allows an anonymous request", async 
   state.owner.mockRejectedValue("anonymous");
   expect((await POST(request("POST", 0, image.subarray(0, experienceChunkSize)))).status).toBe(401);
 });
+
+it("reads chunks concurrently but assembles their bytes in the original order", async () => {
+  for (let i = 0; i < experienceChunkCount(image.length); i++) {
+    const chunk = image.subarray(i * experienceChunkSize, i * experienceChunkSize + experienceChunkLength(image.length, i));
+    expect((await POST(request("POST", i, chunk))).status).toBe(200);
+  }
+  const releases: Record<number, () => void> = {};
+  let active = 0, peak = 0;
+  state.read.mockImplementation(async (key: string) => {
+    const index = Number(key.split("/").at(-1));
+    active += 1; peak = Math.max(peak, active);
+    await new Promise<void>((resolve) => { releases[index] = resolve; });
+    active -= 1;
+    const value = state.objects.get(key)!;
+    return { size: value.length, body: new ReadableStream({ start(controller) { controller.enqueue(value); controller.close(); } }) };
+  });
+  const operation = PATCH(request("PATCH"));
+  await vi.waitFor(() => expect(Object.keys(releases)).toHaveLength(3));
+  releases[2](); releases[1](); releases[0]();
+  expect((await operation).status).toBe(200);
+  expect(peak).toBe(3);
+  expect(createHash("sha256").update(state.objects.get(originalPath)!).digest("hex")).toBe(createHash("sha256").update(image).digest("hex"));
+});

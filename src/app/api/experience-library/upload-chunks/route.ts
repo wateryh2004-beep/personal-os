@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createUploadUrl, deleteR2Object, isR2Configured, readR2ObjectStream } from "@/lib/adapters/cloudflare-r2";
 import { apiAuthenticationFailure, requireOwnerApi } from "@/lib/auth/require-owner";
 import { canUploadNoteImage } from "@/features/files/schemas";
+import { mapWithConcurrency } from "@/features/experience-library/parallel-upload";
 import { experienceChunkCount, experienceChunkLength } from "@/features/experience-library/chunks";
 import { matchesExperienceImageSignature } from "@/features/experience-library/image-signature";
 
@@ -66,14 +67,14 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const { document, userId, documentId, size } = await context(request, "pending");
-    const pieces: Buffer[] = [];
-    for (let index = 0; index < experienceChunkCount(size); index += 1) {
+    const pieces = await mapWithConcurrency(Array.from({ length: experienceChunkCount(size) }, (_, index) => index), 3, async (index) => {
       const object = await readR2ObjectStream(chunkKey(userId, documentId, index), request.signal);
       const expected = experienceChunkLength(size, index);
-      if (object.size !== expected) { await object.body.cancel().catch(() => {}); return fail("图片分片不完整，请重试。", 409); }
-      pieces.push(await readExact(object.body, expected));
-    }
-    const bytes = Buffer.concat(pieces, size);
+      if (object.size !== expected) { await object.body.cancel().catch(() => {}); return null; }
+      return readExact(object.body, expected);
+    });
+    if (pieces.some((piece) => piece === null)) return fail("图片分片不完整，请重试。", 409);
+    const bytes = Buffer.concat(pieces as Buffer[], size);
     if (createHash("sha256").update(bytes).digest("hex") !== document.checksum
       || !matchesExperienceImageSignature(bytes.subarray(0, 64), document.mime_type)) return fail("图片内容校验不一致，请重新选择原图。", 409);
     const uploadUrl = await createUploadUrl(document.storage_path, document.mime_type);
