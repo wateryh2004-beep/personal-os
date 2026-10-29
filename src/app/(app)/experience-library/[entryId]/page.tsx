@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, ExternalLink, ImageIcon } from "lucide-react";
+import { ExperienceReadingDocuments, ExperienceSourceLink } from "@/components/experience-library/experience-reading-documents";
 import { ExperienceMaintenance } from "@/components/experience-library/experience-maintenance";
 import { ExperienceTaskAction } from "@/components/experience-library/experience-task-action";
 import { ExperiencePersonalNote } from "@/components/experience-library/experience-personal-note";
@@ -124,9 +125,10 @@ export default async function ExperienceEntryPage({
       {imageMatches.length ? <section className="experience-search-matches" aria-labelledby="experience-image-search-title">
         <p className="experience-kicker">图片文字搜索</p>
         <h2 id="experience-image-search-title">“{searchQuery}”出现在 {imageMatches.length} 张图片中</h2>
-        <ul>{imageMatches.map((match) => <li key={match.id}><a className="ui-link" href={`#experience-media-${match.id}`}>查看图片 {match.order}</a><span>{match.excerpt}</span></li>)}</ul>
+        <ul>{imageMatches.map((match) => <li key={match.id}><ExperienceSourceLink href={`#experience-media-${match.id}`}>查看图片 {match.order}</ExperienceSourceLink><span>{match.excerpt}</span></li>)}</ul>
       </section> : null}
 
+      <ExperienceReadingDocuments documents={detail.readingDocuments ?? []} captureCount={detail.captures.length} unavailable={detail.readingUnavailable} />
       <ExperienceMaintenance entryId={detail.entry.id} title={detail.entry.title} createdAt={detail.entry.createdAt} reviewedAt={detail.entry.reviewedAt} mergedIntoId={detail.entry.mergedIntoId} sources={detail.mergedSources ?? []} />
       <ExperiencePersonalNote entryId={detail.entry.id} initialNote={detail.entry.personalNote ?? ""} initialStatus={detail.entry.reviewStatus ?? "unmarked"} />
       <ExperienceTaskAction entryId={detail.entry.id} entryTitle={detail.entry.title} tasks={detail.tasks ?? []} reviews={detail.actionReviews ?? []} unavailable={detail.tasksUnavailable} />
@@ -143,7 +145,7 @@ export default async function ExperienceEntryPage({
                 <article key={`${point.kind}-${index}`}>
                   <div className="experience-key-point-labels">
                     <span data-kind={point.kind}>{kindLabels[point.kind]}</span>
-                    <a className="ui-link" href={citation!.href}>{citation!.label}</a>
+                    <ExperienceSourceLink href={citation!.href}>{citation!.label}</ExperienceSourceLink>
                   </div>
                   <p>{point.text}</p>
                   <blockquote>{citation!.kind === "image" ? "图片识别文字" : "原文"}：{point.sourceQuote}</blockquote>
@@ -159,6 +161,7 @@ export default async function ExperienceEntryPage({
         </section>
       ) : null}
 
+      <details id="experience-originals" className="experience-originals"><summary>查看原文与图片 · {detail.captures.length} 次原文 · {detail.media.length} 张图片</summary>
       <ExperienceMediaProvider media={detail.media}>
       <section className="experience-transcript" aria-labelledby="experience-transcript-title">
         <div className="experience-section-heading">
@@ -246,6 +249,7 @@ export default async function ExperienceEntryPage({
         </section>
       ) : null}
       </ExperienceMediaProvider>
+      </details>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 vi.mock("next/link", () => ({ default: ({ children, href, ...rest }: { children: ReactNode; href: string }) => createElement("a", { href, ...rest }, children) }));
-vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("not found"); } }));
+vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("not found"); }, useRouter: () => ({ refresh: () => {} }) }));
 vi.mock("@/components/experience-library/experience-task-action", () => ({ ExperienceTaskAction: () => null }));
 vi.mock("@/components/experience-library/experience-maintenance", () => ({ ExperienceMaintenance: () => null }));
 vi.mock("@/components/experience-library/experience-personal-note", () => ({ ExperiencePersonalNote: () => null }));

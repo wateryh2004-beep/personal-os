@@ -523,3 +523,20 @@ export async function recordExperienceActionOutcome(input: { entryId: string; ta
   if (error || !data) throw new Error("行动复盘结果未能确认，请刷新核对后重试。");
   revalidatePath(`/experience-library/${value.entryId}`);
 }
+
+/** Reverse a pending-delete judgment by appending a new document revision. */
+export async function keepExperienceReadingDocument(captureId: string, expectedRevision: number) {
+  const capture = z.uuid().parse(captureId);
+  if (!Number.isInteger(expectedRevision) || expectedRevision < 1) throw new Error("阅读版版本无效。");
+  const { supabase, userId } = await requireOwner();
+  const { data: doc, error } = await supabase.from("experience_library_reading_documents")
+    .select("capture_id,entry_id,title,body_markdown,source_refs,quality_status,coverage_status,revision")
+    .eq("capture_id", capture).eq("user_id", userId).maybeSingle();
+  if (error || !doc || doc.quality_status !== "pending_delete" || doc.revision !== expectedRevision) throw new Error("阅读版已变化，请刷新后重试。");
+  const { data, error: saveError } = await supabase.rpc("save_experience_library_reading_document", {
+    p_capture: capture, p_title: doc.title, p_body: doc.body_markdown, p_refs: doc.source_refs,
+    p_status: "keep", p_reason: "", p_coverage: doc.coverage_status, p_expected_revision: expectedRevision,
+  });
+  if (saveError || data !== expectedRevision + 1) throw new Error("保留状态未能确认，请刷新后核对。");
+  revalidatePath("/experience-library"); revalidatePath(`/experience-library/${doc.entry_id}`);
+}

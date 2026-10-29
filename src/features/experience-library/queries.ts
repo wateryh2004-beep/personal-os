@@ -9,6 +9,7 @@ import type {
   ExperienceEntrySummary,
   ExperienceMedia,
   ExperienceSegment,
+  ExperienceReadingDocument,
 } from "./types";
 
 const entryColumns = "id,source_url,title,tags,ai_summary,ai_status,ai_error_code,ai_provider,ai_model,ai_analyzed_at,updated_at,created_at,personal_note,review_status,reviewed_at,merged_into_id";
@@ -127,7 +128,7 @@ export type ExperienceFilters = { tag?: string; status?: string; hasMedia?: bool
 
 export async function getExperienceLibraryWorkspace(query = "", filters: ExperienceFilters = {}, requestedPage = 1) {
   try {
-    const { supabase } = await requireOwner();
+    const { supabase, userId } = await requireOwner();
     const needle = query.trim().slice(0, 120);
     const page = Number.isSafeInteger(requestedPage) ? Math.max(1, Math.min(500, requestedPage)) : 1;
     const [search, entries, captures, media, tags] = await Promise.all([
@@ -146,8 +147,22 @@ export async function getExperienceLibraryWorkspace(query = "", filters: Experie
       Number(entry.capture_count),
       Number(entry.media_count),
     ));
+    const visibleIds = result.map((item) => item.id);
+    let readingUnavailable = false;
+    if (visibleIds.length) {
+      try {
+        const reading = await supabase.from("experience_library_reading_documents").select("entry_id,quality_status").eq("user_id", userId).in("entry_id", visibleIds);
+        if (reading.error) readingUnavailable = true;
+        else for (const item of result) {
+          const own = (reading.data ?? []).filter((row) => row.entry_id === item.id);
+          item.readingCount = own.length;
+          item.pendingDeleteCount = own.filter((row) => row.quality_status === "pending_delete").length;
+        }
+      } catch { readingUnavailable = true; }
+    }
     return {
       available: true,
+      readingUnavailable,
       query: needle,
       page,
       hasMore,
@@ -161,6 +176,7 @@ export async function getExperienceLibraryWorkspace(query = "", filters: Experie
   } catch {
     return {
       available: false,
+      readingUnavailable: true,
       query,
       page: 1,
       hasMore: false,
@@ -248,6 +264,23 @@ export async function getExperienceEntry(entryId: string): Promise<ExperienceEnt
       const document = documentsById.get(row.document_id);
       if (document?.text_extraction_source_sha256 === row.source_sha256 && !corrections.has(row.media_id)) corrections.set(row.media_id, row);
     }
+    const captureIds = (captureRows ?? []).map((capture) => capture.id);
+    let readingUnavailable = false;
+    let readingDocuments: ExperienceReadingDocument[] = [];
+    if (captureIds.length) {
+      try {
+        const response = await supabase.from("experience_library_reading_documents")
+          .select("capture_id,entry_id,title,body_markdown,source_refs,quality_status,quality_reason,coverage_status,revision,updated_at")
+          .eq("user_id", userId).in("capture_id", captureIds);
+        if (response.error) readingUnavailable = true;
+        else readingDocuments = (response.data ?? []).map((row) => ({
+          captureId: row.capture_id, entryId: row.entry_id, title: row.title, bodyMarkdown: row.body_markdown,
+          sourceRefs: Array.isArray(row.source_refs) ? row.source_refs as ExperienceReadingDocument["sourceRefs"] : [],
+          qualityStatus: row.quality_status as ExperienceReadingDocument["qualityStatus"], qualityReason: row.quality_reason,
+          coverageStatus: row.coverage_status as ExperienceReadingDocument["coverageStatus"], revision: row.revision, updatedAt: row.updated_at,
+        }));
+      } catch { readingUnavailable = true; }
+    }
     const captures: ExperienceCapture[] = (captureRows ?? []).map((capture) => ({
       id: capture.id,
       captureType: capture.capture_type as ExperienceCapture["captureType"],
@@ -305,6 +338,10 @@ export async function getExperienceEntry(entryId: string): Promise<ExperienceEnt
     return {
       tasks,
       tasksUnavailable,
+      readingDocuments: readingDocuments.map((document) => ({ ...document, sourceRefs: document.sourceRefs.map((ref) => ({ ...ref, valid: ref.type === "capture"
+        ? Boolean(captures.find((capture) => capture.id === ref.id && capture.rawContent.includes(ref.quote)))
+        : Boolean(media.find((item) => item.id === ref.id && item.available && item.ocrText?.includes(ref.quote))) })) })),
+      readingUnavailable,
       mergedSources: (groupRows ?? []).map((row) => ({ id: row.id, title: row.title, sourceUrl: row.source_url, personalNote: row.personal_note, aiSummary: row.ai_summary })),
       actionReviews: (outcomeRows ?? []).map((row) => ({ taskId: row.todo_task_id, verdict: row.verdict as "effective" | "partly" | "not_effective" | "not_tried", note: row.note, createdAt: row.created_at })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       entry: summary(

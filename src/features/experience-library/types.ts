@@ -50,6 +50,8 @@ export type ExperienceEntrySummary = {
   reviewedAt?: string | null;
   mergedCount?: number;
   mergedIntoId?: string | null;
+  readingCount?: number;
+  pendingDeleteCount?: number;
 };
 
 export type ExperienceCapture = {
@@ -93,6 +95,8 @@ export type ExperienceEntryDetail = {
   aiKeyPoints: ExperienceAiKeyPoint[];
   tasks?: { id: string; title: string; status: string; sourceEntryId?: string }[];
   tasksUnavailable?: boolean;
+  readingDocuments?: ExperienceReadingDocument[];
+  readingUnavailable?: boolean;
   mergedSources?: { id: string; title: string; sourceUrl: string | null; personalNote: string; aiSummary: string | null }[];
   actionReviews?: { taskId: string; verdict: "effective" | "partly" | "not_effective" | "not_tried"; note: string; createdAt: string }[];
 };
@@ -117,4 +121,17 @@ export type DraftImageAssociation = {
   selectionStart: number | null;
   selectionEnd: number | null;
   selectionQuote: string | null;
+};
+
+export type ExperienceReadingDocument = {
+  captureId: string;
+  entryId: string;
+  title: string;
+  bodyMarkdown: string;
+  sourceRefs: { type: "capture" | "image"; id: string; quote: string; valid?: boolean }[];
+  qualityStatus: "keep" | "pending_delete";
+  qualityReason: string;
+  coverageStatus: "complete" | "partial";
+  revision: number;
+  updatedAt: string;
 };

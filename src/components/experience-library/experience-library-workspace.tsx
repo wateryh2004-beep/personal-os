@@ -63,6 +63,7 @@ import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } fr
 
 type WorkspaceData = {
   available: boolean;
+  readingUnavailable?: boolean;
   query: string;
   entries: ExperienceEntrySummary[];
   total: number;
@@ -872,6 +873,7 @@ export function ExperienceLibraryWorkspace({
             <Link href="/experience-library" className="ui-link">清除</Link>
           </div></form>
 
+        {data.readingUnavailable ? <p className="experience-message" role="status">阅读版状态暂时无法读取，原文收录仍可使用。</p> : null}
         {data.query || data.filters?.tag || data.filters?.status || data.filters?.hasMedia || data.filters?.analyzed ? <div className="experience-applied-filters" aria-label="当前搜索和筛选">
           {data.query ? <Link href={experiencePageHref(data, 1, "q")}>关键词：{data.query} ×</Link> : null}
           {data.filters?.tag ? <Link href={experiencePageHref(data, 1, "tag")}>#{data.filters.tag} ×</Link> : null}
@@ -884,7 +886,8 @@ export function ExperienceLibraryWorkspace({
           <p className="experience-empty">经验资料暂时无法读取。请确认 migration 已应用并稍后刷新。</p>
         ) : data.entries.length === 0 ? (
           <p className="experience-empty">
-            {data.query || data.filters?.tag || data.filters?.status || data.filters?.hasMedia || data.filters?.analyzed ? "没有找到符合条件的经验，请调整搜索或筛选。" : "还没有保存经验。粘贴第一篇正文或截图即可开始。"}
+            {data.readingUnavailable ? <p className="experience-message" role="status">阅读版状态暂时无法读取，原文收录仍可使用。</p> : null}
+        {data.query || data.filters?.tag || data.filters?.status || data.filters?.hasMedia || data.filters?.analyzed ? "没有找到符合条件的经验，请调整搜索或筛选。" : "还没有保存经验。粘贴第一篇正文或截图即可开始。"}
           </p>
         ) : (
           <div className="experience-recent-list">
@@ -895,7 +898,7 @@ export function ExperienceLibraryWorkspace({
                   <span className="experience-entry-title">{entry.title}</span>
                   <span className="experience-entry-excerpt">{entry.matchExcerpt || entry.summary || entry.tags.map((tag) => `#${tag}`).join(" ")}</span>
                   <span className="experience-entry-meta">
-                    {entry.reviewStatus && entry.reviewStatus !== "unmarked" ? `${{ to_read: "待看", useful: "值得参考", outdated: "已过时" }[entry.reviewStatus]} · ` : ""}{entry.captureCount} 次原文 · {entry.mediaCount} 张图片 · {formatDate(entry.updatedAt)}
+                    {entry.reviewStatus && entry.reviewStatus !== "unmarked" ? `${{ to_read: "待看", useful: "值得参考", outdated: "已过时" }[entry.reviewStatus]} · ` : ""}{entry.readingCount ? `${entry.readingCount} 篇阅读版 · ` : ""}{entry.pendingDeleteCount ? `${entry.pendingDeleteCount === entry.readingCount ? "整条待删除" : `${entry.pendingDeleteCount} 篇待删除`} · ` : ""}{entry.captureCount} 次原文 · {entry.mediaCount} 张图片 · {formatDate(entry.updatedAt)}
                   </span>
                 </Link>
                 <Button asChild variant="outline" size="sm">

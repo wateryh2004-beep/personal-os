@@ -18,6 +18,8 @@ it("restores exact experience text, selected-image relation and original bytes f
     rows.experience_library_captures = [backupRow("experience_library_captures", 803, { entry_id: backupId(802), request_id: backupId(806), raw_content: "😀评论 GPA", capture_type: "comment", content_sha256: createHash("sha256").update("😀评论 GPA").digest("hex"), segments: [{ kind: "comment", text: "😀评论 GPA", start: 0, end: 8, label: "评论" }] })];
     rows.experience_library_media = [backupRow("experience_library_media", 804, { entry_id: backupId(802), capture_id: backupId(803), document_id: backupId(801), selection_start: 5, selection_end: 8, selection_quote: "GPA", source_kind: "clipboard" })];
     rows.experience_library_note_versions = [backupRow("experience_library_note_versions", 807, { entry_id: backupId(802), personal_note: "旧判断", review_status: "to_read" })];
+    rows.experience_library_reading_documents = [backupRow("experience_library_reading_documents", 815, { capture_id: backupId(803), entry_id: backupId(802), title: "合成阅读版", body_markdown: "## 总结\n核对原文", source_refs: [{ type: "capture", id: backupId(803), quote: "GPA" }], quality_status: "keep", quality_reason: "", coverage_status: "complete", revision: 2 })];
+    rows.experience_library_reading_versions = [backupRow("experience_library_reading_versions", 816, { capture_id: backupId(803), title: "旧阅读版", body_markdown: "原版", source_refs: [{ type: "capture", id: backupId(803), quote: "GPA" }], quality_status: "keep", quality_reason: "", coverage_status: "complete", revision: 1 })];
     rows.experience_library_ocr_corrections = [backupRow("experience_library_ocr_corrections", 808, { media_id: backupId(804), document_id: backupId(801), text_content: "修订的截图文字", source_sha256: createHash("sha256").update(original).digest("hex") })];
     rows.calendar_connections = [backupRow("calendar_connections", 809)];
     rows.microsoft_todo_lists = [backupRow("microsoft_todo_lists", 810, { connection_id: backupId(809), display_name: "合成清单" })];
@@ -43,5 +45,7 @@ it("restores exact experience text, selected-image relation and original bytes f
     expect(JSON.parse(derived.stdout)).toEqual(["旧判断", "修订的截图文字"]);
     const outcome = spawnSync("python3", ["-c", "import sqlite3,sys,json; d=sqlite3.connect(sys.argv[1]); print(json.dumps(d.execute('select verdict,note from experience_library_action_reviews').fetchone(),ensure_ascii=False))", path.join(target, "system.sqlite3")], { encoding: "utf8" });
     expect(JSON.parse(outcome.stdout)).toEqual(["effective", "合成结果"]);
+    const reading = spawnSync("python3", ["-c", "import sqlite3,sys,json; d=sqlite3.connect(sys.argv[1]); print(json.dumps([d.execute('select title from experience_library_reading_documents').fetchone()[0],d.execute('select title from experience_library_reading_versions').fetchone()[0]],ensure_ascii=False))", path.join(target, "system.sqlite3")], { encoding: "utf8" });
+    expect(JSON.parse(reading.stdout)).toEqual(["合成阅读版", "旧阅读版"]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

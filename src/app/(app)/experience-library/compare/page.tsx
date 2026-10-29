@@ -1,4 +1,7 @@
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeSanitize from "rehype-sanitize";
 import { PageHeader } from "@/components/shared/page-header";
 import { getExperienceEntry } from "@/features/experience-library/queries";
 
@@ -21,7 +24,8 @@ export default async function ExperienceComparePage({ searchParams }: { searchPa
       <p>标签：{detail.entry.tags.length ? detail.entry.tags.map((tag) => `#${tag}`).join(" ") : "未标记"}</p>
       {detail.entry.personalNote ? <section><h3>我的判断</h3><p>{detail.entry.personalNote}</p></section> : null}
       {detail.entry.summary ? <section><h3>AI 摘要 · 请核对原文</h3><p>{detail.entry.summary}</p></section> : null}
-      <section><h3>原始文字</h3>{detail.captures.length ? detail.captures.map((capture) => <p key={capture.id} className="experience-compare-original">{capture.rawContent}</p>) : <p>此篇只有图片。</p>}</section>
+      {detail.readingDocuments?.length ? <section><h3>阅读要点</h3>{detail.readingDocuments.filter((doc) => doc.qualityStatus === "keep").map((doc) => <div key={doc.captureId} className="experience-reading-body"><strong>{doc.title}</strong><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} skipHtml components={{ img: () => null, a: ({ children }) => <span>{children}</span> }}>{doc.bodyMarkdown}</ReactMarkdown></div>)}</section> : null}
+      <details><summary>查看原始文字</summary><section>{detail.captures.length ? detail.captures.map((capture) => <p key={capture.id} className="experience-compare-original">{capture.rawContent}</p>) : <p>此篇只有图片。</p>}</section></details>
       {detail.media.length ? <section><h3>图片与识别文字</h3>{detail.media.map((media, index) => <p key={media.id}><Link className="ui-link" href={`/experience-library/${detail.entry.id}#experience-media-${media.id}`}>图片 {index + 1}</Link>{media.ocrText ? ` · ${media.ocrText.slice(0, 200)}` : ""}</p>)}</section> : null}
     </article>)}</div>
     <p className="experience-compare-footnote">不同帖子的时间、岗位和个人处境可能不同；矛盾之处请回到原文核对。</p>

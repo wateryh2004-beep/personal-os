@@ -38,6 +38,8 @@ beforeEach(() => {
     const builder = {
       select() { return builder; },
       is() { return builder; },
+      eq() { return builder; },
+      in() { return builder; },
       limit() { return builder; },
       order() { return builder; },
       range() { return Promise.resolve({ data: [], error: null }); },
@@ -70,4 +72,17 @@ describe("Experience Library workspace query", () => {
       }],
     });
   });
+});
+
+it("keeps the capture workspace usable when only reading-document counts are unavailable", async () => {
+  state.from.mockImplementation((table: string) => {
+    const builder = { select: () => builder, is: () => builder, eq: () => builder, in: () => builder, order: () => builder,
+      range: async () => ({ data: [], error: null }),
+      then: (resolve: (result: unknown) => unknown) => Promise.resolve(table === "experience_library_reading_documents" ? { data: null, error: { message: "temporary" } } : { count: 3, error: null }).then(resolve) };
+    return builder;
+  });
+  const result = await getExperienceLibraryWorkspace("");
+  expect(result.available).toBe(true);
+  expect(result.readingUnavailable).toBe(true);
+  expect(result.entries).toHaveLength(1);
 });

@@ -11,6 +11,7 @@ const headers = {
 
 async function ownerRows<T>(
   load: (after: string | null) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  cursorKey = "id",
 ) {
   const rows: T[] = [];
   let after: string | null = null;
@@ -19,9 +20,10 @@ async function ownerRows<T>(
     if (error || !data) throw new Error("experience_export_failed");
     if (!data.length) return rows;
     rows.push(...data);
-    const last = data[data.length - 1] as T & { id?: string };
-    if (!last.id || last.id === after) throw new Error("experience_export_pagination_failed");
-    after = last.id;
+    const last = data[data.length - 1] as Record<string, unknown>;
+    const cursor = last[cursorKey];
+    if (typeof cursor !== "string" || !cursor || cursor === after) throw new Error("experience_export_pagination_failed");
+    after = cursor;
     if (rows.length > 25_000) throw new Error("experience_export_too_large");
   }
   throw new Error("experience_export_pagination_failed");
@@ -53,6 +55,16 @@ export async function GET(request: Request) {
         .eq("user_id", userId)
         .order("id")
         .limit(500);
+      if (after) query = query.gt("id", after);
+      return query;
+    });
+    const readingDocuments = await ownerRows((after) => {
+      let query = supabase.from("experience_library_reading_documents").select("capture_id,entry_id,title,body_markdown,source_refs,quality_status,quality_reason,coverage_status,revision,created_at,updated_at").eq("user_id", userId).order("capture_id").limit(500);
+      if (after) query = query.gt("capture_id", after);
+      return query;
+    }, "capture_id");
+    const readingVersions = await ownerRows((after) => {
+      let query = supabase.from("experience_library_reading_versions").select("id,capture_id,revision,title,body_markdown,source_refs,quality_status,quality_reason,coverage_status,created_at").eq("user_id", userId).order("id").limit(500);
       if (after) query = query.gt("id", after);
       return query;
     });
@@ -110,6 +122,8 @@ export async function GET(request: Request) {
       taskLinks,
       actionReviews,
       captures,
+      readingDocuments,
+      readingVersions,
       media,
       documents,
       recovery: {

@@ -1,6 +1,6 @@
 {
   "format": "personal-os-system/v1",
-  "schemaRevision": "2026-10-experience-library/v3",
+  "schemaRevision": "2026-10-experience-library/v4",
   "tables": {
     "activity_events": {
       "columns": {
@@ -3291,6 +3291,145 @@
           "table": "documents",
           "targetColumns": [
             "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experience_library_reading_documents": {
+      "columns": {
+        "capture_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "entry_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "body_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_refs": {
+          "type": "json",
+          "nullable": false
+        },
+        "quality_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "quality_reason": {
+          "type": "string",
+          "nullable": false
+        },
+        "coverage_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "capture_id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "capture_id"
+          ],
+          "table": "experience_library_captures",
+          "targetColumns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "entry_id"
+          ],
+          "table": "experience_library_entries",
+          "targetColumns": [
+            "id"
+          ]
+        }
+      ],
+      "excludedColumns": []
+    },
+    "experience_library_reading_versions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "capture_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "user_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "revision": {
+          "type": "number",
+          "nullable": false
+        },
+        "title": {
+          "type": "string",
+          "nullable": false
+        },
+        "body_markdown": {
+          "type": "string",
+          "nullable": false
+        },
+        "source_refs": {
+          "type": "json",
+          "nullable": false
+        },
+        "quality_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "quality_reason": {
+          "type": "string",
+          "nullable": false
+        },
+        "coverage_status": {
+          "type": "string",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "string",
+          "nullable": false
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "capture_id"
+          ],
+          "table": "experience_library_reading_documents",
+          "targetColumns": [
+            "capture_id"
           ]
         }
       ],

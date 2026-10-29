@@ -286,3 +286,21 @@
 .experience-compare-grid section { display:grid; gap:8px; border-top:1px solid var(--separator); padding-top:12px; }
 .experience-compare-original { max-height:280px; overflow:auto; }
 .experience-compare-common,.experience-compare-footnote { color:var(--text-secondary); font-size:13px; }
+.experience-reading-documents { display:grid; gap:20px; margin-top:24px; padding:22px; border:1px solid var(--separator); border-radius:18px; background:var(--surface-canvas); }
+.experience-reading-heading { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px; }
+.experience-reading-heading h2,.experience-reading-documents>h2 { font-family:var(--font-serif); font-size:26px; font-weight:500; }
+.experience-reading-heading span,.experience-reading-sources,.experience-reading-coverage { color:var(--text-secondary); font-size:13px; }
+.experience-reading-article { display:grid; gap:12px; border-top:1px solid var(--separator); padding-top:18px; }
+.experience-reading-article h3 { font-family:var(--font-serif); font-size:22px; font-weight:500; }
+.experience-reading-quality { color:var(--warning); font-size:14px; }
+.experience-reading-body { max-width:75ch; color:var(--text-primary); line-height:1.8; overflow-wrap:anywhere; }
+.experience-reading-body h2,.experience-reading-body h3 { margin:16px 0 6px; font-size:16px; font-weight:600; }
+.experience-reading-body p,.experience-reading-body ul,.experience-reading-body ol { margin:8px 0; }
+.experience-reading-body ul,.experience-reading-body ol { padding-left:22px; }
+.experience-reading-body li { margin:4px 0; }
+.experience-reading-sources { display:flex; flex-wrap:wrap; gap:8px 16px; border-top:1px solid var(--separator); padding-top:10px; }
+.experience-originals { margin-top:28px; }
+.experience-originals>summary { cursor:pointer; color:var(--accent); font-size:14px; font-weight:600; }
+.experience-pending-delete { border-top:1px solid var(--separator); padding-top:12px; }
+.experience-pending-delete>summary { cursor:pointer; color:var(--text-secondary); font-size:14px; }
+.experience-reading-quality { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
