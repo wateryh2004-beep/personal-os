@@ -14,6 +14,7 @@ const actions = vi.hoisted(() => ({
   findExistingExperience: vi.fn(),
   refresh: vi.fn(),
   replace: vi.fn(),
+  recognize: vi.fn(),
 }));
 
 vi.mock("next/link", () => ({
@@ -23,6 +24,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: actions.refresh, replace: actions.replace }),
 }));
 vi.mock("@/features/experience-library/actions", () => actions);
+vi.mock("@/features/experience-library/browser-image-ocr", () => ({ recognizeExperienceImage: actions.recognize }));
 
 let host: HTMLDivElement;
 let root: Root;
@@ -52,6 +54,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   window.sessionStorage.clear();
   actions.findExistingExperience.mockResolvedValue(null);
+  actions.recognize.mockResolvedValue("completed");
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
     addEventListener() {},
@@ -304,4 +307,79 @@ it("carries the search term into the selected experience so image matches can be
   const entry = { id: "11111111-1111-4111-8111-111111111111", title: "合成资料", sourceUrl: null, tags: [], summary: null, aiStatus: "not_requested" as const, aiErrorCode: null, aiProvider: null, aiModel: null, aiAnalyzedAt: null, createdAt: "2026-10-28T00:00:00Z", updatedAt: "2026-10-28T00:00:00Z", captureCount: 0, mediaCount: 1, matchExcerpt: "图片识别：秋招经验" };
   await act(async () => root.render(createElement(ExperienceLibraryWorkspace, { data: { ...data, query: "秋招", entries: [entry] }, aiConfig, initialEntry: null })));
   expect(host.querySelector<HTMLAnchorElement>(".experience-recent-main")?.getAttribute("href")).toBe(`/experience-library/${entry.id}?q=${encodeURIComponent("秋招")}`);
+});
+
+
+it("uploads six images with bounded concurrency and finishes saving without waiting for OCR", async () => {
+  const entryId = "11111111-1111-4111-8111-111111111111";
+  const captureId = "22222222-2222-4222-8222-222222222222";
+  actions.appendExperienceCapture.mockResolvedValue({ entryId, captureId, title: "合成经验", createdEntry: true, appended: true });
+  actions.attachExperienceMedia.mockResolvedValue({ mediaId: "media", alreadyAttached: false });
+  actions.recognize.mockImplementation(() => new Promise(() => {}));
+  let sequence = 0;
+  vi.stubGlobal("crypto", { randomUUID: () => `33333333-3333-4333-8333-${String(++sequence).padStart(12, "0")}`, subtle: { digest: async () => new Uint8Array(32).buffer } });
+  let active = 0, peak = 0;
+  const releases: (() => void)[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url === "/api/experience-library/upload-url" && init?.method === "POST") {
+      const filename = JSON.parse(String(init.body)).filename as string;
+      return Response.json({ documentId: filename, uploadUrl: "https://example.test/private" });
+    }
+    if (url === "/api/experience-library/upload-bytes") {
+      active += 1; peak = Math.max(peak, active);
+      await new Promise<void>((resolve) => releases.push(resolve));
+      active -= 1; return Response.json({ ok: true });
+    }
+    if (url === "/api/files/upload-url" && init?.method === "PATCH") return Response.json({ ok: true });
+    throw new Error("unexpected request");
+  }));
+  await mount();
+  await act(async () => setTextarea(host.querySelector<HTMLTextAreaElement>("textarea")!, "合成经验"));
+  const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+  Object.defineProperty(input, "files", { configurable: true, value: Array.from({ length: 6 }, (_, index) => new File(["image"], `${index}.png`, { type: "image/png" })) });
+  await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+  const save = [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("保存经验"))!;
+  await act(async () => save.click());
+  await vi.waitFor(() => expect(releases).toHaveLength(3));
+  await act(async () => { releases[2](); releases[1](); releases[0](); });
+  await vi.waitFor(() => expect(releases).toHaveLength(6));
+  await act(async () => { releases[5](); releases[4](); releases[3](); });
+  await vi.waitFor(() => expect(actions.attachExperienceMedia).toHaveBeenCalledTimes(6));
+  expect(actions.attachExperienceMedia.mock.calls.map(([value]) => value.documentId)).toEqual(["0.png", "1.png", "2.png", "3.png", "4.png", "5.png"]);
+  expect(peak).toBe(3);
+  await vi.waitFor(() => expect(host.textContent).toContain("文字和图片均已保存并关联"));
+  expect(save.disabled).toBe(false);
+  expect(actions.recognize).toHaveBeenCalledOnce();
+  expect(host.textContent).toContain("你可以继续收录");
+});
+
+it("keeps every unfinished image available to retry after cancelling parallel uploads", async () => {
+  const entryId = "11111111-1111-4111-8111-111111111111";
+  const captureId = "22222222-2222-4222-8222-222222222222";
+  actions.appendExperienceCapture.mockResolvedValue({ entryId, captureId, title: "合成经验", createdEntry: true, appended: true });
+  let sequence = 0;
+  vi.stubGlobal("crypto", { randomUUID: () => `33333333-3333-4333-8333-${String(++sequence).padStart(12, "0")}`, subtle: { digest: async () => new Uint8Array(32).buffer } });
+  let started = 0;
+  vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url === "/api/experience-library/upload-url") return Response.json({ documentId: `doc-${++started}`, uploadUrl: "https://example.test/private" });
+    if (url === "/api/experience-library/upload-bytes") return await new Promise<Response>((_, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("cancelled", "AbortError")), { once: true });
+    });
+    throw new Error("unexpected request");
+  }));
+  await mount();
+  await act(async () => setTextarea(host.querySelector<HTMLTextAreaElement>("textarea")!, "合成经验"));
+  const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+  Object.defineProperty(input, "files", { configurable: true, value: Array.from({ length: 6 }, (_, index) => new File(["image"], `${index}.png`, { type: "image/png" })) });
+  await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+  const button = (text: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent?.includes(text))!;
+  await act(async () => button("保存经验").click());
+  await vi.waitFor(() => expect(started).toBe(3));
+  await act(async () => button("取消未完成项").click());
+  await vi.waitFor(() => expect(host.textContent).toContain("保存已取消"));
+  expect(host.querySelectorAll(".experience-pending-image")).toHaveLength(6);
+  expect(actions.appendExperienceCapture).toHaveBeenCalledOnce();
+  expect(actions.attachExperienceMedia).not.toHaveBeenCalled();
 });

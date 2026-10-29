@@ -55,6 +55,7 @@ import type {
   ExperienceEntrySummary,
 } from "@/features/experience-library/types";
 import { cn } from "@/lib/utils";
+import { mapWithConcurrency } from "@/features/experience-library/parallel-upload";
 import { recognizeExperienceImage } from "@/features/experience-library/browser-image-ocr";
 import { experienceChunkCount, experienceChunkSize } from "@/features/experience-library/chunks";
 import { experienceDraftSchema, type ExperienceDraft } from "@/features/experience-library/draft";
@@ -140,6 +141,8 @@ export function ExperienceLibraryWorkspace({
   const [captureType, setCaptureType] = useState<ExperienceCaptureChoice>("auto");
   const [images, setImages] = useState<PendingImage[]>([]);
   const [saving, setSaving] = useState(false);
+  const [ocrNotice, setOcrNotice] = useState<string | null>(null);
+  const [ocrRunning, setOcrRunning] = useState(false);
   const [cancelController, setCancelController] = useState<AbortController | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +157,10 @@ export function ExperienceLibraryWorkspace({
   const textSavedRef = useRef<{ entryId: string; captureId: string | null } | null>(null);
   const previewUrlsRef = useRef(new Set<string>());
   const lookupSequence = useRef(0);
+  const savingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const ocrControllerRef = useRef<AbortController | null>(null);
+  const ocrQueueRef = useRef<{ file: File; documentId: string }[]>([]);
   const draftKey = `experience-library:${initialEntry?.id ?? "new"}`;
 
   const suggestedTitle = useMemo(() => suggestExperienceTitle(content), [content]);
@@ -162,6 +169,38 @@ export function ExperienceLibraryWorkspace({
   const hasUnsaved = Boolean(content || unsavedCount || reselectCount || saving || (sourceUrl && sourceUrl !== targetEntry?.sourceUrl) || (title && title !== targetEntry?.title));
 
   useEffect(() => () => { cancelController?.abort(); }, [cancelController]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; ocrControllerRef.current?.abort(); ocrQueueRef.current = []; };
+  }, []);
+
+  function queueRecognition(jobs: { file: File; documentId: string }[]) {
+    ocrQueueRef.current.push(...jobs);
+    if (ocrControllerRef.current || !ocrQueueRef.current.length) return;
+    const controller = new AbortController();
+    ocrControllerRef.current = controller;
+    setOcrRunning(true);
+    void (async () => {
+      let completed = 0, failed = 0, unsupported = 0;
+      while (ocrQueueRef.current.length && !controller.signal.aborted) {
+        const job = ocrQueueRef.current.shift()!;
+        if (mountedRef.current) setOcrNotice(`图片已保存，正在识别文字（已完成 ${completed} 张，剩余 ${ocrQueueRef.current.length + 1} 张）。你可以继续收录；离开页面会停止识别，之后可在详情页重试。`);
+        try {
+          const result = await recognizeExperienceImage(job.file, job.documentId, controller.signal, () => {});
+          if (result === "completed") completed += 1; else unsupported += 1;
+        } catch { if (!controller.signal.aborted) failed += 1; }
+      }
+      const stopped = controller.signal.aborted;
+      ocrControllerRef.current = null;
+      if (mountedRef.current) {
+        setOcrRunning(false);
+        setOcrNotice(stopped ? `已停止识别；${completed} 张已识别，其余图片可在详情页识别。` : `图片已保存；${completed} 张的文字已加入搜索。${failed ? `${failed} 张识别未完成，可在详情页重试。` : ""}${unsupported ? `${unsupported} 张格式暂不支持文字识别。` : ""}`);
+        if (completed) router.refresh();
+        // A later save may have queued new images while an earlier run stopped.
+        if (ocrQueueRef.current.length) queueRecognition([]);
+      }
+    })();
+  }
   useEffect(() => () => {
     for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
     previewUrlsRef.current.clear();
@@ -346,9 +385,8 @@ export function ExperienceLibraryWorkspace({
     setNotice(selection.quote ? "图片已改绑到当前选中的原文。" : "图片已改绑到整次粘贴。");
   }
 
-  async function uploadAndAttach(
+  async function uploadImage(
     image: PendingImage,
-    saved: { entryId: string; captureId: string | null },
     signal: AbortSignal,
     onDocumentPrepared: (documentId: string) => void,
     onProgress: (message: string) => void,
@@ -420,25 +458,11 @@ export function ExperienceLibraryWorkspace({
       if (!completed.ok) throw new Error(String(completion.error || "图片原件尚未确认入库。"));
     }
     signal.throwIfAborted();
-    await attachExperienceMedia({
-      entryId: image.entryId ?? saved.entryId,
-      captureId: image.associationInitialized ? image.captureId : saved.captureId,
-      documentId,
-      selectionStart: image.selectionStart,
-      selectionEnd: image.selectionEnd,
-      selectionQuote: image.selectionQuote,
-      caption: image.caption || null,
-      sourceKind: image.sourceKind,
-    });
-    if (image.file.size > 4 * 1024 * 1024) {
-      // Cleanup is best effort; confirmed originals and associations are never rolled back.
-      void fetch("/api/experience-library/upload-chunks", { method: "DELETE", headers: { "X-Experience-Document-Id": documentId } }).catch(() => {});
-    }
     return documentId;
   }
 
   async function save() {
-    if (saving) return;
+    if (savingRef.current) return;
     const pending = images.filter((image) => image.status !== "saved");
     if (!content.trim() && !pending.length) {
       setError("请先粘贴文字、评论或图片。");
@@ -455,6 +479,7 @@ export function ExperienceLibraryWorkspace({
       setError("来源链接格式不正确。请填写以 http:// 或 https:// 开头的完整链接，或清空后保存。");
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     setNotice(null);
@@ -462,8 +487,7 @@ export function ExperienceLibraryWorkspace({
     setCancelController(controller);
     let saved = content.trim() ? null : textSavedRef.current;
     let failedImageCount = 0;
-    let unrecognizedImageCount = 0;
-    let unsupportedImageCount = 0;
+    const recognitionJobs: { file: File; documentId: string }[] = [];
     try {
       if (!targetEntry && !saved && normalizedSourceUrl) {
         const existing = await findExistingExperience(normalizedSourceUrl).catch(() => null);
@@ -503,58 +527,56 @@ export function ExperienceLibraryWorkspace({
       }
       if (!saved) throw new Error("经验记录尚未建立。");
 
-      for (const original of pending) {
-        controller.signal.throwIfAborted();
-        setImages((current) => current.map((image) => image.localId === original.localId
-          ? { ...image, status: "uploading", message: "正在上传原件" }
-          : image));
+      // Upload and seal at most three originals concurrently. Associations are
+      // committed afterward in the user's original order, so the existing
+      // position allocation and image ordering remain deterministic.
+      const currentTarget = saved;
+      const uploaded = await mapWithConcurrency(pending, 3, async (original) => {
         const target = {
-          entryId: original.entryId ?? saved.entryId,
-          captureId: original.associationInitialized ? original.captureId : saved.captureId,
+          entryId: original.entryId ?? currentTarget.entryId,
+          captureId: original.associationInitialized ? original.captureId : currentTarget.captureId,
         };
+        if (controller.signal.aborted) return { original, target, documentId: null, error: "保存已取消，可重试。" };
+        setImages((current) => current.map((image) => image.localId === original.localId
+          ? { ...image, status: "uploading", message: "正在上传原件", associationInitialized: true, entryId: target.entryId, captureId: target.captureId }
+          : image));
         try {
-          const completedDocumentId = await uploadAndAttach(
-            original,
-            target,
-            controller.signal,
-            (documentId) => {
-              setImages((current) => current.map((image) => image.localId === original.localId
-                ? { ...image, documentId }
-                : image));
-            },
-            (message) => setImages((current) => current.map((image) => image.localId === original.localId ? { ...image, message } : image)),
-          );
-          setImages((current) => current.map((image) => image.localId === original.localId
-            ? { ...image, status: "saved", documentId: completedDocumentId, message: "原件已保存，正在本机识别文字" }
-            : image));
-          try {
-            const ocr = await recognizeExperienceImage(original.file, completedDocumentId, controller.signal, (value) => {
-              setImages((current) => current.map((image) => image.localId === original.localId ? { ...image, message: value.phase === "loading" ? "正在加载本机文字识别" : `正在识别文字 ${Math.round(value.progress * 100)}%` } : image));
-            });
-            if (ocr === "unsupported") unsupportedImageCount += 1;
-          } catch {
-            unrecognizedImageCount += 1;
-            if (controller.signal.aborted) throw new DOMException("已取消", "AbortError");
+          const documentId = await uploadImage(original, controller.signal,
+            (id) => setImages((current) => current.map((image) => image.localId === original.localId ? { ...image, documentId: id } : image)),
+            (message) => setImages((current) => current.map((image) => image.localId === original.localId ? { ...image, message } : image)));
+          return { original, target, documentId, error: null };
+        } catch (error) {
+          return { original, target, documentId: null, error: error instanceof Error ? error.message : "图片保存失败，可重试。" };
+        }
+      });
+      controller.signal.throwIfAborted();
+      for (const item of uploaded) {
+        controller.signal.throwIfAborted();
+        try {
+          if (!item.documentId) throw new Error(item.error || "图片保存失败，可重试。");
+          await attachExperienceMedia({
+            entryId: item.target.entryId, captureId: item.target.captureId, documentId: item.documentId,
+            selectionStart: item.original.selectionStart, selectionEnd: item.original.selectionEnd,
+            selectionQuote: item.original.selectionQuote, caption: item.original.caption || null, sourceKind: item.original.sourceKind,
+          });
+          if (item.original.file.size > 4 * 1024 * 1024) {
+            void fetch("/api/experience-library/upload-chunks", { method: "DELETE", headers: { "X-Experience-Document-Id": item.documentId } }).catch(() => {});
           }
-        } catch (uploadError) {
-          if (controller.signal.aborted) throw uploadError;
+          recognitionJobs.push({ file: item.original.file, documentId: item.documentId });
+          setImages((current) => current.map((image) => image.localId === item.original.localId
+            ? { ...image, status: "saved", documentId: item.documentId, message: "图片已保存并关联" } : image));
+        } catch (error) {
+          if (controller.signal.aborted) throw error;
           failedImageCount += 1;
-          setImages((current) => current.map((image) => image.localId === original.localId
-            ? {
-              ...image,
-              status: "failed",
-              associationInitialized: true,
-              entryId: target.entryId,
-              captureId: target.captureId,
-              message: uploadError instanceof Error ? uploadError.message : "图片保存失败，可重试。",
-            }
-            : image));
+          setImages((current) => current.map((image) => image.localId === item.original.localId
+            ? { ...image, status: "failed", associationInitialized: true, entryId: item.target.entryId,
+              captureId: item.target.captureId, message: error instanceof Error ? error.message : "图片关联未完成，可重试。" } : image));
         }
       }
-
       setNotice(failedImageCount
         ? `文字已保存；${failedImageCount} 张图片未完成，失败项已保留，可再次点击保存重试。`
-        : unrecognizedImageCount || unsupportedImageCount ? `原文和图片均已保存。${unrecognizedImageCount ? `${unrecognizedImageCount} 张图片识别未完成，可在详情页重试。` : ""}${unsupportedImageCount ? `${unsupportedImageCount} 张图片的格式暂不支持文字识别，可使用 PNG、JPG 或 WebP。` : ""}` : pending.length ? "文字和图片均已保存并关联，图片文字已加入搜索。" : "原文已保存。" );
+        : pending.length ? "文字和图片均已保存并关联。图片文字会在本机继续识别。" : "原文已保存。");
+      queueRecognition(recognitionJobs);
       if (failedImageCount === 0) {
         textSavedRef.current = null;
         setTitle(""); setSourceUrl(""); setTargetEntry(null); setDuplicate(null); setReselectCount(0);
@@ -573,7 +595,7 @@ export function ExperienceLibraryWorkspace({
       router.refresh();
     } catch (saveError) {
       if (controller.signal.aborted) {
-        setNotice("保存已取消。已经确认写入的文字和图片不会回滚；未完成项保留在本页。");
+        setNotice("保存已取消。已经确认写入的文字和图片不会回滚；未完成项保留在本页，已保存图片可在详情页识别文字。");
         setImages((current) => {
           for (const image of current) {
             if (image.status === "saved") {
@@ -594,6 +616,7 @@ export function ExperienceLibraryWorkspace({
           : message || "保存未完成，请重试。");
       }
     } finally {
+      savingRef.current = false;
       setSaving(false);
       setCancelController(null);
     }
@@ -776,6 +799,7 @@ export function ExperienceLibraryWorkspace({
 
         {error ? <p className="experience-message is-error" role="alert">{error}</p> : null}
         {notice ? <p className="experience-message" role="status">{notice}</p> : null}
+        {ocrNotice ? <div className="experience-message" role="status">{ocrNotice} {ocrRunning ? <Button type="button" variant="ghost" size="sm" onClick={() => { ocrQueueRef.current = []; ocrControllerRef.current?.abort(); }}>停止识别</Button> : null}</div> : null}
         {reselectCount > 0 ? <div className="experience-message" role="status">还有 {reselectCount} 张图片需要重新选择；请重新核对图片关联的位置。<Button type="button" variant="ghost" size="sm" onClick={() => setReselectCount(0)}>暂不恢复这些图片</Button></div> : null}
         {result ? (
           <div className="experience-saved-link flex flex-wrap items-center gap-3">
