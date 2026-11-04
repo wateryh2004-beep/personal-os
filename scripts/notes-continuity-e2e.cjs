@@ -119,7 +119,7 @@ async function viewportAnchor(page) {
     await mode.getByRole('button', { name: '编辑', exact: true }).click();
     await page.locator('.cm-content').press('Control+End');
     await page.waitForFunction(() => document.querySelector('.cm-content')?.textContent.includes('远端新版本'));
-    assert.ok((await page.locator('.notes-editor-toolbar [aria-live]').innerText()).includes('已保存'), 'clean external replacement does not become a user edit');
+    assert.ok((await page.locator('.notes-header-actions [aria-live]').innerText()).includes('已保存'), 'clean external replacement does not become a user edit');
     await page.screenshot({ path: `${out}/normal-motion-desktop.png` });
     const video = page.video(); await context.close(); await video.saveAs(`${out}/flow-normal-desktop.webm`);
     await writeFile(`${out}/evidence.json`, JSON.stringify({ scope: 'Next production build, synthetic 180-section documents; 1500ms delayed route reconciliation, cloud CI Chromium. Warm timing ends only when the matching title and a non-empty editable source line are actually visible. Typing elapsed includes 12ms artificial delay; not production latency. 200% root text size, not native browser zoom.', evidence }, null, 2));
