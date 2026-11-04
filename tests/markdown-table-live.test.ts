@@ -111,6 +111,17 @@ describe("Notes Markdown live table parsing", () => {
     expect(pastedTsvToMarkdown("| 是 | Markdown |")).toBeNull();
   });
 
+  it("preserves inline-code pipes when repairing an incomplete delimiter", () => {
+    const source = "| A | B\n| --- |\n| x | \x60a|b\x60";
+    const [table] = parseMarkdownTables(source);
+    expect(table.hasDelimiter).toBe(true);
+    expect(table.canonical).toBe(false);
+    expect(table.rows[0]).toEqual(["x", "\x60a|b\x60"]);
+    const patch = editMarkdownTableCell(table, 0, 0, "changed");
+    expect(patch.insert).toContain("\x60a|b\x60");
+    expect(patch.insert).not.toContain("\x60a\\|b\x60");
+  });
+
   it("does not execute or inject HTML from source table cells", () => {
     const source = "| label | text |\n| --- | --- |\n| x | <img src=x onerror=alert(1)> |";
     const [table] = parseMarkdownTables(source);
