@@ -236,7 +236,7 @@ class MarkdownTableWidget extends WidgetType {
         if (!table) return;
         writeChange(view, addMarkdownTableRow(table));
       }));
-      toolbar.append(actionButton("删除末行", () => {
+      if (this.table.rows.length) toolbar.append(actionButton("删除末行", () => {
         const table = locateTable(view, root);
         if (!table) return;
         const change = removeMarkdownTableRow(table, table.rows.length - 1);
@@ -291,7 +291,8 @@ class MarkdownTableWidget extends WidgetType {
         select.addEventListener("change", () => {
           const table = locateTable(view, root);
           if (!table) return;
-          const change = alignMarkdownTableColumn(table, column, select.value as "" | "left" | "center" | "right" || null);
+          const alignment = select.value === "left" ? "left" : select.value === "center" ? "center" : select.value === "right" ? "right" : null;
+          const change = alignMarkdownTableColumn(table, column, alignment);
           if (change) writeChange(view, change);
         });
         node.append(select);
