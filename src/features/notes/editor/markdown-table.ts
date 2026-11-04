@@ -65,7 +65,7 @@ function splitPipeLine(text: string, from: number, minCells = 2): TableCellRange
 }
 
 function isSeparator(cells: TableCellRange[]): boolean {
-  return cells.length >= 2 && cells.every(cell => /^:?-+:?$/.test(cell.value));
+  return cells.length >= 1 && cells.every(cell => /^:?-+:?$/.test(cell.value));
 }
 
 function alignmentOf(value: string): TableAlignment {
@@ -75,8 +75,9 @@ function alignmentOf(value: string): TableAlignment {
   return null;
 }
 
-function bordered(text: string): boolean {
-  return /^\s*\|/.test(text) && /\|\s*$/.test(text);
+function tableEdge(text: string): boolean {
+  // Missing an outer border pipe is a common in-progress table typo.
+  return /^\s*\|/.test(text) || /\|\s*$/.test(text);
 }
 
 type Line = { text: string; from: number; to: number; fenced: boolean };
@@ -123,9 +124,9 @@ export function parseMarkdownTables(source: string): MarkdownTable[] {
     if (first.fenced) { i += 1; continue; }
     const header = splitPipeLine(first.text, first.from);
     const second = lines[i + 1];
-    const secondCells = second && !second.fenced ? splitPipeLine(second.text, second.from) : null;
+    const secondCells = second && !second.fenced ? splitPipeLine(second.text, second.from, 1) : null;
     const explicitDelimiter = Boolean(secondCells && isSeparator(secondCells));
-    if (!header || (!bordered(first.text) && !explicitDelimiter)) {
+    if (!header || (!tableEdge(first.text) && !explicitDelimiter)) {
       i += 1; continue;
     }
     let end = i;
@@ -139,7 +140,7 @@ export function parseMarkdownTables(source: string): MarkdownTable[] {
       const cells = splitPipeLine(line.text, line.from, 1);
       if (!cells || isSeparator(cells)) break;
       // Unbordered data cells are allowed after a genuine delimiter only.
-      if (!delimiter && !bordered(line.text)) break;
+      if (!delimiter && !tableEdge(line.text)) break;
       data.push(cells);
       end = cursor;
       cursor += 1;
@@ -178,7 +179,27 @@ export function parseMarkdownTables(source: string): MarkdownTable[] {
 }
 
 function escapeCell(value: string): string {
-  return value.replace(/[\r\n]+/g, " ").replace(/(?<!\\)\|/g, "\\|");
+  const source = value.replace(/[\r\n]+/g, " ");
+  let result = "";
+  let ticks = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "\\" && index + 1 < source.length) {
+      result += char + source[++index];
+      continue;
+    }
+    if (char === "\x60") {
+      let run = 1;
+      while (source[index + run] === "\x60") run += 1;
+      if (ticks === 0) ticks = run;
+      else if (ticks === run) ticks = 0;
+      result += source.slice(index, index + run);
+      index += run - 1;
+      continue;
+    }
+    result += char === "|" && ticks === 0 ? "\\|" : char;
+  }
+  return result;
 }
 
 export function serializeMarkdownTable(table: Pick<MarkdownTable, "header" | "rows" | "alignment" | "width">): string {
