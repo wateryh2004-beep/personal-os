@@ -328,9 +328,11 @@ class MarkdownTableWidget extends WidgetType {
 
 function validTableContext(state: EditorState, from: number): boolean {
   let node = syntaxTree(state).resolveInner(from, 1);
-  while (node) {
+  while (true) {
     if (["FencedCode", "CodeBlock", "HTMLBlock", "Blockquote", "ListItem"].includes(node.name)) return false;
-    node = node.parent;
+    const parent = node.parent;
+    if (!parent) break;
+    node = parent;
   }
   return true;
 }
