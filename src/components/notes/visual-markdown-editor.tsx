@@ -619,11 +619,23 @@ export function VisualMarkdownEditor({
     if (!currentView) return;
     const range = currentView.state.selection.main;
     const table = "| 列 1 | 列 2 |\n| --- | --- |\n|  |  |";
+    const previous = currentView.state.sliceDoc(Math.max(0, range.from - 1), range.from);
+    const next = currentView.state.sliceDoc(range.to, Math.min(currentView.state.doc.length, range.to + 1));
+    const prefix = range.from === 0 ? "" : previous === "\n" ? "\n" : "\n\n";
+    const suffix = range.to === currentView.state.doc.length ? "" : next === "\n" ? "\n" : "\n\n";
+    const sourceFrom = range.from + prefix.length;
     currentView.dispatch({
-      changes: { from: range.from, to: range.to, insert: table },
-      selection: { anchor: range.from + table.indexOf("|  |") + 2 },
+      changes: { from: range.from, to: range.to, insert: prefix + table + suffix },
+      selection: { anchor: sourceFrom + table.indexOf("列 1") },
       scrollIntoView: true,
       userEvent: "input",
+    });
+    // Immediately put the caret in the visual first cell, not hidden syntax.
+    requestAnimationFrame(() => {
+      if (!currentView.dom.isConnected) return;
+      currentView.dom.querySelector<HTMLInputElement>(
+        '.cm-note-table-widget[data-table-from="' + sourceFrom + '"] input[data-row="-1"][data-column="0"]',
+      )?.focus({ preventScroll: true });
     });
   };
 
