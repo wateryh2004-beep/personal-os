@@ -131,6 +131,7 @@ async function copyText(value: string) {
 export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false }: { note: Note; noteAiDefaultModel: DeepSeekModelId; loadAiPreferences?: boolean }) {
   const paneActive = useWorkbenchActive();
   const headerActionsHost = useContext(NoteHeaderActionsContext);
+  const headerActionsTarget = headerActionsHost?.target;
   const feedback = useActionFeedback();
   const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const [title, setTitle] = useState(note.title);
@@ -343,7 +344,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     }, noteAutosaveMaxWaitMs);
     return () => window.clearInterval(timer);
   }, [save]);
-  useEffect(() => { const handler = (event: KeyboardEvent) => { const focused = document.activeElement; const inEditor = editorSurfaceRef.current?.contains(focused) || headerActionsHost?.target?.contains(focused); if (paneActive && inEditor && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); flushDraft(); void save(); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [flushDraft, save, paneActive, headerActionsHost?.target]);
+  useEffect(() => { const handler = (event: KeyboardEvent) => { const focused = document.activeElement; const inEditor = editorSurfaceRef.current?.contains(focused) || headerActionsTarget?.contains(focused); if (paneActive && inEditor && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); flushDraft(); void save(); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [flushDraft, save, paneActive, headerActionsTarget]);
   useEffect(() => {
     const flush = () => {
       flushDraft();
@@ -545,38 +546,38 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   // Portal existing actions into the document chrome without remounting CodeMirror.
   // Native fullscreen cannot show nodes outside the fullscreen editor surface.
   const headerActions = (
-          <div className="notes-editor-actions flex min-h-11 flex-wrap items-center gap-1">
-            <div role="group" aria-label="笔记阅读方式" data-mode={reading ? "reading" : "editing"} className="notes-mode-control mr-auto flex shrink-0 gap-1 md:mr-3">
-              <button type="button" aria-pressed={!reading} onClick={() => switchReading(false)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${!reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><PenLine aria-hidden="true" className="size-4" /><span className="notes-mode-label">编辑</span></button>
-              <button type="button" aria-pressed={reading} onClick={() => switchReading(true)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><BookOpen aria-hidden="true" className="size-4" /><span className="notes-mode-label">阅读</span></button>
-            </div>
-            <span aria-live="polite" title={statusLabel} className={`notes-save-status order-last basis-full pt-1 text-[12px] tabular-nums md:order-none md:mr-auto md:basis-auto md:pt-0 ${saveHasError ? "text-[var(--danger)]" : saveNeedsAttention ? "text-[var(--warning)]" : "text-[var(--text-secondary)]"}`}>
-              {statusLabel}
-            </span>
-            <Button variant={state === "已保存" ? "ghost" : "outline"} size="sm" className="notes-save-button max-md:size-11 max-md:px-0" onClick={() => { flushDraft(); void save(); }} aria-label={`立即保存，当前状态：${statusLabel}`} title="立即保存">
-              <SaveIcon aria-hidden="true" /><span className="notes-action-label hidden lg:inline">保存</span>
-            </Button>
-            <Button variant="ghost" size="sm" className="notes-ai-button max-md:size-11 max-md:px-0" disabled={aiGenerated} onClick={toggleAi} aria-label={aiGenerated ? "AI 生成内容不会作为 AI 上下文读取" : "打开笔记 AI"} title="笔记 AI" aria-pressed={noteAiPanel.isOpen}>
-              <Sparkles aria-hidden="true" /><span className="notes-action-label hidden lg:inline">AI</span>
-            </Button>
-            <Button ref={fullscreenTriggerRef} variant="ghost" size="sm" className="notes-focus-button max-md:size-11 max-md:px-0" onClick={() => void toggleFullscreen()} aria-label={fullscreenActive ? "退出专注" : "进入专注"} title={fullscreenActive ? "退出专注" : "专注编辑"}>
-              {fullscreenActive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}<span className="notes-action-label hidden lg:inline">{fullscreenActive ? "退出专注" : "专注"}</span>
-            </Button>
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" className="notes-more-button max-md:size-11" aria-label="更多笔记操作" title="更多笔记操作"><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
-              <DropdownMenuContent align="end" portalContainer={fullscreenActive ? editorPortalContainer : undefined}>
-                <DropdownMenuItem onSelect={() => switchReading(!reading)}>{reading ? <PenLine aria-hidden="true" /> : <BookOpen aria-hidden="true" />}{reading ? "切换到编辑" : "切换到阅读"}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => { flushDraft(); void save(); }}><SaveIcon aria-hidden="true" />立即保存</DropdownMenuItem>
-                <DropdownMenuItem disabled={aiGenerated} onSelect={toggleAi}><Sparkles aria-hidden="true" />打开笔记 AI</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void toggleFullscreen()}>{fullscreenActive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}{fullscreenActive ? "退出专注" : "进入专注"}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void copyCurrentNoteReference()}><Link2 aria-hidden="true" />复制笔记引用</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void copyFullNote()}><Copy aria-hidden="true" />复制全文</DropdownMenuItem>
-                <DropdownMenuItem disabled={isExporting} onSelect={startPdfExport}><Download aria-hidden="true" />{isExporting ? "正在生成 PDF…" : "导出 PDF"}</DropdownMenuItem>
-                <DropdownMenuItem disabled={isChangingContentOrigin} onSelect={toggleContentOrigin}><Sparkles aria-hidden="true" />{aiGenerated ? "取消 AI 生成标记" : "标记为 AI 生成"}</DropdownMenuItem>
-                {titleUndoStack.length ? <DropdownMenuItem onSelect={handleAiUndoTitle}>撤回 AI 标题</DropdownMenuItem> : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+    <div className="notes-editor-actions flex min-h-11 flex-wrap items-center gap-1">
+      <div role="group" aria-label="笔记阅读方式" data-mode={reading ? "reading" : "editing"} className="notes-mode-control mr-auto flex shrink-0 gap-1 md:mr-3">
+        <button type="button" aria-label="编辑笔记" aria-pressed={!reading} onClick={() => switchReading(false)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${!reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><PenLine aria-hidden="true" className="size-4" /><span className="notes-mode-label">编辑</span></button>
+        <button type="button" aria-label="阅读笔记" aria-pressed={reading} onClick={() => switchReading(true)} className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-[9px] px-2.5 text-[13px] ${reading ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}><BookOpen aria-hidden="true" className="size-4" /><span className="notes-mode-label">阅读</span></button>
+      </div>
+      <span aria-live="polite" title={statusLabel} className={`notes-save-status order-last basis-full pt-1 text-[12px] tabular-nums md:order-none md:mr-auto md:basis-auto md:pt-0 ${saveHasError ? "text-[var(--danger)]" : saveNeedsAttention ? "text-[var(--warning)]" : "text-[var(--text-secondary)]"}`}>
+        {statusLabel}
+      </span>
+      <Button variant={state === "已保存" ? "ghost" : "outline"} size="sm" className="notes-save-button max-md:size-11 max-md:px-0" onClick={() => { flushDraft(); void save(); }} aria-label={`立即保存，当前状态：${statusLabel}`} title="立即保存">
+        <SaveIcon aria-hidden="true" /><span className="notes-action-label hidden lg:inline">保存</span>
+      </Button>
+      <Button variant="ghost" size="sm" className="notes-ai-button max-md:size-11 max-md:px-0" disabled={aiGenerated} onClick={toggleAi} aria-label={aiGenerated ? "AI 生成内容不会作为 AI 上下文读取" : "打开笔记 AI"} title="笔记 AI" aria-pressed={noteAiPanel.isOpen}>
+        <Sparkles aria-hidden="true" /><span className="notes-action-label hidden lg:inline">AI</span>
+      </Button>
+      <Button ref={fullscreenTriggerRef} variant="ghost" size="sm" className="notes-focus-button max-md:size-11 max-md:px-0" onClick={() => void toggleFullscreen()} aria-label={fullscreenActive ? "退出专注" : "进入专注"} title={fullscreenActive ? "退出专注" : "专注编辑"}>
+        {fullscreenActive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}<span className="notes-action-label hidden lg:inline">{fullscreenActive ? "退出专注" : "专注"}</span>
+      </Button>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" className="notes-more-button max-md:size-11" aria-label="更多笔记操作" title="更多笔记操作"><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
+        <DropdownMenuContent align="end" portalContainer={fullscreenActive ? editorPortalContainer : undefined}>
+          <DropdownMenuItem onSelect={() => switchReading(!reading)}>{reading ? <PenLine aria-hidden="true" /> : <BookOpen aria-hidden="true" />}{reading ? "切换到编辑" : "切换到阅读"}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => { flushDraft(); void save(); }}><SaveIcon aria-hidden="true" />立即保存</DropdownMenuItem>
+          <DropdownMenuItem disabled={aiGenerated} onSelect={toggleAi}><Sparkles aria-hidden="true" />打开笔记 AI</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void toggleFullscreen()}>{fullscreenActive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}{fullscreenActive ? "退出专注" : "进入专注"}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void copyCurrentNoteReference()}><Link2 aria-hidden="true" />复制笔记引用</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void copyFullNote()}><Copy aria-hidden="true" />复制全文</DropdownMenuItem>
+          <DropdownMenuItem disabled={isExporting} onSelect={startPdfExport}><Download aria-hidden="true" />{isExporting ? "正在生成 PDF…" : "导出 PDF"}</DropdownMenuItem>
+          <DropdownMenuItem disabled={isChangingContentOrigin} onSelect={toggleContentOrigin}><Sparkles aria-hidden="true" />{aiGenerated ? "取消 AI 生成标记" : "标记为 AI 生成"}</DropdownMenuItem>
+          {titleUndoStack.length ? <DropdownMenuItem onSelect={handleAiUndoTitle}>撤回 AI 标题</DropdownMenuItem> : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 
   return (
