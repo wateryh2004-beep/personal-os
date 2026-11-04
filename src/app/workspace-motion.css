@@ -13,7 +13,6 @@
 .notes-editor-title-row { max-width:760px; }
 .notes-document-shell .note-reading-pane > div { max-width:760px; }
 .notes-document-shell .life-codemirror .cm-content { max-width:824px; margin-inline:auto; padding-top:24px; }
-.notes-editor-toolbar { padding-top:24px; }
 
 /* Anchored chapter picker: CSS reverses from the current frame, Radix owns focus. */
 [data-slot=popover-content].note-outline-surface {
@@ -107,7 +106,6 @@
   .notes-library-heading .page-title { font-size:30px; }
   .notes-library-search { margin-top:16px; }
   .notes-list-row-content { padding-block:16px; }
-  .notes-editor-toolbar { padding-top:18px; }
   [data-slot=dialog-content].global-command-surface { --tw-translate-x:0px; --tw-translate-y:0px; left:0; top:auto; bottom:0; width:100%; translate:0; max-height:calc(var(--app-viewport-height) - 24px); border-radius:24px 24px 0 0; padding-bottom:env(safe-area-inset-bottom); transform-origin:center bottom; }
   .global-command-surface [data-slot=command-list] { max-height:min(54dvh,440px); }
   .command-surface-heading { padding-top:20px; }

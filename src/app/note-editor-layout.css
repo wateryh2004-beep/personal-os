@@ -1,0 +1,81 @@
+/*
+ * Compact Notes editing chrome.
+ * The document header owns navigation + actions; CodeMirror owns the only
+ * main writing scroll area. Keep this after shared workspace/editorial CSS.
+ */
+.notes-document-main { container: note-document / inline-size; }
+.notes-document-location { gap:4px; padding-inline:8px; }
+.notes-document-location > nav { flex:1 1 0%; min-width:0; }
+.notes-header-actions { flex:0 1 auto; min-width:0; }
+.notes-header-actions .notes-editor-actions {
+  display:flex;
+  width:auto;
+  max-width:none;
+  min-height:44px;
+  margin:0;
+  align-items:center;
+  flex-wrap:nowrap;
+  gap:4px;
+}
+.notes-header-actions .notes-mode-control { margin-right:8px; }
+.notes-header-actions .notes-save-status {
+  order:0;
+  flex:0 0 auto;
+  margin:0 4px 0 0;
+  padding:0;
+  white-space:nowrap;
+}
+.notes-editor-surface .notes-editor-toolbar {
+  gap:0;
+  padding-top:4px;
+  padding-bottom:4px;
+}
+.notes-editor-surface .notes-editor-title-row {
+  min-height:56px;
+  padding-block:0;
+}
+.notes-editor-surface .notes-editor-title-row :is(.notes-title-input,.notes-reading-title) {
+  font-size:clamp(26px,2vw,32px);
+  line-height:1.3;
+  padding-block:2px;
+}
+.notes-editor-surface .life-markdown-toolbar { min-height:40px; padding-block:4px; }
+.notes-editor-surface .life-codemirror .cm-content { padding-top:16px; }
+.notes-editor-surface .life-codemirror :is(.cm-scroller,.cm-line) { line-height:1.75; }
+.notes-editor-surface .note-reading-pane { padding-top:20px; }
+
+/* Container width reflects split panes, not just the browser breakpoint.
+ * All hidden actions remain available in the More menu.
+ */
+@container note-document (max-width:760px) {
+  .notes-header-actions .notes-action-label { display:none; }
+  .notes-header-actions .notes-ai-button,
+  .notes-header-actions .notes-focus-button { display:none; }
+  .notes-header-actions .notes-save-status {
+    position:absolute;
+    width:1px;
+    height:1px;
+    margin:-1px;
+    padding:0;
+    overflow:hidden;
+    clip-path:inset(50%);
+    white-space:nowrap;
+    border:0;
+  }
+}
+@container note-document (max-width:500px) {
+  .notes-header-actions .notes-mode-label { display:none; }
+  .notes-header-actions .notes-mode-control { margin-right:0; }
+  .notes-header-actions .notes-mode-control > button {
+    min-width:44px;
+    width:44px;
+    padding-inline:0;
+  }
+  .notes-header-actions .notes-save-button { display:none; }
+}
+@media(max-width:767px) {
+  .notes-editor-surface .notes-editor-title-row { min-height:52px; }
+  .notes-editor-surface .notes-editor-title-row :is(.notes-title-input,.notes-reading-title) { font-size:28px; }
+  .notes-editor-surface .life-markdown-toolbar { min-height:48px; padding-block:2px; }
+  .notes-editor-surface .life-codemirror .cm-content { padding-top:16px; }
+}
