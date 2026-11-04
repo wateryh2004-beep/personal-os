@@ -50,6 +50,8 @@ describe("Notes editor reliability", () => {
     expect(editor).toContain('window.addEventListener("beforeunload"');
     expect(editor).toContain('window.addEventListener("pagehide"');
     expect(editor).toContain("revisionRef.current = draft.baseRevision");
+    expect(editor).toContain("setDraftRecoveryUnavailable(!stored)");
+    expect(editor).toContain("对比并合并版本");
     expect(editor).toContain("rememberOpenNote();");
   });
 
@@ -100,6 +102,11 @@ describe("Notes editor reliability", () => {
     expect(workspace).toContain("unstable_rethrow(error)");
     expect(workspace).toContain('mutate(renameNote, form, "笔记标题已保存", () => setRenaming(null))');
     expect(workspace).toContain('mutate(moveNote, form, "笔记位置已更新", () => setMoving(null))');
+  });
+
+  it("never writes note bodies through an unversioned compatibility fallback", () => {
+    expect(actions).toContain('.eq("revision", value.expectedRevision)');
+    expect(actions).not.toContain('body_markdown: value.bodyMarkdown }).eq("id", value.noteId)');
   });
 
   it("does not report the authoritative note body as failed when derived link sync fails", () => {

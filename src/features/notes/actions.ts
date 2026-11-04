@@ -46,12 +46,21 @@ export async function saveNote(input: unknown) {
     .maybeSingle();
 
   if (error && missingWorkspaceColumn(error)) {
-    const fallback = await supabase.from("notes").update({ title: value.title || "无标题笔记", body_markdown: value.bodyMarkdown }).eq("id", value.noteId).select("id").maybeSingle();
-    if (fallback.error || !fallback.data) fail();
+    // Older schemas can lack optional summary columns. Never silently remove
+    // optimistic concurrency checks just to make a compatibility save succeed.
+    const fallback = await supabase.from("notes")
+      .update({ title: value.title || "无标题笔记", body_markdown: value.bodyMarkdown, revision: value.expectedRevision + 1 })
+      .eq("user_id", userId)
+      .eq("id", value.noteId)
+      .eq("revision", value.expectedRevision)
+      .select("id,revision")
+      .maybeSingle();
+    if (fallback.error) fail();
+    if (!fallback.data) return { status: "conflict" as const };
     after(async () => {
-      await recordStatusSafely(userId, "notes", { state: "fresh", lastSuccessAt: now, lastAttemptAt: now, nextStep: "Notes 直接以 Supabase 为权威。" }, { type: "succeeded", operationKey: `note-save-${value.noteId}-${value.expectedRevision}` });
+      await recordStatusSafely(userId, "notes", { state: "fresh", lastSuccessAt: now, lastAttemptAt: now, nextStep: "Notes 直接以 Supabase 为权威。" }, { type: "succeeded", operationKey: `note-save-${value.noteId}-${fallback.data.revision}` });
     });
-    return { status: "saved" as const, revision: value.expectedRevision, lastSavedAt: now };
+    return { status: "saved" as const, revision: fallback.data.revision, lastSavedAt: now };
   }
   if (error) fail();
   if (!data) {

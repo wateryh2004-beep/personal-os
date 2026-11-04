@@ -45,12 +45,14 @@ export function loadWorkspaceSession<T>(key: string): T | null {
   }
 }
 
-export function saveWorkspaceSession<T>(key: string, value: T, ttlMs = WORKSPACE_SESSION_TTL_MS) {
-  if (typeof window === "undefined") return;
+export function saveWorkspaceSession<T>(key: string, value: T, ttlMs = WORKSPACE_SESSION_TTL_MS): boolean {
+  if (typeof window === "undefined") return false;
   try {
     window.sessionStorage.setItem(storageKey(key), JSON.stringify(createWorkspaceSnapshot(value, Date.now(), ttlMs)));
+    return true;
   } catch {
-    // Private browsing or a full storage quota must never block the editor.
+    // The editor remains usable but must warn that crash recovery is unavailable.
+    return false;
   }
 }
 

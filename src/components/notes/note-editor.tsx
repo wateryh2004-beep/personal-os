@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { NoteTitleMotion } from "@/components/notes/notes-motion";
 import { NoteReadingView } from "@/components/notes/note-reading-view";
+import { NoteConflictResolver } from "@/components/notes/note-conflict-resolver";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -154,6 +155,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const [titleUndoStack, setTitleUndoStack] = useState<string[]>([]);
   const titleUndoStackRef = useRef<string[]>([]);
   const [state, setState] = useState<SaveState>("已保存");
+  const [draftRecoveryUnavailable, setDraftRecoveryUnavailable] = useState(false);
+  const [conflictSnapshot, setConflictSnapshot] = useState<NoteDraftSession | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState(note.last_saved_at);
   const [editVersion, setEditVersion] = useState(0);
   const [pdfSnapshot, setPdfSnapshot] = useState<PdfSnapshot | null>(null);
@@ -205,7 +208,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   }, [note.id, note.revision, note.title, note.body_markdown, note.last_saved_at, replaceBody]);
 
   const persistDraft = useCallback((draft: NoteDraftSession) => {
-    saveWorkspaceSession<NoteDraftSession>(noteSessionKey, draft, noteDraftRecoveryTtlMs);
+    const stored = saveWorkspaceSession<NoteDraftSession>(noteSessionKey, draft, noteDraftRecoveryTtlMs);
+    setDraftRecoveryUnavailable(!stored);
   }, [noteSessionKey]);
   const clearQueuedDraft = useCallback(() => {
     pendingDraftRef.current = null;
@@ -306,6 +310,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
             isDirtyRef.current = false;
             clearQueuedDraft();
             setState("已保存");
+            setDraftRecoveryUnavailable(false);
             removeWorkspaceSession(noteSessionKey);
           } else {
             isDirtyRef.current = true;
@@ -446,6 +451,27 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     setBody(value);
     dirty(latestContentRef.current.title, value);
   }, [dirty]);
+  const applyConflictResolution = useCallback((
+    resolved: { title: string; body: string; revision: number },
+    original: { title: string; body: string },
+  ): boolean => {
+    const current = latestContentRef.current;
+    if (saveInFlightRef.current || state !== "版本冲突" ||
+        current.title !== original.title || current.body !== original.body ||
+        resolved.revision < revisionRef.current ||
+        resolved.revision < knownRemoteRevisionRef.current) return false;
+    if (resolved.title.length > 240 || resolved.body.length > 200_000) return false;
+    // Explicit user confirmation is the only path that advances the baseline.
+    // A subsequent concurrent update is still rejected by saveNote's CAS.
+    revisionRef.current = resolved.revision;
+    knownRemoteRevisionRef.current = Math.max(knownRemoteRevisionRef.current, resolved.revision);
+    setTitle(resolved.title);
+    replaceBody(resolved.body);
+    publishNotesNavigatorTitle(note.id, resolved.title);
+    dirty(resolved.title, resolved.body);
+    setConflictSnapshot(null);
+    return true;
+  }, [dirty, note.id, replaceBody, state]);
   // AI 生成标题：直接替换标题，旧标题压栈供撤回（支持连续多次生成逐步撤回）。
   const handleAiReplaceTitle = useCallback((newTitle: string) => {
     const next = newTitle
@@ -617,13 +643,21 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
             className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--separator)] bg-[var(--danger-soft)] px-3 py-[5px] text-[12px] leading-5 text-[var(--danger)]"
           >
             <span>{state === "保存失败"
-              ? "保存失败，本机恢复草稿已保留。请检查网络后点击保存。"
+              ? draftRecoveryUnavailable
+                ? "保存失败，浏览器无法保留恢复草稿。请立即复制内容并检查网络。"
+                : "保存失败，本标签页的恢复草稿已保留。请检查网络后点击保存。"
               : state === "版本冲突"
-                ? "检测到其他设备修改。当前草稿已保留；请先复制草稿，在新标签页打开此笔记核对内容。"
+                ? "笔记发生版本冲突。已阻止覆盖云端内容，请对比两份版本并手动确认。"
                 : statusLabel}</span>
             {state === "保存失败" ? <button type="button" onClick={() => { flushDraft(); void save(); }} className="pressable min-h-8 rounded-[6px] px-2 font-medium underline underline-offset-2">重试保存</button> : null}
             {saveHasError ? <button type="button" onClick={() => void copyFullNote()} className="pressable min-h-8 rounded-[6px] px-2 font-medium underline underline-offset-2">复制当前草稿</button> : null}
-            {state === "版本冲突" ? <a href={`/notes/${note.id}`} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-8 items-center rounded-[6px] px-2 font-medium underline underline-offset-2">在新标签页核对</a> : null}
+            {state === "版本冲突" ? <button type="button" onClick={() => { flushDraft(); setConflictSnapshot({ ...latestContentRef.current, baseRevision: revisionRef.current }); }} className="pressable min-h-8 rounded-[6px] px-2 font-medium underline underline-offset-2">对比并合并版本</button> : null}
+          </div>
+        ) : null}
+        {draftRecoveryUnavailable && isDirtyRef.current ? (
+          <div role="status" className="flex flex-wrap items-center gap-2 border-b border-[var(--separator)] bg-[var(--warning-soft)] px-3 py-2 text-[12px] text-[var(--warning)]">
+            本机恢复草稿不可用，刷新或关闭标签页可能丢失未保存的内容。
+            <button type="button" onClick={() => void copyFullNote()} className="pressable min-h-8 px-2 font-medium underline underline-offset-2">复制当前草稿</button>
           </div>
         ) : null}
         {/* Keep CodeMirror and its undo/selection/scroll state mounted in both views. */}
@@ -666,6 +700,12 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
           replaceBody(nextBody);
           dirty(title, nextBody);
         }}
+      /> : null}
+      {conflictSnapshot ? <NoteConflictResolver
+        noteId={note.id}
+        localSnapshot={conflictSnapshot}
+        onApply={applyConflictResolution}
+        onClose={() => setConflictSnapshot(null)}
       /> : null}
       {pdfSnapshot ? (
         <article ref={pdfPreviewRef} className="note-pdf-export-preview fixed -left-[10000px] top-0 w-[794px] bg-[var(--surface-canvas)] p-12 text-[15px]">
