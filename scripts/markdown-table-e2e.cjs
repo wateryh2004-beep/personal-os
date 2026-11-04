@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Node-only isolated Chromium runner. */
 /* Browser regression against gated synthetic fixture only. No account data/writes. */
 const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
