@@ -128,12 +128,12 @@ function renderCell(
 }
 
 class MarkdownTableWidget extends WidgetType {
-  constructor(readonly table: MarkdownTable, readonly readonly: boolean) {
+  constructor(readonly table: MarkdownTable, readonly sourcePreview: boolean) {
     super();
   }
 
   eq(other: MarkdownTableWidget) {
-    return other.readonly === this.readonly && other.table.source === this.table.source &&
+    return other.sourcePreview === this.sourcePreview && other.table.source === this.table.source &&
       other.table.from === this.table.from;
   }
 
@@ -141,7 +141,7 @@ class MarkdownTableWidget extends WidgetType {
     if (!(dom instanceof HTMLDivElement)) return false;
     const inputs = dom.querySelectorAll<HTMLInputElement>(".cm-note-table-cell-input");
     const expected = (this.table.rows.length + 1) * this.table.width;
-    if (this.readonly || inputs.length !== expected) return false;
+    if (this.sourcePreview || inputs.length !== expected) return false;
     dom.dataset.tableFrom = String(this.table.from);
     const values = [this.table.header, ...this.table.rows].flat();
     inputs.forEach((input, index) => {
@@ -158,25 +158,25 @@ class MarkdownTableWidget extends WidgetType {
     root.contentEditable = "false";
     root.dataset.tableFrom = String(this.table.from);
     root.setAttribute("role", "group");
-    root.setAttribute("aria-label", this.readonly ? "Markdown 表格即时预览" : "可编辑 Markdown 表格");
+    root.setAttribute("aria-label", this.sourcePreview ? "Markdown 表格即时预览" : "可编辑 Markdown 表格");
     const toolbar = document.createElement("div");
     toolbar.className = "cm-note-table-tools";
     const label = document.createElement("span");
-    label.textContent = this.readonly ? "实时预览" : "表格";
+    label.textContent = this.sourcePreview ? "实时预览" : "表格";
     label.className = "cm-note-table-label";
     toolbar.append(label);
-    toolbar.append(actionButton(this.readonly ? "完成源码编辑" : "编辑 Markdown 源码", () => {
+    toolbar.append(actionButton(this.sourcePreview ? "完成源码编辑" : "编辑 Markdown 源码", () => {
       const table = locateTable(view, root);
       if (!table) return;
       view.dispatch({
-        effects: setTableSource.of(this.readonly ? null : table.from),
-        selection: { anchor: this.readonly ? Math.min(view.state.doc.length, table.to + 1) :
+        effects: setTableSource.of(this.sourcePreview ? null : table.from),
+        selection: { anchor: this.sourcePreview ? Math.min(view.state.doc.length, table.to + 1) :
           table.headerCells[0]?.from ?? table.from },
         scrollIntoView: true,
       });
       view.focus();
     }));
-    if (!this.readonly) {
+    if (!this.sourcePreview) {
       toolbar.append(actionButton("添加行", () => {
         const table = locateTable(view, root);
         if (!table) return;
@@ -195,7 +195,7 @@ class MarkdownTableWidget extends WidgetType {
     const head = document.createElement("thead");
     const headerRow = document.createElement("tr");
     this.table.header.forEach((cell, column) => {
-      const node = renderCell(view, root, -1, column, cell, this.readonly);
+      const node = renderCell(view, root, -1, column, cell, this.sourcePreview);
       node.dataset.align = this.table.alignment[column] ?? "";
       headerRow.append(node);
     });
@@ -205,7 +205,7 @@ class MarkdownTableWidget extends WidgetType {
     this.table.rows.forEach((values, row) => {
       const tr = document.createElement("tr");
       values.forEach((value, column) => {
-        const node = renderCell(view, root, row, column, value, this.readonly);
+        const node = renderCell(view, root, row, column, value, this.sourcePreview);
         node.dataset.align = this.table.alignment[column] ?? "";
         tr.append(node);
       });
@@ -227,7 +227,7 @@ class MarkdownTableWidget extends WidgetType {
 }
 
 function decorationsForTables(state: EditorState, sourceFrom: number | null): DecorationSet {
-  const decorations: Array<ReturnType<ReturnType<typeof Decoration.replace>["range"]>> = [];
+  const decorations: Array<import("@codemirror/state").Range<Decoration>> = [];
   for (const table of parseMarkdownTables(state.doc.toString())) {
     if (table.from === sourceFrom) {
       decorations.push(Decoration.widget({
