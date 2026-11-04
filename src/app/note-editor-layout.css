@@ -35,9 +35,14 @@
   padding-block:0;
 }
 .notes-editor-surface .notes-editor-title-row :is(.notes-title-input,.notes-reading-title) {
-  font-size:clamp(26px,2vw,32px);
+  font-size:clamp(28px,2.5vw,32px);
   line-height:1.3;
   padding-block:2px;
+}
+/* The animated title face must match the live input at every viewport. */
+.notes-editor-surface .note-editable-title-anchor {
+  font-size:clamp(28px,2.5vw,32px);
+  line-height:1.3;
 }
 .notes-editor-surface .life-markdown-toolbar { min-height:40px; padding-block:4px; }
 .notes-editor-surface .life-codemirror .cm-content { padding-top:16px; }

@@ -87,7 +87,7 @@
               window.__editorialText200 = { declarations };
               bootstrap = { css, declarations };
             }
-            const title = innerWidth < 768 ? 28 : Math.max(28, Math.min(36, innerWidth * .025));
+            const title = innerWidth < 768 ? 28 : Math.max(28, Math.min(32, innerWidth * .025));
             const expected = [
               [".notes-list-row .note-title-anchor", innerWidth < 768 ? 20 : 21],
               [".notes-title-input", title], [".note-title-motion-face", title], [".notes-reading-title", title],
@@ -162,7 +162,7 @@
         }, listRoute);
         row.listRecovery.saved = saved;
         assert.ok(typeof saved.scrollTop === "number" && Math.abs(saved.scrollTop - listTop) < 3, "the real click saves the actual list position under the source URL");
-        if (mode === "text200") assert.equal(await page.getByRole("textbox", { name: "笔记标题", exact: true }).evaluate(node => parseFloat(getComputedStyle(node).fontSize)), width === 1440 ? 72 : 56, "the actual title is enlarged from 28/36px to 56/72px");
+        if (mode === "text200") assert.equal(await page.getByRole("textbox", { name: "笔记标题", exact: true }).evaluate(node => parseFloat(getComputedStyle(node).fontSize)), width === 1440 ? 64 : 56, "the actual title is enlarged from 28/32px to 56/64px");
         await page.waitForFunction(() => window.__editorialPaperDone);
         row.paperFrames = await page.evaluate(() => window.__editorialPaperFrames);
         assert.ok(row.paperFrames.every(frame => frame.root <= frame.viewport + 1), "paper motion stays horizontally contained");
