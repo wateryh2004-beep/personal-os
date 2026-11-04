@@ -7,7 +7,7 @@ import { captureEditorPosition, type EditorPosition } from "@/features/notes/edi
 import { sourceLineAttributes } from "@/features/notes/editor/source-line-attributes";
 import { documentCharacterCount } from "@/features/notes/editor/document-statistics";
 import { Compartment, EditorState } from "@codemirror/state";
-import { indentUnit } from "@codemirror/language";
+import { indentUnit, syntaxTree } from "@codemirror/language";
 import { markdown as markdownExtension, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
@@ -24,6 +24,8 @@ import { markdownEditorKeymap } from "@/features/notes/editor/markdown-keymap";
 import { markdownEditorTheme } from "@/features/notes/editor/markdown-theme";
 import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
 import { markdownImagePreview } from "@/features/notes/editor/markdown-image-preview";
+import { markdownTablePreview } from "@/features/notes/editor/markdown-table-preview";
+import { pastedTsvToMarkdown } from "@/features/notes/editor/markdown-table";
 import { createNoteLinkCompletion, extractNoteLinkQuery } from "@/features/notes/editor/note-link-completion";
 import { noteLinkDecoration } from "@/features/notes/editor/note-link-decoration";
 import type { EntityLinkSuggestion } from "@/features/links/types";
@@ -514,6 +516,7 @@ export function VisualMarkdownEditor({
       markdownEditorKeymap,
       markdownEditorTheme,
       markdownImagePreview,
+      markdownTablePreview,
       noteLinkDecoration,
       noteLinkCompletion,
       markdownUploadPlaceholder,
@@ -547,9 +550,34 @@ export function VisualMarkdownEditor({
             void insertUploadedImage(image, currentView);
             return true;
           }
-          const pastedUrl = extractPastedUrl(
-            event.clipboardData?.getData("text/plain") ?? "",
-          );
+          const pastedText = event.clipboardData?.getData("text/plain") ?? "";
+          const tsv = pastedTsvToMarkdown(pastedText);
+          if (tsv) {
+            let node = syntaxTree(currentView.state).resolveInner(currentView.state.selection.main.head, -1);
+            let inCode = false;
+            for (; node; node = node.parent) {
+              if (node.name === "FencedCode" || node.name === "CodeBlock" || node.name === "InlineCode") {
+                inCode = true;
+                break;
+              }
+            }
+            if (!inCode) {
+              event.preventDefault();
+              const range = currentView.state.selection.main;
+              const before = currentView.state.sliceDoc(Math.max(0, range.from - 1), range.from);
+              const after = currentView.state.sliceDoc(range.to, Math.min(currentView.state.doc.length, range.to + 1));
+              const prefix = range.from && before !== "\n" ? "\n\n" : "";
+              const suffix = range.to < currentView.state.doc.length && after !== "\n" ? "\n\n" : "";
+              currentView.dispatch({
+                changes: { from: range.from, to: range.to, insert: prefix + tsv + suffix },
+                selection: { anchor: range.from + prefix.length + tsv.length + suffix.length },
+                scrollIntoView: true,
+                userEvent: "input.paste",
+              });
+              return true;
+            }
+          }
+          const pastedUrl = extractPastedUrl(pastedText);
           if (pastedUrl) {
             event.preventDefault();
             void insertTitledLink(pastedUrl, currentView);
