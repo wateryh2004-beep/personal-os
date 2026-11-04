@@ -15,6 +15,7 @@ import { useContext, useEffect, useState } from "react";
 import { noteAttachmentUrl, notePdfAttachments, type NoteAttachment } from "@/features/notes/attachments";
 import { NotePaperMotion, NotesSurfaceMotion } from "./notes-motion";
 import { NotesNavigationContext } from "./notes-navigation-context";
+import { NoteHeaderActionsContext } from "./note-header-actions-context";
 
 const FilePdfPreview = dynamic(() => import("@/components/files/file-pdf-preview").then((module) => module.FilePdfPreview), { ssr: false });
 
@@ -32,6 +33,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
   const noteInspector = useWorkspacePanel(`note-inspector:${noteId}`);
   const router = useRouter();
   const openNavigation = useContext(NotesNavigationContext);
+  const [headerActionsTarget, setHeaderActionsTarget] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const restore = (event: Event) => {
@@ -58,7 +60,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
   };
 
   return (
-    <NotesSurfaceMotion><section data-note-document-id={noteId} data-note-paper={noteId} data-note-reader-view={view}
+    <NotesSurfaceMotion><NoteHeaderActionsContext.Provider value={{ target: headerActionsTarget, showEditorActions: view === "markdown" || !selectedPdf }}><section data-note-document-id={noteId} data-note-paper={noteId} data-note-reader-view={view}
       onInputCapture={handleEditorInput}
       className="notes-document-shell relative flex h-full min-h-0 overflow-hidden bg-[var(--surface-canvas)]"
     >
@@ -77,6 +79,7 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
           <nav aria-label="文档位置" className="min-w-0 flex-1">
             {location ? <Link href={location.href} title={location.label} aria-label={`返回文件夹：${location.label}`} className="block truncate rounded-[var(--radius-sm)] py-2 text-[12px] leading-7 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]">{location.label}</Link> : null}
           </nav>
+          <div ref={setHeaderActionsTarget} className="notes-header-actions flex min-w-0 shrink-0 items-center gap-1" data-note-header-actions />
           <button
             type="button"
             onClick={noteInspector.toggle}
@@ -114,6 +117,6 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
       >
         {inspector}
       </Inspector>
-    </section></NotesSurfaceMotion>
+    </section></NoteHeaderActionsContext.Provider></NotesSurfaceMotion>
   );
 }
