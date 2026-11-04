@@ -555,11 +555,13 @@ export function VisualMarkdownEditor({
           if (tsv) {
             let node = syntaxTree(currentView.state).resolveInner(currentView.state.selection.main.head, -1);
             let inCode = false;
-            for (; node; node = node.parent) {
+            while (node) {
               if (node.name === "FencedCode" || node.name === "CodeBlock" || node.name === "InlineCode") {
                 inCode = true;
                 break;
               }
+              if (!node.parent) break;
+              node = node.parent;
             }
             if (!inCode) {
               event.preventDefault();
