@@ -87,9 +87,10 @@ async function viewportAnchor(page) {
       await page.waitForTimeout(350);
       await content.pressSequentially(' continued', { delay: 12 });
       await page.getByRole('button', { name: '模拟远端更新', exact: true }).click();
-      await page.getByRole('alert').filter({ hasText: '检测到其他设备修改' }).waitFor();
+      await page.getByRole('alert').filter({ hasText: '版本冲突' }).waitFor();
+      assert.ok(await page.getByRole('button', { name: '对比并合并版本', exact: true }).isVisible(), 'conflict keeps a visible manual merge action');
       await page.waitForTimeout(1000);
-      assert.ok(await page.getByRole('alert').filter({ hasText: '检测到其他设备修改' }).isVisible(), 'late failed autosave cannot replace a known revision conflict');
+      assert.ok(await page.getByRole('alert').filter({ hasText: '版本冲突' }).isVisible(), 'late failed autosave cannot replace a known revision conflict');
       await mode.getByRole('button', { name: '阅读', exact: true }).click();
       row.readingTail = (await page.locator('.note-reading-pane').innerText()).slice(-180);
       assert.ok((await page.locator('.note-reading-pane').innerText()).includes('synthetic typing continuity continued'), 'dirty draft survives background revision');
