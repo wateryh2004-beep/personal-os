@@ -27,6 +27,9 @@ jobs:
           - suite: shell-visual
             script: shell-visual-e2e.cjs
             timeout: 240
+          - suite: markdown-tables
+            script: markdown-table-e2e.cjs
+            timeout: 240
           - suite: planning-visual
             script: planning-visual-e2e.cjs
             timeout: 300
