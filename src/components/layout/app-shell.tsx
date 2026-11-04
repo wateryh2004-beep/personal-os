@@ -104,7 +104,7 @@ function Navigation({ pathname, collapsed, pendingHref, onNavigate, onIntent, gr
   const pendingPathname = pathnameFromHref(pendingHref);
 
   return <NavigationRail selection={`${pendingPathname ?? pathname}:${collapsed}`}>{groups.map((group, groupIndex) => <div key={group.label ?? groupIndex}>
-    {group.label ? <p aria-hidden={collapsed || undefined} className={cn("navigation-group-heading mb-1.5 px-2.5 text-[12px] font-semibold tracking-[0.015em] text-[var(--text-tertiary)]", collapsed && "invisible")}>{group.label}</p> : null}
+    {group.label && !collapsed ? <p className="navigation-group-heading mb-1.5 px-2.5 text-[12px] font-semibold tracking-[0.015em] text-[var(--text-tertiary)]">{group.label}</p> : null}
     <div className="space-y-px">{group.items.map(({ name, href, icon: Icon }) => {
       const active = navActive(pathname, href);
       const pending = pendingPathname ? navActive(pendingPathname, href) : false;
@@ -400,7 +400,7 @@ function AppShellInner({ children, presentationPathname }: { children: React.Rea
       </Link>
       {collapsed ? null : <button type="button" onClick={toggleCollapsed} className="pressable grid size-7 place-items-center rounded-[var(--radius-md)] text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)]" aria-label="折叠侧栏"><ChevronLeft className="size-3.5" strokeWidth={1.9} aria-hidden="true" /></button>}
     </div>
-    <div className="min-h-0 flex-1 overflow-y-auto px-2.5 py-3">
+    <div className="app-sidebar-nav-scroll min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-2.5 py-3">
       <Navigation pathname={pathname} collapsed={collapsed} pendingHref={visiblePendingHref} onNavigate={beginNavigation} onIntent={prefetchNavigationTarget} />
     </div>
     <div className="mx-2.5 space-y-px border-t border-[var(--border-subtle)] py-2.5">
