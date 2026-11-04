@@ -659,7 +659,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
             {state === "版本冲突" ? <button type="button" onClick={() => { flushDraft(); setConflictSnapshot({ ...latestContentRef.current, baseRevision: revisionRef.current }); }} className="pressable min-h-8 rounded-[6px] px-2 font-medium underline underline-offset-2">对比并合并版本</button> : null}
           </div>
         ) : null}
-        {draftRecoveryUnavailable && isDirtyRef.current ? (
+        {draftRecoveryUnavailable ? (
           <div role="status" className="flex flex-wrap items-center gap-2 border-b border-[var(--separator)] bg-[var(--warning-soft)] px-3 py-2 text-[12px] text-[var(--warning)]">
             本机恢复草稿不可用，刷新或关闭标签页可能丢失未保存的内容。
             <button type="button" onClick={() => void copyFullNote()} className="pressable min-h-8 px-2 font-medium underline underline-offset-2">复制当前草稿</button>

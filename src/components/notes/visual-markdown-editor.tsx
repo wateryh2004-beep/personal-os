@@ -627,7 +627,7 @@ export function VisualMarkdownEditor({
           return false;
         },
       })) });
-  }, [eventHandlers, extensions, insertTitledLink, insertUploadedImage, view]);
+  }, [eventHandlers, extensions, insertTitledLink, insertUploadedImage, publishMarkdown, view]);
 
   const insertTable = () => {
     const currentView = editorRef.current?.view;
