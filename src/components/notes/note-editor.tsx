@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { NoteTitleMotion } from "@/components/notes/notes-motion";
 import { NoteReadingView } from "@/components/notes/note-reading-view";
 import { NoteConflictResolver } from "@/components/notes/note-conflict-resolver";
+import { canApplyNoteConflictMerge } from "@/features/notes/editor/conflict-resolution";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -456,10 +457,14 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     original: { title: string; body: string },
   ): boolean => {
     const current = latestContentRef.current;
-    if (saveInFlightRef.current || state !== "版本冲突" ||
-        current.title !== original.title || current.body !== original.body ||
-        resolved.revision < revisionRef.current ||
-        resolved.revision < knownRemoteRevisionRef.current) return false;
+    if (state !== "版本冲突" || !canApplyNoteConflictMerge({
+      localNow: current,
+      localWhenOpened: original,
+      localRevision: revisionRef.current,
+      knownRemoteRevision: knownRemoteRevisionRef.current,
+      selectedRemoteRevision: resolved.revision,
+      saveInProgress: Boolean(saveInFlightRef.current),
+    })) return false;
     if (resolved.title.length > 240 || resolved.body.length > 200_000) return false;
     // Explicit user confirmation is the only path that advances the baseline.
     // A subsequent concurrent update is still rejected by saveNote's CAS.

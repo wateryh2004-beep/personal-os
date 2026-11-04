@@ -57,10 +57,11 @@ export async function saveNote(input: unknown) {
       .maybeSingle();
     if (fallback.error) fail();
     if (!fallback.data) return { status: "conflict" as const };
+    const acceptedRevision = fallback.data.revision;
     after(async () => {
-      await recordStatusSafely(userId, "notes", { state: "fresh", lastSuccessAt: now, lastAttemptAt: now, nextStep: "Notes 直接以 Supabase 为权威。" }, { type: "succeeded", operationKey: `note-save-${value.noteId}-${fallback.data.revision}` });
+      await recordStatusSafely(userId, "notes", { state: "fresh", lastSuccessAt: now, lastAttemptAt: now, nextStep: "Notes 直接以 Supabase 为权威。" }, { type: "succeeded", operationKey: `note-save-${value.noteId}-${acceptedRevision}` });
     });
-    return { status: "saved" as const, revision: fallback.data.revision, lastSavedAt: now };
+    return { status: "saved" as const, revision: acceptedRevision, lastSavedAt: now };
   }
   if (error) fail();
   if (!data) {

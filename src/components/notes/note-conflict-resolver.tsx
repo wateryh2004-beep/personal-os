@@ -3,18 +3,10 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { parseRemoteNoteDocument } from "@/features/notes/editor/conflict-resolution";
 
 type Snapshot = { title: string; body: string; baseRevision: number };
 type RemoteVersion = { title: string; body: string; revision: number };
-
-function parseRemoteDocument(data: unknown): RemoteVersion | null {
-  if (!data || typeof data !== "object" || !("note" in data)) return null;
-  const note = data.note;
-  if (!note || typeof note !== "object" || !("title" in note) || !("body_markdown" in note) || !("revision" in note)) return null;
-  if (typeof note.title !== "string" || typeof note.body_markdown !== "string" ||
-      !Number.isSafeInteger(note.revision) || Number(note.revision) < 0) return null;
-  return { title: note.title, body: note.body_markdown, revision: Number(note.revision) };
-}
 
 /** The merge editor never touches Supabase directly. The existing CAS autosave
  * handles the final write only after the user explicitly approves a draft. */
@@ -44,7 +36,7 @@ export function NoteConflictResolver({
       signal: abort.signal,
     }).then(async response => {
       if (!response.ok) throw new Error("remote_note_unavailable");
-      const parsed = parseRemoteDocument(await response.json());
+      const parsed = parseRemoteNoteDocument(await response.json());
       if (!parsed) throw new Error("invalid_remote_note");
       setRemote(parsed);
       setError("");
