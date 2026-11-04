@@ -101,7 +101,7 @@ function getLines(source: string): Line[] {
   });
 }
 
-function pad(values: string[], size: number, make: (index: number) => string): string[] {
+function pad<T>(values: T[], size: number, make: (index: number) => T): T[] {
   return Array.from({ length: size }, (_, i) => values[i] ?? make(i));
 }
 
@@ -156,8 +156,8 @@ export function parseMarkdownTables(source: string): MarkdownTable[] {
       width,
       header: headerValues,
       rows,
-      headerCells: pad(header, width, () => null as never),
-      rowCells: data.map(row => pad(row, width, () => null as never)),
+      headerCells: pad<TableCellRange | null>(header, width, () => null),
+      rowCells: data.map(row => pad<TableCellRange | null>(row, width, () => null)),
       alignment: pad(delimiter?.map(cell => alignmentOf(cell.value)) ?? [], width, () => null),
       hasDelimiter: Boolean(delimiter),
       canonical: Boolean(delimiter && delimiter.length === width && header.length === width &&
