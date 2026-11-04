@@ -551,9 +551,9 @@ export function VisualMarkdownEditor({
   useEffect(() => {
     if (!view) return;
     view.dispatch({ effects: eventHandlers.reconfigure(EditorView.domEventHandlers({
-        wheel: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
-        touchstart: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
-        pointerdown: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
+        wheel: (_event, currentView) => { userIntentRevisionRef.current += 1; positionIntentRef.current?.(currentView); return false; },
+        touchstart: (_event, currentView) => { userIntentRevisionRef.current += 1; positionIntentRef.current?.(currentView); return false; },
+        pointerdown: (_event, currentView) => { userIntentRevisionRef.current += 1; positionIntentRef.current?.(currentView); return false; },
         paste(event, currentView) {
           const image = [...(event.clipboardData?.files ?? [])].find((file) =>
             file.type.startsWith("image/"),

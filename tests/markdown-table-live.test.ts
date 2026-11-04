@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { history, redo, undo } from "@codemirror/commands";
+import { EditorState } from "@codemirror/state";
 import {
   addMarkdownTableColumn,
   addMarkdownTableRow,
@@ -9,6 +11,18 @@ import {
 } from "@/features/notes/editor/markdown-table";
 
 describe("Notes Markdown live table parsing", () => {
+  it("an edited table cell supports undo and redo without losing the original Markdown", () => {
+    const original = "| 姓名 | 分数 |\\n| --- | --- |\\n| 甲 | 90 |".replaceAll("\\n", "\n");
+    const table = parseMarkdownTables(original)[0];
+    let state = EditorState.create({ doc: original, extensions: [history()] });
+    state = state.update({ changes: editMarkdownTableCell(table, 0, 1, "95"), userEvent: "input" }).state;
+    expect(state.doc.toString()).toContain("| 甲 | 95 |");
+    expect(undo({ state, dispatch: tx => { state = tx.state; } })).toBe(true);
+    expect(state.doc.toString()).toBe(original);
+    expect(redo({ state, dispatch: tx => { state = tx.state; } })).toBe(true);
+    expect(state.doc.toString()).toContain("| 甲 | 95 |");
+  });
+
   it("recognizes valid GFM tables without altering their original Markdown", () => {
     const source = "之前的正文\n\n| 地区 | 收入 |\n| :--- | ---: |\n| 北京 | 25 |\n| 上海 | 30 |\n\n之后";
     const [table] = parseMarkdownTables(source);

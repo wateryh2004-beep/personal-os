@@ -90,8 +90,20 @@ function renderCell(
   input.addEventListener("keydown", event => {
     if ((event.metaKey || event.ctrlKey) && (event.key.toLowerCase() === "z" || (!event.metaKey && event.key.toLowerCase() === "y"))) {
       event.preventDefault();
-      if (event.shiftKey || event.key.toLowerCase() === "y") redo(view);
-      else undo(view);
+      const caret = input.selectionStart;
+      const isRedo = event.shiftKey || event.key.toLowerCase() === "y";
+      const changed = isRedo ? redo(view) : undo(view);
+      if (changed) requestAnimationFrame(() => {
+        if (!view.dom.isConnected) return;
+        const next = view.dom.querySelector<HTMLInputElement>(
+          '.cm-note-table-widget[data-table-from="' + root.dataset.tableFrom + '"] input[data-row="' +
+          row + '"][data-column="' + column + '"]',
+        );
+        if (next) {
+          next.focus({ preventScroll: true });
+          if (caret !== null) next.setSelectionRange(Math.min(caret, next.value.length), Math.min(caret, next.value.length));
+        } else view.focus();
+      });
       return;
     }
     if (event.key === "Escape") {
@@ -119,7 +131,7 @@ function renderCell(
       next.select();
     } else if (delta > 0) {
       writeChange(view, addMarkdownTableRow(table));
-      queueMicrotask(() => {
+      requestAnimationFrame(() => {
         const newCell = view.dom.querySelector<HTMLInputElement>(
           '.cm-note-table-widget[data-table-from="' + table.from + '"] input[data-row="' +
           table.rows.length + '"][data-column="' + (event.key === "Enter" ? column : 0) + '"]',
