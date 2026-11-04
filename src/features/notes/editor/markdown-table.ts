@@ -144,6 +144,15 @@ export function parseMarkdownTables(source: string): MarkdownTable[] {
       end = cursor;
       cursor += 1;
     }
+    // Do not split an oversized source table into several unrelated widgets.
+    // Keep very large tables in ordinary editable Markdown instead.
+    if (data.length === MAX_ROWS && cursor < lines.length && !lines[cursor].fenced &&
+      splitPipeLine(lines[cursor].text, lines[cursor].from)) {
+      i = cursor + 1;
+      while (i < lines.length && !lines[i].fenced &&
+        splitPipeLine(lines[i].text, lines[i].from)) i += 1;
+      continue;
+    }
     const width = Math.max(header.length, delimiter?.length ?? 0, ...data.map(row => row.length));
     const start = first.from;
     const stop = lines[end].to;
