@@ -21,8 +21,10 @@ export type MarkdownTable = {
   canonical: boolean;
 };
 
-const MAX_COLUMNS = 20;
-const MAX_ROWS = 250;
+export const MAX_MARKDOWN_TABLE_COLUMNS = 20;
+export const MAX_MARKDOWN_TABLE_ROWS = 250;
+const MAX_COLUMNS = MAX_MARKDOWN_TABLE_COLUMNS;
+const MAX_ROWS = MAX_MARKDOWN_TABLE_ROWS;
 
 function splitPipeLine(text: string, from: number, minCells = 2): TableCellRange[] | null {
   if (/^(?: {4,}|\t| {0,3}>)/.test(text) || !text.includes("|")) return null;
@@ -80,25 +82,38 @@ function tableEdge(text: string): boolean {
   return /^\s*\|/.test(text) || /\|\s*$/.test(text);
 }
 
-type Line = { text: string; from: number; to: number; fenced: boolean };
+type Line = { text: string; from: number; to: number; fenced: boolean; htmlBlock: boolean };
 
 /** An unterminated fence never turns code content into table widgets. */
 function getLines(source: string): Line[] {
   let offset = 0;
   let fence: { char: string; length: number } | null = null;
+  let html: { end: RegExp; untilBlank: boolean } | null = null;
   return source.split("\n").map(text => {
     const from = offset;
     offset += text.length + 1;
     const open = /^ {0,3}([\x60~])\1{2,}/.exec(text);
     const wasFenced = Boolean(fence);
-    if (open) {
+    const wasHtml = Boolean(html);
+    if (!fence && !html && /^ {0,3}<!--/.test(text))
+      html = { end: /-->/, untilBlank: false };
+    else if (!fence && !html) {
+      const tag = /^ {0,3}<(script|pre|style|textarea|table|div|section|article|details|summary)\b[^>]*>/i.exec(text);
+      if (tag) {
+        const name = tag[1].toLowerCase();
+        html = { end: new RegExp(`</${name}\\s*>`, "i"), untilBlank: !["script", "pre", "style", "textarea"].includes(name) };
+      }
+    }
+    const htmlBlock = wasHtml || Boolean(html);
+    if (html && (html.end.test(text) || (wasHtml && html.untilBlank && !text.trim()))) html = null;
+    if (open && !htmlBlock) {
       const char = open[1];
       const run = /^ {0,3}[\x60~]+/.exec(text)?.[0].trim().length ?? 0;
       if (!fence) fence = { char, length: run };
       else if (fence.char === char && run >= fence.length &&
         text.slice(open[0].length).trim() === "") fence = null;
     }
-    return { text, from, to: from + text.length, fenced: wasFenced || Boolean(open) };
+    return { text, from, to: from + text.length, fenced: wasFenced || Boolean(open), htmlBlock };
   });
 }
 
@@ -121,12 +136,16 @@ export function parseMarkdownTables(source: string): MarkdownTable[] {
   const result: MarkdownTable[] = [];
   for (let i = 0; i < lines.length;) {
     const first = lines[i];
-    if (first.fenced) { i += 1; continue; }
-    const header = splitPipeLine(first.text, first.from);
+    if (first.fenced || first.htmlBlock) { i += 1; continue; }
+    const header = splitPipeLine(first.text, first.from, 1);
     const second = lines[i + 1];
-    const secondCells = second && !second.fenced ? splitPipeLine(second.text, second.from, 1) : null;
+    const secondCells = second && !second.fenced && !second.htmlBlock ? splitPipeLine(second.text, second.from, 1) : null;
     const explicitDelimiter = Boolean(secondCells && isSeparator(secondCells));
-    if (!header || (!tableEdge(first.text) && !explicitDelimiter)) {
+    // An isolated pipe line is not a table. Delimiterless drafts require
+    // at least two columns and an additional clearly bordered row.
+    const implicit = Boolean(header && header.length >= 2 && secondCells &&
+      !isSeparator(secondCells) && tableEdge(first.text) && tableEdge(second!.text));
+    if (!header || (!explicitDelimiter && !implicit)) {
       i += 1; continue;
     }
     let end = i;
@@ -136,7 +155,7 @@ export function parseMarkdownTables(source: string): MarkdownTable[] {
     if (delimiter) { end = cursor; cursor += 1; }
     while (cursor < lines.length && data.length < MAX_ROWS) {
       const line = lines[cursor];
-      if (line.fenced || !line.text.trim()) break;
+      if (line.fenced || line.htmlBlock || !line.text.trim()) break;
       const cells = splitPipeLine(line.text, line.from, 1);
       if (!cells || isSeparator(cells)) break;
       // Unbordered data cells are allowed after a genuine delimiter only.
@@ -147,10 +166,10 @@ export function parseMarkdownTables(source: string): MarkdownTable[] {
     }
     // Do not split an oversized source table into several unrelated widgets.
     // Keep very large tables in ordinary editable Markdown instead.
-    if (data.length === MAX_ROWS && cursor < lines.length && !lines[cursor].fenced &&
+    if (data.length === MAX_ROWS && cursor < lines.length && !lines[cursor].fenced && !lines[cursor].htmlBlock &&
       splitPipeLine(lines[cursor].text, lines[cursor].from, 1)) {
       i = cursor + 1;
-      while (i < lines.length && !lines[i].fenced &&
+      while (i < lines.length && !lines[i].fenced && !lines[i].htmlBlock &&
         splitPipeLine(lines[i].text, lines[i].from, 1)) i += 1;
       continue;
     }
@@ -179,7 +198,7 @@ export function parseMarkdownTables(source: string): MarkdownTable[] {
 }
 
 function escapeCell(value: string): string {
-  const source = value.replace(/[\r\n]+/g, " ");
+  const source = value.replace(/\r\n?|\n/g, "<br>");
   let result = "";
   let ticks = 0;
   for (let index = 0; index < source.length; index += 1) {
@@ -221,7 +240,7 @@ export function editMarkdownTableCell(table: MarkdownTable, row: number, column:
   if (column < 0 || column >= table.width || row < -1 || row >= table.rows.length) {
     throw new RangeError("Invalid table cell");
   }
-  const value = text.replace(/[\r\n]+/g, " ");
+  const value = text.replace(/\r\n?|\n/g, "<br>");
   const range = row < 0 ? table.headerCells[column] : table.rowCells[row][column];
   if (table.canonical && range) {
     return { from: range.from, to: range.to, insert: escapeCell(value) };
@@ -261,13 +280,96 @@ export function addMarkdownTableColumn(table: MarkdownTable): TableChange {
   };
 }
 
+
+/** User-triggered structural operations; each is a single undoable transaction. */
+export function removeMarkdownTableRow(table: MarkdownTable, row: number): TableChange | null {
+  if (row < 0 || row >= table.rows.length) return null;
+  return { from: table.from, to: table.to, insert: serializeMarkdownTable({
+    header: table.header, rows: table.rows.filter((_, i) => i !== row),
+    alignment: table.alignment, width: table.width,
+  }) };
+}
+export function removeMarkdownTableColumn(table: MarkdownTable, column: number): TableChange | null {
+  if (table.width <= 1 || column < 0 || column >= table.width) return null;
+  return { from: table.from, to: table.to, insert: serializeMarkdownTable({
+    header: table.header.filter((_, i) => i !== column),
+    rows: table.rows.map(row => row.filter((_, i) => i !== column)),
+    alignment: table.alignment.filter((_, i) => i !== column), width: table.width - 1,
+  }) };
+}
+export function alignMarkdownTableColumn(table: MarkdownTable, column: number, alignment: TableAlignment): TableChange | null {
+  if (column < 0 || column >= table.width) return null;
+  const values = [...table.alignment];
+  values[column] = alignment;
+  return { from: table.from, to: table.to, insert: serializeMarkdownTable({
+    header: table.header, rows: table.rows, alignment: values, width: table.width,
+  }) };
+}
+
+/** Spreadsheet-friendly quoted TSV, preserving embedded tabs/quotes/newlines. */
+export function parseSpreadsheetTsv(text: string): string[][] | null {
+  if (!text.includes("\t")) return null;
+  const source = text.replace(/\r\n?/g, "\n");
+  const rows: string[][] = [];
+  let row: string[] = [], value = "", quoted = false, closed = false;
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i];
+    if (quoted) {
+      if (char === '"') {
+        if (source[i + 1] === '"') { value += '"'; i++; }
+        else { quoted = false; closed = true; }
+      } else value += char;
+    } else if (char === '"' && !value && !closed) quoted = true;
+    else if (char === "\t" || char === "\n") {
+      row.push(value); value = ""; closed = false;
+      if (row.length > MAX_COLUMNS) return null;
+      if (char === "\n") { rows.push(row); row = []; if (rows.length > MAX_ROWS + 1) return null; }
+    } else {
+      if (closed) return null;
+      value += char;
+    }
+  }
+  if (quoted) return null;
+  if (value || row.length || !source.endsWith("\n")) { row.push(value); rows.push(row); }
+  return rows.length && rows.length <= MAX_ROWS + 1 ? rows : null;
+}
+
+export function markdownTableAsTsv(table: MarkdownTable): string {
+  const cell = (value: string) => /[\t\n\r"]/.test(value) ? '"' + value.replace(/"/g, '""') + '"' : value;
+  return [table.header, ...table.rows].map(row => row.map(cell).join("\t")).join("\n");
+}
+
+/** Multi-cell paste expands the grid without truncation; does not touch
+ * the document until the caller dispatches the returned change. */
+export function pasteSpreadsheetIntoTable(table: MarkdownTable, row: number, column: number, text: string): TableChange | null {
+  const values = parseSpreadsheetTsv(text);
+  if (!values || row < -1 || row >= table.rows.length || column < 0 || column >= table.width) return null;
+  const width = Math.max(table.width, column + Math.max(...values.map(v => v.length)));
+  const height = row + values.length;
+  if (width > MAX_COLUMNS || height > MAX_ROWS) return null;
+  const header = pad(table.header, width, i => "列 " + (i + 1));
+  const rows = table.rows.map(r => pad(r, width, () => ""));
+  while (rows.length < height) rows.push(Array.from({ length: width }, () => ""));
+  for (let i = 0; i < values.length; i++) {
+    const dest = row + i;
+    values[i].forEach((raw, j) => {
+      const safe = raw.replace(/\r\n?|\n/g, "<br>");
+      if (dest === -1) header[column + j] = safe;
+      else rows[dest][column + j] = safe;
+    });
+  }
+  return { from: table.from, to: table.to, insert: serializeMarkdownTable({
+    header, rows, width, alignment: pad(table.alignment, width, () => null),
+  }) };
+}
+
 /** Spreadsheet clipboard: leave prose alone; only convert multi-row TSV. */
 export function pastedTsvToMarkdown(text: string): string | null {
   if (!text.includes("\t") || !/\r|\n/.test(text)) return null;
-  const lines = text.replace(/\r\n?/g, "\n").replace(/\n+$/, "").split("\n");
-  const values = lines.map(line => line.split("\t"));
+  const values = parseSpreadsheetTsv(text);
+  if (!values || values.length < 2) return null;
   const width = Math.max(...values.map(row => row.length));
-  if (values.length < 2 || width < 2 || width > MAX_COLUMNS || values.length > MAX_ROWS) return null;
+  if (width < 2 || width > MAX_COLUMNS || values.length > MAX_ROWS + 1) return null;
   return serializeMarkdownTable({
     header: pad(values[0], width, () => ""),
     rows: values.slice(1).map(row => pad(row, width, () => "")),

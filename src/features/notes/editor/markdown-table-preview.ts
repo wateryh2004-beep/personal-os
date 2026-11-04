@@ -1,22 +1,29 @@
 import { redo, undo } from "@codemirror/commands";
 import { StateEffect, StateField, type EditorState, type Extension } from "@codemirror/state";
+import { syntaxTree } from "@codemirror/language";
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
 import {
   addMarkdownTableColumn,
   addMarkdownTableRow,
+  alignMarkdownTableColumn,
   editMarkdownTableCell,
+  markdownTableAsTsv,
+  pasteSpreadsheetIntoTable,
   parseMarkdownTables,
+  removeMarkdownTableColumn,
+  removeMarkdownTableRow,
   type MarkdownTable,
   type TableChange,
 } from "./markdown-table";
+import { updateMarkdownTableCache } from "./markdown-table-cache";
 
 const setTableSource = StateEffect.define<number | null>();
 
-type TablePreviewState = { decorations: DecorationSet; sourceFrom: number | null };
+type TablePreviewState = { decorations: DecorationSet; tables: MarkdownTable[]; sourceFrom: number | null };
 
 function locateTable(view: EditorView, root: HTMLElement): MarkdownTable | undefined {
   const start = Number(root.dataset.tableFrom);
-  return parseMarkdownTables(view.state.doc.toString()).find(table => table.from === start);
+  return view.state.field(markdownTableField).tables.find(table => table.from === start);
 }
 
 function writeChange(view: EditorView, change: TableChange) {
@@ -84,6 +91,23 @@ function renderCell(
       }
     });
   };
+  input.addEventListener("paste", event => {
+    const plain = event.clipboardData?.getData("text/plain") ?? "";
+    if (!plain.includes("\t")) return;
+    const table = locateTable(view, root);
+    if (!table) return;
+    const change = pasteSpreadsheetIntoTable(table, row, column, plain);
+    if (!change) return; // Normal text paste remains editable.
+    event.preventDefault();
+    writeChange(view, change);
+    requestAnimationFrame(() => {
+      const cell = view.dom.querySelector<HTMLInputElement>(
+        '.cm-note-table-widget[data-table-from="' + table.from + '"] input[data-row="' +
+        row + '"][data-column="' + column + '"]',
+      );
+      cell?.focus({ preventScroll: true });
+    });
+  });
   input.addEventListener("compositionstart", () => { composing = true; });
   input.addEventListener("compositionend", () => { composing = false; commitInput(); });
   input.addEventListener("input", () => { if (!composing) commitInput(); });
@@ -167,6 +191,9 @@ class MarkdownTableWidget extends WidgetType {
     if (this.sourcePreview || inputs.length !== expected || oldHint === this.table.canonical) return false;
     dom.dataset.tableFrom = String(this.table.from);
     const values = [this.table.header, ...this.table.rows].flat();
+    dom.querySelectorAll<HTMLSelectElement>(".cm-note-table-align").forEach((select, column) => {
+      select.value = this.table.alignment[column] ?? "";
+    });
     inputs.forEach((input, index) => {
       if (input.value === values[index]) return;
       const focused = document.activeElement === input;
@@ -209,10 +236,38 @@ class MarkdownTableWidget extends WidgetType {
         if (!table) return;
         writeChange(view, addMarkdownTableRow(table));
       }));
+      if (this.table.rows.length) toolbar.append(actionButton("删除末行", () => {
+        const table = locateTable(view, root);
+        if (!table) return;
+        const change = removeMarkdownTableRow(table, table.rows.length - 1);
+        if (change) writeChange(view, change);
+      }));
       if (this.table.width < 20) toolbar.append(actionButton("添加列", () => {
         const table = locateTable(view, root);
         if (!table) return;
         writeChange(view, addMarkdownTableColumn(table));
+      }));
+      if (this.table.width > 1) toolbar.append(actionButton("删除末列", () => {
+        const table = locateTable(view, root);
+        if (!table) return;
+        const change = removeMarkdownTableColumn(table, table.width - 1);
+        if (change) writeChange(view, change);
+      }));
+      toolbar.append(actionButton("复制 TSV", () => {
+        const table = locateTable(view, root);
+        if (!table) return;
+        const plain = markdownTableAsTsv(table);
+        const copy = async () => {
+          if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(plain); return; }
+          const field = document.createElement("textarea");
+          field.value = plain; field.style.position = "fixed"; field.style.opacity = "0";
+          document.body.append(field); field.select();
+          const ok = document.execCommand("copy"); field.remove();
+          if (!ok) throw new Error("clipboard_unavailable");
+        };
+        void copy().then(() => { label.textContent = "已复制 TSV"; }).catch(() => {
+          label.textContent = "复制失败，请重试";
+        });
       }));
     }
     const scroll = document.createElement("div");
@@ -224,6 +279,24 @@ class MarkdownTableWidget extends WidgetType {
     this.table.header.forEach((cell, column) => {
       const node = renderCell(view, root, -1, column, cell, this.sourcePreview);
       node.dataset.align = this.table.alignment[column] ?? "";
+      if (!this.sourcePreview) {
+        const select = document.createElement("select");
+        select.className = "cm-note-table-align";
+        select.setAttribute("aria-label", "第 " + (column + 1) + " 列对齐");
+        for (const [value, label] of [["", "默认对齐"], ["left", "左对齐"], ["center", "居中"], ["right", "右对齐"]]) {
+          const option = document.createElement("option");
+          option.value = value; option.textContent = label; select.append(option);
+        }
+        select.value = this.table.alignment[column] ?? "";
+        select.addEventListener("change", () => {
+          const table = locateTable(view, root);
+          if (!table) return;
+          const alignment = select.value === "left" ? "left" : select.value === "center" ? "center" : select.value === "right" ? "right" : null;
+          const change = alignMarkdownTableColumn(table, column, alignment);
+          if (change) writeChange(view, change);
+        });
+        node.append(select);
+      }
       headerRow.append(node);
     });
     head.append(headerRow);
@@ -253,9 +326,20 @@ class MarkdownTableWidget extends WidgetType {
   ignoreEvent() { return true; }
 }
 
-function decorationsForTables(state: EditorState, sourceFrom: number | null): DecorationSet {
+function validTableContext(state: EditorState, from: number): boolean {
+  let node = syntaxTree(state).resolveInner(from, 1);
+  while (true) {
+    if (["FencedCode", "CodeBlock", "HTMLBlock", "Blockquote", "ListItem"].includes(node.name)) return false;
+    const parent = node.parent;
+    if (!parent) break;
+    node = parent;
+  }
+  return true;
+}
+
+function decorationsForTables(tables: MarkdownTable[], sourceFrom: number | null): DecorationSet {
   const decorations: Array<import("@codemirror/state").Range<Decoration>> = [];
-  for (const table of parseMarkdownTables(state.doc.toString())) {
+  for (const table of tables) {
     if (table.from === sourceFrom) {
       decorations.push(Decoration.widget({
         block: true, side: 1, widget: new MarkdownTableWidget(table, true),
@@ -271,7 +355,8 @@ function decorationsForTables(state: EditorState, sourceFrom: number | null): De
 
 const markdownTableField = StateField.define<TablePreviewState>({
   create(state) {
-    return { sourceFrom: null, decorations: decorationsForTables(state, null) };
+    const tables = parseMarkdownTables(state.doc.toString()).filter(table => validTableContext(state, table.from));
+    return { tables, sourceFrom: null, decorations: decorationsForTables(tables, null) };
   },
   update(previous, transaction) {
     let sourceFrom = previous.sourceFrom;
@@ -281,14 +366,17 @@ const markdownTableField = StateField.define<TablePreviewState>({
     for (const effect of transaction.effects) {
       if (effect.is(setTableSource)) sourceFrom = effect.value;
     }
+    const tables = transaction.docChanged
+      ? updateMarkdownTableCache(previous.tables, transaction.changes, transaction.state.doc).tables
+        .filter(table => validTableContext(transaction.state, table.from))
+      : previous.tables;
     if (sourceFrom !== null && transaction.selection) {
-      const table = parseMarkdownTables(transaction.state.doc.toString())
-        .find(item => item.from === sourceFrom);
+      const table = tables.find(item => item.from === sourceFrom);
       const selection = transaction.state.selection.main;
       if (!table || selection.from < table.from || selection.to > table.to) sourceFrom = null;
     }
     if (!transaction.docChanged && sourceFrom === previous.sourceFrom) return previous;
-    return { sourceFrom, decorations: decorationsForTables(transaction.state, sourceFrom) };
+    return { tables, sourceFrom, decorations: decorationsForTables(tables, sourceFrom) };
   },
   provide: field => EditorView.decorations.from(field, value => value.decorations),
 });
