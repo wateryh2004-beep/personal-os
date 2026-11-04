@@ -44,7 +44,8 @@
 .navigation-rail[data-indicator-ready] [data-nav-selected=true] { background:transparent; }
 .navigation-rail .navigation-link { transition:color 160ms,background-color 160ms,padding 360ms var(--ease-emphasized),gap 360ms var(--ease-emphasized); }
 .navigation-label { max-width:170px; opacity:1; transition:opacity 140ms var(--ease-standard),max-width 360ms var(--ease-emphasized); }
-.navigation-collapsed { gap:0; padding-inline:14px; }
+/* Folded links must fit inside the scrollbar-reduced width of the 58px rail. */
+.navigation-collapsed { gap:0; padding-inline:0; justify-content:center; }
 .navigation-collapsed .navigation-label { max-width:0; opacity:0; }
 .navigation-group-heading { white-space:nowrap; }
 

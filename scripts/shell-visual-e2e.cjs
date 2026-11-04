@@ -38,6 +38,37 @@ async function contained(page, label) {
         await page.goto(`${base}/mobile-native-e2e?scene=workspace-motion`);
         await page.getByTestId('workspace-motion-fixture').waitFor();
         const navigation = page.getByRole('navigation', { name: width < 768 ? '底部导航' : '主导航', exact: true });
+        if (width >= 768) {
+          const sidebar = page.locator('.app-sidebar');
+          await sidebar.getByRole('button', { name: '折叠侧栏', exact: true }).click();
+          await page.locator('.app-sidebar[data-collapsed="true"]').waitFor();
+          await page.setViewportSize({ width, height: 520 });
+          await settle(page, '.app-sidebar');
+          const scrollPort = sidebar.locator('.app-sidebar-nav-scroll');
+          const geometry = await scrollPort.evaluate(node => {
+            const styles = getComputedStyle(node);
+            return {
+              clientWidth: node.clientWidth,
+              scrollWidth: node.scrollWidth,
+              clientHeight: node.clientHeight,
+              scrollHeight: node.scrollHeight,
+              overflowX: styles.overflowX,
+              overflowY: styles.overflowY,
+              groupHeadings: node.querySelectorAll('.navigation-group-heading').length,
+            };
+          });
+          assert.equal(geometry.groupHeadings, 0, 'collapsed sidebar does not keep invisible group headings in layout');
+          assert.equal(geometry.overflowX, 'hidden', 'sidebar navigation only scrolls vertically');
+          assert.ok(geometry.scrollWidth <= geometry.clientWidth + 1, `collapsed sidebar has no horizontal overflow: ${JSON.stringify(geometry)}`);
+          assert.ok(geometry.scrollHeight > geometry.clientHeight, 'short sidebar remains vertically scrollable');
+          await scrollPort.evaluate(node => { node.scrollTop = node.scrollHeight; });
+          assert.ok(await scrollPort.evaluate(node => node.scrollTop > 0), 'collapsed sidebar remains vertically navigable');
+          await page.screenshot({ path: `${out}/sidebar-collapsed-${width}.png` });
+          row.checks.push('collapsed-sidebar-no-horizontal-overflow', 'vertical-scroll-remains-reachable');
+          await page.setViewportSize({ width, height: 900 });
+          await sidebar.getByRole('button', { name: '展开侧栏', exact: true }).click();
+          await settle(page, '.app-sidebar');
+        }
         for (const [name, workspace, direction] of [['职业', 'career', 'navigation-forward'], ['今日', 'today', 'navigation-backward']]) {
           await navigation.getByRole('link', { name, exact: true }).click();
           // The previous route has the same button label. Await destination
