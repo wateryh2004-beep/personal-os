@@ -24,7 +24,7 @@ export type MarkdownTable = {
 const MAX_COLUMNS = 20;
 const MAX_ROWS = 250;
 
-function splitPipeLine(text: string, from: number): TableCellRange[] | null {
+function splitPipeLine(text: string, from: number, minCells = 2): TableCellRange[] | null {
   if (/^(?: {4,}|\t| {0,3}>)/.test(text) || !text.includes("|")) return null;
   const separators: number[] = [];
   let ticks = 0;
@@ -61,7 +61,7 @@ function splitPipeLine(text: string, from: number): TableCellRange[] | null {
   // Border pipes are structural only when the outer fragments are whitespace.
   if (/^\s*\|/.test(text) && parts[0]?.value === "") parts.shift();
   if (/\|\s*$/.test(text) && parts.at(-1)?.value === "") parts.pop();
-  return parts.length >= 2 && parts.length <= MAX_COLUMNS ? parts : null;
+  return parts.length >= minCells && parts.length <= MAX_COLUMNS ? parts : null;
 }
 
 function isSeparator(cells: TableCellRange[]): boolean {
@@ -136,7 +136,7 @@ export function parseMarkdownTables(source: string): MarkdownTable[] {
     while (cursor < lines.length && data.length < MAX_ROWS) {
       const line = lines[cursor];
       if (line.fenced || !line.text.trim()) break;
-      const cells = splitPipeLine(line.text, line.from);
+      const cells = splitPipeLine(line.text, line.from, 1);
       if (!cells || isSeparator(cells)) break;
       // Unbordered data cells are allowed after a genuine delimiter only.
       if (!delimiter && !bordered(line.text)) break;
@@ -147,10 +147,10 @@ export function parseMarkdownTables(source: string): MarkdownTable[] {
     // Do not split an oversized source table into several unrelated widgets.
     // Keep very large tables in ordinary editable Markdown instead.
     if (data.length === MAX_ROWS && cursor < lines.length && !lines[cursor].fenced &&
-      splitPipeLine(lines[cursor].text, lines[cursor].from)) {
+      splitPipeLine(lines[cursor].text, lines[cursor].from, 1)) {
       i = cursor + 1;
       while (i < lines.length && !lines[i].fenced &&
-        splitPipeLine(lines[i].text, lines[i].from)) i += 1;
+        splitPipeLine(lines[i].text, lines[i].from, 1)) i += 1;
       continue;
     }
     const width = Math.max(header.length, delimiter?.length ?? 0, ...data.map(row => row.length));
