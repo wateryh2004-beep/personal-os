@@ -60,6 +60,10 @@ function renderCell(
   const commitInput = () => {
     const table = locateTable(view, root);
     if (!table) return;
+    // Browser IME can emit both compositionend and a trailing input event.
+    // A no-op must not create another CodeMirror undo step or reset the caret.
+    const currentValue = row === -1 ? table.header[column] : table.rows[row]?.[column];
+    if (currentValue === input.value) return;
     const wasFocused = document.activeElement === input;
     const selectionStart = input.selectionStart;
     const selectionEnd = input.selectionEnd;
@@ -84,10 +88,22 @@ function renderCell(
   input.addEventListener("compositionend", () => { composing = false; commitInput(); });
   input.addEventListener("input", () => { if (!composing) commitInput(); });
   input.addEventListener("keydown", event => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+    if ((event.metaKey || event.ctrlKey) && (event.key.toLowerCase() === "z" || (!event.metaKey && event.key.toLowerCase() === "y"))) {
       event.preventDefault();
-      if (event.shiftKey) redo(view);
-      else undo(view);
+      const caret = input.selectionStart;
+      const isRedo = event.shiftKey || event.key.toLowerCase() === "y";
+      const changed = isRedo ? redo(view) : undo(view);
+      if (changed) requestAnimationFrame(() => {
+        if (!view.dom.isConnected) return;
+        const next = view.dom.querySelector<HTMLInputElement>(
+          '.cm-note-table-widget[data-table-from="' + root.dataset.tableFrom + '"] input[data-row="' +
+          row + '"][data-column="' + column + '"]',
+        );
+        if (next) {
+          next.focus({ preventScroll: true });
+          if (caret !== null) next.setSelectionRange(Math.min(caret, next.value.length), Math.min(caret, next.value.length));
+        } else view.focus();
+      });
       return;
     }
     if (event.key === "Escape") {
@@ -115,7 +131,7 @@ function renderCell(
       next.select();
     } else if (delta > 0) {
       writeChange(view, addMarkdownTableRow(table));
-      queueMicrotask(() => {
+      requestAnimationFrame(() => {
         const newCell = view.dom.querySelector<HTMLInputElement>(
           '.cm-note-table-widget[data-table-from="' + table.from + '"] input[data-row="' +
           table.rows.length + '"][data-column="' + (event.key === "Enter" ? column : 0) + '"]',

@@ -24,6 +24,7 @@ import { markdownEditorKeymap } from "@/features/notes/editor/markdown-keymap";
 import { markdownEditorTheme } from "@/features/notes/editor/markdown-theme";
 import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
 import { markdownImagePreview } from "@/features/notes/editor/markdown-image-preview";
+import { shouldRestoreAsyncEditorFocus } from "@/features/notes/editor/async-editor-intent";
 import { markdownTablePreview } from "@/features/notes/editor/markdown-table-preview";
 import { pastedTsvToMarkdown } from "@/features/notes/editor/markdown-table";
 import { createNoteLinkCompletion, extractNoteLinkQuery } from "@/features/notes/editor/note-link-completion";
@@ -136,6 +137,13 @@ export function VisualMarkdownEditor({
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const positionMeasureKey = useRef({});
   const changeRef = useRef(onChange);
+  const lastPublishedMarkdownRef = useRef(markdown);
+  const userIntentRevisionRef = useRef(0);
+  const publishMarkdown = useCallback((value: string) => {
+    if (lastPublishedMarkdownRef.current === value) return;
+    lastPublishedMarkdownRef.current = value;
+    changeRef.current(value);
+  }, []);
   const positionIntentRef = useRef(onPositionIntent);
   const selectionRef = useRef(onSelectionChange);
   const [view, setView] = useState<EditorView | null>(null);
@@ -143,14 +151,17 @@ export function VisualMarkdownEditor({
   useEffect(() => {
     if (!view || appliedContentRevision.current === contentRevision) return;
     appliedContentRevision.current = contentRevision;
+    // An explicit AI/recovery update is not a new user keystroke.
+    lastPublishedMarkdownRef.current = markdown;
     if (view.state.doc.toString() !== markdown) view.dispatch({
       changes: { from: 0, to: view.state.doc.length, insert: markdown },
       annotations: ExternalChange.of(true),
     });
   }, [contentRevision, markdown, view]);
   const handleCodeMirrorChange = useCallback((value: string, update: ViewUpdate) => {
-    if (!update.view.composing) changeRef.current(value);
-  }, []);
+    if (update.view.composing || update.transactions.some(transaction => transaction.annotation(ExternalChange))) return;
+    publishMarkdown(value);
+  }, [publishMarkdown]);
   // Toolbar commands only need a fresh version after document changes. Cursor
   // and viewport updates stay inside CodeMirror instead of rerendering React.
   const [stateVersion, setStateVersion] = useState(0);
@@ -425,6 +436,8 @@ export function VisualMarkdownEditor({
 
   const insertUploadedImage = useCallback(async (file: File, currentView: EditorView) => {
     const initialRange = currentView.state.selection.main;
+    const intentRevision = userIntentRevisionRef.current;
+    const startedFocused = currentView.hasFocus;
     const selected = currentView.state.sliceDoc(initialRange.from, initialRange.to).trim();
     const uploadId = nextImageUploadId();
     currentView.dispatch({
@@ -447,15 +460,15 @@ export function VisualMarkdownEditor({
       return;
     }
     const markdownImage = `![${selected || safeImageAlt(result.filename)}](${result.src})`;
+    const restore = shouldRestoreAsyncEditorFocus(startedFocused, currentView.hasFocus, intentRevision, userIntentRevisionRef.current);
     currentView.dispatch({
       changes: { from: range.from, to: range.to, insert: markdownImage },
-      selection: { anchor: range.from + markdownImage.length },
+      ...(restore ? { selection: { anchor: range.from + markdownImage.length }, scrollIntoView: true } : {}),
       effects: removeMarkdownUploadPlaceholder.of(uploadId),
-      scrollIntoView: true,
       userEvent: "input",
     });
     onImageUploadStatus?.("图片已插入笔记。");
-    currentView.focus();
+    if (restore) currentView.focus();
   }, [onImageUploadStatus, uploadImage]);
 
   // 粘贴纯 URL 时自动抓取标题：先插入占位，再异步替换为 [标题](url)。
@@ -470,6 +483,8 @@ export function VisualMarkdownEditor({
       scrollIntoView: true,
       userEvent: "input",
     });
+    const intentRevision = userIntentRevisionRef.current;
+    const startedFocused = currentView.hasFocus;
     let title: string | null = null;
     try {
       const response = await fetch(`/api/link-title?url=${encodeURIComponent(rawUrl)}`);
@@ -481,24 +496,22 @@ export function VisualMarkdownEditor({
       title = null;
     }
     if (!currentView.dom.isConnected) return;
-    const marker = `[解析链接标题… ${token}`;
+    // Only replace the exact untouched placeholder. Never consume intervening
+    // writing after a delayed request returned.
     const text = currentView.state.doc.toString();
-    const from = text.lastIndexOf(marker);
+    const from = text.indexOf(placeholder);
     if (from === -1) return;
-    const tail = `](${rawUrl})`;
-    const tailIndex = text.indexOf(tail, from);
-    if (tailIndex === -1) return;
     const safeTitle = title
       ? title.replace(/[\n\r]/g, " ").replace(/[\[\]]/g, "")
       : rawUrl;
     const replacement = `[${safeTitle}](${rawUrl})`;
+    const restore = shouldRestoreAsyncEditorFocus(startedFocused, currentView.hasFocus, intentRevision, userIntentRevisionRef.current);
     currentView.dispatch({
-      changes: { from, to: tailIndex + tail.length, insert: replacement },
-      selection: { anchor: from + replacement.length },
-      scrollIntoView: true,
+      changes: { from, to: from + placeholder.length, insert: replacement },
+      ...(restore ? { selection: { anchor: from + replacement.length }, scrollIntoView: true } : {}),
       userEvent: "input",
     });
-    currentView.focus();
+    if (restore) currentView.focus();
   }, []);
 
   const extensions = useMemo(
@@ -538,9 +551,9 @@ export function VisualMarkdownEditor({
   useEffect(() => {
     if (!view) return;
     view.dispatch({ effects: eventHandlers.reconfigure(EditorView.domEventHandlers({
-        wheel: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
-        touchstart: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
-        pointerdown: (_event, currentView) => { positionIntentRef.current?.(currentView); return false; },
+        wheel: (_event, currentView) => { userIntentRevisionRef.current += 1; positionIntentRef.current?.(currentView); return false; },
+        touchstart: (_event, currentView) => { userIntentRevisionRef.current += 1; positionIntentRef.current?.(currentView); return false; },
+        pointerdown: (_event, currentView) => { userIntentRevisionRef.current += 1; positionIntentRef.current?.(currentView); return false; },
         paste(event, currentView) {
           const image = [...(event.clipboardData?.files ?? [])].find((file) =>
             file.type.startsWith("image/"),
@@ -606,7 +619,7 @@ export function VisualMarkdownEditor({
         compositionend(_event, currentView) {
           queueMicrotask(() => {
             if (!currentView.dom.isConnected) return;
-            changeRef.current(currentView.state.doc.toString());
+            publishMarkdown(currentView.state.doc.toString());
             if (extractNoteLinkQuery(currentView.state.doc.toString(), currentView.state.selection.main.head))
               startCompletion(currentView);
             centerMobileCursor(currentView);
@@ -614,7 +627,7 @@ export function VisualMarkdownEditor({
           return false;
         },
       })) });
-  }, [eventHandlers, extensions, insertTitledLink, insertUploadedImage, view]);
+  }, [eventHandlers, extensions, insertTitledLink, insertUploadedImage, publishMarkdown, view]);
 
   const insertTable = () => {
     const currentView = editorRef.current?.view;
@@ -643,6 +656,11 @@ export function VisualMarkdownEditor({
 
   useEffect(() => {
     updateRef.current = (update: ViewUpdate) => {
+      if (update.docChanged || update.selectionSet) {
+        if (!update.transactions.some(transaction => transaction.annotation(ExternalChange))) {
+          userIntentRevisionRef.current += 1;
+        }
+      }
       if (!paneActive) return;
       if (update.geometryChanged || update.selectionSet) onEditorReady?.(update.view);
       if (onPositionChange && (update.selectionSet || update.viewportChanged)) update.view.requestMeasure({

@@ -224,6 +224,29 @@ describe("Markdown 其他列表", () => {
 });
 
 describe("工具栏与快捷键共用的 Markdown 命令", () => {
+  it("repeating bold/italic removes delimiters surrounding the selected text", () => {
+    for (const [mark, command] of [["**", toggleBold], ["*", toggleItalic]] as const) {
+      const first = runSelection("文字", 0, 2, command);
+      expect(first.text).toBe(`${mark}文字${mark}`);
+      const second = runSelection(first.text, mark.length, mark.length + 2, command);
+      expect(second.text).toBe("文字");
+      expect(second.state.selection.main.from).toBe(0);
+      expect(second.state.selection.main.to).toBe(2);
+    }
+  });
+
+  it("unwrapping an external delimiter pair is a single undoable transaction", () => {
+    let state = EditorState.create({
+      doc: "**文字**",
+      selection: EditorSelection.range(2, 4),
+      extensions: [history()],
+    });
+    expect(toggleBold({ state, dispatch: transaction => { state = transaction.state; } })).toBe(true);
+    expect(state.doc.toString()).toBe("文字");
+    expect(undo({ state, dispatch: transaction => { state = transaction.state; } })).toBe(true);
+    expect(state.doc.toString()).toBe("**文字**");
+  });
+
   it("选区粗体、斜体与链接均保持选区语义", () => {
     expect(runSelection("文字", 0, 2, toggleBold).text).toBe("**文字**");
     expect(runSelection("文字", 0, 2, toggleItalic).text).toBe("*文字*");
