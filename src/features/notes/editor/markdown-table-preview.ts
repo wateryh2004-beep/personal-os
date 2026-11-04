@@ -145,12 +145,19 @@ class MarkdownTableWidget extends WidgetType {
     if (!(dom instanceof HTMLDivElement)) return false;
     const inputs = dom.querySelectorAll<HTMLInputElement>(".cm-note-table-cell-input");
     const expected = (this.table.rows.length + 1) * this.table.width;
-    if (this.sourcePreview || inputs.length !== expected) return false;
+    const oldHint = Boolean(dom.querySelector(".cm-note-table-hint"));
+    // A repaired malformed table must remove its recovery hint. Recreate DOM
+    // when the table's structure or canonical status changes.
+    if (this.sourcePreview || inputs.length !== expected || oldHint === this.table.canonical) return false;
     dom.dataset.tableFrom = String(this.table.from);
     const values = [this.table.header, ...this.table.rows].flat();
     inputs.forEach((input, index) => {
-      if (document.activeElement !== input && input.value !== values[index]) {
-        input.value = values[index];
+      if (input.value === values[index]) return;
+      const focused = document.activeElement === input;
+      const start = input.selectionStart, end = input.selectionEnd;
+      input.value = values[index];
+      if (focused && start !== null && end !== null) {
+        input.setSelectionRange(Math.min(start, input.value.length), Math.min(end, input.value.length));
       }
     });
     return true;
