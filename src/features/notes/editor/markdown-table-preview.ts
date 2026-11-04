@@ -60,6 +60,10 @@ function renderCell(
   const commitInput = () => {
     const table = locateTable(view, root);
     if (!table) return;
+    // Browser IME can emit both compositionend and a trailing input event.
+    // A no-op must not create another CodeMirror undo step or reset the caret.
+    const currentValue = row === -1 ? table.header[column] : table.rows[row]?.[column];
+    if (currentValue === input.value) return;
     const wasFocused = document.activeElement === input;
     const selectionStart = input.selectionStart;
     const selectionEnd = input.selectionEnd;
@@ -84,9 +88,9 @@ function renderCell(
   input.addEventListener("compositionend", () => { composing = false; commitInput(); });
   input.addEventListener("input", () => { if (!composing) commitInput(); });
   input.addEventListener("keydown", event => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+    if ((event.metaKey || event.ctrlKey) && (event.key.toLowerCase() === "z" || (!event.metaKey && event.key.toLowerCase() === "y"))) {
       event.preventDefault();
-      if (event.shiftKey) redo(view);
+      if (event.shiftKey || event.key.toLowerCase() === "y") redo(view);
       else undo(view);
       return;
     }

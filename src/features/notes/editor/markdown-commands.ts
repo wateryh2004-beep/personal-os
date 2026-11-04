@@ -391,6 +391,24 @@ export function wrapMarkdown(open: string, close = open): StateCommand {
           range: EditorSelection.range(range.from, range.from + content.length),
         };
       }
+      // After the first toggle the selection excludes the surrounding marks.
+      // A second toggle must remove them, not produce ****text****.
+      const hasOuterMarks =
+        range.from >= open.length &&
+        range.to + close.length <= state.doc.length &&
+        state.sliceDoc(range.from - open.length, range.from) === open &&
+        state.sliceDoc(range.to, range.to + close.length) === close;
+      if (hasOuterMarks) {
+        return {
+          changes: [
+            { from: range.from - open.length, to: range.from, insert: "" },
+            { from: range.to, to: range.to + close.length, insert: "" },
+          ],
+          range: range.empty
+            ? EditorSelection.cursor(range.from - open.length)
+            : EditorSelection.range(range.from - open.length, range.to - open.length),
+        };
+      }
       const insert = `${open}${selected}${close}`;
       return {
         changes: { from: range.from, to: range.to, insert },
