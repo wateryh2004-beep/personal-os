@@ -56,7 +56,8 @@ function renderCell(
   input.setAttribute("aria-label", (row === -1 ? "表头" : "第 " + (row + 1) + " 行") + "第 " + (column + 1) + " 列");
   input.dataset.row = String(row);
   input.dataset.column = String(column);
-  input.addEventListener("input", () => {
+  let composing = false;
+  const commitInput = () => {
     const table = locateTable(view, root);
     if (!table) return;
     const wasFocused = document.activeElement === input;
@@ -78,7 +79,10 @@ function renderCell(
         }
       }
     });
-  });
+  };
+  input.addEventListener("compositionstart", () => { composing = true; });
+  input.addEventListener("compositionend", () => { composing = false; commitInput(); });
+  input.addEventListener("input", () => { if (!composing) commitInput(); });
   input.addEventListener("keydown", event => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
       event.preventDefault();
