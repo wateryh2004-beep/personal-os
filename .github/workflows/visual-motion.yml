@@ -33,6 +33,9 @@ jobs:
           - suite: markdown-writing
             script: markdown-writing-e2e.cjs
             timeout: 300
+          - suite: notes-phase4
+            script: notes-phase4-e2e.cjs
+            timeout: 240
           - suite: planning-visual
             script: planning-visual-e2e.cjs
             timeout: 300
