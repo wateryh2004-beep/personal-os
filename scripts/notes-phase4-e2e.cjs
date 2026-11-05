@@ -40,13 +40,13 @@ const versionId = "06fe866d-bfd6-4eaf-86a2-b7c9077c0212";
         await page.getByTestId("notes-phase4-fixture").waitFor();
         await page.getByRole("dialog", { name: "比较并恢复笔记版本" }).waitFor();
         await page.getByRole("textbox", { name: "当前版本 Markdown" }).waitFor();
-        assert.equal(await page.getByRole("textbox", { name: "合并后的 Markdown 正文" }).inputValue(), "# 章节\n\n当前段落\n\n共有段落");
+        assert.equal(await page.getByRole("textbox", { name: "Markdown 正文" }).inputValue(), "# 章节\n\n当前段落\n\n共有段落");
         assert.equal(await page.getByRole("button", { name: "确认应用并保存" }).isDisabled(), true);
         await page.getByRole("button", { name: "采用历史全文" }).click();
-        assert.equal(await page.getByRole("textbox", { name: "合并后的 Markdown 正文" }).inputValue(), "# 章节\n\n历史段落\n\n共有段落");
+        assert.equal(await page.getByRole("textbox", { name: "Markdown 正文" }).inputValue(), "# 章节\n\n历史段落\n\n共有段落");
         assert.equal(await page.getByRole("button", { name: "确认应用并保存" }).isEnabled(), true);
         // Dirty draft must block the final apply without sending a Server Action.
-        await page.getByRole("button", { name: "切换未保存状态" }).evaluate(button => button.click());
+        await page.locator("[data-note-editor-id]").evaluate(element => { element.dataset.noteSaveState = "有未保存修改"; });
         await page.getByRole("button", { name: "确认应用并保存" }).click();
         await page.getByRole("alert").filter({ hasText: "未保存内容" }).waitFor();
         assert.equal(writes, 0, "no synthetic writes or version overwrites");
