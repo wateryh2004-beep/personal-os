@@ -77,7 +77,7 @@ export function NoteDetailsContent({ document, details }: { document: NoteDocume
           (item.level === "attention" ? "bg-[var(--warning-soft)] text-[var(--text-primary)]" :
             "bg-[var(--surface-control)] text-[var(--text-secondary)]")}>{item.text}</li>,
       )}</ul>
-    </section>
+    </section> : null}
 
     <section>
       <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><History className="size-3.5 text-[var(--accent)]" aria-hidden="true" /><h2 className="text-[13px] font-semibold text-[var(--text-primary)]">版本快照</h2></div><form action={createNoteVersion}><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="expected_revision" value={baseline.revision ?? ""} /><button className="pressable h-8 rounded-[8px] px-2.5 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">创建快照</button></form></div>
