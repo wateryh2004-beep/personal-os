@@ -50,7 +50,6 @@ const output = "test-results/markdown-writing";
         await image.getByRole("textbox", { name: "图片说明" }).fill("更新后的图片说明");
         await image.getByRole("button", { name: "保存图片属性" }).click();
         await page.waitForFunction(() => document.querySelector('[data-testid="markdown-writing-source"]')?.textContent?.includes('![新的图片替代文字](/favicon.ico "更新后的图片说明")'));
-
         const line = page.locator(".cm-content .cm-line").filter({ hasText: "这是一段可以选中并格式化的正文。" }).first();
         await line.click();
         await editor.press("Home");
@@ -85,6 +84,28 @@ const output = "test-results/markdown-writing";
         await page.locator(".cm-completionLabel").filter({ hasText: "AI 助手" }).first().waitFor();
         await page.keyboard.press("Enter");
         await page.waitForFunction(() => document.querySelector('[data-testid="markdown-writing-ai-count"]')?.textContent === "1");
+
+        // Phase 4: toggle only the visual decoration set; the canonical
+        // Markdown, focus and undo history must remain in the same editor.
+        const beforeSourceSwitch = await source.textContent();
+        if (width < 768) {
+          await page.getByRole("button", { name: "更多格式工具" }).click();
+          await page.getByRole("menuitem", { name: "切换源码" }).click();
+        } else {
+          await page.getByRole("group", { name: "Markdown 编辑显示" }).getByRole("button", { name: "源码" }).click();
+        }
+        await page.locator('[data-markdown-presentation="source"]').waitFor();
+        assert.equal(await page.locator(".cm-note-image-preview").count(), 0, "source mode exposes raw image tokens");
+        assert.equal(await source.textContent(), beforeSourceSwitch, "source mode does not modify the document");
+        if (width < 768) {
+          await page.getByRole("button", { name: "更多格式工具" }).click();
+          await page.getByRole("menuitem", { name: "切换可视化" }).click();
+        } else {
+          await page.getByRole("group", { name: "Markdown 编辑显示" }).getByRole("button", { name: "可视化" }).click();
+        }
+        await page.locator('[data-markdown-presentation="visual"]').waitFor();
+        await page.locator(".cm-note-image-preview").first().waitFor();
+        assert.equal(await source.textContent(), beforeSourceSwitch, "visual mode preserves Markdown");
 
         const bounds = await page.evaluate(() => ({ document: document.documentElement.scrollWidth, viewport: innerWidth }));
         assert.ok(bounds.document <= bounds.viewport + 1, "no root horizontal overflow");

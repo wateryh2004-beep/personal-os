@@ -21,7 +21,7 @@ import {
   type MarkdownOutlineItem,
 } from "@/features/notes/editor/markdown-outline";
 import { markdownEditorKeymap } from "@/features/notes/editor/markdown-keymap";
-import { markdownEditorTheme } from "@/features/notes/editor/markdown-theme";
+import { markdownEditorTheme, markdownSourceTheme } from "@/features/notes/editor/markdown-theme";
 import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
 import { markdownImagePreview } from "@/features/notes/editor/markdown-image-preview";
 import { markdownSelectionToolbar } from "@/features/notes/editor/markdown-selection-toolbar";
@@ -134,6 +134,8 @@ export function VisualMarkdownEditor({
   const paneActive = useWorkbenchActive();
   const [initialMarkdown] = useState(markdown);
   const [eventHandlers] = useState(() => new Compartment());
+  const [presentation] = useState(() => new Compartment());
+  const [sourceMode, setSourceMode] = useState(false);
   const appliedContentRevision = useRef(contentRevision);
   const updateRef = useRef<(update: ViewUpdate) => void>(() => {});
   const handleUpdate = useCallback((update: ViewUpdate) => updateRef.current(update), []);
@@ -573,12 +575,10 @@ export function VisualMarkdownEditor({
       // Link/slash acceptance must run before list-continuation Enter.
       noteLinkCompletion,
       markdownEditorKeymap,
-      markdownEditorTheme,
-      markdownImagePreview,
-      selectionToolbar,
-      markdownSectionFolding,
-      markdownTablePreview,
-      noteLinkDecoration,
+      presentation.of([
+        markdownEditorTheme, markdownImagePreview, selectionToolbar,
+        markdownSectionFolding, markdownTablePreview, noteLinkDecoration,
+      ]),
       markdownUploadPlaceholder,
       documentCharacterCount,
       sourceLineAttributes,
@@ -592,8 +592,19 @@ export function VisualMarkdownEditor({
       }),
       eventHandlers.of([]),
     ],
-    [eventHandlers, noteLinkCompletion, selectionToolbar],
+    [eventHandlers, noteLinkCompletion, presentation, selectionToolbar],
   );
+
+  useEffect(() => {
+    if (!view) return;
+    const visual = [
+      markdownEditorTheme, markdownImagePreview, selectionToolbar,
+      markdownSectionFolding, markdownTablePreview, noteLinkDecoration,
+    ];
+    // Reconfigure decorations in place: never remount CodeMirror or replace
+    // its document, selections, scroll position, or undo/redo history.
+    view.dispatch({ effects: presentation.reconfigure(sourceMode ? [markdownSourceTheme] : visual) });
+  }, [view, presentation, selectionToolbar, sourceMode]);
 
   useEffect(() => {
     if (!view) return;
@@ -739,10 +750,12 @@ export function VisualMarkdownEditor({
   });
 
   return (
-    <div className="life-markdown-editor relative">
+    <div className="life-markdown-editor relative" data-markdown-presentation={sourceMode ? "source" : "visual"}>
       <MarkdownToolbar
         view={view}
         stateVersion={stateVersion}
+        sourceMode={sourceMode}
+        onSourceModeChange={setSourceMode}
         onPickImage={(file) => {
           const currentView = editorRef.current?.view;
           if (currentView) void insertUploadedImage(file, currentView);

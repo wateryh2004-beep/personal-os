@@ -329,12 +329,12 @@ export async function getNoteDetails(id: string, verifiedOwner?: Owner) {
   if (present.error) throw new Error("note_details_unavailable");
   if (!present.data) return null;
   const [versionsResult, relations, folders] = await Promise.all([
-    supabase.from("note_versions").select("id,version_number,reason,created_at").eq("note_id", id).order("version_number", { ascending: false }).limit(6),
+    supabase.from("note_versions").select("id,version_number,reason,created_at").eq("note_id", id).order("version_number", { ascending: false }).limit(30),
     getNoteLinkRelations(supabase, id),
     getActiveNoteFolders(owner),
   ]);
   const versions = isNotesWorkspaceSchemaMissing(versionsResult.error)
-    ? await supabase.from("note_versions").select("id,version_number,created_at").eq("note_id", id).order("version_number", { ascending: false }).limit(6)
+    ? await supabase.from("note_versions").select("id,version_number,created_at").eq("note_id", id).order("version_number", { ascending: false }).limit(30)
     : versionsResult;
   if (versions.error && !isNotesWorkspaceSchemaMissing(versions.error)) throw new Error("note_versions_unavailable");
   return {

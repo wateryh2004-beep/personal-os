@@ -603,6 +603,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
           <DropdownMenuItem onSelect={() => void toggleFullscreen()}>{fullscreenActive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}{fullscreenActive ? "退出专注" : "进入专注"}</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void copyCurrentNoteReference()}><Link2 aria-hidden="true" />复制笔记引用</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void copyFullNote()}><Copy aria-hidden="true" />复制全文</DropdownMenuItem>
+          <DropdownMenuItem asChild><a href={`/api/exports/notes/${note.id}/html`}><Download aria-hidden="true" />下载已保存 HTML</a></DropdownMenuItem>
+          <DropdownMenuItem asChild><a href={`/api/exports/notes/${note.id}/html?view=1`} target="_blank" rel="noopener noreferrer"><Download aria-hidden="true" />打印 / 可搜索 PDF（已保存）</a></DropdownMenuItem>
           <DropdownMenuItem disabled={isExporting} onSelect={startPdfExport}><Download aria-hidden="true" />{isExporting ? "正在生成 PDF…" : "导出 PDF"}</DropdownMenuItem>
           <DropdownMenuItem disabled={isChangingContentOrigin} onSelect={toggleContentOrigin}><Sparkles aria-hidden="true" />{aiGenerated ? "取消 AI 生成标记" : "标记为 AI 生成"}</DropdownMenuItem>
           {titleUndoStack.length ? <DropdownMenuItem onSelect={handleAiUndoTitle}>撤回 AI 标题</DropdownMenuItem> : null}
@@ -612,7 +614,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   );
 
   return (
-    <section data-note-editor-id={note.id} data-note-mode={reading ? "reading" : "editing"}
+    <section data-note-editor-id={note.id} data-note-save-state={state} data-note-mode={reading ? "reading" : "editing"}
       ref={attachEditorSurface}
       className={`notes-editor-surface flex h-full min-w-0 overflow-hidden bg-[var(--surface-canvas)] ${isFallbackFullscreen ? "fixed inset-0 z-[80] h-[var(--app-viewport-height)]" : ""}`}
     >

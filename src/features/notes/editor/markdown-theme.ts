@@ -448,3 +448,12 @@ export const markdownEditorTheme: Extension = [
   EditorView.lineWrapping,
   scrollPastEnd(),
 ];
+
+/** The raw Markdown mode retains layout and syntax colors without hiding
+ * source tokens or replacing text. CodeMirror remains mounted and owns undo. */
+export const markdownSourceTheme: Extension = [
+  editorTheme,
+  syntaxHighlighting(markdownHighlight),
+  EditorView.lineWrapping,
+  scrollPastEnd(),
+];

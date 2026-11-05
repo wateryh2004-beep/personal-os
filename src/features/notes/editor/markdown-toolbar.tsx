@@ -116,6 +116,8 @@ export function MarkdownToolbar({
   onInsertTable,
   onOpenAi,
   outlineControl,
+  sourceMode = false,
+  onSourceModeChange,
 }: {
   view: EditorView | null;
   stateVersion: number;
@@ -123,6 +125,8 @@ export function MarkdownToolbar({
   onInsertTable: () => void;
   onOpenAi?: () => void;
   outlineControl?: React.ReactNode;
+  sourceMode?: boolean;
+  onSourceModeChange?: (source: boolean) => void;
 }) {
   const blockStyleId = useId();
   void stateVersion;
@@ -201,12 +205,17 @@ export function MarkdownToolbar({
               <DropdownMenuItem onSelect={() => run(toggleBlockquote)}>引用</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => fileRef.current?.click()}>插入图片</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => { onInsertTable(); view?.focus(); }}>插入表格</DropdownMenuItem>
+              {onSourceModeChange ? <DropdownMenuItem onSelect={() => onSourceModeChange(!sourceMode)}>{sourceMode ? "切换可视化" : "切换源码"}</DropdownMenuItem> : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
       <span className="min-w-2 flex-1" />
       {outlineControl}
+      {onSourceModeChange ? <div className="note-source-toggle hidden md:flex" role="group" aria-label="Markdown 编辑显示">
+        <button type="button" aria-pressed={!sourceMode} onClick={() => onSourceModeChange(false)}>可视化</button>
+        <button type="button" aria-pressed={sourceMode} onClick={() => onSourceModeChange(true)}>源码</button>
+      </div> : null}
       <ToolbarButton label={onOpenAi ? "AI" : "AI 生成内容已排除"} disabled={!view || !onOpenAi} onClick={() => { onOpenAi?.(); view?.focus(); }}><Sparkles aria-hidden="true" className="size-4" /></ToolbarButton>
       <input
         ref={fileRef}
