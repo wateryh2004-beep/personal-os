@@ -63,7 +63,8 @@ export function NoteVersionHistory({
     return () => abort.abort();
   }, [baseUrl, initialVersionId]);
 
-  const parts = useMemo(() => picked ? compareNoteVersions(currentBody, picked.version.body) : null, [currentBody, picked?.version.body]);
+  const historicalBody = picked?.version.body;
+  const parts = useMemo(() => historicalBody === undefined ? null : compareNoteVersions(currentBody, historicalBody), [currentBody, historicalBody]);
   const changes = useMemo(() => parts?.filter(part => part.kind === "changed") ?? [], [parts]);
   const nextBody = picked ? picked.fullBody || parts === null
     ? picked.version.body
