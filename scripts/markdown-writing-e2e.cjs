@@ -50,6 +50,18 @@ const output = "test-results/markdown-writing";
         await image.getByRole("textbox", { name: "图片说明" }).fill("更新后的图片说明");
         await image.getByRole("button", { name: "保存图片属性" }).click();
         await page.waitForFunction(() => document.querySelector('[data-testid="markdown-writing-source"]')?.textContent?.includes('![新的图片替代文字](/favicon.ico "更新后的图片说明")'));
+        // Phase 4: toggle only the visual decoration set; the canonical
+        // Markdown, focus and undo history must remain in the same editor.
+        const beforeSourceSwitch = await source.textContent();
+        const presentation = page.getByRole("group", { name: "Markdown 编辑显示" });
+        await presentation.getByRole("button", { name: "源码" }).click();
+        await page.locator('[data-markdown-presentation="source"]').waitFor();
+        assert.equal(await page.locator(".cm-note-image-preview").count(), 0, "source mode exposes raw image tokens");
+        assert.equal(await source.textContent(), beforeSourceSwitch, "source mode does not modify the document");
+        await presentation.getByRole("button", { name: "可视化" }).click();
+        await page.locator('[data-markdown-presentation="visual"]').waitFor();
+        await page.locator(".cm-note-image-preview").first().waitFor();
+        assert.equal(await source.textContent(), beforeSourceSwitch, "visual mode preserves Markdown");
 
         const line = page.locator(".cm-content .cm-line").filter({ hasText: "这是一段可以选中并格式化的正文。" }).first();
         await line.click();
