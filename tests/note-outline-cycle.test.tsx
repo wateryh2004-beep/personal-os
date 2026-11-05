@@ -11,7 +11,7 @@ const changed = vi.fn();
 const items = parseMarkdownOutline("# 第一章\n\n## 第二章\n\n## 第三章");
 function Fixture() {
   const [open, setOpen] = useState(false);
-  return <><button type="button" aria-label="外部打开" onClick={() => setOpen(true)}>打开</button><button type="button" aria-label="外部关闭" onClick={() => setOpen(false)}>关闭</button><NoteOutline open={open} onOpenChange={setOpen} disabled={false} items={items} listRef={() => {}} onSelect={selected} onListChange={changed} /></>;
+  return <><button type="button" aria-label="外部打开" onClick={() => setOpen(true)}>打开</button><button type="button" aria-label="外部关闭" onClick={() => setOpen(false)}>关闭</button><NoteOutline open={open} onOpenChange={setOpen} disabled={false} items={items} listRef={() => {}} onSelect={selected} onToggleFold={() => true} foldableIndices={new Set([0, 1])} foldedIndices={new Set()} onListChange={changed} /></>;
 }
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
