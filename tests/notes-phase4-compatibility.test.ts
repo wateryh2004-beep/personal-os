@@ -21,4 +21,4 @@ describe("Notes Phase 4 complex Markdown compatibility", () => {
     expect(analyzeMarkdownCompatibility(source).map(x => x.id))
       .toEqual(expect.arrayContaining(["diagram", "math", "html"]));
   });
-}
+});
