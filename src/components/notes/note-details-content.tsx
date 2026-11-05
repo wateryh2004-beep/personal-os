@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { noteAttachmentUrl } from "@/features/notes/attachments";
 import { NoteBacklinks } from "@/components/notes/note-backlinks";
+import { NoteVersionReview } from "@/components/notes/note-version-review";
 import { EntityBacklinks } from "@/components/links/entity-backlinks";
 import { FolderPicker } from "@/components/notes/folder-picker";
-import { archiveNote, createNoteVersion, moveNote, restoreNoteVersion, setNoteAiVisibility, toggleNotePinned, trashNote } from "@/features/notes/actions";
+import { archiveNote, createNoteVersion, moveNote, setNoteAiVisibility, toggleNotePinned, trashNote } from "@/features/notes/actions";
 import { formatNoteTimestamp } from "@/features/notes/utils";
 import { Archive, Download, FileClock, FolderInput, History, Link2, Pin, PinOff, Trash2 } from "lucide-react";
 
@@ -27,6 +28,7 @@ export function NoteDetailsContent({ document, details }: { document: NoteDocume
   const data = { ...document, ...details };
   const [baseline,setBaseline]=useState({id:document.note.id,revision:document.note.mutation_revision});
   if(baseline.id!==document.note.id)setBaseline({id:document.note.id,revision:document.note.mutation_revision});
+  const [reviewVersionId, setReviewVersionId] = useState<string | null>(null);
   const folders = details.folders;
   const stats = noteStats(data.note.body_markdown, data.links.length + data.backlinks.length);
   return <div className="space-y-0 pb-2 text-[13px]">
@@ -70,8 +72,15 @@ export function NoteDetailsContent({ document, details }: { document: NoteDocume
     <section>
       <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><History className="size-3.5 text-[var(--accent)]" aria-hidden="true" /><h2 className="text-[13px] font-semibold text-[var(--text-primary)]">版本快照</h2></div><form action={createNoteVersion}><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="expected_revision" value={baseline.revision ?? ""} /><button className="pressable h-8 rounded-[8px] px-2.5 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">创建快照</button></form></div>
       <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">创建快照后，随时可回到这一个版本。</p>
-      {data.versions.length ? <div className="mt-2.5 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">{data.versions.slice(0, 5).map((version) => <form action={restoreNoteVersion} key={version.id} className="flex items-center gap-2 py-2"><FileClock className="size-3.5 shrink-0 text-[var(--text-tertiary)]" aria-hidden="true" /><span className="min-w-0 flex-1"><span className="block text-[12px] font-medium text-[var(--text-primary)]">版本 {version.version_number} · {version.reason === "manual" ? "手动快照" : version.reason}</span><span className="mt-0.5 block text-[12px] text-[var(--text-tertiary)]">{compactDate(version.created_at)}</span></span><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="expected_revision" value={baseline.revision ?? ""} /><input type="hidden" name="version_id" value={version.id} /><button className="shrink-0 text-[12px] font-medium text-[var(--accent)] hover:underline">恢复</button></form>)}</div> : <p className="mt-2.5 rounded-[8px] bg-[var(--surface-hover)] px-3 py-2 text-[12px] text-[var(--text-secondary)]">尚未创建快照。重要修改前可先保存一个版本。</p>}
-      {data.versions.length > 5 ? <p className="mt-1.5 text-[12px] text-[var(--text-tertiary)]">仅展示最近 5 个版本。</p> : null}
+      {data.versions.length ? <div className="mt-2.5 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">{data.versions.slice(0, 6).map((version) =>
+        <div key={version.id} className="flex items-center gap-2 py-2">
+          <FileClock className="size-3.5 shrink-0 text-[var(--text-tertiary)]" aria-hidden="true" />
+          <span className="min-w-0 flex-1"><span className="block text-[12px] font-medium text-[var(--text-primary)]">版本 {version.version_number} · {version.reason === "manual" ? "手动快照" : version.reason}</span>
+          <span className="mt-0.5 block text-[12px] text-[var(--text-tertiary)]">{compactDate(version.created_at)}</span></span>
+          <button type="button" onClick={() => setReviewVersionId(version.id)} className="pressable shrink-0 rounded-[7px] px-2 py-1.5 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">查看差异 / 恢复</button>
+        </div>)}</div> : <p className="mt-2.5 rounded-[8px] bg-[var(--surface-hover)] px-3 py-2 text-[12px] text-[var(--text-secondary)]">尚未创建快照。重要修改前可先保存一个版本。</p>}
+      {reviewVersionId ? <NoteVersionReview key={reviewVersionId} noteId={data.note.id} versionId={reviewVersionId} onClose={() => setReviewVersionId(null)} /> : null}
+      {data.versions.length >= 6 ? <p className="mt-1.5 text-[12px] text-[var(--text-tertiary)]">显示最近 6 个版本快照。</p> : null}
     </section>
 
     {data.attachments.length ? <section>

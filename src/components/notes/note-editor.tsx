@@ -614,7 +614,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   );
 
   return (
-    <section data-note-editor-id={note.id} data-note-mode={reading ? "reading" : "editing"}
+    <section data-note-editor-id={note.id} data-note-save-state={state} data-note-mode={reading ? "reading" : "editing"}
       ref={attachEditorSurface}
       className={`notes-editor-surface flex h-full min-w-0 overflow-hidden bg-[var(--surface-canvas)] ${isFallbackFullscreen ? "fixed inset-0 z-[80] h-[var(--app-viewport-height)]" : ""}`}
     >
