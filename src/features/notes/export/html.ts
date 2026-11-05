@@ -36,7 +36,7 @@ const voidElements = new Set(["br", "hr", "img", "input"]);
 const processor = unified().use(remarkParse).use(remarkGfm).use(remarkRehype).use(rehypeSanitize);
 
 function safeUrl(value: string) {
-  return /^(https?:\\/\\/|mailto:|#)/i.test(value) ||
+  return /^(https?:\/\/|mailto:|#)/i.test(value) ||
     (value.startsWith("/") && !value.startsWith("//")) ? value : "";
 }
 function serializeNode(node: HtmlTree): string {
