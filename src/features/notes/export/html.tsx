@@ -1,7 +1,5 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeSanitize from "rehype-sanitize";
+import { micromark } from "micromark";
+import { gfm } from "micromark-extension-gfm";
 
 /** Standalone, printable, selectable text; never execute user Markdown as HTML. */
 export function renderNoteHtml({ title, markdown, printable = false }: {
@@ -11,11 +9,13 @@ export function renderNoteHtml({ title, markdown, printable = false }: {
   const escape = (value: string) => value
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  const body = renderToStaticMarkup(
-    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-      {markdown}
-    </ReactMarkdown>,
-  );
+  // micromark renders GFM without a React Server Components renderer.
+  // Dangerous HTML and unsafe URL protocols are disabled at the parser level.
+  const body = micromark(markdown, {
+    extensions: [gfm()],
+    allowDangerousHtml: false,
+    allowDangerousProtocol: false,
+  });
   const style = `
 :root{color-scheme:light}*{box-sizing:border-box}html{font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#242b27;background:#fff}
 body{max-width:820px;margin:32px auto;padding:0 24px;font-size:16px;line-height:1.8}
