@@ -66,6 +66,10 @@ const output = "test-results/markdown-writing";
         await page.keyboard.type("/h2");
         await page.locator(".cm-completionLabel").filter({ hasText: "标题 2" }).first().waitFor();
         await page.keyboard.press("Enter");
+        await page.waitForFunction(() => {
+          const source = document.querySelector('[data-testid="markdown-writing-source"]')?.textContent ?? "";
+          return source.endsWith("## ") && !source.endsWith("/h2");
+        });
         await page.keyboard.type("快捷插入的章节");
         await page.waitForFunction(() => document.querySelector('[data-testid="markdown-writing-source"]')?.textContent?.includes("## 快捷插入的章节"));
 

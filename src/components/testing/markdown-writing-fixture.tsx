@@ -24,7 +24,7 @@ export function MarkdownWritingFixture() {
   const [aiCount, setAiCount] = useState(0);
   const openAi = useCallback(() => setAiCount(count => count + 1), []);
   return (
-    <main data-testid="markdown-writing-fixture" className="flex h-[min(850px,100dvh)] min-h-0 flex-col overflow-hidden bg-[var(--surface-canvas)]">
+    <main data-testid="markdown-writing-fixture" className="notes-editor-surface flex h-[min(850px,100dvh)] min-h-0 flex-col overflow-hidden bg-[var(--surface-canvas)]">
       <header className="shrink-0 border-b border-[var(--separator)] p-2 text-[13px]">Markdown 写作交互 · 合成测试</header>
       <div className="min-h-0 flex-1">
         <VisualMarkdownEditor

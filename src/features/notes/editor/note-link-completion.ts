@@ -1,5 +1,6 @@
 import {
   autocompletion,
+  acceptCompletion,
   closeCompletion,
   completionKeymap,
   completionStatus,
@@ -154,6 +155,24 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities, onSlashI
     // this priority the base editor consumes ArrowUp/ArrowDown before the
     // suggestion list sees them.
     Prec.highest(keymap.of([
+      {
+        key: "Enter",
+        run(view) {
+          const slash = extractMarkdownSlashQuery(view.state, view.state.selection.main.head);
+          if (!slash || view.composing) return false;
+          // The ordinary Markdown Enter command consumes newlines. Accept the
+          // active completion first; when a single slash action is shown but
+          // the completion has already closed, still apply that command.
+          if (completionStatus(view.state) === "active" && acceptCompletion(view)) return true;
+          const matches = new Set(slashCommandLabels(slash.query));
+          const options = slashOptions.filter(option => matches.has(option.label));
+          if (options.length !== 1) return false;
+          const action = options[0].apply;
+          if (typeof action !== "function") return false;
+          action(view, options[0], slash.from, slash.to);
+          return true;
+        },
+      },
       {
         key: "Escape",
         run(view) {

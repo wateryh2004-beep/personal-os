@@ -570,6 +570,8 @@ export function VisualMarkdownEditor({
       }),
       indentUnit.of("   "),
       EditorState.tabSize.of(3),
+      // Link/slash acceptance must run before list-continuation Enter.
+      noteLinkCompletion,
       markdownEditorKeymap,
       markdownEditorTheme,
       markdownImagePreview,
@@ -577,7 +579,6 @@ export function VisualMarkdownEditor({
       markdownSectionFolding,
       markdownTablePreview,
       noteLinkDecoration,
-      noteLinkCompletion,
       markdownUploadPlaceholder,
       documentCharacterCount,
       sourceLineAttributes,
