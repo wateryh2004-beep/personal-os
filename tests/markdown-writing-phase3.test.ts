@@ -17,7 +17,7 @@ describe("Phase 3 writing slash commands", () => {
     expect(extractMarkdownSlashQuery(state("普通文字 /h2"), 8)).toBeNull();
     const fenced = "~~~md\n/表格\n~~~";
     expect(extractMarkdownSlashQuery(state(fenced), fenced.indexOf("/表格") + 3)).toBeNull();
-    expect(extractMarkdownSlashQuery(state("> /表格"), 6)).toBeNull();
+    expect(extractMarkdownSlashQuery(state("> /表格"), 5)).toBeNull();
   });
 
   it("provides structural commands without replacing user prose", () => {
