@@ -112,6 +112,8 @@ function ToolbarButton({
 export function MarkdownToolbar({
   view,
   stateVersion,
+  sourceMode = false,
+  onToggleSourceMode,
   onPickImage,
   onInsertTable,
   onOpenAi,
@@ -119,6 +121,8 @@ export function MarkdownToolbar({
 }: {
   view: EditorView | null;
   stateVersion: number;
+  sourceMode?: boolean;
+  onToggleSourceMode?: () => void;
   onPickImage: (file: File) => void;
   onInsertTable: () => void;
   onOpenAi?: () => void;
@@ -145,6 +149,12 @@ export function MarkdownToolbar({
       <div className="flex min-w-max items-center gap-px">
         <ToolbarButton label="撤销（⌘Z）" disabled={!view} onClick={() => run(undo)}><Undo2 aria-hidden="true" className="size-4" /></ToolbarButton>
         <ToolbarButton mobileHidden label="重做（⇧⌘Z）" disabled={!view} onClick={() => run(redo)}><Redo2 aria-hidden="true" className="size-4" /></ToolbarButton>
+        <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[var(--border-subtle)]" />
+        <button type="button" disabled={!view} aria-label={sourceMode ? "切换可视化编辑" : "切换 Markdown 源码"}
+          aria-pressed={sourceMode} onMouseDown={event => event.preventDefault()} onClick={onToggleSourceMode}
+          className="pressable min-h-[30px] shrink-0 rounded-[7px] px-2 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-35">
+          {sourceMode ? "可视化" : "源码"}
+        </button>
         <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[var(--border-subtle)]" />
         <label className="sr-only" htmlFor={blockStyleId}>块样式</label>
         <select

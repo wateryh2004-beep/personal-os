@@ -329,3 +329,15 @@
   .notes-editor-surface .life-markdown-toolbar { scrollbar-width:none; }
   .notes-editor-surface .life-markdown-toolbar::-webkit-scrollbar { display:none; }
 }
+
+/* Raw source shares the exact same CodeMirror document, undo stack and caret. */
+.life-markdown-editor[data-editor-mode="source"] .life-codemirror .cm-content,
+.life-markdown-editor[data-editor-mode="source"] .life-codemirror .cm-line {
+  font-family:var(--font-mono);
+  font-size:14px;
+  line-height:1.7;
+}
+@media(max-width:767px) {
+  .life-markdown-editor[data-editor-mode="source"] .life-codemirror .cm-content,
+  .life-markdown-editor[data-editor-mode="source"] .life-codemirror .cm-line { font-size:16px; }
+}

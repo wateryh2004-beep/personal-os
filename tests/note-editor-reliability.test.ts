@@ -83,7 +83,8 @@ describe("Notes editor reliability", () => {
     expect(editor).toContain("立即保存，当前状态");
     expect(editor).toContain("进入专注");
     expect(editor).toContain("setIsFallbackFullscreen(true)");
-    expect(editor).toContain("导出 PDF");
+    expect(editor).toContain("导出图片式 PDF（兼容）");
+    expect(editor).toContain("打印 / 保存可搜索 PDF");
     expect(editor.indexOf("进入专注")).toBeLessThan(editor.indexOf('aria-label="更多笔记操作"'));
     expect(editor).toContain("onSelect={startPdfExport}");
   });

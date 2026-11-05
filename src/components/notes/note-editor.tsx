@@ -18,6 +18,7 @@ import {
   Maximize2,
   Minimize2,
   MoreHorizontal,
+  History,
   Save as SaveIcon,
   Sparkles,
   BookOpen,
@@ -27,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { NoteTitleMotion } from "@/components/notes/notes-motion";
 import { NoteReadingView } from "@/components/notes/note-reading-view";
 import { NoteConflictResolver } from "@/components/notes/note-conflict-resolver";
+import { NoteVersionHistory } from "@/components/notes/note-version-history";
 import { canApplyNoteConflictMerge } from "@/features/notes/editor/conflict-resolution";
 import {
   DropdownMenu,
@@ -37,7 +39,7 @@ import {
 import { useActionFeedback } from "@/components/shared/action-feedback";
 import { noteReferenceMarkdown } from "@/features/notes/links/reference";
 import { isInternalEntityHref } from "@/features/links/parser";
-import { recordNotePdfExport, saveNote, setNoteContentOrigin } from "@/features/notes/actions";
+import { captureNoteBeforeHistoryRestore, recordNotePdfExport, saveNote, setNoteContentOrigin } from "@/features/notes/actions";
 import { isAiGeneratedNote } from "@/features/notes/content-origin";
 import { markdownFilename } from "@/features/notes/utils";
 import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
@@ -158,6 +160,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const [state, setState] = useState<SaveState>("已保存");
   const [draftRecoveryUnavailable, setDraftRecoveryUnavailable] = useState(false);
   const [conflictSnapshot, setConflictSnapshot] = useState<NoteDraftSession | null>(null);
+  // undefined = closed; null = open history; string = open a specific version.
+  const [historyRequest, setHistoryRequest] = useState<string | null | undefined>(undefined);
   const [lastSavedAt, setLastSavedAt] = useState(note.last_saved_at);
   const [editVersion, setEditVersion] = useState(0);
   const [pdfSnapshot, setPdfSnapshot] = useState<PdfSnapshot | null>(null);
@@ -188,6 +192,14 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const pendingDraftRef = useRef<NoteDraftSession | null>(null);
   const draftTimerRef = useRef<number | null>(null);
   const noteSessionKey = `notes:draft:${note.id}`;
+  useEffect(() => {
+    const open = (event: Event) => {
+      if (!(event instanceof CustomEvent) || event.detail?.noteId !== note.id) return;
+      setHistoryRequest(typeof event.detail.versionId === "string" ? event.detail.versionId : null);
+    };
+    window.addEventListener("personal-os:review-note-version", open);
+    return () => window.removeEventListener("personal-os:review-note-version", open);
+  }, [note.id]);
 
   useEffect(() => {
     knownRemoteRevisionRef.current = Math.max(knownRemoteRevisionRef.current, note.revision);
@@ -452,6 +464,33 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     setBody(value);
     dirty(latestContentRef.current.title, value);
   }, [dirty]);
+
+  const applyHistoricalDraft = useCallback(async (next: { title: string; body: string }) => {
+    if (isDirtyRef.current || saveInFlightRef.current || state !== "已保存")
+      return { ok: false, message: "请先完成当前草稿的保存，再恢复历史内容。未保存修改不会被覆盖。" };
+    if (knownRemoteRevisionRef.current > revisionRef.current)
+      return { ok: false, message: "检测到更新的云端修订，请先解决版本冲突。" };
+    const originalRevision = revisionRef.current;
+    if (next.title === latestContentRef.current.title && next.body === latestContentRef.current.body)
+      return { ok: true, message: "所选内容与当前文档一致。" };
+    try {
+      const checkpoint = await captureNoteBeforeHistoryRestore({ noteId: note.id, expectedRevision: originalRevision });
+      if (checkpoint.status !== "ready") {
+        setState("版本冲突");
+        return { ok: false, message: "云端版本已发生变化。未修改原文，请核对并重试。" };
+      }
+      if (isDirtyRef.current || saveInFlightRef.current || revisionRef.current !== originalRevision)
+        return { ok: false, message: "在准备恢复时出现新的修改，已终止恢复；此前版本仍已留存。" };
+      setTitle(next.title);
+      replaceBody(next.body);
+      publishNotesNavigatorTitle(note.id, next.title);
+      dirty(next.title, next.body);
+      feedback.show({ message: "历史内容已进入草稿，正在通过修订号校验自动保存。", tone: "success" });
+      return { ok: true, message: "已加入编辑器草稿，正在自动保存。" };
+    } catch {
+      return { ok: false, message: "恢复前快照保存失败，原文未被修改。请检查网络后重试。" };
+    }
+  }, [dirty, feedback, note.id, replaceBody, state]);
   const applyConflictResolution = useCallback((
     resolved: { title: string; body: string; revision: number },
     original: { title: string; body: string },
@@ -601,9 +640,16 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
           <DropdownMenuItem onSelect={() => { flushDraft(); void save(); }}><SaveIcon aria-hidden="true" />立即保存</DropdownMenuItem>
           <DropdownMenuItem disabled={aiGenerated} onSelect={toggleAi}><Sparkles aria-hidden="true" />打开笔记 AI</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void toggleFullscreen()}>{fullscreenActive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}{fullscreenActive ? "退出专注" : "进入专注"}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setHistoryRequest(null)}><History aria-hidden="true" />对比与恢复历史版本</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void copyCurrentNoteReference()}><Link2 aria-hidden="true" />复制笔记引用</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void copyFullNote()}><Copy aria-hidden="true" />复制全文</DropdownMenuItem>
-          <DropdownMenuItem disabled={isExporting} onSelect={startPdfExport}><Download aria-hidden="true" />{isExporting ? "正在生成 PDF…" : "导出 PDF"}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => window.open("/api/exports/notes/" + encodeURIComponent(note.id) + "?format=print", "_blank", "noopener,noreferrer")}><Download aria-hidden="true" />打印 / 保存可搜索 PDF</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => {
+            const link = document.createElement("a");
+            link.href = "/api/exports/notes/" + encodeURIComponent(note.id) + "?format=html";
+            link.click();
+          }}><Download aria-hidden="true" />下载 HTML</DropdownMenuItem>
+          <DropdownMenuItem disabled={isExporting} onSelect={startPdfExport}><Download aria-hidden="true" />{isExporting ? "正在生成 PDF…" : "导出图片式 PDF（兼容）"}</DropdownMenuItem>
           <DropdownMenuItem disabled={isChangingContentOrigin} onSelect={toggleContentOrigin}><Sparkles aria-hidden="true" />{aiGenerated ? "取消 AI 生成标记" : "标记为 AI 生成"}</DropdownMenuItem>
           {titleUndoStack.length ? <DropdownMenuItem onSelect={handleAiUndoTitle}>撤回 AI 标题</DropdownMenuItem> : null}
         </DropdownMenuContent>
@@ -705,6 +751,15 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
           replaceBody(nextBody);
           dirty(title, nextBody);
         }}
+      /> : null}
+      {historyRequest !== undefined ? <NoteVersionHistory
+        key={historyRequest ?? "history"}
+        noteId={note.id}
+        currentTitle={title}
+        currentBody={body}
+        initialVersionId={historyRequest}
+        onApply={applyHistoricalDraft}
+        onClose={() => setHistoryRequest(undefined)}
       /> : null}
       {conflictSnapshot ? <NoteConflictResolver
         noteId={note.id}

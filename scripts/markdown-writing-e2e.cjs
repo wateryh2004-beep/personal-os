@@ -34,6 +34,17 @@ const output = "test-results/markdown-writing";
         const image = page.locator(".cm-note-image-preview").first();
         await image.waitFor();
         const original = await source.textContent();
+        // Both modes share the same CodeMirror document and preserve the raw
+        // Markdown source. Image widgets are absent only in explicit source mode.
+        await page.getByRole("button", { name: "切换 Markdown 源码" }).click();
+        await page.waitForFunction(() => document.querySelector('.life-markdown-editor')?.getAttribute('data-editor-mode') === 'source');
+        assert.equal(await page.locator(".cm-note-image-preview").count(), 0, "raw mode exposes image syntax");
+        assert.ok((await editor.innerText()).includes("![演示截图]"), "raw image syntax remains editable");
+        assert.equal(await source.textContent(), original, "mode switch does not rewrite Markdown");
+        await page.getByRole("button", { name: "切换可视化编辑" }).click();
+        await page.waitForFunction(() => document.querySelector('.life-markdown-editor')?.getAttribute('data-editor-mode') === 'visual');
+        await image.waitFor();
+        assert.equal(await source.textContent(), original, "returning to rich mode preserves Markdown");
 
         await page.getByRole("button", { name: "目录", exact: true }).click();
         const outline = page.locator('[aria-label="笔记目录"]');
