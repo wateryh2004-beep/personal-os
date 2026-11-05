@@ -95,7 +95,44 @@ export async function trashNote(formData: FormData) { await runMetadataForm("not
 export async function restoreNote(formData: FormData) { const { supabase, userId } = await requireOwner(); const id = String(formData.get("note_id") || ""); const { data, error } = await supabase.from("notes").update({ status: "active", deleted_at: null, archived_at: null }).eq("id", id).select("id").maybeSingle(); if (error || !data) fail(); await audit(supabase, userId, "restore", "note", id, {}); await revalidatePath("/notes"); await revalidatePath("/notes/trash"); }
 export async function archiveNote(formData: FormData) { await runMetadataForm("note_archive", formData, "note"); redirect("/notes"); }
 export async function createNoteVersion(formData: FormData) { const { supabase, userId } = await requireOwner(); const id = String(formData.get("note_id") || ""); const { data: note } = await supabase.from("notes").select("id,title,body_markdown,content_hash,revision").eq("id", id).maybeSingle(); if (!note) fail(); const { data: latest } = await supabase.from("note_versions").select("version_number,content_hash").eq("note_id", id).order("version_number", { ascending: false }).limit(1).maybeSingle(); if (latest?.content_hash && latest.content_hash === note.content_hash) return; const version = await supabase.from("note_versions").insert({ user_id: userId, note_id: id, title: note.title, body_markdown: note.body_markdown, version_number: (latest?.version_number ?? 0) + 1, created_by: userId, content_hash: note.content_hash, revision: note.revision, reason: "manual" }); if (version.error) fail(); await audit(supabase, userId, "create_version", "note", id, { revision: note.revision }); await revalidatePath(`/notes/${id}`); }
-export async function restoreNoteVersion(formData: FormData) { const { supabase, userId } = await requireOwner(); const noteId = String(formData.get("note_id") || ""); const versionId = String(formData.get("version_id") || ""); const [{ data: note }, { data: version }, { data: latest }] = await Promise.all([supabase.from("notes").select("*").eq("id", noteId).maybeSingle(), supabase.from("note_versions").select("*").eq("id", versionId).eq("note_id", noteId).maybeSingle(), supabase.from("note_versions").select("version_number").eq("note_id", noteId).order("version_number", { ascending: false }).limit(1).maybeSingle()]); if (!note || !version) fail(); const snapshot = await supabase.from("note_versions").insert({ user_id: userId, note_id: noteId, title: note.title, body_markdown: note.body_markdown, version_number: (latest?.version_number ?? 0) + 1, created_by: userId, content_hash: note.content_hash, revision: note.revision, reason: "before_restore" }); if (snapshot.error) fail(); const { error } = await supabase.from("notes").update({ title: version.title, body_markdown: version.body_markdown, content_hash: version.content_hash, revision: (note.revision ?? 0) + 1, last_saved_at: new Date().toISOString() }).eq("id", noteId); if (error) fail(); await audit(supabase, userId, "restore_version", "note", noteId, { version_id: versionId }); await revalidatePath(`/notes/${noteId}`); }
+export async function restoreNoteVersion(formData: FormData) { const { supabase, userId } = await requireOwner(); const noteId = String(formData.get("note_id") || ""); const versionId = String(formData.get("version_id") || ""); const [{ data: note }, { data: version }, { data: latest }] = await Promise.all([supabase.from("notes").select("*").eq("id", noteId).maybeSingle(), supabase.from("note_versions").select("*").eq("id", versionId).eq("note_id", noteId).maybeSingle(), supabase.from("note_versions").select("version_number").eq("note_id", noteId).order("version_number", { ascending: false }).limit(1).maybeSingle()]); if (!note || !version) fail(); const snapshot = await supabase.from("note_versions").insert({ user_id: userId, note_id: noteId, title: note.title, body_markdown: note.body_markdown, version_number: (latest?.version_number ?? 0) + 1, created_by: userId, content_hash: note.content_hash, revision: note.revision, reason: "before_restore" }); if (snapshot.error) fail(); const { error } = await supabase.from("notes").update({ title: version.title, body_markdown: version.body_markdown, content_hash: version.content_hash, revision: (note.revision ?? 0) + 1, last_saved_at: new Date().toISOString() }).eq("id", noteId).eq("user_id", userId).eq("revision", note.revision ?? 0); if (error) fail(); await audit(supabase, userId, "restore_version", "note", noteId, { version_id: versionId }); await revalidatePath(`/notes/${noteId}`); }
+
+const beforeRestoreSchema = z.object({
+  noteId: z.string().uuid(),
+  expectedRevision: z.number().int().min(0),
+});
+
+/**
+ * Preserve the authoritative current version before staging historical text.
+ * This does not change the note. The subsequent autosave still uses revision
+ * compare-and-swap, so another tab can never be silently overwritten.
+ */
+export async function captureNoteBeforeHistoryRestore(input: unknown) {
+  const parsed = beforeRestoreSchema.safeParse(input);
+  if (!parsed.success) throw new Error("无效的恢复请求。");
+  const { supabase, userId } = await requireOwner();
+  const { noteId, expectedRevision } = parsed.data;
+  const { data: note, error: noteError } = await supabase.from("notes")
+    .select("id,title,body_markdown,content_hash,revision")
+    .eq("id", noteId).eq("user_id", userId).maybeSingle();
+  if (noteError || !note) throw new Error("笔记不存在或暂时无法读取。");
+  if (note.revision !== expectedRevision) return { status: "conflict" as const };
+  const { data: latest, error: latestError } = await supabase.from("note_versions")
+    .select("version_number").eq("user_id", userId).eq("note_id", noteId)
+    .order("version_number", { ascending: false }).limit(1).maybeSingle();
+  if (latestError) throw new Error("无法读取版本序列，请稍后重试。");
+  const { error: snapshotError } = await supabase.from("note_versions").insert({
+    user_id: userId, note_id: noteId, title: note.title, body_markdown: note.body_markdown,
+    version_number: (latest?.version_number ?? 0) + 1, created_by: userId,
+    content_hash: note.content_hash ?? contentHash(note.body_markdown),
+    revision: expectedRevision, reason: "before_restore",
+  });
+  if (snapshotError) throw new Error("无法保存恢复前快照。原笔记尚未改变。");
+  await audit(supabase, userId, "create_version", "note", noteId, {
+    revision: expectedRevision, reason: "before_restore",
+  });
+  return { status: "ready" as const, revision: expectedRevision };
+}
 
 const notePlacementSchema = z.object({ folderId: z.string().uuid().nullable().optional() });
 const moveFolderSchema = z.object({ folderId: z.string().uuid(), parentId: z.string().uuid().nullable().optional() });
