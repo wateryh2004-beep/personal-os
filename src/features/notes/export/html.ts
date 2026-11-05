@@ -1,7 +1,7 @@
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import ReactMarkdown from "react-markdown";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
+import remarkRehype from "remark-rehype";
 import rehypeSanitize from "rehype-sanitize";
 
 function escapeHtml(value: string): string {
@@ -29,13 +29,40 @@ const noteCss = [
   "tr,pre,blockquote,img{break-inside:avoid}h1,h2,h3{break-after:avoid}}",
 ].join("\n");
 
-/** Portable, sanitized GFM HTML. No scripts, no embedded secrets or privileged
- * image URLs; private images remain authenticated links in the original note. */
+type HtmlTree = { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HtmlTree[] };
+const tags = new Set(["a", "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "em", "del", "code", "pre", "blockquote", "ol", "ul", "li", "table", "thead", "tbody", "tr", "th", "td", "img", "input"]);
+const attrs = new Set(["href", "src", "alt", "title", "className", "start", "align", "type", "checked", "disabled", "colSpan", "rowSpan"]);
+const voidElements = new Set(["br", "hr", "img", "input"]);
+const processor = unified().use(remarkParse).use(remarkGfm).use(remarkRehype).use(rehypeSanitize);
+
+function safeUrl(value: string) {
+  return /^(https?:\\/\\/|mailto:|#)/i.test(value) ||
+    (value.startsWith("/") && !value.startsWith("//")) ? value : "";
+}
+function serializeNode(node: HtmlTree): string {
+  if (node.type === "text") return escapeHtml(node.value ?? "");
+  if (node.type === "root") return (node.children ?? []).map(serializeNode).join("");
+  if (node.type !== "element" || !node.tagName || !tags.has(node.tagName)) return "";
+  const props = Object.entries(node.properties ?? {}).flatMap(([name, raw]) => {
+    if (!attrs.has(name) || raw === undefined || raw === null || raw === false) return [];
+    const key = name === "className" ? "class" : name === "colSpan" ? "colspan" : name === "rowSpan" ? "rowspan" : name;
+    if (name === "checked" || name === "disabled") return [key];
+    const value = Array.isArray(raw) ? raw.join(" ") : String(raw);
+    const secure = (name === "href" || name === "src") ? safeUrl(value) : value;
+    if (!secure) return [];
+    return [key + '="' + escapeHtml(secure) + '"'];
+  });
+  const open = "<" + node.tagName + (props.length ? " " + props.join(" ") : "") + ">";
+  return voidElements.has(node.tagName) ? open : open + (node.children ?? []).map(serializeNode).join("") + "</" + node.tagName + ">";
+}
+
+/** Standard GFM parsing + AST sanitization, then a narrow HTML serializer.
+ * No server-side React renderer (unsupported by Next.js 16 route modules). */
 export function renderPortableNoteHtml(title: string, markdown: string, preview = false): string {
   const safeTitle = escapeHtml(title.trim() || "无标题笔记");
-  const body = renderToStaticMarkup(createElement(ReactMarkdown, {
-    remarkPlugins: [remarkGfm], rehypePlugins: [rehypeSanitize], children: markdown,
-  }));
+  const mdast = processor.parse(markdown);
+  const hast = processor.runSync(mdast);
+  const body = serializeNode(hast as unknown as HtmlTree);
   const help = preview ? '<aside class="print-help">可使用浏览器“打印 / 保存为 PDF”，得到可选择文字的 PDF。请检查长表格和分页。</aside>' : "";
   return "<!doctype html>\n<html lang=\"zh-CN\"><head><meta charset=\"utf-8\">" +
     "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
