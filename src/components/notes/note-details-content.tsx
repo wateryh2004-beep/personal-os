@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { analyzeMarkdownCompatibility } from "@/features/notes/editor/compatibility";
 import { noteAttachmentUrl } from "@/features/notes/attachments";
 import { NoteBacklinks } from "@/components/notes/note-backlinks";
@@ -30,7 +30,7 @@ export function NoteDetailsContent({ document, details }: { document: NoteDocume
   if(baseline.id!==document.note.id)setBaseline({id:document.note.id,revision:document.note.mutation_revision});
   const folders = details.folders;
   const stats = noteStats(data.note.body_markdown, data.links.length + data.backlinks.length);
-  const compatibility = useMemo(() => analyzeMarkdownCompatibility(data.note.body_markdown), [data.note.body_markdown]);
+  const compatibility = analyzeMarkdownCompatibility(data.note.body_markdown);
   return <div className="space-y-0 pb-2 text-[13px]">
     {data.state === "base" ? <p className="mb-2 rounded-[9px] bg-amber-50 px-3 py-2 text-[12px] leading-5 text-amber-900">当前为兼容模式；部分高级功能尚未启用。</p> : null}
 
