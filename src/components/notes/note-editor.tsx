@@ -643,7 +643,13 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
           <DropdownMenuItem onSelect={() => setHistoryRequest(null)}><History aria-hidden="true" />对比与恢复历史版本</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void copyCurrentNoteReference()}><Link2 aria-hidden="true" />复制笔记引用</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void copyFullNote()}><Copy aria-hidden="true" />复制全文</DropdownMenuItem>
-          <DropdownMenuItem disabled={isExporting} onSelect={startPdfExport}><Download aria-hidden="true" />{isExporting ? "正在生成 PDF…" : "导出 PDF"}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => window.open("/api/exports/notes/" + encodeURIComponent(note.id) + "?format=print", "_blank", "noopener,noreferrer")}><Download aria-hidden="true" />打印 / 保存可搜索 PDF</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => {
+            const link = document.createElement("a");
+            link.href = "/api/exports/notes/" + encodeURIComponent(note.id) + "?format=html";
+            link.click();
+          }}><Download aria-hidden="true" />下载 HTML</DropdownMenuItem>
+          <DropdownMenuItem disabled={isExporting} onSelect={startPdfExport}><Download aria-hidden="true" />{isExporting ? "正在生成 PDF…" : "导出图片式 PDF（兼容）"}</DropdownMenuItem>
           <DropdownMenuItem disabled={isChangingContentOrigin} onSelect={toggleContentOrigin}><Sparkles aria-hidden="true" />{aiGenerated ? "取消 AI 生成标记" : "标记为 AI 生成"}</DropdownMenuItem>
           {titleUndoStack.length ? <DropdownMenuItem onSelect={handleAiUndoTitle}>撤回 AI 标题</DropdownMenuItem> : null}
         </DropdownMenuContent>
