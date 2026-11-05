@@ -178,6 +178,9 @@ export async function applyReviewedNoteVersion(input: unknown) {
 /** Legacy form remains accepted only with a caller-supplied revision.
  * Restore always requires a confirmed, freshly reviewed target. */
 export async function restoreNoteVersion(formData: FormData) {
+  // Never interpret missing review fields as empty content or revision zero.
+  if (!formData.has("reviewed_title") || !formData.has("reviewed_body") ||
+      !formData.has("expected_revision")) fail();
   const expectedRevision = Number(formData.get("expected_revision"));
   const result = await applyReviewedNoteVersion({
     noteId: String(formData.get("note_id") ?? ""),
