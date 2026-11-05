@@ -10,7 +10,7 @@ export function analyzeMarkdownCompatibility(source: string): MarkdownCompatibil
   if (lines.length > 1500 || source.length > 80_000) warnings.push({
     id: "large", level: "info", text: "长文档可切换至源码模式；复杂表格保持原文，不强制重排。",
   });
-  if (/(?:^|\n) {0,3}\\x60{3,}(?:mermaid|plantuml|graphviz)\\b/i.test(source)) warnings.push({
+  if (/(?:^|\n) {0,3}\x60{3,}(?:mermaid|plantuml|graphviz)\b/i.test(source)) warnings.push({
     id: "diagram", level: "info", text: "图表代码块会保留 Markdown 源码；阅读模式目前不生成交互图形。",
   });
   if (/(?:^|\n)\s*\$\$[\s\S]*?\$\$/m.test(source)) warnings.push({
