@@ -440,11 +440,10 @@ const editorTheme = EditorView.theme({
   },
 });
 
-export const markdownEditorTheme: Extension = [
-  editorTheme,
+/** Shared geometry never unmounts; visual decorations are a switchable layer. */
+export const markdownEditorTheme: Extension = [editorTheme, EditorView.lineWrapping, scrollPastEnd()];
+export const markdownVisualDecorations: Extension = [
   syntaxHighlighting(markdownHighlight),
   markdownBlockPlugin,
   markdownMarkupPlugin,
-  EditorView.lineWrapping,
-  scrollPastEnd(),
 ];

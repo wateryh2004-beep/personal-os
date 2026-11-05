@@ -21,7 +21,7 @@ import {
   type MarkdownOutlineItem,
 } from "@/features/notes/editor/markdown-outline";
 import { markdownEditorKeymap } from "@/features/notes/editor/markdown-keymap";
-import { markdownEditorTheme } from "@/features/notes/editor/markdown-theme";
+import { markdownEditorTheme, markdownVisualDecorations } from "@/features/notes/editor/markdown-theme";
 import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
 import { markdownImagePreview } from "@/features/notes/editor/markdown-image-preview";
 import { markdownSelectionToolbar } from "@/features/notes/editor/markdown-selection-toolbar";
@@ -134,6 +134,8 @@ export function VisualMarkdownEditor({
   const paneActive = useWorkbenchActive();
   const [initialMarkdown] = useState(markdown);
   const [eventHandlers] = useState(() => new Compartment());
+  const [presentationMode] = useState(() => new Compartment());
+  const [sourceMode, setSourceMode] = useState(false);
   const appliedContentRevision = useRef(contentRevision);
   const updateRef = useRef<(update: ViewUpdate) => void>(() => {});
   const handleUpdate = useCallback((update: ViewUpdate) => updateRef.current(update), []);
@@ -558,6 +560,32 @@ export function VisualMarkdownEditor({
     if (restore) currentView.focus();
   }, []);
 
+  const richMode = useMemo(() => [
+    markdownVisualDecorations,
+    markdownImagePreview,
+    selectionToolbar,
+    markdownSectionFolding,
+    markdownTablePreview,
+  ], [selectionToolbar]);
+  // No document replacement or editor remount on mode changes. The raw mode
+  // removes widget/markup decorations so every source token stays editable.
+  const sourceModeExtensions = useMemo(() => [
+    EditorView.theme({
+      "&": { fontFamily: "var(--font-mono)", fontSize: "14px" },
+      ".cm-content": { fontFamily: "var(--font-mono)", fontSize: "14px" },
+      ".cm-line": { fontSize: "14px", lineHeight: "1.7" },
+    }),
+  ], []);
+  const toggleSourceMode = useCallback(() => {
+    const current = editorRef.current?.view;
+    if (!current) return;
+    const next = !sourceMode;
+    current.dispatch({ effects: presentationMode.reconfigure(next ? sourceModeExtensions : richMode) });
+    setSourceMode(next);
+    setFoldVersion(n => n + 1);
+    current.focus();
+  }, [presentationMode, richMode, sourceMode, sourceModeExtensions]);
+
   const extensions = useMemo(
     () => [
       markdownExtension({
@@ -574,10 +602,7 @@ export function VisualMarkdownEditor({
       noteLinkCompletion,
       markdownEditorKeymap,
       markdownEditorTheme,
-      markdownImagePreview,
-      selectionToolbar,
-      markdownSectionFolding,
-      markdownTablePreview,
+      presentationMode.of(richMode),
       noteLinkDecoration,
       markdownUploadPlaceholder,
       documentCharacterCount,
@@ -592,7 +617,7 @@ export function VisualMarkdownEditor({
       }),
       eventHandlers.of([]),
     ],
-    [eventHandlers, noteLinkCompletion, selectionToolbar],
+    [eventHandlers, noteLinkCompletion, presentationMode, richMode],
   );
 
   useEffect(() => {
@@ -739,10 +764,12 @@ export function VisualMarkdownEditor({
   });
 
   return (
-    <div className="life-markdown-editor relative">
+    <div className="life-markdown-editor relative" data-editor-mode={sourceMode ? "source" : "visual"}>
       <MarkdownToolbar
         view={view}
         stateVersion={stateVersion}
+        sourceMode={sourceMode}
+        onToggleSourceMode={toggleSourceMode}
         onPickImage={(file) => {
           const currentView = editorRef.current?.view;
           if (currentView) void insertUploadedImage(file, currentView);
