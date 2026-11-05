@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { analyzeMarkdownCompatibility } from "@/features/notes/editor/compatibility";
 import { noteAttachmentUrl } from "@/features/notes/attachments";
 import { NoteBacklinks } from "@/components/notes/note-backlinks";
 import { EntityBacklinks } from "@/components/links/entity-backlinks";
@@ -29,6 +30,7 @@ export function NoteDetailsContent({ document, details }: { document: NoteDocume
   if(baseline.id!==document.note.id)setBaseline({id:document.note.id,revision:document.note.mutation_revision});
   const folders = details.folders;
   const stats = noteStats(data.note.body_markdown, data.links.length + data.backlinks.length);
+  const compatibility = useMemo(() => analyzeMarkdownCompatibility(data.note.body_markdown), [data.note.body_markdown]);
   return <div className="space-y-0 pb-2 text-[13px]">
     {data.state === "base" ? <p className="mb-2 rounded-[9px] bg-amber-50 px-3 py-2 text-[12px] leading-5 text-amber-900">当前为兼容模式；部分高级功能尚未启用。</p> : null}
 
@@ -65,6 +67,16 @@ export function NoteDetailsContent({ document, details }: { document: NoteDocume
       <div className="flex items-center gap-2"><Link2 className="size-3.5 text-[var(--accent)]" aria-hidden="true" /><h2 className="text-[13px] font-semibold text-[var(--text-primary)]">关联脉络</h2></div>
       <NoteBacklinks referenced={data.links} backlinks={data.backlinks} bodyMarkdown={data.note.body_markdown} />
       <EntityBacklinks type="note" id={data.note.id} />
+    </section>
+
+    {compatibility.length ? <section aria-label="复杂 Markdown 兼容提示">
+      <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">内容兼容提示</h2>
+      <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">仅供检查，不会修改 Markdown 原文。</p>
+      <ul className="mt-2 space-y-1.5">{compatibility.map(item =>
+        <li key={item.id} className={"rounded-[8px] px-3 py-2 text-[12px] leading-5 " +
+          (item.level === "attention" ? "bg-[var(--warning-soft)] text-[var(--text-primary)]" :
+            "bg-[var(--surface-control)] text-[var(--text-secondary)]")}>{item.text}</li>,
+      )}</ul>
     </section>
 
     <section>
