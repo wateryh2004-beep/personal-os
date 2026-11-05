@@ -333,10 +333,11 @@
 /* Same mounted CodeMirror drives both source and live Markdown modes. */
 .note-source-toggle {
   display:flex;
-  justify-content:flex-end;
+  align-items:center;
   gap:3px;
-  padding:5px 16px 1px;
-  background:var(--surface-canvas);
+  margin:0 3px;
+  padding:0;
+  background:transparent;
 }
 .note-source-toggle button {
   border:1px solid transparent;

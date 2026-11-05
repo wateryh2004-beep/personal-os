@@ -751,13 +751,11 @@ export function VisualMarkdownEditor({
 
   return (
     <div className="life-markdown-editor relative" data-markdown-presentation={sourceMode ? "source" : "visual"}>
-      <div className="note-source-toggle" role="group" aria-label="Markdown 编辑显示">
-        <button type="button" aria-pressed={!sourceMode} onClick={() => setSourceMode(false)}>可视化</button>
-        <button type="button" aria-pressed={sourceMode} onClick={() => setSourceMode(true)}>源码</button>
-      </div>
       <MarkdownToolbar
         view={view}
         stateVersion={stateVersion}
+        sourceMode={sourceMode}
+        onSourceModeChange={setSourceMode}
         onPickImage={(file) => {
           const currentView = editorRef.current?.view;
           if (currentView) void insertUploadedImage(file, currentView);

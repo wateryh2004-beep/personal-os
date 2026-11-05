@@ -53,12 +53,21 @@ const output = "test-results/markdown-writing";
         // Phase 4: toggle only the visual decoration set; the canonical
         // Markdown, focus and undo history must remain in the same editor.
         const beforeSourceSwitch = await source.textContent();
-        const presentation = page.getByRole("group", { name: "Markdown 编辑显示" });
-        await presentation.getByRole("button", { name: "源码" }).click();
+        if (width < 768) {
+          await page.getByRole("button", { name: "更多格式工具" }).click();
+          await page.getByRole("menuitem", { name: "切换源码" }).click();
+        } else {
+          await page.getByRole("group", { name: "Markdown 编辑显示" }).getByRole("button", { name: "源码" }).click();
+        }
         await page.locator('[data-markdown-presentation="source"]').waitFor();
         assert.equal(await page.locator(".cm-note-image-preview").count(), 0, "source mode exposes raw image tokens");
         assert.equal(await source.textContent(), beforeSourceSwitch, "source mode does not modify the document");
-        await presentation.getByRole("button", { name: "可视化" }).click();
+        if (width < 768) {
+          await page.getByRole("button", { name: "更多格式工具" }).click();
+          await page.getByRole("menuitem", { name: "切换可视化" }).click();
+        } else {
+          await page.getByRole("group", { name: "Markdown 编辑显示" }).getByRole("button", { name: "可视化" }).click();
+        }
         await page.locator('[data-markdown-presentation="visual"]').waitFor();
         await page.locator(".cm-note-image-preview").first().waitFor();
         assert.equal(await source.textContent(), beforeSourceSwitch, "visual mode preserves Markdown");
