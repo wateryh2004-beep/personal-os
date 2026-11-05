@@ -7,7 +7,7 @@ import {
 
 export type MarkdownImageSpec = { alt: string; src: string; title?: string };
 
-const pattern = /^!\[([^\]]*)\]\((\S+?)(?:\s+"((?:\\.|[^"\\])*)")?\)$/;
+const pattern = /^!\[([^\]]*)\]\((\S+?)(?:\s+(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'))?\)$/;
 
 export function parseMarkdownImage(source: string): MarkdownImageSpec | null {
   const match = pattern.exec(source.trim());
@@ -15,7 +15,8 @@ export function parseMarkdownImage(source: string): MarkdownImageSpec | null {
   const src = match[2];
   if (!/^https?:\/\/\S+$/i.test(src) && !/^\/(?!\/)\S*$/.test(src)) return null;
   const alt = match[1].trim() || "笔记图片";
-  const title = match[3]?.replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  const rawTitle = match[3] ?? match[4];
+  const title = rawTitle?.replace(/\\(["'\\])/g, "$1");
   return title ? { alt, src, title } : { alt, src };
 }
 
