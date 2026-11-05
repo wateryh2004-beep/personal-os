@@ -11,6 +11,7 @@ import { getOrCreateDailyNote } from "./daily-note-service";
 import { syncInternalNoteLinks } from "./links/service";
 import { syncEntityReferenceLinks } from "@/features/links/service";
 import { noteRelationSignature } from "./links/signature";
+import { canApplyReviewedNoteVersion } from "./versions/review";
 import { noteContentOrigins } from "./content-origin";
 import { recordStatusSafely } from "@/features/system-status/service";
 const noteSchema = z.object({ noteId: z.string().uuid().optional(), expectedRevision: z.coerce.number().int().min(0), title: z.string().max(240), bodyMarkdown: z.string().max(200000) });
@@ -95,7 +96,99 @@ export async function trashNote(formData: FormData) { await runMetadataForm("not
 export async function restoreNote(formData: FormData) { const { supabase, userId } = await requireOwner(); const id = String(formData.get("note_id") || ""); const { data, error } = await supabase.from("notes").update({ status: "active", deleted_at: null, archived_at: null }).eq("id", id).select("id").maybeSingle(); if (error || !data) fail(); await audit(supabase, userId, "restore", "note", id, {}); await revalidatePath("/notes"); await revalidatePath("/notes/trash"); }
 export async function archiveNote(formData: FormData) { await runMetadataForm("note_archive", formData, "note"); redirect("/notes"); }
 export async function createNoteVersion(formData: FormData) { const { supabase, userId } = await requireOwner(); const id = String(formData.get("note_id") || ""); const { data: note } = await supabase.from("notes").select("id,title,body_markdown,content_hash,revision").eq("id", id).maybeSingle(); if (!note) fail(); const { data: latest } = await supabase.from("note_versions").select("version_number,content_hash").eq("note_id", id).order("version_number", { ascending: false }).limit(1).maybeSingle(); if (latest?.content_hash && latest.content_hash === note.content_hash) return; const version = await supabase.from("note_versions").insert({ user_id: userId, note_id: id, title: note.title, body_markdown: note.body_markdown, version_number: (latest?.version_number ?? 0) + 1, created_by: userId, content_hash: note.content_hash, revision: note.revision, reason: "manual" }); if (version.error) fail(); await audit(supabase, userId, "create_version", "note", id, { revision: note.revision }); await revalidatePath(`/notes/${id}`); }
-export async function restoreNoteVersion(formData: FormData) { const { supabase, userId } = await requireOwner(); const noteId = String(formData.get("note_id") || ""); const versionId = String(formData.get("version_id") || ""); const [{ data: note }, { data: version }, { data: latest }] = await Promise.all([supabase.from("notes").select("*").eq("id", noteId).maybeSingle(), supabase.from("note_versions").select("*").eq("id", versionId).eq("note_id", noteId).maybeSingle(), supabase.from("note_versions").select("version_number").eq("note_id", noteId).order("version_number", { ascending: false }).limit(1).maybeSingle()]); if (!note || !version) fail(); const snapshot = await supabase.from("note_versions").insert({ user_id: userId, note_id: noteId, title: note.title, body_markdown: note.body_markdown, version_number: (latest?.version_number ?? 0) + 1, created_by: userId, content_hash: note.content_hash, revision: note.revision, reason: "before_restore" }); if (snapshot.error) fail(); const { error } = await supabase.from("notes").update({ title: version.title, body_markdown: version.body_markdown, content_hash: version.content_hash, revision: (note.revision ?? 0) + 1, last_saved_at: new Date().toISOString() }).eq("id", noteId); if (error) fail(); await audit(supabase, userId, "restore_version", "note", noteId, { version_id: versionId }); await revalidatePath(`/notes/${noteId}`); }
+
+/** User-reviewed restore: a compare-and-set update on the canonical Markdown.
+ * No overwrite from stale dialogs; a pre-restore snapshot is preserved first.
+ * The audit is intentionally after the canonical write, which is authoritative.
+ */
+const reviewedRestoreSchema = z.object({
+  noteId: z.string().uuid(),
+  versionId: z.string().uuid(),
+  expectedRevision: z.number().int().min(0),
+  title: z.string().max(240),
+  bodyMarkdown: z.string().max(200_000),
+});
+
+export async function applyReviewedNoteVersion(input: unknown) {
+  const parsed = reviewedRestoreSchema.safeParse(input);
+  if (!parsed.success) return { status: "invalid" as const };
+  const value = parsed.data;
+  const { supabase, userId } = await requireOwner();
+  const [noteResult, versionResult] = await Promise.all([
+    supabase.from("notes").select("id,title,body_markdown,revision,content_hash")
+      .eq("user_id", userId).eq("id", value.noteId).maybeSingle(),
+    supabase.from("note_versions").select("id,note_id")
+      .eq("user_id", userId).eq("note_id", value.noteId).eq("id", value.versionId).maybeSingle(),
+  ]);
+  if (noteResult.error || versionResult.error) return { status: "unavailable" as const };
+  const note = noteResult.data, version = versionResult.data;
+  if (!note || !version) return { status: "not_found" as const };
+  if (!canApplyReviewedNoteVersion({
+    expectedRevision: value.expectedRevision, actualRevision: note.revision ?? 0,
+    selectedVersionNoteId: version.note_id, currentNoteId: note.id,
+  })) return { status: "conflict" as const };
+  if (note.title === value.title && note.body_markdown === value.bodyMarkdown)
+    return { status: "unchanged" as const };
+
+  // A snapshot is mandatory before restoring or merging. If it cannot be
+  // retained, leave the canonical note untouched.
+  const { data: latest, error: latestError } = await supabase.from("note_versions")
+    .select("version_number").eq("user_id", userId).eq("note_id", value.noteId)
+    .order("version_number", { ascending: false }).limit(1).maybeSingle();
+  if (latestError) return { status: "unavailable" as const };
+  const before = await supabase.from("note_versions").insert({
+    user_id: userId, note_id: note.id, title: note.title, body_markdown: note.body_markdown,
+    version_number: (latest?.version_number ?? 0) + 1, created_by: userId,
+    content_hash: note.content_hash ?? contentHash(note.body_markdown),
+    revision: note.revision ?? 0, reason: "before_restore",
+  });
+  if (before.error) return { status: "unavailable" as const };
+
+  const now = new Date().toISOString();
+  const { data: saved, error: saveError } = await supabase.from("notes")
+    .update({
+      title: value.title || "无标题笔记", body_markdown: value.bodyMarkdown,
+      content_hash: contentHash(value.bodyMarkdown),
+      character_count: value.bodyMarkdown.length, last_saved_at: now,
+      revision: value.expectedRevision + 1,
+    })
+    .eq("user_id", userId).eq("id", note.id)
+    .eq("revision", value.expectedRevision).select("id,revision").maybeSingle();
+  if (saveError) return { status: "unavailable" as const };
+  if (!saved) return { status: "conflict" as const };
+  const audited = await supabase.from("audit_logs").insert({
+    user_id: userId, action: "restore_version", entity_type: "note",
+    entity_id: note.id, actor_type: "user",
+    after_data: { from_version_id: value.versionId, new_revision: saved.revision },
+  });
+  if (audited.error) console.error(JSON.stringify({ level: "warn", action: "audit_note_version_restore", noteId: note.id }));
+  // A restored version may change derived note/entity links. They can be
+  // retried independently; failures must not misreport the saved note as lost.
+  after(async () => {
+    const [links, entities] = await Promise.all([
+      syncInternalNoteLinks(supabase, userId, note.id, value.bodyMarkdown),
+      syncEntityReferenceLinks(supabase, userId, "note", note.id, value.bodyMarkdown),
+    ]);
+    if (!links.ok || !entities.ok) console.error(JSON.stringify({ level: "warn", action: "sync_restored_note_links", noteId: note.id }));
+  });
+  await revalidatePath(`/notes/${note.id}`);
+  return { status: "restored" as const, revision: saved.revision };
+}
+
+/** Legacy form remains accepted only with a caller-supplied revision.
+ * Restore always requires a confirmed, freshly reviewed target. */
+export async function restoreNoteVersion(formData: FormData) {
+  const expectedRevision = Number(formData.get("expected_revision"));
+  const result = await applyReviewedNoteVersion({
+    noteId: String(formData.get("note_id") ?? ""),
+    versionId: String(formData.get("version_id") ?? ""),
+    expectedRevision,
+    title: String(formData.get("reviewed_title") ?? ""),
+    bodyMarkdown: String(formData.get("reviewed_body") ?? ""),
+  });
+  if (result.status !== "restored" && result.status !== "unchanged") fail();
+}
+
 
 const notePlacementSchema = z.object({ folderId: z.string().uuid().nullable().optional() });
 const moveFolderSchema = z.object({ folderId: z.string().uuid(), parentId: z.string().uuid().nullable().optional() });
