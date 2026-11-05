@@ -36,7 +36,7 @@ export function NoteVersionHistory({
   const [nextBefore, setNextBefore] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [reading, setReading] = useState(false);
+  const [reading, setReading] = useState(Boolean(initialVersionId));
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState("");
   const [picked, setPicked] = useState<Selected | null>(null);
@@ -56,7 +56,6 @@ export function NoteVersionHistory({
   useEffect(() => {
     if (!initialVersionId) return;
     const abort = new AbortController();
-    setReading(true);
     void jsonFrom<{ version: Historical }>(baseUrl + "/" + encodeURIComponent(initialVersionId), abort.signal)
       .then(value => { if (!abort.signal.aborted) { setPicked({ version: value.version, checked: new Set(), historicalTitle: false, fullBody: false }); setError(""); } })
       .catch(() => { if (!abort.signal.aborted) setError("所选历史版本暂时无法读取。"); })
@@ -64,7 +63,7 @@ export function NoteVersionHistory({
     return () => abort.abort();
   }, [baseUrl, initialVersionId]);
 
-  const parts = useMemo(() => picked ? compareNoteVersions(currentBody, picked.version.body) : null, [currentBody, picked]);
+  const parts = useMemo(() => picked ? compareNoteVersions(currentBody, picked.version.body) : null, [currentBody, picked?.version.body]);
   const changes = useMemo(() => parts?.filter(part => part.kind === "changed") ?? [], [parts]);
   const nextBody = picked ? picked.fullBody || parts === null
     ? picked.version.body
