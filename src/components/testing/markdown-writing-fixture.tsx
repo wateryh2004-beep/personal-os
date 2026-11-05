@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { VisualMarkdownEditor } from "@/components/notes/visual-markdown-editor";
 
 const initial = [
@@ -22,6 +22,7 @@ const initial = [
 export function MarkdownWritingFixture() {
   const [body, setBody] = useState(initial);
   const [aiCount, setAiCount] = useState(0);
+  const openAi = useCallback(() => setAiCount(count => count + 1), []);
   return (
     <main data-testid="markdown-writing-fixture" className="flex h-[min(850px,100dvh)] min-h-0 flex-col overflow-hidden bg-[var(--surface-canvas)]">
       <header className="shrink-0 border-b border-[var(--separator)] p-2 text-[13px]">Markdown 写作交互 · 合成测试</header>
@@ -31,7 +32,7 @@ export function MarkdownWritingFixture() {
           markdown={initial}
           contentRevision={0}
           onChange={setBody}
-          onOpenAi={() => setAiCount(count => count + 1)}
+          onOpenAi={openAi}
         />
       </div>
       <output data-testid="markdown-writing-ai-count" className="sr-only">{aiCount}</output>

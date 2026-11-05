@@ -30,6 +30,9 @@ jobs:
           - suite: markdown-tables
             script: markdown-table-e2e.cjs
             timeout: 240
+          - suite: markdown-writing
+            script: markdown-writing-e2e.cjs
+            timeout: 300
           - suite: planning-visual
             script: planning-visual-e2e.cjs
             timeout: 300
