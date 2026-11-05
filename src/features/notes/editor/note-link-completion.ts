@@ -12,6 +12,7 @@ import { keymap, EditorView } from "@codemirror/view";
 import { Prec, type Extension } from "@codemirror/state";
 import type { EntityLinkSuggestion } from "@/features/links/types";
 import type { NoteLinkSuggestion } from "@/features/notes/links/types";
+import { extractMarkdownSlashQuery, markdownSlashCompletions, slashCommandLabels } from "./markdown-slash-commands";
 
 export type NoteLinkQuery = {
   kind: "note" | "entity";
@@ -91,15 +92,18 @@ function entityCompletionFor(entity: EntityLinkSuggestion): Completion {
 export type NoteLinkCompletionOptions = {
   searchNotes: (query: string) => Promise<NoteLinkSuggestion[]>;
   searchEntities: (query: string) => Promise<EntityLinkSuggestion[]>;
+  onSlashImage?: (view: EditorView) => void;
+  onSlashAi?: () => void;
 };
 
 /**
  * `[[` 始终搜索笔记；`@` 无查询时显示最近笔记，输入查询后搜索全部可引用实体。
  */
-export function createNoteLinkCompletion({ searchNotes, searchEntities }: NoteLinkCompletionOptions): Extension {
+export function createNoteLinkCompletion({ searchNotes, searchEntities, onSlashImage, onSlashAi }: NoteLinkCompletionOptions): Extension {
   let suppressedFrom: number | null = null;
   let controller: AbortController | null = null;
   let requestSequence = 0;
+  const slashOptions = markdownSlashCompletions({ onImage: onSlashImage, onAi: onSlashAi });
 
   const loadRemoteSuggestions = async <T>(query: string, loader: (query: string) => Promise<T[]>) => {
     controller?.abort();
@@ -116,6 +120,12 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities }: NoteLi
   };
 
   const source: CompletionSource = async (context: CompletionContext) => {
+    const slash = extractMarkdownSlashQuery(context.state, context.pos);
+    if (slash) {
+      if (slash.from === suppressedFrom) return null;
+      const matches = new Set(slashCommandLabels(slash.query));
+      return { from: slash.from, options: slashOptions.filter(option => matches.has(option.label)), filter: false };
+    }
     const token = extractNoteLinkQuery(context.state.doc.toString(), context.pos);
     if (!token || token.from === suppressedFrom) return null;
     const query = token.query.trim();
@@ -148,7 +158,8 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities }: NoteLi
         key: "Escape",
         run(view) {
           if (completionStatus(view.state) !== "active") return false;
-          suppressedFrom = extractNoteLinkQuery(view.state.doc.toString(), view.state.selection.main.head)?.from ?? null;
+          suppressedFrom = (extractMarkdownSlashQuery(view.state, view.state.selection.main.head) ??
+            extractNoteLinkQuery(view.state.doc.toString(), view.state.selection.main.head))?.from ?? null;
           return closeCompletion(view);
         },
       },
@@ -156,10 +167,8 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities }: NoteLi
     ])),
     EditorView.updateListener.of((update) => {
       if ((!update.docChanged && !update.selectionSet) || update.view.composing) return;
-      const token = extractNoteLinkQuery(
-        update.state.doc.toString(),
-        update.state.selection.main.head,
-      );
+      const token = extractMarkdownSlashQuery(update.state, update.state.selection.main.head) ??
+        extractNoteLinkQuery(update.state.doc.toString(), update.state.selection.main.head);
       if (!token) {
         suppressedFrom = null;
         if (completionStatus(update.state) === "active") queueMicrotask(() => closeCompletion(update.view));

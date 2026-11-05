@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
-import { ListTree, Search, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ListTree, Search, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { filterOutlineItems, type MarkdownOutlineItem } from "@/features/notes/editor/markdown-outline";
 
 /** Presence may retain this DOM during exit; the owner supplies each opening's query. */
-function OutlineContents({ items, listRef, onSelect, onClose, onListChange, query, onQueryChange }: {
+function OutlineContents({ items, listRef, onSelect, onToggleFold, foldableIndices, foldedIndices, onClose, onListChange, query, onQueryChange }: {
   items: MarkdownOutlineItem[];
   listRef: Ref<HTMLUListElement>;
   onSelect: (item: MarkdownOutlineItem) => void;
+  onToggleFold: (item: MarkdownOutlineItem) => void;
+  foldableIndices: ReadonlySet<number>;
+  foldedIndices: ReadonlySet<number>;
   onClose: () => void;
   onListChange: () => void;
   query: string;
@@ -53,21 +56,31 @@ function OutlineContents({ items, listRef, onSelect, onClose, onListChange, quer
         choices[next]?.focus();
       }
     }}>
-      {!items.length ? <p className="px-2 py-3 text-[13px] leading-6 text-[var(--text-secondary)]">还没有章节标题。以 # 章节名开头的行会出现在这里。</p> : !matches.length ? <p className="px-2 py-3 text-[13px] leading-6 text-[var(--text-secondary)]">没有匹配的章节。换一个关键词，或清空筛选。</p> : <ul ref={listRef} className="space-y-0.5">{matches.map((item) => <li key={item.index}>
-        <button type="button" data-outline-index={item.index} onClick={() => onSelect(item)} title={item.text} style={{ paddingLeft: `${(item.level - 1) * 12 + 8}px` }} className="note-outline-item block min-h-11 w-full break-words rounded-[8px] py-2 pr-2 text-left text-[13px] leading-5 text-[var(--text-secondary)] transition-colors ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] md:min-h-8 md:py-1.5">{item.text || "无文字标题"}</button>
+      {!items.length ? <p className="px-2 py-3 text-[13px] leading-6 text-[var(--text-secondary)]">还没有章节标题。以 # 章节名开头的行会出现在这里。</p> : !matches.length ? <p className="px-2 py-3 text-[13px] leading-6 text-[var(--text-secondary)]">没有匹配的章节。换一个关键词，或清空筛选。</p> : <ul ref={listRef} className="space-y-0.5">{matches.map((item) => <li key={item.index} className="flex min-w-0 items-start gap-1">
+        <button type="button" data-outline-index={item.index} onClick={() => onSelect(item)} title={item.text} style={{ paddingLeft: `${(item.level - 1) * 12 + 8}px` }} className="note-outline-item min-w-0 flex-1 break-words rounded-[8px] py-2 pr-1 text-left text-[13px] leading-5 text-[var(--text-secondary)] transition-colors ui-transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] md:min-h-8 md:py-1.5">{item.text || "无文字标题"}</button>
+        {foldableIndices.has(item.index) ? <button type="button"
+          aria-label={`${foldedIndices.has(item.index) ? "展开章节" : "折叠章节"}：${item.text || "无文字标题"}`}
+          aria-expanded={!foldedIndices.has(item.index)}
+          onClick={() => onToggleFold(item)}
+          className="pressable inline-flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] md:size-8">
+          {foldedIndices.has(item.index) ? <ChevronRight aria-hidden="true" className="size-4" /> : <ChevronDown aria-hidden="true" className="size-4" />}
+        </button> : null}
       </li>)}</ul>}
     </div>
     <p className="hidden shrink-0 border-t border-[var(--separator)] px-2 pt-2 text-[12px] text-[var(--text-secondary)] md:block">↑ ↓ 选择 · Enter 跳转 · Esc 关闭</p>
   </>;
 }
 
-export function NoteOutline({ open, onOpenChange, disabled, items, listRef, onSelect, onListChange, portalContainer }: {
+export function NoteOutline({ open, onOpenChange, disabled, items, listRef, onSelect, onToggleFold, foldableIndices, foldedIndices, onListChange, portalContainer }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   disabled: boolean;
   items: MarkdownOutlineItem[];
   listRef: Ref<HTMLUListElement>;
   onSelect: (item: MarkdownOutlineItem) => boolean;
+  onToggleFold: (item: MarkdownOutlineItem) => boolean;
+  foldableIndices: ReadonlySet<number>;
+  foldedIndices: ReadonlySet<number>;
   onListChange: () => void;
   portalContainer?: HTMLElement | null;
 }) {
@@ -101,7 +114,7 @@ export function NoteOutline({ open, onOpenChange, disabled, items, listRef, onSe
     }} onCloseAutoFocus={(event) => {
       if (jumped.current) { event.preventDefault(); jumped.current = false; }
     }}>
-      <OutlineContents items={items} listRef={listRef} query={filter.open === open ? filter.query : ""} onQueryChange={(query) => setFilter({ open, query })} onListChange={onListChange} onClose={() => changeOpen(false)} onSelect={(item) => {
+      <OutlineContents items={items} listRef={listRef} foldableIndices={foldableIndices} foldedIndices={foldedIndices} onToggleFold={(item) => { onToggleFold(item); }} query={filter.open === open ? filter.query : ""} onQueryChange={(query) => setFilter({ open, query })} onListChange={onListChange} onClose={() => changeOpen(false)} onSelect={(item) => {
         if (onSelect(item)) { jumped.current = true; changeOpen(false); }
       }} />
     </PopoverContent>
