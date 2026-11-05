@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { analyzeMarkdownCompatibility } from "@/features/notes/editor/compatibility";
 import { noteAttachmentUrl } from "@/features/notes/attachments";
 import { NoteBacklinks } from "@/components/notes/note-backlinks";
 import { NoteVersionReview } from "@/components/notes/note-version-review";
@@ -29,6 +30,8 @@ export function NoteDetailsContent({ document, details }: { document: NoteDocume
   const [baseline,setBaseline]=useState({id:document.note.id,revision:document.note.mutation_revision});
   if(baseline.id!==document.note.id)setBaseline({id:document.note.id,revision:document.note.mutation_revision});
   const [reviewVersionId, setReviewVersionId] = useState<string | null>(null);
+  const [showAllVersions, setShowAllVersions] = useState(false);
+  const compatibility = useMemo(() => analyzeMarkdownCompatibility(data.note.body_markdown), [data.note.body_markdown]);
   const folders = details.folders;
   const stats = noteStats(data.note.body_markdown, data.links.length + data.backlinks.length);
   return <div className="space-y-0 pb-2 text-[13px]">
@@ -72,7 +75,7 @@ export function NoteDetailsContent({ document, details }: { document: NoteDocume
     <section>
       <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><History className="size-3.5 text-[var(--accent)]" aria-hidden="true" /><h2 className="text-[13px] font-semibold text-[var(--text-primary)]">版本快照</h2></div><form action={createNoteVersion}><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="expected_revision" value={baseline.revision ?? ""} /><button className="pressable h-8 rounded-[8px] px-2.5 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">创建快照</button></form></div>
       <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">创建快照后，随时可回到这一个版本。</p>
-      {data.versions.length ? <div className="mt-2.5 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">{data.versions.slice(0, 6).map((version) =>
+      {data.versions.length ? <div className="mt-2.5 divide-y divide-[var(--separator)] border-y border-[var(--separator)]">{data.versions.slice(0, showAllVersions ? 30 : 6).map((version) =>
         <div key={version.id} className="flex items-center gap-2 py-2">
           <FileClock className="size-3.5 shrink-0 text-[var(--text-tertiary)]" aria-hidden="true" />
           <span className="min-w-0 flex-1"><span className="block text-[12px] font-medium text-[var(--text-primary)]">版本 {version.version_number} · {version.reason === "manual" ? "手动快照" : version.reason}</span>
@@ -80,8 +83,16 @@ export function NoteDetailsContent({ document, details }: { document: NoteDocume
           <button type="button" onClick={() => setReviewVersionId(version.id)} className="pressable shrink-0 rounded-[7px] px-2 py-1.5 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">查看差异 / 恢复</button>
         </div>)}</div> : <p className="mt-2.5 rounded-[8px] bg-[var(--surface-hover)] px-3 py-2 text-[12px] text-[var(--text-secondary)]">尚未创建快照。重要修改前可先保存一个版本。</p>}
       {reviewVersionId ? <NoteVersionReview key={reviewVersionId} noteId={data.note.id} versionId={reviewVersionId} onClose={() => setReviewVersionId(null)} /> : null}
-      {data.versions.length >= 6 ? <p className="mt-1.5 text-[12px] text-[var(--text-tertiary)]">显示最近 6 个版本快照。</p> : null}
+      {data.versions.length > 6 ? <button type="button" onClick={() => setShowAllVersions(value => !value)} className="pressable min-h-9 rounded-[7px] px-2 text-[12px] font-medium text-[var(--accent)]">{showAllVersions ? "收起历史版本" : "查看更早快照"}</button> : null}
     </section>
+
+    {compatibility.length ? <section>
+      <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">复杂文档兼容性</h2>
+      <p className="mt-1 text-[12px] text-[var(--text-secondary)]">仅显示格式兼容性提示，不会修改 Markdown 原文。</p>
+      <ul className="mt-2 space-y-2">{compatibility.map(item =>
+        <li key={item.id} className="rounded-[8px] border border-[var(--separator)] px-3 py-2 text-[12px] leading-5 text-[var(--text-secondary)]">{item.text}</li>
+      )}</ul>
+    </section> : null}
 
     {data.attachments.length ? <section>
       <details><summary className="cursor-pointer text-[13px] font-semibold text-[var(--text-primary)]">原件与附件 · {data.attachments.length}</summary>
@@ -91,7 +102,12 @@ export function NoteDetailsContent({ document, details }: { document: NoteDocume
 
     <section>
       <h2 className="text-[12px] font-semibold tracking-[0.08em] text-[var(--text-tertiary)]">文档操作</h2>
-      <a className="pressable mt-2.5 flex h-8 items-center gap-2 rounded-[8px] px-2 text-[12px] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]" href={`/api/exports/notes/${data.note.id}`}><Download className="size-4 text-[var(--accent)]" aria-hidden="true" />下载 Markdown</a>
+      <div className="mt-2.5 space-y-1">
+        <a className="pressable flex min-h-9 items-center gap-2 rounded-[8px] px-2 text-[12px] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]" href={`/api/exports/notes/${data.note.id}`}><Download className="size-4 text-[var(--accent)]" aria-hidden="true" />下载 Markdown 原文</a>
+        <a className="pressable flex min-h-9 items-center gap-2 rounded-[8px] px-2 text-[12px] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]" href={`/api/exports/notes/${data.note.id}/html`}><Download className="size-4 text-[var(--accent)]" aria-hidden="true" />下载 HTML</a>
+        <a className="pressable flex min-h-9 items-center gap-2 rounded-[8px] px-2 text-[12px] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]" href={`/api/exports/notes/${data.note.id}/html?view=1`} target="_blank" rel="noopener noreferrer"><Download className="size-4 text-[var(--accent)]" aria-hidden="true" />打印 / 保存可搜索 PDF</a>
+        <p className="px-2 text-[12px] leading-5 text-[var(--text-tertiary)]">导出已保存版本；打印时选择“保存为 PDF”，可搜索和复制文字。</p>
+      </div>
       <div className="mt-2 grid grid-cols-2 gap-2 border-t border-[var(--separator)] pt-2.5"><form action={archiveNote}><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="expected_revision" value={baseline.revision ?? ""} /><button className="pressable flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] px-2 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Archive className="size-3.5" aria-hidden="true" />归档</button></form><form action={trashNote}><input type="hidden" name="note_id" value={data.note.id} /><input type="hidden" name="expected_revision" value={baseline.revision ?? ""} /><button className="pressable flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] px-2 text-[12px] font-medium text-[var(--danger)] hover:bg-red-50"><Trash2 className="size-3.5" aria-hidden="true" />移入回收站</button></form></div>
       <p className="mt-2.5 text-[12px] text-[var(--text-tertiary)]">创建于 {compactDate(data.note.created_at)} · 修订 {data.note.revision}</p>
     </section>
