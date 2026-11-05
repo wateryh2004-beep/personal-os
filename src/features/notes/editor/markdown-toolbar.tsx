@@ -14,6 +14,7 @@ import {
   List,
   ListOrdered,
   ListTodo,
+  MoreHorizontal,
   Quote,
   Redo2,
   Sparkles,
@@ -21,6 +22,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   createMarkdownLink,
   toggleBlockquote,
@@ -76,12 +78,14 @@ function ToolbarButton({
   label,
   active = false,
   disabled = false,
+  mobileHidden = false,
   onClick,
   children,
 }: {
   label: string;
   active?: boolean;
   disabled?: boolean;
+  mobileHidden?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -95,7 +99,7 @@ function ToolbarButton({
           disabled={disabled}
           onMouseDown={(event) => event.preventDefault()}
           onClick={onClick}
-          className={`pressable inline-flex size-[30px] shrink-0 items-center justify-center rounded-[7px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:bg-[var(--accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)] disabled:opacity-35 ${active ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}
+          className={`pressable inline-flex size-[30px] shrink-0 items-center justify-center rounded-[7px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:bg-[var(--accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)] disabled:opacity-35 ${mobileHidden ? "max-md:hidden" : ""} ${active ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}
         >
           {children}
         </button>
@@ -140,7 +144,7 @@ export function MarkdownToolbar({
     <div className="life-markdown-toolbar" role="toolbar" aria-label="Markdown 格式工具" aria-orientation="horizontal">
       <div className="flex min-w-max items-center gap-px">
         <ToolbarButton label="撤销（⌘Z）" disabled={!view} onClick={() => run(undo)}><Undo2 aria-hidden="true" className="size-4" /></ToolbarButton>
-        <ToolbarButton label="重做（⇧⌘Z）" disabled={!view} onClick={() => run(redo)}><Redo2 aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton mobileHidden label="重做（⇧⌘Z）" disabled={!view} onClick={() => run(redo)}><Redo2 aria-hidden="true" className="size-4" /></ToolbarButton>
         <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[var(--border-subtle)]" />
         <label className="sr-only" htmlFor={blockStyleId}>块样式</label>
         <select
@@ -171,15 +175,35 @@ export function MarkdownToolbar({
         <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[var(--border-subtle)]" />
         <ToolbarButton label="粗体（⌘B）" active={active.bold} disabled={!view} onClick={() => run(toggleBold)}><Bold aria-hidden="true" className="size-4" /></ToolbarButton>
         <ToolbarButton label="斜体（⌘I）" active={active.italic} disabled={!view} onClick={() => run(toggleItalic)}><Italic aria-hidden="true" className="size-4" /></ToolbarButton>
-        <ToolbarButton label="行内代码" active={active.inlineCode} disabled={!view} onClick={() => run(toggleInlineCode)}><Code2 aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton mobileHidden label="行内代码" active={active.inlineCode} disabled={!view} onClick={() => run(toggleInlineCode)}><Code2 aria-hidden="true" className="size-4" /></ToolbarButton>
         <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[var(--border-subtle)]" />
-        <ToolbarButton label="无序列表" active={active.list === "bullet"} disabled={!view} onClick={() => run(toggleBulletList)}><List aria-hidden="true" className="size-4" /></ToolbarButton>
-        <ToolbarButton label="有序列表" active={active.list === "ordered"} disabled={!view} onClick={() => run(toggleOrderedList)}><ListOrdered aria-hidden="true" className="size-4" /></ToolbarButton>
-        <ToolbarButton label="任务列表" active={active.list === "task"} disabled={!view} onClick={() => run(toggleTaskList)}><ListTodo aria-hidden="true" className="size-4" /></ToolbarButton>
-        <ToolbarButton label="链接（⌘K）" active={active.link} disabled={!view} onClick={() => run(createMarkdownLink)}><Link2 aria-hidden="true" className="size-4" /></ToolbarButton>
-        <ToolbarButton label="引用" active={active.quote} disabled={!view} onClick={() => run(toggleBlockquote)}><Quote aria-hidden="true" className="size-4" /></ToolbarButton>
-        <ToolbarButton label="插入图片" disabled={!view} onClick={() => fileRef.current?.click()}><ImagePlus aria-hidden="true" className="size-4" /></ToolbarButton>
-        <ToolbarButton label="插入表格" disabled={!view} onClick={() => { onInsertTable(); view?.focus(); }}><Table2 aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton mobileHidden label="无序列表" active={active.list === "bullet"} disabled={!view} onClick={() => run(toggleBulletList)}><List aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton mobileHidden label="有序列表" active={active.list === "ordered"} disabled={!view} onClick={() => run(toggleOrderedList)}><ListOrdered aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton mobileHidden label="任务列表" active={active.list === "task"} disabled={!view} onClick={() => run(toggleTaskList)}><ListTodo aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton mobileHidden label="链接（⌘K）" active={active.link} disabled={!view} onClick={() => run(createMarkdownLink)}><Link2 aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton mobileHidden label="引用" active={active.quote} disabled={!view} onClick={() => run(toggleBlockquote)}><Quote aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton mobileHidden label="插入图片" disabled={!view} onClick={() => fileRef.current?.click()}><ImagePlus aria-hidden="true" className="size-4" /></ToolbarButton>
+        <ToolbarButton mobileHidden label="插入表格" disabled={!view} onClick={() => { onInsertTable(); view?.focus(); }}><Table2 aria-hidden="true" className="size-4" /></ToolbarButton>
+        <div className="md:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" disabled={!view} aria-label="更多格式工具" className="pressable inline-flex size-11 items-center justify-center rounded-[8px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] focus-visible:outline-2 focus-visible:outline-[var(--accent)] disabled:opacity-35">
+                <MoreHorizontal aria-hidden="true" className="size-5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" portalContainer={view?.dom.closest<HTMLElement>(".notes-editor-surface")} onCloseAutoFocus={event => { event.preventDefault(); view?.focus(); }}>
+              <DropdownMenuItem onSelect={() => run(redo)}>重做</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => run(toggleInlineCode)}>行内代码</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => run(toggleBulletList)}>无序列表</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => run(toggleOrderedList)}>有序列表</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => run(toggleTaskList)}>任务列表</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => run(createMarkdownLink)}>链接</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => run(toggleBlockquote)}>引用</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => fileRef.current?.click()}>插入图片</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => { onInsertTable(); view?.focus(); }}>插入表格</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       <span className="min-w-2 flex-1" />
       {outlineControl}

@@ -197,3 +197,135 @@
   .notes-editor-surface .life-markdown-toolbar { min-height:48px; padding-block:2px; }
   .notes-editor-surface .life-codemirror .cm-content { padding-top:16px; }
 }
+
+
+/* Phase 3: selection actions stay attached to CodeMirror selection geometry. */
+.notes-editor-surface .cm-note-selection-toolbar {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:4px;
+  padding:5px;
+  max-width:min(92vw,440px);
+  border:1px solid var(--separator-strong);
+  border-radius:11px;
+  background:var(--surface-canvas);
+  box-shadow:var(--shadow-popover);
+  color:var(--text-primary);
+}
+.notes-editor-surface .cm-note-selection-toolbar button {
+  min-height:34px;
+  padding:6px 9px;
+  border-radius:7px;
+  background:transparent;
+  font-size:13px;
+  font-weight:500;
+}
+.notes-editor-surface .cm-note-selection-toolbar button:hover,
+.notes-editor-surface .cm-note-selection-toolbar button:focus-visible {
+  color:var(--accent);
+  background:var(--accent-soft);
+  outline:2px solid var(--accent);
+  outline-offset:-2px;
+}
+.notes-editor-surface .cm-foldGutter { width:18px; color:var(--text-tertiary); }
+.notes-editor-surface .cm-foldPlaceholder {
+  border:1px solid var(--separator);
+  border-radius:5px;
+  padding:1px 6px;
+  color:var(--text-secondary);
+  background:var(--surface-control);
+  cursor:pointer;
+}
+
+/* Image management uses portable Markdown alt text and title captions;
+   no parallel HTML image metadata is stored. */
+.notes-editor-surface .cm-note-image-preview {
+  display:inline-flex;
+  flex-direction:column;
+  align-items:stretch;
+  max-width:min(100%,720px);
+  border:1px solid var(--separator);
+  border-radius:10px;
+  background:var(--surface-canvas);
+  overflow:hidden;
+  white-space:normal;
+}
+.notes-editor-surface .cm-note-image-preview img {
+  max-width:100%;
+  height:auto;
+  border-radius:0;
+}
+.notes-editor-surface .cm-note-image-caption {
+  font-size:13px;
+  line-height:1.5;
+  color:var(--text-secondary);
+  padding:7px 10px 3px;
+  text-align:center;
+}
+.notes-editor-surface .cm-note-image-actions,
+.notes-editor-surface .cm-note-image-editor-actions {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 10px;
+}
+.notes-editor-surface .cm-note-image-actions[hidden],
+.notes-editor-surface .cm-note-image-editor[hidden] { display:none; }
+.notes-editor-surface .cm-note-image-actions { border-top:1px solid var(--separator); }
+.notes-editor-surface .cm-note-image-actions a,
+.notes-editor-surface .cm-note-image-actions button,
+.notes-editor-surface .cm-note-image-editor-actions button {
+  min-height:32px;
+  padding:5px 10px;
+  border:1px solid var(--separator);
+  border-radius:7px;
+  background:var(--surface-control);
+  color:var(--text-primary);
+  font-size:12px;
+  cursor:pointer;
+}
+.notes-editor-surface .cm-note-image-editor {
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:11px;
+  border-top:1px solid var(--separator);
+  min-width:0;
+}
+.notes-editor-surface .cm-note-image-editor label {
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  color:var(--text-secondary);
+  font-size:12px;
+}
+.notes-editor-surface .cm-note-image-editor input {
+  width:100%;
+  min-width:0;
+  min-height:36px;
+  padding:6px 9px;
+  border:1px solid var(--separator-strong);
+  border-radius:7px;
+  color:var(--text-primary);
+  background:var(--surface-canvas);
+  font-size:14px;
+}
+.notes-editor-surface .cm-note-image-message {
+  font-size:12px;
+  color:var(--danger);
+}
+.notes-editor-surface .cm-note-image-actions :is(button,a):focus-visible,
+.notes-editor-surface .cm-note-image-editor :is(button,input):focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+@media(max-width:767px) {
+  .notes-editor-surface .cm-note-selection-toolbar { max-width:calc(100vw - 24px); padding:4px; }
+  .notes-editor-surface .cm-note-selection-toolbar button { min-height:44px; min-width:44px; }
+  .notes-editor-surface .cm-note-image-actions :is(button,a),
+  .notes-editor-surface .cm-note-image-editor-actions button { min-height:44px; }
+  .notes-editor-surface .cm-note-image-editor input { min-height:44px; font-size:16px; }
+  .notes-editor-surface .life-markdown-toolbar { scrollbar-width:none; }
+  .notes-editor-surface .life-markdown-toolbar::-webkit-scrollbar { display:none; }
+}

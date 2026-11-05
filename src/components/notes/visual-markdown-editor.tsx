@@ -24,6 +24,9 @@ import { markdownEditorKeymap } from "@/features/notes/editor/markdown-keymap";
 import { markdownEditorTheme } from "@/features/notes/editor/markdown-theme";
 import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
 import { markdownImagePreview } from "@/features/notes/editor/markdown-image-preview";
+import { markdownSelectionToolbar } from "@/features/notes/editor/markdown-selection-toolbar";
+import { headingSectionRange, isMarkdownSectionFolded, markdownSectionFolding, toggleMarkdownSection } from "@/features/notes/editor/markdown-section-fold";
+import { foldEffect, unfoldEffect } from "@codemirror/language";
 import { shouldRestoreAsyncEditorFocus } from "@/features/notes/editor/async-editor-intent";
 import { markdownTablePreview } from "@/features/notes/editor/markdown-table-preview";
 import { pastedTsvToMarkdown } from "@/features/notes/editor/markdown-table";
@@ -146,6 +149,11 @@ export function VisualMarkdownEditor({
   }, []);
   const positionIntentRef = useRef(onPositionIntent);
   const selectionRef = useRef(onSelectionChange);
+  const slashImagePickerRef = useRef<HTMLInputElement>(null);
+  const requestSlashImage = useCallback((currentView: EditorView) => {
+    currentView.dom.closest(".life-markdown-editor")
+      ?.querySelector<HTMLInputElement>("[data-note-slash-image-picker]")?.click();
+  }, []);
   const [view, setView] = useState<EditorView | null>(null);
   // The editor owns keystrokes. React echoes must not enter UIW's delayed value replay.
   useEffect(() => {
@@ -168,6 +176,7 @@ export function VisualMarkdownEditor({
   // 目录浮层：默认不占任何空间（避免"附着在旁边"），点工具栏目录按钮才出现。
   // 只在面板打开时才解析标题，不打开就不付解析成本。
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [foldVersion, setFoldVersion] = useState(0);
   const outlineListRef = useRef<HTMLUListElement>(null);
   const outlineHeadingsRef = useRef<MarkdownOutlineItem[]>([]);
   const activeOutlineIndexRef = useRef(-1);
@@ -430,9 +439,44 @@ export function VisualMarkdownEditor({
   }, [noteId]);
 
   const noteLinkCompletion = useMemo(
-    () => createNoteLinkCompletion({ searchNotes: searchNoteLinks, searchEntities }),
-    [searchEntities, searchNoteLinks],
+    () => createNoteLinkCompletion({
+      searchNotes: searchNoteLinks,
+      searchEntities,
+      onSlashImage: requestSlashImage,
+      onSlashAi: onOpenAi,
+    }),
+    [onOpenAi, requestSlashImage, searchEntities, searchNoteLinks],
   );
+  const selectionToolbar = useMemo(() => markdownSelectionToolbar(onOpenAi), [onOpenAi]);
+
+  const outlineFolds = useMemo(() => {
+    // The folding revision intentionally invalidates this cached view of
+    // CodeMirror's internal fold state without reparsing Markdown.
+    void foldVersion;
+    const foldable = new Set<number>();
+    const folded = new Set<number>();
+    if (!outlineOpen || !view) return { foldable, folded };
+    // The outline is already parsed only while open; don't re-scan the
+    // document to render one folding control per visible heading.
+    for (const item of outlineItems) {
+      if (!headingSectionRange(view.state, item.from)) continue;
+      foldable.add(item.index);
+      if (isMarkdownSectionFolded(view, item.from)) folded.add(item.index);
+    }
+    return { foldable, folded };
+  }, [foldVersion, outlineItems, outlineOpen, view]);
+
+  const toggleOutlineFold = useCallback((item: MarkdownOutlineItem) => {
+    const editor = editorRef.current?.view;
+    if (!editor) return false;
+    const fresh = parseEditorOutline(editor.state);
+    const current = fresh.find(heading =>
+      heading.index === item.index && heading.level === item.level && heading.text === item.text,
+    );
+    if (!current || !toggleMarkdownSection(editor, current.from)) return false;
+    setFoldVersion(version => version + 1);
+    return true;
+  }, []);
 
   const insertUploadedImage = useCallback(async (file: File, currentView: EditorView) => {
     const initialRange = currentView.state.selection.main;
@@ -526,12 +570,15 @@ export function VisualMarkdownEditor({
       }),
       indentUnit.of("   "),
       EditorState.tabSize.of(3),
+      // Link/slash acceptance must run before list-continuation Enter.
+      noteLinkCompletion,
       markdownEditorKeymap,
       markdownEditorTheme,
       markdownImagePreview,
+      selectionToolbar,
+      markdownSectionFolding,
       markdownTablePreview,
       noteLinkDecoration,
-      noteLinkCompletion,
       markdownUploadPlaceholder,
       documentCharacterCount,
       sourceLineAttributes,
@@ -545,7 +592,7 @@ export function VisualMarkdownEditor({
       }),
       eventHandlers.of([]),
     ],
-    [eventHandlers, noteLinkCompletion],
+    [eventHandlers, noteLinkCompletion, selectionToolbar],
   );
 
   useEffect(() => {
@@ -670,6 +717,9 @@ export function VisualMarkdownEditor({
       });
       if (update.selectionSet || update.viewportChanged || update.geometryChanged)
         reportSelection(update.view);
+      if (outlineOpen && update.transactions.some(transaction =>
+        transaction.effects.some(effect => effect.is(foldEffect) || effect.is(unfoldEffect))
+      )) setFoldVersion(version => version + 1);
       if (update.docChanged) {
         setStateVersion((version) => version + 1);
         syncStatusCount(update.view);
@@ -699,8 +749,15 @@ export function VisualMarkdownEditor({
         }}
         onInsertTable={insertTable}
         onOpenAi={onOpenAi}
-        outlineControl={<NoteOutline open={outlineOpen} onOpenChange={setOutlineOpen} disabled={!view} items={outlineItems} listRef={outlineListRef} onSelect={jumpToOutlineHeading} onListChange={refreshOutlineHighlight} portalContainer={view?.dom.closest<HTMLElement>(".notes-editor-surface")} />}
+        outlineControl={<NoteOutline open={outlineOpen} onOpenChange={setOutlineOpen} disabled={!view} items={outlineItems} listRef={outlineListRef} onSelect={jumpToOutlineHeading} onToggleFold={toggleOutlineFold} foldableIndices={outlineFolds.foldable} foldedIndices={outlineFolds.folded} onListChange={refreshOutlineHighlight} portalContainer={view?.dom.closest<HTMLElement>(".notes-editor-surface")} />}
       />
+      <input ref={slashImagePickerRef} data-note-slash-image-picker type="file" accept="image/*" aria-label="选择插入图片" className="sr-only" tabIndex={-1}
+        onChange={event => {
+          const file = event.target.files?.[0];
+          const currentView = editorRef.current?.view;
+          if (file && currentView) void insertUploadedImage(file, currentView);
+          event.target.value = "";
+        }} />
       <CodeMirror
         ref={editorRef}
         value={initialMarkdown}

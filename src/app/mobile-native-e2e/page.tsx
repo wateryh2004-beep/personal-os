@@ -20,6 +20,7 @@ import { NoteContinuityFixture } from "@/components/testing/note-continuity-fixt
 import { VaultFixture } from "@/components/testing/vault-fixture";
 import { WorkspaceMotionFixture } from "@/components/testing/workspace-motion-fixture";
 import { MarkdownTableFixture } from "@/components/testing/markdown-table-fixture";
+import { MarkdownWritingFixture } from "@/components/testing/markdown-writing-fixture";
 import { PlanningVisualFixture } from "@/components/testing/planning-visual-fixture";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export default async function MobileNativeE2EPage({ searchParams }: { searchPara
   if (scene === "note-continuity") return <NoteContinuityFixture textScale={textScale === "200" ? "200" : undefined} />;
   if (scene === "workspace-motion") return <WorkspaceMotionFixture />;
   if (scene === "markdown-table") return <MarkdownTableFixture />;
+  if (scene === "markdown-writing") return <MarkdownWritingFixture />;
   if (scene === "planning-visual") return <PlanningVisualFixture mode={mode} textScale={textScale === "200" ? "200" : undefined} />;
   if (scene === "notes-bootstrap") {
     const bootstrap = mode === "streamed" && workspace !== "home" ? new Promise<{
