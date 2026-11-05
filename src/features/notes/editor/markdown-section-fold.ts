@@ -15,7 +15,9 @@ export function headingSectionRange(state: EditorState, headingFrom: number): { 
   while (node) {
     if (node.name === "ATXHeading" + match[1].length) { recognized = true; break; }
     if (node.name === "FencedCode" || node.name === "CodeBlock" || node.name === "HTMLBlock") return null;
-    node = node.parent;
+    const parent = node.parent;
+    if (!parent) break;
+    node = parent;
   }
   if (!recognized) return null;
   let end = state.doc.length;
@@ -30,7 +32,9 @@ export function headingSectionRange(state: EditorState, headingFrom: number): { 
         break;
       }
       if (at.name === "FencedCode" || at.name === "CodeBlock" || at.name === "HTMLBlock") break;
-      at = at.parent;
+      const parent = at.parent;
+      if (!parent) break;
+      at = parent;
     }
     if (end !== state.doc.length) break;
   }

@@ -150,7 +150,10 @@ export function VisualMarkdownEditor({
   const positionIntentRef = useRef(onPositionIntent);
   const selectionRef = useRef(onSelectionChange);
   const slashImagePickerRef = useRef<HTMLInputElement>(null);
-  const requestSlashImage = useCallback((_currentView: EditorView) => { slashImagePickerRef.current?.click(); }, []);
+  const requestSlashImage = useCallback((currentView: EditorView) => {
+    currentView.dom.closest(".life-markdown-editor")
+      ?.querySelector<HTMLInputElement>("[data-note-slash-image-picker]")?.click();
+  }, []);
   const [view, setView] = useState<EditorView | null>(null);
   // The editor owns keystrokes. React echoes must not enter UIW's delayed value replay.
   useEffect(() => {
@@ -447,6 +450,9 @@ export function VisualMarkdownEditor({
   const selectionToolbar = useMemo(() => markdownSelectionToolbar(onOpenAi), [onOpenAi]);
 
   const outlineFolds = useMemo(() => {
+    // The folding revision intentionally invalidates this cached view of
+    // CodeMirror's internal fold state without reparsing Markdown.
+    void foldVersion;
     const foldable = new Set<number>();
     const folded = new Set<number>();
     if (!outlineOpen || !view) return { foldable, folded };
@@ -744,7 +750,7 @@ export function VisualMarkdownEditor({
         onOpenAi={onOpenAi}
         outlineControl={<NoteOutline open={outlineOpen} onOpenChange={setOutlineOpen} disabled={!view} items={outlineItems} listRef={outlineListRef} onSelect={jumpToOutlineHeading} onToggleFold={toggleOutlineFold} foldableIndices={outlineFolds.foldable} foldedIndices={outlineFolds.folded} onListChange={refreshOutlineHighlight} portalContainer={view?.dom.closest<HTMLElement>(".notes-editor-surface")} />}
       />
-      <input ref={slashImagePickerRef} type="file" accept="image/*" aria-label="选择插入图片" className="sr-only" tabIndex={-1}
+      <input ref={slashImagePickerRef} data-note-slash-image-picker type="file" accept="image/*" aria-label="选择插入图片" className="sr-only" tabIndex={-1}
         onChange={event => {
           const file = event.target.files?.[0];
           const currentView = editorRef.current?.view;
