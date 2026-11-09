@@ -64,12 +64,16 @@ describe("Notes experience contracts", () => {
     expect(editor).not.toContain("saveDraft(nextTitle, nextBody)");
   });
 
-  it("keeps all title mutations synchronized with the persistent navigator", () => {
+  it("syncs title mutations without rebuilding the persistent navigator on every keystroke", () => {
     const editor = source("src/components/notes/note-editor.tsx");
-    expect(editor).toContain("publishNotesNavigatorTitle(note.id, nextTitle)");
-    expect(editor).toContain("publishNotesNavigatorTitle(note.id, next)");
-    expect(editor).toContain("publishNotesNavigatorTitle(note.id, prev)");
-    expect(editor).toContain("publishNotesNavigatorTitle(note.id, draft.title)");
+    expect(editor).toContain("navigatorTitlePublisher.queue(nextTitle)");
+    expect(editor).toContain("navigatorTitlePublisher.flush()");
+    expect(editor).toContain("navigatorTitlePublisher.publishNow(next)");
+    expect(editor).toContain("navigatorTitlePublisher.publishNow(prev)");
+    expect(editor).toContain("navigatorTitlePublisher.publishNow(draft.title)");
+    expect(editor).toContain("navigatorTitlePublisher.publishNow(note.title)");
+    expect(editor).toContain("navigatorTitlePublisher.publishNow(resolved.title)");
+    expect(editor).not.toContain("publishNotesNavigatorTitle(note.id, nextTitle)");
   });
 
   it("acknowledges the authoritative autosave before derived housekeeping", () => {
