@@ -26,3 +26,46 @@ export function patchNavigatorNoteTitle<T extends { id: string; title: string }>
   next[index] = { ...notes[index], title };
   return next;
 }
+
+/** The editor must never make a large navigator tree part of its keystroke
+ * critical path. Queue a trailing update; flush when editing ends or unmounts.
+ * Immediate programmatic replacements cancel stale queued titles.
+ */
+export const noteTitleNavigatorSyncDelayMs = 320;
+
+export function createNavigatorTitlePublisher(
+  noteId: string,
+  notify: (noteId: string, title: string) => void = publishNotesNavigatorTitle,
+) {
+  let pending: string | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const cancelTimer = () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+  };
+  const flush = () => {
+    cancelTimer();
+    if (pending === null) return;
+    const title = pending;
+    pending = null;
+    notify(noteId, title);
+  };
+  return {
+    queue(title: string) {
+      pending = title;
+      cancelTimer();
+      timer = setTimeout(flush, noteTitleNavigatorSyncDelayMs);
+    },
+    flush,
+    publishNow(title: string) {
+      pending = null;
+      cancelTimer();
+      notify(noteId, title);
+    },
+    cancel() {
+      pending = null;
+      cancelTimer();
+    },
+  };
+}

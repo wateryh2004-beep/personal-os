@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { patchNavigatorNoteTitle } from "@/features/notes/navigator-title-sync";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  createNavigatorTitlePublisher,
+  noteTitleNavigatorSyncDelayMs,
+  patchNavigatorNoteTitle,
+} from "@/features/notes/navigator-title-sync";
 
 describe("notes navigator live title sync", () => {
   const notes = [
@@ -19,5 +23,60 @@ describe("notes navigator live title sync", () => {
   it("returns the existing array when no render-relevant change is needed", () => {
     expect(patchNavigatorNoteTitle(notes, "note-a", "旧标题")).toBe(notes);
     expect(patchNavigatorNoteTitle(notes, "missing-note", "新标题")).toBe(notes);
+  });
+});
+
+describe("nonblocking navigator title publisher", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("coalesces individual keystrokes into one trailing tree update, including an empty title", () => {
+    const notify = vi.fn();
+    const publisher = createNavigatorTitlePublisher("note-a", notify);
+    const titles = ["标", "标题", "标题1", "标题12"];
+    titles.forEach((title, index) => {
+      publisher.queue(title);
+      if (index < titles.length - 1) {
+        vi.advanceTimersByTime(70);
+        expect(notify).not.toHaveBeenCalled();
+      }
+    });
+    vi.advanceTimersByTime(noteTitleNavigatorSyncDelayMs - 1);
+    expect(notify).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(notify).toHaveBeenCalledExactlyOnceWith("note-a", "标题12");
+    publisher.queue("");
+    vi.advanceTimersByTime(noteTitleNavigatorSyncDelayMs);
+    expect(notify).toHaveBeenLastCalledWith("note-a", "");
+    expect(notify).toHaveBeenCalledTimes(2);
+  });
+
+  it("flushes the latest title on blur or unmount without a later duplicate", () => {
+    const notify = vi.fn();
+    const publisher = createNavigatorTitlePublisher("note-a", notify);
+    publisher.queue("A");
+    publisher.queue("AB");
+    publisher.flush();
+    publisher.flush();
+    vi.advanceTimersByTime(noteTitleNavigatorSyncDelayMs * 2);
+    expect(notify).toHaveBeenCalledExactlyOnceWith("note-a", "AB");
+  });
+
+  it("an AI title, undo or version restore cancels an older queued manual title", () => {
+    const notify = vi.fn();
+    const publisher = createNavigatorTitlePublisher("note-a", notify);
+    publisher.queue("手动输入未结束");
+    publisher.publishNow("AI 生成标题");
+    vi.advanceTimersByTime(noteTitleNavigatorSyncDelayMs + 1);
+    expect(notify).toHaveBeenCalledExactlyOnceWith("note-a", "AI 生成标题");
+  });
+
+  it("cancels pending events when explicitly discarded", () => {
+    const notify = vi.fn();
+    const publisher = createNavigatorTitlePublisher("note-a", notify);
+    publisher.queue("不应同步");
+    publisher.cancel();
+    vi.runAllTimers();
+    expect(notify).not.toHaveBeenCalled();
   });
 });

@@ -26,6 +26,14 @@ const workspaceShell = readFileSync(
   new URL("../src/components/notes/notes-workspace-shell.tsx", import.meta.url),
   "utf8",
 );
+const noteDocumentShell = readFileSync(
+  new URL("../src/components/notes/note-document-shell.tsx", import.meta.url),
+  "utf8",
+);
+const notesLiveShell = readFileSync(
+  new URL("../src/components/notes/notes-live-workspace-shell.tsx", import.meta.url),
+  "utf8",
+);
 const notePage = readFileSync(
   new URL("../src/app/(app)/notes/page.tsx", import.meta.url),
   "utf8",
@@ -103,6 +111,14 @@ describe("Notes editor reliability", () => {
     expect(workspace).toContain("unstable_rethrow(error)");
     expect(workspace).toContain('mutate(renameNote, form, "笔记标题已保存", () => setRenaming(null))');
     expect(workspace).toContain('mutate(moveNote, form, "笔记位置已更新", () => setMoving(null))');
+  });
+
+  it("keeps title keystrokes local instead of rebuilding the navigator and CodeMirror", () => {
+    expect(noteDocumentShell).not.toContain("onInputCapture={handleEditorInput}");
+    expect(editor).toContain("navigatorTitlePublisher.queue(nextTitle)");
+    expect(editor).toContain("const VisualMarkdownEditor = memo(dynamic(");
+    expect(editor).toContain("editableTitle={note.title}");
+    expect(notesLiveShell).toContain("startTransition(() => {");
   });
 
   it("never writes note bodies through an unversioned compatibility fallback", () => {

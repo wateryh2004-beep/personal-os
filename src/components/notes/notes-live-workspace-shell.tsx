@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import {
   NotesWorkspaceShell,
   type NotesNavigatorFolder,
@@ -16,10 +16,12 @@ export function NotesLiveWorkspaceShell({
   folders,
   notes,
   children,
+  documentView,
 }: {
   folders: NotesNavigatorFolder[];
   notes: NotesNavigatorNote[];
   children: React.ReactNode;
+  documentView?: boolean;
 }) {
   const [titleOverrides, setTitleOverrides] = useState<Record<string, string>>({});
 
@@ -28,11 +30,14 @@ export function NotesLiveWorkspaceShell({
       if (!(event instanceof CustomEvent)) return;
       const detail = event.detail as NotesNavigatorTitleDetail | undefined;
       if (!detail?.noteId || typeof detail.title !== "string") return;
-      setTitleOverrides((current) =>
-        current[detail.noteId] === detail.title
-          ? current
-          : { ...current, [detail.noteId]: detail.title },
-      );
+      // Navigator recomputation is not part of the urgent title-input update.
+      startTransition(() => {
+        setTitleOverrides((current) =>
+          current[detail.noteId] === detail.title
+            ? current
+            : { ...current, [detail.noteId]: detail.title },
+        );
+      });
     };
 
     window.addEventListener(notesNavigatorTitleEvent, handleTitleChange);
@@ -48,7 +53,7 @@ export function NotesLiveWorkspaceShell({
   }, [notes, titleOverrides]);
 
   return (
-    <NotesWorkspaceShell folders={folders} notes={liveNotes}>
+    <NotesWorkspaceShell folders={folders} notes={liveNotes} documentView={documentView}>
       {children}
     </NotesWorkspaceShell>
   );

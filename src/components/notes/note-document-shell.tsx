@@ -6,7 +6,6 @@ import { useWorkbenchActive, WorkbenchActivityContext } from "@/components/workb
 import Link from "next/link";
 import { Inspector } from "@/components/shared/inspector";
 import { useWorkspacePanel } from "@/components/layout/workspace-panel-provider";
-import { publishNotesNavigatorTitle } from "@/features/notes/navigator-title-sync";
 import { lastNotesListSessionKey, notesListHref } from "@/features/notes/navigation";
 import { loadWorkspaceSession } from "@/lib/workspace-session";
 import { useRouter } from "next/navigation";
@@ -48,12 +47,6 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
     return () => window.removeEventListener("personal-os:restore-note-reader", restore);
   }, [noteId, pdfs, selectedPdf]);
 
-  const handleEditorInput = (event: React.FormEvent<HTMLElement>) => {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement) || target.getAttribute("aria-label") !== "笔记标题") return;
-    publishNotesNavigatorTitle(noteId, target.value);
-  };
-
   const returnToNotesList = () => {
     const session = loadWorkspaceSession<{ href?: string }>(lastNotesListSessionKey);
     router.replace(notesListHref(session), { scroll: false, transitionTypes: ["note-return"] });
@@ -61,7 +54,6 @@ export function NoteDocumentShell({ noteId, editor, inspector, attachments = [],
 
   return (
     <NotesSurfaceMotion><NoteHeaderActionsContext.Provider value={{ target: headerActionsTarget, showEditorActions: view === "markdown" || !selectedPdf }}><section data-note-document-id={noteId} data-note-paper={noteId} data-note-reader-view={view}
-      onInputCapture={handleEditorInput}
       className="notes-document-shell relative flex h-full min-h-0 overflow-hidden bg-[var(--surface-canvas)]"
     >
       <NotePaperMotion noteId={noteId} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { memo, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { workbenchPositionSchema } from "@/features/workbench/contracts";
 import { useWorkbenchActive } from "@/components/workbench/workbench-activity";
@@ -44,7 +44,7 @@ import { isAiGeneratedNote } from "@/features/notes/content-origin";
 import { markdownFilename } from "@/features/notes/utils";
 import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
 import { captureWorkspaceScope } from "@/lib/workspace-resource-cache";
-import { publishNotesNavigatorTitle } from "@/features/notes/navigator-title-sync";
+import { createNavigatorTitlePublisher } from "@/features/notes/navigator-title-sync";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 import { loadWorkspaceSession, removeWorkspaceSession, saveWorkspaceSession } from "@/lib/workspace-session";
@@ -58,10 +58,11 @@ import {
   noteDraftRecoveryTtlMs,
 } from "@/features/notes/editor/save-policy";
 
-const VisualMarkdownEditor = dynamic(() => import("@/components/notes/visual-markdown-editor").then((module) => module.VisualMarkdownEditor), {
+// Title/status updates must not force CodeMirror through a React render.
+const VisualMarkdownEditor = memo(dynamic(() => import("@/components/notes/visual-markdown-editor").then((module) => module.VisualMarkdownEditor), {
   ssr: false,
   loading: () => <div aria-label="正在载入编辑器" className="notes-editor-loading min-h-80 bg-[var(--surface-canvas)]" />,
-});
+}));
 const NoteAiAssistant = dynamic(() => import("@/components/notes/note-assistant-loader").then((module) => module.NoteAssistantLoader), { ssr: false });
 
 type Note = { id: string; title: string; body_markdown: string; revision: number; last_saved_at: string | null; content_origin?: "human" | "ai_generated" };
@@ -139,6 +140,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const feedback = useActionFeedback();
   const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const [title, setTitle] = useState(note.title);
+  const [navigatorTitlePublisher] = useState(() => createNavigatorTitlePublisher(note.id));
+  useEffect(() => () => navigatorTitlePublisher.flush(), [navigatorTitlePublisher]);
   const [body, setBody] = useState(note.body_markdown);
   const [bodyRevision, setBodyRevision] = useState(0);
   const [draftBaseline] = useState(() => ({ title: note.title, body: note.body_markdown }));
@@ -215,10 +218,10 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
       latestContentRef.current = { title: note.title, body: note.body_markdown };
       revisionRef.current = note.revision;
       setTitle(note.title); replaceBody(note.body_markdown); setLastSavedAt(note.last_saved_at);
-      publishNotesNavigatorTitle(note.id, note.title);
+      navigatorTitlePublisher.publishNow(note.title);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [note.id, note.revision, note.title, note.body_markdown, note.last_saved_at, replaceBody]);
+  }, [note.id, note.revision, note.title, note.body_markdown, note.last_saved_at, replaceBody, navigatorTitlePublisher]);
 
   const persistDraft = useCallback((draft: NoteDraftSession) => {
     const stored = saveWorkspaceSession<NoteDraftSession>(noteSessionKey, draft, noteDraftRecoveryTtlMs);
@@ -263,14 +266,14 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         revisionRef.current = draft.baseRevision;
       }
       setTitle(draft.title);
-      publishNotesNavigatorTitle(note.id, draft.title);
+      navigatorTitlePublisher.publishNow(draft.title);
       replaceBody(draft.body);
       isDirtyRef.current = true;
       setState("有未保存修改");
       setEditVersion((version) => version + 1);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [draftBaseline, note.id, noteSessionKey, replaceBody]);
+  }, [draftBaseline, note.id, noteSessionKey, replaceBody, navigatorTitlePublisher]);
 
   const save = useCallback(async () => {
     if (saveInFlightRef.current) {
@@ -483,14 +486,14 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         return { ok: false, message: "在准备恢复时出现新的修改，已终止恢复；此前版本仍已留存。" };
       setTitle(next.title);
       replaceBody(next.body);
-      publishNotesNavigatorTitle(note.id, next.title);
+      navigatorTitlePublisher.publishNow(next.title);
       dirty(next.title, next.body);
       feedback.show({ message: "历史内容已进入草稿，正在通过修订号校验自动保存。", tone: "success" });
       return { ok: true, message: "已加入编辑器草稿，正在自动保存。" };
     } catch {
       return { ok: false, message: "恢复前快照保存失败，原文未被修改。请检查网络后重试。" };
     }
-  }, [dirty, feedback, note.id, replaceBody, state]);
+  }, [dirty, feedback, note.id, replaceBody, state, navigatorTitlePublisher]);
   const applyConflictResolution = useCallback((
     resolved: { title: string; body: string; revision: number },
     original: { title: string; body: string },
@@ -511,11 +514,11 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     knownRemoteRevisionRef.current = Math.max(knownRemoteRevisionRef.current, resolved.revision);
     setTitle(resolved.title);
     replaceBody(resolved.body);
-    publishNotesNavigatorTitle(note.id, resolved.title);
+    navigatorTitlePublisher.publishNow(resolved.title);
     dirty(resolved.title, resolved.body);
     setConflictSnapshot(null);
     return true;
-  }, [dirty, note.id, replaceBody, state]);
+  }, [dirty, note.id, replaceBody, state, navigatorTitlePublisher]);
   // AI 生成标题：直接替换标题，旧标题压栈供撤回（支持连续多次生成逐步撤回）。
   const handleAiReplaceTitle = useCallback((newTitle: string) => {
     const next = newTitle
@@ -527,9 +530,9 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     titleUndoStackRef.current = [...titleUndoStackRef.current, title];
     setTitleUndoStack([...titleUndoStackRef.current]);
     setTitle(next);
-    publishNotesNavigatorTitle(note.id, next);
+    navigatorTitlePublisher.publishNow(next);
     dirty(next, latestContentRef.current.body);
-  }, [dirty, note.id, title]);
+  }, [dirty, note.id, title, navigatorTitlePublisher]);
   const handleAiUndoTitle = useCallback(() => {
     const stack = titleUndoStackRef.current;
     if (!stack.length) return;
@@ -537,9 +540,9 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     titleUndoStackRef.current = stack.slice(0, -1);
     setTitleUndoStack([...titleUndoStackRef.current]);
     setTitle(prev);
-    publishNotesNavigatorTitle(note.id, prev);
+    navigatorTitlePublisher.publishNow(prev);
     dirty(prev, latestContentRef.current.body);
-  }, [dirty, note.id]);
+  }, [dirty, note.id, navigatorTitlePublisher]);
   const isExporting = Boolean(pdfSnapshot);
   const fullscreenActive = isFullscreen || isFallbackFullscreen;
   useEffect(() => {
@@ -666,18 +669,19 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         <div className="notes-editor-toolbar flex shrink-0 flex-col gap-0 border-b border-[var(--separator)] bg-[var(--surface-canvas)] px-5 py-1 md:px-8">
           <div className="notes-editor-title-row mx-auto flex min-h-10 w-full min-w-0 max-w-[720px] items-center gap-2">
             {aiGenerated ? <span title="AI 生成内容不会被 AI 读取为背景" className="shrink-0 text-[12px] text-[var(--accent)]"><Sparkles aria-label="AI 生成内容" className="size-4" /></span> : null}
-            <NoteTitleMotion noteId={note.id} className="flex-1" editableTitle={title}><input
+            <NoteTitleMotion noteId={note.id} className="flex-1" editableTitle={note.title}><input
               aria-label="笔记标题"
               hidden={reading}
               readOnly={reading}
               value={title}
+              onBlur={() => navigatorTitlePublisher.flush()}
               onChange={(event) => {
                 const nextTitle = event.target.value;
                 // 手动编辑标题后 AI 标题的撤回栈失效，避免撤回覆盖手动修改。
                 titleUndoStackRef.current = [];
                 setTitleUndoStack([]);
                 setTitle(nextTitle);
-                publishNotesNavigatorTitle(note.id, nextTitle);
+                navigatorTitlePublisher.queue(nextTitle);
                 dirty(nextTitle, latestContentRef.current.body);
               }}
               className="notes-title-input w-full min-w-0 rounded-[var(--radius-sm)] bg-transparent py-1 font-[family-name:var(--font-serif)] text-[28px] font-normal leading-[1.4] tracking-[-0.015em] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] md:text-[32px]"

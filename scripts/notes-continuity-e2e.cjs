@@ -79,6 +79,43 @@ async function viewportAnchor(page) {
       assert.equal(warmAnchor.line, beforeAnchor.line, 'cached note restores the same visible source line');
       assert.equal(warmAnchor.cursor, beforeAnchor.cursor, 'cached note restores the exact caret');
       assert.ok(Math.abs(warmAnchor.offset - beforeAnchor.offset) < 20, 'cached source line retains its screen offset within 20px');
+
+      // Measure real Chromium input-to-frame responsiveness with a 402-note
+      // navigator. The synthetic fixture blocks all writes and keeps the
+      // document's CodeMirror mounted throughout title editing.
+      const titleInput = page.getByRole('textbox', { name: '笔记标题', exact: true });
+      const initialTitle = await titleInput.inputValue();
+      const typedTitle = ' Continuous title input latency 2026';
+      await titleInput.evaluate(input => {
+        window.__noteTitleFrames = [];
+        input.addEventListener('input', () => {
+          const started = performance.now();
+          requestAnimationFrame(() => window.__noteTitleFrames.push(performance.now() - started));
+        });
+      });
+      // The previous navigation/continuity exercise can leave the caret at
+      // the beginning. Benchmark appending text from an explicit end position.
+      await titleInput.focus();
+      await titleInput.evaluate(input => input.setSelectionRange(input.value.length, input.value.length));
+      const titleStarted = Date.now();
+      await titleInput.pressSequentially(typedTitle, { delay: 12 });
+      const titleTypingMs = Date.now() - titleStarted;
+      assert.equal(await titleInput.inputValue(), initialTitle + typedTitle, 'continuous input preserves every character');
+      await titleInput.evaluate(input => input.blur());
+      const visibleTitle = initialTitle + typedTitle;
+      const activeNoteId = '10000000-0000-4000-8000-000000000001';
+      await page.waitForFunction(({ noteId, title }) => {
+        const link = document.querySelector(`.notes-navigator-panel a[href="/notes/${noteId}"] span.truncate`);
+        return link?.textContent === title;
+      }, { noteId: activeNoteId, title: visibleTitle });
+      row.titleTyping = await page.evaluate(({ elapsed }) => {
+        const frames = window.__noteTitleFrames ?? [];
+        const sorted = [...frames].sort((a, b) => a - b);
+        return { elapsedMs: elapsed, frameSamples: frames.length, p95InputToFrameMs: sorted[Math.max(0, Math.ceil(sorted.length * .95) - 1)] ?? null };
+      }, { elapsed: titleTypingMs });
+      assert.ok(row.titleTyping.frameSamples >= 5, 'collect multiple real input-to-frame samples');
+      assert.ok(row.titleTyping.p95InputToFrameMs < 200, `title input must not wait for navigator work: ${JSON.stringify(row.titleTyping)}`);
+      assert.ok(row.titleTyping.elapsedMs < 4500, `typing a title must not freeze the editor: ${JSON.stringify(row.titleTyping)}`);
       await page.screenshot({ path: `${out}/editor-${width}.png` });
       // Long-doc typing, failed autosave, dirty remote revision and restore after leaving.
       await content.press('Control+End'); await content.press('End');
