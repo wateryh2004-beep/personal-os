@@ -16,10 +16,12 @@ export function NotesLiveWorkspaceShell({
   folders,
   notes,
   children,
+  documentView,
 }: {
   folders: NotesNavigatorFolder[];
   notes: NotesNavigatorNote[];
   children: React.ReactNode;
+  documentView?: boolean;
 }) {
   const [titleOverrides, setTitleOverrides] = useState<Record<string, string>>({});
 
@@ -51,7 +53,7 @@ export function NotesLiveWorkspaceShell({
   }, [notes, titleOverrides]);
 
   return (
-    <NotesWorkspaceShell folders={folders} notes={liveNotes}>
+    <NotesWorkspaceShell folders={folders} notes={liveNotes} documentView={documentView}>
       {children}
     </NotesWorkspaceShell>
   );
