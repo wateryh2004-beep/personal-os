@@ -151,9 +151,33 @@
           }; requestAnimationFrame(frame);
         }, id);
         await link.click();
-        await page.getByRole("textbox", { name: "笔记标题", exact: true }).waitFor();
+        const titleInput = page.getByRole("textbox", { name: "笔记标题", exact: true });
+        await titleInput.waitFor();
         await page.locator('.notes-editor-surface .cm-content[contenteditable="true"] .cm-line').first().waitFor();
         await scaleText("notes-editor");
+        // Read only synthetic data: editing this fixture would invoke a Server
+        // Action. Inspect real Chromium paint when the input is NOT focused.
+        row.titlePaint = await titleInput.evaluate(input => {
+          input.blur();
+          const live = input.closest(".note-title-live");
+          const face = input.closest(".note-editable-title-anchor")?.querySelector(".note-title-motion-face");
+          return {
+            value: input.value,
+            focused: document.activeElement === input,
+            text: getComputedStyle(input).color,
+            placeholder: getComputedStyle(input, "::placeholder").color,
+            liveBackground: live ? getComputedStyle(live).backgroundColor : null,
+            facePointerEvents: face ? getComputedStyle(face).pointerEvents : null,
+          };
+        });
+        const opaqueColor = color => /^rgb\(/.test(color) || (/^rgba\(/.test(color) && Number(color.match(/,\s*([\d.]+)\)$/)?.[1]) > 0.99);
+        assert.ok(row.titlePaint.value.length > 0 && !row.titlePaint.focused, "inspect the real unfocused editor title");
+        assert.ok(opaqueColor(row.titlePaint.text), `unfocused title input must display text: ${JSON.stringify(row.titlePaint)}`);
+        assert.ok(opaqueColor(row.titlePaint.placeholder), `empty title placeholder must be readable: ${JSON.stringify(row.titlePaint)}`);
+        assert.ok(opaqueColor(row.titlePaint.liveBackground), "live title must visually cover the non-interactive transition face");
+        assert.equal(row.titlePaint.facePointerEvents, "none", "transition face must never intercept title input");
+        await titleInput.focus();
+        assert.equal(await titleInput.evaluate(input => getComputedStyle(input).color), row.titlePaint.text, "title text color must not depend on focus");
         await aligned("notes-editor");
         const saved = await page.evaluate(sourceRoute => {
           const key = `life-of-hang:workspace:scroll:notes:list:${sourceRoute}`;
@@ -176,6 +200,8 @@
         await page.getByRole("article", { name: "笔记正文", exact: true }).waitFor();
         await page.locator(".note-reading-prose table").first().waitFor();
         await page.locator(".note-reading-prose pre").first().waitFor();
+        row.readingTitleColor = await page.locator(".notes-reading-title").evaluate(heading => getComputedStyle(heading).color);
+        assert.ok(opaqueColor(row.readingTitleColor), `reading-mode heading must be visible: ${row.readingTitleColor}`);
         await capture("notes-reading");
         await aligned("notes-reading", true);
         if (mode === "text200") assert.equal(await page.locator(".note-reading-prose").evaluate(node => getComputedStyle(node).fontSize), "32px", "the real reading prose is doubled from 16px to 32px");
