@@ -33,11 +33,14 @@ describe("nonblocking navigator title publisher", () => {
   it("coalesces individual keystrokes into one trailing tree update, including an empty title", () => {
     const notify = vi.fn();
     const publisher = createNavigatorTitlePublisher("note-a", notify);
-    for (const title of ["标", "标题", "标题1", "标题12"]) {
+    const titles = ["标", "标题", "标题1", "标题12"];
+    titles.forEach((title, index) => {
       publisher.queue(title);
-      vi.advanceTimersByTime(70);
-      expect(notify).not.toHaveBeenCalled();
-    }
+      if (index < titles.length - 1) {
+        vi.advanceTimersByTime(70);
+        expect(notify).not.toHaveBeenCalled();
+      }
+    });
     vi.advanceTimersByTime(noteTitleNavigatorSyncDelayMs - 1);
     expect(notify).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
