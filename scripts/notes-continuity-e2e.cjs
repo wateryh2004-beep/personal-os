@@ -93,6 +93,10 @@ async function viewportAnchor(page) {
           requestAnimationFrame(() => window.__noteTitleFrames.push(performance.now() - started));
         });
       });
+      // The previous navigation/continuity exercise can leave the caret at
+      // the beginning. Benchmark appending text from an explicit end position.
+      await titleInput.focus();
+      await titleInput.evaluate(input => input.setSelectionRange(input.value.length, input.value.length));
       const titleStarted = Date.now();
       await titleInput.pressSequentially(typedTitle, { delay: 12 });
       const titleTypingMs = Date.now() - titleStarted;
