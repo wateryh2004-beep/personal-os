@@ -20,11 +20,11 @@
 .notes-editor-title-row :is(.notes-title-input,.notes-reading-title) { margin:0; font-family:var(--font-serif); font-size:clamp(28px,2.5vw,36px); font-weight:400; line-height:1.45; letter-spacing:-.02em; }
 .note-editable-title-anchor { position:relative; font-family:var(--font-serif); font-size:clamp(28px,2.5vw,36px); font-weight:400; line-height:1.45; letter-spacing:-.02em; }
 .note-title-motion-face { position:absolute; inset:0; overflow:hidden; padding-block:4px; white-space:nowrap; text-overflow:ellipsis; pointer-events:none; }
-.note-title-live { position:relative; }
-.note-editable-title-anchor .note-title-live :is(.notes-title-input,.notes-reading-title) { color:transparent; }
-.note-editable-title-anchor .notes-title-input::placeholder { color:transparent; }
-.note-editable-title-anchor:focus-within .notes-title-input { color:var(--text-primary); }
-.note-editable-title-anchor:focus-within .note-title-motion-face { visibility:hidden; }
+/* The shared title face is animation-only. The actual input and reading
+   heading must remain opaque even when unfocused or during a transition. */
+.note-title-live { position:relative; z-index:1; background:var(--surface-canvas); }
+.note-editable-title-anchor .note-title-live :is(.notes-title-input,.notes-reading-title) { color:var(--text-primary); }
+.note-editable-title-anchor .notes-title-input::placeholder { color:var(--text-tertiary); }
 [data-note-mode="reading"] .note-title-motion-face { overflow-wrap:anywhere; white-space:normal; }
 .notes-editor-actions { width:100%; max-width:760px; margin-inline:auto; }
 .notes-mode-control { position:relative; isolation:isolate; align-items:center; gap:0; padding:3px; border:1px solid var(--separator); border-radius:12px; background:var(--surface-control); }
