@@ -40,7 +40,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ tick
     if (contentRange) headers.set("Content-Range", contentRange);
 
     if (request.method === "HEAD") return new Response(null, { status: range ? 206 : 200, headers });
-    const object = await readR2ObjectSlice(file.storage_path, { range: range ?? undefined, signal: request.signal })
+    const object = await readR2ObjectSlice(file.storage_path, { range: range ?? undefined, signal: request.signal, timeoutMs: 290_000 })
       .catch(() => { throw new VaultError(503, "文件暂时无法下载，请稍后重试。"); });
     try {
       if (object.size !== length || object.contentRange !== contentRange) throw new VaultError(503, "文件暂时无法下载，请稍后重试。");
