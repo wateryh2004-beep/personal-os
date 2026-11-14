@@ -2,12 +2,12 @@
 begin;
 insert into auth.users(id) values('00000000-0000-4000-8000-000000000061'),('00000000-0000-4000-8000-000000000062');
 insert into public.vault_sessions(user_id,token_hash,login_session,tab_hash,expires_at)
-  values('00000000-0000-4000-8000-000000000061',repeat('a',64),repeat('b',64),repeat('c',64),now()+interval '1 hour');
+  values('00000000-0000-4000-8000-000000000061',repeat('e',64),repeat('b',64),repeat('c',64),now()+interval '1 hour');
 insert into public.inner_vault_sessions(user_id,outer_token_hash,token_hash,expires_at)
-  values('00000000-0000-4000-8000-000000000061',repeat('a',64),repeat('d',64),now()+interval '1 hour');
+  values('00000000-0000-4000-8000-000000000061',repeat('e',64),repeat('d',64),now()+interval '1 hour');
 set local role service_role;
 do $$
-declare owner_id uuid:='00000000-0000-4000-8000-000000000061'; outer_proof text:=repeat('a',64);
+declare owner_id uuid:='00000000-0000-4000-8000-000000000061'; outer_proof text:=repeat('e',64);
   login_proof text:=repeat('b',64); inner_proof text:=repeat('d',64);
   first_file public.inner_vault_files; duplicate_file public.inner_vault_files; lease uuid:=gen_random_uuid();
 begin

@@ -221,8 +221,11 @@ def main():
         raise RuntimeError("This synthetic verifier accepts no connection or target arguments")
     migrations = [(path, path.read_text()) for path in sorted((ROOT / "supabase/migrations").glob("*.sql"))]
     first_workbench = next(i for i, (path, _) in enumerate(migrations) if path.name.endswith(WORKBENCH_SUFFIXES[0]))
-    actual_suffixes = [next((suffix for suffix in WORKBENCH_SUFFIXES if path.name.endswith(suffix)), None) for path, _ in migrations[first_workbench:]]
-    if actual_suffixes != list(WORKBENCH_SUFFIXES):
+    workbench_end = first_workbench + len(WORKBENCH_SUFFIXES)
+    actual_suffixes = [next((suffix for suffix in WORKBENCH_SUFFIXES if path.name.endswith(suffix)), None) for path, _ in migrations[first_workbench:workbench_end]]
+    if actual_suffixes != list(WORKBENCH_SUFFIXES) or any(
+        path.name.endswith(WORKBENCH_SUFFIXES) for path, _ in migrations[:first_workbench] + migrations[workbench_end:]
+    ):
         raise RuntimeError("Workbench migration boundary or order changed; review the upgrade fixture explicitly")
     output = ROOT / "test-results/workbench-postgres/result.json"
     output.parent.mkdir(parents=True, exist_ok=True)
