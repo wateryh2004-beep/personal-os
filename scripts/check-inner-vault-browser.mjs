@@ -37,6 +37,10 @@ try {
           return json({tabToken:tab, draftSalt:"d".repeat(64), owner:"00000000-0000-4000-8000-000000000061"});
         }
       }
+      if (url.pathname.endsWith(`/download/${archive.id}`)) {
+        if (!outer || !inner) return json({error:"请重新验证内层口令。"}, 423);
+        return route.fulfill({status:200, contentType:"application/zip", headers:{"content-disposition":`attachment; filename*=UTF-8''${encodeURIComponent(archive.filename)}`}, body:zip});
+      }
       if (!outer || request.headers()["x-vault-tab"] !== tab) return json({error:"需要重新验证。"}, 423);
       if (url.pathname === "/api/vault/items") return json({notes:[], files:[], noteFolders:[], fileFolders:[]});
       if (url.pathname === "/api/vault/inner/session") {
@@ -56,12 +60,11 @@ try {
         if (request.postDataJSON().action === "sign") return json({uploadUrl:"https://synthetic-r2.invalid/part", size:zip.length});
         if (request.postDataJSON().action === "complete") { saved = true; return json({...archive,status:"completed"}); }
       }
-      if (url.pathname.endsWith("/download")) return json({url:"https://synthetic-r2.invalid/download"});
+      if (url.pathname.endsWith("/download")) return json({url:`/api/vault/inner/download/${archive.id}`});
       return json({});
     });
-    await context.route("https://synthetic-r2.invalid/**", route =>
-      route.request().method() === "PUT" ? route.fulfill({status: 200, headers: {"access-control-allow-origin":"*"}})
-        : route.fulfill({status:200, contentType:"application/zip", headers:{"content-disposition":"attachment; filename=fixture.zip"}, body:zip}));
+    await context.route("https://synthetic-r2.invalid/part", route =>
+      route.fulfill({status: 200, headers: {"access-control-allow-origin":"*"}}));
     await page.goto(`${base}/mobile-native-e2e?scene=vault`);
     await page.keyboard.press("Control+Shift+P");
     await page.getByLabel("独立口令").fill(outerPassword);
@@ -81,7 +84,7 @@ try {
     const download = page.waitForEvent("download");
     await page.getByRole("button", {name:"下载 ZIP"}).click();
     const downloaded = await download;
-    assert.equal(downloaded.suggestedFilename(), "fixture.zip");
+    assert.equal(downloaded.suggestedFilename(), archive.filename);
     assert.deepEqual(await readFile(await downloaded.path()), zip);
     await page.getByRole("button", {name:"锁定并返回"}).click();
     await page.getByText("内层已锁定。").waitFor();

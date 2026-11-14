@@ -72,13 +72,6 @@ function attachmentDisposition(filename: string) {
   return `attachment; filename*=UTF-8''${encoded}`;
 }
 
-/** One short-lived private GET for a completed, attachment-only ZIP. */
-export async function signR2InnerVaultDownload(key: string) {
-  const config = requiredConfiguration();
-  if (!/^[a-f0-9-]{36}\/inner-vault\/[a-f0-9-]{36}\/archive\.zip$/.test(key)) throw new Error("invalid_inner_archive_key");
-  return getSignedUrl(client(config), new GetObjectCommand({ Bucket: config.bucketName, Key: key }), { expiresIn: 60 });
-}
-
 export type R2ObjectCheck = { exists: boolean; size: number; contentType: string; status: number | null };
 
 export async function objectExists(key: string): Promise<R2ObjectCheck> {
@@ -221,7 +214,7 @@ export async function copyVerifiedR2Object(source: string, destination: string, 
   }), { abortSignal: AbortSignal.timeout(60_000) });
 }
 
-/** Private preview read: a normalized range and optional exact-object condition. */
+/** Private streaming read: a normalized range and optional exact-object condition. */
 export async function readR2ObjectSlice(key: string, options: {
   range?: { start: number; end: number }; ifMatch?: string; signal?: AbortSignal;
 }) {

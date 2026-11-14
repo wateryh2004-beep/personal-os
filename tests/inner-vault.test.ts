@@ -8,24 +8,29 @@ import { tokenHash } from "@/features/vault/crypto";
 import type { InnerOwner } from "@/features/vault/inner-session";
 
 const mocks = vi.hoisted(() => ({
-  outer: vi.fn(), from: vi.fn(), rpc: vi.fn(), parts: vi.fn(), complete: vi.fn(), read: vi.fn(), download: vi.fn(),
+  outer: vi.fn(), authenticated: vi.fn(), cookies: vi.fn(), revoke: vi.fn(), from: vi.fn(), rpc: vi.fn(), parts: vi.fn(), complete: vi.fn(), read: vi.fn(), slice: vi.fn(),
 }));
+vi.mock("next/headers", () => ({ cookies: mocks.cookies }));
+vi.mock("@/lib/env", () => ({ env: { supabaseSecretKey: "fixture-only-signing-key" } }));
 vi.mock("@/lib/auth/require-owner", () => ({ apiAuthenticationFailure: () => null, requireOwnerApi: vi.fn() }));
 vi.mock("@/features/vault/server", async importOriginal => ({
-  ...await importOriginal<typeof import("@/features/vault/server")>(), requireVault: mocks.outer,
+  ...await importOriginal<typeof import("@/features/vault/server")>(), requireVault: mocks.outer, vaultOwner: mocks.authenticated,
 }));
 vi.mock("@/lib/adapters/cloudflare-r2", () => ({
   r2BucketName: () => "fixture", listR2MultipartParts: mocks.parts, completeR2Multipart: mocks.complete,
-  readR2ObjectStream: mocks.read, signR2InnerVaultDownload: mocks.download,
+  readR2ObjectStream: mocks.read, readR2ObjectSlice: mocks.slice,
   isMissingR2Multipart: (error: Error) => error.name === "NoSuchUpload",
 }));
 import { POST as download } from "@/app/api/vault/inner/download/route";
+import { GET as getDownload } from "@/app/api/vault/inner/download/[ticket]/route";
+import { DELETE as lock } from "@/app/api/vault/inner/session/route";
+import { innerDownloadCookie, watchInnerDownload } from "@/features/vault/inner-download";
 import { innerUploads } from "@/features/vault/inner-uploads";
 import { VaultError } from "@/features/vault/server";
 
 const userId = "00000000-0000-4000-8000-000000000061";
 const id = "00000000-0000-4000-8000-000000000091";
-const proof = "1".repeat(64), outerHash = "2".repeat(64), login = "3".repeat(64);
+const proof = "1".repeat(64), outerToken = "2".repeat(64), outerHash = tokenHash(outerToken), login = "3".repeat(64);
 const expiresAt = "2099-01-01T00:00:00.000Z";
 const storagePath = `${userId}/inner-vault/${id}/archive.zip`;
 const bytes = Buffer.from("synthetic ZIP transport fixture");
@@ -46,19 +51,51 @@ function request(token?: string, requestOrigin = "https://fixture.invalid") {
   }, body: JSON.stringify({ id }) });
 }
 
+function withCookie(grant?: string, outer = outerToken) {
+  mocks.cookies.mockResolvedValue({ get: (key: string) => ({ value: key === innerDownloadCookie ? grant : outer }) });
+}
+
+function open(path: string, options?: RequestInit) {
+  return getDownload(new Request(`https://fixture.invalid${path}`, options), { params: Promise.resolve({ ticket: path.split("/").at(-1)! }) });
+}
+
+async function issue() {
+  const response = await download(request(proof));
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toContain("no-store");
+  const { url } = await response.json() as { url: string };
+  expect(new URL(url).origin).toBe("https://fixture.invalid");
+  const path = new URL(url).pathname;
+  const cookie = response.headers.get("set-cookie")!;
+  expect(cookie).toContain(`Path=${path}`);
+  expect(cookie).toContain("HttpOnly");
+  expect(cookie).toMatch(/SameSite=strict/i);
+  expect(path).toMatch(/^\/api\/vault\/inner\/download\/[a-f0-9-]{36}$/);
+  const grant = cookie.split(";", 1)[0].slice(innerDownloadCookie.length + 1);
+  expect(grant).not.toContain(proof);
+  return { url: path, grant };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   record = makeRecord("completed");
   innerSession = { expires_at: expiresAt, last_seen_at: new Date().toISOString() };
   mocks.outer.mockResolvedValue(owner);
-  mocks.rpc.mockResolvedValue({ data: true, error: null });
+  mocks.authenticated.mockResolvedValue(owner);
+  withCookie();
+  mocks.rpc.mockImplementation(async () => innerSession ? { data: true, error: null } : { error: { message: "inner_vault_locked" } });
+  mocks.revoke.mockImplementation(() => { innerSession = null; });
   mocks.from.mockImplementation((table: string) => ({
     select: vi.fn().mockReturnThis(), or: vi.fn().mockReturnThis(),
     update(value: Record<string, unknown>) { updates(value); return this; },
+    delete() { mocks.revoke(); return this; },
     eq(key: string, value: unknown) { filters(table, key, value); return this; },
     maybeSingle: async () => ({ data: table === "inner_vault_sessions" ? innerSession : record, error: null }),
   }));
-  mocks.download.mockResolvedValue("https://fixture.r2.example/signed-url");
+  mocks.slice.mockImplementation(async (_key, { range }) => {
+    const data = range ? bytes.subarray(range.start, range.end + 1) : bytes;
+    return { size: data.length, body: new Blob([data]).stream(), contentRange: range ? `bytes ${range.start}-${range.end}/${bytes.length}` : null };
+  });
   mocks.parts.mockResolvedValue([{ partNumber: 1, size: bytes.length, etag: `"${"a".repeat(32)}"` }]);
   mocks.complete.mockResolvedValue(undefined);
   mocks.read.mockImplementation(async () => ({ size: bytes.length, body: new Blob([bytes]).stream() }));
@@ -72,20 +109,66 @@ describe("inner vault storage boundary", () => {
     expect((await download(request(proof, "https://elsewhere.invalid"))).status).toBe(403);
     mocks.outer.mockRejectedValueOnce(new VaultError(423, "locked"));
     expect((await download(request(proof))).status).toBe(423);
-    expect(mocks.download).not.toHaveBeenCalled();
+    expect(mocks.slice).not.toHaveBeenCalled();
   });
 
-  it("binds a no-store download to the owner, outer session, inner proof, and completed row", async () => {
-    const allowed = await download(request(proof));
-    expect(allowed.status).toBe(200);
-    expect(allowed.headers.get("cache-control")).toContain("no-store");
+  it("streams the ZIP and ranges without exposing R2 or reusing the grant at another URL", async () => {
+    const { url, grant } = await issue();
     expect(filters).toHaveBeenCalledWith("inner_vault_sessions", "outer_token_hash", outerHash);
     expect(filters).toHaveBeenCalledWith("inner_vault_sessions", "token_hash", tokenHash(proof));
     expect(filters).toHaveBeenCalledWith("inner_vault_files", "user_id", userId);
-    expect(mocks.download).toHaveBeenCalledWith(storagePath);
+    expect((await open(url)).status).toBe(423);
+    withCookie(grant);
+    expect((await open(`/api/vault/inner/download/${id}`)).status).toBe(423);
+    expect((await open(url, { headers: { "sec-fetch-site": "cross-site" } })).status).toBe(403);
+    withCookie(grant, "4".repeat(64));
+    expect((await open(url)).status).toBe(423);
+    expect(mocks.slice).not.toHaveBeenCalled();
+    withCookie(grant);
+    const full = await open(url);
+    expect(full.status).toBe(200);
+    expect(full.headers.get("location")).toBeNull();
+    expect(full.headers.get("cache-control")).toContain("no-store");
+    expect(full.headers.get("content-disposition")).toContain("%E6%B5%8B%E8%AF%95.zip");
+    expect(Buffer.from(await full.arrayBuffer())).toEqual(bytes);
+    const partial = await open(url, { headers: { range: "bytes=-5" } });
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get("content-range")).toBe(`bytes ${bytes.length - 5}-${bytes.length - 1}/${bytes.length}`);
+    expect(Buffer.from(await partial.arrayBuffer())).toEqual(bytes.subarray(-5));
+    expect((await open(url, { headers: { range: `bytes=${bytes.length}-` } })).status).toBe(416);
+    expect(mocks.slice).toHaveBeenCalledWith(storagePath, expect.objectContaining({ range: { start: bytes.length - 5, end: bytes.length - 1 } }));
     record = makeRecord("uploading");
     expect((await download(request(proof))).status).toBe(404);
-    expect(mocks.download).toHaveBeenCalledTimes(1);
+    expect((await open(url)).status).toBe(404);
+    expect(mocks.slice).toHaveBeenCalledTimes(2);
+  });
+
+  it("revokes full, range and HEAD requests for an already-issued link on confirmed lock", async () => {
+    const { url, grant } = await issue();
+    withCookie(grant);
+    const response = await lock(new Request("https://fixture.invalid/api/vault/inner/session", { method: "DELETE", headers: {
+      origin: "https://fixture.invalid", "x-vault-inner": proof,
+    } }));
+    expect(response.status).toBe(200);
+    expect((await open(url)).status).toBe(423);
+    expect((await open(url, { headers: { range: "bytes=0-10" } })).status).toBe(423);
+    expect((await open(url, { method: "HEAD" })).status).toBe(423);
+    expect((await download(request(proof))).status).toBe(423);
+    expect(mocks.slice).not.toHaveBeenCalled();
+  });
+
+  it("stops the upstream stream when a download in progress loses access", async () => {
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    try {
+      const cancel = vi.fn();
+      const body = new ReadableStream<Uint8Array>({ pull(c) { c.enqueue(new Uint8Array([7])); }, cancel });
+      const reader = watchInnerDownload(body, owner, 10, signal()).getReader();
+      expect((await reader.read()).value).toEqual(new Uint8Array([7]));
+      innerSession = null;
+      clock.mockReturnValue(2100);
+      await expect(reader.read()).rejects.toThrow("Download access ended");
+      await vi.waitFor(() => expect(cancel).toHaveBeenCalled());
+    } finally { clock.mockRestore(); }
   });
 
   it("publishes only after assembled-byte verification and recovers the lost completion response", async () => {
