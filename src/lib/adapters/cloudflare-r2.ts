@@ -67,6 +67,18 @@ export async function createDownloadUrl(key: string, filename: string, inline = 
   return getSignedUrl(client(config), new GetObjectCommand({ Bucket: config.bucketName, Key: key, ResponseContentDisposition: `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(filename)}` }), { expiresIn: 300 });
 }
 
+function attachmentDisposition(filename: string) {
+  const encoded = encodeURIComponent(filename.toWellFormed()).replace(/[!'()*]/g, character => `%${character.charCodeAt(0).toString(16)}`);
+  return `attachment; filename*=UTF-8''${encoded}`;
+}
+
+/** One short-lived private GET for a completed, attachment-only ZIP. */
+export async function signR2InnerVaultDownload(key: string) {
+  const config = requiredConfiguration();
+  if (!/^[a-f0-9-]{36}\/inner-vault\/[a-f0-9-]{36}\/archive\.zip$/.test(key)) throw new Error("invalid_inner_archive_key");
+  return getSignedUrl(client(config), new GetObjectCommand({ Bucket: config.bucketName, Key: key }), { expiresIn: 60 });
+}
+
 export type R2ObjectCheck = { exists: boolean; size: number; contentType: string; status: number | null };
 
 export async function objectExists(key: string): Promise<R2ObjectCheck> {
@@ -178,9 +190,9 @@ export async function readR2Artwork(key: string, maxBytes: number) {
 }
 
 /** A private GET with no buffering. Consumers must enforce their byte budget. */
-export async function readR2ObjectStream(key: string, signal?: AbortSignal) {
+export async function readR2ObjectStream(key: string, signal?: AbortSignal, timeoutMs = 120_000) {
   const config = requiredConfiguration();
-  const timeout = AbortSignal.timeout(120_000);
+  const timeout = AbortSignal.timeout(timeoutMs);
   const result = await client(config).send(new GetObjectCommand({ Bucket: config.bucketName, Key: key }),
     { abortSignal: signal ? AbortSignal.any([signal, timeout]) : timeout });
   if (!result.Body) throw new Error("r2_object_empty");
@@ -334,21 +346,23 @@ export async function readR2PdfCover(key: string, signal?: AbortSignal) {
 
 
 /** Private resumable uploads. Provider identities never come from the browser. */
-export async function beginR2Multipart(key: string, contentType: string) {
+export async function beginR2Multipart(key: string, contentType: string, attachmentName?: string) {
   const config = requiredConfiguration();
-  const result = await client(config).send(new CreateMultipartUploadCommand({ Bucket: config.bucketName, Key: key, ContentType: contentType, CacheControl: "private, no-store" }), { abortSignal: AbortSignal.timeout(30_000) });
+  const result = await client(config).send(new CreateMultipartUploadCommand({ Bucket: config.bucketName, Key: key, ContentType: contentType, CacheControl: "private, no-store",
+    ...(attachmentName ? { ContentDisposition: attachmentDisposition(attachmentName) } : {}),
+  }), { abortSignal: AbortSignal.timeout(30_000) });
   if (!result.UploadId) throw new Error("multipart_unavailable");
   return result.UploadId;
 }
-export async function signR2MultipartPart(key: string, uploadId: string, partNumber: number, size: number) {
-  if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 13 || !Number.isInteger(size) || size < 1 || size > 8 * 1024 * 1024) throw new Error("invalid_multipart_part");
+export async function signR2MultipartPart(key: string, uploadId: string, partNumber: number, size: number, maxParts = 13) {
+  if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > maxParts || !Number.isInteger(size) || size < 1 || size > 8 * 1024 * 1024) throw new Error("invalid_multipart_part");
   const config = requiredConfiguration();
   return getSignedUrl(client(config), new UploadPartCommand({ Bucket: config.bucketName, Key: key, UploadId: uploadId, PartNumber: partNumber, ContentLength: size }), { expiresIn: 300 });
 }
-export async function listR2MultipartParts(key: string, uploadId: string) {
+export async function listR2MultipartParts(key: string, uploadId: string, maxParts = 13) {
   const config = requiredConfiguration();
-  const result = await client(config).send(new ListPartsCommand({ Bucket: config.bucketName, Key: key, UploadId: uploadId, MaxParts: 14 }), { abortSignal: AbortSignal.timeout(30_000) });
-  if (result.IsTruncated || (result.Parts?.length ?? 0) > 13) throw new Error("invalid_multipart_parts");
+  const result = await client(config).send(new ListPartsCommand({ Bucket: config.bucketName, Key: key, UploadId: uploadId, MaxParts: maxParts + 1 }), { abortSignal: AbortSignal.timeout(30_000) });
+  if (result.IsTruncated || (result.Parts?.length ?? 0) > maxParts) throw new Error("invalid_multipart_parts");
   return (result.Parts ?? []).map(part => ({ partNumber: part.PartNumber ?? 0, size: part.Size ?? -1, etag: part.ETag ?? "" }));
 }
 export async function completeR2Multipart(key: string, uploadId: string, parts: { partNumber: number; etag: string }[]) {

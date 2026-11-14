@@ -88,5 +88,9 @@ try {
   const schema=JSON.parse(await readFile(new URL('../src/features/system-backup/schema.json',import.meta.url),'utf8'));
   for(const t of ['notes','documents','note_folders','file_folders']) assert.ok(schema.tables[t].columns.vault_group_id);
   for(const t of ['vault_credentials','vault_sessions','vault_attempts']) assert.ok(schema.excludedTables[t] && !schema.tables[t]);
+  for (const t of ["inner_vault_files","inner_vault_credentials","inner_vault_sessions","inner_vault_attempts"])
+    assert.ok(schema.excludedTables[t] && !schema.tables[t]);
   console.log("PASS backup classification and authentication-secret exclusions");
+  await db.exec(await readFile(new URL("./fixtures/document-continuity-sql/inner-vault-regression.sql", import.meta.url), "utf8"));
+  console.log("PASS inner vault lock cascade, 2 GiB limit, idempotency, and private storage namespace");
 } finally { await db.close(); }

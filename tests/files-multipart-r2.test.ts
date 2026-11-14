@@ -5,7 +5,7 @@ vi.mock("@aws-sdk/client-s3",()=>{
  return {S3Client:class{send=fake.send;},AbortMultipartUploadCommand:Command,CompleteMultipartUploadCommand:Command,CreateMultipartUploadCommand:Command,ListPartsCommand:Command,UploadPartCommand:Command,ListObjectsV2Command:Command,CopyObjectCommand:Command,DeleteObjectCommand:Command,GetObjectCommand:Command,HeadBucketCommand:Command,HeadObjectCommand:Command,PutObjectCommand:Command};
 });
 vi.mock("@aws-sdk/s3-request-presigner",()=>({getSignedUrl:fake.sign}));
-import {abortR2Multipart,beginR2Multipart,completeR2Multipart,listR2MultipartParts,signR2MultipartPart} from "@/lib/adapters/cloudflare-r2";
+import {abortR2Multipart,beginR2Multipart,completeR2Multipart,listR2MultipartParts,signR2InnerVaultDownload,signR2MultipartPart} from "@/lib/adapters/cloudflare-r2";
 beforeEach(()=>{fake.send.mockReset();fake.sign.mockReset().mockResolvedValue("signed");vi.stubEnv("R2_ENDPOINT","https://test.r2.cloudflarestorage.com");vi.stubEnv("R2_ACCESS_KEY_ID","synthetic");vi.stubEnv("R2_SECRET_ACCESS_KEY","synthetic");vi.stubEnv("R2_BUCKET_NAME","private-test");});
 afterEach(()=>vi.unstubAllEnvs());
 describe("private R2 multipart adapter",()=>{
@@ -19,6 +19,18 @@ describe("private R2 multipart adapter",()=>{
   await expect(signR2MultipartPart("key","id",14,1)).rejects.toThrow();expect(fake.sign).not.toHaveBeenCalled();
   fake.send.mockResolvedValue({IsTruncated:true});await expect(listR2MultipartParts("key","id")).rejects.toThrow();
   expect(fake.send.mock.calls[0][0].input.MaxParts).toBe(14);
+ });
+ it("uses the higher part limit only when requested and signs inner downloads for one minute",async()=>{
+  const key="00000000-0000-4000-8000-000000000061/inner-vault/00000000-0000-4000-8000-000000000091/archive.zip";
+  fake.send.mockResolvedValueOnce({UploadId:"private-id"});
+  await beginR2Multipart(key,"application/zip","备份.zip");
+  expect(fake.send.mock.calls[0][0].input).toMatchObject({ContentType:"application/zip",ContentDisposition:"attachment; filename*=UTF-8''%E5%A4%87%E4%BB%BD.zip",CacheControl:"private, no-store"});
+  await signR2MultipartPart(key,"private-id",256,8*1024*1024,256);
+  expect(fake.sign.mock.calls[0][1].input).toMatchObject({PartNumber:256,Key:key});
+  await expect(signR2InnerVaultDownload("owner/files/doc/zip")).rejects.toThrow("invalid_inner_archive_key");
+  await signR2InnerVaultDownload(key);
+  expect(fake.sign.mock.calls[1][1].input).toEqual({Bucket:"private-test",Key:key});
+  expect(fake.sign.mock.calls[1][2]).toEqual({expiresIn:60});
  });
  it("completes exact server-provided parts and treats only NoSuchUpload as an idempotent abort",async()=>{
   fake.send.mockResolvedValue({});await completeR2Multipart("key","id",[{partNumber:1,etag:'"etag"'}]);

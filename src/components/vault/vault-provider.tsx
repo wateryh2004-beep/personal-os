@@ -73,6 +73,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (!current) throw new Error("需要重新验证。");
     const response = await fetch(url, { ...init, cache: "no-store", headers: { ...init?.headers, "x-vault-tab": current.tab } });
     if (current !== accessRef.current) throw new Error("会话已锁定。");
+    if (response.status === 423 && response.headers.get("x-vault-locked") === "inner") {
+      const error = new Error("请重新验证内层口令。"); error.name = "InnerVaultLocked"; throw error;
+    }
     if (response.status === 401 || response.status === 423) { lock(); throw new Error("需要重新验证。"); }
     if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || "操作未完成。"); }
     return response;
@@ -106,8 +109,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }, 1000);
     const pagehide = () => lock();
     window.addEventListener("pointerdown", activity); window.addEventListener("keydown", activity);
-    window.addEventListener("pagehide", pagehide); document.addEventListener("visibilitychange", visibility);
-    return () => { clearInterval(tick); window.removeEventListener("pointerdown", activity); window.removeEventListener("keydown", activity); window.removeEventListener("pagehide", pagehide); document.removeEventListener("visibilitychange", visibility); };
+    window.addEventListener("personal-os:private-transfer-progress", activity); window.addEventListener("pagehide", pagehide); document.addEventListener("visibilitychange", visibility);
+    return () => { clearInterval(tick); window.removeEventListener("pointerdown", activity); window.removeEventListener("keydown", activity); window.removeEventListener("personal-os:private-transfer-progress", activity); window.removeEventListener("pagehide", pagehide); document.removeEventListener("visibilitychange", visibility); };
   }, [access, call, lock]);
 
   async function unlock(event: React.FormEvent) {
