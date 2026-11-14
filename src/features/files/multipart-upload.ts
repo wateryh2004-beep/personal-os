@@ -17,16 +17,16 @@ export type MultipartSnapshot = {
   file: { id: string; title: string; originalFilename: string; mimeType: string; fileSize: number; folderId: string | null; textExtractionStatus: "pending" | "unsupported" | "too_large" | "not_requested" | "processing" | "completed" | "failed" };
 };
 export type MultipartPart = { partNumber: number; size: number; etag: string };
-export function expectedPartSize(size: number, partNumber: number) {
-  if (!Number.isSafeInteger(size) || size < 1 || size > maxFileSize || !Number.isInteger(partNumber) || partNumber < 1 || partNumber > Math.ceil(size / multipartPartSize)) throw new Error("invalid_multipart_part");
+export function expectedPartSize(size: number, partNumber: number, byteLimit = maxFileSize) {
+  if (!Number.isSafeInteger(size) || size < 1 || size > byteLimit || !Number.isInteger(partNumber) || partNumber < 1 || partNumber > Math.ceil(size / multipartPartSize)) throw new Error("invalid_multipart_part");
   return Math.min(multipartPartSize, size - (partNumber - 1) * multipartPartSize);
 }
 /** Never complete using client ETags or a cached client list. */
-export function validateMultipartParts(parts: MultipartPart[], size: number, complete = false) {
-  if (parts.length > multipartMaxParts) throw new Error("invalid_multipart_parts");
+export function validateMultipartParts(parts: MultipartPart[], size: number, complete = false, byteLimit = maxFileSize) {
+  if (parts.length > Math.ceil(byteLimit / multipartPartSize)) throw new Error("invalid_multipart_parts");
   const seen = new Set<number>();
   for (const part of parts) {
-    if (seen.has(part.partNumber) || part.size !== expectedPartSize(size, part.partNumber) || !/^"[a-f0-9]{32}"$/i.test(part.etag)) throw new Error("invalid_multipart_parts");
+    if (seen.has(part.partNumber) || part.size !== expectedPartSize(size, part.partNumber, byteLimit) || !/^"[a-f0-9]{32}"$/i.test(part.etag)) throw new Error("invalid_multipart_parts");
     seen.add(part.partNumber);
   }
   if (complete && parts.length !== Math.ceil(size / multipartPartSize)) throw new Error("incomplete_multipart_parts");

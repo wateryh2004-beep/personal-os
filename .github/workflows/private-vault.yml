@@ -7,6 +7,8 @@ on:
       - 'src/app/api/vault/**'
       - 'supabase/migrations/**'
       - 'tests/vault-*'
+      - 'tests/inner-vault.test.ts'
+      - 'tests/fixtures/document-continuity-sql/inner-vault-regression.sql'
       - '.github/workflows/private-vault.yml'
 jobs:
   isolated-verification:
@@ -18,7 +20,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npx vitest run tests/vault-crypto.test.ts tests/vault-api.test.ts tests/vault-session.test.ts tests/vault-pdf-preview.test.ts
+      - run: npx vitest run tests/vault-crypto.test.ts tests/vault-api.test.ts tests/vault-session.test.ts tests/vault-pdf-preview.test.ts tests/inner-vault.test.ts
       - name: Install isolated PostgreSQL test runtime
         run: npm install --prefix "$RUNNER_TEMP/vault-tests" --no-save --ignore-scripts @electric-sql/pglite@0.5.10
       - name: Replay actual migrations and test RLS, RPCs and versions

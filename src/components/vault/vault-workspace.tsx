@@ -9,6 +9,7 @@ import { draftStorageKey, openDraft, sealDraft, type VaultDraft } from "@/featur
 import { checksumFile } from "@/features/files/file-checksum";
 
 const VaultPdfPreview = dynamic(() => import("./vault-pdf-preview").then(module => module.VaultPdfPreview), { ssr: false });
+const InnerVault = dynamic(() => import("./inner-vault").then(module => module.InnerVault), { ssr: false, loading: () => <p role="status" className="px-5 py-5 text-sm">正在打开…</p> });
 const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), { ssr: false });
 type Item = { id: string; title: string; folder_id: string | null; vault_group_id: string };
 type FileItem = Item & { original_filename: string; mime_type: string; file_size: number; storage_state: "pending" | "available" | "archived" };
@@ -33,6 +34,20 @@ export function VaultWorkspace({ access, call, lock, masked, onOrganize, shortcu
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [settings, setSettings] = useState(false);
+  const [inner, setInner] = useState<number | null>(null);
+  const [innerNotice, setInnerNotice] = useState("");
+  const innerEntry = useRef<HTMLButtonElement>(null);
+  const innerGeneration = useRef(0);
+  const returning = useRef(false);
+  const leaveInner = useCallback((notice?: string) => {
+    if (inner !== innerGeneration.current) return;
+    returning.current = true;
+    setInner(null);
+    setInnerNotice(notice ?? "");
+  }, [inner]);
+  useEffect(() => {
+    if (inner === null && returning.current) innerEntry.current?.focus({ preventScroll: true });
+  }, [inner]);
   const controller = useRef<AbortController | null>(null);
 
 
@@ -89,17 +104,20 @@ export function VaultWorkspace({ access, call, lock, masked, onOrganize, shortcu
       <DialogHeader className="shrink-0 border-b border-[var(--separator)] px-5 pb-3 pt-5 pr-12">
         <div className="flex items-center justify-between gap-3"><DialogTitle className="font-serif text-2xl">文档</DialogTitle><button className={action} aria-label="收起并锁定" onClick={lock}><span className="inline-block size-2 rounded-full bg-[var(--accent)]" /></button></div>
         <DialogDescription className="sr-only">已验证的独立文档工作区，退出即锁定。</DialogDescription>
-        <div className="flex flex-wrap items-center gap-2"><button className={action} onClick={onOrganize}>整理普通内容</button><button className={action} onClick={() => setSettings(!settings)}>选项</button><span className="ml-auto text-xs text-[var(--text-secondary)]">⌘ / Ctrl ⇧ {shortcut.toUpperCase()} 收起</span></div>
+        {!inner ? <div className="flex flex-wrap items-center gap-2"><button className={action} onClick={onOrganize}>整理普通内容</button><button className={action} onClick={() => setSettings(!settings)}>选项</button><span className="ml-auto text-xs text-[var(--text-secondary)]">⌘ / Ctrl ⇧ {shortcut.toUpperCase()} 收起</span></div> : null}
       </DialogHeader>
+      {inner ? <InnerVault call={call} onBack={leaveInner} /> : <>
+      {innerNotice ? <p role="status" className="shrink-0 px-5 py-2 text-sm">{innerNotice}</p> : null}
       {error ? <p role="alert" className="shrink-0 px-5 py-3 text-sm text-[var(--danger)]">{error}</p> : null}
       {settings ? <section className="shrink-0 space-y-3 border-b border-[var(--separator)] px-5 py-4">
         <label className="flex items-center gap-3 text-sm">快捷键：⌘ / Ctrl + Shift +<select className={field} value={shortcut} onChange={e => onShortcut(e.target.value)}>{"puybh".split("").map(value => <option key={value} value={value}>{value.toUpperCase()}</option>)}</select></label>
         <p className="text-sm text-[var(--text-secondary)]">闲置 5 分钟或离开页面 30 秒后锁定。刷新后重新验证。独立口令没有免验证找回入口，请妥善保管。</p>
-        <p className="text-sm text-[var(--text-secondary)]">完整备份需同时保存系统快照和文件原件包。以下两项均包含普通内容与暗格，下载后请保存在私人位置。</p>
+        <p className="text-sm text-[var(--text-secondary)]">完整备份需同时保存系统快照和文件原件包。以下两项包含普通内容与外层暗格。内层文件在解锁后单独下载。</p>
         <div className="flex flex-wrap gap-2"><button disabled={busy} className={action} onClick={() => void backup("system")}>下载系统快照（含暗格）</button><button disabled={busy} className={action} onClick={() => void backup("files")}>下载文件原件包（含暗格）</button></div>
       </section> : null}
       {selected ? <VaultNoteEditor key={selected} id={selected} access={access} call={call} onBack={() => { setSelected(null); void refresh(); }} /> : preview ? <VaultFileViewer key={preview.id} file={preview} call={call} onBack={() => setPreview(null)} /> : <div className="min-h-0 flex-1 overflow-auto px-5 pb-6">
         <div className="sticky top-0 z-10 flex flex-wrap gap-2 bg-[var(--surface-elevated)] py-3"><button className={action} aria-pressed={domain === "notes"} onClick={() => { setDomain("notes"); setFolder(null); setQuery(""); }}>笔记</button><button className={action} aria-pressed={domain === "files"} onClick={() => { setDomain("files"); setFolder(null); setQuery(""); }}>文件</button><input aria-label="搜索暗格" placeholder="搜索标题…" value={query} onChange={e => setQuery(e.target.value)} className={`${field} min-w-0 flex-1`} /></div>
+        {domain === "files" ? <div className="mb-3 flex border-b border-[var(--separator)] pb-3"><button ref={innerEntry} disabled={busy} className={`${action} border border-[var(--separator)]`} onClick={() => { returning.current = false; setInnerNotice(""); setInner(++innerGeneration.current); }}>内层文件 <span aria-hidden="true">›</span></button></div> : null}
         <div className="mb-3 flex flex-wrap items-center gap-2"><button className={action} onClick={() => { setFolder(currentFolder?.parent_id && folders?.some(value => value.id === currentFolder.parent_id) ? currentFolder.parent_id : null); setQuery(""); }}>{currentFolder ? "返回上级" : "全部"}</button><span className="mr-auto text-sm">{currentFolder?.name}</span><button disabled={busy} className={action} onClick={() => setCreatingFolder(!creatingFolder)}>新建文件夹</button>{domain === "notes" ? <button disabled={busy} className={action} onClick={() => void create("note")}>新建笔记</button> : <label className={`${action} inline-flex cursor-pointer items-center`}>{busy ? "正在上传并校验…" : "上传文件"}<input type="file" className="sr-only" disabled={busy} onChange={e => { const file = e.target.files?.[0]; if (file) void upload(file); e.target.value = ""; }} /></label>}</div>
         {creatingFolder ? <form className="mb-4 flex gap-2" onSubmit={e => { e.preventDefault(); void create(domain === "notes" ? "note_folder" : "file_folder"); }}><input required maxLength={120} aria-label="文件夹名称" value={folderName} onChange={e => setFolderName(e.target.value)} className={`${field} min-w-0 flex-1`} /><button className={action} disabled={busy}>创建</button></form> : null}
         {!query && childFolders.map(value => <div key={value.id} className="flex items-center border-b border-[var(--separator)] py-2"><button className={`${action} min-w-0 flex-1 text-left`} onClick={() => setFolder(value.id)}>▸ {value.name}</button><button className={action} onClick={() => setRestore({ kind: domain === "notes" ? "note_folder" : "file_folder", item: value })}>移回</button></div>)}
@@ -107,6 +125,7 @@ export function VaultWorkspace({ access, call, lock, masked, onOrganize, shortcu
         {items.map(item => <div key={item.id} className="flex items-center gap-2 border-b border-[var(--separator)] py-3"><button className={`${action} min-w-0 flex-1 break-words text-left`} disabled={domain === "files" && (item as FileItem).storage_state === "pending"} onClick={() => domain === "notes" ? setSelected(item.id) : setPreview(item as FileItem)}>{item.title}{domain === "files" && (item as FileItem).storage_state === "pending" ? <span className="ml-2 text-xs">上传待完成</span> : null}</button>{domain === "files" && (item as FileItem).storage_state === "pending" ? <button disabled={busy} className={action} onClick={async () => { setBusy(true); try { await call("/api/vault/upload", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id }) }); await refresh(); } catch (reason) { setError(reason instanceof Error ? reason.message : "原件尚未上传完成，请重新选择同一文件上传。"); } finally { setBusy(false); } }}>重试校验</button> : null}<button className={action} onClick={() => setRestore({ kind: domain === "notes" ? "note" : "document", item })}>移回</button></div>)}
       </div>}
       {restore ? <div role="alertdialog" aria-label="移回普通工作区" className="absolute inset-0 z-30 grid place-items-center bg-black/30 p-5"><div className="w-full max-w-sm rounded-xl bg-[var(--surface-elevated)] p-5 shadow-xl"><h3 className="mb-3 font-medium">移回普通工作区？</h3><p className="text-sm leading-6">此项及同批收入的文件夹、笔记和附件将一起恢复到原位置，并按各自原有的 AI 设置参与检索。</p><div className="mt-4 flex justify-end gap-2"><button className={action} onClick={() => setRestore(null)}>取消</button><button className={action} disabled={busy} onClick={async () => { setBusy(true); try { await call("/api/vault/items", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: restore.kind, id: restore.item.id, hidden: false }) }); setRestore(null); await refresh(); } catch (reason) { setError(reason instanceof Error ? reason.message : "恢复失败。"); } finally { setBusy(false); } }}>确认移回</button></div></div></div> : null}
+      </>}
     </DialogContent>;
 }
 
