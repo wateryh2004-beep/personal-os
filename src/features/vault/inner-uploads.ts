@@ -6,7 +6,7 @@ import { expectedPartSize, validateMultipartParts } from "@/features/files/multi
 import { safeFilename } from "@/features/files/schemas";
 import {
   abortR2Multipart, beginR2Multipart, completeR2Multipart, isMissingR2Multipart,
-  listR2MultipartParts, r2BucketName, readR2ObjectStream, signR2InnerVaultDownload, signR2MultipartPart,
+  listR2MultipartParts, r2BucketName, readR2ObjectStream, signR2MultipartPart,
 } from "@/lib/adapters/cloudflare-r2";
 import { innerArchiveSchema, innerArchiveType, innerByteLimit, innerPartLimit, type InnerArchive } from "./inner-contract";
 import { assertInnerVault, innerSessionArgs, throwInnerDatabaseError, type InnerOwner } from "./inner-session";
@@ -196,11 +196,11 @@ export function innerUploads(owner: InnerOwner) {
       }
     },
 
-    async download(id: string) {
+    async downloadFile(id: string) {
+      await assertInnerVault(owner);
       const file = await load(id);
       if (file.status !== "completed") throw unavailable();
-      await assertInnerVault(owner);
-      return signR2InnerVaultDownload(file.storage_path);
+      return file;
     },
   };
 }

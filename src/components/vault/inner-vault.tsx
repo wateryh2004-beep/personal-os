@@ -184,8 +184,9 @@ export function InnerVault({ call, onBack }: { call: VaultCall; onBack: (notice?
       const { url } = await (await innerCall("/api/vault/inner/download", privateJson("POST", { id: file.id }, signal))).json();
       signal.throwIfAborted();
       if (!access.current || document.visibilityState !== "visible") throw new Error("请返回内层后重新下载。");
-      const destination = new URL(url);
-      if (destination.protocol !== "https:") throw new Error("下载链接无效，请重试。");
+      const destination = new URL(typeof url === "string" ? url : "", window.location.origin);
+      if (destination.origin !== window.location.origin || destination.search || destination.hash ||
+        !/^\/api\/vault\/inner\/download\/[a-f0-9-]{36}$/.test(destination.pathname)) throw new Error("下载链接无效，请重试。");
       // A normal browser download streams to disk. No fetch().blob() for a 2 GiB object.
       const link = document.createElement("a");
       link.href = destination.href; link.referrerPolicy = "no-referrer"; link.rel = "noreferrer";

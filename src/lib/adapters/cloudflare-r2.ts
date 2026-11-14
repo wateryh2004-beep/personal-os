@@ -72,13 +72,6 @@ function attachmentDisposition(filename: string) {
   return `attachment; filename*=UTF-8''${encoded}`;
 }
 
-/** One short-lived private GET for a completed, attachment-only ZIP. */
-export async function signR2InnerVaultDownload(key: string) {
-  const config = requiredConfiguration();
-  if (!/^[a-f0-9-]{36}\/inner-vault\/[a-f0-9-]{36}\/archive\.zip$/.test(key)) throw new Error("invalid_inner_archive_key");
-  return getSignedUrl(client(config), new GetObjectCommand({ Bucket: config.bucketName, Key: key }), { expiresIn: 60 });
-}
-
 export type R2ObjectCheck = { exists: boolean; size: number; contentType: string; status: number | null };
 
 export async function objectExists(key: string): Promise<R2ObjectCheck> {
@@ -221,17 +214,17 @@ export async function copyVerifiedR2Object(source: string, destination: string, 
   }), { abortSignal: AbortSignal.timeout(60_000) });
 }
 
-/** Private preview read: a normalized range and optional exact-object condition. */
+/** Private streaming read: a normalized range and optional exact-object condition. */
 export async function readR2ObjectSlice(key: string, options: {
-  range?: { start: number; end: number }; ifMatch?: string; signal?: AbortSignal;
+  range?: { start: number; end: number }; ifMatch?: string; signal?: AbortSignal; timeoutMs?: number;
 }) {
-  const { range, ifMatch, signal } = options;
+  const { range, ifMatch, signal, timeoutMs = 120_000 } = options;
   if (range && (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) || range.start < 0 || range.end < range.start))
     throw new Error("r2_invalid_range");
   if (ifMatch !== undefined && !/^"[\x21\x23-\x7e]{1,256}"$/.test(ifMatch))
     throw new Error("r2_invalid_etag");
   const config = requiredConfiguration();
-  const timeout = AbortSignal.timeout(120_000);
+  const timeout = AbortSignal.timeout(timeoutMs);
   const result = await client(config).send(new GetObjectCommand({
     Bucket: config.bucketName, Key: key,
     ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
