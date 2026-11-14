@@ -189,7 +189,7 @@ export function InnerVault({ call, onBack }: { call: VaultCall; onBack: (notice?
         !/^\/api\/vault\/inner\/download\/[a-f0-9-]{36}$/.test(destination.pathname)) throw new Error("下载链接无效，请重试。");
       // A normal browser download streams to disk. No fetch().blob() for a 2 GiB object.
       const link = document.createElement("a");
-      link.href = destination.href; link.download = file.filename; link.referrerPolicy = "no-referrer"; link.rel = "noreferrer";
+      link.href = destination.href; link.referrerPolicy = "no-referrer"; link.rel = "noreferrer";
       document.body.appendChild(link); link.click(); link.remove();
       setNotice("已交给浏览器下载，请查看下载进度。");
     }, false);
