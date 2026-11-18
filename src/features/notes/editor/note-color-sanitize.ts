@@ -7,24 +7,25 @@ import { parseNoteColorTone, type NoteColorRole, type NoteColorTone } from "./no
  * The same schema is used by React reading, raster PDF and HTML export.
  */
 const allowedTones = ["info", "warning", "important", "idea", "quote"];
+const attributeRule = (name: string, ...values: string[]): [string, ...string[]] => [name, ...values];
 
-export const noteColorSanitizeSchema = {
+export const noteColorSanitizeSchema: typeof defaultSchema = {
   ...defaultSchema,
   attributes: {
     ...defaultSchema.attributes,
     blockquote: [
       ...(defaultSchema.attributes?.blockquote ?? []),
-      ["className", "note-color-callout"],
-      ["dataNoteTone", ...allowedTones],
+      attributeRule("className", "note-color-callout"),
+      attributeRule("dataNoteTone", ...allowedTones),
     ],
     span: [
       ...(defaultSchema.attributes?.span ?? []),
-      ["className", "note-color-text", "note-color-highlight"],
+      attributeRule("className", "note-color-text", "note-color-highlight"),
       ["dataNoteTone", ...allowedTones],
     ],
     p: [
       ...(defaultSchema.attributes?.p ?? []),
-      ["dataNoteCalloutHeading", "true"],
+      attributeRule("dataNoteCalloutHeading", "true"),
     ],
   },
 };
