@@ -11,6 +11,7 @@ on:
       - 'tests/fixtures/workbench/**'
       - 'tests/*workbench*.sql'
       - 'tests/life-field*.sql'
+      - 'tests/notes-create-fast-path-postgres.sql'
       - '.github/workflows/workbench-postgres.yml'
   workflow_dispatch:
 permissions:
