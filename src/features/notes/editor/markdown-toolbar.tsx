@@ -36,6 +36,8 @@ import {
   toggleTaskList,
 } from "./markdown-commands";
 import { parseMarkdownListLine } from "./markdown-list";
+import { clearNoteInlineColor, setNoteCallout, setNoteInlineColor } from "./note-color-commands";
+import { noteColorTones, type NoteColorTone } from "./note-color-palette";
 
 type ToolbarState = {
   heading: number;
@@ -183,6 +185,32 @@ export function MarkdownToolbar({
           <option value="code">代码块</option>
         </select>
         <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[var(--border-subtle)]" />
+        <label className="sr-only" htmlFor={blockStyleId + "-color"}>文字与色块</label>
+        <select
+          id={blockStyleId + "-color"}
+          aria-label="文字与色块"
+          defaultValue=""
+          disabled={!view}
+          onMouseDown={event => event.stopPropagation()}
+          onChange={(event) => {
+            const raw = event.target.value;
+            event.target.value = "";
+            if (!view || !raw) return;
+            const [kind, id] = raw.split(":");
+            const tone = noteColorTones.find(item => item.id === id)?.id as NoteColorTone | undefined;
+            if (kind === "clear") run(clearNoteInlineColor);
+            else if (tone && kind === "block") run(setNoteCallout(tone));
+            else if (tone && kind === "ink") run(setNoteInlineColor("text", tone));
+            else if (tone && kind === "mark") run(setNoteInlineColor("highlight", tone));
+          }}
+          className="h-[30px] max-w-[92px] shrink-0 rounded-[7px] border border-transparent bg-transparent px-1 text-[12px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)] disabled:opacity-35"
+        >
+          <option value="">颜色</option>
+          <optgroup label="整段色块">{noteColorTones.map(tone => <option key={"block-" + tone.id} value={"block:" + tone.id}>{tone.label}色块</option>)}</optgroup>
+          <optgroup label="文字颜色">{noteColorTones.map(tone => <option key={"ink-" + tone.id} value={"ink:" + tone.id}>{tone.label}字色</option>)}</optgroup>
+          <optgroup label="背景高亮">{noteColorTones.map(tone => <option key={"mark-" + tone.id} value={"mark:" + tone.id}>{tone.label}高亮</option>)}</optgroup>
+          <option value="clear:">清除行内颜色</option>
+        </select>
         <ToolbarButton label="粗体（⌘B）" active={active.bold} disabled={!view} onClick={() => run(toggleBold)}><Bold aria-hidden="true" className="size-4" /></ToolbarButton>
         <ToolbarButton label="斜体（⌘I）" active={active.italic} disabled={!view} onClick={() => run(toggleItalic)}><Italic aria-hidden="true" className="size-4" /></ToolbarButton>
         <ToolbarButton mobileHidden label="行内代码" active={active.inlineCode} disabled={!view} onClick={() => run(toggleInlineCode)}><Code2 aria-hidden="true" className="size-4" /></ToolbarButton>

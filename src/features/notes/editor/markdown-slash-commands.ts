@@ -2,6 +2,7 @@ import { syntaxTree } from "@codemirror/language";
 import type { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import type { Completion } from "@codemirror/autocomplete";
+import { noteColorCalloutOptions } from "./note-color-commands";
 
 export type SlashQuery = { from: number; to: number; query: string };
 
@@ -40,6 +41,13 @@ const actions: readonly SlashAction[] = [
   { label: "代码块", keywords: "code 代码", detail: "带围栏的代码段", insert: "\u0060\u0060\u0060\n\n\u0060\u0060\u0060", cursorOffset: 4 },
   { label: "分隔线", keywords: "hr 分割线 divider", detail: "章节分隔", insert: "---\n\n" },
   { label: "表格", keywords: "table 表格", detail: "两列表格", insert: "| 列 1 | 列 2 |\n| --- | --- |\n|  |  |", cursorOffset: 2 },
+  ...noteColorCalloutOptions.map(({ id, label, marker }) => ({
+    label: `色块 · ${label}`,
+    keywords: `色块 ${label} ${id} 提示 标注`,
+    detail: `插入${label}色块`,
+    insert: `> [!${marker}]\n> \n`,
+    cursorOffset: `> [!${marker}]\n> `.length,
+  })),
   { label: "上传图片", keywords: "image 图片 照片", detail: "选择本地图片", callback: "image" },
   { label: "AI 助手", keywords: "ai 智能 润色", detail: "在笔记中使用 AI", callback: "ai" },
 ];
