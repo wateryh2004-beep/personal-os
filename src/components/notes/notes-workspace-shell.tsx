@@ -147,6 +147,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   const createNoteForFolder = (folder: NotesNavigatorFolder) => {
     const form = new FormData();
     form.set("folder_id", folder.id);
+    form.set("client_note_id", crypto.randomUUID());
     setNotice(`正在在文件夹“${folder.name}”中新建笔记`);
     // A native form nested in DropdownMenuItem is unmounted as the Radix menu
     // closes, so invoke the Server Action directly instead.

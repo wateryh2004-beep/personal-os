@@ -14,6 +14,8 @@ import { noteRelationSignature } from "./links/signature";
 import { noteContentOrigins } from "./content-origin";
 import { recordStatusSafely } from "@/features/system-status/service";
 import { withPerfSpan } from "@/lib/performance/server-perf";
+import { randomUUID } from "node:crypto";
+import { createEmptyNotePersisted } from "./create-empty-note";
 const noteSchema = z.object({ noteId: z.string().uuid().optional(), expectedRevision: z.coerce.number().int().min(0), title: z.string().max(240), bodyMarkdown: z.string().max(200000) });
 const folderSchema = z.object({ name: z.string().trim().min(1).max(120), parentId: z.string().uuid().nullable().optional() });
 function fail(): never { throw new Error("操作未能完成，请检查输入、权限或网络后重试。"); }
@@ -21,30 +23,9 @@ function missingWorkspaceColumn(error: unknown) { return Boolean(error && typeof
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, entityType: string, id: string, data: Record<string, unknown>) { const { error } = await supabase.from("audit_logs").insert({ user_id: userId, action, entity_type: entityType, entity_id: id, actor_type: "user", after_data: data }); if (error) fail(); }
 export async function createNote() {
   const { supabase, userId } = await withPerfSpan("notes.create.auth", () => requireOwner());
-  const title = "无标题笔记";
-  const body = "";
-  const hash = contentHash(body);
-  let result = await withPerfSpan("notes.create.record", () => supabase.from("notes")
-    .insert({ user_id: userId, title, body_markdown: body, status: "active", revision: 1, content_hash: hash, word_count: 0, character_count: 0, last_saved_at: new Date().toISOString() })
-    .select("id").single());
-  if (result.error && missingWorkspaceColumn(result.error)) {
-    result = await withPerfSpan("notes.create.record_fallback", () => supabase.from("notes")
-      .insert({ user_id: userId, title, body_markdown: body, status: "active" })
-      .select("id").single());
-  }
-  if (result.error) fail();
-  const noteId = result.data.id;
-  const version = await withPerfSpan("notes.create.version", () => supabase.from("note_versions")
-    .insert({ user_id: userId, note_id: noteId, title, body_markdown: body, version_number: 1, created_by: userId, content_hash: hash, revision: 1, reason: "initial" }));
-  if (version.error && missingWorkspaceColumn(version.error)) {
-    const fallback = await withPerfSpan("notes.create.version_fallback", () => supabase.from("note_versions")
-      .insert({ user_id: userId, note_id: noteId, title, body_markdown: body, version_number: 1, created_by: userId }));
-    if (fallback.error) fail();
-  } else if (version.error) fail();
-  await withPerfSpan("notes.create.audit", () => audit(supabase, userId, "create", "note", noteId, { revision: 1 }));
+  const noteId = randomUUID();
+  await createEmptyNotePersisted({ supabase, userId, noteId, folderId: null, span: "notes.create" });
   const now = new Date().toISOString();
-  // Already used for autosave: status bookkeeping is not on the user-visible
-  // critical path after the canonical note, initial version and audit commit.
   after(async () => {
     await recordStatusSafely(userId, "notes", {
       state: "fresh",
@@ -388,22 +369,14 @@ export async function recordNotePdfExport(noteId: string) {
 
 export async function createNoteInFolder(formData: FormData) {
   const { supabase, userId } = await withPerfSpan("notes.create_in_folder.auth", () => requireOwner());
-  const folderId = await withPerfSpan("notes.create_in_folder.folder", () =>
-    ownedFolderId(supabase, String(formData.get("folder_id") || "")));
-  const title = "无标题笔记";
-  const body = "";
-  const hash = contentHash(body);
-  const { data: note, error } = await withPerfSpan("notes.create_in_folder.record", () => supabase.from("notes")
-    .insert({ user_id: userId, folder_id: folderId, title, body_markdown: body, status: "active", revision: 1, content_hash: hash, word_count: 0, character_count: 0, last_saved_at: new Date().toISOString() })
-    .select("id").single());
-  if (error || !note) fail();
-  const version = await withPerfSpan("notes.create_in_folder.version", () => supabase.from("note_versions")
-    .insert({ user_id: userId, note_id: note.id, title, body_markdown: body, version_number: 1, created_by: userId, content_hash: hash, revision: 1, reason: "initial" }));
-  if (version.error) fail();
-  await withPerfSpan("notes.create_in_folder.audit", () =>
-    audit(supabase, userId, "create", "note", note.id, { revision: 1, folder_id: folderId }));
+  const rawFolderId = String(formData.get("folder_id") || "").trim();
+  if (rawFolderId && !z.string().uuid().safeParse(rawFolderId).success) fail();
+  const folderId = rawFolderId || null;
+  const rawNoteId = String(formData.get("client_note_id") || "");
+  const noteId = z.string().uuid().safeParse(rawNoteId).success ? rawNoteId : randomUUID();
+  await createEmptyNotePersisted({ supabase, userId, noteId, folderId, span: "notes.create_in_folder" });
   await revalidatePath("/notes");
-  redirect(`/notes/${note.id}`);
+  redirect(`/notes/${noteId}`);
 }
 
 async function openDailyNoteInternal() {

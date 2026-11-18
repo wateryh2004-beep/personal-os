@@ -29,6 +29,7 @@ REGRESSIONS = (
     "tests/fixtures/workbench/scenes-regression.sql",
     "tests/life-field-postgres.sql",
     "tests/workbench-performance-postgres.sql",
+    "tests/notes-atomic-create-postgres.sql",
 )
 WORKBENCH_SUFFIXES = (
     "_workspace_action_receipts.sql",
@@ -187,6 +188,22 @@ def concurrency(db):
            + "insert into public.notes(id,user_id,title,body_markdown,status,revision) values(" + literal(note_one) + "," + literal(OWNER) + ",'CAS synthetic','Synthetic body','active',1),(" + literal(note_two) + "," + literal(OWNER) + ",'Retry synthetic','Synthetic body','active',1);"
            + "insert into public.purchase_items(id,user_id,title,status,price_cny) values(" + literal(shop_one) + "," + literal(OWNER) + ",'CAS synthetic quantity','ready',12),(" + literal(shop_two) + "," + literal(OWNER) + ",'Retry synthetic quantity','ready',13);")
 
+    # Two isolated authenticated writers racing for the same new note UUID:
+    # database uniqueness must serialize them and return exactly one completed
+    # note/version/audit. No production Supabase request is made.
+    fresh_note = "a2000000-0000-4000-8000-000000000003"
+    fresh_insert = (
+        "select json_build_object('id', public.create_empty_note_atomic("
+        + literal(fresh_note) + "::uuid,null));"
+    )
+    created_first, created_second = overlap(db, OWNER, fresh_insert, fresh_insert)
+    assert created_first[0]["id"] == fresh_note and created_second[0]["id"] == fresh_note
+    db.sql("source_fixture", "do $notescheck$ begin "
+           "assert (select count(*)=1 from public.notes where id=" + literal(fresh_note) + "); "
+           "assert (select count(*)=1 from public.note_versions where note_id=" + literal(fresh_note) + "); "
+           "assert (select count(*)=1 from public.audit_logs where entity_id=" + literal(fresh_note) + " and request_id=" + literal(fresh_note) + "); "
+           "end $notescheck$;")
+
     first, _ = overlap(db, OWNER, metadata(str(uuid.uuid4()), note_one, "Winner"), metadata(str(uuid.uuid4()), note_one, "Stale"), "workbench_conflict")
     assert first[0]["receiptId"]
     db.sql("source_fixture", "do $$begin assert (select title='Winner' and mutation_revision=1 and revision=2 from public.notes where id=" + literal(note_one) + "); assert (select count(*)=1 from public.note_versions where note_id=" + literal(note_one) + "); end $$;")
@@ -213,7 +230,7 @@ def concurrency(db):
     db.sql("source_fixture", "do $$begin assert (select count(*)=20 from public.workspace_scenes where user_id=" + literal(SCENE_OWNER) + " and archived_at is null); end $$;")
     first, second = overlap(db, SCENE_OWNER, scene(scene_ids[0], str(uuid.uuid4()), 1, "Winner"), scene(scene_ids[0], str(uuid.uuid4()), 1, "Stale"))
     assert first[0]["status"] == "saved" and first[0]["scene"]["revision"] == 2 and second[0]["status"] == "conflict"
-    return ["core-CAS-single-winner", "core-request-id-single-mutation", "life-CAS-single-winner", "life-request-id-single-mutation", "scene-concurrent-quota-20", "scene-CAS-single-winner"]
+    return ["notes-create-single-transaction-and-idempotent-overlap", "core-CAS-single-winner", "core-request-id-single-mutation", "life-CAS-single-winner", "life-request-id-single-mutation", "scene-concurrent-quota-20", "scene-CAS-single-winner"]
 
 
 def main():
