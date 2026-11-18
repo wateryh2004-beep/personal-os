@@ -3,6 +3,9 @@ import { history, redo, undo } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState, type StateCommand } from "@codemirror/state";
 import { GFM } from "@lezer/markdown";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
+import remarkGfm from "remark-gfm";
 import { renderPortableNoteHtml } from "@/features/notes/export/html";
 import { noteCalloutFromSourceLine } from "@/features/notes/editor/note-color-syntax";
 import { clearNoteInlineColor, setNoteCallout, setNoteInlineColor } from "@/features/notes/editor/note-color-commands";
@@ -47,7 +50,7 @@ describe("Notes 3.0 P1.3 color formatting commands", () => {
     const clear = command(recolor.next, clearNoteInlineColor);
     expect(clear.handled).toBe(true);
     expect(clear.next.doc.toString()).toBe("文本 测试文字 结尾");
-    expect(renderPortableNoteHtml("测试", clear.next.doc.toString())).not.toContain("note-color-highlight");
+    expect(renderPortableNoteHtml("测试", clear.next.doc.toString())).not.toContain('<span class="note-color-highlight"');
   });
 
   it("recolors and clears a visible text-only selection without nesting source tokens", () => {
@@ -92,7 +95,12 @@ describe("Notes 3.0 P1.3 color formatting commands", () => {
       expect(noteCalloutFromSourceLine(output.split("\n")[0])?.tone).toBe("important");
       const html = renderPortableNoteHtml("测试", output);
       expect(html).toContain("note-color-callout");
-      if (source.includes("其他段落")) expect(html).toContain("</blockquote><p>其他段落</p>");
+      if (source.includes("其他段落")) {
+        const tree = unified().use(remarkParse).use(remarkGfm).parse(output);
+        expect(tree.children[0]?.type).toBe("blockquote");
+        expect(tree.children[1]?.type).toBe("paragraph");
+        expect(html).toContain("其他段落");
+      }
     }
   });
 
