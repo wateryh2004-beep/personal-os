@@ -13,7 +13,10 @@ describe("Notes 3.0 atomic creation contract", () => {
   it("does not bypass table RLS or expose the function to anonymous users", () => {
     expect(migration).toMatch(/create function public\.create_empty_note_atomic/);
     expect(migration).toMatch(/security invoker/i);
-    expect(migration).not.toMatch(/security definer/i);
+    // Restrict the negative assertion to executable DDL: the migration header
+    // explicitly mentions SECURITY DEFINER as a forbidden design.
+    const executableDdl = migration.slice(migration.indexOf("create function public.create_empty_note_atomic"));
+    expect(executableDdl).not.toMatch(/security definer/i);
     expect(migration).toContain("set search_path = ''");
     expect(migration).toContain("revoke all on function public.create_empty_note_atomic(uuid, uuid) from public");
     expect(migration).toContain("revoke all on function public.create_empty_note_atomic(uuid, uuid) from anon");
