@@ -50,6 +50,20 @@ describe("Notes 3.0 P1.3 color formatting commands", () => {
     expect(renderPortableNoteHtml("测试", clear.next.doc.toString())).not.toContain("note-color-highlight");
   });
 
+  it("recolors and clears a visible text-only selection without nesting source tokens", () => {
+    const source = "前 {{ink:info|重要文字}} 后";
+    const from = source.indexOf("重要文字");
+    const to = from + "重要文字".length;
+    const updated = command(editor(source, from, to), setNoteInlineColor("highlight", "warning"));
+    expect(updated.handled).toBe(true);
+    expect(updated.next.doc.toString()).toBe("前 {{mark:warning|重要文字}} 后");
+    const visibleFrom = updated.next.doc.toString().indexOf("重要文字");
+    const selected = editor(updated.next.doc.toString(), visibleFrom, visibleFrom + "重要文字".length);
+    const cleared = command(selected, clearNoteInlineColor);
+    expect(cleared.handled).toBe(true);
+    expect(cleared.next.doc.toString()).toBe("前 重要文字 后");
+  });
+
   it("never inserts noncanonical color wrappers for empty, multi-line, braces or code selections", () => {
     const scenarios: Array<[string, number, number]> = [
       ["普通文字", 0, 0],
