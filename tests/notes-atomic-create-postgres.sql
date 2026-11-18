@@ -86,3 +86,67 @@ begin
   ), 'other owner cannot read the first owners note through RLS';
 end $$;
 commit;
+
+-- Failure injection: both immutable snapshot and audit must be mandatory.
+-- This temporary trigger exercise runs against the disposable CI database,
+-- without mutating or deleting any production record.
+begin;
+create function pg_temp.reject_atomic_snapshot_for_ci()
+returns trigger language plpgsql as $note_ci_trigger$
+begin
+  raise exception 'synthetic_snapshot_rejected' using errcode='P0001';
+end;
+$note_ci_trigger$;
+create trigger notes_atomic_snapshot_failure_ci
+before insert on public.note_versions
+for each row execute function pg_temp.reject_atomic_snapshot_for_ci();
+set local role authenticated;
+select set_config('request.jwt.claim.sub','c1000000-0000-4000-8000-000000000001',true);
+do $note_atomic_ci$
+declare
+  rejected boolean := false;
+begin
+  begin
+    perform public.create_empty_note_atomic('c3000000-0000-4000-8000-000000000011',null);
+  exception when sqlstate 'P0001' then
+    rejected := true;
+  end;
+  assert rejected, 'snapshot trigger failure must propagate';
+  assert not exists(select 1 from public.notes where id='c3000000-0000-4000-8000-000000000011'),
+    'snapshot failure cannot leave an orphan note';
+  assert not exists(select 1 from public.audit_logs where entity_id='c3000000-0000-4000-8000-000000000011'),
+    'snapshot failure cannot create a misleading audit';
+end $note_atomic_ci$;
+rollback;
+
+begin;
+create function pg_temp.reject_atomic_audit_for_ci()
+returns trigger language plpgsql as $note_ci_trigger$
+begin
+  if new.action = 'create' and new.entity_type = 'note' then
+    raise exception 'synthetic_audit_rejected' using errcode='P0001';
+  end if;
+  return new;
+end;
+$note_ci_trigger$;
+create trigger notes_atomic_audit_failure_ci
+before insert on public.audit_logs
+for each row execute function pg_temp.reject_atomic_audit_for_ci();
+set local role authenticated;
+select set_config('request.jwt.claim.sub','c1000000-0000-4000-8000-000000000001',true);
+do $note_atomic_ci$
+declare
+  rejected boolean := false;
+begin
+  begin
+    perform public.create_empty_note_atomic('c3000000-0000-4000-8000-000000000012',null);
+  exception when sqlstate 'P0001' then
+    rejected := true;
+  end;
+  assert rejected, 'audit trigger failure must propagate';
+  assert not exists(select 1 from public.notes where id='c3000000-0000-4000-8000-000000000012'),
+    'audit failure cannot leave an orphan note';
+  assert not exists(select 1 from public.note_versions where note_id='c3000000-0000-4000-8000-000000000012'),
+    'audit failure cannot leave an orphan version';
+end $note_atomic_ci$;
+rollback;
