@@ -83,6 +83,7 @@ describe("Notes 3.0 P1.1 semantic color palette", () => {
       for (const name of names) expect(css).toContain(`var(--note-color-${id}-${name})`);
     }
     expect(css).toContain(".note-color-callout");
+    expect(css).toContain(".note-reading-prose .note-color-callout");
     expect(css).toContain(".note-color-text[data-note-tone]");
     expect(css).toContain(".note-color-highlight[data-note-tone]");
     expect(css).toContain("overflow-wrap: anywhere");
