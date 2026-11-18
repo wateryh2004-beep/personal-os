@@ -10,7 +10,7 @@ insert into public.note_folders (id, user_id, name) values
   ('e2000000-0000-4000-8000-000000000001', 'e1000000-0000-4000-8000-000000000001', 'Notes fast path own folder'),
   ('e2000000-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000002', 'Notes fast path foreign folder');
 
-do $$
+do $note_fast$
 begin
   assert not has_function_privilege('anon', 'public.create_note_fast(uuid)', 'execute'),
     'Anonymous execute privilege leaked';
@@ -21,7 +21,7 @@ begin
     from pg_proc p
     where p.oid = 'public.create_note_fast(uuid)'::regprocedure
   ), 'Atomic creation must be SECURITY INVOKER';
-end $$;
+end $note_fast$;
 
 set local role authenticated;
 set local request.jwt.claim.sub = 'e1000000-0000-4000-8000-000000000001';
@@ -38,7 +38,7 @@ insert into notes_fast_path_ids
 select public.create_note_fast('e2000000-0000-4000-8000-000000000001'::uuid),
   'e2000000-0000-4000-8000-000000000001'::uuid;
 
-do $$
+do $note_fast$
 declare
   total integer;
 begin
@@ -79,7 +79,7 @@ begin
 
   assert (select count(*) from public.notes where user_id = auth.uid()) = 2,
     'Rejected folder created a partial note';
-end $$;
+end $note_fast$;
 
 -- Force initial-version failure to test the function's transaction boundary.
 -- The trigger exists only within this rolled-back synthetic fixture.
@@ -101,7 +101,7 @@ for each row execute function pg_temp.reject_synthetic_initial_version();
 
 set local role authenticated;
 
-do $$
+do $note_fast$
 begin
   begin
     perform public.create_note_fast(null);
@@ -118,7 +118,7 @@ begin
   assert (select count(*) from public.audit_logs
           where entity_id in (select id from notes_fast_path_ids)) = 2,
     'Audit count changed after failed transaction';
-end $$;
+end $note_fast$;
 
 set local role postgres;
 drop trigger notes_fast_path_reject_snapshot on public.note_versions;
@@ -166,7 +166,7 @@ set local role postgres;
 drop trigger notes_fast_path_reject_audit on public.audit_logs;
 
 set local role anon;
-do $$
+do $note_fast$
 begin
   begin
     perform public.create_note_fast(null);
@@ -174,6 +174,6 @@ begin
   exception when insufficient_privilege then
     null;
   end;
-end $$;
+end $note_fast$;
 
 rollback;
