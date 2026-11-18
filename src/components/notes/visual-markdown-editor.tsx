@@ -30,7 +30,7 @@ import { foldEffect, unfoldEffect } from "@codemirror/language";
 import { shouldRestoreAsyncEditorFocus } from "@/features/notes/editor/async-editor-intent";
 import { markdownTablePreview } from "@/features/notes/editor/markdown-table-preview";
 import { pastedTsvToMarkdown } from "@/features/notes/editor/markdown-table";
-import { createNoteLinkCompletion, extractNoteLinkQuery } from "@/features/notes/editor/note-link-completion";
+import { createNoteLinkCompletion, extractNoteLinkQueryFromDoc } from "@/features/notes/editor/note-link-completion";
 import { noteLinkDecoration } from "@/features/notes/editor/note-link-decoration";
 import type { EntityLinkSuggestion } from "@/features/links/types";
 import type { NoteLinkSuggestion } from "@/features/notes/links/types";
@@ -692,7 +692,7 @@ export function VisualMarkdownEditor({
           queueMicrotask(() => {
             if (!currentView.dom.isConnected) return;
             publishMarkdown(currentView.state.doc.toString());
-            if (extractNoteLinkQuery(currentView.state.doc.toString(), currentView.state.selection.main.head))
+            if (extractNoteLinkQueryFromDoc(currentView.state.doc, currentView.state.selection.main.head))
               startCompletion(currentView);
             centerMobileCursor(currentView);
           });
