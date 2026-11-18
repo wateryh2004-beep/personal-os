@@ -11,6 +11,8 @@ import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
+import { remarkNoteColors } from "@/features/notes/editor/note-color-syntax";
+import { noteColorElement, noteCalloutHeading, noteColorSanitizeSchema } from "@/features/notes/editor/note-color-sanitize";
 import {
   Copy,
   Download,
@@ -79,18 +81,37 @@ const pdfCloneStyles = `
   .note-pdf-export-preview code { background: #f4f4f5 !important; }
   .note-pdf-export-preview pre code { background: transparent !important; }
   .note-pdf-export-preview th { background: #f4f4f5 !important; }
+  .note-pdf-export-preview .note-color-callout {
+    color: var(--note-tone-ink) !important;
+    background: var(--note-tone-surface) !important;
+    border-color: var(--note-tone-edge) !important;
+  }
+  .note-pdf-export-preview .note-color-callout :is(p,li,[data-note-callout-heading]) { color: var(--note-tone-ink) !important; }
+  .note-pdf-export-preview .note-color-text { color: var(--note-tone-ink) !important; }
+  .note-pdf-export-preview .note-color-highlight { color: #252C29 !important; background: var(--note-tone-mark) !important; }
 `;
 
 function MarkdownDocument({ body }: { body: string }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{
+  return <ReactMarkdown remarkPlugins={[remarkGfm, remarkNoteColors]} rehypePlugins={[[rehypeSanitize, noteColorSanitizeSchema]]} components={{
     h1: ({ children }) => <h1 className="mb-5 mt-1 text-3xl font-semibold tracking-tight text-[var(--text-primary)]">{children}</h1>,
     h2: ({ children }) => <h2 className="mb-3 mt-8 border-b pb-2 text-xl font-semibold text-[var(--text-primary)]">{children}</h2>,
     h3: ({ children }) => <h3 className="mb-2 mt-6 text-base font-semibold text-[var(--text-primary)]">{children}</h3>,
-    p: ({ children }) => <p className="mb-4 leading-7 text-[var(--text-secondary)]">{children}</p>,
+    p: ({ children, node }) => <p {...(noteCalloutHeading(node) ? { "data-note-callout-heading": "true" } : {})} className="mb-4 leading-7 text-[var(--text-secondary)]">{children}</p>,
     ul: ({ children }) => <ul className="mb-4 list-disc space-y-1 pl-6 text-[var(--text-secondary)]">{children}</ul>,
     ol: ({ children }) => <ol className="mb-4 list-decimal space-y-1 pl-6 text-[var(--text-secondary)]">{children}</ol>,
     li: ({ children }) => <li className="pl-1 leading-7">{children}</li>,
-    blockquote: ({ children }) => <blockquote className="mb-4 border-l-2 border-[var(--accent)] pl-4 italic text-[var(--text-secondary)]">{children}</blockquote>,
+    blockquote: ({ children, node }) => {
+      const color = noteColorElement(node);
+      return color?.role === "callout"
+        ? <blockquote className="note-color-callout" data-note-tone={color.tone}>{children}</blockquote>
+        : <blockquote className="mb-4 border-l-2 border-[var(--accent)] pl-4 italic text-[var(--text-secondary)]">{children}</blockquote>;
+    },
+    span: ({ children, node }) => {
+      const color = noteColorElement(node);
+      return color && color.role !== "callout"
+        ? <span className={color.role === "text" ? "note-color-text" : "note-color-highlight"} data-note-tone={color.tone}>{children}</span>
+        : <span>{children}</span>;
+    },
     pre: ({ children }) => <pre className="mb-4 overflow-x-auto bg-[var(--accent)] p-4 text-sm leading-6 text-[var(--text-tertiary)]">{children}</pre>,
     code: ({ children, className }) => className ? <code className={className}>{children}</code> : <code className="rounded bg-[var(--surface-control)] px-1 py-0.5 font-mono text-[0.85em] text-[var(--text-primary)]">{children}</code>,
     a: ({ children, href }) => isInternalEntityHref(href) ? <a href={href} className="text-[var(--accent)] underline underline-offset-2">{children}</a> : <a href={href} target="_blank" rel="noreferrer" className="text-[var(--accent)] underline underline-offset-2">{children}</a>,

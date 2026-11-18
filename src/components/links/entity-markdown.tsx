@@ -6,19 +6,21 @@ import ReactMarkdown, { type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import { isInternalEntityHref } from "@/features/links/parser";
+import { remarkNoteColors } from "@/features/notes/editor/note-color-syntax";
+import { noteColorElement, noteCalloutHeading, noteColorSanitizeSchema } from "@/features/notes/editor/note-color-sanitize";
 
 /**
  * 统一的只读 Markdown 渲染:跨实体内链([标题](/notes/…)、/tasks?task=…、
  * /calendar?event=…、/files?file=…)渲染为站内可点击链接,其余按外部链接处理。
  * 用于日历日程说明、任务说明等描述字段。
  */
-export function EntityMarkdown({ body, className, headingOffset = 0, sourcePositions = false }: { sourcePositions?: boolean; body: string; className?: string; headingOffset?: 0 | 1 | 2 }) {
+export function EntityMarkdown({ body, className, headingOffset = 0, sourcePositions = false, noteColors = false }: { sourcePositions?: boolean; noteColors?: boolean; body: string; className?: string; headingOffset?: 0 | 1 | 2 }) {
   const source = (node?: ExtraProps["node"]) => ({ "data-source-line": sourcePositions ? node?.position?.start.line : undefined });
   return (
     <div className={className}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeSanitize]}
+        remarkPlugins={noteColors ? [remarkGfm, remarkNoteColors] : [remarkGfm]}
+        rehypePlugins={noteColors ? [[rehypeSanitize, noteColorSanitizeSchema]] : [rehypeSanitize]}
         components={{
           h1: ({ children, node }) => createElement(`h${Math.min(6, 1 + headingOffset)}`, { ...source(node), className: "mb-3 mt-1 text-2xl font-semibold tracking-tight text-[var(--text-primary)]" }, children),
           h2: ({ children, node }) => createElement(`h${Math.min(6, 2 + headingOffset)}`, { ...source(node), className: "mb-2 mt-6 border-b pb-1 text-lg font-semibold text-[var(--text-primary)]" }, children),
@@ -26,11 +28,22 @@ export function EntityMarkdown({ body, className, headingOffset = 0, sourcePosit
           h4: ({ children, node }) => createElement(`h${Math.min(6, 4 + headingOffset)}`, source(node), children),
           h5: ({ children, node }) => createElement(`h${Math.min(6, 5 + headingOffset)}`, source(node), children),
           h6: ({ children, node }) => createElement(`h${Math.min(6, 6 + headingOffset)}`, source(node), children),
-          p: ({ children, node }) => <p {...source(node)} className="mb-3 leading-6 text-[var(--text-secondary)]">{children}</p>,
+          p: ({ children, node }) => <p {...source(node)} {...(noteColors && noteCalloutHeading(node) ? { "data-note-callout-heading": "true" } : {})} className="mb-3 leading-6 text-[var(--text-secondary)]">{children}</p>,
           ul: ({ children }) => <ul className="mb-3 list-disc space-y-1 pl-5 text-[var(--text-secondary)]">{children}</ul>,
           ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1 pl-5 text-[var(--text-secondary)]">{children}</ol>,
           li: ({ children, node }) => <li {...source(node)} className="pl-1 leading-6">{children}</li>,
-          blockquote: ({ children, node }) => <blockquote {...source(node)} className="mb-3 border-l-2 border-[var(--control-border)] pl-3 italic text-[var(--text-secondary)]">{children}</blockquote>,
+          blockquote: ({ children, node }) => {
+            const color = noteColors ? noteColorElement(node) : null;
+            return color?.role === "callout"
+              ? <blockquote {...source(node)} className="note-color-callout" data-note-tone={color.tone}>{children}</blockquote>
+              : <blockquote {...source(node)} className="mb-3 border-l-2 border-[var(--control-border)] pl-3 italic text-[var(--text-secondary)]">{children}</blockquote>;
+          },
+          span: ({ children, node }) => {
+            const color = noteColors ? noteColorElement(node) : null;
+            return color && color.role !== "callout"
+              ? <span className={color.role === "text" ? "note-color-text" : "note-color-highlight"} data-note-tone={color.tone}>{children}</span>
+              : <span>{children}</span>;
+          },
           a: ({ children, href }) => {
             if (isInternalEntityHref(href)) {
               return (
