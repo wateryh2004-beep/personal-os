@@ -7,7 +7,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { ChevronDown, ChevronRight, Clock3, FileText, Folder, FolderPlus, Menu, MoreHorizontal, Search, Sparkles, Star, Trash2, X } from "lucide-react";
 import { NewNoteSubmitButton } from "@/components/notes/new-note-submit-button";
-import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createFolder, createNoteInFolder, moveFolder, moveNote, renameFolder } from "@/features/notes/actions";
