@@ -66,31 +66,31 @@
  * CSS value from the Markdown source. P1.2 may reuse the same primitives in
  * rendered Notes and CodeMirror decorations.
  */
-:is(.note-color-callout,.note-color-text,.note-color-highlight)[data-note-tone="info"] {
+:is(.note-color-callout,.note-color-text,.note-color-highlight,.cm-note-colored-callout-line)[data-note-tone="info"] {
   --note-tone-surface: var(--note-color-info-surface);
   --note-tone-ink: var(--note-color-info-ink);
   --note-tone-edge: var(--note-color-info-edge);
   --note-tone-mark: var(--note-color-info-mark);
 }
-:is(.note-color-callout,.note-color-text,.note-color-highlight)[data-note-tone="warning"] {
+:is(.note-color-callout,.note-color-text,.note-color-highlight,.cm-note-colored-callout-line)[data-note-tone="warning"] {
   --note-tone-surface: var(--note-color-warning-surface);
   --note-tone-ink: var(--note-color-warning-ink);
   --note-tone-edge: var(--note-color-warning-edge);
   --note-tone-mark: var(--note-color-warning-mark);
 }
-:is(.note-color-callout,.note-color-text,.note-color-highlight)[data-note-tone="important"] {
+:is(.note-color-callout,.note-color-text,.note-color-highlight,.cm-note-colored-callout-line)[data-note-tone="important"] {
   --note-tone-surface: var(--note-color-important-surface);
   --note-tone-ink: var(--note-color-important-ink);
   --note-tone-edge: var(--note-color-important-edge);
   --note-tone-mark: var(--note-color-important-mark);
 }
-:is(.note-color-callout,.note-color-text,.note-color-highlight)[data-note-tone="idea"] {
+:is(.note-color-callout,.note-color-text,.note-color-highlight,.cm-note-colored-callout-line)[data-note-tone="idea"] {
   --note-tone-surface: var(--note-color-idea-surface);
   --note-tone-ink: var(--note-color-idea-ink);
   --note-tone-edge: var(--note-color-idea-edge);
   --note-tone-mark: var(--note-color-idea-mark);
 }
-:is(.note-color-callout,.note-color-text,.note-color-highlight)[data-note-tone="quote"] {
+:is(.note-color-callout,.note-color-text,.note-color-highlight,.cm-note-colored-callout-line)[data-note-tone="quote"] {
   --note-tone-surface: var(--note-color-quote-surface);
   --note-tone-ink: var(--note-color-quote-ink);
   --note-tone-edge: var(--note-color-quote-edge);
@@ -133,6 +133,39 @@
 .note-color-callout:focus-within {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* CodeMirror visual mode is a presentation overlay; its source remains the
+ * original portable Markdown and source mode shows all syntax characters. */
+.notes-editor-surface .life-codemirror .cm-note-colored-callout-line[data-note-tone] {
+  box-sizing: border-box;
+  padding-inline-start: 12px;
+  border-inline-start: 3px solid var(--note-tone-edge);
+  background: var(--note-tone-surface);
+  color: var(--note-tone-ink);
+  overflow-wrap: anywhere;
+}
+.notes-editor-surface .life-codemirror .cm-note-colored-callout-first {
+  border-start-start-radius: 2px;
+  border-start-end-radius: 10px;
+}
+.notes-editor-surface .life-codemirror .cm-note-colored-callout-last {
+  border-end-start-radius: 2px;
+  border-end-end-radius: 10px;
+}
+.cm-note-callout-label {
+  font-size: .85em;
+  font-weight: 650;
+  color: var(--note-tone-ink);
+  white-space: nowrap;
+}
+@media (forced-colors: active) {
+  .notes-editor-surface .life-codemirror .cm-note-colored-callout-line {
+    background: Canvas;
+    color: CanvasText;
+    border-inline-start-color: Highlight;
+  }
+  .cm-note-callout-label { color: CanvasText; }
 }
 
 /* Foreground ink and background highlight are separate formatting concepts. */
