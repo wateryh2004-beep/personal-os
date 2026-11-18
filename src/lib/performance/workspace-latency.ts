@@ -1,4 +1,4 @@
-type WorkspaceName = "today" | "tasks" | "calendar";
+type WorkspaceName = "today" | "tasks" | "calendar" | "notes-list" | "notes-document";
 type WorkspaceLatencySource = "rsc" | "api";
 
 type WorkspaceLatencySnapshot = {
