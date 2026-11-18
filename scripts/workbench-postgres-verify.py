@@ -29,6 +29,7 @@ REGRESSIONS = (
     "tests/fixtures/workbench/scenes-regression.sql",
     "tests/life-field-postgres.sql",
     "tests/workbench-performance-postgres.sql",
+    "tests/notes-create-fast-path-postgres.sql",
 )
 WORKBENCH_SUFFIXES = (
     "_workspace_action_receipts.sql",
