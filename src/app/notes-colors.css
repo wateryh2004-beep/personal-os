@@ -1,0 +1,173 @@
+/*
+ * Notes 3.0 · P1.1 — semantic color primitives.
+ * Owns only the Notes writing palette. No Markdown parsing or persistence
+ * changes in this phase. P1.2 will bind these classes to a canonical syntax.
+ * Light defaults match the existing warm-white document canvas.
+ */
+:root {
+  /* Mist blue: information / reference */
+  --note-color-info-surface: #EDF3F8;
+  --note-color-info-ink: #31556E;
+  --note-color-info-edge: #587A92;
+  --note-color-info-mark: #DCEAF6;
+  /* Warm apricot: reminder / attention */
+  --note-color-warning-surface: #FFF2E6;
+  --note-color-warning-ink: #865021;
+  --note-color-warning-edge: #AB713F;
+  --note-color-warning-mark: #FCE3C8;
+  /* Dusty rose: important / caveat */
+  --note-color-important-surface: #FBEDEC;
+  --note-color-important-ink: #883F3D;
+  --note-color-important-edge: #B26864;
+  --note-color-important-mark: #F6DAD7;
+  /* Sage: idea / insight */
+  --note-color-idea-surface: #EDF3ED;
+  --note-color-idea-ink: #365A45;
+  --note-color-idea-edge: #668E6D;
+  --note-color-idea-mark: #DCECDD;
+  /* Warm stone: neutral / quotation */
+  --note-color-quote-surface: #F4F1ED;
+  --note-color-quote-ink: #525A55;
+  --note-color-quote-edge: #838B83;
+  --note-color-quote-mark: #E8E3DC;
+  --note-color-highlight-ink: #252C29;
+}
+
+/* App-wide dark mode is not currently enabled. These definitions become
+ * active only when an explicit theme owner assigns .dark or data-theme=dark.
+ * Do not silently switch Notes to dark while the app shell remains light.
+ */
+:root.dark,
+:root[data-theme="dark"] {
+  --note-color-info-surface: #1E303B;
+  --note-color-info-ink: #BBD6E6;
+  --note-color-info-edge: #7099B0;
+  --note-color-info-mark: #294858;
+  --note-color-warning-surface: #342B20;
+  --note-color-warning-ink: #F3CE9F;
+  --note-color-warning-edge: #CA945C;
+  --note-color-warning-mark: #50402B;
+  --note-color-important-surface: #392626;
+  --note-color-important-ink: #F1C1BF;
+  --note-color-important-edge: #CA817C;
+  --note-color-important-mark: #563433;
+  --note-color-idea-surface: #23342B;
+  --note-color-idea-ink: #C1DEC8;
+  --note-color-idea-edge: #7BA486;
+  --note-color-idea-mark: #34523D;
+  --note-color-quote-surface: #2B302F;
+  --note-color-quote-ink: #D4D6D2;
+  --note-color-quote-edge: #929D94;
+  --note-color-quote-mark: #414846;
+  --note-color-highlight-ink: #E4E8E3;
+}
+
+/* A tone is a data attribute, never an untrusted inline style or arbitrary
+ * CSS value from the Markdown source. P1.2 may reuse the same primitives in
+ * rendered Notes and CodeMirror decorations.
+ */
+:is(.note-color-callout,.note-color-text,.note-color-highlight)[data-note-tone="info"] {
+  --note-tone-surface: var(--note-color-info-surface);
+  --note-tone-ink: var(--note-color-info-ink);
+  --note-tone-edge: var(--note-color-info-edge);
+  --note-tone-mark: var(--note-color-info-mark);
+}
+:is(.note-color-callout,.note-color-text,.note-color-highlight)[data-note-tone="warning"] {
+  --note-tone-surface: var(--note-color-warning-surface);
+  --note-tone-ink: var(--note-color-warning-ink);
+  --note-tone-edge: var(--note-color-warning-edge);
+  --note-tone-mark: var(--note-color-warning-mark);
+}
+:is(.note-color-callout,.note-color-text,.note-color-highlight)[data-note-tone="important"] {
+  --note-tone-surface: var(--note-color-important-surface);
+  --note-tone-ink: var(--note-color-important-ink);
+  --note-tone-edge: var(--note-color-important-edge);
+  --note-tone-mark: var(--note-color-important-mark);
+}
+:is(.note-color-callout,.note-color-text,.note-color-highlight)[data-note-tone="idea"] {
+  --note-tone-surface: var(--note-color-idea-surface);
+  --note-tone-ink: var(--note-color-idea-ink);
+  --note-tone-edge: var(--note-color-idea-edge);
+  --note-tone-mark: var(--note-color-idea-mark);
+}
+:is(.note-color-callout,.note-color-text,.note-color-highlight)[data-note-tone="quote"] {
+  --note-tone-surface: var(--note-color-quote-surface);
+  --note-tone-ink: var(--note-color-quote-ink);
+  --note-tone-edge: var(--note-color-quote-edge);
+  --note-tone-mark: var(--note-color-quote-mark);
+}
+
+/* A full block is a readable document passage, not a UI status alert.
+ * Provide a 3px structural rail and label in P1.2; don't communicate meaning
+ * through color alone. No extra nested card shadow or decorative badges.
+ */
+.note-color-callout {
+  margin-block: 20px;
+  min-width: 0;
+  border: 1px solid var(--note-tone-edge);
+  border-inline-start: 3px solid var(--note-tone-edge);
+  border-radius: 0 12px 12px 0;
+  padding: 14px 18px;
+  background: var(--note-tone-surface);
+  color: var(--note-tone-ink);
+  overflow-wrap: anywhere;
+  font-style: normal;
+}
+.note-color-callout > :first-child { margin-top: 0; }
+.note-color-callout > :last-child { margin-bottom: 0; }
+.note-color-callout [data-note-callout-heading] {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+  color: var(--note-tone-ink);
+}
+/* Existing reading CSS assigns a color to every paragraph and list item.
+ * Override only when a semantic callout is actually rendered.
+ */
+.note-reading-prose .note-color-callout :is(p,li) {
+  color: var(--note-tone-ink);
+}
+.note-color-callout:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Foreground ink and background highlight are separate formatting concepts. */
+.note-color-text[data-note-tone] { color: var(--note-tone-ink); }
+.note-reading-prose .note-color-text[data-note-tone] { color: var(--note-tone-ink); }
+.note-color-highlight[data-note-tone] {
+  padding-inline: .12em;
+  border-radius: .22em;
+  background: var(--note-tone-mark);
+  color: var(--note-color-highlight-ink);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.note-reading-prose .note-color-highlight[data-note-tone] { color: var(--note-color-highlight-ink); }
+
+@media (max-width: 767px) {
+  .note-color-callout { margin-block: 16px; padding: 12px 14px; }
+}
+@media (forced-colors: active) {
+  .note-color-callout[data-note-tone] {
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+    border-inline-start: 4px solid Highlight;
+    outline-color: CanvasText;
+  }
+  .note-color-callout[data-note-tone] :is(p,li,[data-note-callout-heading]) { color: CanvasText; }
+  .note-color-text[data-note-tone] {
+    color: CanvasText;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+  }
+  .note-color-highlight[data-note-tone] {
+    background: Highlight;
+    color: HighlightText;
+    outline: 1px solid Highlight;
+  }
+  .note-reading-prose .note-color-highlight[data-note-tone] { color: HighlightText; }
+}
