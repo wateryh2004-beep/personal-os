@@ -5,8 +5,8 @@ import { publishOperationReceipt } from "@/features/workbench/operation-contract
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { ChevronDown, ChevronRight, Clock3, FilePlus2, FileText, Folder, FolderPlus, Menu, MoreHorizontal, Search, Sparkles, Star, Trash2, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChevronDown, ChevronRight, Clock3, FileText, Folder, FolderPlus, Menu, MoreHorizontal, Search, Sparkles, Star, Trash2, X } from "lucide-react";
+import { NewNoteSubmitButton } from "@/components/notes/new-note-submit-button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { createFolder, createNoteInFolder, moveFolder, moveNote, renameFolder } from "@/features/notes/actions";
@@ -219,7 +219,7 @@ function NotesNavigator({ folders, notes, onNavigate }: { folders: NotesNavigato
   </>;
 
   return <div className="notes-navigator flex h-full min-h-0 flex-col bg-[var(--surface-sidebar)] px-2.5 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)]">
-    <div className="flex min-h-8 items-center justify-between px-1"><span className="text-[13.5px] font-semibold tracking-[-0.012em] text-[var(--text-primary)]">笔记</span><form action={createNoteInFolder} className={onNavigate ? "mr-[52px]" : undefined}><input type="hidden" name="folder_id" value={selectedFolderId ?? ""} /><Button size="icon-xs" className={onNavigate ? "size-11" : undefined} aria-label="新建笔记"><FilePlus2 /></Button></form></div>
+    <div className="flex min-h-8 items-center justify-between px-1"><span className="text-[13.5px] font-semibold tracking-[-0.012em] text-[var(--text-primary)]">笔记</span><form action={createNoteInFolder} className={onNavigate ? "mr-[52px]" : undefined}><input type="hidden" name="folder_id" value={selectedFolderId ?? ""} /><NewNoteSubmitButton iconOnly className={onNavigate ? "size-11" : undefined} /></form></div>
     <label className="relative mt-2.5 block">
       <span className="sr-only">快速打开</span>
       <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]" aria-hidden="true" />

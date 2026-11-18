@@ -32,6 +32,23 @@ describe("workspace latency profiling", () => {
     expect(timing).not.toContain("trace_12345678");
   });
 
+  it("profiles both Notes read surfaces with the same private-data-safe contract", async () => {
+    for (const surface of ["notes-list", "notes-document"] as const) {
+      const profiler = createWorkspaceLatencyProfiler(surface, "api", "trace_notes_123");
+      await profiler.time("auth", async () => undefined);
+      await profiler.time("supabase", async () => undefined);
+      const response = applyWorkspaceLatencyHeaders(new Response(null), profiler);
+      const snapshot = profiler.finish(200);
+      expect(snapshot.workspace).toBe(surface);
+      expect(snapshot.authMs).toBeTypeOf("number");
+      expect(snapshot.supabaseMs).toBeTypeOf("number");
+      expect(response.headers.get("Server-Timing")).toContain("supabase;dur=");
+      expect(JSON.stringify(snapshot)).not.toContain("noteId");
+      expect(JSON.stringify(snapshot)).not.toContain("body_markdown");
+      expect(response.headers.get("X-Personal-OS-Trace-Id")).toBe("trace_notes_123");
+    }
+  });
+
   it("marks fallback separately from the normal database round trip", async () => {
     const profiler = createWorkspaceLatencyProfiler("tasks", "rsc");
     profiler.noteFallback();
