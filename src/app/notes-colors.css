@@ -159,7 +159,8 @@
     outline-color: CanvasText;
   }
   .note-color-callout[data-note-tone] :is(p,li,[data-note-callout-heading]) { color: CanvasText; }
-  .note-color-text[data-note-tone] {
+  .note-color-text[data-note-tone],
+  .note-reading-prose .note-color-text[data-note-tone] {
     color: CanvasText;
     text-decoration: underline dotted;
     text-underline-offset: 2px;
