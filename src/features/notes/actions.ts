@@ -53,7 +53,7 @@ export async function createNote() {
       nextStep: "Notes 直接以 Supabase 为权威。",
     }, { type: "succeeded", operationKey: `note-create-${noteId}` });
   });
-  await withPerfSpan("notes.create.revalidate", () => revalidatePath("/notes"));
+  await revalidatePath("/notes");
   redirect(`/notes/${noteId}`);
 }
 export async function saveNote(input: unknown) {
@@ -402,7 +402,7 @@ export async function createNoteInFolder(formData: FormData) {
   if (version.error) fail();
   await withPerfSpan("notes.create_in_folder.audit", () =>
     audit(supabase, userId, "create", "note", note.id, { revision: 1, folder_id: folderId }));
-  await withPerfSpan("notes.create_in_folder.revalidate", () => revalidatePath("/notes"));
+  await revalidatePath("/notes");
   redirect(`/notes/${note.id}`);
 }
 
