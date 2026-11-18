@@ -94,6 +94,7 @@
 ## 正在推进的功能升级
 
 - [Notes 3.0 编辑器、性能、色块与 AI 升级分步执行计划](specs/notes-3-0-editor-upgrade.md)：P0 性能 → P1 色块与文字颜色 → P2 OpenAI/DeepSeek 与全文编辑 → P3 视觉精修；具体阶段状态以 PR 和验证记录为准。
+- [Notes 3.0 P1.1 语义色块与文字色彩设计](specs/notes-3-0-color-system.md)：五色 Token、前景色/高亮/整段色块三种角色、可访问对比度和后续 Markdown 集成约束。
 
 ## 模板与实例
 
