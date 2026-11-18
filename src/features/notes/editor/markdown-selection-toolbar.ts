@@ -1,6 +1,8 @@
 import { showTooltip, type EditorView, type Tooltip } from "@codemirror/view";
 import type { Extension, StateCommand } from "@codemirror/state";
 import { createMarkdownLink, toggleBold, toggleBlockquote, toggleInlineCode, toggleItalic } from "./markdown-commands";
+import { clearNoteInlineColor, setNoteCallout, setNoteInlineColor } from "./note-color-commands";
+import { noteColorTones } from "./note-color-palette";
 
 /** Uses the CodeMirror selection directly; no duplicate React document state. */
 export function markdownSelectionToolbar(openAi?: () => void): Extension {
@@ -33,6 +35,38 @@ export function markdownSelectionToolbar(openAi?: () => void): Extension {
         format("链接", createMarkdownLink);
         format("行内代码", toggleInlineCode);
         format("引用", toggleBlockquote);
+        const colorSelect = (role: "text" | "highlight" | "callout", title: string) => {
+          const picker = document.createElement("select");
+          picker.setAttribute("aria-label", title);
+          picker.title = title;
+          picker.className = "cm-note-color-picker";
+          const placeholder = document.createElement("option");
+          placeholder.value = "";
+          placeholder.textContent = title;
+          picker.append(placeholder);
+          for (const tone of noteColorTones) {
+            const option = document.createElement("option");
+            option.value = tone.id;
+            option.textContent = tone.label;
+            picker.append(option);
+          }
+          // Native select supports keyboard and mobile touch. CodeMirror's
+          // last selection remains authoritative while this control has focus.
+          picker.addEventListener("change", () => {
+            const tone = noteColorTones.find(item => item.id === picker.value)?.id;
+            if (tone) {
+              const command = role === "callout" ? setNoteCallout(tone) : setNoteInlineColor(role, tone);
+              command(view);
+              view.focus();
+            }
+            picker.value = "";
+          });
+          toolbar.append(picker);
+        };
+        colorSelect("text", "字色");
+        colorSelect("highlight", "高亮");
+        colorSelect("callout", "色块");
+        format("清除颜色", clearNoteInlineColor);
         if (openAi) action("AI", openAi);
         return { dom: toolbar };
       },
