@@ -18,7 +18,8 @@ export function createNoteDocumentCache(read = (id: string, signal?: AbortSignal
   const trim = () => {
     for (const [id, slot] of slots) {
       if (slots.size <= maximumDocuments && bytes() <= maximumBytes) break;
-      if (!slot.active && slot.resource.dispose?.()) slots.delete(id);
+      // A speculative fetch is still in flight: do not drop its resource before the read settles.
+      if (!slot.active && !slot.resource.get().promise && slot.resource.dispose?.()) slots.delete(id);
     }
   };
   const get = (id: string) => {
@@ -45,6 +46,13 @@ export function createNoteDocumentCache(read = (id: string, signal?: AbortSignal
   };
   return {
     get,
+    /** Use the existing protected read model, without overwriting a warm or dirty document. */
+    warm: async (id: string) => {
+      const resource = get(id);
+      const entry = resource.get();
+      if (entry.data !== undefined || entry.promise) return;
+      await resource.revalidate();
+    },
     position: (id: string) => slots.get(id)?.position,
     remember: (id: string, position: NoteContinuity) => { const slot = slots.get(id); if (slot) slot.position = position; },
     saved: (id: string, snapshot: { title: string; body: string }, revision: number, lastSavedAt: string) => {
