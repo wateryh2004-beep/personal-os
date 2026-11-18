@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { contentHash } from "@/features/notes/utils";
 
 const migration = readFileSync(
-  "supabase/migrations/20261118071500_notes_atomic_create.sql", "utf8",
+  "supabase/migrations/20261118074826_notes_atomic_create.sql", "utf8",
 );
 const server = readFileSync("src/features/notes/create-empty-note.ts", "utf8");
 const actions = readFileSync("src/features/notes/actions.ts", "utf8");
