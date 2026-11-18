@@ -32,6 +32,8 @@
 
 在 `globals.css` 中统一映射 shadcn 的 background、foreground、card、popover、primary、secondary、muted、accent、input、border、ring、destructive 等变量。功能页使用语义变量，禁止自行复制一套近似 palette。
 
+Notes 正文中的五种低饱和色块属于**内容标注色**，不是新增的全站主操作强调色；其背景、文字、强调边和行内高亮的唯一代码入口是 [`notes-colors.css`](../src/app/notes-colors.css)，语义与对比度要求见 [Notes 3.0 P1.1](specs/notes-3-0-color-system.md)。Notes 工具栏与导航等操作控件仍使用原全站灰绿 `--accent`。
+
 现有暗色支持在迁移时保证可读与状态完整；全站深色方案尚无本轮独立确认，不通过反色滤镜或局部硬编码假装完成。公开品牌色、作品图像等事实性色彩按内容保留。
 
 ## 字体与文字层级
