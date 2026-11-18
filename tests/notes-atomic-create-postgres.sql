@@ -42,7 +42,7 @@ begin
     from public.note_versions where note_id=created_id
   ), 'exactly one initial revision';
   assert (
-    select count(*)=1 and min(request_id)=created_id
+    select count(*)=1 and bool_and(request_id=created_id)
     from public.audit_logs where action='create' and entity_type='note' and entity_id=created_id
   ), 'exactly one owner-linked create audit';
 end $$;
