@@ -19,8 +19,36 @@ const folderSchema = z.object({ name: z.string().trim().min(1).max(120), parentI
 function fail(): never { throw new Error("操作未能完成，请检查输入、权限或网络后重试。"); }
 function missingWorkspaceColumn(error: unknown) { return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "PGRST204"); }
 async function audit(supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"], userId: string, action: string, entityType: string, id: string, data: Record<string, unknown>) { const { error } = await supabase.from("audit_logs").insert({ user_id: userId, action, entity_type: entityType, entity_id: id, actor_type: "user", after_data: data }); if (error) fail(); }
+/** Only an unapplied migration permits the legacy path; permission/RLS
+ * failures must surface rather than being hidden by a fallback. */
+async function tryCreateNoteFast(
+  supabase: Awaited<ReturnType<typeof requireOwner>>["supabase"],
+  folderId: string | null,
+): Promise<string | null> {
+  const { data, error } = await withPerfSpan("notes.create.atomic_rpc", () =>
+    supabase.rpc("create_note_fast", { p_folder_id: folderId }));
+  if (!error) {
+    if (typeof data === "string" && z.string().uuid().safeParse(data).success) return data;
+    fail();
+  }
+  if (error.code === "PGRST202" || error.code === "42883") return null;
+  fail();
+}
+
 export async function createNote() {
   const { supabase, userId } = await withPerfSpan("notes.create.auth", () => requireOwner());
+  const atomicId = await tryCreateNoteFast(supabase, null);
+  if (atomicId) {
+    const now = new Date().toISOString();
+    after(async () => {
+      await recordStatusSafely(userId, "notes", {
+        state: "fresh", lastSuccessAt: now, lastAttemptAt: now,
+        nextStep: "Notes 直接以 Supabase 为权威。",
+      }, { type: "succeeded", operationKey: `note-create-${atomicId}` });
+    });
+    await revalidatePath("/notes");
+    redirect(`/notes/${atomicId}`);
+  }
   const title = "无标题笔记";
   const body = "";
   const hash = contentHash(body);
@@ -388,8 +416,23 @@ export async function recordNotePdfExport(noteId: string) {
 
 export async function createNoteInFolder(formData: FormData) {
   const { supabase, userId } = await withPerfSpan("notes.create_in_folder.auth", () => requireOwner());
+  const rawFolderId = String(formData.get("folder_id") || "");
+  if (rawFolderId && !z.string().uuid().safeParse(rawFolderId).success) fail();
+  const atomicId = await tryCreateNoteFast(supabase, rawFolderId || null);
+  if (atomicId) {
+    const now = new Date().toISOString();
+    after(async () => {
+      await recordStatusSafely(userId, "notes", {
+        state: "fresh", lastSuccessAt: now, lastAttemptAt: now,
+        nextStep: "Notes 直接以 Supabase 为权威。",
+      }, { type: "succeeded", operationKey: `note-create-${atomicId}` });
+    });
+    await revalidatePath("/notes");
+    redirect(`/notes/${atomicId}`);
+  }
+  // Temporary legacy compatibility while the database migration is not live.
   const folderId = await withPerfSpan("notes.create_in_folder.folder", () =>
-    ownedFolderId(supabase, String(formData.get("folder_id") || "")));
+    ownedFolderId(supabase, rawFolderId));
   const title = "无标题笔记";
   const body = "";
   const hash = contentHash(body);
