@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { EditorState, Text } from "@codemirror/state";
+import { history, redo, undo } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
 import { parseInternalNoteLinkOccurrences } from "@/features/notes/links/parser";
@@ -138,6 +139,23 @@ describe("Notes P0.4 long-document editor hot paths", () => {
       expect(activeHeadingIndexAtOffset(headings, headings[index].from)).toBe(index);
     }
     expect(activeHeadingIndexAtOffset(headings, body.length)).toBe(headings.length - 1);
+  });
+
+  it("preserves all source text, cursor editing and undo/redo after a large paste", () => {
+    const original = syntheticNote(190_000, 500);
+    const inserted = "\\n| 一 | 二 |\\n| --- | --- |\\n| 甲 | 10 |\\n".replaceAll("\\n", "\n");
+    let current = EditorState.create({ doc: original, extensions: [history()] });
+    const insertionPoint = current.doc.line(20).to;
+    current = current.update({
+      changes: { from: insertionPoint, insert: inserted },
+      selection: { anchor: insertionPoint + inserted.length },
+      userEvent: "input.paste",
+    }).state;
+    expect(current.doc.sliceString(insertionPoint, insertionPoint + inserted.length)).toBe(inserted);
+    expect(undo({ state: current, dispatch: transaction => { current = transaction.state; } })).toBe(true);
+    expect(current.doc.toString()).toBe(original);
+    expect(redo({ state: current, dispatch: transaction => { current = transaction.state; } })).toBe(true);
+    expect(current.doc.sliceString(insertionPoint, insertionPoint + inserted.length)).toBe(inserted);
   });
 
   it("updates only nearby Markdown table source after ordinary long-note keystrokes", () => {
