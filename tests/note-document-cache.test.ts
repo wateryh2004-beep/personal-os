@@ -24,6 +24,36 @@ describe("private recent documents", () => {
     expect(resource.get().data).toBeDefined(); stop(); await Promise.resolve();
     expect(cache.inspect().bytes).toBe(0);
   });
+  it("warms only cold notes and reuses the same private read during navigation", async () => {
+    const read = vi.fn().mockResolvedValue(doc("one", "预读取正文"));
+    const cache = createNoteDocumentCache(read);
+    await cache.warm("one");
+    expect(read).toHaveBeenCalledOnce();
+    expect(cache.get("one").get().data?.note.body_markdown).toBe("预读取正文");
+    await cache.warm("one");
+    expect(read).toHaveBeenCalledOnce();
+    cache.saved("one", { title: "新标题", body: "本地已保存" }, 2, "2026-11-18T00:00:00Z");
+    await cache.warm("one");
+    expect(read).toHaveBeenCalledOnce();
+    expect(cache.get("one").get().data?.note.body_markdown).toBe("本地已保存");
+  });
+
+  it("keeps a pending warm request alive while count-limited cache eviction runs", async () => {
+    let settle!: (data: NoteDocumentData) => void;
+    const read = vi.fn(() => new Promise<NoteDocumentData>((done) => { settle = done; }));
+    const cache = createNoteDocumentCache(read);
+    const pending = cache.warm("warm");
+    for (let n = 0; n < 8; n++) {
+      cache.get("cold-" + n).set(doc("cold-" + n));
+      await Promise.resolve();
+    }
+    expect(cache.get("warm").get().promise).toBeDefined();
+    settle(doc("warm", "读完"));
+    await pending;
+    expect(read).toHaveBeenCalledOnce();
+    expect(cache.inspect().count).toBeLessThanOrEqual(6);
+  });
+
   it("deduplicates background reads and never lets a late read undo a confirmed save", async () => {
     let resolve!: (value: NoteDocumentData) => void;
     const read = vi.fn(() => new Promise<NoteDocumentData>((done) => { resolve = done; }));

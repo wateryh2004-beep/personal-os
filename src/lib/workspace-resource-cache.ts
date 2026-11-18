@@ -196,6 +196,11 @@ export function useWorkspaceResource<T>(resource: WorkspaceResource<T>, name: st
 }
 
 /** Capture before asynchronous local work so old-owner callbacks cannot publish. */
+/** A speculative private read is only legal after the owner boundary mounted. */
+export function hasWorkspaceOwnerScope() {
+  return ownerScope !== undefined;
+}
+
 export function captureWorkspaceScope() {
   const epoch = scopeEpoch;
   return () => epoch === scopeEpoch;
