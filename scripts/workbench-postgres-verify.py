@@ -198,11 +198,11 @@ def concurrency(db):
     )
     created_first, created_second = overlap(db, OWNER, fresh_insert, fresh_insert)
     assert created_first[0]["id"] == fresh_note and created_second[0]["id"] == fresh_note
-    db.sql("source_fixture", "do $begin "
+    db.sql("source_fixture", "do $notescheck$ begin "
            "assert (select count(*)=1 from public.notes where id=" + literal(fresh_note) + "); "
            "assert (select count(*)=1 from public.note_versions where note_id=" + literal(fresh_note) + "); "
            "assert (select count(*)=1 from public.audit_logs where entity_id=" + literal(fresh_note) + " and request_id=" + literal(fresh_note) + "); "
-           "end $;")
+           "end $notescheck$;")
 
     first, _ = overlap(db, OWNER, metadata(str(uuid.uuid4()), note_one, "Winner"), metadata(str(uuid.uuid4()), note_one, "Stale"), "workbench_conflict")
     assert first[0]["receiptId"]
