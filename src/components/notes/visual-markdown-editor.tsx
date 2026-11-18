@@ -30,6 +30,7 @@ import { outlineFoldRanges } from "@/features/notes/editor/markdown-outline-fold
 import { foldEffect, foldedRanges, unfoldEffect } from "@codemirror/language";
 import { shouldRestoreAsyncEditorFocus } from "@/features/notes/editor/async-editor-intent";
 import { markdownTablePreview } from "@/features/notes/editor/markdown-table-preview";
+import { markdownNoteColorDecorations } from "@/features/notes/editor/note-color-decorations";
 import { pastedTsvToMarkdown } from "@/features/notes/editor/markdown-table";
 import { createNoteLinkCompletion, extractNoteLinkQueryFromDoc } from "@/features/notes/editor/note-link-completion";
 import { noteLinkDecoration } from "@/features/notes/editor/note-link-decoration";
@@ -567,6 +568,7 @@ export function VisualMarkdownEditor({
 
   const richMode = useMemo(() => [
     markdownVisualDecorations,
+    markdownNoteColorDecorations,
     markdownImagePreview,
     selectionToolbar,
     markdownSectionFolding,
