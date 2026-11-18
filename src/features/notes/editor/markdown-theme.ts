@@ -30,8 +30,13 @@ function blockDecorations(view: EditorView) {
         else if (node.name === "HorizontalRule")
           className = "cm-note-horizontal-rule";
         if (!className) return;
-        const first = view.state.doc.lineAt(node.from).number;
-        const last = view.state.doc.lineAt(node.to).number;
+        // Code fences and blockquotes can span thousands of lines. Decorate
+        // only the visible intersection, not every line in the full block.
+        const clippedFrom = Math.max(node.from, range.from);
+        const clippedTo = Math.min(node.to, range.to);
+        if (clippedTo < clippedFrom) return;
+        const first = view.state.doc.lineAt(clippedFrom).number;
+        const last = view.state.doc.lineAt(clippedTo).number;
         for (let number = first; number <= last; number += 1) {
           const line = view.state.doc.line(number);
           const classes = lines.get(line.from) ?? new Set<string>();

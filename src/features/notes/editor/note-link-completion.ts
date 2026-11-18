@@ -10,7 +10,7 @@ import {
   type CompletionSource,
 } from "@codemirror/autocomplete";
 import { keymap, EditorView } from "@codemirror/view";
-import { Prec, type Extension } from "@codemirror/state";
+import { Prec, type Extension, type Text } from "@codemirror/state";
 import type { EntityLinkSuggestion } from "@/features/links/types";
 import type { NoteLinkSuggestion } from "@/features/notes/links/types";
 import { extractMarkdownSlashQuery, markdownSlashCompletions, slashCommandLabels } from "./markdown-slash-commands";
@@ -46,6 +46,17 @@ export function extractNoteLinkQuery(document: string, position: number): NoteLi
   const query = beforeCursor.slice(atOffset + 1);
   if (/[\s\[\]【】@]/.test(query)) return null;
   return { kind: "entity", from: lineStart + atOffset, to: position, query };
+}
+
+/**
+ * CodeMirror already keeps the changed line in its persistent Text rope.
+ * Completion must not flatten a 200KB note on every caret move or input.
+ */
+export function extractNoteLinkQueryFromDoc(doc: Text, position: number): NoteLinkQuery | null {
+  if (position < 0 || position > doc.length) return null;
+  const line = doc.lineAt(position);
+  const token = extractNoteLinkQuery(line.text, position - line.from);
+  return token ? { ...token, from: line.from + token.from, to: line.from + token.to } : null;
 }
 
 function uniqueNotes(notes: readonly NoteLinkSuggestion[]) {
@@ -127,7 +138,7 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities, onSlashI
       const matches = new Set(slashCommandLabels(slash.query));
       return { from: slash.from, options: slashOptions.filter(option => matches.has(option.label)), filter: false };
     }
-    const token = extractNoteLinkQuery(context.state.doc.toString(), context.pos);
+    const token = extractNoteLinkQueryFromDoc(context.state.doc, context.pos);
     if (!token || token.from === suppressedFrom) return null;
     const query = token.query.trim();
     if (token.kind === "note" || !query) {
@@ -178,7 +189,7 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities, onSlashI
         run(view) {
           if (completionStatus(view.state) !== "active") return false;
           suppressedFrom = (extractMarkdownSlashQuery(view.state, view.state.selection.main.head) ??
-            extractNoteLinkQuery(view.state.doc.toString(), view.state.selection.main.head))?.from ?? null;
+            extractNoteLinkQueryFromDoc(view.state.doc, view.state.selection.main.head))?.from ?? null;
           return closeCompletion(view);
         },
       },
@@ -187,7 +198,7 @@ export function createNoteLinkCompletion({ searchNotes, searchEntities, onSlashI
     EditorView.updateListener.of((update) => {
       if ((!update.docChanged && !update.selectionSet) || update.view.composing) return;
       const token = extractMarkdownSlashQuery(update.state, update.state.selection.main.head) ??
-        extractNoteLinkQuery(update.state.doc.toString(), update.state.selection.main.head);
+        extractNoteLinkQueryFromDoc(update.state.doc, update.state.selection.main.head);
       if (!token) {
         suppressedFrom = null;
         if (completionStatus(update.state) === "active") queueMicrotask(() => closeCompletion(update.view));

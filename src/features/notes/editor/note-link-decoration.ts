@@ -8,10 +8,13 @@ import {
   type Tooltip,
   type ViewUpdate,
 } from "@codemirror/view";
-import { parseInternalNoteLinkOccurrences } from "@/features/notes/links/parser";
+import { internalNoteLinkAtPosition, internalNoteLinksInVisibleRanges } from "./visible-note-links";
+import { captureWorkspaceScope, registerWorkspaceScopeCleanup } from "@/lib/workspace-resource-cache";
 import type { NoteLinkPreview } from "@/features/notes/links/types";
 
 const previewCache = new Map<string, Promise<NoteLinkPreview | null>>();
+// A cached private preview must not survive a sign-out or owner switch.
+registerWorkspaceScopeCleanup(() => previewCache.clear());
 
 function selectionTouches(view: EditorView, from: number, to: number) {
   return view.state.selection.ranges.some((range) =>
@@ -21,7 +24,7 @@ function selectionTouches(view: EditorView, from: number, to: number) {
 
 function buildDecorations(view: EditorView) {
   const builder = new RangeSetBuilder<Decoration>();
-  for (const link of parseInternalNoteLinkOccurrences(view.state.doc.toString())) {
+  for (const link of internalNoteLinksInVisibleRanges(view.state.doc, view.visibleRanges)) {
     if (selectionTouches(view, link.from, link.to)) continue;
     const labelFrom = link.from;
     const labelTo = link.from + link.label.length + 2;
@@ -64,9 +67,7 @@ function previewFor(noteId: string) {
 }
 
 function previewTooltip(view: EditorView, position: number): Tooltip | null {
-  const link = parseInternalNoteLinkOccurrences(view.state.doc.toString()).find(
-    (item) => position >= item.from && position <= item.to,
-  );
+  const link = internalNoteLinkAtPosition(view.state.doc, position);
   if (!link) return null;
   return {
     pos: link.from,
@@ -78,8 +79,9 @@ function previewTooltip(view: EditorView, position: number): Tooltip | null {
       dom.className = "cm-note-link-preview";
       dom.setAttribute("role", "tooltip");
       dom.textContent = "正在读取笔记预览…";
+      const isCurrentOwner = captureWorkspaceScope();
       void previewFor(link.noteId).then((preview) => {
-        if (!dom.isConnected) return;
+        if (!dom.isConnected || !isCurrentOwner()) return;
         dom.replaceChildren();
         if (!preview) {
           dom.classList.add("cm-note-link-preview-broken");
@@ -111,9 +113,7 @@ const noteLinkCommandClick = EditorView.domEventHandlers({
     if (!event.metaKey && !event.ctrlKey) return false;
     const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
     if (position === null) return false;
-    const link = parseInternalNoteLinkOccurrences(view.state.doc.toString()).find(
-      (item) => position >= item.from && position <= item.to,
-    );
+    const link = internalNoteLinkAtPosition(view.state.doc, position);
     if (!link) return false;
     event.preventDefault();
     window.open(`/notes/${link.noteId}`, "_blank", "noopener,noreferrer");

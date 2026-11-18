@@ -171,23 +171,33 @@ class MarkdownImageWidget extends WidgetType {
 
 function imageDecorations(view: EditorView) {
   const builder = new RangeSetBuilder<Decoration>();
-  syntaxTree(view.state).iterate({
-    enter(node) {
-      if (node.name !== "Image") return;
-      if (selectionTouches(view.state, node.from, node.to)) return;
-      const original = view.state.sliceDoc(node.from, node.to);
-      const spec = parseMarkdownImage(original);
-      if (!spec) return;
-      builder.add(node.from, node.to, Decoration.replace({
-        block: false,
-        inclusive: false,
-        widget: new MarkdownImageWidget(spec, node.from, node.to, original),
-      }));
-    },
-  });
+  const tree = syntaxTree(view.state);
+  const seen = new Set<number>();
+  // Images are single-line Markdown tokens. Only decorate the visible range;
+  // scanning the full syntax tree on each scroll/selection made long notes lag.
+  for (const range of view.visibleRanges) {
+    tree.iterate({
+      from: range.from,
+      to: range.to,
+      enter(node) {
+        if (node.name !== "Image" || seen.has(node.from)) return;
+        // A widget must replace a complete token, never a clipped fragment.
+        if (node.from < range.from || node.to > range.to) return;
+        seen.add(node.from);
+        if (selectionTouches(view.state, node.from, node.to)) return;
+        const original = view.state.sliceDoc(node.from, node.to);
+        const spec = parseMarkdownImage(original);
+        if (!spec) return;
+        builder.add(node.from, node.to, Decoration.replace({
+          block: false,
+          inclusive: false,
+          widget: new MarkdownImageWidget(spec, node.from, node.to, original),
+        }));
+      },
+    });
+  }
   return builder.finish();
 }
-
 const plugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
