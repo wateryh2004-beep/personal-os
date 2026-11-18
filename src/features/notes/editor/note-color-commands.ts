@@ -23,13 +23,12 @@ export function setNoteInlineColor(role: "text" | "highlight", tone: NoteColorTo
     const range = state.selection.main;
     if (range.empty || range.from === range.to) return false;
     const selected = state.sliceDoc(range.from, range.to);
-    if (!selected || selected.length > 1000 || /[\r\n{}]/.test(selected)) return false;
     if (inUnsafeSyntax(state, range.from) || inUnsafeSyntax(state, range.to - 1)) return false;
     const line = state.doc.lineAt(range.from);
     const current = noteInlineColorsInText(line.text).find(item =>
       line.from + item.from === range.from && line.from + item.to === range.to);
-    const kind = role === "text" ? "ink" : "mark";
     const plain = current?.text ?? selected;
+    const kind = role === "text" ? "ink" : "mark";
     if (plain.length > 1000 || /[\r\n{}]/.test(plain)) return false;
     const insert = `{{${kind}:${tone}|${plain}}}`;
     if (selected === insert) return true;
