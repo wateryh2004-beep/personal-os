@@ -3,6 +3,9 @@ import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
 import rehypeSanitize from "rehype-sanitize";
+import { remarkNoteColors } from "@/features/notes/editor/note-color-syntax";
+import { noteColorSanitizeSchema } from "@/features/notes/editor/note-color-sanitize";
+import { notePortableColorCss } from "@/features/notes/editor/note-color-print";
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -27,13 +30,13 @@ const noteCss = [
   "@media print{body{font-size:11pt;color:#000}.print-help{display:none}article{max-width:none;margin:0;padding:0}",
   "a{color:inherit;text-decoration:underline}table{display:table;overflow:visible;width:100%}",
   "tr,pre,blockquote,img{break-inside:avoid}h1,h2,h3{break-after:avoid}}",
-].join("\n");
+].join("\n") + "\n" + notePortableColorCss;
 
 type HtmlTree = { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HtmlTree[] };
-const tags = new Set(["a", "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "em", "del", "code", "pre", "blockquote", "ol", "ul", "li", "table", "thead", "tbody", "tr", "th", "td", "img", "input"]);
-const attrs = new Set(["href", "src", "alt", "title", "className", "start", "align", "type", "checked", "disabled", "colSpan", "rowSpan"]);
+const tags = new Set(["a", "span", "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "em", "del", "code", "pre", "blockquote", "ol", "ul", "li", "table", "thead", "tbody", "tr", "th", "td", "img", "input"]);
+const attrs = new Set(["href", "src", "alt", "title", "className", "dataNoteTone", "dataNoteCalloutHeading", "start", "align", "type", "checked", "disabled", "colSpan", "rowSpan"]);
 const voidElements = new Set(["br", "hr", "img", "input"]);
-const processor = unified().use(remarkParse).use(remarkGfm).use(remarkRehype).use(rehypeSanitize);
+const processor = unified().use(remarkParse).use(remarkGfm).use(remarkNoteColors).use(remarkRehype).use(rehypeSanitize, noteColorSanitizeSchema);
 
 function safeUrl(value: string) {
   return /^(https?:\/\/|mailto:|#)/i.test(value) ||
@@ -45,7 +48,7 @@ function serializeNode(node: HtmlTree): string {
   if (node.type !== "element" || !node.tagName || !tags.has(node.tagName)) return "";
   const props = Object.entries(node.properties ?? {}).flatMap(([name, raw]) => {
     if (!attrs.has(name) || raw === undefined || raw === null || raw === false) return [];
-    const key = name === "className" ? "class" : name === "colSpan" ? "colspan" : name === "rowSpan" ? "rowspan" : name;
+    const key = name === "className" ? "class" : name === "colSpan" ? "colspan" : name === "rowSpan" ? "rowspan" : name === "dataNoteTone" ? "data-note-tone" : name === "dataNoteCalloutHeading" ? "data-note-callout-heading" : name;
     if (name === "checked" || name === "disabled") return [key];
     const value = Array.isArray(raw) ? raw.join(" ") : String(raw);
     const secure = (name === "href" || name === "src") ? safeUrl(value) : value;
