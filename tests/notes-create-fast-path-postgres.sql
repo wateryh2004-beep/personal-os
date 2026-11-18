@@ -123,6 +123,48 @@ end $$;
 set local role postgres;
 drop trigger notes_fast_path_reject_snapshot on public.note_versions;
 
+-- A failed audit must also roll back both the new note and its initial version.
+create function pg_temp.reject_synthetic_create_audit()
+returns trigger
+language plpgsql
+as $trigger$
+begin
+  if new.action = 'create' and new.entity_type = 'note' then
+    raise exception 'notes_fast_path_forced_audit_failure'
+      using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$trigger$;
+
+create trigger notes_fast_path_reject_audit
+before insert on public.audit_logs
+for each row execute function pg_temp.reject_synthetic_create_audit();
+
+set local role authenticated;
+
+do $
+begin
+  begin
+    perform public.create_note_fast(null);
+    raise exception 'Audit failure did not abort atomic create';
+  exception when sqlstate 'P0001' then
+    null;
+  end;
+
+  assert (select count(*) from public.notes where user_id = auth.uid()) = 2,
+    'Audit failure left a partially created note';
+  assert (select count(*) from public.note_versions
+          where user_id = auth.uid() and reason = 'initial') = 2,
+    'Audit failure left an orphan initial version';
+  assert (select count(*) from public.audit_logs a
+          where a.entity_id in (select id from notes_fast_path_ids)) = 2,
+    'Audit failure altered existing audit records';
+end $;
+
+set local role postgres;
+drop trigger notes_fast_path_reject_audit on public.audit_logs;
+
 set local role anon;
 do $$
 begin
