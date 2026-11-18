@@ -101,7 +101,8 @@
  * Provide a 3px structural rail and label in P1.2; don't communicate meaning
  * through color alone. No extra nested card shadow or decorative badges.
  */
-.note-color-callout {
+.note-color-callout,
+.note-reading-prose .note-color-callout {
   margin-block: 20px;
   min-width: 0;
   border: 1px solid var(--note-tone-edge);
@@ -148,7 +149,8 @@
 .note-reading-prose .note-color-highlight[data-note-tone] { color: var(--note-color-highlight-ink); }
 
 @media (max-width: 767px) {
-  .note-color-callout { margin-block: 16px; padding: 12px 14px; }
+  .note-color-callout,
+  .note-reading-prose .note-color-callout { margin-block: 16px; padding: 12px 14px; }
 }
 @media (forced-colors: active) {
   .note-color-callout[data-note-tone] {
