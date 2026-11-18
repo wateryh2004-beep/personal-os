@@ -9,7 +9,8 @@ import { OperationMetadataBar } from "@/components/workbench/operation-metadata-
 import { publishOperationReceipt } from "@/features/workbench/operation-contracts";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { unstable_rethrow, useRouter, useSearchParams } from "next/navigation";
-import { AlignJustify, FilePlus2, List, LoaderCircle, MoreHorizontal, Pin, Search, Sparkles, X } from "lucide-react";
+import { AlignJustify, List, LoaderCircle, MoreHorizontal, Pin, Search, Sparkles, X } from "lucide-react";
+import { NewNoteSubmitButton } from "@/components/notes/new-note-submit-button";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -322,7 +323,7 @@ export function NotesWorkspace({
   const newNoteForm = (className?: string, compact = false) => (
     <form action={createNoteInFolder} className={className}>
       <input type="hidden" name="folder_id" value={selectedFolder?.id ?? ""} />
-      <Button type="submit" size="sm" aria-label="新建笔记" title="新建笔记" className={compact ? "max-md:size-11 max-md:px-0" : undefined}><FilePlus2 aria-hidden="true" /><span className={compact ? "hidden md:inline" : undefined}>新建笔记</span></Button>
+      <NewNoteSubmitButton compact={compact} className={compact ? "max-md:size-11 max-md:px-0" : undefined} />
     </form>
   );
 
