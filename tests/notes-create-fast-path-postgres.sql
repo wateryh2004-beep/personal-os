@@ -143,7 +143,7 @@ for each row execute function pg_temp.reject_synthetic_create_audit();
 
 set local role authenticated;
 
-do $
+do $note_fast$
 begin
   begin
     perform public.create_note_fast(null);
@@ -160,7 +160,7 @@ begin
   assert (select count(*) from public.audit_logs a
           where a.entity_id in (select id from notes_fast_path_ids)) = 2,
     'Audit failure altered existing audit records';
-end $;
+end $note_fast$;
 
 set local role postgres;
 drop trigger notes_fast_path_reject_audit on public.audit_logs;
