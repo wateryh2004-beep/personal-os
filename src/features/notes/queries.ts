@@ -312,8 +312,9 @@ export async function getNoteDocument(id: string, verifiedOwner?: Owner) {
   if (!noteIdSchema.safeParse(id).success) return null;
   const { supabase, userId } = verifiedOwner ?? await requireOwner();
   const [result, attachments] = await Promise.all([
-    supabase.from("notes").select("*").eq("user_id", userId).eq("id", id).maybeSingle(),
-    getNoteAttachments(supabase, userId, id),
+    withPerfSpan("notes.document.record", () =>
+      supabase.from("notes").select("*").eq("user_id", userId).eq("id", id).maybeSingle()),
+    withPerfSpan("notes.document.attachments", () => getNoteAttachments(supabase, userId, id)),
   ]);
   if (result.error) throw new Error("note_document_unavailable");
   if (!result.data) return null;
