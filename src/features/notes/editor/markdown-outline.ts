@@ -100,3 +100,19 @@ export function activeHeadingIndexAtLine(headingLines: number[], topLine: number
   }
   return index;
 }
+
+/**
+ * A viewport's top source offset can be compared directly with the ordered
+ * outline positions. Avoid rebuilding all heading line numbers on every
+ * scroll event in a document with hundreds of sections.
+ */
+export function activeHeadingIndexAtOffset(items: readonly MarkdownOutlineItem[], topOffset: number): number {
+  let low = 0;
+  let high = items.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (items[mid].from <= topOffset) low = mid + 1;
+    else high = mid;
+  }
+  return low - 1;
+}
