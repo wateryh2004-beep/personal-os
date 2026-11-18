@@ -34,6 +34,21 @@ function syntheticNote(targetLength: number, paragraphCount: number) {
   return source.slice(0, Math.max(0, targetLength - suffix.length)) + suffix;
 }
 
+/** CI-only CPU samples. These are not browser INP or real editor p95 values. */
+function syntheticSamples(run: () => void, count = 25) {
+  const samples: number[] = [];
+  for (let index = 0; index < count; index++) {
+    const began = performance.now();
+    run();
+    samples.push(performance.now() - began);
+  }
+  samples.sort((a, b) => a - b);
+  return {
+    p50Ms: Number(samples[Math.floor(samples.length * 0.50)].toFixed(3)),
+    p95Ms: Number(samples[Math.ceil(samples.length * 0.95) - 1].toFixed(3)),
+  };
+}
+
 describe("Notes P0.4 long-document editor hot paths", () => {
   it.each([
     [5_000, 50],
@@ -50,9 +65,7 @@ describe("Notes P0.4 long-document editor hot paths", () => {
       throw new Error("editor hot path flattened entire document");
     });
     try {
-      const start = performance.now();
       const links = internalNoteLinksInVisibleRanges(doc, ranges);
-      const duration = performance.now() - start;
       expect(links).toHaveLength(1);
       expect(links[0]).toMatchObject({ noteId: targetId, from: linked.from, to: linked.to });
       expect(internalNoteLinkAtPosition(doc, linked.from + 3)?.noteId).toBe(targetId);
@@ -63,12 +76,17 @@ describe("Notes P0.4 long-document editor hot paths", () => {
       expect(token).toMatchObject({ kind: "entity", from: at.from, to: at.to, query: "新" });
       expect(source.slice(token!.from, token!.to)).toBe("@新");
       expect(flatten).not.toHaveBeenCalled();
-      // Synthetic fixture timings are diagnostic only, not user-browser INP.
+      // Compare the old all-body regex with the visible-line path on the
+      // same synthetic content; sample timings are not production browser INP.
+      const visible = syntheticSamples(() => { internalNoteLinksInVisibleRanges(doc, ranges); });
+      const full = syntheticSamples(() => { parseInternalNoteLinkOccurrences(source); });
       console.info(JSON.stringify({
         type: "notes_p0_4_synthetic_hotpath",
         characters: doc.length,
         lines: doc.lines,
-        linkScanMs: Number(duration.toFixed(3)),
+        visibleLineScan: visible,
+        priorFullDocumentRegex: full,
+        environment: "vitest-node-synthetic",
       }));
     } finally {
       flatten.mockRestore();
