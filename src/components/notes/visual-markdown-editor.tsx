@@ -16,7 +16,7 @@ import { GFM } from "@lezer/markdown";
 import { NoteOutline } from "@/components/notes/note-outline";
 import type { NoteSelection } from "@/components/notes/note-ai-assistant";
 import {
-  activeHeadingIndexAtLine,
+  activeHeadingIndexAtOffset,
   parseEditorOutline,
   type MarkdownOutlineItem,
 } from "@/features/notes/editor/markdown-outline";
@@ -25,8 +25,9 @@ import { markdownEditorTheme, markdownVisualDecorations } from "@/features/notes
 import { MarkdownToolbar } from "@/features/notes/editor/markdown-toolbar";
 import { markdownImagePreview } from "@/features/notes/editor/markdown-image-preview";
 import { markdownSelectionToolbar } from "@/features/notes/editor/markdown-selection-toolbar";
-import { headingSectionRange, isMarkdownSectionFolded, markdownSectionFolding, toggleMarkdownSection } from "@/features/notes/editor/markdown-section-fold";
-import { foldEffect, unfoldEffect } from "@codemirror/language";
+import { markdownSectionFolding, toggleMarkdownSection } from "@/features/notes/editor/markdown-section-fold";
+import { outlineFoldRanges } from "@/features/notes/editor/markdown-outline-fold-ranges";
+import { foldEffect, foldedRanges, unfoldEffect } from "@codemirror/language";
 import { shouldRestoreAsyncEditorFocus } from "@/features/notes/editor/async-editor-intent";
 import { markdownTablePreview } from "@/features/notes/editor/markdown-table-preview";
 import { pastedTsvToMarkdown } from "@/features/notes/editor/markdown-table";
@@ -247,8 +248,8 @@ export function VisualMarkdownEditor({
       read: (measuredView) => {
         const doc = measuredView.state.doc;
         const top = Math.max(0, measuredView.scrollDOM.getBoundingClientRect().top - measuredView.documentTop);
-        const topLine = doc.lineAt(measuredView.lineBlockAtHeight(top).from).number;
-        return activeHeadingIndexAtLine(outlineHeadingsRef.current.map((heading) => doc.lineAt(Math.min(heading.from, doc.length)).number), topLine);
+        const topOffset = doc.lineAt(measuredView.lineBlockAtHeight(top).from).from;
+        return activeHeadingIndexAtOffset(outlineHeadingsRef.current, topOffset);
       },
       write: (activeIndex) => {
         if (activeIndex === activeOutlineIndexRef.current) return;
@@ -458,12 +459,16 @@ export function VisualMarkdownEditor({
     const foldable = new Set<number>();
     const folded = new Set<number>();
     if (!outlineOpen || !view) return { foldable, folded };
-    // The outline is already parsed only while open; don't re-scan the
-    // document to render one folding control per visible heading.
-    for (const item of outlineItems) {
-      if (!headingSectionRange(view.state, item.from)) continue;
-      foldable.add(item.index);
-      if (isMarkdownSectionFolded(view, item.from)) folded.add(item.index);
+    // The outline is already parsed. Derive all section boundaries in one
+    // reverse pass rather than scanning the rest of the document per heading.
+    const ranges = outlineFoldRanges(view.state.doc, outlineItems);
+    const currentFolds = new Set<string>();
+    foldedRanges(view.state).between(0, view.state.doc.length, (from, to) => {
+      currentFolds.add(`${from}:${to}`);
+    });
+    for (const [index, range] of ranges) {
+      foldable.add(index);
+      if (currentFolds.has(`${range.from}:${range.to}`)) folded.add(index);
     }
     return { foldable, folded };
   }, [foldVersion, outlineItems, outlineOpen, view]);
