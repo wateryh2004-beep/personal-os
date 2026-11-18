@@ -26,15 +26,18 @@ export function setNoteInlineColor(role: "text" | "highlight", tone: NoteColorTo
     if (inUnsafeSyntax(state, range.from) || inUnsafeSyntax(state, range.to - 1)) return false;
     const line = state.doc.lineAt(range.from);
     const current = noteInlineColorsInText(line.text).find(item =>
-      line.from + item.from === range.from && line.from + item.to === range.to);
+      (line.from + item.from === range.from && line.from + item.to === range.to) ||
+      (line.from + item.contentFrom === range.from && line.from + item.contentTo === range.to));
     const plain = current?.text ?? selected;
     const kind = role === "text" ? "ink" : "mark";
     if (plain.length > 1000 || /[\r\n{}]/.test(plain)) return false;
     const insert = `{{${kind}:${tone}|${plain}}}`;
-    if (selected === insert) return true;
+    const from = current ? line.from + current.from : range.from;
+    const to = current ? line.from + current.to : range.to;
+    if (state.sliceDoc(from, to) === insert) return true;
     dispatch(state.update({
-      changes: { from: range.from, to: range.to, insert },
-      selection: { anchor: range.from, head: range.from + insert.length },
+      changes: { from, to, insert },
+      selection: { anchor: from, head: from + insert.length },
       scrollIntoView: true,
       userEvent: "input",
     }));
@@ -48,11 +51,14 @@ export const clearNoteInlineColor: StateCommand = ({ state, dispatch }) => {
   if (range.empty || state.doc.lineAt(range.from).number !== state.doc.lineAt(range.to).number) return false;
   const line = state.doc.lineAt(range.from);
   const token = noteInlineColorsInText(line.text).find(item =>
-    line.from + item.from === range.from && line.from + item.to === range.to);
+    (line.from + item.from === range.from && line.from + item.to === range.to) ||
+    (line.from + item.contentFrom === range.from && line.from + item.contentTo === range.to));
   if (!token) return false;
+  const from = line.from + token.from;
+  const to = line.from + token.to;
   dispatch(state.update({
-    changes: { from: range.from, to: range.to, insert: token.text },
-    selection: { anchor: range.from, head: range.from + token.text.length },
+    changes: { from, to, insert: token.text },
+    selection: { anchor: from, head: from + token.text.length },
     scrollIntoView: true,
     userEvent: "input",
   }));
