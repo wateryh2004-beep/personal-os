@@ -85,7 +85,7 @@ export function setNoteCallout(tone: NoteColorTone): StateCommand {
     const body = lines.map(line => line.text ? `> ${line.text}` : ">").join("\n");
     const selectedText = state.sliceDoc(start.from, end.to);
     // For a blank paragraph place the caret after "> " so writing is immediate.
-    const insert = marker + (selectedText.trim() ? body : "> ");
+    const insert = marker + (selectedText.trim() ? body + "\n" : "> \n");
     dispatch(state.update({
       changes: { from: start.from, to: end.to, insert },
       selection: { anchor: selectedText.trim() ? start.from + insert.length : start.from + marker.length + 2 },
