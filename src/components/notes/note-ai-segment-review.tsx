@@ -49,7 +49,7 @@ export function NoteAiSegmentReview({
               <p className="mb-1.5 text-[11px] font-medium text-[var(--text-secondary)]">原文</p>
               <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-sans text-[13px] leading-[1.65] text-[var(--text-primary)]">{hunk.original || "（此处为新增内容）"}</pre>
             </div>
-            <div className="min-w-0 bg-[var(--accent-soft)]/35 p-3">
+            <div className="min-w-0 bg-[var(--surface-hover)] p-3">
               <p className="mb-1.5 text-[11px] font-medium text-[var(--text-secondary)]">AI 建议</p>
               <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-sans text-[13px] leading-[1.65] text-[var(--text-primary)]">{hunk.suggested || "（建议删除此处）"}</pre>
             </div>

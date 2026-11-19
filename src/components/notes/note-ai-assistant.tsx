@@ -454,9 +454,10 @@ export function NoteAiAssistant({
   const discussion = request ? isDiscussionOperation(request.operation) : false;
   // 词级 diff：rewrite 类操作拿原文本对比还原后的结果；大文档或非 rewrite 返回 null。
   const diffSegments = useMemo(() => {
-    if (!result.suggestion || !request || !rewrite) return null;
+    if (!result.suggestion || !request || !result.operation ||
+        !isRewriteOperation(result.operation as NoteAiOperation)) return null;
     return wordDiff(request.content, result.suggestion);
-  }, [request, result.suggestion, rewrite]);
+  }, [request, result.suggestion, result.operation]);
   const reviewCounts = reviewPlan ? countAiReviewDecisions(reviewPlan) : null;
   const reviewBusy = pending || applying || refiningHunk !== null;
   const statusColor =

@@ -38,7 +38,8 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
 const requestSchema = z.object({
   noteId: z.string().uuid(),
   title: z.string().trim().max(240),
-  content: z.string().trim().min(1).max(800_000),
+  // Keep exact Markdown bytes; trimming a terminal callout or table changes its protected span.
+  content: z.string().min(1).max(800_000).refine(text => Boolean(text.trim()), "empty_note"),
   operation: z.enum(noteAiOperations),
   instruction: z.string().trim().max(2_000).optional(),
   model: z.enum(deepSeekModelIds).optional(),
@@ -306,7 +307,7 @@ export async function generateNoteAiSuggestion(
           message: "AI 结果遗漏或重复了链接、图片、表格、代码或彩色色块，已阻止应用。原文未改变，请缩小处理范围重试。",
         };
       }
-      response.suggestion = restored.text.trim();
+      response.suggestion = restored.text; // Restore exact protected trailing newline and spacing.
     }
     // 改写护栏：改写类输出远短于原文时提示可能丢失内容（软提醒，不阻断确认）。
     const warning = shouldProtect
