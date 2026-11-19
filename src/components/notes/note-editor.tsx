@@ -569,7 +569,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     dirty(resolved.title, resolved.body);
     setConflictSnapshot(null);
     return true;
-  }, [dirty, note.id, replaceBody, state, navigatorTitlePublisher]);
+  }, [dirty, replaceBody, state, navigatorTitlePublisher]);
   // AI 生成标题：直接替换标题，旧标题压栈供撤回（支持连续多次生成逐步撤回）。
   const handleAiReplaceTitle = useCallback((newTitle: string, original: Pick<AiApplicationInput, "expectedRevision" | "expectedTitle" | "expectedBody">): boolean => {
     if (isDirtyRef.current || saveInFlightRef.current || knownRemoteRevisionRef.current !== original.expectedRevision || revisionRef.current !== original.expectedRevision || latestContentRef.current.title !== original.expectedTitle || latestContentRef.current.body !== original.expectedBody) return false;
