@@ -192,6 +192,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const [pdfSnapshot, setPdfSnapshot] = useState<PdfSnapshot | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isFallbackFullscreen, setIsFallbackFullscreen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
   const noteAiPanel = useWorkspacePanel(`note-ai:${note.id}`);
   const [aiVisited, setAiVisited] = useState(false);
   const openAi = useCallback(() => { setAiVisited(true); noteAiPanel.open(); }, [noteAiPanel]);
@@ -203,6 +204,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
   const editorSurfaceRef = useRef<HTMLElement>(null);
   const fullscreenTriggerRef = useRef<HTMLButtonElement>(null);
   const wasFullscreen = useRef(false);
+  const wasFocusMode = useRef(false);
   const [editorPortalContainer, setEditorPortalContainer] = useState<HTMLElement | null>(null);
   const attachEditorSurface = useCallback((element: HTMLElement | null) => {
     editorSurfaceRef.current = element;
@@ -602,6 +604,26 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     if (wasFullscreen.current && !fullscreenActive) fullscreenTriggerRef.current?.focus();
     wasFullscreen.current = fullscreenActive;
   }, [fullscreenActive]);
+  // Focus overlays the current editor in-place. CodeMirror, drafts, history,
+  // selection and scroll state are never unmounted or copied to another editor.
+  useEffect(() => {
+    const exiting = wasFocusMode.current && !focusMode;
+    wasFocusMode.current = focusMode;
+    if (!exiting) return;
+    const frame = window.requestAnimationFrame(() => fullscreenTriggerRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusMode]);
+  useEffect(() => {
+    if (!focusMode) return;
+    const escapeFocus = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        event.preventDefault();
+        setFocusMode(false);
+      }
+    };
+    window.addEventListener("keydown", escapeFocus);
+    return () => window.removeEventListener("keydown", escapeFocus);
+  }, [focusMode]);
   // Browser-local clock formatting starts after hydration; SSR and its first
   // client pass share the truthful, timezone-independent saved state.
   const statusLabel = state === "已保存" && hydrated ? savedTimeLabel(lastSavedAt) : state;
@@ -625,6 +647,12 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         feedback.show({ message: "标记失败，请检查网络后重试。", tone: "error" });
       }
     });
+  };
+  const toggleFocusMode = () => {
+    if (focusMode) { setFocusMode(false); return; }
+    if (reading) switchReading(false);
+    noteAiPanel.close();
+    setFocusMode(true);
   };
   const toggleFullscreen = async () => {
     if (isFallbackFullscreen) {
@@ -686,8 +714,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
       <Button variant="ghost" size="sm" className="notes-ai-button max-md:size-11 max-md:px-0" disabled={aiGenerated} onClick={toggleAi} aria-label={aiGenerated ? "AI 生成内容不会作为 AI 上下文读取" : "打开笔记 AI"} title="笔记 AI" aria-pressed={noteAiPanel.isOpen}>
         <Sparkles aria-hidden="true" /><span className="notes-action-label hidden lg:inline">AI</span>
       </Button>
-      <Button ref={fullscreenTriggerRef} variant="ghost" size="sm" className="notes-focus-button max-md:size-11 max-md:px-0" onClick={() => void toggleFullscreen()} aria-label={fullscreenActive ? "退出专注" : "进入专注"} title={fullscreenActive ? "退出专注" : "专注编辑"}>
-        {fullscreenActive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}<span className="notes-action-label hidden lg:inline">{fullscreenActive ? "退出专注" : "专注"}</span>
+      <Button ref={fullscreenTriggerRef} variant="ghost" size="sm" className="notes-focus-button max-md:size-11 max-md:px-0" onClick={toggleFocusMode} aria-label="进入专注" title="专注写作">
+        <Maximize2 aria-hidden="true" /><span className="notes-action-label hidden lg:inline">专注</span>
       </Button>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" className="notes-more-button max-md:size-11" aria-label="更多笔记操作" title="更多笔记操作"><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
@@ -695,7 +723,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
           <DropdownMenuItem onSelect={() => switchReading(!reading)}>{reading ? <PenLine aria-hidden="true" /> : <BookOpen aria-hidden="true" />}{reading ? "切换到编辑" : "切换到阅读"}</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => { flushDraft(); void save(); }}><SaveIcon aria-hidden="true" />立即保存</DropdownMenuItem>
           <DropdownMenuItem disabled={aiGenerated} onSelect={toggleAi}><Sparkles aria-hidden="true" />打开笔记 AI</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void toggleFullscreen()}>{fullscreenActive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}{fullscreenActive ? "退出专注" : "进入专注"}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void toggleFullscreen()}>{fullscreenActive ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}{fullscreenActive ? "退出浏览器全屏" : "进入浏览器全屏"}</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setHistoryRequest(null)}><History aria-hidden="true" />对比与恢复历史版本</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void copyCurrentNoteReference()}><Link2 aria-hidden="true" />复制笔记引用</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void copyFullNote()}><Copy aria-hidden="true" />复制全文</DropdownMenuItem>
@@ -713,10 +741,24 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     </div>
   );
 
+  const focusToolbar = (
+    <div role="toolbar" aria-label="专注写作操作" className="notes-editor-actions flex min-h-11 w-full items-center justify-end gap-2">
+      <span role="status" aria-live="polite" className={`mr-auto text-[12px] tabular-nums ${saveHasError ? "text-[var(--danger)]" : saveNeedsAttention ? "text-[var(--warning)]" : "text-[var(--text-secondary)]"}`}>
+        {statusLabel}
+      </span>
+      <Button variant="ghost" size="sm" onClick={() => { flushDraft(); void save(); }} aria-label="专注模式立即保存" className="min-h-11">
+        <SaveIcon aria-hidden="true" /><span>保存</span>
+      </Button>
+      <Button variant="outline" size="sm" onClick={() => setFocusMode(false)} aria-label="退出专注模式" className="min-h-11">
+        <Minimize2 aria-hidden="true" /><span>退出专注</span>
+      </Button>
+    </div>
+  );
+
   return (
-    <section data-note-editor-id={note.id} data-note-mode={reading ? "reading" : "editing"}
+    <section data-note-editor-id={note.id} data-note-mode={reading ? "reading" : "editing"} data-focus-mode={focusMode ? "on" : "off"}
       ref={attachEditorSurface}
-      className={`notes-editor-surface flex h-full min-w-0 overflow-hidden bg-[var(--surface-canvas)] ${isFallbackFullscreen ? "fixed inset-0 z-[80] h-[var(--app-viewport-height)]" : ""}`}
+      className={`notes-editor-surface flex h-full min-w-0 overflow-hidden bg-[var(--surface-canvas)] motion-reduce:transition-none ${focusMode || isFallbackFullscreen ? "fixed inset-0 z-[80] h-[var(--app-viewport-height)]" : ""}`}
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="notes-editor-toolbar flex shrink-0 flex-col gap-0 border-b border-[var(--separator)] bg-[var(--surface-canvas)] px-5 py-1 md:px-8">
@@ -742,7 +784,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
             />
             {reading ? <h1 className="notes-reading-title min-w-0 break-words py-1">{title || "无标题笔记"}</h1> : null}</NoteTitleMotion>
           </div>
-          {(!headerActionsHost || fullscreenActive) ? headerActions : null}
+          {focusMode ? focusToolbar : ((!headerActionsHost || fullscreenActive) ? headerActions : null)}
         </div>
         {saveHasError ? (
           <div
@@ -785,8 +827,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         </div>
         {reading ? <div className="notes-document-body min-h-0 flex-1 overflow-hidden"><NoteReadingView body={body} paneRef={readingPaneRef} onScroll={rememberReading} /></div> : null}
       </div>
-      {headerActionsHost?.target && headerActionsHost.showEditorActions && !fullscreenActive ? createPortal(headerActions, headerActionsHost.target) : null}
-      {(paneActive && !aiGenerated && (aiVisited || noteAiPanel.isOpen || selection)) ? <NoteAiAssistant
+      {headerActionsHost?.target && headerActionsHost.showEditorActions && !fullscreenActive && !focusMode ? createPortal(headerActions, headerActionsHost.target) : null}
+      {(!focusMode && paneActive && !aiGenerated && (aiVisited || noteAiPanel.isOpen || selection)) ? <NoteAiAssistant
         key={note.id}
         open={aiGenerated ? false : noteAiPanel.isOpen}
         onOpen={openAi}
