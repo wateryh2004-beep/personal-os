@@ -97,6 +97,7 @@
 - [Notes 3.0 P1.1 语义色块与文字色彩设计](specs/notes-3-0-color-system.md)：五色 Token、前景色/高亮/整段色块三种角色、可访问对比度和后续 Markdown 集成约束。
 - [Notes 3.0 P1.2 色块与行内颜色 Markdown 合约](specs/notes-3-0-color-markdown.md)：GFM 引用色块、受限行内格式、阅读/编辑/HTML/PDF/安全解析的一致性。
 - [Notes 3.0 P2.1 双模型提供商与写作模式](specs/notes-3-0-p2-provider-modes.md)：三种任务模式、官方 OpenAI Responses 接入、服务端配置及模型透明度。
+- [Notes 3.0 P2 逐段 AI 工作台与结构完整性](specs/notes-3-0-p2-paragraph-review.md)：章节选择、改动逐处暂存、链接/表格/色块保护及截断禁用。
 
 ## 模板与实例
 

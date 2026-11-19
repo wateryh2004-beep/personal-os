@@ -5,7 +5,7 @@ export type AiApplicationInput = {
   expectedBody: string;
   operation: string;
   mode: "replace" | "insert";
-  scope: "note" | "selection";
+  scope: "note" | "selection" | "section";
   runId?: string | null;
 };
 
