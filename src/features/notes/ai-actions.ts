@@ -3,6 +3,7 @@
 import { z } from "zod";
 import type { UIMessage } from "ai";
 import { deepSeekModelIds } from "@/lib/ai/deepseek";
+import { noteWritingModes } from "@/features/assistant/writing-modes";
 import { requireOwner } from "@/lib/auth/require-owner";
 import {
   isNoteAiPromptKey,
@@ -41,6 +42,7 @@ const requestSchema = z.object({
   operation: z.enum(noteAiOperations),
   instruction: z.string().trim().max(2_000).optional(),
   model: z.enum(deepSeekModelIds).optional(),
+  writingMode: z.enum(noteWritingModes).optional(),
   scope: z.enum(["note", "selection"]),
   usePersonalContext: z.boolean().optional(),
   contextBefore: z.string().max(4_000).optional(),
@@ -106,6 +108,7 @@ export async function generateNoteAiSuggestion(
       operation: formData.get("operation"),
       instruction: formData.get("instruction") || undefined,
       model: formData.get("model") || undefined,
+      writingMode: formData.get("writing_mode") || undefined,
       scope: formData.get("scope"),
       usePersonalContext: formData.get("use_personal_context") === "true",
       contextBefore: formData.get("context_before") || undefined,
@@ -261,6 +264,7 @@ export async function generateNoteAiSuggestion(
         ...baseRequest,
         mode: discussion ? "chat" : "transform",
         model: parsed.data.model,
+        writingMode: parsed.data.writingMode ?? "fast",
         usePersonalContext:
           parsed.data.scope === "note" && parsed.data.usePersonalContext === true,
         instruction: `${noteAiSystemPrompt(promptOverrides)}\n\n笔记标题：${parsed.data.title || "无标题笔记"}\n\n任务：${noteAiInstruction(parsed.data.operation, parsed.data.instruction, promptOverrides)}${historyBlock}${structureRule}${selectionNote}${citationRule}${continuationNote}`,
@@ -320,7 +324,7 @@ export async function generateNoteAiSuggestion(
       model: result.modelId,
     });
     return { ...response, runId };
-  } catch {
+  } catch (error) {
     if (runId && supabase && userId)
       await updateAgentRun({
         supabase,
@@ -331,7 +335,11 @@ export async function generateNoteAiSuggestion(
     return {
       status: "error",
       message:
-        "AI 暂时无法生成建议。请确认 Settings 中的 DeepSeek Key 和余额。",
+        error instanceof Error && error.message === "openai_key_not_configured"
+          ? "OpenAI 尚未配置：请在 Vercel 服务端设置 OPENAI_API_KEY，或切换快速处理。"
+          : error instanceof Error && error.message === "openai_model_not_configured"
+            ? "OpenAI 模型尚未配置：请设置 OPENAI_WRITING_MODEL 与 OPENAI_REASONING_MODEL，或切换快速处理。"
+            : "AI 暂时无法生成建议，请检查模型余额、网络或服务端配置；原文未改变。",
       suggestion: "",
     };
   }

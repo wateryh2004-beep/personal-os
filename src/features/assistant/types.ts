@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
+import type { NoteWritingMode } from "./writing-modes";
 import type { GraphEntityRef } from "@/features/graph/types";
 
 export const assistantSurfaces = [
@@ -20,6 +21,7 @@ export type AssistantRequest = {
   messages?: UIMessage[];
   instruction?: string | null;
   model?: DeepSeekModelId | null;
+  writingMode?: NoteWritingMode | null;
   currentEntity?: GraphEntityRef | null;
   currentSurface?: {
     type:
@@ -106,7 +108,7 @@ export type AgentAction = {
 export type AssistantResult = {
   status: "success" | "error";
   text: string;
-  modelId?: DeepSeekModelId;
+  modelId?: string;
   /** 生成结束原因；"length" 表示输出撞到 token 上限被截断，结果不完整。 */
   finishReason?: "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other" | "unknown";
   contextSources: Array<{

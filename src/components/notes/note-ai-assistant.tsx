@@ -34,6 +34,7 @@ import {
 import { wordDiff } from "@/features/notes/diff-preview";
 import type { AiApplicationInput } from "@/features/notes/editor/ai-apply-safety";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
+import type { NoteWritingMode } from "@/features/assistant/writing-modes";
 
 export type NoteSelection = {
   text: string;
@@ -93,7 +94,6 @@ export function NoteAiAssistant({
   noteId,
   title,
   bodyMarkdown,
-  defaultModel,
   getRevision,
   onPrepareApply,
   selection,
@@ -117,7 +117,7 @@ export function NoteAiAssistant({
   onInsertNote: (text: string) => void;
   onReplaceTitle: (title: string, original: Pick<AiApplicationInput, "expectedRevision" | "expectedTitle" | "expectedBody">) => boolean;
 }) {
-  const [model, setModel] = useState<DeepSeekModelId>(defaultModel);
+  const [writingMode, setWritingMode] = useState<NoteWritingMode>("fast");
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<NoteAiState>({
     status: "idle",
@@ -209,7 +209,7 @@ export function NoteAiAssistant({
     data.set("content", next.content);
     data.set("operation", next.operation);
     data.set("scope", next.scope);
-    data.set("model", next.operation === "generateTitle" ? "deepseek-v4-pro" : model);
+    data.set("writing_mode", next.operation === "generateTitle" ? "fast" : writingMode);
     data.set("use_personal_context", String(usePersonalContext));
     if (runId) data.set("run_id", runId);
     const history = threadToHistory(thread);
@@ -521,8 +521,12 @@ export function NoteAiAssistant({
               </div>
             ) : null}
             <div className="flex items-center justify-between border-t border-[var(--separator)] pt-2">
-              <span className="text-[12px] text-[var(--text-tertiary)]">模型</span>
-              <select aria-label="AI 模型" value={model} onChange={(event) => setModel(event.target.value as DeepSeekModelId)} className="h-7 rounded-[7px] bg-transparent px-1.5 text-[12px] text-[var(--text-tertiary)] outline-none hover:bg-[var(--surface-hover)]"><option value="deepseek-v4-flash">DeepSeek V4 Flash</option><option value="deepseek-v4-pro">DeepSeek V4 Pro</option></select>
+              <span className="text-[12px] text-[var(--text-tertiary)]">写作模式</span>
+              <select aria-label="AI 写作模式" value={writingMode} onChange={(event) => setWritingMode(event.target.value as NoteWritingMode)} className="h-9 rounded-[7px] bg-[var(--surface-control)] px-2 text-[12px] text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
+                <option value="fast">快速处理 · DeepSeek</option>
+                <option value="quality">高质量写作 · OpenAI</option>
+                <option value="deep">深度思考 · OpenAI</option>
+              </select>
             </div>
           </div>
         }
@@ -696,6 +700,7 @@ export function NoteAiAssistant({
                     </div>
                   ) : null}
                   <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[12px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? `所选文字 · ${request.content.length} 字` : "当前笔记"}</span>
+                  {result.modelId ? <span title="本次实际调用的模型" className="text-[11px] text-[var(--text-tertiary)]">{result.modelId}</span> : null}
                 </div>
               </div>
               {diffSegments && showDiff ? (
