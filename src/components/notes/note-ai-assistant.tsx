@@ -851,7 +851,7 @@ export function NoteAiAssistant({
                     </div>
                   ) : null}
                   <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[12px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? `所选文字 · ${request.content.length} 字` : request?.scope === "section" ? `当前章节 · ${request.content.length} 字` : "当前笔记"}</span>
-                  {result.modelId ? <span title="本次实际调用的模型" className="text-[11px] text-[var(--text-tertiary)]">{result.modelId}</span> : null}
+                  {result.modelId ? <span title="本次实际调用的模型" className="text-[12px] text-[var(--text-tertiary)]">{result.modelId}</span> : null}
                 </div>
               </div>
               {reviewPlan && rewrite && showDiff ? (
