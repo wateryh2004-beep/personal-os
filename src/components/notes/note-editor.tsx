@@ -41,7 +41,8 @@ import {
 import { useActionFeedback } from "@/components/shared/action-feedback";
 import { noteReferenceMarkdown } from "@/features/notes/links/reference";
 import { isInternalEntityHref } from "@/features/links/parser";
-import { captureNoteBeforeHistoryRestore, recordNotePdfExport, saveNote, setNoteContentOrigin } from "@/features/notes/actions";
+import { captureNoteBeforeAiApply, captureNoteBeforeHistoryRestore, recordNotePdfExport, saveNote, setNoteContentOrigin } from "@/features/notes/actions";
+import { noteAiApplyBlocker, type AiApplicationInput } from "@/features/notes/editor/ai-apply-safety";
 import { isAiGeneratedNote } from "@/features/notes/content-origin";
 import { markdownFilename } from "@/features/notes/utils";
 import { notesWorkspaceResource } from "@/features/notes/workspace-resource";
@@ -515,6 +516,35 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
       return { ok: false, message: "恢复前快照保存失败，原文未被修改。请检查网络后重试。" };
     }
   }, [dirty, feedback, note.id, replaceBody, state, navigatorTitlePublisher]);
+  const prepareAiApply = useCallback(async (input: AiApplicationInput): Promise<{ ok: boolean; message: string }> => {
+    const check = () => noteAiApplyBlocker({
+      ...input,
+      currentRevision: revisionRef.current,
+      knownRemoteRevision: knownRemoteRevisionRef.current,
+      currentTitle: latestContentRef.current.title,
+      currentBody: latestContentRef.current.body,
+      isDirty: isDirtyRef.current,
+      isSaving: Boolean(saveInFlightRef.current),
+      saveState: state,
+    });
+    const blocker = check();
+    if (blocker) return { ok: false, message: blocker };
+    try {
+      const checkpoint = await captureNoteBeforeAiApply({ noteId: note.id, ...input });
+      if (checkpoint.status !== "ready")
+        return { ok: false, message: checkpoint.status === "blocked_visibility"
+          ? "该笔记禁止发送至 AI，未应用修改。"
+          : checkpoint.status === "invalid_run"
+            ? "AI 生成记录无法核实，请重新生成建议。"
+            : "其他设备已修改笔记，未应用旧 AI 结果。" };
+      const afterCheckpoint = check();
+      if (afterCheckpoint) return { ok: false, message: afterCheckpoint };
+      return { ok: true, message: "" };
+    } catch {
+      return { ok: false, message: "AI 修改前的恢复版本创建失败，原文未发生修改。" };
+    }
+  }, [note.id, state]);
+
   const applyConflictResolution = useCallback((
     resolved: { title: string; body: string; revision: number },
     original: { title: string; body: string },
@@ -539,21 +569,23 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     dirty(resolved.title, resolved.body);
     setConflictSnapshot(null);
     return true;
-  }, [dirty, note.id, replaceBody, state, navigatorTitlePublisher]);
+  }, [dirty, replaceBody, state, navigatorTitlePublisher]);
   // AI 生成标题：直接替换标题，旧标题压栈供撤回（支持连续多次生成逐步撤回）。
-  const handleAiReplaceTitle = useCallback((newTitle: string) => {
+  const handleAiReplaceTitle = useCallback((newTitle: string, original: Pick<AiApplicationInput, "expectedRevision" | "expectedTitle" | "expectedBody">): boolean => {
+    if (isDirtyRef.current || saveInFlightRef.current || knownRemoteRevisionRef.current !== original.expectedRevision || revisionRef.current !== original.expectedRevision || latestContentRef.current.title !== original.expectedTitle || latestContentRef.current.body !== original.expectedBody) return false;
     const next = newTitle
       .trim()
       .replace(/^[「『“”‘’"']+/, "")
       .replace(/[」』“”‘’"']+$/, "")
       .trim();
-    if (!next || next === title) return;
+    if (!next || next === title) return false;
     titleUndoStackRef.current = [...titleUndoStackRef.current, title];
     setTitleUndoStack([...titleUndoStackRef.current]);
     setTitle(next);
     navigatorTitlePublisher.publishNow(next);
     dirty(next, latestContentRef.current.body);
-  }, [dirty, note.id, title, navigatorTitlePublisher]);
+    return true;
+  }, [dirty, title, navigatorTitlePublisher]);
   const handleAiUndoTitle = useCallback(() => {
     const stack = titleUndoStackRef.current;
     if (!stack.length) return;
@@ -563,7 +595,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     setTitle(prev);
     navigatorTitlePublisher.publishNow(prev);
     dirty(prev, latestContentRef.current.body);
-  }, [dirty, note.id, navigatorTitlePublisher]);
+  }, [dirty, navigatorTitlePublisher]);
   const isExporting = Boolean(pdfSnapshot);
   const fullscreenActive = isFullscreen || isFallbackFullscreen;
   useEffect(() => {
@@ -763,6 +795,8 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         title={title}
         bodyMarkdown={body}
         defaultModel={noteAiDefaultModel}
+        getRevision={() => revisionRef.current}
+        onPrepareApply={prepareAiApply}
         loadPreferences={loadAiPreferences}
         selection={selection}
         onClearSelection={() => setSelection(null)}

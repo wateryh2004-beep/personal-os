@@ -152,6 +152,56 @@ export async function captureNoteBeforeHistoryRestore(input: unknown) {
   return { status: "ready" as const, revision: expectedRevision };
 }
 
+const beforeAiApplySchema = z.object({
+  noteId: z.string().uuid(),
+  expectedRevision: z.number().int().min(0),
+  expectedTitle: z.string().max(240),
+  expectedBody: z.string().max(200_000),
+  operation: z.string().min(1).max(80),
+  mode: z.enum(["replace", "insert"]),
+  scope: z.enum(["note", "selection"]),
+  runId: z.string().uuid().nullable().optional(),
+});
+
+/** Snapshot the exact original note before explicitly accepting an AI edit. */
+export async function captureNoteBeforeAiApply(input: unknown) {
+  const parsed = beforeAiApplySchema.safeParse(input);
+  if (!parsed.success) throw new Error("AI 应用请求无效。");
+  const { supabase, userId } = await requireOwner();
+  const { noteId, expectedRevision, expectedTitle, expectedBody, operation, mode, scope, runId } = parsed.data;
+  const { data: note, error: noteError } = await supabase.from("notes")
+    .select("id,title,body_markdown,content_hash,revision,ai_visibility")
+    .eq("id", noteId).eq("user_id", userId).eq("status", "active")
+    .is("deleted_at", null).is("archived_at", null).maybeSingle();
+  if (noteError || !note) throw new Error("笔记不存在或暂时无法读取。");
+  if (note.ai_visibility !== "normal") return { status: "blocked_visibility" as const };
+  if (note.revision !== expectedRevision || note.title !== expectedTitle || note.body_markdown !== expectedBody)
+    return { status: "conflict" as const };
+  // Model attribution is taken from this owner's completed Notes run; never
+  // trust a model label supplied by the browser.
+  if (!runId) return { status: "invalid_run" as const };
+  const { data: run, error: runError } = await supabase.from("agent_runs")
+    .select("id,model,surface,status").eq("id", runId).eq("user_id", userId)
+    .eq("surface", "notes").maybeSingle();
+  if (runError || !run || run.status !== "completed") return { status: "invalid_run" as const };
+  const { data: latest, error: latestError } = await supabase.from("note_versions")
+    .select("version_number").eq("user_id", userId).eq("note_id", noteId)
+    .order("version_number", { ascending: false }).limit(1).maybeSingle();
+  if (latestError) throw new Error("无法读取版本序列，请稍后重试。");
+  const { data: snapshot, error: snapshotError } = await supabase.from("note_versions").insert({
+    user_id: userId, note_id: noteId, title: note.title, body_markdown: note.body_markdown,
+    version_number: (latest?.version_number ?? 0) + 1, created_by: userId,
+    content_hash: note.content_hash ?? contentHash(note.body_markdown),
+    revision: expectedRevision, reason: "before_ai_apply",
+  }).select("id").single();
+  if (snapshotError || !snapshot) throw new Error("无法创建 AI 修改前版本，原文未改变。");
+  await audit(supabase, userId, "create_version", "note", noteId, {
+    revision: expectedRevision, reason: "before_ai_apply", version_id: snapshot.id,
+    operation, mode, scope, run_id: run.id, model: run.model,
+  });
+  return { status: "ready" as const, revision: expectedRevision };
+}
+
 const notePlacementSchema = z.object({ folderId: z.string().uuid().nullable().optional() });
 const moveFolderSchema = z.object({ folderId: z.string().uuid(), parentId: z.string().uuid().nullable().optional() });
 

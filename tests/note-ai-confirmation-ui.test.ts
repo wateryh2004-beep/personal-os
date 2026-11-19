@@ -19,8 +19,8 @@ describe("Notes AI confirmation UI", () => {
     expect(assistant).toContain('footer={');
     expect(assistant).toContain('AI 结果待确认');
     expect(assistant).toContain('确认并{insertLabel}');
-    expect(assistant).toContain('onClick={() => apply("replace")}');
-    expect(assistant).toContain('onClick={() => apply("insert")}');
+    expect(assistant).toContain('onClick={() => void apply("replace")}');
+    expect(assistant).toContain('onClick={() => void apply("insert")}');
   });
 
   it("directs users to the visible fixed confirmation area", () => {
