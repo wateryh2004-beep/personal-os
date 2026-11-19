@@ -595,7 +595,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
     setTitle(prev);
     navigatorTitlePublisher.publishNow(prev);
     dirty(prev, latestContentRef.current.body);
-  }, [dirty, note.id, navigatorTitlePublisher]);
+  }, [dirty, navigatorTitlePublisher]);
   const isExporting = Boolean(pdfSnapshot);
   const fullscreenActive = isFullscreen || isFallbackFullscreen;
   useEffect(() => {

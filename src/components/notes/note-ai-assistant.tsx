@@ -95,7 +95,7 @@ export function NoteAiAssistant({
   bodyMarkdown,
   defaultModel,
   getRevision,
-  onPrepareApply=
+  onPrepareApply,
   selection,
   onClearSelection,
   onReplaceNote,
