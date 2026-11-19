@@ -32,6 +32,7 @@ import {
   type NoteAiOperation,
 } from "@/features/notes/ai-prompts";
 import { wordDiff } from "@/features/notes/diff-preview";
+import type { AiApplicationInput } from "@/features/notes/editor/ai-apply-safety";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 
 export type NoteSelection = {
@@ -49,7 +50,11 @@ type Request = {
   content: string;
   contextBefore?: string;
   contextAfter?: string;
+  expectedRevision: number;
+  expectedTitle: string;
+  expectedBody: string;
 };
+type RunInput = Omit<Request, "expectedRevision" | "expectedTitle" | "expectedBody"> & Partial<Pick<Request, "expectedRevision" | "expectedTitle" | "expectedBody">>;
 const shortcuts: Array<[NoteAiOperation, string, React.ReactNode]> = [
   ["summarizeNote", "总结", <Sparkles key="summary" />],
   ["extractActions", "提取行动", <CheckSquare key="actions" />],
@@ -81,16 +86,6 @@ function threadToHistory(thread: ThreadItem[]) {
   }));
 }
 
-/**
- * AI 内容落笔时的来源标注：分割线 + 「AI 生成 · 生成日期 · 基于什么操作」。
- * 让后来者一眼知道这段是谁写的、为什么写，避免一段语气不符的内容凭空出现。
- */
-function noteAiAttribution(operation: NoteAiOperation) {
-  const now = new Date();
-  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  return `---\n\n> 以下内容由 AI 生成于 ${date}，基于「${noteAiOperationLabel(operation)}」操作。\n\n`;
-}
-
 export function NoteAiAssistant({
   open,
   onOpen,
@@ -99,6 +94,8 @@ export function NoteAiAssistant({
   title,
   bodyMarkdown,
   defaultModel,
+  revision,
+  onPrepareApply,
   selection,
   onClearSelection,
   onReplaceNote,
@@ -112,11 +109,13 @@ export function NoteAiAssistant({
   title: string;
   bodyMarkdown: string;
   defaultModel: DeepSeekModelId;
+  revision: number;
+  onPrepareApply: (input: AiApplicationInput) => Promise<{ ok: boolean; message: string }>;
   selection: NoteSelection | null;
   onClearSelection: () => void;
   onReplaceNote: (text: string) => void;
   onInsertNote: (text: string) => void;
-  onReplaceTitle: (title: string) => void;
+  onReplaceTitle: (title: string, original: Pick<AiApplicationInput, "expectedRevision" | "expectedTitle" | "expectedBody">) => boolean;
 }) {
   const [model, setModel] = useState<DeepSeekModelId>(defaultModel);
   const [question, setQuestion] = useState("");
@@ -134,6 +133,8 @@ export function NoteAiAssistant({
   const [showDiff, setShowDiff] = useState(true);
   const [usePersonalContext, setUsePersonalContext] = useState(true);
   const [pending, startTransition] = useTransition();
+  const [applying, setApplying] = useState(false);
+  const sequenceRef = useRef(0);
   const [thread, setThread] = useState<ThreadItem[]>([]);
   const [runId, setRunId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
@@ -178,7 +179,9 @@ export function NoteAiAssistant({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [open, noteId]);
-  const run = (next: Request, targetSelection: NoteSelection | null = null, continuationAfter?: string) => {
+  const run = (next: RunInput, targetSelection: NoteSelection | null = null, continuationAfter?: string) => {
+    const launched: Request = { ...next, expectedRevision: next.expectedRevision ?? revision, expectedTitle: next.expectedTitle ?? title, expectedBody: next.expectedBody ?? bodyMarkdown };
+    const sequence = ++sequenceRef.current;
     if (!next.content.trim()) {
       setResult({
         status: "error",
@@ -197,7 +200,7 @@ export function NoteAiAssistant({
       ...prev,
       { id: `note-ai-user-${Date.now()}`, role: "user", content: userText },
     ]);
-    setRequest(next);
+    setRequest(launched);
     setResultSelection(next.scope === "selection" ? targetSelection : null);
     setResult({ status: "idle", message: "", suggestion: "" });
     const data = new FormData();
@@ -217,6 +220,12 @@ export function NoteAiAssistant({
     if (continuationAfter) data.set("continuation_after", continuationAfter);
     startTransition(async () => {
       const nextResult = await generateNoteAiSuggestion(data);
+      if (sequence !== sequenceRef.current) return;
+      if (next.operation === "generateTitle" && nextResult.suggestion &&
+          !onReplaceTitle(nextResult.suggestion, launched)) {
+        setResult({ status: "error", message: "AI 生成期间标题或正文已被编辑，旧标题建议没有覆盖新内容。请重新生成。", suggestion: "" });
+        return;
+      }
       if (nextResult.runId) {
         setRunId(nextResult.runId);
       }
@@ -251,39 +260,50 @@ export function NoteAiAssistant({
     });
     if (operation === "askNote") setQuestion("");
   };
-  const apply = (mode: "replace" | "insert") => {
-    if (!result.suggestion || !request) return;
-    if (request.scope === "selection") {
-      if (!resultSelection) {
-        setResult({ status: "error", message: "原选区已经失效，请重新选择文字后再生成。", suggestion: "" });
+  const apply = async (mode: "replace" | "insert") => {
+    if (applying || !result.suggestion || !request || !result.runId) return;
+    setApplying(true);
+    try {
+      const preflight = await onPrepareApply({
+        expectedRevision: request.expectedRevision,
+        expectedTitle: request.expectedTitle,
+        expectedBody: request.expectedBody,
+        operation: request.operation,
+        mode,
+        scope: request.scope,
+        runId: result.runId,
+      });
+      if (!preflight.ok) {
+        setResult((previous) => ({ ...previous, message: preflight.message }));
         return;
       }
-      const applied = mode === "replace"
-        ? resultSelection.replace(result.suggestion)
-        : resultSelection.insertBelow(result.suggestion);
-      if (!applied) {
-        setResult({ status: "error", message: "所选文字已发生变化。为避免覆盖错误内容，请重新选择后再生成。", suggestion: "" });
-        return;
+      if (request.scope === "selection") {
+        if (!resultSelection) {
+          setResult((previous) => ({ ...previous, message: "选区已经失效，请重新生成。" }));
+          return;
+        }
+        const ok = mode === "replace"
+          ? resultSelection.replace(result.suggestion)
+          : resultSelection.insertBelow(result.suggestion);
+        if (!ok) {
+          setResult((previous) => ({ ...previous, message: "选区内容已变化，旧结果未应用。" }));
+          return;
+        }
+      } else if (mode === "replace") {
+        onReplaceNote(result.suggestion);
+      } else {
+        onInsertNote(result.suggestion);
       }
-    } else {
-      // 落笔时在 AI 内容前标注来源（分割线 + 生成日期 + 请求目的）。
-      // 选区操作不加，避免在段落中间插入分割线打断文档。
-      const attributed = `${noteAiAttribution(request.operation)}${result.suggestion}`;
-      if (mode === "replace") onReplaceNote(attributed);
-      else onInsertNote(attributed);
+      const message = request.scope === "selection"
+        ? (mode === "replace" ? "已替换所选文字，正在保存。" : "已插入所选文字下方，正在保存。")
+        : (mode === "replace" ? "已替换全文，正在保存。" : "已插入笔记末尾，正在保存。");
+      setThread((previous) => previous.map((item) => item.current ? { ...item, applied: true, current: false } : item));
+      setRequest(null);
+      setResultSelection(null);
+      setResult({ status: "success", message, suggestion: "" });
+    } finally {
+      setApplying(false);
     }
-    const appliedMessage = request.scope === "selection"
-      ? mode === "replace" ? "已替换所选文字，笔记正在自动保存。" : "已插入到选区下方，笔记正在自动保存。"
-      : mode === "replace" ? "已替换全文，笔记正在自动保存。" : "已插入到笔记末尾，笔记正在自动保存。";
-    // 本轮 AI 回复标记为"已写入"，对话继续不中断。
-    setThread((prev) =>
-      prev.map((item) =>
-        item.current ? { ...item, applied: true, current: false } : item,
-      ),
-    );
-    setRequest(null);
-    setResultSelection(null);
-    setResult({ status: "success", message: appliedMessage, suggestion: "" });
   };
   const selectionOperation = (operation: NoteAiOperation) => {
     if (!selection) return;
@@ -331,17 +351,6 @@ export function NoteAiAssistant({
     if (!request || !result.suggestion) return;
     run({ ...request, instruction: `${request.instruction ? `${request.instruction}\n\n` : ""}请从上一段被截断的位置继续。` }, resultSelection, result.suggestion.slice(-32_000));
   };
-
-  // 生成标题是「直接替换」型操作：结果返回后立即替换标题，撤回由标题栏负责。
-  useEffect(() => {
-    if (
-      request?.operation === "generateTitle" &&
-      result.status === "success" &&
-      result.suggestion
-    ) {
-      onReplaceTitle(result.suggestion);
-    }
-  }, [request?.operation, result.status, result.suggestion, onReplaceTitle]);
 
   useEffect(() => {
     if (!result.suggestion) return;
@@ -457,14 +466,16 @@ export function NoteAiAssistant({
                 <div className="grid gap-2 sm:grid-cols-2">
                   {rewrite ? (
                     <button
-                      onClick={() => apply("replace")}
+                      disabled={applying}
+                      onClick={() => void apply("replace")}
                       className="min-h-10 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-2 text-xs font-medium text-white shadow-sm transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                     >
                       {replaceLabel}
                     </button>
                   ) : null}
                   <button
-                    onClick={() => apply("insert")}
+                    disabled={applying}
+                    onClick={() => void apply("insert")}
                     className={`min-h-10 rounded-md px-3 py-2 text-xs font-medium ${rewrite ? "border bg-[var(--surface-canvas)] text-[var(--text-primary)]" : "bg-[var(--accent)] text-white sm:col-span-2"}`}
                   >
                     确认并{insertLabel}

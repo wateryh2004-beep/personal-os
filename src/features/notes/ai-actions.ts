@@ -74,6 +74,7 @@ export type NoteAiState = {
     reasons: string[];
   }>;
   runId?: string;
+  modelId?: string;
 };
 
 /** history 由前端序列化后经 FormData 传入，JSON 解析失败时静默丢弃。 */
@@ -121,7 +122,7 @@ export async function generateNoteAiSuggestion(
     const [{ data: note }, { data: promptRows }] = await Promise.all([
       supabase
         .from("notes")
-        .select("id")
+        .select("id,ai_visibility")
         .eq("id", parsed.data.noteId)
         .is("deleted_at", null)
         .maybeSingle(),
@@ -132,6 +133,8 @@ export async function generateNoteAiSuggestion(
     ]);
     if (!note)
       return { status: "error", message: "找不到这篇笔记。", suggestion: "" };
+    if (note.ai_visibility !== "normal")
+      return { status: "error", message: "这篇笔记的 AI 数据边界不是 normal，已阻止发送给模型。", suggestion: "" };
     const promptOverrides: Partial<Record<NoteAiPromptKey, string>> = {};
     for (const row of promptRows ?? []) {
       if (isNoteAiPromptKey(row.prompt_key)) {
@@ -281,6 +284,7 @@ export async function generateNoteAiSuggestion(
       operation: parsed.data.operation,
       scope: parsed.data.scope,
       contextSources: result.contextSources,
+      modelId: result.modelId,
     };
     // 结构保护还原：模型输出里可能残留占位符，映射回真实的链接/双链/图片/代码块。
     if (shouldProtect) response.suggestion = restore(response.suggestion).trim();

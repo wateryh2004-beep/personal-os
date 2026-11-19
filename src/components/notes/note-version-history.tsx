@@ -9,7 +9,7 @@ type Summary = { id: string; versionNumber: number; reason: string; createdAt: s
 type Historical = { id: string; versionNumber: number; reason: string; createdAt: string; title: string; body: string };
 type Page = { versions: Summary[]; nextBefore: number | null };
 type Selected = { version: Historical; checked: Set<number>; historicalTitle: boolean; fullBody: boolean };
-const reasonLabels: Record<string, string> = { initial: "初始版本", manual: "手动快照", before_restore: "恢复前留存", restore: "历史恢复" };
+const reasonLabels: Record<string, string> = { initial: "初始版本", manual: "手动快照", before_restore: "恢复前留存", before_ai_apply: "AI 修改前留存", restore: "历史恢复" };
 function timestamp(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "时间未知" : new Intl.DateTimeFormat("zh-CN", { dateStyle: "short", timeStyle: "short" }).format(date);
