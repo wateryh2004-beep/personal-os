@@ -94,8 +94,8 @@ export function NoteAiAssistant({
   title,
   bodyMarkdown,
   defaultModel,
-  revision,
-  onPrepareApply,
+  getRevision,
+  onPrepareApply=
   selection,
   onClearSelection,
   onReplaceNote,
@@ -109,7 +109,7 @@ export function NoteAiAssistant({
   title: string;
   bodyMarkdown: string;
   defaultModel: DeepSeekModelId;
-  revision: number;
+  getRevision: () => number;
   onPrepareApply: (input: AiApplicationInput) => Promise<{ ok: boolean; message: string }>;
   selection: NoteSelection | null;
   onClearSelection: () => void;
@@ -180,7 +180,7 @@ export function NoteAiAssistant({
     return () => window.clearTimeout(timer);
   }, [open, noteId]);
   const run = (next: RunInput, targetSelection: NoteSelection | null = null, continuationAfter?: string) => {
-    const launched: Request = { ...next, expectedRevision: next.expectedRevision ?? revision, expectedTitle: next.expectedTitle ?? title, expectedBody: next.expectedBody ?? bodyMarkdown };
+    const launched: Request = { ...next, expectedRevision: next.expectedRevision ?? getRevision(), expectedTitle: next.expectedTitle ?? title, expectedBody: next.expectedBody ?? bodyMarkdown };
     const sequence = ++sequenceRef.current;
     if (!next.content.trim()) {
       setResult({

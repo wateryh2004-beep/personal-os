@@ -795,7 +795,7 @@ export function NoteEditor({ note, noteAiDefaultModel, loadAiPreferences = false
         title={title}
         bodyMarkdown={body}
         defaultModel={noteAiDefaultModel}
-        revision={revisionRef.current}
+        getRevision={() => revisionRef.current}
         onPrepareApply={prepareAiApply}
         loadPreferences={loadAiPreferences}
         selection={selection}
