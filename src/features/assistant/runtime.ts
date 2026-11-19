@@ -12,6 +12,7 @@ import {
   summarizeContextSources,
 } from "@/features/ai/governance";
 import { getDeepSeekModel } from "@/lib/ai/deepseek";
+import { getNotesWritingModel } from "@/lib/adapters/notes-writing-model";
 import { requireOwner } from "@/lib/auth/require-owner";
 import { resolveAssistantPolicy } from "./policy";
 import { buildAssistantTools } from "./tools";
@@ -152,7 +153,9 @@ async function setup(request: AssistantRequest) {
   }
   const sessionState = deriveSessionState(previous, request.messages, gate);
   const selectedModel = selectAssistantModel({ surface: request.surface, requestedModel: request.model, message, contextGate: gate });
-  const resolved = await getDeepSeekModel(userId, selectedModel);
+  const resolved = request.surface === "notes" && request.writingMode
+    ? await getNotesWritingModel(userId, request.writingMode)
+    : { ...(await getDeepSeekModel(userId, selectedModel)), provider: "deepseek" as const };
 
   let personalContextPack: Awaited<ReturnType<typeof buildPersonalContext>> | null = null;
   if (gate.needsPersonalData) {
@@ -223,6 +226,7 @@ async function setup(request: AssistantRequest) {
 
   return {
     supabase, userId, timezone, policy, gate, sessionState, model: resolved.model, modelId: resolved.modelId,
+    provider: resolved.provider,
     system, currentSurface, initial, personalContextPack, sourceSummary, retrievalMode, auditId,
     maxOutputTokens: governance.maxOutputTokensPerRequest, governance,
   };
@@ -261,7 +265,9 @@ export async function createAssistantAgent(request: AssistantRequest) {
       model: runtime.model,
       stopWhen: isStepCount(toolNames.length ? runtime.policy.maxSteps : 1),
       maxOutputTokens: runtime.maxOutputTokens,
-      providerOptions: selectReasoningProviderOptionsForRequest({ surface: request.surface, mode: request.mode, operation: request.operation, contextGate: runtime.gate }),
+      providerOptions: runtime.provider === "openai"
+        ? { openai: { store: false, ...(request.writingMode === "deep" ? { reasoningEffort: "high" as const } : {}) } }
+        : selectReasoningProviderOptionsForRequest({ surface: request.surface, mode: request.mode, operation: request.operation, contextGate: runtime.gate }),
       instructions: runtime.system,
       tools: allTools,
       prepareStep: toolNames.length ? createPrepareStep({ initialToolNames: toolNames }) : undefined,
@@ -281,7 +287,9 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
     const { text, finishReason, usage } = await generateText({
       model: runtime.model,
       maxOutputTokens: runtime.maxOutputTokens,
-      providerOptions: selectReasoningProviderOptionsForRequest({ surface: request.surface, mode: request.mode, operation: request.operation, contextGate: runtime.gate }),
+      providerOptions: runtime.provider === "openai"
+        ? { openai: { store: false, ...(request.writingMode === "deep" ? { reasoningEffort: "high" as const } : {}) } }
+        : selectReasoningProviderOptionsForRequest({ surface: request.surface, mode: request.mode, operation: request.operation, contextGate: runtime.gate }),
       system: runtime.system,
       prompt: latestText(request),
     });
