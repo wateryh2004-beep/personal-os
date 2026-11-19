@@ -32,6 +32,15 @@ import {
   type NoteAiOperation,
 } from "@/features/notes/ai-prompts";
 import { wordDiff } from "@/features/notes/diff-preview";
+import { NoteAiSegmentReview } from "./note-ai-segment-review";
+import {
+  buildAiSegmentReview,
+  chooseAiReviewHunk, chooseAllAiReviewHunks, reviseAiReviewHunk,
+  assembleAiSegmentReview, countAiReviewDecisions,
+  type AiSegmentReview, type AiReviewDecision,
+} from "@/features/notes/editor/ai-segment-review";
+import { noteAiSections } from "@/features/notes/editor/ai-section-scope";
+import { preservesProtectedNoteStructures } from "@/features/notes/ai-protect";
 import type { AiApplicationInput } from "@/features/notes/editor/ai-apply-safety";
 import type { DeepSeekModelId } from "@/lib/ai/deepseek";
 import type { NoteWritingMode } from "@/features/assistant/writing-modes";
@@ -46,7 +55,8 @@ export type NoteSelection = {
 };
 type Request = {
   operation: NoteAiOperation;
-  scope: "note" | "selection";
+  scope: "note" | "selection" | "section";
+  sectionRange?: { from: number; to: number };
   instruction?: string;
   content: string;
   contextBefore?: string;
@@ -119,6 +129,11 @@ export function NoteAiAssistant({
 }) {
   const [writingMode, setWritingMode] = useState<NoteWritingMode>("fast");
   const [question, setQuestion] = useState("");
+  const sections = useMemo(() => noteAiSections(bodyMarkdown), [bodyMarkdown]);
+  const [sectionId, setSectionId] = useState("whole");
+  const [reviewPlan, setReviewPlan] = useState<AiSegmentReview | null>(null);
+  const [reviewError, setReviewError] = useState("");
+  const [refiningHunk, setRefiningHunk] = useState<string | null>(null);
   const [result, setResult] = useState<NoteAiState>({
     status: "idle",
     message: "",
@@ -200,6 +215,8 @@ export function NoteAiAssistant({
       ...prev,
       { id: `note-ai-user-${Date.now()}`, role: "user", content: userText },
     ]);
+    setReviewPlan(null);
+    setReviewError("");
     setRequest(launched);
     setResultSelection(next.scope === "selection" ? targetSelection : null);
     setResult({ status: "idle", message: "", suggestion: "" });
@@ -249,20 +266,87 @@ export function NoteAiAssistant({
         );
       }
       setResult(nextResult);
+      if (nextResult.status === "success" && nextResult.suggestion &&
+          !nextResult.truncated && !nextResult.unsafeToApply &&
+          isRewriteOperation(next.operation) && next.scope !== "selection") {
+        setReviewPlan(buildAiSegmentReview(next.content, nextResult.suggestion));
+      }
     });
   };
   const runNote = (operation: NoteAiOperation) => {
+    // Title generation applies to the note title, not the selected chapter.
+    const chapter = operation === "generateTitle" ? undefined : sections.find(section => section.id === sectionId);
     run({
       operation,
-      scope: "note",
-      content: bodyMarkdown,
+      scope: chapter ? "section" : "note",
+      sectionRange: chapter ? { from: chapter.from, to: chapter.to } : undefined,
+      content: chapter ? bodyMarkdown.slice(chapter.from, chapter.to) : bodyMarkdown,
+      contextBefore: chapter ? bodyMarkdown.slice(Math.max(0, chapter.from - 800), chapter.from) : undefined,
+      contextAfter: chapter ? bodyMarkdown.slice(chapter.to, chapter.to + 800) : undefined,
       instruction: operation === "askNote" ? question : undefined,
     });
     if (operation === "askNote") setQuestion("");
   };
   const apply = async (mode: "replace" | "insert") => {
-    if (applying || !result.suggestion || !request || !result.runId) return;
+    if (applying || pending || refiningHunk || !result.suggestion || !request || !result.runId) return;
+    if (result.truncated || result.unsafeToApply) {
+      setReviewError("结果不完整或存在信息遗漏风险，禁止覆盖原文；请选择更短的章节重新生成。");
+      return;
+    }
+    let suggestion = result.suggestion;
+    if (reviewPlan && rewrite && request.scope !== "selection") {
+      if (mode === "insert") {
+        setReviewError("逐段审阅只支持应用修改，请使用全文结果的复制功能保存其他版本。");
+        return;
+      }
+      const decisions = countAiReviewDecisions(reviewPlan);
+      if (decisions.pending) {
+        setReviewError(`仍有 ${decisions.pending} 处未决定，请逐处接受或保留原文，也可以使用“全部接受”。`);
+        return;
+      }
+      try {
+        suggestion = assembleAiSegmentReview(reviewPlan);
+      } catch {
+        setReviewError("逐段合并失败，原文未改变；请重新生成后审阅。");
+        return;
+      }
+    }
+    if (rewrite && !preservesProtectedNoteStructures(request.content, suggestion)) {
+      setReviewError("所选修改会删除、重复或改变原有的链接、表格、代码、图片或色块，已阻止写入。");
+      return;
+    }
+    let finalBody: string | null = null;
+    if (request.scope === "note" && mode === "replace") finalBody = suggestion;
+    if (request.scope === "section") {
+      const range = request.sectionRange;
+      const source = request.expectedBody;
+      if (!range || source.slice(range.from, range.to) !== request.content) {
+        setReviewError("原章节锚点已经失效，请重新选择章节生成。");
+        return;
+      }
+      if (mode === "replace") {
+        finalBody = source.slice(0, range.from) + suggestion + source.slice(range.to);
+      } else {
+        const prefix = source.slice(0, range.to);
+        const suffix = source.slice(range.to);
+        finalBody = prefix + (prefix.endsWith("\n") ? "\n" : "\n\n") + suggestion +
+          (suffix.startsWith("\n") ? "" : "\n") + suffix;
+      }
+      if (!preservesProtectedNoteStructures(source, finalBody)) {
+        setReviewError("章节修改会破坏其他章节的格式或受保护结构，已阻止写入。");
+        return;
+      }
+    }
+    if (finalBody !== null && finalBody.length > 200_000) {
+      setReviewError("本次应用超过单篇笔记的 20 万字符保存上限，已保留原文。");
+      return;
+    }
+    if (finalBody !== null && finalBody === request.expectedBody) {
+      setReviewError("所有修改均已选择保留原文，无需覆盖或创建新版本。");
+      return;
+    }
     setApplying(true);
+    setReviewError("");
     try {
       const preflight = await onPrepareApply({
         expectedRevision: request.expectedRevision,
@@ -274,35 +358,74 @@ export function NoteAiAssistant({
         runId: result.runId,
       });
       if (!preflight.ok) {
-        setResult((previous) => ({ ...previous, message: preflight.message }));
+        setReviewError(preflight.message);
         return;
       }
       if (request.scope === "selection") {
         if (!resultSelection) {
-          setResult((previous) => ({ ...previous, message: "选区已经失效，请重新生成。" }));
+          setReviewError("选区已经失效，请重新选择文字后生成。");
           return;
         }
         const ok = mode === "replace"
-          ? resultSelection.replace(result.suggestion)
-          : resultSelection.insertBelow(result.suggestion);
+          ? resultSelection.replace(suggestion)
+          : resultSelection.insertBelow(suggestion);
         if (!ok) {
-          setResult((previous) => ({ ...previous, message: "选区内容已变化，旧结果未应用。" }));
+          setReviewError("所选文字已变化，旧结果没有应用。");
           return;
         }
+      } else if (finalBody !== null) {
+        onReplaceNote(finalBody);
       } else if (mode === "replace") {
-        onReplaceNote(result.suggestion);
+        onReplaceNote(suggestion);
       } else {
-        onInsertNote(result.suggestion);
+        onInsertNote(suggestion);
       }
       const message = request.scope === "selection"
-        ? (mode === "replace" ? "已替换所选文字，正在保存。" : "已插入所选文字下方，正在保存。")
-        : (mode === "replace" ? "已替换全文，正在保存。" : "已插入笔记末尾，正在保存。");
-      setThread((previous) => previous.map((item) => item.current ? { ...item, applied: true, current: false } : item));
+        ? (mode === "replace" ? "已替换选区，正在自动保存。" : "已插入选区下方，正在自动保存。")
+        : (mode === "replace" ? "已应用审阅后的修改，正在自动保存。" : "已插入内容，正在自动保存。");
+      setThread(previous => previous.map(item => item.current ? { ...item, applied: true, current: false } : item));
       setRequest(null);
       setResultSelection(null);
+      setReviewPlan(null);
       setResult({ status: "success", message, suggestion: "" });
     } finally {
       setApplying(false);
+    }
+  };
+
+  const refineReviewHunk = async (id: string, instruction: string) => {
+    if (!reviewPlan || !request || !result.runId || refiningHunk || applying || pending) return;
+    const hunk = reviewPlan.hunks.find(item => item.id === id);
+    if (!hunk?.suggested.trim()) return;
+    const generation = sequenceRef.current;
+    setRefiningHunk(id);
+    setReviewError("");
+    const data = new FormData();
+    data.set("note_id", noteId);
+    data.set("title", request.expectedTitle);
+    data.set("content", hunk.suggested.trim());
+    data.set("operation", "customSelection");
+    data.set("scope", "selection");
+    data.set("run_id", result.runId);
+    data.set("writing_mode", writingMode);
+    data.set("use_personal_context", "false");
+    data.set("instruction", instruction.trim() || "进一步润色这处文字，保留原有事实、语气和信息量。只返回可替换文字。");
+    data.set("context_before", request.content.slice(Math.max(0, hunk.from - 500), hunk.from));
+    data.set("context_after", request.content.slice(hunk.to, hunk.to + 500));
+    try {
+      const reply = await generateNoteAiSuggestion(data);
+      if (generation !== sequenceRef.current) return;
+      if (reply.status !== "success" || !reply.suggestion || reply.truncated || reply.unsafeToApply) {
+        setReviewError(reply.message || "这一处重新生成失败，原审阅结果已保留。");
+        return;
+      }
+      setReviewPlan(previous => previous && previous.source === request.content
+        ? reviseAiReviewHunk(previous, id, reply.suggestion)
+        : previous);
+    } catch {
+      if (generation === sequenceRef.current) setReviewError("该段重新生成失败；其他审阅决定仍已保留。");
+    } finally {
+      setRefiningHunk(null);
     }
   };
   const selectionOperation = (operation: NoteAiOperation) => {
@@ -334,6 +457,8 @@ export function NoteAiAssistant({
     if (!result.suggestion || !request || !rewrite) return null;
     return wordDiff(request.content, result.suggestion);
   }, [request, result.suggestion, rewrite]);
+  const reviewCounts = reviewPlan ? countAiReviewDecisions(reviewPlan) : null;
+  const reviewBusy = pending || applying || refiningHunk !== null;
   const statusColor =
     result.status === "error" ? "text-red-700" : "text-[var(--accent)]";
   const replaceLabel = request?.scope === "selection"
@@ -343,12 +468,15 @@ export function NoteAiAssistant({
     ? "插入到选区下方"
     : "插入到笔记末尾";
   const discardResult = () => {
+    setReviewPlan(null);
+    setReviewError("");
     setRequest(null);
     setResultSelection(null);
     setResult({ status: "idle", message: "", suggestion: "" });
   };
   const continueResult = () => {
     if (!request || !result.suggestion) return;
+    if (rewrite) { setReviewError("改写结果无法安全拼接续写。请缩小至章节后重新生成，原文没有改变。"); return; }
     run({ ...request, instruction: `${request.instruction ? `${request.instruction}\n\n` : ""}请从上一段被截断的位置继续。` }, resultSelection, result.suggestion.slice(-32_000));
   };
 
@@ -466,21 +594,30 @@ export function NoteAiAssistant({
                 <div className="grid gap-2 sm:grid-cols-2">
                   {rewrite ? (
                     <button
-                      disabled={applying}
+                      disabled={reviewBusy || Boolean(result.truncated || result.unsafeToApply) || Boolean(reviewCounts?.pending) || Boolean(reviewPlan && !reviewPlan.hunks.length)}
                       onClick={() => void apply("replace")}
                       className="min-h-10 rounded-[var(--radius-md)] bg-[var(--accent)] px-3 py-2 text-xs font-medium text-white shadow-sm transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                     >
-                      {replaceLabel}
+                      {reviewPlan && request?.scope !== "selection" ? "应用已审阅修改" : request?.scope === "section" ? "确认并替换章节" : replaceLabel}
                     </button>
                   ) : null}
                   <button
-                    disabled={applying}
+                    disabled={reviewBusy || Boolean(result.truncated || result.unsafeToApply) || Boolean(rewrite && reviewPlan)}
                     onClick={() => void apply("insert")}
                     className={`min-h-10 rounded-md px-3 py-2 text-xs font-medium ${rewrite ? "border bg-[var(--surface-canvas)] text-[var(--text-primary)]" : "bg-[var(--accent)] text-white sm:col-span-2"}`}
                   >
                     确认并{insertLabel}
                   </button>
                 </div>
+                {reviewPlan && rewrite ? (
+                  <p className="text-[12px] text-[var(--text-secondary)]">
+                    {reviewCounts?.pending ? `还有 ${reviewCounts.pending} 处等待决定；修改只会在最终确认时一起保存。` : "已完成逐段选择；最终写入前仍将检查原文版本。"}
+                  </p>
+                ) : null}
+                {result.truncated || result.unsafeToApply ? (
+                  <p role="alert" className="text-[12px] text-[var(--danger)]">内容不完整或存在遗漏风险，已禁止应用。</p>
+                ) : null}
+                {reviewError ? <p role="alert" className="text-[12px] text-[var(--danger)]">{reviewError}</p> : null}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   <button
                     onClick={() => void navigator.clipboard?.writeText(result.suggestion)}
@@ -490,10 +627,10 @@ export function NoteAiAssistant({
                     复制
                   </button>
                   <button
-                    onClick={() => result.truncated ? continueResult() : request && run(request, resultSelection)}
+                    onClick={() => result.truncated && !rewrite ? continueResult() : request && run(request, resultSelection)}
                     className="pressable min-h-8 rounded-[7px] px-1 text-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                   >
-                    {result.truncated ? "从截断处继续" : "重新生成"}
+                    {result.truncated && !rewrite ? "从截断处继续" : "重新生成"}
                   </button>
                   <button
                     onClick={discardResult}
@@ -574,6 +711,18 @@ export function NoteAiAssistant({
             >
               正在{noteAiOperationLabel(request.operation)}（{request.content.length} 字）
             </p>
+          ) : null}
+          {sections.length ? (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <label htmlFor="note-ai-scope" className="text-[12px] font-medium text-[var(--text-secondary)]">处理范围</label>
+              <select id="note-ai-scope" value={sectionId} onChange={event => setSectionId(event.target.value)}
+                className="ui-field min-h-11 min-w-0 flex-1 rounded-[8px] border border-[var(--control-border)] bg-[var(--surface-control)] px-3 text-[16px] text-[var(--text-primary)] md:text-[13px]">
+                <option value="whole">整篇笔记</option>
+                {sections.map(section => (
+                  <option key={section.id} value={section.id}>{"　".repeat(Math.max(0, section.level - 1))}{section.title}</option>
+                ))}
+              </select>
+            </div>
           ) : null}
           <div className="grid grid-cols-2 gap-2">
             {shortcuts.map(([operation, label, icon]) => (
@@ -699,11 +848,23 @@ export function NoteAiAssistant({
                       </button>
                     </div>
                   ) : null}
-                  <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[12px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? `所选文字 · ${request.content.length} 字` : "当前笔记"}</span>
+                  <span className="rounded bg-[var(--surface-hover)] px-2 py-1 text-[12px] text-[var(--text-tertiary)]">{request?.scope === "selection" ? `所选文字 · ${request.content.length} 字` : request?.scope === "section" ? `当前章节 · ${request.content.length} 字` : "当前笔记"}</span>
                   {result.modelId ? <span title="本次实际调用的模型" className="text-[11px] text-[var(--text-tertiary)]">{result.modelId}</span> : null}
                 </div>
               </div>
-              {diffSegments && showDiff ? (
+              {reviewPlan && rewrite && showDiff ? (
+                <NoteAiSegmentReview plan={reviewPlan} busy={reviewBusy} refining={refiningHunk}
+                  onChoose={(id: string, decision: AiReviewDecision) => {
+                    setReviewError("");
+                    setReviewPlan(previous => previous ? chooseAiReviewHunk(previous, id, decision) : previous);
+                  }}
+                  onChooseAll={decision => {
+                    setReviewError("");
+                    setReviewPlan(previous => previous ? chooseAllAiReviewHunks(previous, decision) : previous);
+                  }}
+                  onRefine={(id, instruction) => void refineReviewHunk(id, instruction)}
+                />
+              ) : diffSegments && showDiff ? (
                 <div className="whitespace-pre-wrap rounded-[9px] border border-[var(--separator)] bg-[var(--surface-canvas)] p-3 font-sans text-[12.5px] leading-5.5 text-[var(--text-primary)]">
                   {diffSegments.map((segment, index) =>
                     segment.type === "equal" ? (
@@ -727,10 +888,15 @@ export function NoteAiAssistant({
                   {result.warning}
                 </p>
               ) : null}
-              {result.truncated ? (
+              {result.truncated && !rewrite ? (
                 <button onClick={continueResult} className="pressable mt-2.5 h-8 rounded-[8px] px-2.5 text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]">
                   从截断处继续
                 </button>
+              ) : null}
+              {result.truncated && rewrite ? (
+                <p role="alert" className="mt-2 text-[12px] text-[var(--danger)]">
+                  本次改写不完整且无法安全续接，请使用上方“处理范围”选择章节后重新生成。
+                </p>
               ) : null}
               {result.contextSources?.length ? (
                 <details className="mt-3.5 border-t border-[var(--separator)] pt-3 text-[12px]">

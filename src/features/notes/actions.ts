@@ -159,7 +159,7 @@ const beforeAiApplySchema = z.object({
   expectedBody: z.string().max(200_000),
   operation: z.string().min(1).max(80),
   mode: z.enum(["replace", "insert"]),
-  scope: z.enum(["note", "selection"]),
+  scope: z.enum(["note", "selection", "section"]),
   runId: z.string().uuid().nullable().optional(),
 });
 

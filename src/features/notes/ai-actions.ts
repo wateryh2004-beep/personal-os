@@ -43,7 +43,7 @@ const requestSchema = z.object({
   instruction: z.string().trim().max(2_000).optional(),
   model: z.enum(deepSeekModelIds).optional(),
   writingMode: z.enum(noteWritingModes).optional(),
-  scope: z.enum(["note", "selection"]),
+  scope: z.enum(["note", "selection", "section"]),
   usePersonalContext: z.boolean().optional(),
   contextBefore: z.string().max(4_000).optional(),
   contextAfter: z.string().max(4_000).optional(),
@@ -64,9 +64,11 @@ export type NoteAiState = {
   message: string;
   suggestion: string;
   operation?: string;
-  scope?: "note" | "selection";
+  scope?: "note" | "selection" | "section";
   warning?: string;
   truncated?: boolean;
+  /** A partial/unsafe rewrite must never be written back to the note. */
+  unsafeToApply?: boolean;
   contextSources?: Array<{
     id: string;
     title: string;
@@ -181,18 +183,17 @@ export async function generateNoteAiSuggestion(
     // 换成占位符再发给模型，返回后还原，避免润色时被当成乱码删掉。辅助类操作
     // （askNote/summarize/explain 等）不保护，模型需要看到真实链接才能回答。
     const shouldProtect = isRewriteOperation(parsed.data.operation);
-    const { protected: protectedContent, restore } = shouldProtect
-      ? protectNoteStructures(parsed.data.content)
-      : { protected: parsed.data.content, restore: (text: string) => text };
+    const protectedNote = shouldProtect ? protectNoteStructures(parsed.data.content) : null;
+    const protectedContent = protectedNote?.protected ?? parsed.data.content;
     const structureRule = shouldProtect
       ? `\n\n${markdownStructureProtectionRule}`
       : "";
     const discussion = isDiscussionOperation(parsed.data.operation);
     const selectionNote =
-      parsed.data.scope === "selection"
+      parsed.data.scope === "selection" || parsed.data.scope === "section"
         ? discussion
-          ? `\n\n上下文：这是用户从笔记中选中的一段文字。围绕它讨论即可，绝不把回答伪装成待替换的正文。${noteAiSelectionContext({ before: parsed.data.contextBefore, after: parsed.data.contextAfter })}`
-          : `\n\n上下文：这是用户从笔记中选中的一段文字，可能位于文章中间；只处理这段文字，保留其原有的内部链接、双链、图片与代码块。${noteAiSelectionContext({ before: parsed.data.contextBefore, after: parsed.data.contextAfter })}`
+          ? `\n\n上下文：这是用户指定的笔记选区或章节。围绕它讨论即可，绝不把回答伪装成待替换的正文。${noteAiSelectionContext({ before: parsed.data.contextBefore, after: parsed.data.contextAfter })}`
+          : `\n\n上下文：这是用户指定的选区或完整章节，可能位于文章中间；只处理当前提供的部分，保留内部链接、图片、表格、代码块和色块。${noteAiSelectionContext({ before: parsed.data.contextBefore, after: parsed.data.contextAfter })}`
         : "";
     const continuationNote = parsed.data.continuationAfter
       ? `\n\n上一轮回答已在长度上限处中断。下面是末尾片段：\n${parsed.data.continuationAfter}\n\n从中断处自然继续；不要重复前文、不要重新开始任务。`
@@ -290,8 +291,23 @@ export async function generateNoteAiSuggestion(
       contextSources: result.contextSources,
       modelId: result.modelId,
     };
-    // 结构保护还原：模型输出里可能残留占位符，映射回真实的链接/双链/图片/代码块。
-    if (shouldProtect) response.suggestion = restore(response.suggestion).trim();
+    // Fail closed when any protected link, image, code, table or color block
+    // was dropped, duplicated or fabricated by the model.
+    if (protectedNote) {
+      const restored = protectedNote.restoreChecked(response.suggestion);
+      if (!restored.ok) {
+        await updateAgentRun({
+          supabase: owner.supabase, userId: owner.userId, runId, status: "failed",
+          model: result.modelId,
+        });
+        return {
+          status: "error", suggestion: "", runId, operation: parsed.data.operation,
+          scope: parsed.data.scope,
+          message: "AI 结果遗漏或重复了链接、图片、表格、代码或彩色色块，已阻止应用。原文未改变，请缩小处理范围重试。",
+        };
+      }
+      response.suggestion = restored.text.trim();
+    }
     // 改写护栏：改写类输出远短于原文时提示可能丢失内容（软提醒，不阻断确认）。
     const warning = shouldProtect
       ? evaluateRewriteGuardrail(parsed.data.content.length, response.suggestion.length)
@@ -300,10 +316,20 @@ export async function generateNoteAiSuggestion(
     // 比"远短于原文"更直接地说明末尾内容可能没处理完。优先展示截断提示。
     if (result.finishReason === "length") {
       response.truncated = true;
+      response.unsafeToApply = true;
       response.warning =
-        "AI 输出达到长度上限被截断，原文末尾可能未处理完整。建议对超长笔记改用选区分块润色。";
+        "AI 输出达到长度上限，生成结果不完整。已禁止直接写入；请缩小为章节或选区后重新处理。";
     } else if (warning) {
       response.warning = warning;
+    }
+    // Very long whole-note rewrites that collapse most source content are not
+    // safe to replace automatically. Selection shortening remains permitted.
+    if (shouldProtect && parsed.data.scope === "note" &&
+        ["polishNote", "restructureNote", "translateNote"].includes(parsed.data.operation) &&
+        parsed.data.content.length >= 8_000 &&
+        response.suggestion.length < parsed.data.content.length * 0.55) {
+      response.unsafeToApply = true;
+      response.warning = "长文结果明显短于原文，可能遗漏章节或事实。已禁止全文覆盖，请按章节分批处理。";
     }
     // 把 AI 结果作为本轮助手消息落库，与用户消息形成完整对话记录。
     await persistAgentMessage({

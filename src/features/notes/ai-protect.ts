@@ -4,38 +4,33 @@ import {
 } from "./links/parser";
 
 /**
- * Notes AI 结构保护：润色/改写前，把笔记里的内部链接、双链、图片与代码块
- * 替换成 ⟦N⟧ 占位符发给模型，模型碰不到这些"像乱码"的结构；返回后再按 key
- * 还原。占位符用数学白方块括号 + 十进制索引：不撞 Markdown 语法、不撞真实
- * 内容（对原文已有的 ⟦k⟧ 跳号）、模型不易剥离、可唯一还原。
+ * Preserve Markdown structures as indivisible placeholders during an AI rewrite.
+ * A protected structure may move, but its exact bytes and multiplicity must
+ * survive the rewrite. The original Markdown remains the only source of truth.
  */
 export type ProtectSpan = {
-  /** 半开区间 [from, to)，字符偏移 */
   from: number;
   to: number;
-  /** 被保护结构的原始文本（还原用） */
   text: string;
-  kind: "codeblock" | "inlinecode" | "link" | "wiki" | "image";
+  kind: "codeblock" | "inlinecode" | "link" | "wiki" | "image" | "table" | "callout" | "color";
 };
-
 export type ProtectedNote = {
-  /** 发给模型的内容（结构 → ⟦N⟧） */
   protected: string;
-  /** 保护了多少个结构 */
   count: number;
-  /** 模型输出 → 还原真实结构 */
   restore: (text: string) => string;
+  restoreChecked: (text: string) =>
+    | { ok: true; text: string }
+    | { ok: false; reason: "missing_structure" | "duplicated_structure" | "unknown_placeholder" };
 };
 
 const TOKEN_PATTERN = /⟦(\d+)⟧/g;
 const FENCE_OPEN_RE = /^ {0,3}(`{3,}|~{3,})/;
 const INLINE_CODE_RE = /(`+)([^`\n]+?)\1/g;
 const IMAGE_RE = /!\[([^\]\n]*)\]\(([^)\s]+)(?:\s+[^)]*)?\)/g;
+const COLOR_RE = /\{\{(?:ink|mark):[a-z][a-z-]*\|[^{}\r\n]+\}\}/g;
+const CALLOUT_RE = /^ {0,3}>\s*\[!(?:NOTE|WARNING|IMPORTANT|TIP|QUOTE)\](?:\s+.*)?$/;
+const QUOTE_LINE_RE = /^ {0,3}>\s?/;
 
-/**
- * 阶段一：围栏代码块。整块（含围栏）为一个 span，块内的 [[...]]、[x](/notes/uuid)、
- * ![](...) 都是代码内容，天然被排除在链接/图片保护之外。未闭合的围栏保护到文末。
- */
 function findCodeRegions(markdown: string): ProtectSpan[] {
   const spans: ProtectSpan[] = [];
   let cursor = 0;
@@ -43,9 +38,9 @@ function findCodeRegions(markdown: string): ProtectSpan[] {
   let blockStart = 0;
   for (const line of markdown.split("\n")) {
     const lineStart = cursor;
-    cursor += line.length + 1; // +1 换行；末尾 slice 自动收敛
+    cursor += line.length + 1;
     if (fence) {
-      const char = fence.char === "`" ? "`" : "~";
+      const char = fence.char;
       const closer = new RegExp(`^ {0,3}${char}{${fence.length},}\\s*$`).test(line);
       if (closer) {
         const to = Math.min(lineStart + line.length + 1, markdown.length);
@@ -60,32 +55,58 @@ function findCodeRegions(markdown: string): ProtectSpan[] {
       }
     }
   }
-  if (fence) {
-    spans.push({ from: blockStart, to: markdown.length, text: markdown.slice(blockStart), kind: "codeblock" });
-  }
+  if (fence) spans.push({ from: blockStart, to: markdown.length, text: markdown.slice(blockStart), kind: "codeblock" });
   return spans;
 }
-
 function findInlineCode(markdown: string): ProtectSpan[] {
-  const spans: ProtectSpan[] = [];
-  for (const match of markdown.matchAll(INLINE_CODE_RE)) {
-    spans.push({ from: match.index, to: match.index + match[0].length, text: match[0], kind: "inlinecode" });
-  }
-  return spans;
+  return [...markdown.matchAll(INLINE_CODE_RE)].map(match => ({
+    from: match.index, to: match.index + match[0].length, text: match[0], kind: "inlinecode" as const,
+  }));
 }
-
 function findImages(markdown: string): ProtectSpan[] {
+  return [...markdown.matchAll(IMAGE_RE)].map(match => ({
+    from: match.index, to: match.index + match[0].length, text: match[0], kind: "image" as const,
+  }));
+}
+function findColors(markdown: string): ProtectSpan[] {
+  return [...markdown.matchAll(COLOR_RE)].map(match => ({
+    from: match.index, to: match.index + match[0].length, text: match[0], kind: "color" as const,
+  }));
+}
+function isTableSeparator(line: string) {
+  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const columns = trimmed.split("|");
+  return columns.length >= 2 && columns.every(column => /^:?-{3,}:?$/.test(column.trim()));
+}
+function findStructuredBlocks(markdown: string): ProtectSpan[] {
+  const lines = markdown.split("\n");
+  const offsets = [0];
+  for (const line of lines) offsets.push(offsets[offsets.length - 1] + line.length + 1);
   const spans: ProtectSpan[] = [];
-  for (const match of markdown.matchAll(IMAGE_RE)) {
-    spans.push({ from: match.index, to: match.index + match[0].length, text: match[0], kind: "image" });
+  const push = (i: number, j: number, kind: "table" | "callout") => {
+    const from = offsets[i];
+    const to = Math.min(offsets[j], markdown.length);
+    spans.push({ from, to, text: markdown.slice(from, to), kind });
+  };
+  for (let i = 0; i < lines.length; i++) {
+    if (CALLOUT_RE.test(lines[i])) {
+      let j = i + 1;
+      while (j < lines.length && QUOTE_LINE_RE.test(lines[j])) j++;
+      push(i, j, "callout");
+      i = j - 1;
+      continue;
+    }
+    if (lines[i].includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      let j = i + 2;
+      while (j < lines.length && lines[j].trim() && lines[j].includes("|")) j++;
+      push(i, j, "table");
+      i = j - 1;
+    }
   }
   return spans;
 }
 
-/**
- * k 路归并：各来源的匹配天然按 from 升序。重叠时保留外层（先出现、更长者）——
- * 代码块整块先入，块内的链接/图片/双链自然被丢弃；同起点取长。
- */
+/** k-way stable merge: a containing code/table/callout span wins over nested links. */
 function mergeSpans(groups: ProtectSpan[][]): ProtectSpan[] {
   const ptr = groups.map(() => 0);
   const result: ProtectSpan[] = [];
@@ -94,53 +115,59 @@ function mergeSpans(groups: ProtectSpan[][]): ProtectSpan[] {
     for (let g = 0; g < groups.length; g++) {
       const span = groups[g][ptr[g]];
       if (!span) continue;
-      if (!best || span.from < best.s.from || (span.from === best.s.from && span.to > best.s.to)) {
-        best = { g, s: span };
-      }
+      if (!best || span.from < best.s.from || (span.from === best.s.from && span.to > best.s.to)) best = { g, s: span };
     }
     if (!best) break;
     ptr[best.g]++;
     const span = best.s;
-    if (result.length === 0 || span.from >= result[result.length - 1].to) {
-      result.push(span);
-    }
+    if (result.length === 0 || span.from >= result[result.length - 1].to) result.push(span);
   }
   return result;
 }
 
-export function protectNoteStructures(markdown: string): ProtectedNote {
-  // 记录原文中已存在的 ⟦数字⟧，给新 token 跳号，保证占位符不与真实内容碰撞。
-  const occupied = new Set<number>();
-  for (const match of markdown.matchAll(TOKEN_PATTERN)) occupied.add(Number(match[1]));
-
-  const groups: ProtectSpan[][] = [
+export function collectProtectedNoteSpans(markdown: string): ProtectSpan[] {
+  return mergeSpans([
     findCodeRegions(markdown),
+    findStructuredBlocks(markdown),
+    findColors(markdown),
     findInlineCode(markdown),
     findImages(markdown),
-    parseInternalNoteLinkOccurrences(markdown).map((link) => ({
-      from: link.from,
-      to: link.to,
-      text: markdown.slice(link.from, link.to),
-      kind: "link" as const,
+    parseInternalNoteLinkOccurrences(markdown).map(link => ({
+      from: link.from, to: link.to, text: markdown.slice(link.from, link.to), kind: "link" as const,
     })),
-    parseWikiNoteLinkOccurrences(markdown).map((link) => ({
-      from: link.from,
-      to: link.to,
-      text: markdown.slice(link.from, link.to),
-      kind: "wiki" as const,
+    parseWikiNoteLinkOccurrences(markdown).map(link => ({
+      from: link.from, to: link.to, text: markdown.slice(link.from, link.to), kind: "wiki" as const,
     })),
-  ];
-  const spans = mergeSpans(groups);
+  ]);
+}
 
+/** Exact structural multiset comparison, irrespective of paragraph order. */
+export function preservesProtectedNoteStructures(original: string, candidate: string): boolean {
+  const counts = new Map<string, number>();
+  const key = (span: ProtectSpan) => span.kind + "\u0000" + span.text;
+  for (const span of collectProtectedNoteSpans(original)) {
+    const k = key(span);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  for (const span of collectProtectedNoteSpans(candidate)) {
+    const k = key(span);
+    const n = counts.get(k);
+    if (!n) return false;
+    counts.set(k, n - 1);
+  }
+  return [...counts.values()].every(n => n === 0);
+}
+
+export function protectNoteStructures(markdown: string): ProtectedNote {
+  const occupied = new Set<number>();
+  for (const match of markdown.matchAll(TOKEN_PATTERN)) occupied.add(Number(match[1]));
+  const spans = collectProtectedNoteSpans(markdown);
   const tokenMap = new Map<string, string>();
   let next = 0;
   const takeIndex = () => {
-    while (occupied.has(next)) next += 1;
-    const value = next;
-    next += 1;
-    return value;
+    while (occupied.has(next)) next++;
+    return next++;
   };
-
   let out = "";
   let cursor = 0;
   for (const span of spans) {
@@ -151,11 +178,24 @@ export function protectNoteStructures(markdown: string): ProtectedNote {
     cursor = span.to;
   }
   out += markdown.slice(cursor);
-
-  // 还原按 key 查表，模型重排/复用/只保留一部分占位符都能正确还原；
-  // 模型自己新造的 ⟦k⟧（不在 map）原样保留。
   const restore = (text: string): string =>
-    text.replace(TOKEN_PATTERN, (full) => tokenMap.get(full) ?? full);
-
-  return { protected: out, count: spans.length, restore };
+    text.replace(TOKEN_PATTERN, full => tokenMap.get(full) ?? full);
+  const restoreChecked: ProtectedNote["restoreChecked"] = text => {
+    const seen = new Map<string, number>();
+    for (const match of text.matchAll(TOKEN_PATTERN)) {
+      const token = match[0];
+      if (!tokenMap.has(token) && !occupied.has(Number(match[1])))
+        return { ok: false, reason: "unknown_placeholder" };
+      if (tokenMap.has(token)) seen.set(token, (seen.get(token) ?? 0) + 1);
+    }
+    for (const token of tokenMap.keys()) {
+      if (!seen.has(token)) return { ok: false, reason: "missing_structure" };
+      if (seen.get(token) !== 1) return { ok: false, reason: "duplicated_structure" };
+    }
+    const restored = restore(text);
+    if (!preservesProtectedNoteStructures(markdown, restored))
+      return { ok: false, reason: "missing_structure" };
+    return { ok: true, text: restored };
+  };
+  return { protected: out, count: spans.length, restore, restoreChecked };
 }

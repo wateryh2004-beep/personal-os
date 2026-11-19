@@ -208,7 +208,7 @@ export function noteAiOperationLabel(operation: NoteAiOperation) {
 export function noteAiUserMessage(
   operation: NoteAiOperation,
   instruction?: string,
-  scope?: "note" | "selection",
+  scope?: "note" | "selection" | "section",
 ) {
   const label = labels[operation];
   if (instruction?.trim()) {
@@ -219,7 +219,7 @@ export function noteAiUserMessage(
   }
   return scope === "selection"
     ? `对所选文字执行「${label}」`
-    : `对当前笔记执行「${label}」`;
+    : scope === "section" ? `对指定章节执行「${label}」` : `对当前笔记执行「${label}」`;
 }
 
 /**
