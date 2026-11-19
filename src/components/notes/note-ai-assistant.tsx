@@ -216,6 +216,7 @@ export function NoteAiAssistant({
       { id: `note-ai-user-${Date.now()}`, role: "user", content: userText },
     ]);
     setReviewPlan(null);
+    setShowDiff(true);
     setReviewError("");
     setRequest(launched);
     setResultSelection(next.scope === "selection" ? targetSelection : null);
@@ -831,7 +832,7 @@ export function NoteAiAssistant({
                   <p className="mt-0.5 text-[12px] leading-5 text-[var(--text-secondary)]">{discussion ? "这段回复已保存到本篇笔记的讨论历史，不会写入正文。" : "使用底部固定确认区决定是否写入笔记。"}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {diffSegments ? (
+                  {diffSegments || reviewPlan ? (
                     <div className="flex overflow-hidden rounded-md border border-[var(--surface-hover)] text-[12px]">
                       <button
                         type="button"
